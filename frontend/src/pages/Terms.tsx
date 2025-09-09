@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { FileText, Scale, AlertTriangle, Gavel, CreditCard, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import Layout from "@/components/layout/Layout";
+import { useMeta } from "@/hooks/useMeta";
 
 const Terms = () => {
   const tableOfContents = [
@@ -24,6 +25,11 @@ const Terms = () => {
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  useMeta({
+    title: "Terms and Conditions",
+    description: "Read Nuru's terms and conditions for using the platform and services."
+  });
 
   return (
     <Layout>

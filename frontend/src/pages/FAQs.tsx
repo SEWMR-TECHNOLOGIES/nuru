@@ -10,6 +10,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import Layout from "@/components/layout/Layout";
+import { useMeta } from "@/hooks/useMeta";
 
 const FAQs = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -93,6 +94,11 @@ const FAQs = () => {
         faq.answer.toLowerCase().includes(searchTerm.toLowerCase())
     )
   })).filter(category => category.questions.length > 0);
+
+  useMeta({
+    title: "FAQs",
+    description: "Frequently asked questions about using Nuru for event planning."
+  });
 
   return (
     <Layout>

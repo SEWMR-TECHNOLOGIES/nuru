@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/layout/Layout";
+import { useMeta } from "@/hooks/useMeta";
 
 const Register = () => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -125,6 +126,11 @@ const Register = () => {
     visible: { opacity: 1, x: 0 },
     exit: { opacity: 0, x: -50 }
   };
+
+  useMeta({
+    title: "Join Nuru",
+    description: "Create an account on Nuru to start planning and organizing your events."
+  });
 
   return (
     <Layout>

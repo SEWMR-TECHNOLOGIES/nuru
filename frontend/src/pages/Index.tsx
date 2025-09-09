@@ -22,6 +22,7 @@ import heroImage from "@/assets/plan.png";
 import planningIllustration from "@/assets/planning-illustration.jpg";
 import corporateEvent from "@/assets/corporate-event.jpg";
 import DavidWedding from "@/assets/david-wedding.png";
+import { useMeta } from "@/hooks/useMeta";
 
 const Index = () => {
   const features = [
@@ -89,6 +90,11 @@ const Index = () => {
     { icon: Tent, name: "Venues" }
   ];
 
+  useMeta({
+    title: "Plan Smarter",
+    description: "Discover how Nuru helps you plan, manage, and celebrate events faster and more efficiently."
+  });
+   
   return (
     <Layout>
       {/* Hero Section */}

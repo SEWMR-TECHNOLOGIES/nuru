@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/layout/Layout";
+import { useMeta } from "@/hooks/useMeta";
 
 const Contact = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -49,7 +50,12 @@ const Contact = () => {
       description: "Our headquarters"
     }
   ];
-
+  
+  useMeta({
+    title: "Contact Us",
+    description: "Reach out to Nuru for all your event planning needs."
+  });
+  
   return (
     <Layout>
       <div className="section-padding bg-background">

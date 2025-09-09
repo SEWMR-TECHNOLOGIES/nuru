@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/layout/Layout";
+import { useMeta } from "@/hooks/useMeta";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -75,6 +76,11 @@ const Login = () => {
       description: `Redirecting to ${provider} for authentication...`,
     });
   };
+
+  useMeta({
+    title: "Login",
+    description: "Access your Nuru account to manage your events and bookings."
+  });
 
   return (
     <Layout>

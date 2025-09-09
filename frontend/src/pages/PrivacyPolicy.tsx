@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Shield, Eye, Lock, UserCheck, Database, Phone } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import Layout from "@/components/layout/Layout";
+import { useMeta } from "@/hooks/useMeta";
 
 const PrivacyPolicy = () => {
   const tableOfContents = [
@@ -20,6 +21,11 @@ const PrivacyPolicy = () => {
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  useMeta({
+    title: "Privacy Policy",
+    description: "Learn how Nuru collects, uses, and protects your personal information."
+  });
 
   return (
     <Layout>
