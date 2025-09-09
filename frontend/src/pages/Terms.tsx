@@ -326,10 +326,10 @@ const Terms = () => {
                       If you have questions about these Terms or need legal assistance, please contact us:
                     </p>
                     <div className="space-y-2 text-muted-foreground mb-6">
-                      <p><strong>Legal Department:</strong> legal@nuru.com</p>
-                      <p><strong>General Support:</strong> support@nuru.com</p>
-                      <p><strong>Phone:</strong> +1 (555) 123-4567</p>
-                      <p><strong>Address:</strong> 123 Event Street, Planning City, PC 12345</p>
+                      <p><strong>Legal Department:</strong> legal@nuru.tz</p>
+                      <p><strong>General Support:</strong> support@nuru.tz</p>
+                      <p><strong>Phone:</strong> +255 (0) 653 750 805</p>
+                      <p><strong>Address:</strong> Arusha, Tanzania</p>
                     </div>
                     <Link 
                       to="/contact" 

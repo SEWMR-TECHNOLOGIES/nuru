@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/accordion";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
+import { Link } from "react-router-dom";
 
 const FAQs = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -209,12 +210,9 @@ const FAQs = () => {
                 <p className="text-muted-foreground mb-6">
                   Our support team is here to help you plan the perfect event.
                 </p>
-                <a
-                  href="/contact"
-                  className="inline-flex items-center justify-center btn-hero-primary"
-                >
+                <Link to="/contact" className="inline-flex items-center justify-center btn-hero-primary">
                   Contact Support
-                </a>
+                </Link>
               </CardContent>
             </Card>
           </motion.div>

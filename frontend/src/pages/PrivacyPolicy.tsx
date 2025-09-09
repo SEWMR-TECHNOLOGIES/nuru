@@ -338,9 +338,9 @@ const PrivacyPolicy = () => {
                       If you have any questions about this Privacy Policy or our data practices, please contact us:
                     </p>
                     <div className="space-y-2 text-muted-foreground">
-                      <p><strong>Email:</strong> privacy@nuru.com</p>
-                      <p><strong>Phone:</strong> +1 (555) 123-4567</p>
-                      <p><strong>Address:</strong> 123 Event Street, Planning City, PC 12345</p>
+                      <p><strong>Email:</strong> privacy@nuru.tz</p>
+                      <p><strong>Phone:</strong> +255 (0) 653 750 805</p>
+                      <p><strong>Address:</strong> Arusha, Tanzania</p>
                     </div>
                     <div className="mt-6">
                       <Link 
