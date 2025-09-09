@@ -363,19 +363,21 @@ const Index = () => {
               </div>
             </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, x: 50 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              viewport={{ once: true }}
-              className="relative"
-            >
-              <img 
-                src={planningIllustration} 
-                alt="Event planning made easy"
-                className="w-full rounded-2xl shadow-lg"
-              />
-            </motion.div>
+            <div className="overflow-hidden">
+              <motion.div
+                initial={{ opacity: 0, x: 50 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.8, delay: 0.2 }}
+                viewport={{ once: true }}
+                className="relative"
+              >
+                <img 
+                  src={planningIllustration} 
+                  alt="Event planning made easy"
+                  className="w-full h-auto rounded-2xl shadow-lg"
+                />
+              </motion.div>
+            </div>
           </div>
         </div>
       </section>
