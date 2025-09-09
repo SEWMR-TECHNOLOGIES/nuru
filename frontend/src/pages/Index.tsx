@@ -17,9 +17,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Layout from "@/components/layout/Layout";
-import heroImage from "@/assets/hero-event.jpg";
+import saraEvent from "@/assets/hero-event.jpg";
+import heroImage from "@/assets/plan.png";
 import planningIllustration from "@/assets/planning-illustration.jpg";
 import corporateEvent from "@/assets/corporate-event.jpg";
+import DavidWedding from "@/assets/david-wedding.png";
 
 const Index = () => {
   const features = [
@@ -51,14 +53,14 @@ const Index = () => {
   ];
 
   const mockEvents = [
-    {
+      {
       id: 1,
-      title: "Sarah & John's Wedding",
-      image: heroImage,
-      likes: 234,
-      comments: 45,
-      rsvps: 120,
-      date: "Dec 15, 2024"
+      title: "David's Wedding",
+      image: DavidWedding,
+      likes: 456,
+      comments: 76,
+      rsvps: 85,
+      date: "July 22, 2025"
     },
     {
       id: 2,
@@ -71,13 +73,13 @@ const Index = () => {
     },
     {
       id: 3,
-      title: "Birthday Celebration",
-      image: planningIllustration,
-      likes: 156,
-      comments: 28,
-      rsvps: 85,
-      date: "Dec 22, 2024"
-    }
+      title: "Sarah & John's Wedding",
+      image: saraEvent,
+      likes: 234,
+      comments: 45,
+      rsvps: 120,
+      date: "Dec 15, 2024"
+    },
   ];
 
   const providers = [
@@ -113,7 +115,7 @@ const Index = () => {
                 <Button 
                   variant="outline" 
                   className="border-2 border-foreground/20 text-hero-foreground hover:bg-foreground/5"
-                  onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+                  onClick={() => document.getElementById('feed')?.scrollIntoView({ behavior: 'smooth' })}
                 >
                   Explore Events
                 </Button>
@@ -246,7 +248,7 @@ const Index = () => {
 
 
       {/* Public Feed Preview */}
-      <section className="section-padding bg-background">
+      <section id="feed" className="section-padding bg-background">
         <div className="container-custom">
           <motion.div
             initial={{ opacity: 0, y: 50 }}

@@ -40,7 +40,7 @@ const Header = () => {
             <img 
               src="/uploads/7690c38c-b08a-42fd-8033-c559fc3b5c67.png" 
               alt="Nuru Logo" 
-              className="h-8 w-auto"
+              className="h-12 w-auto"
             />
           </Link>
 

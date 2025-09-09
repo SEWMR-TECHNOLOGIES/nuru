@@ -137,12 +137,6 @@ const Register = () => {
         >
           <Card className="shadow-xl">
             <CardHeader className="text-center space-y-4">
-              <div className="flex items-center justify-center space-x-2">
-                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-primary-foreground" />
-                </div>
-                <span className="text-xl font-bold text-foreground">Nuru</span>
-              </div>
               <div>
                 <CardTitle className="text-2xl font-bold text-foreground">
                   Join Nuru Today
