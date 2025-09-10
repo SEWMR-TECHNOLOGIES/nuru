@@ -103,9 +103,9 @@ const Index = () => {
   return (
     <Layout>
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-hero">
-        <div className="container-custom section-padding">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+      <section className="relative overflow-hidden bg-hero min-h-screen">
+        <div className="container-custom section-padding h-full">
+          <div className="grid lg:grid-cols-2 gap-12 items-center h-full">
             <motion.div
               initial={{ opacity: 0, x: -50 }}
               animate={{ opacity: 1, x: 0 }}
@@ -137,13 +137,13 @@ const Index = () => {
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8, delay: 0.2 }}
-              className="relative"
+              className="relative h-full"
             >
-              <div className="relative overflow-hidden rounded-2xl shadow-2xl">
+              <div className="relative overflow-hidden rounded-2xl shadow-2xl h-full">
                 <img 
                   src={heroImage} 
                   alt="Beautiful event celebration" 
-                  className="w-full h-[400px] sm:h-[500px] object-cover"
+                  className="w-full h-full object-cover rounded-2xl shadow-xl"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
               </div>

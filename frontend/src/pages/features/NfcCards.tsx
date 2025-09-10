@@ -42,7 +42,7 @@ const NfcCards = () => {
 
   return (
     <Layout>
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background section-padding">
         {/* Header */}
         <div className="bg-hero py-16">
           <div className="container-custom">
@@ -181,7 +181,7 @@ const NfcCards = () => {
                 transition={{ delay: 1.6 }}
                 className="text-center"
               >
-                <div className="w-16 h-16 bg-accent-brand text-white rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-bold">
+                <div className="w-16 h-16 bg-accent text-white rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-bold">
                   1
                 </div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">Setup Event</h3>
@@ -194,7 +194,7 @@ const NfcCards = () => {
                 transition={{ delay: 1.8 }}
                 className="text-center"
               >
-                <div className="w-16 h-16 bg-accent-brand text-white rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-bold">
+                <div className="w-16 h-16 bg-accent text-white rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-bold">
                   2
                 </div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">Distribute Cards</h3>
@@ -207,7 +207,7 @@ const NfcCards = () => {
                 transition={{ delay: 2 }}
                 className="text-center"
               >
-                <div className="w-16 h-16 bg-accent-brand text-white rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-bold">
+                <div className="w-16 h-16 bg-accent text-white rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-bold">
                   3
                 </div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">Tap & Go</h3>

@@ -42,7 +42,7 @@ const Invitations = () => {
 
   return (
     <Layout>
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background section-padding">
         {/* Header */}
         <div className="bg-hero py-16">
           <div className="container-custom">
