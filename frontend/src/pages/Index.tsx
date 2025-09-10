@@ -406,7 +406,11 @@ const Index = () => {
             <p className="text-lg text-background/80 mb-8 max-w-2xl mx-auto">
               Plan, organize, and manage every detail in one place. Nuru brings you closer to the people and services you need.
             </p>
-            <Button asChild size="lg" className="btn-hero-secondary">
+             <Button 
+              asChild 
+              size="lg" 
+              className="bg-accent-brand hover:bg-accent-brand/90 text-white font-bold px-12 py-4 text-lg rounded-2xl shadow-2xl hover:shadow-accent-brand/30 transform hover:scale-105 transition-all duration-300 border-2 border-accent-brand/20"
+            >
               <Link to="/register">Join Nuru Now</Link>
             </Button>
           </motion.div>

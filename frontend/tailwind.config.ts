@@ -107,6 +107,10 @@ export default {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
       },
+       maxWidth: {
+        "8xl": "90rem",  // 1440px
+        "9xl": "100rem", // 1600px (optional, for ultra-wide screens)
+      },
     },
   },
   plugins: [require("tailwindcss-animate")],
