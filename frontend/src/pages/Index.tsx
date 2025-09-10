@@ -29,27 +29,32 @@ const Index = () => {
     {
       icon: Calendar,
       title: "Smart Event Planning",
-      description: "Plan weddings, parties, and ceremonies with clarity and zero stress."
+      description: "Plan weddings, parties, and ceremonies with clarity and zero stress.",
+      slug: "event-planning"
     },
     {
       icon: Users,
       title: "Verified Service Providers",
-      description: "Book trusted vendors for catering, tents, DJs, photographers, and more."
+      description: "Book trusted vendors for catering, tents, DJs, photographers, and more.",
+      slug: "service-providers"
     },
     {
       icon: MessageCircle,
       title: "Interactive Invitations",
-      description: "Design beautiful invites and track RSVPs in real time."
+      description: "Design beautiful invites and track RSVPs in real time.",
+      slug: "invitations"
     },
     {
       icon: Sparkles,
       title: "NFC-Ready Nuru Card",
-      description: "Seamless guest check-ins with our next-gen event access technology."
+      description: "Seamless guest check-ins with our next-gen event access technology.",
+      slug: "nfc-cards"
     },
     {
       icon: CreditCard,
       title: "Secure Payments",
-      description: "Book and pay with confidence — fully protected transactions."
+      description: "Book and pay with confidence — fully protected transactions.",
+      slug: "payments"
     }
   ];
 
@@ -183,21 +188,25 @@ const Index = () => {
                   transition={{ duration: 0.6, delay: index * 0.1 }}
                   viewport={{ once: true }}
                 >
-                  <Card className="feature-card h-full bg-white/5 backdrop-blur-md rounded-3xl border border-white/10 transition-transform duration-500 hover:-translate-y-3 hover:shadow-xl group">
-                    <CardContent className="p-8 flex flex-col items-start space-y-4">
-                      <div className="w-16 h-16 bg-accent/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-accent/20 transition-all duration-500">
-                        <Icon className="w-7 h-7 text-accent drop-shadow-lg group-hover:animate-pulse" />
-                      </div>
-                      <h3 className="text-xl font-bold text-card-foreground mb-2 group-hover:text-accent transition-colors duration-300">
-                        {feature.title}
-                      </h3>
-                      <p className="text-muted-foreground leading-relaxed">
-                        {feature.description}
-                      </p>
-                      {/* Optional hover underline */}
-                      <span className="block w-12 h-1 bg-accent rounded-full mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
-                    </CardContent>
-                  </Card>
+                  <Link 
+                    to={`/features/${feature.slug}`}
+                    className="block h-full"
+                  >
+                    <Card className="feature-card h-full bg-white/5 backdrop-blur-md rounded-3xl border border-white/10 transition-transform duration-500 hover:-translate-y-3 hover:shadow-xl group cursor-pointer">
+                      <CardContent className="p-8 flex flex-col items-start space-y-4">
+                        <div className="w-16 h-16 bg-accent-brand/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-accent-brand/20 transition-all duration-500">
+                          <Icon className="w-7 h-7 text-accent-brand drop-shadow-lg group-hover:animate-pulse" />
+                        </div>
+                        <h3 className="text-xl font-bold text-card-foreground mb-2 group-hover:text-accent-brand transition-colors duration-300">
+                          {feature.title}
+                        </h3>
+                        <p className="text-muted-foreground leading-relaxed">
+                          {feature.description}
+                        </p>
+                        <span className="block w-12 h-1 bg-accent-brand rounded-full mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                      </CardContent>
+                    </Card>
+                  </Link>
                 </motion.div>
               );
             })}
@@ -406,7 +415,7 @@ const Index = () => {
             <p className="text-lg text-background/80 mb-8 max-w-2xl mx-auto">
               Plan, organize, and manage every detail in one place. Nuru brings you closer to the people and services you need.
             </p>
-             <Button 
+            <Button 
               asChild 
               size="lg" 
               className="bg-accent-brand hover:bg-accent-brand/90 text-white font-bold px-12 py-4 text-lg rounded-2xl shadow-2xl hover:shadow-accent-brand/30 transform hover:scale-105 transition-all duration-300 border-2 border-accent-brand/20"
