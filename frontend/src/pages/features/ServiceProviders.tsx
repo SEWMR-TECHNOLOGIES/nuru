@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Shield, Star, Search, MessageCircle } from "lucide-react";
 import Layout from "@/components/layout/Layout";
-import corporateImg from "@/assets/corporate-event.jpg";
+import featureImg from "@/assets/feature-service-providers.jpg";
 import { useMeta } from "@/hooks/useMeta";
 
 const ServiceProviders = () => {
@@ -43,8 +43,8 @@ const ServiceProviders = () => {
   return (
     <Layout>
       <div className="min-h-screen bg-background section-padding">
-        {/* Header */}
-        <div className="bg-hero py-16">
+        {/* Hero Header */}
+        <div className="bg-foreground text-background py-20">
           <div className="container-custom">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -55,7 +55,7 @@ const ServiceProviders = () => {
                 asChild
                 variant="outline"
                 size="sm"
-                className="mb-6 border-foreground/20 text-hero-foreground hover:bg-foreground/5"
+                className="mb-8 border-background/20 text-background hover:bg-background/10"
               >
                 <Link to="/" className="inline-flex items-center">
                   <ArrowLeft className="w-4 h-4 mr-2" />
@@ -63,62 +63,74 @@ const ServiceProviders = () => {
                 </Link>
               </Button>
 
-              <h1 className="text-4xl sm:text-5xl font-bold mb-6 text-hero-foreground">
-                Verified Service Providers
+              <h1 className="text-5xl sm:text-6xl font-bold mb-6">
+                Verified Service
+                <span className="block text-accent-brand">Providers</span>
               </h1>
 
-              <p className="text-xl text-hero-foreground/80 max-w-2xl mx-auto">
-                Book trusted vendors for catering, tents, DJs, photographers, and more with confidence and ease.
+              <p className="text-xl text-background/80 max-w-2xl mx-auto mb-8">
+                Connect with trusted, top-rated professionals who bring your event vision to life.
               </p>
+
+              <Button asChild size="lg" className="bg-accent-brand hover:bg-accent-brand/90 text-foreground">
+                <Link to="/register">Browse Providers</Link>
+              </Button>
             </motion.div>
           </div>
         </div>
 
 
-        {/* Hero Section */}
-        <div className="py-16">
+        {/* Hero Visual Section */}
+        <div className="py-20 section-padding">
           <div className="container-custom">
-            <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div className="grid lg:grid-cols-2 gap-16 items-center">
               <motion.div
                 initial={{ opacity: 0, x: -30 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.2 }}
-                className="space-y-6"
+                className="space-y-8"
               >
-                <h2 className="text-3xl font-bold text-foreground">
-                  Connect with Top-Rated Professionals
-                </h2>
-                <p className="text-lg text-muted-foreground">
-                  Our network of verified service providers ensures you get the best talent for your events. From intimate dinners to large corporate gatherings, find professionals who understand your vision and deliver exceptional results.
-                </p>
-                <div className="space-y-2">
+                <div className="space-y-6">
+                  <h2 className="text-4xl font-bold text-foreground">
+                    Connect with Elite Event Professionals
+                  </h2>
+                  <p className="text-lg text-muted-foreground leading-relaxed">
+                    Access our curated network of 500+ verified service providers. Every professional is thoroughly vetted, rated by real clients, and committed to delivering exceptional results for your events.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
                   {providerTypes.map((type, index) => (
                     <motion.div
                       key={index}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.4 + index * 0.1 }}
-                      className="flex items-center space-x-2"
+                      className="flex items-center space-x-3"
                     >
-                      <div className="w-2 h-2 bg-accent-brand rounded-full"></div>
-                      <span className="text-foreground">{type}</span>
+                      <div className="w-2 h-2 bg-accent-brand rounded-full flex-shrink-0"></div>
+                      <span className="text-foreground font-medium">{type}</span>
                     </motion.div>
                   ))}
                 </div>
-                <Button asChild className="bg-accent-brand hover:bg-accent-brand/90">
-                  <Link to="/register">Browse Providers</Link>
+
+                <Button asChild className="bg-accent-brand hover:bg-accent-brand/90 text-foreground">
+                  <Link to="/register">Explore Network</Link>
                 </Button>
               </motion.div>
+
               <motion.div
                 initial={{ opacity: 0, x: 30 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.4 }}
+                className="relative"
               >
                 <img
-                  src={corporateImg}
-                  alt="Service Providers"
-                  className="w-full rounded-2xl shadow-xl"
+                  src={featureImg}
+                  alt="Service Providers Network"
+                  className="w-full rounded-2xl shadow-2xl"
                 />
+                <div className="absolute inset-0 bg-accent-brand/10 rounded-2xl"></div>
               </motion.div>
             </div>
           </div>

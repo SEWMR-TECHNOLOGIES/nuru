@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Smartphone, Zap, Shield, Wifi } from "lucide-react";
 import Layout from "@/components/layout/Layout";
-import planImg from "@/assets/plan.png";
+import featureImg from "@/assets/feature-nfc-cards.jpg";
 import { useMeta } from "@/hooks/useMeta";
 
 const NfcCards = () => {
@@ -43,8 +43,8 @@ const NfcCards = () => {
   return (
     <Layout>
       <div className="min-h-screen bg-background section-padding">
-        {/* Header */}
-        <div className="bg-hero py-16">
+        {/* Hero Header */}
+        <div className="bg-foreground text-background py-20">
           <div className="container-custom">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -55,7 +55,7 @@ const NfcCards = () => {
                 asChild
                 variant="outline"
                 size="sm"
-                className="mb-6 border-foreground/20 text-hero-foreground hover:bg-foreground/5"
+                className="mb-8 border-background/20 text-background hover:bg-background/10"
               >
                 <Link to="/" className="inline-flex items-center">
                   <ArrowLeft className="w-4 h-4 mr-2" />
@@ -63,13 +63,18 @@ const NfcCards = () => {
                 </Link>
               </Button>
 
-              <h1 className="text-4xl sm:text-5xl font-bold mb-6 text-hero-foreground">
-                NFC-Ready Nuru Cards
+              <h1 className="text-5xl sm:text-6xl font-bold mb-6">
+                NFC-Ready
+                <span className="block text-accent-brand">Nuru Cards</span>
               </h1>
 
-              <p className="text-xl text-hero-foreground/80 max-w-2xl mx-auto">
+              <p className="text-xl text-background/80 max-w-2xl mx-auto mb-8">
                 Seamless guest check-ins with our next-generation event access technology powered by NFC.
               </p>
+
+              <Button asChild size="lg" className="bg-accent-brand hover:bg-accent-brand/90 text-foreground">
+                <Link to="/register">Order Cards</Link>
+              </Button>
             </motion.div>
           </div>
         </div>
@@ -85,7 +90,7 @@ const NfcCards = () => {
                 transition={{ delay: 0.2 }}
               >
                 <img
-                  src={planImg}
+                  src={featureImg}
                   alt="NFC Cards Technology"
                   className="w-full rounded-2xl shadow-xl"
                 />
@@ -102,17 +107,17 @@ const NfcCards = () => {
                 <p className="text-lg text-muted-foreground">
                   Transform your events with cutting-edge NFC technology. Our smart cards eliminate long queues, reduce check-in time by 90%, and provide guests with instant access to event information, schedules, and networking opportunities.
                 </p>
-                <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-3">
                   {useCases.map((useCase, index) => (
                     <motion.div
                       key={index}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.6 + index * 0.1 }}
-                      className="flex items-center space-x-2"
+                      className="flex items-center space-x-2 p-3 bg-card rounded-lg border"
                     >
-                      <div className="w-2 h-2 bg-accent-brand rounded-full"></div>
-                      <span className="text-foreground">{useCase}</span>
+                      <div className="w-2 h-2 bg-accent-brand rounded-full flex-shrink-0"></div>
+                      <span className="text-sm font-medium text-foreground">{useCase}</span>
                     </motion.div>
                   ))}
                 </div>
