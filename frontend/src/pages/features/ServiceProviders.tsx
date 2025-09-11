@@ -99,17 +99,18 @@ const ServiceProviders = () => {
                   </p>
                 </div>
 
-                <div className="space-y-3">
+                {/* Provider Types Grid (Updated like Features Grid) */}
+                <div className="grid md:grid-cols-2 gap-3">
                   {providerTypes.map((type, index) => (
                     <motion.div
                       key={index}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.4 + index * 0.1 }}
-                      className="flex items-center space-x-3"
+                      className="flex items-center space-x-2 p-3 bg-card rounded-lg border"
                     >
                       <div className="w-2 h-2 bg-accent-brand rounded-full flex-shrink-0"></div>
-                      <span className="text-foreground font-medium">{type}</span>
+                      <span className="text-sm font-medium text-foreground">{type}</span>
                     </motion.div>
                   ))}
                 </div>
