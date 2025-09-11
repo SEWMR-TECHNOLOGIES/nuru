@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { 
@@ -25,6 +26,29 @@ import DavidWedding from "@/assets/david-wedding.png";
 import { useMeta } from "@/hooks/useMeta";
 
 const Index = () => {
+  const heroTexts = ["Every Event,", "Every Moment.", "Celebrate Better."];
+  const [currentTextIndex, setCurrentTextIndex] = useState(0);
+  const [displayedText, setDisplayedText] = useState("");
+  const [charIndex, setCharIndex] = useState(0);
+
+  useEffect(() => {
+    const text = heroTexts[currentTextIndex];
+    if (charIndex < text.length) {
+      const timeoutId = setTimeout(() => {
+        setDisplayedText((prev) => prev + text[charIndex]);
+        setCharIndex((prev) => prev + 1);
+      }, 150); // typing speed
+      return () => clearTimeout(timeoutId);
+    } else {
+      const timeoutId = setTimeout(() => {
+        setDisplayedText("");
+        setCharIndex(0);
+        setCurrentTextIndex((prev) => (prev + 1) % heroTexts.length);
+      }, 1200); // pause before next word
+      return () => clearTimeout(timeoutId);
+    }
+  }, [charIndex, currentTextIndex]);
+
   const features = [
     {
       icon: Calendar,
@@ -59,7 +83,7 @@ const Index = () => {
   ];
 
   const mockEvents = [
-      {
+    {
       id: 1,
       title: "David's Wedding",
       image: DavidWedding,
@@ -112,10 +136,17 @@ const Index = () => {
               transition={{ duration: 0.8 }}
               className="text-center lg:text-left"
             >
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-hero-foreground mb-6">
-                Plan Smarter.{" "}
-                <span className="text-accent-brand">Celebrate Better.</span>
-              </h1>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-hero-foreground mb-6">
+              Plan Smarter.
+              <br />
+              <span
+                className="text-accent-brand block"
+                aria-live="polite"
+                style={{ minHeight: "1em" }}
+              >
+                {displayedText || "\u00A0"} {/* non-breaking space ensures height is preserved */}
+              </span>
+            </h1>
               <p className="text-lg sm:text-xl text-hero-foreground/80 mb-8 max-w-lg mx-auto lg:mx-0">
                 Plan, organize and execute events 10x faster with Nuru. Discover trusted service providers, manage bookings, send digital invites, and handle everything in one modern platform.
               </p>
@@ -214,7 +245,6 @@ const Index = () => {
         </div>
       </section>
 
-
       {/* Service Providers Preview */}
       <section className="section-padding bg-muted/30">
         <div className="container-custom">
@@ -260,7 +290,6 @@ const Index = () => {
           </div>
         </div>
       </section>
-
 
       {/* Public Feed Preview */}
       <section id="feed" className="section-padding bg-background">
