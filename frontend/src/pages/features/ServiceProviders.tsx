@@ -55,7 +55,7 @@ const ServiceProviders = () => {
                 asChild
                 variant="outline"
                 size="sm"
-                className="mb-8 border-background/20 text-background hover:bg-background/10"
+                className="mb-8 border-background/20 text-black hover:bg-background/10"
               >
                 <Link to="/" className="inline-flex items-center">
                   <ArrowLeft className="w-4 h-4 mr-2" />
@@ -115,7 +115,7 @@ const ServiceProviders = () => {
                   ))}
                 </div>
 
-                <Button asChild className="bg-accent-brand hover:bg-accent-brand/90 text-foreground">
+                <Button asChild className="bg-black hover:bg-gray-800 text-white">
                   <Link to="/register">Explore Network</Link>
                 </Button>
               </motion.div>

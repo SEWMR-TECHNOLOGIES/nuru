@@ -50,14 +50,14 @@ const EventPlanning = () => {
                 asChild
                 variant="outline"
                 size="sm"
-                className="mb-8 border-background/20 text-background hover:bg-background/10"
+                className="mb-8 border-background/20 text-black hover:bg-background/10"
               >
                 <Link to="/" className="inline-flex items-center">
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back to Home
                 </Link>
               </Button>
-
+              
               <h1 className="text-5xl sm:text-6xl font-bold mb-6">
                 Smart Event
                 <span className="block text-accent-brand">Planning</span>
@@ -120,7 +120,7 @@ const EventPlanning = () => {
                   ))}
                 </div>
                 
-                <Button asChild className="bg-accent-brand hover:bg-accent-brand/90">
+                <Button asChild className="bg-black hover:bg-gray-800 text-white">
                   <Link to="/register">Start Planning Now</Link>
                 </Button>
               </motion.div>
@@ -176,7 +176,7 @@ const EventPlanning = () => {
               <p className="text-lg text-muted-foreground mb-8">
                 Join thousands of event planners who trust Nuru to make their events unforgettable.
               </p>
-              <Button asChild size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90">
+              <Button asChild size="lg" className="bg-black hover:bg-gray-800 text-white">
                 <Link to="/register">Plan Your Event</Link>
               </Button>
             </motion.div>

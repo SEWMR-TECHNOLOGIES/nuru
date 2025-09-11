@@ -62,7 +62,7 @@ const Payments = () => {
                 asChild
                 variant="outline"
                 size="sm"
-                className="mb-8 border-background/20 text-background hover:bg-background/10"
+                className="mb-8 border-background/20 text-black hover:bg-background/10"
               >
                 <Link to="/" className="inline-flex items-center">
                   <ArrowLeft className="w-4 h-4 mr-2" />
@@ -117,7 +117,7 @@ const Payments = () => {
                     </motion.div>
                   ))}
                 </div>
-                <Button asChild className="bg-accent-brand hover:bg-accent-brand/90">
+                <Button asChild className="bg-black hover:bg-gray-800 text-white">
                   <Link to="/register">Start Processing</Link>
                 </Button>
               </motion.div>
