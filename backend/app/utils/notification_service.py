@@ -34,7 +34,7 @@ def send_verification_email(to_email: str, code: str, first_name: str = ""):
 
     try:
         response = requests.post(
-            "https://api.sewmrtechnologies.com/mail/nuru/send-account-activatiion-otp.php",
+            "https://api.sewmrtechnologies.com/mail/nuru/send-account-activation-otp.php",
             json=payload,
             timeout=10
         )

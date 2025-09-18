@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Request, Depends
 from sqlalchemy.orm import Session
 import hashlib
@@ -109,15 +110,36 @@ async def signup(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/request-otp")
 async def request_otp(request: Request, db: Session = Depends(get_db)):
-    payload = await request.json()
+    # Validate content type
+    if request.headers.get("content-type") != "application/json":
+        return api_response(
+            False, 
+            "Content type must be 'application/json'. Please send your data in JSON format."
+        )
+
+    # Parse JSON payload
+    try:
+        payload = await request.json()
+    except Exception:
+        return api_response(
+            False, 
+            "Unable to parse the request body. Ensure your JSON is correctly formatted."
+        )
+
     user_id = payload.get("user_id")
     verification_type = payload.get("verification_type")  # "phone" or "email"
 
     if verification_type not in ["phone", "email"]:
         return api_response(False, "Invalid verification type. Must be 'phone' or 'email'.")
 
+    # Validate user_id is a proper UUID
+    try:
+        user_uuid = UUID(user_id)
+    except (ValueError, TypeError):
+        return api_response(False, "Invalid user ID format. It must be a UUID.")
+
     # Get user
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.id == user_uuid).first()
     if not user:
         return api_response(False, "User not found.")
 
@@ -140,11 +162,11 @@ async def request_otp(request: Request, db: Session = Depends(get_db)):
         if verification_type == "phone":
             await send_verification_sms(user.phone, code, user.first_name)
             masked = mask_phone(user.phone)
-            message = f"We have sent a verification code to your phone number {masked}. Please check and enter the code."
+            message = f"We have sent a verification code to your phone number {masked}. Please check and enter the code to activate your account."
         else:
             send_verification_email(user.email, code, user.first_name)
             masked = mask_email(user.email)
-            message = f"We have sent a verification code to your email address {masked}. Please check your inbox or spam folder."
+            message = f"We have sent a verification code to your email address {masked}. Please check your inbox or spam folder to activate your account."
 
         return api_response(True, message)
 
