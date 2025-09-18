@@ -10,7 +10,7 @@ app = FastAPI(title="Nuru API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",        # frontend dev
+        "http://localhost:8080",        # frontend dev
         "https://app.nuru.tz",          # production frontend
         "https://www.nuru.tz",          # production frontend
     ],

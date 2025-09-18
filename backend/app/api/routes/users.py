@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 from fastapi import APIRouter, Request, Depends
 from sqlalchemy.orm import Session
@@ -71,7 +72,7 @@ async def signup(request: Request, db: Session = Depends(get_db)):
     if not validate_password_strength(password):
         return api_response(
             False,
-            "Your password must be robust: at least 8 characters long, include one uppercase letter, one lowercase letter, one number, and one special symbol. "
+            "Your password must be strong: at least 8 characters long, include one uppercase letter, one lowercase letter, one number, and one special symbol. "
             "This ensures your account remains secure."
         )
 
@@ -106,7 +107,11 @@ async def signup(request: Request, db: Session = Depends(get_db)):
         "phone": user.phone
     }
 
-    return api_response(True, f"Hello, {first_name}! Your account has been successfully created.", user_data)
+    return api_response(
+        True,
+        f"Hello, {first_name}! Your account has been successfully created. Please use the OTP sent to your email and phone to activate your account.",
+        user_data
+    )
 
 @router.post("/request-otp")
 async def request_otp(request: Request, db: Session = Depends(get_db)):
@@ -145,7 +150,7 @@ async def request_otp(request: Request, db: Session = Depends(get_db)):
 
     # Generate OTP
     code = generate_otp()
-    expires_at = get_expiry()
+    expires_at = get_expiry(minutes=10)
 
     # Save OTP in DB
     otp_entry = UserVerificationOTP(
@@ -173,3 +178,80 @@ async def request_otp(request: Request, db: Session = Depends(get_db)):
     except Exception as e:
         print(traceback.format_exc())   
         return api_response(False, f"Failed to send verification code: {str(e)}")
+    
+    
+@router.post("/verify-otp")
+async def verify_otp(request: Request, db: Session = Depends(get_db)):
+    # Validate content type
+    if request.headers.get("content-type") != "application/json":
+        return api_response(False, "Content type must be 'application/json'. Send JSON data.")
+
+    # Parse JSON payload
+    try:
+        payload = await request.json()
+    except Exception:
+        return api_response(False, "Unable to parse request body. Ensure your JSON is valid JSON.")
+
+    user_id = payload.get("user_id")
+    verification_type = payload.get("verification_type")  # "phone" or "email"
+    otp_code = payload.get("otp_code")
+
+    if verification_type not in ["phone", "email"]:
+        return api_response(False, "Invalid verification type. Must be 'phone' or 'email'.")
+    if not otp_code:
+        return api_response(False, "OTP code is required.")
+
+    # Validate UUID
+    try:
+        user_uuid = UUID(user_id)
+    except (ValueError, TypeError):
+        return api_response(False, "Invalid user ID format. Must be a UUID.")
+
+    # Get user
+    user = db.query(User).filter(User.id == user_uuid).first()
+    if not user:
+        return api_response(False, "User not found.")
+
+    # Get the latest OTP entry for this type
+    otp_entry = (
+        db.query(UserVerificationOTP)
+        .filter(
+            UserVerificationOTP.user_id == user.id,
+            UserVerificationOTP.verification_type == verification_type,
+            UserVerificationOTP.is_used == False  # only consider unused OTPs
+        )
+        .order_by(UserVerificationOTP.created_at.desc())
+        .first()
+    )
+
+    if not otp_entry:
+        return api_response(False, f"No OTP found for {verification_type}. Please request a new code.")
+
+    # Check if OTP is expired
+    if otp_entry.expires_at < datetime.utcnow():
+        return api_response(False, "OTP has expired. Please request a new code.")
+
+    # Check if OTP matches
+    if otp_entry.otp_code != otp_code:
+        return api_response(False, "Invalid OTP code. Please check and try again.")
+
+    # Mark this OTP as used
+    otp_entry.is_used = True
+
+    # Delete all other unused OTPs for this user and type
+    db.query(UserVerificationOTP).filter(
+        UserVerificationOTP.user_id == user.id,
+        UserVerificationOTP.verification_type == verification_type,
+        UserVerificationOTP.is_used == False,
+        UserVerificationOTP.id != otp_entry.id
+    ).delete(synchronize_session=False)
+
+    # Mark user as verified for this type
+    if verification_type == "email":
+        user.is_email_verified = True
+    else:
+        user.is_phone_verified = True
+
+    db.commit()
+
+    return api_response(True, f"{verification_type.capitalize()} verified successfully.")

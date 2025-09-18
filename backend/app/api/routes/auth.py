@@ -5,7 +5,7 @@ from core.database import get_db
 from utils.auth import get_current_user 
 from utils.auth import verify_password, create_access_token, get_user_by_credential
 from utils.validation_functions import validate_tanzanian_phone
-from utils.helpers import api_response
+from utils.helpers import api_response, mask_email, mask_phone
 import re
 
 router = APIRouter()
@@ -50,6 +50,7 @@ async def signin(request: Request, response: Response, db: Session = Depends(get
     if not user.is_active:
         return api_response(False, "Your account is inactive. Please contact support to reactivate it.")
 
+
     # Generate token
     token = create_access_token({"uid": str(user.id)})
 
@@ -67,8 +68,10 @@ async def signin(request: Request, response: Response, db: Session = Depends(get
         "first_name": user.first_name,
         "last_name": user.last_name,
         "username": user.username,
-        "email": user.email,
-        "phone": user.phone
+        "email": user.email if user.is_email_verified else mask_email(user.email),
+        "phone": user.phone if user.is_phone_verified else mask_phone(user.phone),
+        "is_email_verified": user.is_email_verified,
+        "is_phone_verified": user.is_phone_verified
     }
 
     return api_response(True, f"Welcome back, {user.first_name}! You have successfully signed in.", 

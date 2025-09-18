@@ -17,6 +17,8 @@ import ServiceProviders from "./pages/features/ServiceProviders";
 import Invitations from "./pages/features/Invitations";
 import NfcCards from "./pages/features/NfcCards";
 import Payments from "./pages/features/Payments";
+import VerifyEmail from "./pages/VerifyEmail";
+import VerifyPhone from "./pages/VerifyPhone";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +35,8 @@ const App = () => (
           <Route path="/faqs" element={<FAQs />} />
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/verify-phone" element={<VerifyPhone />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/features/event-planning" element={<EventPlanning />} />
