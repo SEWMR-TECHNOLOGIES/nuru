@@ -2,10 +2,11 @@ from fastapi import APIRouter, Request, Depends
 from sqlalchemy.orm import Session
 import hashlib
 import traceback
+from utils.notification_service import send_verification_email, send_verification_sms
 from core.database import get_db
-from models.users import User
+from models.users import User, UserVerificationOTP
 from utils.validation_functions import validate_email, validate_tanzanian_phone, validate_password_strength, validate_username
-from utils.helpers import api_response
+from utils.helpers import api_response, generate_otp, get_expiry, mask_email, mask_phone
 
 router = APIRouter()
 
@@ -105,3 +106,47 @@ async def signup(request: Request, db: Session = Depends(get_db)):
     }
 
     return api_response(True, f"Hello, {first_name}! Your account has been successfully created.", user_data)
+
+@router.post("/request-otp")
+async def request_otp(request: Request, db: Session = Depends(get_db)):
+    payload = await request.json()
+    user_id = payload.get("user_id")
+    verification_type = payload.get("verification_type")  # "phone" or "email"
+
+    if verification_type not in ["phone", "email"]:
+        return api_response(False, "Invalid verification type. Must be 'phone' or 'email'.")
+
+    # Get user
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return api_response(False, "User not found.")
+
+    # Generate OTP
+    code = generate_otp()
+    expires_at = get_expiry()
+
+    # Save OTP in DB
+    otp_entry = UserVerificationOTP(
+        user_id=user.id,
+        otp_code=code,
+        verification_type=verification_type,
+        expires_at=expires_at
+    )
+    db.add(otp_entry)
+    db.commit()
+
+    # Send OTP
+    try:
+        if verification_type == "phone":
+            await send_verification_sms(user.phone, code, user.first_name)
+            masked = mask_phone(user.phone)
+            message = f"We have sent a verification code to your phone number {masked}. Please check and enter the code."
+        else:
+            send_verification_email(user.email, code, user.first_name)
+            masked = mask_email(user.email)
+            message = f"We have sent a verification code to your email address {masked}. Please check your inbox or spam folder."
+
+        return api_response(True, message)
+
+    except Exception as e:
+        return api_response(False, f"Failed to send verification code: {str(e)}")
