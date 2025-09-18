@@ -266,7 +266,7 @@ const Register = () => {
                       <label className="block text-sm font-medium text-foreground mb-2">Phone Number</label>
                       <div className="relative">
                         <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input type="tel" placeholder="+255 (0) 123-456-789" value={formData.phone} onChange={e => handleInputChange("phone", e.target.value)} className="pl-10" />
+                        <Input type="tel" placeholder="+255123456789" value={formData.phone} onChange={e => handleInputChange("phone", e.target.value)} className="pl-10" />
                       </div>
                     </div>
 

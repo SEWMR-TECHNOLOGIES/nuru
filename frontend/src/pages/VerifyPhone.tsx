@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Mail } from "lucide-react";
+import { Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/layout/Layout";
+import { useMeta } from "@/hooks/useMeta";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-const VerifyEmail = () => {
+const VerifyPhone = () => {
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
@@ -17,23 +18,23 @@ const VerifyEmail = () => {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
-  const email = searchParams.get("email");
+  const phone = searchParams.get("phone");
   const userId = localStorage.getItem("userId");
 
   useEffect(() => {
     if (!userId) {
-      toast({
+        toast({
         title: "Missing information",
         description: "We need your account info to verify. Please sign in and try again.",
         variant: "destructive"
-      });
-      navigate("/login");
-      return;
+        });
+        navigate("/login");
+        return;
     }
 
     // Automatically request OTP on page load
     resendOtp();
-  }, []);
+    }, []);
 
 
   const handleVerify = async () => {
@@ -52,12 +53,12 @@ const VerifyEmail = () => {
       const res = await fetch(`${BASE_URL}/users/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, verification_type: "email", otp_code: otp })
+        body: JSON.stringify({ user_id: userId, verification_type: "phone", otp_code: otp })
       });
       const data = await res.json();
 
       if (data.success) {
-        toast({ title: "Email verified!", description: data.message });
+        toast({ title: "Phone verified!", description: data.message });
         localStorage.removeItem("userId");
         navigate("/login");
       } else {
@@ -82,7 +83,7 @@ const VerifyEmail = () => {
       const res = await fetch(`${BASE_URL}/users/request-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, verification_type: "email" })
+        body: JSON.stringify({ user_id: userId, verification_type: "phone" })
       });
       const data = await res.json();
       toast({
@@ -98,8 +99,8 @@ const VerifyEmail = () => {
   };
 
   useMeta({
-      title: "Verify Your Email",
-      description: "Enter the OTP sent to your email to activate your Nuru account."
+    title: "Verify Your Phone | Nuru",
+    description: "Enter the OTP sent to your phone to activate your Nuru account."
   });
 
   return (
@@ -107,15 +108,15 @@ const VerifyEmail = () => {
       <div className="min-h-screen flex items-center justify-center p-4 bg-background">
         <Card className="max-w-md w-full shadow-xl">
           <CardHeader className="text-center space-y-2">
-            <CardTitle className="text-2xl font-bold">Verify Your Email</CardTitle>
+            <CardTitle className="text-2xl font-bold">Verify Your Phone</CardTitle>
             <p className="text-muted-foreground text-sm">
-              Enter the 6-digit code sent to <strong>{email ?? "your email"}</strong>
+              Enter the 6-digit code sent to <strong>{phone ?? "your phone"}</strong>
             </p>
           </CardHeader>
 
           <CardContent className="space-y-4">
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="Enter OTP"
@@ -153,4 +154,4 @@ const VerifyEmail = () => {
   );
 };
 
-export default VerifyEmail;
+export default VerifyPhone;
