@@ -149,4 +149,5 @@ async def request_otp(request: Request, db: Session = Depends(get_db)):
         return api_response(True, message)
 
     except Exception as e:
+        print(traceback.format_exc())   
         return api_response(False, f"Failed to send verification code: {str(e)}")
