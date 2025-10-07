@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
+import { useQueryClient } from "@tanstack/react-query";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -23,6 +24,7 @@ const Login = () => {
   });
   const { toast } = useToast();
   const navigate = useNavigate();
+  const qc = useQueryClient();
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -65,10 +67,11 @@ const Login = () => {
           navigate(`/verify-phone?phone=${user.phone}`);
           return;
         }
-
+        const token = data.data.access_token;
+        localStorage.setItem("token", token);
+        qc.setQueryData(["currentUser"], user);
         toast({ title: "Welcome back!", description: data.message });
-        // Redirect to dashboard or home
-        navigate("/dashboard");
+        navigate("/", { replace: true });
       } else {
         toast({ title: "Login Failed", description: data.message, variant: "destructive" });
       }
