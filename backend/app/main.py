@@ -13,6 +13,7 @@ app.add_middleware(
         "http://localhost:8080",        # frontend dev
         "https://app.nuru.tz",          # production frontend
         "https://www.nuru.tz",          # production frontend
+        "https://workspace.nuru.tz",    # pre-production frontend
     ],
     allow_credentials=True,
     allow_methods=["*"],
