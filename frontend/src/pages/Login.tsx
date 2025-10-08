@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { Mail, Eye, EyeOff } from "lucide-react";
@@ -25,6 +25,13 @@ const Login = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const qc = useQueryClient();
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      navigate("/", { replace: true });
+    }
+  }, [navigate]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));

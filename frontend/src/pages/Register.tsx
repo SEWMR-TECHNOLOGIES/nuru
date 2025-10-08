@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { 
   Mail, 
   Phone, 
@@ -27,6 +27,16 @@ const Register = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [resendLoading, setResendLoading] = useState(false);
+
+  // Inside Register component
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      navigate("/", { replace: true });
+    }
+  }, [navigate]);
 
   const [formData, setFormData] = useState({
     firstName: "",
