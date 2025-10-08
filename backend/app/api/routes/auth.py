@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, HTTPException, Response
+from fastapi import APIRouter, Cookie, Request, Depends, HTTPException, Response
 from models.users import User
 from sqlalchemy.orm import Session
 from core.database import get_db
@@ -86,4 +86,21 @@ async def read_current_user(current_user: User = Depends(get_current_user)):
         "username": current_user.username,
         "email": current_user.email,
         "phone": current_user.phone
+    }
+
+@router.post("/logout")
+async def logout(response: Response, session_id: str = Cookie(None)):
+    """
+    Logout the user by clearing the session cookie.
+    """
+    response.delete_cookie(
+        key="session_id",
+        path="/",
+        samesite="lax",
+        httponly=True,
+    )
+
+    return {
+        "success": True,
+        "message": "You have been signed out successfully."
     }

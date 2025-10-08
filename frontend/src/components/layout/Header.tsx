@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Sun } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import nuruLogo from "@/assets/nuru-logo.png";
 
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -10,9 +11,7 @@ const Header = () => {
   const location = useLocation();
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
-    };
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
@@ -25,11 +24,12 @@ const Header = () => {
 
   return (
     <motion.header
-      initial={{ y: -100 }}
+      initial={{ y: -80 }}
       animate={{ y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         isScrolled
-          ? "bg-background/95 backdrop-blur-md shadow-lg"
+          ? "bg-background/90 backdrop-blur-lg shadow-sm"
           : "bg-transparent"
       }`}
     >
@@ -37,11 +37,7 @@ const Header = () => {
         <div className="flex items-center justify-between h-16 lg:h-20">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-3 group">
-            <img 
-              src="/uploads/7690c38c-b08a-42fd-8033-c559fc3b5c67.png" 
-              alt="Nuru Logo" 
-              className="h-12 w-auto"
-            />
+            <img src={nuruLogo} alt="Nuru Logo" className="h-12 w-auto" />
           </Link>
 
           {/* Desktop Navigation */}
@@ -65,9 +61,20 @@ const Header = () => {
             ))}
           </div>
 
-          {/* CTA Button */}
-          <div className="hidden lg:block">
-            <Button asChild className="bg-accent hover:bg-accent-hover text-accent-foreground font-semibold px-6 py-2 rounded-lg transition-all duration-200">
+          {/* Desktop CTA Buttons */}
+          <div className="hidden lg:flex items-center space-x-4">
+            <Button
+              asChild
+              variant="outline"
+              className="border-accent text-accent hover:bg-accent hover:text-white font-semibold px-6 py-2 rounded-lg transition-all duration-200"
+            >
+              <Link to="/login">Login</Link>
+            </Button>
+
+            <Button
+              asChild
+              className="bg-accent hover:bg-accent-hover text-accent-foreground font-semibold px-6 py-2 rounded-lg transition-all duration-200"
+            >
               <Link to="/register">Join Nuru</Link>
             </Button>
           </div>
@@ -103,7 +110,12 @@ const Header = () => {
                     {item.name}
                   </Link>
                 ))}
-                <div className="px-4 pt-2">
+
+                <div className="px-4 flex flex-col gap-3 pt-2">
+                  <Button asChild variant="outline" className="w-full border-accent text-accent hover:bg-accent hover:text-white font-semibold"onClick={() => setIsOpen(false)}>
+                    <Link to="/login">Login</Link>
+                  </Button>
+
                   <Button asChild className="w-full bg-accent hover:bg-accent-hover text-accent-foreground font-semibold" onClick={() => setIsOpen(false)}>
                     <Link to="/register">Join Nuru</Link>
                   </Button>

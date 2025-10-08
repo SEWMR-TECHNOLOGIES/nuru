@@ -101,7 +101,7 @@ const Help = () => {
             <Phone className="w-8 h-8 text-primary mx-auto mb-3" />
             <h3 className="font-semibold mb-2">Call Support</h3>
             <p className="text-sm text-muted-foreground mb-4">Speak directly with our team</p>
-            <Button size="sm" variant="outline" className="w-full">+255 123 456 789</Button>
+            <Button size="sm" variant="outline" className="w-full">+255 (0) 653 750 805</Button>
           </CardContent>
         </Card>
         
@@ -110,7 +110,7 @@ const Help = () => {
             <Mail className="w-8 h-8 text-primary mx-auto mb-3" />
             <h3 className="font-semibold mb-2">Email Us</h3>
             <p className="text-sm text-muted-foreground mb-4">Send us your questions</p>
-            <Button size="sm" variant="outline" className="w-full">support@nuru.co.tz</Button>
+            <Button size="sm" variant="outline" className="w-full">support@nuru.tz</Button>
           </CardContent>
         </Card>
       </div>

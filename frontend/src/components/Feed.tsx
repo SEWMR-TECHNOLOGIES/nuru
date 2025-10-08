@@ -5,6 +5,7 @@ import AdCard from './AdCard';
 import PromotedEvent from './PromotedEvent';
 import birthdayImage from '@/assets/feed-images/birthday.webp';
 import sophiaWeddingImage from '@/assets/feed-images/sophia-wedding.png';
+import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 
 const Feed = () => {
   useEffect(() => {
@@ -145,6 +146,10 @@ const Feed = () => {
   }
 ];
 
+  useWorkspaceMeta({
+    title: "Workspace",
+    description: "See the latest events, weddings, birthdays, and community posts on Nuru."
+  });
 
   return (
     <div className="space-y-4 md:space-y-6 pb-4">

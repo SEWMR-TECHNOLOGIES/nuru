@@ -69,6 +69,7 @@ const Login = () => {
         }
         const token = data.data.access_token;
         localStorage.setItem("token", token);
+        localStorage.setItem("login", Date.now().toString());
         qc.setQueryData(["currentUser"], user);
         toast({ title: "Welcome back!", description: data.message });
         navigate("/", { replace: true });

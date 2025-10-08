@@ -44,7 +44,7 @@ export default function AppRoutes() {
   const { userIsLoggedIn, isLoading } = useCurrentUser();
 
   if (isLoading) return <FullPageLoader />;
-
+  
   return (
     <BrowserRouter>
       <ScrollToTop />

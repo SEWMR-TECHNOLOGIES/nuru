@@ -7,6 +7,7 @@ export interface CurrentUser {
   username: string;
   email: string;
   phone: string;
+  avatar: string | null;
 }
 
 const fetchCurrentUser = async (): Promise<CurrentUser | null> => {
@@ -21,9 +22,15 @@ const fetchCurrentUser = async (): Promise<CurrentUser | null> => {
   });
 
   if (!res.ok) return null;
-  return res.json();
-};
 
+  const data = await res.json();
+
+  // Add avatar as null for now
+  return {
+    ...data,
+    avatar: null
+  };
+};
 
 export const useCurrentUser = (): UseQueryResult<CurrentUser | null> & { userIsLoggedIn: boolean } => {
   const query = useQuery({

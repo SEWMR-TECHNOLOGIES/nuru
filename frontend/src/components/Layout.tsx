@@ -4,8 +4,10 @@ import Sidebar from './Sidebar';
 import RightSidebar from './RightSidebar';
 import { Outlet } from 'react-router-dom';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { useAuthSync } from '@/hooks/useAuthSync';
 
 const Layout = () => {
+  useAuthSync();
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
 
