@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 
 interface Community {
   id: string;
@@ -21,6 +22,11 @@ interface Community {
 }
 
 const Communities = () => {
+  useWorkspaceMeta({
+    title: 'Communities',
+    description: 'Join communities and connect with like-minded people for events, weddings, and celebrations.'
+  });
+
   const [communities, setCommunities] = useState<Community[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);

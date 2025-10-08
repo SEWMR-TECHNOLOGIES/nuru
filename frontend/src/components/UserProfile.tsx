@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useWorkspaceMeta } from "@/hooks/useWorkspaceMeta";
 
 interface UserData {
   name: string;
@@ -42,6 +43,11 @@ interface Achievement {
 
 const UserProfile = () => {
   const { data: currentUser } = useCurrentUser();
+
+  useWorkspaceMeta({
+    title: 'Profile',
+    description: 'View and manage your Nuru profile, achievements, and account settings.'
+  });
 
   const [isEditing, setIsEditing] = useState(false);
 
@@ -287,6 +293,49 @@ const UserProfile = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Identity Verification */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Identity Verification</CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            Complete your identity verification to build trust and unlock premium features
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <h4 className="font-medium">Verification Status</h4>
+                  {userData.isVerified ? (
+                    <Badge className="bg-green-600 gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      Verified
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-orange-500 text-orange-700">
+                      Not Verified
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {userData.isVerified 
+                    ? "Your identity has been verified. You can now offer services on our platform."
+                    : "Verify your identity to start offering services and gain customer trust."
+                  }
+                </p>
+              </div>
+            </div>
+            
+            {!userData.isVerified && (
+              <Button className="w-full" onClick={() => window.location.href = '/services/verify/identity'}>
+                Start Identity Verification
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Achievements */}
       <Card>

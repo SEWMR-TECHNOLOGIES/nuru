@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { Plus, UserMinus, Users, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 
 interface CircleMember {
   id: string;
@@ -19,6 +20,12 @@ const Circle = () => {
   const [circleMembers, setCircleMembers] = useState<CircleMember[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [newPeopleSearch, setNewPeopleSearch] = useState('');
+
+  useWorkspaceMeta({
+    title: 'My Circle',
+    description: 'Manage your circle of friends and connections on Nuru.'
+  });
 
   useEffect(() => {
     const stored = localStorage.getItem('circleMembers');
@@ -85,6 +92,10 @@ const Circle = () => {
     member.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const filteredNewPeople = suggestedPeople
+    .filter(p => !circleMembers.find(m => m.id === p.id))
+    .filter(p => p.name.toLowerCase().includes(newPeopleSearch.toLowerCase()));
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
@@ -99,21 +110,34 @@ const Circle = () => {
           </p>
         </div>
 
+        <Button 
+          onClick={() => setIsAddDialogOpen(true)}
+          className="bg-nuru-yellow hover:bg-nuru-yellow/90 text-foreground w-full md:w-auto"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Add to Circle
+        </Button>
+
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-nuru-yellow hover:bg-nuru-yellow/90 text-foreground w-full md:w-auto">
-              <Plus className="w-4 h-4 mr-2" />
-              Add to Circle
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>Add People to Your Circle</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 mt-4">
-              {suggestedPeople
-                .filter(p => !circleMembers.find(m => m.id === p.id))
-                .map((person) => (
+            
+            {/* Search for new people */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input
+                placeholder="Search for people..."
+                value={newPeopleSearch}
+                onChange={(e) => setNewPeopleSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            <div className="space-y-3 overflow-y-auto flex-1">
+              {filteredNewPeople.length > 0 ? (
+                filteredNewPeople.map((person) => (
                   <div key={person.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
                     <Avatar className="w-12 h-12">
                       <AvatarImage src={person.avatar} />
@@ -133,10 +157,13 @@ const Circle = () => {
                       Add
                     </Button>
                   </div>
-                ))}
-              {suggestedPeople.filter(p => !circleMembers.find(m => m.id === p.id)).length === 0 && (
-                <p className="text-center text-muted-foreground py-4">
-                  All suggested people are already in your circle
+                ))
+              ) : (
+                <p className="text-center text-muted-foreground py-8">
+                  {newPeopleSearch 
+                    ? 'No people found matching your search'
+                    : 'All suggested people are already in your circle'
+                  }
                 </p>
               )}
             </div>

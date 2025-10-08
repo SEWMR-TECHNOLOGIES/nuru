@@ -12,16 +12,19 @@ import FindServices from "@/components/FindServices";
 import Notifications from "@/components/Notifications";
 import Help from "@/components/Help";
 import Settings from "@/components/Settings";
-import PostDetail from "@/components/PostDetail";
+import MomentDetail from "@/components/MomentDetail";
 import CreateEvent from "@/components/CreateEvent";
 import EventManagement from "@/components/EventManagement";
 import MyServices from "@/components/MyServices";
 import AddService from "@/components/AddService";
+import EditService from "@/components/EditService";
+import ServiceVerification from "@/components/ServiceVerification";
 import UserProfile from "@/components/UserProfile";
 import ServiceDetail from "@/components/ServiceDetail";
 import Circle from "@/components/Circle";
 import Communities from "@/components/Communities";
 import ProviderChat from "@/components/ProviderChat";
+import MyMoments from "@/components/MyMoments";
 
 import Index from "@/pages/Index";
 import Contact from "@/pages/Contact";
@@ -84,16 +87,19 @@ export default function AppRoutes() {
             <Route path="notifications" element={<Notifications />} />
             <Route path="help" element={<Help />} />
             <Route path="settings" element={<Settings />} />
-            <Route path="post/:id" element={<PostDetail />} />
+            <Route path="post/:id" element={<MomentDetail />} />
             <Route path="create-event" element={<CreateEvent />} />
             <Route path="event-management/:id" element={<EventManagement />} />
             <Route path="my-services" element={<MyServices />} />
             <Route path="services/new" element={<AddService />} />
+            <Route path="services/edit/:id" element={<EditService />} />
+            <Route path="services/verify/:id" element={<ServiceVerification />} />
             <Route path="service/:id" element={<ServiceDetail />} />
             <Route path="profile" element={<UserProfile />} />
             <Route path="circle" element={<Circle />} />
             <Route path="communities" element={<Communities />} />
             <Route path="provider-chat" element={<ProviderChat />} />
+            <Route path="my-posts" element={<MyMoments />} />
           </Route>
         )}
 

@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 
 const notifications = [
   {
@@ -71,8 +72,14 @@ const getIcon = (type: string) => {
   }
 };
 
-const Notifications = () => (
-  <div className="h-full overflow-y-auto p-4 md:p-6">
+const Notifications = () => {
+  useWorkspaceMeta({
+    title: 'Notifications',
+    description: 'Stay updated with glows, echoes, event invitations, and more on Nuru.'
+  });
+
+  return (
+    <div className="h-full overflow-y-auto p-4 md:p-6">
     <div className="flex items-center justify-between mb-6">
       <h1 className="text-2xl md:text-3xl font-bold">Notifications</h1>
       <Button variant="ghost" size="sm" className="text-sm">
@@ -119,6 +126,7 @@ const Notifications = () => (
       ))}
     </div>
   </div>
-)
+  );
+};
 
 export default Notifications

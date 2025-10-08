@@ -20,7 +20,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        inter: ["Inter", "sans-serif"], // from workspace
+        sans: ["Inter", "sans-serif"], // Default font for entire app
+        inter: ["Inter", "sans-serif"],
       },
       colors: {
         // Common shared colors
@@ -144,6 +145,6 @@ export default {
   },
   plugins: [
     require("tailwindcss-animate"),
-    // Add more plugins here if needed later (e.g., forms, typography)
+    require("@tailwindcss/typography"),
   ],
 } satisfies Config;

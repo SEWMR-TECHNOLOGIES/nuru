@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, MapPin, Users, CheckCircle2, Plus, Settings, UserPlus, DollarSign, X, Search } from 'lucide-react';
+import { ChevronLeft, Calendar, MapPin, Users, CheckCircle2, Plus, Settings, UserPlus, DollarSign, X, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import PledgeDialog from './PledgeDialog';
+import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 
 interface EventData {
   id: string;
@@ -55,6 +56,12 @@ const EventManagement = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [event, setEvent] = useState<EventData | null>(null);
+
+  useWorkspaceMeta({
+    title: event?.title || 'Event Management',
+    description: `Manage services, committee, contributions, and invitations for ${event?.title || 'your event'}.`
+  });
+
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddServiceDialog, setShowAddServiceDialog] = useState(false);
   const [serviceSearch, setServiceSearch] = useState('');
@@ -245,12 +252,12 @@ const EventManagement = () => {
         <div className="flex items-start justify-between gap-3 mb-3">
           <h1 className="text-2xl md:text-3xl font-bold">{event.title}</h1>
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
             className="flex-shrink-0"
             onClick={() => navigate('/my-events')}
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ChevronLeft className="w-5 h-5" />
           </Button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm text-muted-foreground">

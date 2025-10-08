@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Upload, Plus, X } from 'lucide-react';
+import { ChevronLeft, Upload, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,8 +8,14 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 
 const AddService = () => {
+  useWorkspaceMeta({
+    title: 'Add Service',
+    description: 'Create a new service offering and showcase your expertise to event organizers.'
+  });
+
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     title: '',
@@ -20,26 +26,78 @@ const AddService = () => {
     location: '',
     availability: 'Available'
   });
+  const [images, setImages] = useState<string[]>([]);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setImages(prev => [...prev, event.target!.result as string]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeImage = (index: number) => {
+    setImages(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success('Service added successfully!');
-    navigate('/my-services');
+    
+    // Generate a unique service ID
+    const serviceId = `service-${Date.now()}`;
+    
+    // Save service to localStorage
+    const existingServices = JSON.parse(localStorage.getItem('userServices') || '[]');
+    const newService = {
+      id: serviceId,
+      title: formData.title,
+      category: formData.category,
+      description: formData.description,
+      price: `${formData.minPrice} - ${formData.maxPrice} TZS`,
+      rating: 0,
+      reviewCount: 0,
+      isVerified: false,
+      verificationProgress: 0,
+      verificationStatus: 'not-started',
+      images: images,
+      pastEvents: 0,
+      availability: formData.availability,
+      location: formData.location,
+      createdAt: new Date().toISOString()
+    };
+    
+    existingServices.push(newService);
+    localStorage.setItem('userServices', JSON.stringify(existingServices));
+    
+    toast.success('Service added successfully! Please complete verification.');
+    navigate(`/services/verify/${serviceId}`);
+  };
+
+  const formatPrice = (value: string) => {
+    const numbers = value.replace(/[^\d]/g, '');
+    return numbers.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   };
 
   return (
     <div className="h-full overflow-y-auto p-4 md:p-6">
       <div className="max-w-3xl mx-auto">
-        <Button
-          variant="ghost"
-          className="mb-4"
-          onClick={() => navigate('/my-services')}
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to My Services
-        </Button>
-
-        <h1 className="text-2xl md:text-3xl font-bold mb-6">Add New Service</h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl md:text-3xl font-bold">Add New Service</h1>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/my-services')}
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <Card>
@@ -105,10 +163,9 @@ const AddService = () => {
                   <Label htmlFor="minPrice">Minimum Price (TZS) *</Label>
                   <Input
                     id="minPrice"
-                    type="number"
-                    placeholder="e.g., 300000"
+                    placeholder="e.g., 300,000"
                     value={formData.minPrice}
-                    onChange={(e) => setFormData({ ...formData, minPrice: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, minPrice: formatPrice(e.target.value) })}
                     required
                   />
                 </div>
@@ -116,10 +173,9 @@ const AddService = () => {
                   <Label htmlFor="maxPrice">Maximum Price (TZS) *</Label>
                   <Input
                     id="maxPrice"
-                    type="number"
-                    placeholder="e.g., 2500000"
+                    placeholder="e.g., 2,500,000"
                     value={formData.maxPrice}
-                    onChange={(e) => setFormData({ ...formData, maxPrice: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, maxPrice: formatPrice(e.target.value) })}
                     required
                   />
                 </div>
@@ -160,17 +216,51 @@ const AddService = () => {
               <CardTitle>Service Images</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
-                <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-muted-foreground mb-2">
-                  Click to upload or drag and drop
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  PNG, JPG, or WEBP (max. 5MB per file)
-                </p>
-                <Button type="button" variant="outline" className="mt-4">
-                  Choose Files
-                </Button>
+              <div className="space-y-4">
+                {images.length > 0 && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {images.map((image, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={image}
+                          alt={`Service ${index + 1}`}
+                          className="w-full h-32 object-cover rounded-lg"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removeImage(index)}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
+                  <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground mb-2">
+                    Click to upload or drag and drop
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    PNG, JPG, or WEBP (max. 5MB per file)
+                  </p>
+                  <label htmlFor="image-upload">
+                    <Button type="button" variant="outline" className="mt-4" onClick={() => document.getElementById('image-upload')?.click()}>
+                      Choose Files
+                    </Button>
+                  </label>
+                  <input
+                    id="image-upload"
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageUpload}
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>

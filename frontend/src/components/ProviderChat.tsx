@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Send, X, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 
 type Msg = {
   id: number;
@@ -19,6 +20,11 @@ const ProviderChat = () => {
   const providerImage = searchParams.get('providerImage') || 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=150&h=150&fit=crop&crop=face';
   const serviceId = searchParams.get('serviceId');
   const eventId = searchParams.get('eventId');
+
+  useWorkspaceMeta({
+    title: `Chat with ${providerName}`,
+    description: `Message ${providerName} about their services for your event.`
+  });
 
   const [messages, setMessages] = useState<Msg[]>([
     { id: 1, text: `Hi! I'm interested in your services for my event.`, time: '10:00 AM', sent: true },

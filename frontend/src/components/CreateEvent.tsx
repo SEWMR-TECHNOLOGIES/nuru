@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, CheckCircle2, Plus, Image, X } from 'lucide-react';
+import { Calendar, CheckCircle2, Plus, Image, X, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 
 interface Service {
   id: string;
@@ -23,6 +24,11 @@ interface Service {
 }
 
 const CreateEvent = () => {
+  useWorkspaceMeta({
+    title: 'Create Event',
+    description: 'Plan your perfect event with comprehensive tools for weddings, birthdays, memorials, and more.'
+  });
+
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     title: '',
@@ -174,9 +180,18 @@ const CreateEvent = () => {
 
   return (
     <div>
-      <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">Create New Event</h1>
-        <p className="text-muted-foreground">Plan your perfect event with our comprehensive toolkit</p>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Create New Event</h1>
+          <p className="text-muted-foreground">Plan your perfect event with our comprehensive toolkit</p>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate('/my-events')}
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </Button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">

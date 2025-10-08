@@ -3,6 +3,7 @@ import { Camera, Image, MapPin, X, Send, Plus, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import sampleImage from '@/assets/feed-images/birthday.webp';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 
 type ChatItem = {
   id: number;
@@ -23,6 +24,11 @@ type Msg = {
 };
 
 const Messages = () => {
+  useWorkspaceMeta({
+    title: 'Messages',
+    description: 'Chat with event organizers, service providers, and your community on Nuru.'
+  });
+
   const chats: ChatItem[] = [
     {
       id: 1,

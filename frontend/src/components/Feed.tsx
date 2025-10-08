@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import CreatePostBox from './CreatePostBox';
-import Post from './Post';
+import Moment from './Moment';
 import AdCard from './AdCard';
 import PromotedEvent from './PromotedEvent';
 import birthdayImage from '@/assets/feed-images/birthday.webp';
@@ -157,7 +157,7 @@ const Feed = () => {
       
       {posts.map((post, index) => (
         <div key={post.id}>
-          <Post post={post} />
+          <Moment post={post} />
           
           {/* Insert ads and promoted content strategically */}
           {index === 1 && (

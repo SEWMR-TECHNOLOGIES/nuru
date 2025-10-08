@@ -4,9 +4,16 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 
-const Settings = () => (
-  <div className="h-full overflow-y-auto p-4 md:p-6">
+const Settings = () => {
+  useWorkspaceMeta({
+    title: 'Settings',
+    description: 'Manage your account settings, notifications, privacy, and preferences.'
+  });
+
+  return (
+    <div className="h-full overflow-y-auto p-4 md:p-6">
     <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6">Settings</h1>
     
     <div className="space-y-6 max-w-3xl">
@@ -162,6 +169,7 @@ const Settings = () => (
       </Card>
     </div>
   </div>
-)
+  );
+};
 
 export default Settings

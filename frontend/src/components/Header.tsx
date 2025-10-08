@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Bell, MessageCircle, X, Menu, PanelRight, User, Settings, LogOut } from 'lucide-react';
+import { Search, Bell, MessageCircle, X, Menu, PanelRight, User, Settings, LogOut, Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -155,6 +155,14 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
               >
                 <Settings className="w-4 h-4" />
                 Settings
+              </Button>
+              <Button
+                variant="ghost"
+                className="justify-start gap-2"
+                onClick={() => navigate('/my-posts')}
+              >
+                <Sparkles className="w-4 h-4" />
+                Moments
               </Button>
               <Separator className="my-1" />
               <Button

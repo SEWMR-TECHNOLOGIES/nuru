@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 
 const serviceProviders = [
   {
@@ -60,6 +61,11 @@ const serviceProviders = [
 ];
 
 const FindServices = () => {
+  useWorkspaceMeta({
+    title: 'Find Services',
+    description: 'Discover trusted service providers for photography, catering, decoration, and more.'
+  });
+
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');

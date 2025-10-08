@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
+import NuruChatbot from './NuruChatbot';
 
 const helpCategories = [
   {
@@ -56,6 +58,11 @@ const faqs = [
 ];
 
 const Help = () => {
+  useWorkspaceMeta({
+    title: 'Help Center',
+    description: 'Get help, find answers to common questions, and contact support.'
+  });
+
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredFaqs = faqs.filter(faq =>
@@ -163,8 +170,11 @@ const Help = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* AI Chatbot */}
+      <NuruChatbot />
     </div>
   );
 };
 
-export default Help
+export default Help;

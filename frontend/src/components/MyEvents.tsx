@@ -2,8 +2,14 @@ import { Calendar, Users, Edit2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import React, { useEffect, useState } from 'react';
+import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 
 const MyEvents = () => {
+  useWorkspaceMeta({
+    title: 'My Events',
+    description: 'Manage all your events including weddings, birthdays, memorials, and celebrations.'
+  });
+
   const navigate = useNavigate();
   const [events, setEvents] = useState<any[]>([]);
 

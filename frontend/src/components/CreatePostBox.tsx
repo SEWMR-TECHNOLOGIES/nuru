@@ -29,7 +29,7 @@ const CreatePostBox = () => {
       <div className="flex items-center justify-between gap-2 md:gap-4">
         <input
           type="text"
-          placeholder="What's on your mind?"
+          placeholder="Share a moment..."
           value={text}
           onChange={e => setText(e.target.value)}
           className="flex-1 bg-transparent text-muted-foreground text-base md:text-lg outline-none border-0 placeholder:text-muted-foreground"
@@ -51,7 +51,7 @@ const CreatePostBox = () => {
             />
           </label>
 
-          <button className="p-1.5 md:p-2 hover:bg-muted rounded-lg transition-colors hidden sm:block">
+          <button className="p-1.5 md:p-2 hover:bg-muted rounded-lg transition-colors">
             <MapPin className="w-4 h-4 md:w-5 md:h-5 text-muted-foreground" />
           </button>
         </div>
