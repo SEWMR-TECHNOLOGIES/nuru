@@ -4,11 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -16,17 +18,25 @@ interface Message {
 }
 
 const NuruChatbot = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'assistant',
-      content: 'Hello! I\'m Nuru AI Assistant. 👋 I can help you with anything about Nuru - from creating events to finding service providers. What would you like to know?'
-    }
-  ]);
+  const { data: currentUser } = useCurrentUser();
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Initialize with personalized greeting when user data is available
+  useEffect(() => {
+    if (currentUser && messages.length === 0) {
+      setMessages([
+        {
+          role: 'assistant',
+          content: `Hello ${currentUser.first_name}! 👋 I'm Nuru AI Assistant. I can help you with anything about Nuru - from creating events to finding service providers. What would you like to know?`
+        }
+      ]);
+    }
+  }, [currentUser]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -61,7 +71,8 @@ const NuruChatbot = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: [...messages, { role: 'user', content: userMessage }]
+          messages: [...messages, { role: 'user', content: userMessage }],
+          firstName: currentUser?.first_name
         }),
       });
 
@@ -235,12 +246,20 @@ const NuruChatbot = () => {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
-                      >
-                        <Avatar className="w-8 h-8 flex-shrink-0">
-                          <AvatarFallback className={message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-secondary'}>
-                            {message.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
-                          </AvatarFallback>
-                        </Avatar>
+                       >
+                         <Avatar className="w-8 h-8 flex-shrink-0">
+                           {message.role === 'user' && currentUser?.avatar ? (
+                             <AvatarImage src={currentUser.avatar} alt={currentUser.first_name} />
+                           ) : null}
+                           <AvatarFallback className={`flex items-center justify-center ${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}>
+                             {message.role === 'user' 
+                               ? currentUser 
+                                 ? <span className="text-xs font-medium">{`${currentUser.first_name?.[0] || ''}${currentUser.last_name?.[0] || ''}`.toUpperCase()}</span>
+                                 : <User className="w-3.5 h-3.5" />
+                               : <Bot className="w-3.5 h-3.5" />
+                             }
+                           </AvatarFallback>
+                         </Avatar>
                         <div
                           className={`rounded-2xl px-4 py-2 max-w-[80%] ${
                             message.role === 'user'
@@ -248,30 +267,41 @@ const NuruChatbot = () => {
                               : 'bg-secondary text-secondary-foreground'
                           }`}
                         >
-                          <div className={`text-sm prose prose-sm max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 ${
-                            message.role === 'user' ? 'prose-invert' : 'dark:prose-invert'
-                          }`}>
-                            <ReactMarkdown>{message.content}</ReactMarkdown>
-                          </div>
+                           <div className={`text-sm prose prose-sm max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-table:my-2 overflow-x-auto ${
+                             message.role === 'user' ? 'prose-invert' : 'dark:prose-invert'
+                           }`}>
+                             <ReactMarkdown 
+                               remarkPlugins={[remarkGfm]}
+                               components={{
+                                 table: ({ node, ...props }) => (
+                                   <div className="overflow-x-auto -mx-2 px-2">
+                                     <table {...props} className="min-w-full" />
+                                   </div>
+                                 ),
+                               }}
+                             >
+                               {message.content}
+                             </ReactMarkdown>
+                           </div>
                         </div>
                       </motion.div>
                     ))}
                     
                     {isLoading && (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="flex gap-3"
-                      >
-                        <Avatar className="w-8 h-8">
-                          <AvatarFallback className="bg-secondary">
-                            <Bot className="w-4 h-4" />
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="rounded-2xl px-4 py-2 bg-secondary">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        </div>
-                      </motion.div>
+                       <motion.div
+                         initial={{ opacity: 0 }}
+                         animate={{ opacity: 1 }}
+                         className="flex gap-3"
+                       >
+                         <Avatar className="w-8 h-8">
+                           <AvatarFallback className="bg-secondary text-secondary-foreground flex items-center justify-center">
+                             <Bot className="w-3.5 h-3.5" />
+                           </AvatarFallback>
+                         </Avatar>
+                         <div className="rounded-2xl px-4 py-2 bg-secondary">
+                           <Loader2 className="w-4 h-4 animate-spin" />
+                         </div>
+                       </motion.div>
                     )}
 
                     {/* Suggested Questions (only show initially) */}
