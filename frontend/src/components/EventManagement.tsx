@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Calendar, MapPin, Users, CheckCircle2, Plus, Settings, UserPlus, DollarSign, X, Search } from 'lucide-react';
+import { ChevronLeft, Calendar, MapPin, Users, CheckCircle2, Plus, Settings, UserPlus, DollarSign, X, Search, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,8 +9,10 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import PledgeDialog from './PledgeDialog';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
+import EventRSVP from './EventRSVP';
 
 interface EventData {
   id: string;
@@ -65,6 +67,7 @@ const EventManagement = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddServiceDialog, setShowAddServiceDialog] = useState(false);
   const [serviceSearch, setServiceSearch] = useState('');
+  const [deleteServiceId, setDeleteServiceId] = useState<string | null>(null);
 
   const allAvailableServices = [
     { id: 's1', name: 'Event Coordinator', category: 'Planning', estimatedCost: 'TZS 500,000-2,000,000' },
@@ -225,6 +228,21 @@ const EventManagement = () => {
     setServiceSearch('');
   };
 
+  const handleRemoveService = () => {
+    if (!event || !deleteServiceId) return;
+    
+    const updatedServices = event.services.filter(service => service.id !== deleteServiceId);
+    const updatedEvent = { ...event, services: updatedServices };
+    setEvent(updatedEvent);
+    
+    const events = JSON.parse(localStorage.getItem('events') || '[]');
+    const updatedEvents = events.map((e: EventData) =>
+      e.id === id ? updatedEvent : e
+    );
+    localStorage.setItem('events', JSON.stringify(updatedEvents));
+    setDeleteServiceId(null);
+  };
+
   if (!event) {
     return <div>Event not found</div>;
   }
@@ -351,12 +369,31 @@ const EventManagement = () => {
         </div>
       )}
 
+      {/* Delete Service Confirmation Dialog */}
+      <AlertDialog open={!!deleteServiceId} onOpenChange={() => setDeleteServiceId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Service?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove this service from your event? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRemoveService} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Remove Service
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 h-auto gap-1">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 h-auto gap-1">
           <TabsTrigger value="overview" className="text-xs sm:text-sm py-2">Overview</TabsTrigger>
           <TabsTrigger value="services" className="text-xs sm:text-sm py-2">Services</TabsTrigger>
           <TabsTrigger value="committee" className="text-xs sm:text-sm py-2">Committee</TabsTrigger>
           <TabsTrigger value="contributions" className="text-xs sm:text-sm py-2">Contributions</TabsTrigger>
+          <TabsTrigger value="rsvp" className="text-xs sm:text-sm py-2">RSVP</TabsTrigger>
           <TabsTrigger value="invitations" className="text-xs sm:text-sm py-2">Invitations</TabsTrigger>
         </TabsList>
 
@@ -435,7 +472,7 @@ const EventManagement = () => {
             <CardContent>
               <div className="space-y-3">
                 {event.services.map((service) => (
-                  <div
+                <div
                     key={service.id}
                     className={`p-4 rounded-lg border transition-colors ${
                       service.completed ? "bg-green-50 border-green-200" : "bg-card border-border"
@@ -454,17 +491,28 @@ const EventManagement = () => {
                       </button>
                       
                       <div className="flex-1 min-w-0">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-1">
-                          <h4 className={`font-medium ${service.completed ? "line-through text-muted-foreground" : ""}`}>
-                            {service.name}
-                          </h4>
-                          <Badge className={
-                            service.priority === 'high' ? 'bg-red-100 text-red-800' :
-                            service.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-green-100 text-green-800'
-                          }>
-                            {service.priority}
-                          </Badge>
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                            <h3 className="font-medium">{service.name}</h3>
+                            <Badge className={
+                              service.priority === 'high'
+                                ? 'bg-red-100 text-red-800'
+                                : service.priority === 'low'
+                                ? 'bg-gray-100 text-gray-800'
+                                : 'bg-green-100 text-green-800'
+                            }>
+                              {service.priority}
+                            </Badge>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setDeleteServiceId(service.id)}
+                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 -mt-1 -mr-2"
+                            title="Remove service"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                         <p className="text-sm text-muted-foreground mb-3">
                           {service.category} • {service.estimated_cost}
@@ -495,7 +543,7 @@ const EventManagement = () => {
                         ) : (
                           <Button
                             size="sm"
-                            className="bg-[hsl(var(--nuru-yellow))] hover:bg-[hsl(var(--nuru-yellow))]/90 text-foreground font-medium"
+                            className="bg-[hsl(var(--nuru-yellow))] hover:bg-[hsl(var(--nuru-yellow))]/90 text-foreground font-medium w-full sm:w-auto"
                             onClick={() => {
                               localStorage.setItem('assignServiceId', service.id);
                               localStorage.setItem('assignEventId', id!);
@@ -598,6 +646,10 @@ const EventManagement = () => {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="rsvp" className="space-y-6">
+          <EventRSVP eventId={id || ''} />
         </TabsContent>
 
         <TabsContent value="invitations" className="space-y-6">

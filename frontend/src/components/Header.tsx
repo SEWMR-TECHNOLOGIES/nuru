@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Bell, MessageCircle, X, Menu, PanelRight, User, Settings, LogOut, Sparkles } from 'lucide-react';
+import { Search, Bell, MessageCircle, X, Menu, PanelRight, User, Settings, LogOut, Sparkles, CreditCard } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -20,6 +20,7 @@ interface HeaderProps {
 
 const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
   const [showNotifications, setShowNotifications] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState(false);
   const navigate = useNavigate();
   const { logout } = useLogout();
   const { data: currentUser } = useCurrentUser();
@@ -116,7 +117,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
         </Button>
 
         {/* Profile */}
-        <Popover>
+        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
           <PopoverTrigger asChild>
             <button className="focus:outline-none">
               <div className="w-8 h-8 md:w-10 md:h-10 rounded-full overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition">
@@ -143,7 +144,10 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
               <Button
                 variant="ghost"
                 className="justify-start gap-2"
-                onClick={() => navigate('/profile')}
+                onClick={() => {
+                  setPopoverOpen(false);
+                  navigate('/profile');
+                }}
               >
                 <User className="w-4 h-4" />
                 Profile
@@ -151,7 +155,10 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
               <Button
                 variant="ghost"
                 className="justify-start gap-2"
-                onClick={() => navigate('/settings')}
+                onClick={() => {
+                  setPopoverOpen(false);
+                  navigate('/settings');
+                }}
               >
                 <Settings className="w-4 h-4" />
                 Settings
@@ -159,16 +166,33 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
               <Button
                 variant="ghost"
                 className="justify-start gap-2"
-                onClick={() => navigate('/my-posts')}
+                onClick={() => {
+                  setPopoverOpen(false);
+                  navigate('/my-posts');
+                }}
               >
                 <Sparkles className="w-4 h-4" />
                 Moments
+              </Button>
+              <Button
+                variant="ghost"
+                className="justify-start gap-2"
+                onClick={() => {
+                  setPopoverOpen(false);
+                  navigate('/nuru-cards');
+                }}
+              >
+                <CreditCard className="w-4 h-4" />
+                Nuru Cards
               </Button>
               <Separator className="my-1" />
               <Button
                 variant="ghost"
                 className="justify-start gap-2 text-red-600 hover:text-red-600 hover:bg-red-50"
-                onClick={logout}
+                onClick={() => {
+                  setPopoverOpen(false);
+                  logout();
+                }}
               >
                 <LogOut className="w-4 h-4" />
                 Sign Out

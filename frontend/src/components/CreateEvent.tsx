@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Calendar, CheckCircle2, Plus, Image, X, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,8 @@ const CreateEvent = () => {
   });
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get('edit');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -47,6 +49,38 @@ const CreateEvent = () => {
   // Image upload state
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+
+  // Load existing event data when editing
+  useEffect(() => {
+    if (editId) {
+      const existingEvents = JSON.parse(localStorage.getItem('events') || '[]');
+      const eventToEdit = existingEvents.find((e: any) => e.id === editId);
+      
+      if (eventToEdit) {
+        setFormData({
+          title: eventToEdit.title || '',
+          description: eventToEdit.description || '',
+          date: eventToEdit.date ? new Date(eventToEdit.date) : undefined,
+          time: eventToEdit.time || '',
+          location: eventToEdit.location || '',
+          expectedGuests: eventToEdit.expectedGuests || '',
+          budget: eventToEdit.budget?.replace('TZS ', '').replace(/,/g, '') || '',
+          eventType: eventToEdit.eventType || 'wedding'
+        });
+        
+        // Load images if they exist
+        if (eventToEdit.images && eventToEdit.images.length > 0) {
+          setPreviews(eventToEdit.images);
+        }
+        
+        // Load services if they exist
+        if (eventToEdit.services && eventToEdit.services.length > 0) {
+          setRecommendedServices(eventToEdit.services);
+          setShowRecommendations(true);
+        }
+      }
+    }
+  }, [editId]);
 
   // Convert file to Base64
   const fileToBase64 = (file: File): Promise<string> => {
@@ -150,21 +184,34 @@ const CreateEvent = () => {
 
     // Convert images to Base64
     const base64Images = await Promise.all(images.map(file => fileToBase64(file)));
+    
+    // If editing, keep existing base64 images and add new ones
+    const allImages = editId ? [...previews.filter(p => p.startsWith('data:image')), ...base64Images] : base64Images;
 
     // Only include selected services (those marked as completed)
     const selectedServices = recommendedServices.filter(s => s.completed);
 
     const event = {
-      id: Date.now().toString(),
+      id: editId || Date.now().toString(),
       ...formData,
       budget: formatBudget(formData.budget),
-      images: base64Images,
+      images: allImages,
       services: selectedServices,
-      createdAt: new Date().toISOString()
+      createdAt: editId ? undefined : new Date().toISOString()
     };
 
     const existingEvents = JSON.parse(localStorage.getItem('events') || '[]');
-    localStorage.setItem('events', JSON.stringify([...existingEvents, event]));
+    
+    if (editId) {
+      // Update existing event
+      const updatedEvents = existingEvents.map((e: any) => 
+        e.id === editId ? { ...e, ...event } : e
+      );
+      localStorage.setItem('events', JSON.stringify(updatedEvents));
+    } else {
+      // Create new event
+      localStorage.setItem('events', JSON.stringify([...existingEvents, event]));
+    }
 
     navigate(`/event-management/${event.id}`);
   };
@@ -182,8 +229,12 @@ const CreateEvent = () => {
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Create New Event</h1>
-          <p className="text-muted-foreground">Plan your perfect event with our comprehensive toolkit</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            {editId ? 'Edit Event' : 'Create New Event'}
+          </h1>
+          <p className="text-muted-foreground">
+            {editId ? 'Update your event details' : 'Plan your perfect event with our comprehensive toolkit'}
+          </p>
         </div>
         <Button
           variant="ghost"
@@ -463,7 +514,7 @@ const CreateEvent = () => {
             Cancel
           </Button>
           <Button type="submit" disabled={!formData.title || !formData.date}>
-            Create Event
+            {editId ? 'Update Event' : 'Create Event'}
           </Button>
         </div>
       </form>

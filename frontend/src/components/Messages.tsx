@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, Image, MapPin, X, Send, Plus, ArrowLeft } from 'lucide-react';
+import { Camera, Image, MapPin, X, Send, Plus, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import sampleImage from '@/assets/feed-images/birthday.webp';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -204,21 +204,20 @@ const Messages = () => {
       {/* Chat Details */}
       <div className={`${isMobile ? (showChatList ? 'hidden' : 'w-full') : 'flex-1'} flex flex-col bg-card`}>
         <div className="p-4 border-b border-border flex items-center gap-3">
+          <img src={currentChat.avatar} alt={currentChat.name} className="w-10 h-10 rounded-full object-cover" />
+          <div className="flex-1">
+            <h3 className="font-semibold">{currentChat.name}</h3>
+            <p className="text-sm text-muted-foreground">Active 5 minutes ago</p>
+          </div>
           {isMobile && (
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setShowChatList(true)}
-              className="mr-2"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ChevronLeft className="w-5 h-5" />
             </Button>
           )}
-          <img src={currentChat.avatar} alt={currentChat.name} className="w-10 h-10 rounded-full object-cover" />
-          <div>
-            <h3 className="font-semibold">{currentChat.name}</h3>
-            <p className="text-sm text-muted-foreground">Active 5 minutes ago</p>
-          </div>
         </div>
 
         <div ref={messagesRef} className="flex-1 p-3 md:p-4 overflow-y-auto space-y-4">

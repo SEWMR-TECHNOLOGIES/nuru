@@ -47,6 +47,8 @@ const ServiceDetail = () => {
   const navigate = useNavigate();
   const [service, setService] = useState<ServiceData | null>(null);
   const [bookedDates, setBookedDates] = useState<Date[]>([]);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   useEffect(() => {
     // Check localStorage services first
@@ -201,6 +203,15 @@ const ServiceDetail = () => {
     ));
   };
 
+  const hasImages = Array.isArray(service.images) && service.images.length > 0;
+
+  const openLightbox = (index: number) => {
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+  };
+
+  const closeLightbox = () => setLightboxOpen(false);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -214,6 +225,77 @@ const ServiceDetail = () => {
           <ChevronLeft className="w-5 h-5" />
         </Button>
       </div>
+
+      {/* Service Images Carousel */}
+      {hasImages && (
+        <div className="space-y-2">
+          {service.images.length === 1 ? (
+            <div
+              className="relative w-full h-80 rounded-lg overflow-hidden border cursor-pointer"
+              onClick={() => openLightbox(0)}
+            >
+              <img
+                src={service.images[0]}
+                alt={`${service.name}`}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          ) : (
+            <div className="flex gap-3 overflow-x-auto py-2">
+              {service.images.map((img, idx) => (
+                <div
+                  key={idx}
+                  className="relative w-64 h-48 flex-shrink-0 rounded-lg overflow-hidden border cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => openLightbox(idx)}
+                >
+                  <img src={img} alt={`${service.name} ${idx + 1}`} className="w-full h-full object-cover" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightboxOpen && hasImages && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={closeLightbox}
+        >
+          <div className="relative max-w-[90vw] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={closeLightbox}
+              className="absolute -top-3 -right-3 bg-white rounded-full p-2 shadow z-50 hover:bg-gray-100"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+            <img
+              src={service.images[lightboxIndex]}
+              alt={`zoom ${lightboxIndex}`}
+              className="max-w-full max-h-[85vh] object-contain rounded"
+            />
+            {service.images.length > 1 && (
+              <>
+                <button
+                  onClick={() => setLightboxIndex((i) => (i - 1 + service.images.length) % service.images.length)}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 p-3 rounded-full hover:bg-white text-xl"
+                  aria-label="Previous"
+                >
+                  ‹
+                </button>
+                <button
+                  onClick={() => setLightboxIndex((i) => (i + 1) % service.images.length)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 p-3 rounded-full hover:bg-white text-xl"
+                  aria-label="Next"
+                >
+                  ›
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Service Hero */}
       <Card className="overflow-hidden">

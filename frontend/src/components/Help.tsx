@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import NuruChatbot from './NuruChatbot';
+import { useNavigate } from 'react-router-dom';
 
 const helpCategories = [
   {
@@ -63,6 +64,7 @@ const Help = () => {
     description: 'Get help, find answers to common questions, and contact support.'
   });
 
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredFaqs = faqs.filter(faq =>
@@ -94,7 +96,7 @@ const Help = () => {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="hover:shadow-md transition-shadow cursor-pointer">
+        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('/live-chat')}>
           <CardContent className="p-6 text-center">
             <MessageCircle className="w-8 h-8 text-primary mx-auto mb-3" />
             <h3 className="font-semibold mb-2">Live Chat</h3>

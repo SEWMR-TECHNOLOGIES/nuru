@@ -25,6 +25,8 @@ import Circle from "@/components/Circle";
 import Communities from "@/components/Communities";
 import ProviderChat from "@/components/ProviderChat";
 import MyMoments from "@/components/MyMoments";
+import LiveChat from "@/components/LiveChat";
+import NuruCards from "@/components/NuruCards";
 
 import Index from "@/pages/Index";
 import Contact from "@/pages/Contact";
@@ -100,6 +102,8 @@ export default function AppRoutes() {
             <Route path="communities" element={<Communities />} />
             <Route path="provider-chat" element={<ProviderChat />} />
             <Route path="my-posts" element={<MyMoments />} />
+            <Route path="live-chat" element={<LiveChat />} />
+            <Route path="nuru-cards" element={<NuruCards />} />
           </Route>
         )}
 

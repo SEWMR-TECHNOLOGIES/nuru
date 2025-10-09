@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Send, X, Image as ImageIcon } from 'lucide-react';
+import { ChevronLeft, Send, X, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
@@ -106,15 +106,7 @@ const ProviderChat = () => {
     <div className="h-full flex flex-col bg-card">
       {/* Header */}
       <div className="p-4 border-b border-border flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate(-1)}
-            className="shrink-0"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
+        <div className="flex items-center gap-3 flex-1 min-w-0">
           <div className="w-12 h-12 rounded-full overflow-hidden bg-muted flex-shrink-0">
             <img
               src={providerImage}
@@ -122,21 +114,31 @@ const ProviderChat = () => {
               className="w-full h-full object-cover"
             />
           </div>
-          <div>
-            <h3 className="font-semibold">{providerName}</h3>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-semibold truncate">{providerName}</h3>
             <p className="text-sm text-muted-foreground">Service Provider</p>
           </div>
         </div>
         
-        {serviceId && eventId && (
+        <div className="flex items-center gap-2 shrink-0">
+          {serviceId && eventId && (
+            <Button
+              size="sm"
+              onClick={handleAssignProvider}
+              className="shrink-0"
+            >
+              Assign Provider
+            </Button>
+          )}
           <Button
-            size="sm"
-            onClick={handleAssignProvider}
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(-1)}
             className="shrink-0"
           >
-            Assign Provider
+            <ChevronLeft className="w-5 h-5" />
           </Button>
-        )}
+        </div>
       </div>
 
       {/* Messages */}
