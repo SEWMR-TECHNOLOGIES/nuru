@@ -244,11 +244,13 @@ const NuruChatbot = () => {
                         <div
                           className={`rounded-2xl px-4 py-2 max-w-[80%] ${
                             message.role === 'user'
-                              ? 'bg-primary text-primary-foreground'
+                              ? 'bg-primary text-white'
                               : 'bg-secondary text-secondary-foreground'
                           }`}
                         >
-                          <div className="text-sm prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0">
+                          <div className={`text-sm prose prose-sm max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 ${
+                            message.role === 'user' ? 'prose-invert' : 'dark:prose-invert'
+                          }`}>
                             <ReactMarkdown>{message.content}</ReactMarkdown>
                           </div>
                         </div>

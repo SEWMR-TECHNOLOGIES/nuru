@@ -198,19 +198,19 @@ const ServiceVerification = () => {
                       <Circle className="w-6 h-6 text-muted-foreground" />
                     )}
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <CardTitle className="text-lg">
                         {index + 1}. {item.title}
                       </CardTitle>
                       {item.required && (
-                        <Badge variant="outline" className="text-xs">Required</Badge>
+                        <Badge variant="outline" className="text-xs flex-shrink-0">Required</Badge>
                       )}
                       {item.completed && (
-                        <Badge className="bg-green-600 text-xs">Completed</Badge>
+                        <Badge className="bg-green-600 text-xs flex-shrink-0">Completed</Badge>
                       )}
                     </div>
-                    <CardDescription>{item.description}</CardDescription>
+                    <CardDescription className="break-words">{item.description}</CardDescription>
                   </div>
                 </div>
               </CardHeader>
