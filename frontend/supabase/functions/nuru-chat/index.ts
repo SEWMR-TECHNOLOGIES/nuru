@@ -1,27 +1,43 @@
 // file: functions/nuru-chat/index.ts
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://nuru.tz",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-const jsonResponse = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-
 serve(async (req) => {
+  const allowedOrigins = [
+    "https://nuru.tz",
+    "https://workspace.nuru.tz",
+    "http://localhost:8080",
+    "http://192.168.200.178:8080",
+  ];
+
+  const origin = req.headers.get("origin") || "";
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": allowedOrigins.includes(origin)
+      ? origin
+      : "https://nuru.tz",
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+
+  // Helper function for JSON response
+  const jsonResponse = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
   try {
+    console.log("Request method:", req.method, "Origin:", origin);
+
     // --- Handle preflight OPTIONS requests first ---
     if (req.method === "OPTIONS") {
+      console.log("⚡ Preflight OPTIONS request received, returning 204");
       return new Response(null, { status: 204, headers: corsHeaders });
     }
 
     // --- Only allow POST ---
     if (req.method !== "POST") {
+      console.log("❌ Invalid method:", req.method);
       return jsonResponse({ error: "Method not allowed" }, 405);
     }
 
@@ -29,23 +45,27 @@ serve(async (req) => {
     let body;
     try {
       body = await req.json();
-    } catch {
+      console.log("✅ Body parsed successfully");
+    } catch (err) {
+      console.error("❌ Failed to parse JSON body:", err);
       return jsonResponse({ error: "Invalid JSON body" }, 400);
     }
 
     const { messages } = body;
     if (!messages || !Array.isArray(messages)) {
+      console.error("❌ Missing or invalid 'messages' array");
       return jsonResponse({ error: "Missing or invalid 'messages' array" }, 400);
     }
 
-    console.log("Received chat request with messages:", messages);
+    console.log("✅ Received chat request with messages:", messages);
 
     // --- Load API key from environment ---
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY is not configured");
+      console.error("❌ LOVABLE_API_KEY is not configured");
       return jsonResponse({ error: "LOVABLE_API_KEY is not configured" }, 500);
     }
+
 
     // --- System prompt ---
     const systemPrompt = `You are Nuru AI Assistant, a friendly helper for the Nuru event planning platform.
@@ -77,7 +97,6 @@ Be friendly, helpful, and provide clear answers.`;
 
     console.log("Calling Lovable AI Gateway...");
 
-    // --- Call AI API ---
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -91,27 +110,25 @@ Be friendly, helpful, and provide clear answers.`;
       }),
     });
 
+    console.log("AI gateway status:", response.status);
+
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-
+      console.error("❌ AI gateway error:", response.status, errorText);
       let message = "Unknown error";
       if (response.status === 429) message = "Rate limit exceeded. Please try again later.";
       if (response.status === 402) message = "Payment required. Please contact support.";
-
       return jsonResponse({ error: message }, response.status);
     }
 
     // --- Stream response ---
+    console.log("✅ Streaming response to client");
     return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
 
   } catch (e) {
-    console.error("Chat error:", e);
-    return jsonResponse(
-      { error: e instanceof Error ? e.message : "Unknown error" },
-      500
-    );
+    console.error("❌ Chat error:", e);
+    return jsonResponse({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
   }
 });
