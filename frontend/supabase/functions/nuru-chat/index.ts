@@ -5,6 +5,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.74.0';
 serve(async (req) => {
   const allowedOrigins = [
     "https://nuru.tz",
+    "https://www.nuru.tz",
     "https://workspace.nuru.tz",
     "http://localhost:8080",
     "http://192.168.200.178:8080",
@@ -15,6 +16,7 @@ serve(async (req) => {
     "Access-Control-Allow-Origin": allowedOrigins.includes(origin)
       ? origin
       : "https://nuru.tz",
+      "Vary": "Origin",
     "Access-Control-Allow-Headers":
       "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
