@@ -11,17 +11,23 @@ serve(async (req) => {
     "http://192.168.200.178:8080",
   ];
 
-  const origin = req.headers.get("origin") || "";
+  const origin = (req.headers.get("origin") || "").trim();
+  const isAllowedOrigin =
+    allowedOrigins.includes(origin) ||
+    /^https:\/\/(www\.)?nuru\.tz$/.test(origin) ||
+    origin === "https://workspace.nuru.tz" ||
+    origin === "http://localhost:8080" ||
+    origin === "http://192.168.200.178:8080";
+
   const corsHeaders = {
-    "Access-Control-Allow-Origin": allowedOrigins.includes(origin)
-      ? origin
-      : "https://nuru.tz",
-      "Vary": "Origin",
+    "Access-Control-Allow-Origin": isAllowedOrigin ? origin : "https://nuru.tz",
+    "Access-Control-Allow-Credentials": "true",
+    "Vary": "Origin",
     "Access-Control-Allow-Headers":
       "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Max-Age": "86400",
   };
-
   // Helper function for JSON response
   const jsonResponse = (data: unknown, status = 200) =>
     new Response(JSON.stringify(data), {
