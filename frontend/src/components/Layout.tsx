@@ -24,10 +24,10 @@ const Layout = () => {
           </div>
           <main className="flex-1 overflow-hidden">
             <div className="flex flex-col lg:flex-row h-full w-full bg-slate-50/30">
-              <div className="flex-1 overflow-y-auto overscroll-y-contain px-3 md:px-6 py-4">
+              <div className="flex-1 overflow-y-auto overscroll-y-contain px-3 md:px-6 pt-4 pb-20 md:pb-8">
                 <Outlet />
               </div>
-              <div className="hidden lg:block lg:w-80 overflow-y-auto overscroll-y-contain px-4 py-4 border-l border-border">
+              <div className="hidden lg:block lg:w-80 overflow-y-auto overscroll-y-contain px-4 pt-4 pb-20 lg:pb-8 border-l border-border">
                 <RightSidebar />
               </div>
             </div>
@@ -37,7 +37,7 @@ const Layout = () => {
         {/* Mobile Left Drawer (Sidebar) */}
         <Sheet open={leftDrawerOpen} onOpenChange={setLeftDrawerOpen}>
           <SheetContent side="left" className="w-64 p-0 border-none">
-            <div className="h-full overflow-y-auto overscroll-y-contain p-2">
+            <div className="h-full overflow-y-auto overscroll-y-contain p-2 pb-20">
               <Sidebar onNavigate={() => setLeftDrawerOpen(false)} />
             </div>
           </SheetContent>
@@ -45,7 +45,7 @@ const Layout = () => {
 
         {/* Mobile Right Drawer (Right Sidebar) */}
         <Sheet open={rightDrawerOpen} onOpenChange={setRightDrawerOpen}>
-          <SheetContent side="right" className="w-80 overflow-y-auto overscroll-y-contain">
+          <SheetContent side="right" className="w-80 overflow-y-auto overscroll-y-contain p-4 pb-20">
             <RightSidebar />
           </SheetContent>
         </Sheet>
