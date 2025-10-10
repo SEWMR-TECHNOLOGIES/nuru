@@ -45,7 +45,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
 
 
   return (
-    <aside className="w-64 bg-sidebar-bg border-r border-border h-full p-4">
+    <aside className="w-64 bg-sidebar-bg border-r border-border h-full overflow-y-auto overscroll-y-contain p-4">
       {/* Navigation */}
       <nav className="space-y-2">
         {navItems.map(item => (

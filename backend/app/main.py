@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import users, propose, auth  # , events, services, attendees
+from api.routes import users, propose, auth, reference  # , events, services, attendees
 
 app = FastAPI(title="Nuru API", version="1.0.0")
 
@@ -30,6 +30,7 @@ def root():
 app.include_router(propose.router, prefix=f"{API_PREFIX}/propose", tags=["Propose"])
 app.include_router(auth.router, prefix=f"{API_PREFIX}/auth", tags=["Auth"])
 app.include_router(users.router, prefix=f"{API_PREFIX}/users", tags=["Users"])
+app.include_router(reference.router, prefix=f"{API_PREFIX}/references", tags=["References"])
 # app.include_router(events.router, prefix=f"{API_PREFIX}/events", tags=["Events"])
 # app.include_router(services.router, prefix=f"{API_PREFIX}/services", tags=["Services"])
 # app.include_router(attendees.router, prefix=f"{API_PREFIX}/attendees", tags=["Attendees"])
