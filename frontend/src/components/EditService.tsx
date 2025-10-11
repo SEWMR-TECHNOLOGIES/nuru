@@ -31,8 +31,8 @@ const EditService = () => {
   const { toast } = useToast();
   const { service, loading, error } = useUserServiceDetails(id!);
   const { categories, loading: loadingCategories } = useServiceCategories();
-  const { types, loading: loadingTypes } = useServiceTypes();
-  
+  const { serviceTypes, loading: loadingTypes, fetchServiceTypes } = useServiceTypes();
+
   const [title, setTitle] = useState('');
   const [serviceCategoryId, setServiceCategoryId] = useState('');
   const [serviceTypeId, setServiceTypeId] = useState('');
@@ -42,25 +42,34 @@ const EditService = () => {
   const [location, setLocation] = useState('');
   const [images, setImages] = useState<string[]>([]);
 
-  // Load service data from API
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+  // When the service is loaded, set initial form values
   useEffect(() => {
     if (service) {
       setTitle(service.title || '');
-      setServiceCategoryId(service.categoryId || ''); 
-      setServiceTypeId(service.serviceTypeId || '');  
+      const categoryId = service.categoryId || service.category_id || '';
+      setServiceCategoryId(categoryId);
+      setServiceTypeId(service.serviceTypeId || service.service_type_id || ''); // <-- only here
       setDescription(service.description || '');
-      
-      // Parse price range
-      const priceStr = service.price || '';
-      const priceRange = priceStr.replace(' TZS', '');
-      const [min, max] = priceRange.split(' - ');
-      setMinPrice(min?.replace(/,/g, '') || '');
-      setMaxPrice(max?.replace(/,/g, '') || '');
-      
+      setMinPrice((service.price?.split('-')[0] || '').replace(/,/g, ''));
+      setMaxPrice((service.price?.split('-')[1] || '').replace(/,/g, ''));
       setLocation(service.location || '');
       setImages(service.images || []);
+      setInitialLoadDone(true);
     }
   }, [service]);
+
+  useEffect(() => {
+    if (serviceCategoryId) {
+      fetchServiceTypes(serviceCategoryId);
+      
+      if (initialLoadDone) {
+        setServiceTypeId(''); 
+      }
+    }
+  }, [serviceCategoryId]);
+
+
 
   const formatPrice = (value: string) => {
     const numbers = value.replace(/[^\d]/g, '');
@@ -89,7 +98,7 @@ const EditService = () => {
     
     try {
       const token = localStorage.getItem('token');
-      const formattedPrice = `${minPrice} - ${maxPrice} TZS`;
+      const formattedPrice = `${formatPrice(minPrice)} - ${formatPrice(maxPrice)} TZS`;
 
       const response = await fetch(
         `${import.meta.env.VITE_API_BASE_URL}/user-services/${id}`,
@@ -140,6 +149,10 @@ const EditService = () => {
   if (error) return <p className="text-red-500">{error}</p>;
   if (!service) return <p className="text-red-500">Service not found</p>;
 
+  // helper function to get category id from type
+  const getTypeCategoryId = (t: any) =>
+    t?.service_category_id ?? t?.categoryId ?? t?.service_category ?? t?.category_id ?? t?.category_id;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -182,7 +195,7 @@ const EditService = () => {
                     {loadingCategories ? (
                       <SelectItem value="loading" disabled>Loading...</SelectItem>
                     ) : (
-                      categories.map((cat: any) => (
+                      (categories || []).map((cat: any) => (
                         <SelectItem key={cat.id} value={cat.id}>
                           {cat.name}
                         </SelectItem>
@@ -202,8 +215,11 @@ const EditService = () => {
                     {loadingTypes ? (
                       <SelectItem value="loading" disabled>Loading...</SelectItem>
                     ) : (
-                      types
-                        .filter((t: any) => t.service_category_id === serviceCategoryId)
+                      (serviceTypes || [])
+                        .filter((t: any) => {
+                          const tCat = getTypeCategoryId(t);
+                          return !!tCat && String(tCat) === String(serviceCategoryId);
+                        })
                         .map((type: any) => (
                           <SelectItem key={type.id} value={type.id}>
                             {type.name}

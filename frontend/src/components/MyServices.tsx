@@ -253,14 +253,16 @@ const MyServices = () => {
                           Add Package
                         </Button>
                       )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigate(`/services/edit/${service.id}`)}
-                      >
-                        <Edit className="w-4 h-4 mr-2" />
-                        Edit
-                      </Button>
+                      {service.verificationStatus !== 'verified' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/services/edit/${service.id}`)}
+                        >
+                          <Edit className="w-4 h-4 mr-2" />
+                          Edit
+                        </Button>
+                      )}
                       <Button size="sm" onClick={() => navigate(`/service/${service.id}`)}>
                         <Eye className="w-4 h-4 mr-2" />
                         View

@@ -33,7 +33,7 @@ export const useUserService = (serviceId) => {
       setError(err.message || "An error occurred");
     } finally {
       setLoading(false);
-    }
+    } 
   }, [serviceId]);
 
   useEffect(() => {
