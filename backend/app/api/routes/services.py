@@ -99,7 +99,7 @@ async def create_user_service(
                     detail=f"File '{file.filename}' exceeds the 0.5MB size limit."
                 )
 
-            upload_data = {"target_path": "nuru/uploads/service-images/{new_service.id}/"}
+            upload_data = {"target_path": f"nuru/uploads/service-images/{new_service.id}/"}
             upload_files = {"file": (file.filename, content, file.content_type)}
 
             try:
