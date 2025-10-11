@@ -101,8 +101,8 @@ const ServiceVerification = () => {
     setIsSubmitting(true);
 
     const itemsToSubmit = partial
-      ? items.filter((item) => item.files.length > 0)
-      : items;
+      ? items.filter((item) => item.files.length > 0) 
+      : items.filter((item) => item.status !== "verified" && item.status !== "pending"); 
 
     if (!partial && itemsToSubmit.some((item) => item.files.length === 0 && item.required)) {
       toast.error("Please attach files for all required items before submitting.");
@@ -110,7 +110,14 @@ const ServiceVerification = () => {
       return;
     }
 
-    if (itemsToSubmit.length === 0) {
+    if (partial && itemsToSubmit.length === 0) {
+      toast.success("Progress saved.");
+      setIsSubmitting(false);
+      navigate("/my-services");
+      return;
+    }
+
+    if (!partial && itemsToSubmit.length === 0) {
       toast.error("No files to submit.");
       setIsSubmitting(false);
       return;
@@ -141,9 +148,11 @@ const ServiceVerification = () => {
       }
       toast.success(result.message);
 
-      // REFRESH KYC DATA TO RERENDER UI
-      await refetch(); // <-- call refetch from hook to update kycList
-      setItems([]); // optional: clear files after submission
+      // Refresh KYC data
+      await refetch();
+      setItems([]);
+
+      if (partial) navigate("/my-services"); 
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || "An unexpected error occurred.");

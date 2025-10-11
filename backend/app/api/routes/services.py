@@ -86,11 +86,13 @@ async def create_user_service(
         for file in files:
             # Validate extension
             _, ext = os.path.splitext(file.filename)
-            if ext.lower() not in ALLOWED_IMAGE_EXTENSIONS:
+            ext = ext.lower().replace(".", "")
+            if ext not in ALLOWED_IMAGE_EXTENSIONS:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"File '{file.filename}' has invalid format. Allowed formats: jpg, jpeg, png, webp."
+                    detail=f"File '{file.filename}' has invalid format. Allowed formats: {', '.join(ALLOWED_IMAGE_EXTENSIONS)}."
                 )
+
 
             content = await file.read()
             if len(content) > MAX_IMAGE_SIZE:
