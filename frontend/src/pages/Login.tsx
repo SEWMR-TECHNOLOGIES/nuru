@@ -26,12 +26,12 @@ const Login = () => {
   const navigate = useNavigate();
   const qc = useQueryClient();
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      navigate("/", { replace: true });
-    }
-  }, [navigate]);
+  // useEffect(() => {
+  //   const token = localStorage.getItem("token");
+  //   if (token) {
+  //     navigate("/", { replace: true });
+  //   }
+  // }, [navigate]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));

@@ -22,6 +22,7 @@ const AddService = () => {
 
   const { categories } = useServiceCategories();
   const { serviceTypes, fetchServiceTypes } = useServiceTypes(); 
+  
 
   const [formData, setFormData] = useState({
     title: '',
@@ -34,6 +35,8 @@ const AddService = () => {
     availability: 'Available'
   });
   const [images, setImages] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
 
   // Fetch service types whenever category changes
   useEffect(() => {
@@ -61,10 +64,56 @@ const AddService = () => {
     setImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // your existing localStorage save logic
+    setIsSubmitting(true);
+    try {
+      const form = new FormData();
+      form.append("title", formData.title.trim());
+      form.append("description", formData.description.trim());
+      form.append("category_id", formData.category);
+      form.append("service_type_id", formData.serviceType);
+      form.append("min_price", formData.minPrice.replace(/,/g, ""));
+      form.append("max_price", formData.maxPrice.replace(/,/g, ""));
+      form.append("location", formData.location || "");
+
+      if (images.length > 0) {
+        const fileInput = document.getElementById("image-upload") as HTMLInputElement;
+        if (fileInput?.files) {
+          Array.from(fileInput.files).forEach((file) => {
+            form.append("files", file);
+          });
+        }
+      }
+
+      const token = localStorage.getItem("token");
+
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/services/create`, {
+        method: "POST",
+        body: form,
+        headers: {
+          Authorization: token ? `Bearer ${token}` : ""
+        },
+        credentials: "include" 
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        toast.error(result.message || "Failed to create service");
+        return;
+      }
+
+      toast.success(result.message);
+      navigate(`/services/verify/${result.data.id}/${formData.serviceType}`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "An unexpected error occurred.");
+    } finally {
+      setIsSubmitting(false); // Reset here
+    }
   };
+
 
   const formatPrice = (value: string) => {
     const numbers = value.replace(/[^\d]/g, '');
@@ -193,23 +242,6 @@ const AddService = () => {
                   required
                 />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="availability">Availability</Label>
-                <Select
-                  value={formData.availability}
-                  onValueChange={(value) => setFormData({ ...formData, availability: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Available">Available</SelectItem>
-                    <SelectItem value="Booking for 2025">Booking for 2025</SelectItem>
-                    <SelectItem value="Limited Availability">Limited Availability</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </CardContent>
           </Card>
 
@@ -247,7 +279,7 @@ const AddService = () => {
                     Click to upload or drag and drop
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    PNG, JPG, or WEBP (max. 5MB per file)
+                    PNG, JPG, or WEBP (max. 0.5MB per file)
                   </p>
                   <label htmlFor="image-upload">
                     <Button type="button" variant="outline" className="mt-4" onClick={() => document.getElementById('image-upload')?.click()}>
@@ -273,11 +305,12 @@ const AddService = () => {
               variant="outline"
               className="flex-1"
               onClick={() => navigate('/my-services')}
+              disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button type="submit" className="flex-1">
-              Add Service
+            <Button type="submit" className="flex-1" disabled={isSubmitting}>
+              {isSubmitting ? "Submitting..." : "Add Service"}
             </Button>
           </div>
         </form>

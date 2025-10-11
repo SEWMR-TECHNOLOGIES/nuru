@@ -95,7 +95,7 @@ export default function AppRoutes() {
             <Route path="my-services" element={<MyServices />} />
             <Route path="services/new" element={<AddService />} />
             <Route path="services/edit/:id" element={<EditService />} />
-            <Route path="services/verify/:id" element={<ServiceVerification />} />
+            <Route path="services/verify/:serviceId/:serviceType" element={<ServiceVerification />}/>
             <Route path="service/:id" element={<ServiceDetail />} />
             <Route path="profile" element={<UserProfile />} />
             <Route path="circle" element={<Circle />} />

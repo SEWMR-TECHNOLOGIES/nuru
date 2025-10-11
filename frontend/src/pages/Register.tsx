@@ -31,12 +31,12 @@ const Register = () => {
   // Inside Register component
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      navigate("/", { replace: true });
-    }
-  }, [navigate]);
+  // useEffect(() => {
+  //   const token = localStorage.getItem("token");
+  //   if (token) {
+  //     navigate("/", { replace: true });
+  //   }
+  // }, [navigate]);
 
   const [formData, setFormData] = useState({
     firstName: "",

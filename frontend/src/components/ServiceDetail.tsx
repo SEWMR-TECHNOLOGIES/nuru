@@ -1,173 +1,34 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Star, Calendar as CalendarIcon, MapPin, CheckCircle, Award, Users, Heart } from 'lucide-react';
+import { ChevronLeft, Star, Calendar as CalendarIcon, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Calendar } from '@/components/ui/calendar';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
-
-interface ServiceData {
-  id: string;
-  name: string;
-  category: string;
-  description: string;
-  basePrice: string;
-  rating: number;
-  totalReviews: number;
-  location: string;
-  yearsExperience: number;
-  verified: boolean;
-  availability: string;
-  images: string[];
-  pastEvents: Array<{
-    name: string;
-    date: string;
-    type: string;
-    rating: number;
-  }>;
-  reviews: Array<{
-    id: string;
-    clientName: string;
-    rating: number;
-    comment: string;
-    date: string;
-    eventType: string;
-  }>;
-  packages: Array<{
-    name: string;
-    price: string;
-    features: string[];
-  }>;
-}
+import { useUserService } from '@/hooks/useUserService'; // <-- new hook
+import { formatPrice } from '@/utils/formatPrice';
 
 const ServiceDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [service, setService] = useState<ServiceData | null>(null);
+
+  const { service, loading, error, refetch } = useUserService(id!);
   const [bookedDates, setBookedDates] = useState<Date[]>([]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
-  useEffect(() => {
-    // Check localStorage services first
-    const services = JSON.parse(localStorage.getItem('myServices') || '[]');
-    let foundService = services.find((s: ServiceData) => s.id === id);
-    
-    // If not found, check predefined Find Services providers
-    if (!foundService) {
-      const findServicesProviders = [
-        {
-          id: '1',
-          name: 'Elite Photography Studios',
-          category: 'Photography',
-          description: 'Professional wedding and event photography with 8+ years experience',
-          basePrice: 'From 300,000 TZS',
-          rating: 4.9,
-          totalReviews: 127,
-          location: 'Dar es Salaam',
-          yearsExperience: 8,
-          verified: true,
-          availability: 'Available',
-          images: ['https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=400&h=300&fit=crop'],
-          pastEvents: [
-            { name: 'Sarah & John Wedding', date: '2024-11-10', type: 'Wedding', rating: 5 },
-            { name: 'Corporate Gala 2024', date: '2024-10-15', type: 'Corporate', rating: 5 },
-            { name: 'Birthday Celebration', date: '2024-09-20', type: 'Birthday', rating: 4 }
-          ],
-          reviews: [
-            { id: '1', clientName: 'Sarah Johnson', rating: 5, comment: 'Absolutely stunning photos! Captured every moment perfectly.', date: '2024-11-12', eventType: 'Wedding' },
-            { id: '2', clientName: 'David Moshi', rating: 5, comment: 'Very professional and creative. Highly recommend!', date: '2024-10-17', eventType: 'Corporate' }
-          ],
-          packages: [
-            { name: 'Basic', price: '300,000 TZS', features: ['4 hours coverage', '100 edited photos', 'Digital delivery'] },
-            { name: 'Premium', price: '600,000 TZS', features: ['8 hours coverage', '300 edited photos', 'Digital + Print album', 'Drone shots'] }
-          ]
-        },
-        {
-          id: '2',
-          name: 'Royal Events Decoration',
-          category: 'Decoration',
-          description: 'Luxury event decoration and styling for weddings, parties, and corporate events',
-          basePrice: 'From 500,000 TZS',
-          rating: 4.8,
-          totalReviews: 89,
-          location: 'Arusha',
-          yearsExperience: 6,
-          verified: true,
-          availability: 'Available',
-          images: ['https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400&h=300&fit=crop'],
-          pastEvents: [
-            { name: 'Luxury Wedding', date: '2024-11-05', type: 'Wedding', rating: 5 },
-            { name: 'Product Launch', date: '2024-10-22', type: 'Corporate', rating: 5 }
-          ],
-          reviews: [
-            { id: '1', clientName: 'Grace Kimaro', rating: 5, comment: 'The decorations were breathtaking! Everyone loved the setup.', date: '2024-11-07', eventType: 'Wedding' }
-          ],
-          packages: [
-            { name: 'Basic', price: '500,000 TZS', features: ['Basic venue setup', 'Table decorations', 'Centerpieces'] },
-            { name: 'Premium', price: '1,200,000 TZS', features: ['Full venue transformation', 'Custom design', 'Lighting effects', 'Floral arrangements'] }
-          ]
-        },
-        {
-          id: '3',
-          name: 'Master Chef Catering',
-          category: 'Catering',
-          description: 'Authentic Tanzanian and international cuisine for all event sizes',
-          basePrice: 'From 15,000 TZS/person',
-          rating: 4.7,
-          totalReviews: 156,
-          location: 'Mwanza',
-          yearsExperience: 10,
-          verified: false,
-          availability: 'Available',
-          images: ['https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=400&h=300&fit=crop'],
-          pastEvents: [
-            { name: 'Wedding Reception', date: '2024-11-01', type: 'Wedding', rating: 5 },
-            { name: 'Corporate Dinner', date: '2024-10-18', type: 'Corporate', rating: 4 }
-          ],
-          reviews: [
-            { id: '1', clientName: 'Hassan Ali', rating: 5, comment: 'Delicious food and excellent service!', date: '2024-11-03', eventType: 'Wedding' }
-          ],
-          packages: [
-            { name: 'Basic', price: '15,000 TZS/person', features: ['3-course meal', 'Soft drinks', 'Basic service'] },
-            { name: 'Premium', price: '30,000 TZS/person', features: ['5-course meal', 'Premium beverages', 'Full service staff', 'Custom menu'] }
-          ]
-        },
-        {
-          id: '4',
-          name: 'Sound & Lights Pro',
-          category: 'Audio/Visual',
-          description: 'Professional sound systems, lighting, and DJ services',
-          basePrice: 'From 200,000 TZS',
-          rating: 4.9,
-          totalReviews: 98,
-          location: 'Dodoma',
-          yearsExperience: 7,
-          verified: true,
-          availability: 'Available',
-          images: ['https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop'],
-          pastEvents: [
-            { name: 'Music Festival', date: '2024-10-30', type: 'Festival', rating: 5 },
-            { name: 'Wedding Party', date: '2024-10-12', type: 'Wedding', rating: 5 }
-          ],
-          reviews: [
-            { id: '1', clientName: 'Michael Juma', rating: 5, comment: 'Amazing sound quality and great DJ skills!', date: '2024-11-01', eventType: 'Festival' }
-          ],
-          packages: [
-            { name: 'Basic', price: '200,000 TZS', features: ['Sound system', 'Basic lighting', '4 hours DJ'] },
-            { name: 'Premium', price: '500,000 TZS', features: ['Premium sound system', 'Stage lighting', '8 hours DJ', 'Special effects'] }
-          ]
-        }
-      ];
-      
-      foundService = findServicesProviders.find(s => s.id === id) as ServiceData | undefined;
-    }
-    
-    setService(foundService || null);
+  // Update meta when service changes
+  useWorkspaceMeta({
+    title: service?.title || 'Service Details',
+    description: `View details, availability, and book ${service?.title || 'this service'}.`
+  });
 
-    // Generate some mock booked dates for demonstration
+  useEffect(() => {
+    if (!service) return;
+
+    // Mock booked dates can remain or you can fetch from API if available
     const today = new Date();
     const mockBookedDates = [
       new Date(today.getFullYear(), today.getMonth(), 15),
@@ -177,17 +38,20 @@ const ServiceDetail = () => {
       new Date(today.getFullYear(), today.getMonth() + 1, 12),
     ];
     setBookedDates(mockBookedDates);
-  }, [id]);
+  }, [service]);
 
-  useWorkspaceMeta({
-    title: service?.name || 'Service Details',
-    description: `View details, availability, and book ${service?.name || 'this service'}.`
-  });
-
-  if (!service) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Service not found</p>
+        <p className="text-muted-foreground">Loading service details...</p>
+      </div>
+    );
+  }
+
+  if (error || !service) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-muted-foreground">{error || 'Service not found'}</p>
       </div>
     );
   }
@@ -196,20 +60,13 @@ const ServiceDetail = () => {
     return Array.from({ length: 5 }, (_, i) => (
       <Star
         key={i}
-        className={`w-4 h-4 ${
-          i < rating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'
-        }`}
+        className={`w-4 h-4 ${i < rating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'}`}
       />
     ));
   };
 
   const hasImages = Array.isArray(service.images) && service.images.length > 0;
-
-  const openLightbox = (index: number) => {
-    setLightboxIndex(index);
-    setLightboxOpen(true);
-  };
-
+  const openLightbox = (index: number) => { setLightboxIndex(index); setLightboxOpen(true); };
   const closeLightbox = () => setLightboxOpen(false);
 
   return (
@@ -217,11 +74,7 @@ const ServiceDetail = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Service Details</h1>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate(-1)}
-        >
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ChevronLeft className="w-5 h-5" />
         </Button>
       </div>
@@ -234,11 +87,7 @@ const ServiceDetail = () => {
               className="relative w-full h-80 rounded-lg overflow-hidden border cursor-pointer"
               onClick={() => openLightbox(0)}
             >
-              <img
-                src={service.images[0]}
-                alt={`${service.name}`}
-                className="w-full h-full object-cover"
-              />
+              <img src={service.images[0]} alt={`${service.title}`} className="w-full h-full object-cover" />
             </div>
           ) : (
             <div className="flex gap-3 overflow-x-auto py-2">
@@ -248,7 +97,7 @@ const ServiceDetail = () => {
                   className="relative w-64 h-48 flex-shrink-0 rounded-lg overflow-hidden border cursor-pointer hover:opacity-80 transition-opacity"
                   onClick={() => openLightbox(idx)}
                 >
-                  <img src={img} alt={`${service.name} ${idx + 1}`} className="w-full h-full object-cover" />
+                  <img src={img} alt={`${service.title} ${idx + 1}`} className="w-full h-full object-cover" />
                 </div>
               ))}
             </div>
@@ -258,39 +107,20 @@ const ServiceDetail = () => {
 
       {/* Lightbox */}
       {lightboxOpen && hasImages && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={closeLightbox}
-        >
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={closeLightbox}>
           <div className="relative max-w-[90vw] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={closeLightbox}
               className="absolute -top-3 -right-3 bg-white rounded-full p-2 shadow z-50 hover:bg-gray-100"
               aria-label="Close"
-            >
-              ✕
-            </button>
-            <img
-              src={service.images[lightboxIndex]}
-              alt={`zoom ${lightboxIndex}`}
-              className="max-w-full max-h-[85vh] object-contain rounded"
-            />
+            >✕</button>
+            <img src={service.images[lightboxIndex]} alt={`zoom ${lightboxIndex}`} className="max-w-full max-h-[85vh] object-contain rounded" />
             {service.images.length > 1 && (
               <>
-                <button
-                  onClick={() => setLightboxIndex((i) => (i - 1 + service.images.length) % service.images.length)}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 p-3 rounded-full hover:bg-white text-xl"
-                  aria-label="Previous"
-                >
-                  ‹
-                </button>
-                <button
-                  onClick={() => setLightboxIndex((i) => (i + 1) % service.images.length)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 p-3 rounded-full hover:bg-white text-xl"
-                  aria-label="Next"
-                >
-                  ›
-                </button>
+                <button onClick={() => setLightboxIndex((i) => (i - 1 + service.images.length) % service.images.length)}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 p-3 rounded-full hover:bg-white text-xl" aria-label="Previous">‹</button>
+                <button onClick={() => setLightboxIndex((i) => (i + 1) % service.images.length)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 p-3 rounded-full hover:bg-white text-xl" aria-label="Next">›</button>
               </>
             )}
           </div>
@@ -302,7 +132,7 @@ const ServiceDetail = () => {
         <div className="h-48 bg-gradient-to-r from-primary/10 to-primary/20 relative">
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
-              <h1 className="text-3xl font-bold text-foreground mb-2">{service.name}</h1>
+              <h1 className="text-3xl font-bold text-foreground mb-2">{service.title}</h1>
               <p className="text-muted-foreground">{service.category}</p>
             </div>
           </div>
@@ -330,7 +160,7 @@ const ServiceDetail = () => {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>
                   <p className="font-medium">Base Price</p>
-                  <p className="text-muted-foreground">{service.basePrice}</p>
+                  <p className="text-muted-foreground">From {formatPrice(service.basePrice)}</p>
                 </div>
                 <div>
                   <p className="font-medium">Experience</p>
@@ -357,7 +187,7 @@ const ServiceDetail = () => {
                     <div key={index} className="border rounded-lg p-4">
                       <div className="flex justify-between items-center mb-2">
                         <h4 className="font-medium">{pkg.name}</h4>
-                        <span className="font-bold text-primary">{pkg.price}</span>
+                        <span className="font-bold text-primary">{formatPrice(pkg.price)}</span>
                       </div>
                       <ul className="text-sm text-muted-foreground space-y-1">
                         {pkg.features.map((feature, idx) => (
