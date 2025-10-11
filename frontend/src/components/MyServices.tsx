@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Star, MapPin, CheckCircle, Calendar, Users, Plus, Edit, Eye } from 'lucide-react';
+import { Star, MapPin, CheckCircle, Calendar, Users, Plus, Edit, Eye, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +7,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useUserServices } from '@/data/useUserServices';
 import { useState } from 'react';
+import { ServiceLoadingSkeleton } from '@/components/ui/ServiceLoadingSkeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { toast } from '@/hooks/use-toast';
 
 interface Service {
   id: string;
@@ -76,6 +82,44 @@ const MyServices = () => {
     }
   ]);
 
+  const [packageDialogOpen, setPackageDialogOpen] = useState(false);
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
+  const [packageForm, setPackageForm] = useState({
+    name: '',
+    description: '',
+    features: '',
+    price: ''
+  });
+
+  const handleAddPackage = (serviceId: string) => {
+    setSelectedServiceId(serviceId);
+    setPackageDialogOpen(true);
+  };
+
+  const handleSavePackage = () => {
+    if (!selectedServiceId) return;
+
+    const packages = JSON.parse(localStorage.getItem(`service_packages_${selectedServiceId}`) || '[]');
+    const newPackage = {
+      id: Date.now().toString(),
+      ...packageForm,
+      features: packageForm.features.split('\n').filter(f => f.trim()),
+      createdAt: new Date().toISOString()
+    };
+    
+    packages.push(newPackage);
+    localStorage.setItem(`service_packages_${selectedServiceId}`, JSON.stringify(packages));
+
+    toast({
+      title: 'Package Added',
+      description: 'Your service package has been created successfully.'
+    });
+
+    setPackageDialogOpen(false);
+    setPackageForm({ name: '', description: '', features: '', price: '' });
+    setSelectedServiceId(null);
+  };
+
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, i) => (
       <Star
@@ -91,7 +135,7 @@ const MyServices = () => {
     ));
   };
 
-  if (loading) return <p>Loading services...</p>;
+  if (loading) return <ServiceLoadingSkeleton />;
   if (error) return <p className="text-red-500">{error}</p>;
 
   return (
@@ -196,37 +240,19 @@ const MyServices = () => {
 
                 {/* Details */}
                 <div className="flex-1">
-                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <h3 className="text-xl font-semibold">{service.title}</h3>
-                        {service.serviceTypeName && (
-                          <Badge variant="outline" className="border-gray-300 text-gray-700 text-xs">
-                            {service.serviceTypeName}
-                          </Badge>
-                        )}
-                        {service.verificationStatus === 'verified' && (
-                          <Badge className="bg-green-600 gap-1">
-                            <CheckCircle className="w-3 h-3" />
-                            Verified
-                          </Badge>
-                        )}
-                        {service.verificationStatus === 'pending' && (
-                          <Badge variant="outline" className="border-orange-500 text-orange-700 gap-1">
-                            <Calendar className="w-3 h-3" />
-                            Pending
-                          </Badge>
-                        )}
-                        {service.verificationStatus === 'rejected' && (
-                          <Badge variant="outline" className="border-red-500 text-red-700">
-                            Rejected
-                          </Badge>
-                        )}
-                      </div>
-                      <Badge variant="secondary">{service.category}</Badge>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="flex items-start justify-between gap-4 mb-3">
+                    <h3 className="text-xl font-semibold">{service.title}</h3>
+                    <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
+                      {service.verificationStatus === 'verified' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleAddPackage(service.id)}
+                        >
+                          <Package className="w-4 h-4 mr-2" />
+                          Add Package
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -240,6 +266,32 @@ const MyServices = () => {
                         View
                       </Button>
                     </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap mb-4">
+                    {service.verificationStatus === 'verified' && (
+                      <Badge className="bg-green-600 hover:bg-green-700 text-white gap-1.5 px-3 py-1 flex-shrink-0">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        Verified
+                      </Badge>
+                    )}
+                    {service.verificationStatus === 'pending' && (
+                      <Badge variant="outline" className="border-orange-500 text-orange-700 bg-orange-50 gap-1.5 px-3 py-1 flex-shrink-0">
+                        <Calendar className="w-3.5 h-3.5" />
+                        Pending Verification
+                      </Badge>
+                    )}
+                    {service.verificationStatus === 'rejected' && (
+                      <Badge variant="outline" className="border-red-500 text-red-700 bg-red-50 px-3 py-1 flex-shrink-0">
+                        Verification Rejected
+                      </Badge>
+                    )}
+                    <Badge variant="secondary" className="px-3 py-1 flex-shrink-0">{service.category}</Badge>
+                    {service.serviceTypeName && (
+                      <Badge variant="outline" className="border-primary/30 text-primary bg-primary/5 px-3 py-1 flex-shrink-0">
+                        {service.serviceTypeName}
+                      </Badge>
+                    )}
                   </div>
 
                   {/* Verification Progress */}
@@ -333,21 +385,23 @@ const MyServices = () => {
           <div className="space-y-4">
             {reviews.map((review) => (
               <div key={review.id} className="flex gap-4 p-4 border rounded-lg">
-                <Avatar>
+                <Avatar className="flex-shrink-0">
                   <AvatarImage src={review.avatar} />
                   <AvatarFallback>{review.author.charAt(0)}</AvatarFallback>
                 </Avatar>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
                     <h4 className="font-medium">{review.author}</h4>
-                    <div className="flex items-center">
-                      {renderStars(review.rating)}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center">
+                        {renderStars(review.rating)}
+                      </div>
+                      <Badge variant="outline" className="text-xs shrink-0">
+                        {review.eventType}
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className="text-xs">
-                      {review.eventType}
-                    </Badge>
                   </div>
-                  <p className="text-muted-foreground mb-2">{review.comment}</p>
+                  <p className="text-muted-foreground mb-2 break-words">{review.comment}</p>
                   <p className="text-sm text-muted-foreground">{review.date}</p>
                 </div>
               </div>
@@ -355,6 +409,64 @@ const MyServices = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Package Dialog */}
+      <Dialog open={packageDialogOpen} onOpenChange={setPackageDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Service Package</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="package-name">Package Name</Label>
+              <Input
+                id="package-name"
+                value={packageForm.name}
+                onChange={(e) => setPackageForm({ ...packageForm, name: e.target.value })}
+                placeholder="e.g., Premium Wedding Package"
+              />
+            </div>
+            <div>
+              <Label htmlFor="package-description">Description</Label>
+              <Textarea
+                id="package-description"
+                value={packageForm.description}
+                onChange={(e) => setPackageForm({ ...packageForm, description: e.target.value })}
+                placeholder="Brief description of what's included"
+                rows={3}
+              />
+            </div>
+            <div>
+              <Label htmlFor="package-features">Features (one per line)</Label>
+              <Textarea
+                id="package-features"
+                value={packageForm.features}
+                onChange={(e) => setPackageForm({ ...packageForm, features: e.target.value })}
+                placeholder="Full day coverage&#10;Professional editing&#10;200+ final photos"
+                rows={5}
+              />
+            </div>
+            <div>
+              <Label htmlFor="package-price">Price (TZS)</Label>
+              <Input
+                id="package-price"
+                type="number"
+                value={packageForm.price}
+                onChange={(e) => setPackageForm({ ...packageForm, price: e.target.value })}
+                placeholder="e.g., 2500000"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPackageDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSavePackage}>
+              Save Package
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -7,8 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Calendar } from '@/components/ui/calendar';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
-import { useUserService } from '@/hooks/useUserService'; // <-- new hook
+import { useUserService } from '@/hooks/useUserService';
 import { formatPrice } from '@/utils/formatPrice';
+import { ServiceDetailLoadingSkeleton } from '@/components/ui/ServiceLoadingSkeleton';
 
 const ServiceDetail = () => {
   const { id } = useParams();
@@ -41,11 +42,7 @@ const ServiceDetail = () => {
   }, [service]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Loading service details...</p>
-      </div>
-    );
+    return <ServiceDetailLoadingSkeleton />;
   }
 
   if (error || !service) {

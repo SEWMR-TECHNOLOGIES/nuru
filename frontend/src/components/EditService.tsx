@@ -15,21 +15,10 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
-
-interface Service {
-  id: string;
-  title: string;
-  category: string;
-  description: string;
-  price: string;
-  location: string;
-  availability: string;
-  images: string[];
-  rating: number;
-  reviewCount: number;
-  pastEvents: number;
-  isVerified: boolean;
-}
+import { useUserServiceDetails } from '@/data/useUserService';
+import { useServiceCategories } from '@/data/useServiceCategories';
+import { useServiceTypes } from '@/data/useServiceTypes';
+import { ServiceDetailLoadingSkeleton } from '@/components/ui/ServiceLoadingSkeleton';
 
 const EditService = () => {
   useWorkspaceMeta({
@@ -40,74 +29,38 @@ const EditService = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { toast } = useToast();
+  const { service, loading, error } = useUserServiceDetails(id!);
+  const { categories, loading: loadingCategories } = useServiceCategories();
+  const { types, loading: loadingTypes } = useServiceTypes();
   
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('');
+  const [serviceCategoryId, setServiceCategoryId] = useState('');
+  const [serviceTypeId, setServiceTypeId] = useState('');
   const [description, setDescription] = useState('');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [location, setLocation] = useState('');
-  const [availability, setAvailability] = useState('');
   const [images, setImages] = useState<string[]>([]);
 
+  // Load service data from API
   useEffect(() => {
-    // Load service data
-    const userServices = JSON.parse(localStorage.getItem('userServices') || '[]');
-    const sampleServices = [
-      {
-        id: '1',
-        title: 'Professional Wedding Photography',
-        category: 'Photography',
-        description: 'Capture your special moments with artistic flair. Specializing in candid shots, formal portraits, and artistic compositions.',
-        price: '800,000 - 2,500,000 TZS',
-        rating: 4.9,
-        reviewCount: 47,
-        isVerified: true,
-        images: [
-          'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=300&fit=crop',
-          'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=400&h=300&fit=crop'
-        ],
-        pastEvents: 52,
-        availability: 'Available',
-        location: 'New York, NY'
-      },
-      {
-        id: '2',
-        title: 'Event Planning & Coordination',
-        category: 'Planning',
-        description: 'Full-service event planning from concept to execution. Weddings, birthdays, corporate events, and more.',
-        price: '1,200,000 - 5,000,000 TZS',
-        rating: 4.8,
-        reviewCount: 31,
-        isVerified: false,
-        images: [
-          'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400&h=300&fit=crop'
-        ],
-        pastEvents: 38,
-        availability: 'Booking for 2025',
-        location: 'New York, NY'
-      }
-    ];
-
-    const allServices = [...sampleServices, ...userServices];
-    const service = allServices.find(s => s.id === id);
-
     if (service) {
-      setTitle(service.title);
-      setCategory(service.category);
-      setDescription(service.description);
+      setTitle(service.title || '');
+      setServiceCategoryId(service.categoryId || ''); 
+      setServiceTypeId(service.serviceTypeId || '');  
+      setDescription(service.description || '');
       
       // Parse price range
-      const priceRange = service.price.replace(' TZS', '');
+      const priceStr = service.price || '';
+      const priceRange = priceStr.replace(' TZS', '');
       const [min, max] = priceRange.split(' - ');
       setMinPrice(min?.replace(/,/g, '') || '');
       setMaxPrice(max?.replace(/,/g, '') || '');
       
-      setLocation(service.location);
-      setAvailability(service.availability);
-      setImages(service.images);
+      setLocation(service.location || '');
+      setImages(service.images || []);
     }
-  }, [id]);
+  }, [service]);
 
   const formatPrice = (value: string) => {
     const numbers = value.replace(/[^\d]/g, '');
@@ -131,43 +84,61 @@ const EditService = () => {
     setImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const userServices = JSON.parse(localStorage.getItem('userServices') || '[]');
-    const serviceIndex = userServices.findIndex((s: Service) => s.id === id);
+    try {
+      const token = localStorage.getItem('token');
+      const formattedPrice = `${minPrice} - ${maxPrice} TZS`;
 
-    const updatedService = {
-      id,
-      title,
-      category,
-      description,
-      price: `${minPrice} - ${maxPrice} TZS`,
-      location,
-      availability,
-      images,
-      rating: serviceIndex >= 0 ? userServices[serviceIndex].rating : 0,
-      reviewCount: serviceIndex >= 0 ? userServices[serviceIndex].reviewCount : 0,
-      pastEvents: serviceIndex >= 0 ? userServices[serviceIndex].pastEvents : 0,
-      isVerified: serviceIndex >= 0 ? userServices[serviceIndex].isVerified : false,
-    };
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/user-services/${id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: token ? `Bearer ${token}` : '',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            title,
+            service_category_id: serviceCategoryId,
+            service_type_id: serviceTypeId,
+            description,
+            price: formattedPrice,
+            location,
+            images,
+          }),
+        }
+      );
 
-    if (serviceIndex >= 0) {
-      userServices[serviceIndex] = updatedService;
-    } else {
-      // Handle sample services by creating a copy
-      userServices.push(updatedService);
+      const data = await response.json();
+
+      if (data.success) {
+        toast({
+          title: 'Service updated!',
+          description: 'Your service has been updated successfully.',
+        });
+        navigate('/my-services');
+      } else {
+        toast({
+          title: 'Update failed',
+          description: data.message || 'Failed to update service',
+          variant: 'destructive',
+        });
+      }
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'An error occurred while updating the service',
+        variant: 'destructive',
+      });
     }
-
-    localStorage.setItem('userServices', JSON.stringify(userServices));
-
-    toast({
-      title: 'Service updated!',
-      description: 'Your service has been updated successfully.',
-    });
-
-    navigate('/my-services');
   };
+
+  if (loading) return <ServiceDetailLoadingSkeleton />;
+  if (error) return <p className="text-red-500">{error}</p>;
+  if (!service) return <p className="text-red-500">Service not found</p>;
 
   return (
     <div className="space-y-6">
@@ -183,39 +154,62 @@ const EditService = () => {
       </div>
       <p className="text-muted-foreground mt-1">Update your service details and information</p>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Service Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="title">Service Title</Label>
+              <Input
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g., Professional Photography"
+                required
+              />
+            </div>
+
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="title">Service Title</Label>
-                <Input
-                  id="title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g., Professional Photography"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
-                <Select value={category} onValueChange={setCategory} required>
+                <Label htmlFor="category">Service Category</Label>
+                <Select value={serviceCategoryId} onValueChange={setServiceCategoryId} required>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Photography">Photography</SelectItem>
-                    <SelectItem value="Videography">Videography</SelectItem>
-                    <SelectItem value="Catering">Catering</SelectItem>
-                    <SelectItem value="Venue">Venue</SelectItem>
-                    <SelectItem value="Planning">Event Planning</SelectItem>
-                    <SelectItem value="Music">Music & DJ</SelectItem>
-                    <SelectItem value="Decoration">Decoration</SelectItem>
-                    <SelectItem value="Transportation">Transportation</SelectItem>
+                    {loadingCategories ? (
+                      <SelectItem value="loading" disabled>Loading...</SelectItem>
+                    ) : (
+                      categories.map((cat: any) => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="type">Service Type</Label>
+                <Select value={serviceTypeId} onValueChange={setServiceTypeId} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {loadingTypes ? (
+                      <SelectItem value="loading" disabled>Loading...</SelectItem>
+                    ) : (
+                      types
+                        .filter((t: any) => t.service_category_id === serviceCategoryId)
+                        .map((type: any) => (
+                          <SelectItem key={type.id} value={type.id}>
+                            {type.name}
+                          </SelectItem>
+                        ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -257,29 +251,15 @@ const EditService = () => {
               </div>
             </div>
             
-            <div className="grid md:grid-cols-2 gap-6">
-
-              <div className="space-y-2">
-                <Label htmlFor="location">Location</Label>
-                <Input
-                  id="location"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="e.g., Dar es Salaam"
-                  required
-                />
-              </div>
-            
-              <div className="space-y-2">
-                <Label htmlFor="availability">Availability</Label>
-                <Input
-                  id="availability"
-                  value={availability}
-                  onChange={(e) => setAvailability(e.target.value)}
-                  placeholder="e.g., Available, Booking for 2025"
-                  required
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="location">Location</Label>
+              <Input
+                id="location"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g., Dar es Salaam"
+                required
+              />
             </div>
 
             <div className="space-y-2">

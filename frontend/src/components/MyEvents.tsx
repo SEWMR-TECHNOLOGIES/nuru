@@ -101,9 +101,23 @@ const MyEvents = () => {
                         </span>
                       </div>
 
-                      <p className="text-sm text-muted-foreground mt-1.5">
-                        {event.eventType || event.type} • {event.date ? new Date(event.date).toLocaleDateString() : ''}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                        {(event.eventType || event.type) && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-medium">
+                            {event.eventType || event.type}
+                          </span>
+                        )}
+                        {event.eventCategory && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground text-xs font-medium">
+                            {event.eventCategory}
+                          </span>
+                        )}
+                      </div>
+                      {event.date && (
+                        <p className="text-sm text-muted-foreground mt-1.5">
+                          {new Date(event.date).toLocaleDateString()}
+                        </p>
+                      )}
 
                       <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
                         {event.description || event.text}

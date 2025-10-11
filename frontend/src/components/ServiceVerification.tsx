@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useWorkspaceMeta } from "@/hooks/useWorkspaceMeta";
 import { useServiceKyc } from "@/data/useUserServiceKyc";
+import { ServiceLoadingSkeleton } from "@/components/ui/ServiceLoadingSkeleton";
 
 interface VerificationItem {
   id: string;
@@ -151,12 +152,7 @@ const ServiceVerification = () => {
     }
   };
 
-  if (loading)
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Loading KYC requirements...</p>
-      </div>
-    );
+  if (loading) return <ServiceLoadingSkeleton />;
 
   if (error)
     return (

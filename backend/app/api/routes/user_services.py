@@ -239,6 +239,7 @@ def get_user_service_details(
         "id": str(service.id),
         "title": service.title,
         "category": service.category.name if service.category else None,
+        "categoryId": str(service.category_id) if service.category_id else None,
         "description": service.description,
         "basePrice": service.min_price,
         "price": f"{format_price(service.min_price)} - {format_price(service.max_price)}" if service.min_price and service.max_price else None,
