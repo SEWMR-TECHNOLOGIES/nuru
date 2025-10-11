@@ -1,12 +1,64 @@
-# models/enums.py
-# Contains all ENUM types: event_status_enum, payment_status_enum, payment_method_enum, rsvp_status_enum, verification_status_enum, otp_verification_type_enum
+import enum
+class EventStatusEnum(enum.Enum):
+    draft = "draft"
+    confirmed = "confirmed"
+    completed = "completed"
+    cancelled = "cancelled"
 
-from sqlalchemy import Enum
-from sqlalchemy.dialects.postgresql import ENUM
+class PaymentStatusEnum(enum.Enum):
+    pending = "pending"
+    completed = "completed"
+    refunded = "refunded"
 
-event_status_enum = ENUM('draft', 'confirmed', 'completed', 'cancelled', name='event_status', create_type=True)
-payment_status_enum = ENUM('pending', 'completed', 'refunded', name='payment_status', create_type=True)
-payment_method_enum = ENUM('mobile', 'bank', 'card', name='payment_method', create_type=True)
-rsvp_status_enum = ENUM('pending', 'confirmed', 'declined', 'checked_in', name='rsvp_status', create_type=True)
-verification_status_enum = ENUM('pending', 'verified', 'rejected', name='verification_status', create_type=True)
-otp_verification_type_enum = ENUM('phone', 'email', name='otp_verification_type', create_type=True)
+class PaymentMethodEnum(enum.Enum):
+    mobile = "mobile"
+    bank = "bank"
+    card = "card"
+
+class RSVPStatusEnum(enum.Enum):
+    pending = "pending"
+    confirmed = "confirmed"
+    declined = "declined"
+    checked_in = "checked_in"
+
+class VerificationStatusEnum(enum.Enum):
+    pending = "pending"
+    verified = "verified"
+    rejected = "rejected"
+
+class OTPVerificationTypeEnum(enum.Enum):
+    phone = "phone"
+    email = "email"
+
+class ConversationTypeEnum(enum.Enum):
+    user_to_user = "user_to_user"
+    user_to_service = "user_to_service"
+
+class EventServiceStatusEnum(enum.Enum):
+    pending = "pending"
+    assigned = "assigned"
+    in_progress = "in_progress"
+    completed = "completed"
+    cancelled = "cancelled"
+
+class ServiceAvailabilityEnum(enum.Enum):
+    available = "available"
+    limited = "limited"
+    unavailable = "unavailable"
+
+class NotificationTypeEnum(enum.Enum):
+    glow = "glow"
+    echo = "echo"
+    spark = "spark"
+    follow = "follow"
+    event_invite = "event_invite"
+    service_approved = "service_approved"
+    service_rejected = "service_rejected"
+    account_created = "account_created"
+    system = "system"
+
+class UploadFileTypeEnum(enum.Enum):
+    image = "image"
+    pdf = "pdf"
+    video = "video"
+    doc = "doc"

@@ -1,12 +1,10 @@
 # models/users.py
-# Contains all user-related models: User, UserProfile, UserIdentityVerification, UserVerificationOTP, AttendeeProfile
-
-from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Text, JSON
+from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Text, JSON, Enum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from core.base import Base  
-from models.enums import verification_status_enum, otp_verification_type_enum
+from models.enums import VerificationStatusEnum, OTPVerificationTypeEnum, RSVPStatusEnum
 
 class User(Base):
     __tablename__ = 'users'
@@ -40,7 +38,7 @@ class UserIdentityVerification(Base):
     document_type_id = Column(UUID(as_uuid=True), ForeignKey('identity_document_requirements.id'))
     document_number = Column(Text, nullable=False)
     document_file_url = Column(Text)
-    verification_status = Column(verification_status_enum, default='pending')
+    verification_status = Column(Enum(VerificationStatusEnum, name="verification_status_enum"), default=VerificationStatusEnum.pending)
     remarks = Column(Text)
     verified_at = Column(DateTime)
     created_at = Column(DateTime, default=func.now())
@@ -51,7 +49,7 @@ class UserVerificationOTP(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
     otp_code = Column(Text, nullable=False)
-    verification_type = Column(otp_verification_type_enum, nullable=False)
+    verification_type = Column(Enum(OTPVerificationTypeEnum, name="otp_verification_type_enum"), nullable=False)
     is_used = Column(Boolean, default=False)
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=func.now())

@@ -29,3 +29,8 @@ def generate_otp(length=6):
 
 def get_expiry(minutes=5):
     return datetime.utcnow() + timedelta(minutes=minutes)
+
+def format_price(price):
+    if price is None:
+        return None
+    return f"{int(price):,}"

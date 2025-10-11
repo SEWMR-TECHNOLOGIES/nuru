@@ -1,11 +1,11 @@
 # models/events.py
 # Contains all event-related models: EventType, Event, EventService, EventServicePayment, EventServiceStaff
 
-from sqlalchemy import Column, Text, Boolean, ForeignKey, DateTime, Numeric
+from sqlalchemy import Column, Enum, Text, Boolean, ForeignKey, DateTime, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from core.base import Base
-from models.enums import event_status_enum, payment_status_enum, payment_method_enum
+from models.enums import EventStatusEnum, PaymentStatusEnum, PaymentMethodEnum
 
 class EventType(Base):
     __tablename__ = 'event_types'
@@ -27,7 +27,7 @@ class Event(Base):
     end_time = Column(DateTime)
     location = Column(Text)
     budget = Column(Numeric)
-    status = Column(event_status_enum, default='draft')
+    status = Column(Enum(EventStatusEnum), default=EventStatusEnum.draft)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now())
 
@@ -45,10 +45,11 @@ class EventServicePayment(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     event_service_id = Column(UUID(as_uuid=True), ForeignKey('event_services.id', ondelete='CASCADE'))
     amount = Column(Numeric, nullable=False)
-    status = Column(payment_status_enum, default='pending')
+    status = Column(Enum(PaymentStatusEnum, native_enum=False), default=PaymentStatusEnum.pending)
     payment_date = Column(DateTime, default=func.now())
-    method = Column(payment_method_enum, nullable=False)
+    method = Column(Enum(PaymentMethodEnum, native_enum=False), nullable=False)
     transaction_ref = Column(Text)
+
 
 class EventServiceStaff(Base):
     __tablename__ = 'event_service_staff'
