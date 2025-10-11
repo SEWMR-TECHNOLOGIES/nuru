@@ -4,7 +4,8 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from core.base import Base
-from models.enums import ServiceAvailabilityEnum, UploadFileTypeEnum, VerificationStatusEnum  # updated imports
+from models.enums import ServiceAvailabilityEnum, UploadFileTypeEnum, VerificationStatusEnum
+from sqlalchemy.dialects.postgresql import JSONB
 
 class ServiceCategory(Base):
     __tablename__ = 'service_categories'
@@ -87,7 +88,8 @@ class ServicePackage(Base):
     user_service_id = Column(UUID(as_uuid=True), ForeignKey("user_services.id", ondelete="CASCADE"), nullable=False)
     name = Column(Text, nullable=False)
     price = Column(Numeric, nullable=False)
-    description = Column(Text)  
+    description = Column(Text)
+    features = Column(JSONB, default=list)  
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 

@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import httpx, pytz, uuid, os
 from core.config import ALLOWED_UPLOAD_EXTENSIONS, MAX_FILES_PER_KYC, MAX_IMAGE_SIZE, MAX_KYC_FILE_SIZE, MAX_SERVICE_IMAGES, UPLOAD_SERVICE_URL,ALLOWED_IMAGE_EXTENSIONS
-from models.services import KYCRequirement, UserService, UserServiceImage, UserServiceKYCStatus, UserServiceVerification, UserServiceVerificationFile
+from models.services import KYCRequirement, ServicePackage, UserService, UserServiceImage, UserServiceKYCStatus, UserServiceVerification, UserServiceVerificationFile
 from core.database import get_db
 from models.users import User
 from utils.auth import get_current_user
@@ -321,4 +321,78 @@ async def submit_service_verification(
         }
     }
 
+@router.post("/{service_id}/packages/add")
+async def create_service_package(
+    service_id: uuid.UUID,
+    name: str = Form(...),
+    description: str = Form(...),
+    features: str = Form(...),  
+    price: float = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new service package for a verified service."""
 
+    # 1️⃣ Check if service exists and belongs to current user
+    service = db.query(UserService).filter(
+        UserService.id == service_id,
+        UserService.user_id == current_user.id
+    ).first()
+
+    if not service:
+        raise HTTPException(status_code=404, detail="We could not find this service in your account.")
+
+    # 2️⃣ Allow only verified services
+    if service.verification_status != VerificationStatusEnum.verified:
+        raise HTTPException(status_code=400, detail="You can only add packages to verified services.")
+
+    # 3️⃣ Validate required fields with clear messages
+    if not name.strip():
+        raise HTTPException(status_code=400, detail="Please provide a package name.")
+    if not description.strip():
+        raise HTTPException(status_code=400, detail="Please include a brief description of this package.")
+    if price <= 0:
+        raise HTTPException(status_code=400, detail="Please enter a valid package price greater than zero.")
+    if not features.strip():
+        raise HTTPException(status_code=400, detail="Please list the main features or inclusions of this package.")
+
+    # 4️⃣ Parse features (newline-separated → list)
+    feature_list: List[str] = [f.strip() for f in features.split("\n") if f.strip()]
+    if not feature_list:
+        raise HTTPException(status_code=400, detail="Please add at least one feature for this package.")
+
+    # 5️⃣ Create and save package
+    package = ServicePackage(
+        id=uuid.uuid4(),
+        user_service_id=service_id,
+        name=name.strip(),
+        description=description.strip(),
+        price=price,
+        features=feature_list,
+        created_at=datetime.now(pytz.timezone("Africa/Nairobi")).replace(tzinfo=None),
+        updated_at=datetime.now(pytz.timezone("Africa/Nairobi")).replace(tzinfo=None),
+    )
+
+    db.add(package)
+
+    try:
+        db.commit()
+        db.refresh(package)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Something went wrong while saving your package. Please try again.")
+
+    # 6️⃣ Success response
+    return {
+        "success": True,
+        "message": "Your service package was added successfully.",
+        "data": {
+            "id": str(package.id),
+            "service_id": str(service.id),
+            "name": package.name,
+            "description": package.description,
+            "price": float(package.price),
+            "features": package.features,
+            "created_at": package.created_at.isoformat()
+        }
+    }

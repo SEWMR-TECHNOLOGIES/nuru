@@ -186,6 +186,7 @@ const ServiceDetail = () => {
                         <h4 className="font-medium">{pkg.name}</h4>
                         <span className="font-bold text-primary">{formatPrice(pkg.price)}</span>
                       </div>
+                      {pkg.description && <p className="text-muted-foreground mb-2">{pkg.description}</p>}
                       <ul className="text-sm text-muted-foreground space-y-1">
                         {pkg.features.map((feature, idx) => (
                           <li key={idx} className="flex items-center gap-2">

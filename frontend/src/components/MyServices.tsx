@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 interface Service {
   id: string;
@@ -29,8 +29,8 @@ interface Service {
   pastEvents: number;
   availability: string;
   location: string;
-  serviceTypeId: string;       // ✅ Added
-  serviceTypeName: string;     // ✅ Added
+  serviceTypeId: string;
+  serviceTypeName: string;
 }
 
 interface Review {
@@ -90,34 +90,69 @@ const MyServices = () => {
     features: '',
     price: ''
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleAddPackage = (serviceId: string) => {
     setSelectedServiceId(serviceId);
     setPackageDialogOpen(true);
   };
 
-  const handleSavePackage = () => {
+  const handleSavePackage = async () => {
     if (!selectedServiceId) return;
 
-    const packages = JSON.parse(localStorage.getItem(`service_packages_${selectedServiceId}`) || '[]');
-    const newPackage = {
-      id: Date.now().toString(),
-      ...packageForm,
-      features: packageForm.features.split('\n').filter(f => f.trim()),
-      createdAt: new Date().toISOString()
-    };
-    
-    packages.push(newPackage);
-    localStorage.setItem(`service_packages_${selectedServiceId}`, JSON.stringify(packages));
+    if (!packageForm.name.trim()) {
+      toast.error('Please provide a package name.');
+      return;
+    }
+    if (!packageForm.description.trim()) {
+      toast.error('Please include a brief description of this package.');
+      return;
+    }
+    if (!packageForm.price || Number(packageForm.price) <= 0) {
+      toast.error('Please enter a valid package price greater than zero.');
+      return;
+    }
+    if (!packageForm.features.trim()) {
+      toast.error('Please list at least one feature for this package.');
+      return;
+    }
 
-    toast({
-      title: 'Package Added',
-      description: 'Your service package has been created successfully.'
-    });
+    setIsSubmitting(true);
+    try {
+      const form = new FormData();
+      form.append('name', packageForm.name.trim());
+      form.append('description', packageForm.description.trim());
+      form.append('price', packageForm.price);
+      form.append('features', packageForm.features);
 
-    setPackageDialogOpen(false);
-    setPackageForm({ name: '', description: '', features: '', price: '' });
-    setSelectedServiceId(null);
+      const token = localStorage.getItem("token");
+
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/services/${selectedServiceId}/packages/add`, {
+        method: 'POST',
+        body: form,
+        headers: {
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        credentials: 'include'
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        toast.error(result.message || 'Failed to add package.');
+        return;
+      }
+
+      toast.success('Package added successfully.');
+      setPackageDialogOpen(false);
+      setPackageForm({ name: '', description: '', features: '', price: '' });
+      setSelectedServiceId(null);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'An unexpected error occurred.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const renderStars = (rating: number) => {
@@ -463,8 +498,8 @@ const MyServices = () => {
             <Button variant="outline" onClick={() => setPackageDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSavePackage}>
-              Save Package
+            <Button onClick={handleSavePackage} disabled={isSubmitting}>
+              {isSubmitting ? 'Submitting...' : 'Save Package'}
             </Button>
           </DialogFooter>
         </DialogContent>

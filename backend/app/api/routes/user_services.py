@@ -225,9 +225,11 @@ def get_user_service_details(
     # Packages
     packages_list = [
         {
+            "id": str(pkg.id),
             "name": pkg.name,
-            "price": f"{pkg.price:,} TZS",
-            "features": [f.strip() for f in (pkg.description or "").split(",")] if pkg.description else []
+            "price": pkg.price,
+            "description": pkg.description,
+            "features": pkg.features if pkg.features else []
         }
         for pkg in getattr(service, "packages", [])
     ]
