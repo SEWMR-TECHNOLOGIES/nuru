@@ -295,7 +295,7 @@ const ServiceVerification = () => {
                       Choose Files
                     </Button>
                     <p className="text-xs text-muted-foreground mt-2">
-                      Accepted: JPG, PNG, PDF (Max 5MB per file)
+                      Accepted: JPG, PNG, PDF (Max 1MB per file)
                     </p>
                   </div>
                 )}
