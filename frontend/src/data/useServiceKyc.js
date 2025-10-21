@@ -15,11 +15,9 @@ export const useServiceKyc = (serviceTypeId) => {
         );
         const data = await res.json();
 
-        console.log("Fetched KYC response:", data); // <-- log full response
-
         if (data.success) {
           setKycList(data.data);
-          console.log("KYC List set:", data.data); // <-- log extracted KYC list
+          console.log("KYC List set:", data.data); 
         } else {
           setError(data.message || "Failed to fetch KYC requirements");
           console.error("KYC fetch error:", data.message);

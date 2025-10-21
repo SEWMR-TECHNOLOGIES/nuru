@@ -1,78 +1,78 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Calendar, CheckCircle2, Plus, Image, X, ChevronLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
-import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
+import React, { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Calendar, CheckCircle2, Plus, Image, X, ChevronLeft, Upload } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import { useWorkspaceMeta } from "@/hooks/useWorkspaceMeta";
+import { useEventTypes } from "@/data/useEventTypes";
+import EventIcon from "@/components/icons/EventIcons";
+import { toast } from "sonner";
+import { formatNumber } from "@/utils/formatNumber";
 
-interface Service {
-  id: string;
-  name: string;
-  category: string;
-  estimated_cost: string;
-  priority: 'high' | 'medium' | 'low';
-  completed: boolean;
-  hasProvider?: boolean;
-  providerDetails?: string;
-}
-
-const CreateEvent = () => {
-  useWorkspaceMeta({
-    title: 'Create Event',
-    description: 'Plan your perfect event with comprehensive tools for weddings, birthdays, memorials, and more.'
-  });
-
+const CreateEvent: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const editId = searchParams.get('edit');
+  const editId = searchParams.get("edit");
+
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
+    title: "",
+    description: "",
     date: undefined as Date | undefined,
-    time: '',
-    location: '',
-    expectedGuests: '',
-    budget: '',
-    eventType: 'wedding'
+    time: "",
+    location: "",
+    expectedGuests: "",
+    budget: "",
+    eventType: "wedding",
   });
 
-  const [recommendedServices, setRecommendedServices] = useState<Service[]>([]);
+  // services as any per your request
+  const [recommendedServices, setRecommendedServices] = useState<any[]>([]);
   const [showRecommendations, setShowRecommendations] = useState(false);
+  const [isFetchingRecommendations, setIsFetchingRecommendations] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
 
   // Image upload state
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const { eventTypes, loading: loadingEventTypes, error, fetchEventTypes } = useEventTypes();
 
-  // Load existing event data when editing
+  useEffect(() => {
+    fetchEventTypes();
+  }, []);
+
+  const displayedEventTypes = eventTypes && eventTypes.length > 0 ? eventTypes : [];
+
+  // Load existing event data when editing (keeps original local behavior)
   useEffect(() => {
     if (editId) {
-      const existingEvents = JSON.parse(localStorage.getItem('events') || '[]');
+      const existingEvents = JSON.parse(localStorage.getItem("events") || "[]");
       const eventToEdit = existingEvents.find((e: any) => e.id === editId);
-      
+
       if (eventToEdit) {
         setFormData({
-          title: eventToEdit.title || '',
-          description: eventToEdit.description || '',
+          title: eventToEdit.title || "",
+          description: eventToEdit.description || "",
           date: eventToEdit.date ? new Date(eventToEdit.date) : undefined,
-          time: eventToEdit.time || '',
-          location: eventToEdit.location || '',
-          expectedGuests: eventToEdit.expectedGuests || '',
-          budget: eventToEdit.budget?.replace('TZS ', '').replace(/,/g, '') || '',
-          eventType: eventToEdit.eventType || 'wedding'
+          time: eventToEdit.time || "",
+          location: eventToEdit.location || "",
+          expectedGuests: eventToEdit.expectedGuests || "",
+          budget: eventToEdit.budget?.replace("TZS ", "").replace(/,/g, "") || "",
+          eventType: eventToEdit.eventType || "wedding",
         });
-        
-        // Load images if they exist
+
+        // Load images if they exist (stored as data URLs)
         if (eventToEdit.images && eventToEdit.images.length > 0) {
           setPreviews(eventToEdit.images);
         }
-        
+
         // Load services if they exist
         if (eventToEdit.services && eventToEdit.services.length > 0) {
           setRecommendedServices(eventToEdit.services);
@@ -82,7 +82,7 @@ const CreateEvent = () => {
     }
   }, [editId]);
 
-  // Convert file to Base64
+  // Convert file to Base64 (used for localStorage fallback)
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -92,6 +92,7 @@ const CreateEvent = () => {
     });
   };
 
+  // File input handler - stores File objects and object-URL previews
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const filesArray = Array.from(e.target.files);
@@ -105,66 +106,55 @@ const CreateEvent = () => {
     setPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
-  const eventTypes = [
-    { id: 'wedding', name: 'Wedding', icon: '💒' },
-    { id: 'birthday', name: 'Birthday', icon: '🎂' },
-    { id: 'memorial', name: 'Memorial', icon: '🕊️' },
-    { id: 'graduation', name: 'Graduation', icon: '🎓' },
-    { id: 'anniversary', name: 'Anniversary', icon: '💖' }
-  ];
+  const handleGenerateRecommendations = async () => {
+    if (!formData.eventType) return;
+    setIsFetchingRecommendations(true);
 
-  const getRecommendedServices = (eventType: string, guests: number) => {
-    const baseServices = [
-      { name: 'Event Coordinator', category: 'Planning', priority: 'high' as const },
-      { name: 'Photographer', category: 'Media', priority: 'high' as const },
-      { name: 'Catering Service', category: 'Food & Drink', priority: 'high' as const },
-      { name: 'DJ/Music', category: 'Entertainment', priority: 'medium' as const },
-      { name: 'Decorations', category: 'Decor', priority: 'medium' as const },
-      { name: 'Transportation', category: 'Logistics', priority: 'low' as const }
-    ];
+    try {
+      const token = localStorage.getItem("token");
+      const resp = await fetch(`${import.meta.env.VITE_API_BASE_URL}/events/recommendations/${formData.eventType}`, {
+        method: "GET",
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        credentials: "include",
+      });
 
-    let additionalServices: any[] = [];
+      if (!resp.ok) {
+        const txt = await resp.text().catch(() => null);
+        throw new Error(txt || "Failed to fetch recommendations");
+      }
 
-    switch (eventType) {
-      case 'wedding':
-        additionalServices = [
-          { name: 'Wedding Cake', category: 'Food & Drink', priority: 'high' as const },
-          { name: 'Florist', category: 'Decor', priority: 'high' as const },
-          { name: 'Bridal Makeup', category: 'Beauty', priority: 'medium' as const },
-          { name: 'Wedding Officiant', category: 'Ceremony', priority: 'high' as const }
-        ];
-        break;
-      case 'birthday':
-        additionalServices = [
-          { name: 'Birthday Cake', category: 'Food & Drink', priority: 'high' as const },
-          { name: 'Party Entertainment', category: 'Entertainment', priority: 'medium' as const },
-          { name: 'Party Favors', category: 'Extras', priority: 'low' as const }
-        ];
-        break;
-      case 'memorial':
-        additionalServices = [
-          { name: 'Memorial Program', category: 'Ceremony', priority: 'high' as const },
-          { name: 'Funeral Director', category: 'Planning', priority: 'high' as const },
-          { name: 'Memorial Flowers', category: 'Decor', priority: 'medium' as const }
-        ];
-        break;
+      const data = await resp.json();
+
+      const services = data.map((item: any, index: number) => ({
+        id: item.id ?? `service_${index}`,
+        service_type_id: item.service_type_id ?? `service_type_${index}`,
+        name: item.service_type_name ?? `Service ${index + 1}`,
+        category: item.category_name ?? "General",
+        description: item.description ?? "",
+        minPrice: item.min_price ?? null,
+        maxPrice: item.max_price ?? null,
+        priority: (item.priority as "high" | "medium" | "low") ?? "medium",
+        completed: false,
+        availableProviders: item.available_providers ?? 0
+      }));
+
+      setRecommendedServices(services);
+      setShowRecommendations(true);
+      toast.success("Recommendations loaded successfully!");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || "An error occurred while fetching recommendations.");
+    } finally {
+      setIsFetchingRecommendations(false);
     }
-
-    const allServices = [...baseServices, ...additionalServices].map((service, index) => ({
-      ...service,
-      id: `service_${index}`,
-      estimated_cost: guests > 100 ? 'TZS 2,000,000-5,000,000' : 'TZS 500,000-2,000,000',
-      completed: false
-    }));
-
-    return allServices;
   };
 
-  const handleGenerateRecommendations = () => {
-    const guests = parseInt(formData.expectedGuests) || 50;
-    const services = getRecommendedServices(formData.eventType, guests);
-    setRecommendedServices(services);
-    setShowRecommendations(true);
+  const handleClearRecommendations = () => {
+    setRecommendedServices([]);
+    setShowRecommendations(false);
+    toast.success("Recommendations cleared.");
   };
 
   const toggleServiceComplete = (serviceId: string) => {
@@ -174,56 +164,171 @@ const CreateEvent = () => {
   };
 
   const formatBudget = (budget: string) => {
-    if (!budget) return '';
-    const number = parseInt(budget.replace(/\D/g, '')) || 0;
-    return `TZS ${number.toLocaleString('en-US')}`;
+    if (!budget) return "";
+    const number = parseInt(budget.replace(/\D/g, "")) || 0;
+    return `TZS ${number.toLocaleString("en-US")}`;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+// NEW: submit to API (multipart/form-data). Only save locally & navigate when API succeeds.
+// If the API returns an error, show the API message(s) and DO NOT save locally or navigate.
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsSubmitting(true);
 
-    // Convert images to Base64
-    const base64Images = await Promise.all(images.map(file => fileToBase64(file)));
-    
-    // If editing, keep existing base64 images and add new ones
-    const allImages = editId ? [...previews.filter(p => p.startsWith('data:image')), ...base64Images] : base64Images;
+  try {
+    // Prepare data for API
+    const eventTypeId = formData.eventType;
+    const title = formData.title.trim();
+    const description = formData.description?.trim() || "";
+    const dateStr = formData.date ? format(formData.date, "yyyy-MM-dd") : null;
+    const time = formData.time || "";
+    const location = formData.location || "";
+    const expectedGuests = formData.expectedGuests ? parseInt(String(formData.expectedGuests), 10) : null;
+    const budgetNumber = formData.budget ? parseFloat(String(formData.budget).replace(/[^0-9.]/g, "")) : null;
 
-    // Only include selected services (those marked as completed)
-    const selectedServices = recommendedServices.filter(s => s.completed);
+    // Services: only send selected (completed) services as { service_id }
+    const selectedServices = recommendedServices
+      .filter((s) => s.completed)
+      .map((s) => ({ service_id: s.service_type_id ?? s.service_id ?? s.id }));
 
-    const event = {
-      id: editId || Date.now().toString(),
-      ...formData,
-      budget: formatBudget(formData.budget),
-      images: allImages,
-      services: selectedServices,
-      createdAt: editId ? undefined : new Date().toISOString()
-    };
+    // Build FormData for multipart
+    const form = new FormData();
+    if (eventTypeId) form.append("event_type_id", eventTypeId);
+    form.append("title", title);
+    if (description) form.append("description", description);
+    if (dateStr) form.append("date", dateStr);
+    if (time) form.append("time", time);
+    if (location) form.append("location", location);
+    if (expectedGuests !== null) form.append("expected_guests", String(expectedGuests));
+    if (budgetNumber !== null && !Number.isNaN(budgetNumber)) form.append("budget", String(budgetNumber));
+    form.append("services", JSON.stringify(selectedServices));
 
-    const existingEvents = JSON.parse(localStorage.getItem('events') || '[]');
-    
-    if (editId) {
-      // Update existing event
-      const updatedEvents = existingEvents.map((e: any) => 
-        e.id === editId ? { ...e, ...event } : e
-      );
-      localStorage.setItem('events', JSON.stringify(updatedEvents));
-    } else {
-      // Create new event
-      localStorage.setItem('events', JSON.stringify([...existingEvents, event]));
+    // Append images files (key: images) - multiple
+    if (images.length > 0) {
+      images.forEach((file) => form.append("images", file));
     }
 
-    navigate(`/event-management/${event.id}`);
-  };
+    // Make request
+    const token = localStorage.getItem("token");
+    const apiUrlBase = `${import.meta.env.VITE_API_BASE_URL}/events/new`;
+    const url = editId ? `${apiUrlBase}/${editId}` : apiUrlBase;
+    const method = editId ? "PUT" : "POST";
+
+    const response = await fetch(url, {
+      method,
+      body: form,
+      headers: {
+        // don't set content-type for multipart
+        Authorization: token ? `Bearer ${token}` : "",
+      },
+      credentials: "include",
+    });
+
+    // Try to parse JSON response (if any)
+    let result: any = null;
+    let rawText: string | null = null;
+    try {
+      result = await response.json();
+    } catch (parseErr) {
+      // fallback to raw text for error message if JSON parsing fails
+      rawText = await response.text().catch(() => null);
+    }
+
+    // If HTTP error (4xx/5xx)
+    if (!response.ok) {
+      const msg = result?.message || rawText || `Server returned ${response.status}`;
+      if (result?.errors && typeof result.errors === "object") {
+        // Example structure: { "title": ["Title is required"], "date": ["Invalid date"] }
+        Object.entries(result.errors).forEach(([field, messages]) => {
+          if (Array.isArray(messages)) {
+            messages.forEach((m) => toast.error(`${field}: ${m}`));
+          } else {
+            toast.error(`${field}: ${String(messages)}`);
+          }
+        });
+      } else {
+        toast.error(msg);
+      }
+      return; 
+    }
+
+    // If API responded with success flag false
+    if (result && result.success === false) {
+      const msg = result.message || "Failed to create event.";
+      // show detailed field errors if any
+      if (result.errors && typeof result.errors === "object") {
+        Object.entries(result.errors).forEach(([field, messages]) => {
+          if (Array.isArray(messages)) {
+            messages.forEach((m) => toast.error(`${field}: ${m}`));
+          } else {
+            toast.error(`${field}: ${String(messages)}`);
+          }
+        });
+      } else {
+        toast.error(msg);
+      }
+      return; 
+    }
+
+    const successMessage = (result && (result.message || (editId ? "Event updated successfully." : "Event created successfully.")))
+      || (editId ? "Event updated successfully." : "Event created successfully.");
+
+    toast.success(successMessage);
+
+    // Save to localStorage (only on success)
+    const base64Images = await Promise.all(images.map((file) => fileToBase64(file)));
+    const existingEvents = JSON.parse(localStorage.getItem("events") || "[]");
+
+    const createdId = result?.data?.id ?? result?.id ?? result?.event_id ?? null;
+    const localEvent = {
+      id: String(createdId || editId || Date.now().toString()),
+      title,
+      description,
+      date: dateStr,
+      time,
+      location,
+      expectedGuests: expectedGuests !== null ? String(expectedGuests) : "",
+      budget:
+        budgetNumber !== null && !Number.isNaN(budgetNumber)
+          ? `TZS ${Number(budgetNumber).toLocaleString("en-US")}`
+          : "",
+      eventType: eventTypeId,
+      images: editId ? [...previews.filter((p) => p.startsWith("data:image")), ...base64Images] : base64Images,
+      services: recommendedServices.filter((s) => s.completed),
+      createdAt: editId ? undefined : new Date().toISOString(),
+    };
+
+    if (editId) {
+      const updatedEvents = existingEvents.map((e: any) => (e.id === editId ? { ...e, ...localEvent } : e));
+      localStorage.setItem("events", JSON.stringify(updatedEvents));
+    } else {
+      localStorage.setItem("events", JSON.stringify([...existingEvents, localEvent]));
+    }
+
+    navigate(`/event-management/${localEvent.id}`);
+  } catch (err: any) {
+    console.error("Event API error:", err);
+    toast.error(err?.message || "An unexpected error occurred while creating the event.");
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
+
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'low': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case "high": return "bg-red-100 text-red-800";
+      case "medium": return "bg-yellow-100 text-yellow-800";
+      case "low": return "bg-green-100 text-green-800";
+      default: return "bg-gray-100 text-gray-800";
     }
   };
+
+  useWorkspaceMeta({
+    title: "Create Event",
+    description: "Plan your perfect event with comprehensive tools for weddings, birthdays, memorials, and more.",
+  });
 
   return (
     <div>
@@ -256,7 +361,7 @@ const CreateEvent = () => {
             <div>
               <label className="block text-sm font-medium mb-2">Event Type</label>
               <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
-                {eventTypes.map((type) => (
+                {displayedEventTypes.map((type) => (
                   <button
                     key={type.id}
                     type="button"
@@ -268,7 +373,9 @@ const CreateEvent = () => {
                         : "border-border hover:bg-muted/50"
                     )}
                   >
-                    <div className="text-2xl mb-1">{type.icon}</div>
+                    <div className="text-2xl mb-1">
+                      <EventIcon iconName={type.icon} />
+                    </div>
                     <div className="text-sm font-medium">{type.name}</div>
                   </button>
                 ))}
@@ -361,7 +468,7 @@ const CreateEvent = () => {
             <div>
               <label className="block text-sm font-medium mb-2">Estimated Budget</label>
               <Input
-                placeholder="e.g., $10,000"
+                placeholder="e.g., 5000000"
                 value={formData.budget}
                 onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
               />
@@ -370,22 +477,9 @@ const CreateEvent = () => {
             {/* Image Upload */}
             <div>
               <label className="block text-sm font-medium mb-2">Event Images (optional)</label>
-              <div className="flex items-center gap-2">
-                <label className="p-2 hover:bg-muted rounded-lg cursor-pointer transition-colors">
-                  <Image className="w-5 h-5 text-muted-foreground" />
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={handleImageChange}
-                  />
-                </label>
-              </div>
-
-              {previews.length > 0 && (
-                <div className="mt-4">
-                  {previews.length === 1 ? (
+              <div className="space-y-4">
+                {previews.length > 0 && (
+                  previews.length === 1 ? (
                     <div className="relative w-full h-64 rounded-lg overflow-hidden border border-border">
                       <img src={previews[0]} alt="preview" className="w-full h-full object-cover" />
                       <button
@@ -396,22 +490,53 @@ const CreateEvent = () => {
                       </button>
                     </div>
                   ) : (
-                    <div className="flex gap-2 overflow-x-auto py-1">
-                      {previews.map((src, idx) => (
-                        <div key={idx} className="relative w-40 h-32 flex-shrink-0 rounded-lg overflow-hidden border border-border">
-                          <img src={src} alt={`preview ${idx}`} className="w-full h-full object-cover" />
-                          <button
-                            onClick={() => removeImage(idx)}
-                            className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full hover:bg-black/70 transition-colors"
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {previews.map((src, index) => (
+                        <div key={index} className="relative group">
+                          <img src={src} alt={`preview ${index}`} className="w-full h-32 object-cover rounded-lg" />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => removeImage(index)}
                           >
                             <X className="w-4 h-4" />
-                          </button>
+                          </Button>
                         </div>
                       ))}
                     </div>
-                  )}
+                  )
+                )}
+
+                <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
+                  <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground mb-2">
+                    Click to upload or drag and drop
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    PNG, JPG, or WEBP (max. 0.5MB per file)
+                  </p>
+                  <label htmlFor="event-image-upload">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-4"
+                      onClick={() => document.getElementById('event-image-upload')?.click()}
+                    >
+                      Choose Files
+                    </Button>
+                  </label>
+                  <input
+                    id="event-image-upload"
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageChange}
+                  />
                 </div>
-              )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -427,24 +552,48 @@ const CreateEvent = () => {
                 <p className="text-muted-foreground mb-4">
                   Get personalized service recommendations based on your event type and guest count
                 </p>
-                <Button
-                  type="button"
-                  onClick={handleGenerateRecommendations}
-                  disabled={!formData.eventType || !formData.expectedGuests}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Generate Recommendations
-                </Button>
+
+                <div className="flex items-center justify-center gap-3">
+                  <Button
+                    type="button"
+                    onClick={handleGenerateRecommendations}
+                    disabled={!formData.eventType || !formData.expectedGuests || isFetchingRecommendations}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    {isFetchingRecommendations ? "Generating..." : "Generate Recommendations"}
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold">Recommended Services Checklist</h3>
-                  <div className="text-sm text-muted-foreground">
-                    {recommendedServices.filter(s => s.completed).length} / {recommendedServices.length} completed
+                  <div className="flex items-center gap-3">
+                    <div className="text-sm text-muted-foreground">
+                      {recommendedServices.filter(s => s.completed).length} / {recommendedServices.length} completed
+                    </div>
+                    <div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleGenerateRecommendations}
+                        disabled={isFetchingRecommendations}
+                      >
+                        {isFetchingRecommendations ? "Regenerating..." : "Regenerate"}
+                      </Button>
+                    </div>
+                    <div>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={handleClearRecommendations}
+                      >
+                        Clear
+                      </Button>
+                    </div>
                   </div>
                 </div>
-                
+
                 <div className="grid gap-3">
                   {recommendedServices.map((service) => (
                     <div
@@ -466,39 +615,34 @@ const CreateEvent = () => {
                       >
                         {service.completed && <CheckCircle2 className="w-3 h-3" />}
                       </button>
-                      
+
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <h4 className={cn(
-                            "font-medium",
-                            service.completed && "line-through text-muted-foreground"
-                          )}>
+                          <h4 className={cn("font-medium", service.completed && "line-through text-muted-foreground")}>
                             {service.name}
                           </h4>
-                          <Badge className={getPriorityColor(service.priority)}>
-                            {service.priority}
-                          </Badge>
+                          <Badge className={getPriorityColor(service.priority)}>{service.priority}</Badge>
                         </div>
+
+                        {/* Show category and min/max price */}
                         <p className="text-sm text-muted-foreground">
-                          {service.category} • {service.estimated_cost}
+                          {service.category} • {service.minPrice !== null && service.maxPrice !== null
+                            ? `TZS ${service.minPrice} - TZS ${service.maxPrice}`
+                            : "Price N/A"}
                         </p>
-                        {!service.hasProvider && (
-                          <Button
-                            size="sm"
-                            className="mt-2 bg-[hsl(var(--nuru-yellow))] hover:bg-[hsl(var(--nuru-yellow))]/90 text-foreground font-medium"
-                            onClick={() => alert('Provider lookup feature coming soon!')}
-                          >
-                            Find Provider
-                          </Button>
+
+                        {/* Show recommendation description */}
+                        {service.description && (
+                          <p className="text-sm text-muted-foreground mt-1">{service.description}</p>
                         )}
-                        {service.hasProvider && service.providerDetails && (
-                          <div className="mt-2 p-2 bg-green-50 rounded-lg border border-green-200">
-                            <div className="flex items-center gap-2">
-                              <CheckCircle2 className="w-4 h-4 text-green-600" />
-                              <span className="text-sm font-medium text-green-800">Provider Assigned</span>
-                            </div>
-                            <p className="text-sm text-green-700">{service.providerDetails}</p>
-                          </div>
+
+                        {/* Show number of providers */}
+                        {service.availableProviders !== undefined && (
+                          <p className="text-sm font-medium mt-1">
+                            {service.availableProviders > 0
+                              ? `${service.availableProviders} provider(s) available`
+                              : "No providers available yet"}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -513,8 +657,11 @@ const CreateEvent = () => {
           <Button type="button" variant="outline" onClick={() => navigate(-1)}>
             Cancel
           </Button>
-          <Button type="submit" disabled={!formData.title || !formData.date}>
-            {editId ? 'Update Event' : 'Create Event'}
+          <Button
+              type="submit"
+              disabled={!formData.title || !formData.date || isSubmitting}
+            >
+              {isSubmitting ? (editId ? "Updating event..." : "Creating event...") : (editId ? "Update Event" : "Create Event")}
           </Button>
         </div>
       </form>

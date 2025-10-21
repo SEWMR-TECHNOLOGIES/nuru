@@ -62,3 +62,8 @@ class UploadFileTypeEnum(enum.Enum):
     pdf = "pdf"
     video = "video"
     doc = "doc"
+
+class PriorityLevelEnum(enum.Enum):
+    high = "high"
+    medium = "medium"
+    low = "low"

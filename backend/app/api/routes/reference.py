@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from models.events import EventType
 from models.services import ServiceCategory, ServiceType, KYCRequirement, ServiceKYCMapping
 from core.database import get_db
 from utils.helpers import api_response
@@ -108,3 +109,27 @@ def get_service_type_kyc(service_type_id: str, db: Session = Depends(get_db)):
     ]
 
     return api_response(True, f"KYC requirements fetched for service type '{service_type.name}'", kyc_data)
+
+@router.get("/event-types")
+def get_event_types(db: Session = Depends(get_db)):
+    """
+    Fetch all active event types.
+    """
+    event_types = db.query(EventType).filter(EventType.is_active == True).all()
+
+    if not event_types:
+        raise HTTPException(status_code=404, detail="No active event types found")
+
+    data = [
+        {
+            "id": str(event.id),
+            "name": event.name,
+            "description": event.description,
+            "icon": event.icon,
+            "created_at": event.created_at.isoformat(),
+            "updated_at": event.updated_at.isoformat(),
+        }
+        for event in event_types
+    ]
+
+    return api_response(True, "Event types fetched successfully.", data)
