@@ -176,10 +176,11 @@ async def create_event(
                     status_code=400,
                     detail=f"File '{file.filename}' exceeds the maximum allowed size of 0.5MB."
                 )
-
             # Upload image to external service
-            upload_data = {"target_path": f"events/{new_event.id}/"}
-            upload_files = {"file": (file.filename, content, file.content_type)}
+            unique_name = f"{uuid.uuid4().hex}.{ext}"
+            upload_data = {"target_path": f"nuru/uploads/events/{new_event.id}/"}
+            upload_files = {"file": (unique_name, content, file.content_type)}
+            
             async with httpx.AsyncClient() as client:
                 try:
                     resp = await client.post(UPLOAD_SERVICE_URL, data=upload_data, files=upload_files, timeout=20)
