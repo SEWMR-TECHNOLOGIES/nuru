@@ -14,6 +14,7 @@ app.add_middleware(
         "http://127.0.0.1:8080",        # frontend dev
         "https://app.nuru.tz",          # production frontend
         "https://www.nuru.tz",          # production frontend
+        "https://nuru.tz",              # non-www production frontend
         "https://workspace.nuru.tz",    # pre-production frontend
     ],
     allow_credentials=True,
