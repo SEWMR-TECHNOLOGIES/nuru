@@ -1,456 +1,379 @@
-import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { 
-  Calendar, 
-  Users, 
-  CreditCard, 
-  CheckCircle, 
-  Star, 
-  Heart, 
-  MessageCircle,
-  Camera,
-  Music,
-  Utensils,
-  Tent,
-  Sparkles
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { ChevronRight } from "lucide-react";
 import Layout from "@/components/layout/Layout";
-import saraEvent from "@/assets/hero-event.jpg";
-import heroImage from "@/assets/plan.png";
-import planningIllustration from "@/assets/planning-illustration.jpg";
-import corporateEvent from "@/assets/corporate-event.jpg";
-import DavidWedding from "@/assets/david-wedding.png";
 import { useMeta } from "@/hooks/useMeta";
 
 const Index = () => {
-  const heroTexts = ["Every Event,", "Every Moment.", "Celebrate Better."];
-  const [currentTextIndex, setCurrentTextIndex] = useState(0);
-  const [displayedText, setDisplayedText] = useState("");
-  const [charIndex, setCharIndex] = useState(0);
-
-  useEffect(() => {
-    const text = heroTexts[currentTextIndex];
-    if (charIndex < text.length) {
-      const timeoutId = setTimeout(() => {
-        setDisplayedText((prev) => prev + text[charIndex]);
-        setCharIndex((prev) => prev + 1);
-      }, 150); // typing speed
-      return () => clearTimeout(timeoutId);
-    } else {
-      const timeoutId = setTimeout(() => {
-        setDisplayedText("");
-        setCharIndex(0);
-        setCurrentTextIndex((prev) => (prev + 1) % heroTexts.length);
-      }, 1200); // pause before next word
-      return () => clearTimeout(timeoutId);
-    }
-  }, [charIndex, currentTextIndex]);
+  useMeta({
+    title: "Nuru | Event Planning Platform",
+    description: "Plan, organize, and manage events with verified providers in one platform."
+  });
 
   const features = [
-    {
-      icon: Calendar,
-      title: "Smart Event Planning",
-      description: "Plan weddings, parties, and ceremonies with clarity and zero stress.",
-      slug: "event-planning"
-    },
-    {
-      icon: Users,
-      title: "Verified Service Providers",
-      description: "Book trusted vendors for catering, tents, DJs, photographers, and more.",
-      slug: "service-providers"
-    },
-    {
-      icon: MessageCircle,
-      title: "Interactive Invitations",
-      description: "Design beautiful invites and track RSVPs in real time.",
-      slug: "invitations"
-    },
-    {
-      icon: Sparkles,
-      title: "NFC-Ready Nuru Card",
-      description: "Seamless guest check-ins with our next-gen event access technology.",
-      slug: "nfc-cards"
-    },
-    {
-      icon: CreditCard,
-      title: "Secure Payments",
-      description: "Book and pay with confidence — fully protected transactions.",
-      slug: "payments"
-    }
+    { label: "Planning Tools", href: "/features/event-planning", desc: "Timelines, budgets, and task management" },
+    { label: "Verified Vendors", href: "/features/service-providers", desc: "Trusted professionals for every need" },
+    { label: "Digital Invitations", href: "/features/invitations", desc: "Beautiful invites with RSVP tracking" },
+    { label: "NFC Guest Access", href: "/features/nfc-cards", desc: "Tap-to-check-in technology" },
+    { label: "Secure Payments", href: "/features/payments", desc: "Safe transactions, multiple options" },
   ];
 
-  const mockEvents = [
-    {
-      id: 1,
-      title: "David's Wedding",
-      image: DavidWedding,
-      likes: 456,
-      comments: 76,
-      rsvps: 85,
-      date: "July 22, 2025"
-    },
-    {
-      id: 2,
-      title: "Tech Conference 2024",
-      image: corporateEvent,
-      likes: 189,
-      comments: 32,
-      rsvps: 350,
-      date: "Jan 20, 2025"
-    },
-    {
-      id: 3,
-      title: "Sarah & John's Wedding",
-      image: saraEvent,
-      likes: 234,
-      comments: 45,
-      rsvps: 120,
-      date: "Dec 15, 2024"
-    },
+  const eventTypes = [
+    { name: "Weddings", icon: "💒", color: "from-pink-500/20 to-rose-500/10" },
+    { name: "Birthdays", icon: "🎂", color: "from-amber-500/20 to-orange-500/10" },
+    { name: "Memorials", icon: "🕯️", color: "from-slate-500/20 to-gray-500/10" },
+    { name: "Corporate", icon: "🏢", color: "from-blue-500/20 to-indigo-500/10" },
+    { name: "Graduations", icon: "🎓", color: "from-purple-500/20 to-violet-500/10" },
+    { name: "Baby Showers", icon: "👶", color: "from-cyan-500/20 to-teal-500/10" },
   ];
 
-  const providers = [
-    { icon: Camera, name: "Photography" },
-    { icon: Music, name: "Entertainment" },
-    { icon: Utensils, name: "Catering" },
-    { icon: Tent, name: "Venues" }
-  ];
-
-  useMeta({
-    title: "Plan Smarter",
-    description: "Discover how Nuru helps you plan, manage, and celebrate events faster and more efficiently."
-  });
-   
   return (
     <Layout>
-      {/* Hero Section */}
-      <section className="relative overflow-hidden bg-hero min-h-screen">
-        <div className="container-custom section-padding h-full">
-          <div className="grid lg:grid-cols-2 gap-12 items-center h-full">
+      {/* Full-page SVG Background */}
+      <div className="fixed inset-0 -z-10">
+        <svg
+          viewBox="0 0 1440 1200"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="w-full h-full object-cover"
+          preserveAspectRatio="xMidYMid slice"
+        >
+          <defs>
+            <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="hsl(var(--muted))" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="hsl(var(--background))" />
+            </linearGradient>
+            <linearGradient id="blob1" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.12" />
+              <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.03" />
+            </linearGradient>
+            <linearGradient id="blob2" x1="100%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity="0.15" />
+              <stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity="0.03" />
+            </linearGradient>
+            <linearGradient id="blob3" x1="50%" y1="0%" x2="50%" y2="100%">
+              <stop offset="0%" stopColor="hsl(var(--muted-foreground))" stopOpacity="0.06" />
+              <stop offset="100%" stopColor="hsl(var(--muted-foreground))" stopOpacity="0.01" />
+            </linearGradient>
+          </defs>
+          
+          <rect width="100%" height="100%" fill="url(#bgGradient)" />
+          
+          <motion.path
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 1.5, ease: "easeOut" }}
+            d="M-100 700 Q200 500 500 600 T900 400 T1300 550 T1600 300 L1600 1200 L-100 1200 Z"
+            fill="url(#blob1)"
+          />
+          <motion.path
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 1.8, delay: 0.2, ease: "easeOut" }}
+            d="M1440 -50 Q1200 150 1100 50 T800 200 T500 100 T200 250 T-100 150 L-100 -50 Z"
+            fill="url(#blob2)"
+          />
+          <motion.ellipse
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 2, delay: 0.4, ease: "easeOut" }}
+            cx="1100"
+            cy="500"
+            rx="450"
+            ry="400"
+            fill="url(#blob3)"
+          />
+          <motion.ellipse
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 2, delay: 0.6, ease: "easeOut" }}
+            cx="200"
+            cy="900"
+            rx="350"
+            ry="300"
+            fill="url(#blob3)"
+          />
+          
+          <motion.line
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 2, delay: 0.8 }}
+            x1="900"
+            y1="100"
+            x2="1300"
+            y2="400"
+            stroke="hsl(var(--border))"
+            strokeWidth="1"
+            strokeOpacity="0.2"
+          />
+          <motion.line
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 2, delay: 1 }}
+            x1="1000"
+            y1="150"
+            x2="1350"
+            y2="350"
+            stroke="hsl(var(--border))"
+            strokeWidth="1"
+            strokeOpacity="0.15"
+          />
+        </svg>
+      </div>
+
+      {/* Hero Section - Redesigned */}
+      <section className="min-h-screen relative flex items-center justify-center overflow-hidden">
+        <div className="w-full max-w-6xl mx-auto px-6 lg:px-16 pt-20 pb-20">
+          {/* Centered Content */}
+          <div className="text-center">
+            {/* Main Headline */}
             <motion.div
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8 }}
-              className="text-center lg:text-left"
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+              className="mb-6"
             >
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-hero-foreground mb-6">
-              Plan Smarter.
-              <br />
-              <span
-                className="text-accent-brand block"
-                aria-live="polite"
-                style={{ minHeight: "1em" }}
+              <h1 className="text-[clamp(3rem,10vw,7rem)] font-bold leading-[0.95] tracking-tight text-foreground">
+                Every moment
+              </h1>
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                className="text-[clamp(3rem,10vw,7rem)] font-bold leading-[0.95] tracking-tight text-muted-foreground/60 block"
               >
-                {displayedText || "\u00A0"} {/* non-breaking space ensures height is preserved */}
-              </span>
-            </h1>
-              <p className="text-lg sm:text-xl text-hero-foreground/80 mb-8 max-w-lg mx-auto lg:mx-0">
-                Plan, organize and execute events 10x faster with Nuru. Discover trusted service providers, manage bookings, send digital invites, and handle everything in one modern platform.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                <Button asChild className="btn-hero-primary">
-                  <Link to="/register">Join Nuru</Link>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="border-2 border-foreground/20 text-hero-foreground hover:bg-foreground/5"
-                  onClick={() => document.getElementById('feed')?.scrollIntoView({ behavior: 'smooth' })}
-                >
-                  Explore Events
-                </Button>
-              </div>
+                deserves care.
+              </motion.span>
             </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="relative h-full"
+            {/* Subtle Tagline */}
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.5 }}
+              className="text-lg md:text-xl text-muted-foreground max-w-md mx-auto mb-24"
             >
-              <div className="relative overflow-hidden rounded-2xl shadow-2xl h-full">
-                <img 
-                  src={heroImage} 
-                  alt="Beautiful event celebration" 
-                  className="w-full h-full object-cover rounded-2xl shadow-xl"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-              </div>
-              <motion.div
-                animate={{ y: [0, -10, 0] }}
-                transition={{ duration: 3, repeat: Infinity }}
-                className="absolute -top-4 -right-4 bg-accent text-accent-foreground px-4 py-2 rounded-full text-sm font-semibold shadow-lg"
-              >
-                500+ Events
-              </motion.div>
-            </motion.div>
-          </div>
-        </div>
-      </section>
+              Plan with clarity. Organize with ease. For every occasion life brings.
+            </motion.p>
 
-      {/* Features Section */}
-      <section id="features" className="section-padding bg-background">
-        <div className="container-custom">
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Everything You Need for Perfect Events
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Plan, organize, and execute events faster with verified providers, digital tools, and interactive features designed to make every event unforgettable.
-            </p>
-          </motion.div>
+            {/* Futuristic Typography Constellation */}
+            <div className="relative h-[200px] md:h-[260px] max-w-5xl mx-auto">
+              {eventTypes.map((event, index) => {
+                // Constellation positioning - scattered but balanced
+                const positions = [
+                  { left: "5%", top: "20%", size: "xl", opacity: 0.9, rotate: -3 },
+                  { left: "28%", top: "65%", size: "lg", opacity: 0.7, rotate: 2 },
+                  { left: "42%", top: "10%", size: "md", opacity: 0.5, rotate: -1 },
+                  { left: "58%", top: "70%", size: "xl", opacity: 0.85, rotate: 1 },
+                  { left: "75%", top: "25%", size: "lg", opacity: 0.6, rotate: -2 },
+                  { left: "88%", top: "55%", size: "md", opacity: 0.75, rotate: 3 },
+                ];
+                const pos = positions[index];
+                
+                const sizeClasses = {
+                  xl: "text-2xl md:text-4xl font-semibold",
+                  lg: "text-xl md:text-2xl font-medium",
+                  md: "text-base md:text-lg font-normal",
+                };
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-10">
-            {features.map((feature, index) => {
-              const Icon = feature.icon;
-              return (
-                <motion.div
-                  key={feature.title}
-                  initial={{ opacity: 0, y: 50, scale: 0.97 }}
-                  whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
-                  viewport={{ once: true }}
-                >
-                  <Link 
-                    to={`/features/${feature.slug}`}
-                    className="block h-full"
+                return (
+                  <motion.div
+                    key={event.name}
+                    initial={{ opacity: 0, filter: "blur(10px)" }}
+                    animate={{ 
+                      opacity: pos.opacity, 
+                      filter: "blur(0px)",
+                      rotate: pos.rotate
+                    }}
+                    transition={{ 
+                      duration: 0.8, 
+                      delay: 0.8 + index * 0.12,
+                      ease: "easeOut"
+                    }}
+                    className="absolute"
+                    style={{ left: pos.left, top: pos.top }}
                   >
-                    <Card className="feature-card h-full bg-white/5 backdrop-blur-md rounded-3xl border border-white/10 transition-transform duration-500 hover:-translate-y-3 hover:shadow-xl group cursor-pointer">
-                      <CardContent className="p-8 flex flex-col items-start space-y-4">
-                        <div className="w-16 h-16 bg-accent-brand/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-accent-brand/20 transition-all duration-500">
-                          <Icon className="w-7 h-7 text-accent-brand drop-shadow-lg group-hover:animate-pulse" />
-                        </div>
-                        <h3 className="text-xl font-bold text-card-foreground mb-2 group-hover:text-accent-brand transition-colors duration-300">
-                          {feature.title}
-                        </h3>
-                        <p className="text-muted-foreground leading-relaxed">
-                          {feature.description}
-                        </p>
-                        <span className="block w-12 h-1 bg-accent-brand rounded-full mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                </motion.div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Service Providers Preview */}
-      <section className="section-padding bg-muted/30">
-        <div className="container-custom">
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-            className="text-center mb-12"
-          >
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Trusted Service Providers
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Connect with verified professionals who make your events extraordinary.
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-            {providers.map((provider, index) => {
-              const Icon = provider.icon;
-              return (
-                <motion.div
-                  key={provider.name}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                  viewport={{ once: true }}
-                >
-                  <div className="relative group">
-                    <div className="p-6 bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl transition-transform duration-500 hover:-translate-y-2 hover:shadow-lg flex flex-col items-center space-y-4">
-                      <div className="w-16 h-16 bg-accent/10 rounded-2xl flex items-center justify-center mb-2 group-hover:scale-110 group-hover:bg-accent/20 transition-all duration-500">
-                        <Icon className="w-8 h-8 text-accent drop-shadow-md group-hover:animate-pulse" />
-                      </div>
-                      <h3 className="font-semibold text-foreground text-lg group-hover:text-accent transition-colors duration-300">
-                        {provider.name}
-                      </h3>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Public Feed Preview */}
-      <section id="feed" className="section-padding bg-background">
-        <div className="container-custom">
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-            className="text-center mb-12"
-          >
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Trending Events on Nuru
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Get inspired by amazing events happening in your community.
-            </p>
-          </motion.div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {mockEvents.map((event, index) => (
-              <motion.div
-                key={event.id}
-                initial={{ opacity: 0, y: 50 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-                viewport={{ once: true }}
-              >
-                <Card className="overflow-hidden hover-lift">
-                  <div className="relative h-48">
-                    <img 
-                      src={event.image} 
-                      alt={event.title}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute top-4 right-4 bg-black/50 text-white px-2 py-1 rounded text-sm">
-                      {event.date}
-                    </div>
-                  </div>
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold text-card-foreground mb-3">{event.title}</h3>
-                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      <div className="flex items-center space-x-1">
-                        <Heart className="w-4 h-4" />
-                        <span>{event.likes}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <MessageCircle className="w-4 h-4" />
-                        <span>{event.comments}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <CheckCircle className="w-4 h-4" />
-                        <span>{event.rsvps} RSVPs</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
-
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.3 }}
-            viewport={{ once: true }}
-            className="text-center mt-12"
-          >
-            <Button asChild variant="outline" size="lg">
-              <Link to="/register">See More Events</Link>
-            </Button>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Why Nuru Section */}
-      <section className="section-padding bg-muted/30">
-        <div className="container-custom">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <motion.div
-              initial={{ opacity: 0, x: -50 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8 }}
-              viewport={{ once: true }}
-            >
-              <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-6">
-                Events, under control
-              </h2>
-              <div className="space-y-6">
-                <div className="flex items-start space-x-4">
-                  <div className="w-8 h-8 bg-accent/10 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                    <CheckCircle className="w-5 h-5 text-accent" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground mb-2">One Platform, Everything Included</h3>
-                    <p className="text-muted-foreground">No more juggling multiple vendors, contracts, and timelines. Nuru brings everything together.</p>
-                  </div>
-                </div>
-                <div className="flex items-start space-x-4">
-                  <div className="w-8 h-8 bg-accent/10 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                    <Star className="w-5 h-5 text-accent" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground mb-2">Verified Quality</h3>
-                    <p className="text-muted-foreground">Every service provider is vetted and rated by real customers, ensuring exceptional quality.</p>
-                  </div>
-                </div>
-                <div className="flex items-start space-x-4">
-                  <div className="w-8 h-8 bg-accent/10 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                    <CreditCard className="w-5 h-5 text-accent" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground mb-2">Transparent Pricing</h3>
-                    <p className="text-muted-foreground">No hidden fees, no surprises. See exactly what you're paying for before you commit.</p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-
-            <div className="overflow-hidden">
-              <motion.div
-                initial={{ opacity: 0, x: 50 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.8, delay: 0.2 }}
-                viewport={{ once: true }}
-                className="relative"
-              >
-                <img 
-                  src={planningIllustration} 
-                  alt="Event planning made easy"
-                  className="w-full h-auto rounded-2xl shadow-lg"
-                />
-              </motion.div>
+                    <motion.span
+                      animate={{ 
+                        y: [0, -6, 0],
+                      }}
+                      transition={{
+                        duration: 5 + index * 0.8,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                        delay: index * 0.4
+                      }}
+                      whileHover={{ 
+                        scale: 1.1, 
+                        opacity: 1,
+                        transition: { duration: 0.2 }
+                      }}
+                      className={`
+                        ${sizeClasses[pos.size as keyof typeof sizeClasses]}
+                        text-foreground cursor-default
+                        transition-all duration-300
+                        hover:text-foreground
+                        block
+                      `}
+                      style={{ opacity: pos.opacity }}
+                    >
+                      {event.name}
+                    </motion.span>
+                  </motion.div>
+                );
+              })}
+              
             </div>
           </div>
         </div>
+
+        {/* Ambient floating particles */}
+        <motion.div
+          animate={{ y: [0, -15, 0], opacity: [0.2, 0.4, 0.2] }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-1/3 left-[8%] w-1 h-1 rounded-full bg-foreground/30 hidden lg:block"
+        />
+        <motion.div
+          animate={{ y: [0, 12, 0], opacity: [0.15, 0.3, 0.15] }}
+          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+          className="absolute bottom-1/3 right-[12%] w-1.5 h-1.5 rounded-full bg-foreground/20 hidden lg:block"
+        />
       </section>
 
-      {/* CTA Banner */}
-      <section className="section-padding bg-foreground text-background">
-        <div className="container-custom">
+      {/* Features Section */}
+      <section className="py-24 lg:py-32 px-6 lg:px-16">
+        <div className="max-w-6xl mx-auto">
           <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            viewport={{ once: true }}
+            className="mb-16"
+          >
+            <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest mb-4">
+              What we offer
+            </p>
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground max-w-lg">
+              Tools built for the moments that matter
+            </h2>
+          </motion.div>
+
+          <div className="space-y-1">
+            {features.map((item, index) => (
+              <motion.div
+                key={item.label}
+                initial={{ opacity: 0, y: 10 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: index * 0.08 }}
+                viewport={{ once: true }}
+              >
+                <Link
+                  to={item.href}
+                  className="group flex items-center justify-between py-6 border-b border-border hover:border-foreground transition-colors"
+                >
+                  <div>
+                    <span className="text-xl font-medium text-foreground block mb-1">{item.label}</span>
+                    <span className="text-sm text-muted-foreground">{item.desc}</span>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-foreground group-hover:translate-x-1 transition-all" />
+                </Link>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Statement Section */}
+      <section className="py-24 lg:py-32 px-6 lg:px-16 bg-foreground text-background">
+        <div className="max-w-4xl mx-auto">
+          <motion.p
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
             transition={{ duration: 0.8 }}
+            viewport={{ once: true }}
+            className="text-2xl sm:text-3xl md:text-4xl font-medium leading-relaxed"
+          >
+            Life is made of moments. Some we look forward to, others we prepare for quietly. 
+            Nuru is here to help you organize them all with dignity and care.
+          </motion.p>
+        </div>
+      </section>
+
+      {/* Final CTA - Enhanced */}
+      <section className="py-32 lg:py-40 px-6 lg:px-16 relative overflow-hidden">
+        {/* Decorative background elements */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 1 }}
+          viewport={{ once: true }}
+          className="absolute inset-0 pointer-events-none"
+        >
+          <svg viewBox="0 0 1000 600" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <linearGradient id="ctaGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.08" />
+                <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
+              </linearGradient>
+              <linearGradient id="ctaGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity="0.1" />
+                <stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <circle cx="150" cy="100" r="200" fill="url(#ctaGrad1)" />
+            <circle cx="850" cy="500" r="250" fill="url(#ctaGrad2)" />
+          </svg>
+        </motion.div>
+
+        <div className="max-w-5xl mx-auto relative">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
             viewport={{ once: true }}
             className="text-center"
           >
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Your event, done right.
+            
+            <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold text-foreground leading-tight mb-6">
+              Ready to bring your
+              <br />
+              <span className="text-muted-foreground">event to life?</span>
             </h2>
-            <p className="text-lg text-background/80 mb-8 max-w-2xl mx-auto">
-              Plan, organize, and manage every detail in one place. Nuru brings you closer to the people and services you need.
+            
+            <p className="text-lg text-muted-foreground max-w-lg mx-auto mb-12">
+              Join thousands of organizers who trust Nuru to create meaningful moments.
             </p>
-            <Button 
-              asChild 
-              size="lg" 
-              className="bg-accent-brand hover:bg-accent-brand/90 text-white font-bold px-12 py-4 text-lg rounded-2xl shadow-2xl hover:shadow-accent-brand/30 transform hover:scale-105 transition-all duration-300 border-2 border-accent-brand/20"
+
+            {/* Animated event pills */}
+            <div className="flex flex-wrap justify-center gap-4 mb-12">
+              {["Plan", "Invite", "Celebrate", "Remember"].map((action, index) => (
+                <motion.span
+                  key={action}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.4 + index * 0.1 }}
+                  viewport={{ once: true }}
+                  className="px-6 py-3 rounded-full border border-border text-foreground font-medium"
+                >
+                  {action}
+                </motion.span>
+              ))}
+            </div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.8 }}
+              viewport={{ once: true }}
             >
-              <Link to="/register">Join Nuru Now</Link>
-            </Button>
+              <Link
+                to="/register"
+                className="inline-flex items-center gap-3 bg-foreground text-background px-10 py-4 rounded-full font-medium text-lg hover:bg-foreground/90 transition-colors group"
+              >
+                Start planning
+                <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </motion.div>
           </motion.div>
         </div>
       </section>

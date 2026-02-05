@@ -11,121 +11,176 @@ const Header = () => {
   const location = useLocation();
 
   useEffect(() => {
-    const handleScroll = () => setIsScrolled(window.scrollY > 20);
+    const handleScroll = () => setIsScrolled(window.scrollY > 10);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isOpen]);
+
   const navItems = [
-    { name: "Home", path: "/" },
-    { name: "Contact", path: "/contact" },
+    { name: "Features", path: "/#features" },
     { name: "FAQs", path: "/faqs" },
+    { name: "Contact", path: "/contact" },
   ];
 
+  const handleNavClick = (path: string) => {
+    setIsOpen(false);
+    if (path.includes('#') && location.pathname === '/') {
+      const id = path.split('#')[1];
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  };
+
   return (
-    <motion.header
-      initial={{ y: -80 }}
-      animate={{ y: 0 }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        isScrolled
-          ? "bg-background/90 backdrop-blur-lg shadow-sm"
-          : "bg-transparent"
-      }`}
-    >
-      <nav className="container-custom px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 lg:h-20">
-          {/* Logo */}
-          <Link to="/" className="flex items-center space-x-3 group">
-            <img src={nuruLogo} alt="Nuru Logo" className="h-12 w-auto" />
-          </Link>
+    <>
+      <header
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+          isScrolled
+            ? "bg-background/95 backdrop-blur-md border-b border-border"
+            : "bg-transparent"
+        }`}
+      >
+        <nav className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
+            {/* Logo */}
+            <Link to="/" className="relative z-10">
+              <img 
+                src={nuruLogo} 
+                alt="Nuru" 
+                className="h-10 w-auto"
+              />
+            </Link>
 
-          {/* Desktop Navigation */}
-          <div className="hidden lg:flex items-center space-x-8">
-            {navItems.map((item) => (
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center gap-12">
+              {navItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => handleNavClick(item.path)}
+                  className={`text-sm tracking-wide transition-colors ${
+                    location.pathname === item.path
+                      ? "text-foreground font-medium"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {item.name}
+                </Link>
+              ))}
+            </div>
+
+            {/* Desktop CTA */}
+            <div className="hidden md:flex items-center gap-4">
               <Link
-                key={item.path}
-                to={item.path}
-                className={`text-foreground/70 hover:text-foreground font-medium transition-colors relative ${
-                  location.pathname === item.path ? "text-foreground" : ""
-                }`}
+                to="/login"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
-                {item.name}
-                {location.pathname === item.path && (
-                  <motion.div
-                    layoutId="activeTab"
-                    className="absolute -bottom-1 left-0 right-0 h-0.5 bg-accent"
-                  />
-                )}
+                Sign in
               </Link>
-            ))}
-          </div>
+              <Button
+                asChild
+                className="bg-foreground text-background hover:bg-foreground/90 rounded-full px-6 h-10 text-sm font-medium"
+              >
+                <Link to="/register">Start free</Link>
+              </Button>
+            </div>
 
-          {/* Desktop CTA Buttons */}
-          <div className="hidden lg:flex items-center space-x-4">
-            <Button
-              asChild
-              variant="outline"
-              className="border-accent text-accent hover:bg-accent hover:text-white font-semibold px-6 py-2 rounded-lg transition-all duration-200"
+            {/* Mobile Menu Toggle */}
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="md:hidden relative z-10 p-2 -mr-2"
+              aria-label="Toggle menu"
             >
-              <Link to="/login">Login</Link>
-            </Button>
-
-            <Button
-              asChild
-              className="bg-accent hover:bg-accent-hover text-accent-foreground font-semibold px-6 py-2 rounded-lg transition-all duration-200"
-            >
-              <Link to="/register">Join Nuru</Link>
-            </Button>
-          </div>
-
-          {/* Mobile Menu Button */}
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="lg:hidden p-2 text-foreground hover:text-accent transition-colors"
-          >
-            {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
-        </div>
-
-        {/* Mobile Navigation */}
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="lg:hidden bg-background/95 backdrop-blur-md border-t border-border"
-            >
-              <div className="py-4 space-y-4">
-                {navItems.map((item) => (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    onClick={() => setIsOpen(false)}
-                    className={`block px-4 py-2 text-foreground/70 hover:text-foreground font-medium transition-colors ${
-                      location.pathname === item.path ? "text-foreground bg-accent/10" : ""
-                    }`}
-                  >
-                    {item.name}
-                  </Link>
-                ))}
-
-                <div className="px-4 flex flex-col gap-3 pt-2">
-                  <Button asChild variant="outline" className="w-full border-accent text-accent hover:bg-accent hover:text-white font-semibold"onClick={() => setIsOpen(false)}>
-                    <Link to="/login">Login</Link>
-                  </Button>
-
-                  <Button asChild className="w-full bg-accent hover:bg-accent-hover text-accent-foreground font-semibold" onClick={() => setIsOpen(false)}>
-                    <Link to="/register">Join Nuru</Link>
-                  </Button>
-                </div>
+              <div className="w-6 h-5 flex flex-col justify-between">
+                <span 
+                  className={`w-full h-0.5 bg-foreground transition-all duration-300 origin-center ${
+                    isOpen ? 'rotate-45 translate-y-2' : ''
+                  }`} 
+                />
+                <span 
+                  className={`w-full h-0.5 bg-foreground transition-opacity duration-300 ${
+                    isOpen ? 'opacity-0' : ''
+                  }`} 
+                />
+                <span 
+                  className={`w-full h-0.5 bg-foreground transition-all duration-300 origin-center ${
+                    isOpen ? '-rotate-45 -translate-y-2' : ''
+                  }`} 
+                />
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </nav>
-    </motion.header>
+            </button>
+          </div>
+        </nav>
+      </header>
+
+      {/* Mobile Navigation */}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="fixed inset-0 z-40 bg-background md:hidden"
+          >
+            <div className="flex flex-col justify-between h-full pt-24 pb-12 px-6">
+              <div className="space-y-2">
+                {navItems.map((item, index) => (
+                  <motion.div
+                    key={item.path}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <Link
+                      to={item.path}
+                      onClick={() => handleNavClick(item.path)}
+                      className="block py-4 text-3xl font-light text-foreground border-b border-border"
+                    >
+                      {item.name}
+                    </Link>
+                  </motion.div>
+                ))}
+              </div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="space-y-4"
+              >
+                <Button
+                  asChild
+                  variant="outline"
+                  className="w-full h-14 text-base rounded-full border-foreground"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <Link to="/login">Sign in</Link>
+                </Button>
+                <Button
+                  asChild
+                  className="w-full h-14 text-base bg-foreground text-background rounded-full"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <Link to="/register">Start free</Link>
+                </Button>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 };
 
