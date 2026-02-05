@@ -47,7 +47,7 @@ const Layout = ({ children }: LayoutProps) => {
         {/* Mobile Left Drawer (Sidebar) */}
         <Sheet open={leftDrawerOpen} onOpenChange={setLeftDrawerOpen}>
           <SheetContent side="left" className="w-64 p-0 border-none">
-            <div className="h-full overflow-y-auto overscroll-y-contain p-2 pb-20">
+            <div className="h-full overflow-y-auto overscroll-y-contain pt-12 pb-20">
               <Sidebar onNavigate={() => setLeftDrawerOpen(false)} />
             </div>
           </SheetContent>
@@ -55,8 +55,10 @@ const Layout = ({ children }: LayoutProps) => {
 
         {/* Mobile Right Drawer (Right Sidebar) */}
         <Sheet open={rightDrawerOpen} onOpenChange={setRightDrawerOpen}>
-          <SheetContent side="right" className="w-80 overflow-y-auto overscroll-y-contain p-4 pb-20">
-            <RightSidebar />
+          <SheetContent side="right" className="w-80 p-0 border-none">
+            <div className="h-full overflow-y-auto overscroll-y-contain p-4 pb-20 pt-12">
+              <RightSidebar />
+            </div>
           </SheetContent>
         </Sheet>
       </div>

@@ -1,4 +1,4 @@
-import { Camera, Image, MapPin, X, Loader2, Navigation } from 'lucide-react';
+import { X, Loader2, Navigation } from 'lucide-react';
 import { useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { useMoments } from '@/data/useSocial';
@@ -9,6 +9,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import CameraIcon from '@/assets/icons/camera-icon.svg';
+import ImageIcon from '@/assets/icons/image-icon.svg';
+import LocationIcon from '@/assets/icons/location-icon.svg';
+import MomentPreview from './MomentPreview';
 
 // Sanitize text to prevent XSS attacks
 const sanitizeText = (text: string): string => {
@@ -298,7 +302,7 @@ const CreatePostBox = () => {
         {/* Textarea for multiline input */}
         <div className="flex flex-col gap-2 md:gap-3">
           <textarea
-            placeholder="Share a moment... (Press Enter for new line)"
+            placeholder="Share a moment..."
             value={text}
             onChange={e => setText(e.target.value)}
             disabled={isSubmitting}
@@ -321,12 +325,12 @@ const CreatePostBox = () => {
                 disabled={isSubmitting}
                 title="Take a photo"
               >
-                <Camera className="w-4 h-4 md:w-5 md:h-5 text-muted-foreground" />
+                <img src={CameraIcon} alt="Camera" className="w-4 h-4 md:w-5 md:h-5" />
               </button>
 
               {/* Gallery button */}
               <label className="p-1.5 md:p-2 hover:bg-muted rounded-lg cursor-pointer transition-colors">
-                <Image className="w-4 h-4 md:w-5 md:h-5 text-muted-foreground" />
+                <img src={ImageIcon} alt="Gallery" className="w-4 h-4 md:w-5 md:h-5" />
                 <input
                   ref={galleryInputRef}
                   type="file"
@@ -342,14 +346,18 @@ const CreatePostBox = () => {
               <button 
                 type="button"
                 onClick={location ? removeLocation : getLocation}
-                className={`p-1.5 md:p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 ${location ? 'text-primary' : ''}`}
+                className={`p-1.5 md:p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 ${location ? 'bg-primary/10' : ''}`}
                 disabled={isSubmitting || isGettingLocation}
                 title={location ? 'Remove location' : 'Add location'}
               >
                 {isGettingLocation ? (
                   <Loader2 className="w-4 h-4 md:w-5 md:h-5 text-muted-foreground animate-spin" />
                 ) : (
-                  <MapPin className={`w-4 h-4 md:w-5 md:h-5 ${location ? 'text-primary fill-primary/20' : 'text-muted-foreground'}`} />
+                  <img 
+                    src={LocationIcon} 
+                    alt="Location" 
+                    className={`w-4 h-4 md:w-5 md:h-5 ${location ? 'opacity-100' : 'opacity-70'}`} 
+                  />
                 )}
               </button>
             </div>
@@ -420,6 +428,13 @@ const CreatePostBox = () => {
           </div>
         )}
 
+        {/* Live Preview */}
+        <MomentPreview 
+          text={text}
+          previews={previews}
+          location={location}
+        />
+
         {/* Post button */}
         <div className="mt-3 md:mt-4 flex justify-end">
           <Button
@@ -472,7 +487,7 @@ const CreatePostBox = () => {
                 Cancel
               </Button>
               <Button onClick={capturePhoto}>
-                <Camera className="w-4 h-4 mr-2" />
+                <img src={CameraIcon} alt="Capture" className="w-4 h-4 mr-2" />
                 Capture
               </Button>
             </div>

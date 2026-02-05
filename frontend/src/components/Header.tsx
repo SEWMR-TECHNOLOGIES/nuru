@@ -1,9 +1,15 @@
 import { useState } from 'react';
-import { Search, Bell, MessageCircle, X, Menu, PanelRight, User, Settings, LogOut, Sparkles, CreditCard } from 'lucide-react';
+import { Search, User, Settings, LogOut, Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { NavLink, useNavigate } from 'react-router-dom';
 import nuruLogo from '@/assets/nuru-logo.png';
+import MenuIcon from '@/assets/icons/menu-icon.svg';
+import CloseIcon from '@/assets/icons/close-icon.svg';
+import BellIcon from '@/assets/icons/bell-icon.svg';
+import ChatIcon from '@/assets/icons/chat-icon.svg';
+import CardIcon from '@/assets/icons/card-icon.svg';
+import PanelRightIcon from '@/assets/icons/panel-right-icon.svg';
 import {
   Popover,
   PopoverContent,
@@ -40,7 +46,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
       // Generate initials
       const initials = `${currentUser.first_name[0]}${currentUser.last_name[0]}`.toUpperCase();
       return (
-        <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground font-semibold">
+        <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground text-xs md:text-sm font-semibold">
           {initials}
         </div>
       );
@@ -64,7 +70,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
           className="md:hidden"
           onClick={onMenuToggle}
         >
-          <Menu className="w-5 h-5" />
+          <img src={MenuIcon} alt="Menu" className="w-5 h-5" />
         </Button>
         
         <img src={nuruLogo} alt="Nuru" className="h-6 md:h-8 w-auto" />
@@ -84,7 +90,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
         {/* Messages */}
         <NavLink to="/messages">
           <Button variant="ghost" size="icon" className="relative">
-            <MessageCircle className="w-5 h-5" />
+            <img src={ChatIcon} alt="Messages" className="w-5 h-5" />
             {messageCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 md:w-5 md:h-5 flex items-center justify-center text-[10px] md:text-xs">
                 {messageCount > 99 ? '99+' : messageCount}
@@ -96,7 +102,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
         {/* Notifications */}
         <NavLink to="/notifications">
           <Button variant="ghost" size="icon" className="relative">
-            <Bell className="w-5 h-5" />
+            <img src={BellIcon} alt="Notifications" className="w-5 h-5" />
             {notificationCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 md:w-5 md:h-5 flex items-center justify-center text-[10px] md:text-xs">
                 {notificationCount > 99 ? '99+' : notificationCount}
@@ -112,14 +118,14 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
           className="lg:hidden"
           onClick={onRightPanelToggle}
         >
-          <PanelRight className="w-5 h-5" />
+          <img src={PanelRightIcon} alt="Toggle right panel" className="w-5 h-5" />
         </Button>
 
         {/* Profile */}
         <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
           <PopoverTrigger asChild>
             <button className="focus:outline-none">
-              <div className="w-8 h-8 md:w-10 md:h-10 rounded-full overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition">
+              <div className="w-7 h-7 md:w-10 md:h-10 rounded-full overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition">
                 {renderAvatar()}
               </div>
             </button>
@@ -181,7 +187,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
                   navigate('/nuru-cards');
                 }}
               >
-                <CreditCard className="w-4 h-4" />
+                <img src={CardIcon} alt="Cards" className="w-4 h-4" />
                 Nuru Cards
               </Button>
               <Separator className="my-1" />

@@ -102,22 +102,82 @@ const Feed = () => {
     );
   }
 
+  // Placeholder posts to show when feed is empty
+  const placeholderPosts = [
+    {
+      id: 'placeholder-1',
+      type: 'moment',
+      author: {
+        name: 'Sarah Johnson',
+        avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop&crop=face',
+        timeAgo: '2 hours ago'
+      },
+      content: {
+        title: '',
+        text: 'Just finished setting up the venue for tomorrow\'s big celebration! Can\'t wait to see everyone there 🎉',
+        image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=800&h=600&fit=crop'
+      },
+      likes: 24,
+      comments: 5
+    },
+    {
+      id: 'placeholder-2',
+      type: 'event',
+      author: {
+        name: 'Michael Chen',
+        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop&crop=face',
+        timeAgo: '5 hours ago'
+      },
+      content: {
+        title: 'Annual Community Gathering',
+        text: 'Join us for our annual community gathering this weekend. Food, music, and great company!',
+        image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=800&h=600&fit=crop'
+      },
+      event: {
+        title: 'Annual Community Gathering',
+        text: 'Join us for our annual community gathering this weekend.',
+        image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=800&h=600&fit=crop',
+        hostedBy: 'Michael',
+        date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      likes: 45,
+      comments: 12
+    },
+    {
+      id: 'placeholder-3',
+      type: 'moment',
+      author: {
+        name: 'Emily Wilson',
+        avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop&crop=face',
+        timeAgo: '1 day ago'
+      },
+      content: {
+        title: '',
+        text: 'Beautiful sunset at the beach party yesterday. Making memories that last forever! 🌅',
+        image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&h=600&fit=crop'
+      },
+      likes: 67,
+      comments: 8
+    }
+  ];
+
+  const displayPosts = posts.length > 0 ? posts : placeholderPosts;
+
   return (
     <div className="space-y-4 md:space-y-6 pb-4">
       <CreatePostBox />
       
-      {posts.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground mb-2">No posts yet</p>
-          <p className="text-sm text-muted-foreground">Be the first to share something with the community!</p>
+      {posts.length === 0 && (
+        <div className="text-center py-4 mb-2">
+          <p className="text-muted-foreground text-sm">Be the first to share something with the community!</p>
         </div>
-      ) : (
-        posts.map((post) => (
-          <div key={post.id}>
-            <Moment post={post} />
-          </div>
-        ))
       )}
+      
+      {displayPosts.map((post) => (
+        <div key={post.id}>
+          <Moment post={post} />
+        </div>
+      ))}
     </div>
   );
 };
