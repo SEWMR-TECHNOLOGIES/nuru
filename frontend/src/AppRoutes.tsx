@@ -58,37 +58,50 @@ export default function AppRoutes() {
     <BrowserRouter>
       <ScrollToTop />
       <Routes>
-        {/* Authenticated Layout Routes - uses Layout wrapper */}
-        {userIsLoggedIn ? (
-          <Route element={<Layout />}>
-            <Route path="/" element={<Feed />} />
-            <Route path="/messages" element={<Messages />} />
-            <Route path="/my-events" element={<MyEvents />} />
-            <Route path="/find-services" element={<FindServices />} />
-            <Route path="/notifications" element={<Notifications />} />
-            <Route path="/help" element={<Help />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/post/:id" element={<MomentDetail />} />
-            <Route path="/create-event" element={<CreateEvent />} />
-            <Route path="/event-management/:id" element={<EventManagement />} />
-            <Route path="/my-services" element={<MyServices />} />
-            <Route path="/services/new" element={<AddService />} />
-            <Route path="/services/edit/:id" element={<EditService />} />
-            <Route path="/services/verify/:serviceId/:serviceType" element={<ServiceVerification />} />
-            <Route path="/service/:id" element={<ServiceDetail />} />
-            <Route path="/profile" element={<UserProfile />} />
-            <Route path="/circle" element={<Circle />} />
-            <Route path="/communities" element={<Communities />} />
-            <Route path="/provider-chat" element={<ProviderChat />} />
-            <Route path="/my-posts" element={<MyMoments />} />
-            <Route path="/live-chat" element={<LiveChat />} />
-            <Route path="/nuru-cards" element={<NuruCards />} />
-            <Route path="/bookings" element={<BookingList />} />
-            <Route path="/bookings/:id" element={<BookingDetail />} />
-          </Route>
-        ) : (
-          <Route path="/" element={<Index />} />
-        )}
+        {/* Root: marketing landing when logged out; app feed when logged in */}
+        <Route
+          path="/"
+          element={userIsLoggedIn ? (
+            <Layout>
+              <Feed />
+            </Layout>
+          ) : (
+            <Index />
+          )}
+        />
+
+        {/* Protected app pages (routes are ALWAYS defined to avoid NotFound on refresh) */}
+        <Route
+          element={
+            <PrivateRoute userIsLoggedIn={userIsLoggedIn}>
+              <Layout />
+            </PrivateRoute>
+          }
+        >
+          <Route path="/messages" element={<Messages />} />
+          <Route path="/my-events" element={<MyEvents />} />
+          <Route path="/find-services" element={<FindServices />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/help" element={<Help />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/post/:id" element={<MomentDetail />} />
+          <Route path="/create-event" element={<CreateEvent />} />
+          <Route path="/event-management/:id" element={<EventManagement />} />
+          <Route path="/my-services" element={<MyServices />} />
+          <Route path="/services/new" element={<AddService />} />
+          <Route path="/services/edit/:id" element={<EditService />} />
+          <Route path="/services/verify/:serviceId/:serviceType" element={<ServiceVerification />} />
+          <Route path="/service/:id" element={<ServiceDetail />} />
+          <Route path="/profile" element={<UserProfile />} />
+          <Route path="/circle" element={<Circle />} />
+          <Route path="/communities" element={<Communities />} />
+          <Route path="/provider-chat" element={<ProviderChat />} />
+          <Route path="/my-posts" element={<MyMoments />} />
+          <Route path="/live-chat" element={<LiveChat />} />
+          <Route path="/nuru-cards" element={<NuruCards />} />
+          <Route path="/bookings" element={<BookingList />} />
+          <Route path="/bookings/:id" element={<BookingDetail />} />
+        </Route>
 
         {/* Public Pages - always accessible */}
         <Route path="/contact" element={<Contact />} />

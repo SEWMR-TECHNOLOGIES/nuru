@@ -36,9 +36,29 @@ export async function request<T>(
   };
 
   const response = await fetch(url, config);
-  const data = await response.json();
-  
-  return data;
+
+  // Our backend is not fully consistent:
+  // - Most endpoints return { success, message, data }
+  // - Some endpoints return just the raw object (e.g. /auth/me)
+  // - Some endpoints return { success, message } without data (e.g. /auth/logout)
+  // Normalize everything into the ApiResponse<T> shape so the rest of the app stays stable.
+  const json = await response.json().catch(() => null);
+
+  if (json && typeof json === "object" && "success" in json) {
+    // Ensure data key exists to avoid undefined access downstream
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const normalized = ("data" in (json as any) ? json : { ...(json as any), data: null }) as ApiResponse<T>;
+    return normalized;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const message = (json as any)?.message || (response.ok ? "" : "Request failed");
+
+  return {
+    success: response.ok,
+    message,
+    data: json as T,
+  };
 }
 
 /**

@@ -70,8 +70,10 @@ const Login = () => {
           return;
         }
         const token = response.data.access_token;
+
         localStorage.setItem("token", token);
         localStorage.setItem("login", Date.now().toString());
+
         qc.setQueryData(["currentUser"], user);
         toast({ title: "Welcome back!", description: response.message });
         navigate("/", { replace: true });

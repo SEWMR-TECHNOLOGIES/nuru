@@ -13,8 +13,9 @@ export const useLogout = () => {
 
       if (!response.success) throw new Error("Failed to logout");
 
-      // Clear local auth token
+      // Clear local auth tokens
       localStorage.removeItem("token");
+      localStorage.removeItem("refresh_token");
 
       // Clear currentUser cache so hook/UI updates immediately
       queryClient.setQueryData(["currentUser"], null);

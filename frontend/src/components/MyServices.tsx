@@ -25,13 +25,6 @@ const MyServices = () => {
   const navigate = useNavigate();
   const { services, loading, error, refetch } = useUserServices();
 
-  // Debug: Log services structure from API
-  useEffect(() => {
-    if (services.length > 0) {
-      console.log('[MyServices] Services from API:', services);
-      console.log('[MyServices] First service structure:', JSON.stringify(services[0], null, 2));
-    }
-  }, [services]);
   
   // Reviews state - fetched from API
   const [reviews, setReviews] = useState<ServiceReview[]>([]);
@@ -47,8 +40,8 @@ const MyServices = () => {
           if (response.success) {
             setReviews(response.data.reviews);
           }
-        } catch (err) {
-          console.error('Failed to fetch reviews:', err);
+        } catch {
+          // ignore
         } finally {
           setReviewsLoading(false);
         }
@@ -122,7 +115,6 @@ const MyServices = () => {
       setPackageForm({ name: '', description: '', features: '', price: '' });
       setSelectedServiceId(null);
     } catch (err: any) {
-      console.error(err);
       toast.error(err.message || 'An unexpected error occurred.');
     } finally {
       setIsSubmitting(false);
