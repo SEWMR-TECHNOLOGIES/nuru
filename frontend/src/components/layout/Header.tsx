@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import nuruLogo from "@/assets/nuru-logo.png";
+import MenuIcon from "@/assets/icons/menu-icon.svg";
+import CloseIcon from "@/assets/icons/close-icon.svg";
 
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -102,23 +103,11 @@ const Header = () => {
               className="md:hidden relative z-10 p-2 -mr-2"
               aria-label="Toggle menu"
             >
-              <div className="w-6 h-5 flex flex-col justify-between">
-                <span 
-                  className={`w-full h-0.5 bg-foreground transition-all duration-300 origin-center ${
-                    isOpen ? 'rotate-45 translate-y-2' : ''
-                  }`} 
-                />
-                <span 
-                  className={`w-full h-0.5 bg-foreground transition-opacity duration-300 ${
-                    isOpen ? 'opacity-0' : ''
-                  }`} 
-                />
-                <span 
-                  className={`w-full h-0.5 bg-foreground transition-all duration-300 origin-center ${
-                    isOpen ? '-rotate-45 -translate-y-2' : ''
-                  }`} 
-                />
-              </div>
+              <img 
+                src={isOpen ? CloseIcon : MenuIcon} 
+                alt={isOpen ? "Close menu" : "Open menu"}
+                className="w-6 h-6"
+              />
             </button>
           </div>
         </nav>
