@@ -5,6 +5,7 @@ import { Eye, EyeOff, ChevronRight, ChevronLeft, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
@@ -309,17 +310,23 @@ const Register = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Email verification code</label>
-                  <Input
-                    type="text"
-                    placeholder="Enter 6-digit code"
-                    value={otp.email}
-                    onChange={e => handleOtpChange("email", e.target.value)}
-                    className="h-12 rounded-xl"
+                  <label className="block text-sm font-medium text-foreground mb-3">Email verification code</label>
+                  <InputOTP
                     maxLength={6}
-                  />
+                    value={otp.email}
+                    onChange={(value) => handleOtpChange("email", value)}
+                  >
+                    <InputOTPGroup className="gap-2 justify-center w-full">
+                      <InputOTPSlot index={0} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                      <InputOTPSlot index={1} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                      <InputOTPSlot index={2} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                      <InputOTPSlot index={3} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                      <InputOTPSlot index={4} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                      <InputOTPSlot index={5} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                    </InputOTPGroup>
+                  </InputOTP>
                   <button 
-                    className="text-sm text-muted-foreground hover:text-foreground mt-2" 
+                    className="text-sm text-muted-foreground hover:text-foreground mt-3 w-full text-center" 
                     disabled={resendLoading} 
                     onClick={() => resendOtp("email")}
                   >
@@ -328,17 +335,23 @@ const Register = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Phone verification code</label>
-                  <Input
-                    type="text"
-                    placeholder="Enter 6-digit code"
-                    value={otp.phone}
-                    onChange={e => handleOtpChange("phone", e.target.value)}
-                    className="h-12 rounded-xl"
+                  <label className="block text-sm font-medium text-foreground mb-3">Phone verification code</label>
+                  <InputOTP
                     maxLength={6}
-                  />
+                    value={otp.phone}
+                    onChange={(value) => handleOtpChange("phone", value)}
+                  >
+                    <InputOTPGroup className="gap-2 justify-center w-full">
+                      <InputOTPSlot index={0} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                      <InputOTPSlot index={1} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                      <InputOTPSlot index={2} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                      <InputOTPSlot index={3} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                      <InputOTPSlot index={4} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                      <InputOTPSlot index={5} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                    </InputOTPGroup>
+                  </InputOTP>
                   <button 
-                    className="text-sm text-muted-foreground hover:text-foreground mt-2" 
+                    className="text-sm text-muted-foreground hover:text-foreground mt-3 w-full text-center" 
                     disabled={resendLoading} 
                     onClick={() => resendOtp("phone")}
                   >
