@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Calendar, MapPin, Users, CheckCircle2, Plus, Settings, UserPlus, DollarSign, X, Search, Trash2 } from 'lucide-react';
+import { ChevronLeft, Calendar, MapPin, Users, CheckCircle2, Plus, UserPlus, DollarSign, X, Search, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,8 +13,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import PledgeDialog from './PledgeDialog';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import EventRSVP from './EventRSVP';
+import { useEvent, useEventCommittee, useEventContributions } from '@/data/useEvents';
+import { useToast } from '@/hooks/use-toast';
+import { formatPrice } from '@/utils/formatPrice';
 
-interface EventData {
+interface LocalEventData {
   id: string;
   title: string;
   description: string;
@@ -26,38 +29,28 @@ interface EventData {
   eventType: string;
   services: any[];
   status: string;
-  images?: string[]; // <-- images may be stored as base64 or URLs
+  images?: string[];
 }
-
-interface CommitteeMember {
-  id: string;
-  name: string;
-  role: string;
-  avatar: string;
-  contact: string;
-}
-
-interface Contribution {
-  id: string;
-  name: string;
-  amount: string;
-  type: 'money' | 'service' | 'item';
-  status: 'pledged' | 'received';
-  date: string;
-}
-
-// Add a helper to format TZS
-const formatTZS = (amount: string | number) => {
-  if (!amount && amount !== 0) return '';
-  const num = typeof amount === 'string' ? parseInt(amount.replace(/[^0-9]/g, '')) : amount;
-  if (!num) return `TZS 0`;
-  return `TZS ${num.toLocaleString()}`;
-};
 
 const EventManagement = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [event, setEvent] = useState<EventData | null>(null);
+  const { toast } = useToast();
+  
+  // API hooks
+  const { event: apiEvent, loading: eventLoading, error: eventError } = useEvent(id || null);
+  const { members: apiCommittee, addMember, removeMember, loading: committeeLoading } = useEventCommittee(id || null);
+  const { contributions: apiContributions, summary: contributionSummary, addContribution, loading: contributionsLoading } = useEventContributions(id || null);
+
+  // Local state for localStorage fallback (during migration)
+  const [localEvent, setLocalEvent] = useState<LocalEventData | null>(null);
+  const [localCommittee, setLocalCommittee] = useState<any[]>([]);
+  const [localContributions, setLocalContributions] = useState<any[]>([]);
+
+  // Use API data if available, otherwise fall back to localStorage
+  const event = apiEvent || localEvent;
+  const committee = apiCommittee.length > 0 ? apiCommittee : localCommittee;
+  const contributions = apiContributions.length > 0 ? apiContributions : localContributions;
 
   useWorkspaceMeta({
     title: event?.title || 'Event Management',
@@ -68,6 +61,11 @@ const EventManagement = () => {
   const [showAddServiceDialog, setShowAddServiceDialog] = useState(false);
   const [serviceSearch, setServiceSearch] = useState('');
   const [deleteServiceId, setDeleteServiceId] = useState<string | null>(null);
+  const [newMember, setNewMember] = useState({ name: '', role: '', contact: '' });
+
+  // Lightbox state
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   const allAvailableServices = [
     { id: 's1', name: 'Event Coordinator', category: 'Planning', estimatedCost: 'TZS 500,000-2,000,000' },
@@ -78,130 +76,104 @@ const EventManagement = () => {
     { id: 's6', name: 'Decorations', category: 'Decor', estimatedCost: 'TZS 400,000-2,000,000' },
     { id: 's7', name: 'Transportation', category: 'Logistics', estimatedCost: 'TZS 200,000-1,000,000' },
     { id: 's8', name: 'Wedding Cake', category: 'Food & Drink', estimatedCost: 'TZS 300,000-1,500,000' },
-    { id: 's9', name: 'Florist', category: 'Decor', estimatedCost: 'TZS 400,000-2,000,000' },
-    { id: 's10', name: 'Bridal Makeup', category: 'Beauty', estimatedCost: 'TZS 200,000-800,000' },
-    { id: 's11', name: 'Wedding Officiant', category: 'Ceremony', estimatedCost: 'TZS 100,000-500,000' },
-    { id: 's12', name: 'Birthday Cake', category: 'Food & Drink', estimatedCost: 'TZS 150,000-800,000' },
-    { id: 's13', name: 'Party Entertainment', category: 'Entertainment', estimatedCost: 'TZS 300,000-1,500,000' },
-    { id: 's14', name: 'Party Favors', category: 'Extras', estimatedCost: 'TZS 100,000-500,000' },
-    { id: 's15', name: 'Memorial Program', category: 'Ceremony', estimatedCost: 'TZS 100,000-400,000' },
-    { id: 's16', name: 'Funeral Director', category: 'Planning', estimatedCost: 'TZS 500,000-2,000,000' },
-    { id: 's17', name: 'Memorial Flowers', category: 'Decor', estimatedCost: 'TZS 300,000-1,500,000' },
   ];
 
   const filteredServices = allAvailableServices.filter(service =>
     service.name.toLowerCase().includes(serviceSearch.toLowerCase()) ||
     service.category.toLowerCase().includes(serviceSearch.toLowerCase())
   );
-  
-  const [committee, setCommittee] = useState<CommitteeMember[]>([
-    {
-      id: '1',
-      name: 'Michael Chen',
-      role: 'Best Man',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
-      contact: 'michael@email.com'
-    },
-    {
-      id: '2',
-      name: 'Emily Davis',
-      role: 'Maid of Honor',
-      avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b5c5?w=150&h=150&fit=crop&crop=face',
-      contact: 'emily@email.com'
+
+  // Load from localStorage as fallback
+  useEffect(() => {
+    if (!apiEvent && !eventLoading) {
+      const events = JSON.parse(localStorage.getItem('events') || '[]');
+      const foundEvent = events.find((e: LocalEventData) => e.id === id);
+      if (foundEvent) {
+        setLocalEvent(foundEvent);
+      }
     }
-  ]);
-
-  const [contributions, setContributions] = useState<Contribution[]>([
-    {
-      id: '1',
-      name: 'Robert Johnson',
-      amount: '500',
-      type: 'money',
-      status: 'received',
-      date: '2024-12-10'
-    },
-    {
-      id: '2',
-      name: 'Lisa Wong',
-      amount: 'Photography Services',
-      type: 'service',
-      status: 'pledged',
-      date: '2024-12-15'
-    },
-    {
-      id: '3',
-      name: 'David Smith',
-      amount: 'Sound System',
-      type: 'item',
-      status: 'received',
-      date: '2024-12-08'
-    }
-  ]);
-
-  const [newMember, setNewMember] = useState({ name: '', role: '', contact: '' });
-
-  // Lightbox state for zooming images
-  const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [lightboxIndex, setLightboxIndex] = useState(0);
+  }, [id, apiEvent, eventLoading]);
 
   useEffect(() => {
-    const events = JSON.parse(localStorage.getItem('events') || '[]');
-    const foundEvent = events.find((e: EventData) => e.id === id);
-    
-    if (foundEvent) {
-      setEvent(foundEvent);
+    if (apiCommittee.length === 0 && !committeeLoading) {
+      setLocalCommittee([
+        {
+          id: '1',
+          name: 'Michael Chen',
+          role: 'Best Man',
+          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
+          contact: 'michael@email.com'
+        },
+        {
+          id: '2',
+          name: 'Emily Davis',
+          role: 'Maid of Honor',
+          avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b5c5?w=150&h=150&fit=crop&crop=face',
+          contact: 'emily@email.com'
+        }
+      ]);
     }
-  }, [id]);
+  }, [apiCommittee, committeeLoading]);
 
-  const addCommitteeMember = () => {
+  const handleAddCommitteeMember = async () => {
     if (newMember.name && newMember.role) {
-      const member: CommitteeMember = {
-        id: Date.now().toString(),
-        ...newMember,
-        avatar: `https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face`
-      };
-      setCommittee([...committee, member]);
+      try {
+        await addMember({
+          name: newMember.name,
+          role: newMember.role,
+          email: newMember.contact,
+          permissions: ['view']
+        });
+        toast({ title: "Member added successfully" });
+      } catch {
+        // Fallback to local state
+        const member = {
+          id: Date.now().toString(),
+          ...newMember,
+          avatar: `https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face`
+        };
+        setLocalCommittee([...localCommittee, member]);
+      }
       setNewMember({ name: '', role: '', contact: '' });
     }
   };
 
   const toggleServiceComplete = (serviceId: string) => {
-    if (!event) return;
+    if (!localEvent) return;
     
-    const updatedServices = event.services.map(service =>
+    const updatedServices = localEvent.services.map(service =>
       service.id === serviceId ? { ...service, completed: !service.completed } : service
     );
     
-    const updatedEvent = { ...event, services: updatedServices };
-    setEvent(updatedEvent);
+    const updatedEvent = { ...localEvent, services: updatedServices };
+    setLocalEvent(updatedEvent);
     
-    // Update localStorage
     const events = JSON.parse(localStorage.getItem('events') || '[]');
-    const updatedEvents = events.map((e: EventData) => 
+    const updatedEvents = events.map((e: LocalEventData) => 
       e.id === id ? updatedEvent : e
     );
     localStorage.setItem('events', JSON.stringify(updatedEvents));
   };
 
   const handleRemoveProvider = (serviceId: string) => {
-    if (!event) return;
+    if (!localEvent) return;
     
-    const updatedServices = event.services.map(service =>
+    const updatedServices = localEvent.services.map(service =>
       service.id === serviceId ? { ...service, providerName: undefined } : service
     );
     
-    const updatedEvent = { ...event, services: updatedServices };
-    setEvent(updatedEvent);
+    const updatedEvent = { ...localEvent, services: updatedServices };
+    setLocalEvent(updatedEvent);
     
     const events = JSON.parse(localStorage.getItem('events') || '[]');
-    const updatedEvents = events.map((e: EventData) =>
+    const updatedEvents = events.map((e: LocalEventData) =>
       e.id === id ? updatedEvent : e
     );
     localStorage.setItem('events', JSON.stringify(updatedEvents));
   };
 
   const handleAddService = (selectedService: any) => {
-    if (!event) return;
+    if (!localEvent) return;
 
     const newService = {
       id: `service_${Date.now()}`,
@@ -213,14 +185,14 @@ const EventManagement = () => {
     };
 
     const updatedEvent = {
-      ...event,
-      services: [...event.services, newService]
+      ...localEvent,
+      services: [...localEvent.services, newService]
     };
     
-    setEvent(updatedEvent);
+    setLocalEvent(updatedEvent);
     
     const events = JSON.parse(localStorage.getItem('events') || '[]');
-    const updatedEvents = events.map((e: EventData) =>
+    const updatedEvents = events.map((e: LocalEventData) =>
       e.id === id ? updatedEvent : e
     );
     localStorage.setItem('events', JSON.stringify(updatedEvents));
@@ -229,46 +201,61 @@ const EventManagement = () => {
   };
 
   const handleRemoveService = () => {
-    if (!event || !deleteServiceId) return;
+    if (!localEvent || !deleteServiceId) return;
     
-    const updatedServices = event.services.filter(service => service.id !== deleteServiceId);
-    const updatedEvent = { ...event, services: updatedServices };
-    setEvent(updatedEvent);
+    const updatedServices = localEvent.services.filter(service => service.id !== deleteServiceId);
+    const updatedEvent = { ...localEvent, services: updatedServices };
+    setLocalEvent(updatedEvent);
     
     const events = JSON.parse(localStorage.getItem('events') || '[]');
-    const updatedEvents = events.map((e: EventData) =>
+    const updatedEvents = events.map((e: LocalEventData) =>
       e.id === id ? updatedEvent : e
     );
     localStorage.setItem('events', JSON.stringify(updatedEvents));
     setDeleteServiceId(null);
   };
 
-  if (!event) {
-    return <div>Event not found</div>;
+  if (eventLoading) {
+    return <div className="flex items-center justify-center h-64">Loading event...</div>;
   }
 
-  const completedServices = event.services.filter(s => s.completed).length;
-  const totalServices = event.services.length;
+  if (!event) {
+    return <div className="text-center py-8 text-muted-foreground">Event not found</div>;
+  }
+
+  // Compute values from local or API event
+  const eventServices = (localEvent?.services || []);
+  const completedServices = eventServices.filter((s: any) => s.completed).length;
+  const totalServices = eventServices.length;
   const progress = totalServices > 0 ? (completedServices / totalServices) * 100 : 0;
 
-  const totalContributions = contributions
-    .filter(c => c.status === 'received' && c.type === 'money')
-    .reduce((sum, c) => sum + (parseInt(c.amount.replace(/[^0-9]/g, '')) || 0), 0);
+  const totalContributions = contributionSummary?.total_amount || 
+    localContributions
+      .filter(c => c.status === 'received' && c.type === 'money')
+      .reduce((sum, c) => sum + (parseInt(String(c.amount).replace(/[^0-9]/g, '')) || 0), 0);
 
-  // image helpers
-  const hasImages = Array.isArray(event.images) && event.images.length > 0;
+  const eventImages = localEvent?.images || (apiEvent?.gallery_images as string[]) || [];
+  const hasImages = eventImages.length > 0;
+
   const openLightbox = (index: number) => {
     setLightboxIndex(index);
     setLightboxOpen(true);
   };
   const closeLightbox = () => setLightboxOpen(false);
 
+  const eventTitle = localEvent?.title || apiEvent?.title || '';
+  const eventDate = localEvent?.date || apiEvent?.start_date || '';
+  const eventLocation = localEvent?.location || apiEvent?.location || '';
+  const eventGuests = localEvent?.expectedGuests || apiEvent?.guest_count || 0;
+  const eventBudget = localEvent?.budget || (apiEvent?.budget ? formatPrice(apiEvent.budget) : '');
+  const eventDescription = localEvent?.description || apiEvent?.description || '';
+
   return (
     <div>
-      {/* Header with improved mobile layout */}
+      {/* Header */}
       <div className="mb-6">
         <div className="flex items-start justify-between gap-3 mb-3">
-          <h1 className="text-2xl md:text-3xl font-bold">{event.title}</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">{eventTitle}</h1>
           <Button
             variant="ghost"
             size="icon"
@@ -281,35 +268,34 @@ const EventManagement = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm text-muted-foreground">
           <span className="flex items-center gap-2">
             <Calendar className="w-4 h-4 flex-shrink-0" />
-            <span className="truncate">{event.date}</span>
+            <span className="truncate">{eventDate}</span>
           </span>
           <span className="flex items-center gap-2">
             <MapPin className="w-4 h-4 flex-shrink-0" />
-            <span className="truncate">{event.location}</span>
+            <span className="truncate">{eventLocation}</span>
           </span>
           <span className="flex items-center gap-2">
             <Users className="w-4 h-4 flex-shrink-0" />
-            <span className="truncate">{event.expectedGuests} guests</span>
+            <span className="truncate">{eventGuests} guests</span>
           </span>
         </div>
       </div>
 
-
-      {/* Event images: show either one full or a scrolling row of thumbnails */}
+      {/* Event images */}
       {hasImages && (
-        <div>
-          {event.images!.length === 1 ? (
+        <div className="mb-6">
+          {eventImages.length === 1 ? (
             <div className="relative w-full h-72 rounded-lg overflow-hidden border border-border">
               <img
-                src={event.images![0]}
-                alt={`${event.title} image`}
+                src={eventImages[0]}
+                alt={`${eventTitle} image`}
                 className="w-full h-full object-cover cursor-pointer"
                 onClick={() => openLightbox(0)}
               />
             </div>
           ) : (
             <div className="flex gap-3 overflow-x-auto py-2">
-              {event.images!.map((src, idx) => (
+              {eventImages.map((src, idx) => (
                 <div
                   key={idx}
                   className="relative w-56 h-40 flex-shrink-0 rounded-lg overflow-hidden border border-border cursor-pointer"
@@ -323,7 +309,7 @@ const EventManagement = () => {
         </div>
       )}
 
-      {/* Lightbox / zoom modal */}
+      {/* Lightbox */}
       {lightboxOpen && hasImages && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
@@ -341,23 +327,22 @@ const EventManagement = () => {
               ✕
             </button>
             <img
-              src={event.images![lightboxIndex]}
+              src={eventImages[lightboxIndex]}
               alt={`zoom ${lightboxIndex}`}
               className="w-full h-full object-contain rounded"
               style={{ maxHeight: '80vh' }}
             />
-            {/* optional: next/prev arrows */}
-            {event.images!.length > 1 && (
+            {eventImages.length > 1 && (
               <>
                 <button
-                  onClick={() => setLightboxIndex((i) => (i - 1 + event.images!.length) % event.images!.length)}
+                  onClick={() => setLightboxIndex((i) => (i - 1 + eventImages.length) % eventImages.length)}
                   className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 p-2 rounded-full"
                   aria-label="Previous"
                 >
                   ‹
                 </button>
                 <button
-                  onClick={() => setLightboxIndex((i) => (i + 1) % event.images!.length)}
+                  onClick={() => setLightboxIndex((i) => (i + 1) % eventImages.length)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 p-2 rounded-full"
                   aria-label="Next"
                 >
@@ -425,9 +410,9 @@ const EventManagement = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <div className="text-2xl font-bold">{event.budget}</div>
+                  <div className="text-2xl font-bold">{eventBudget}</div>
                   <div className="text-sm text-muted-foreground">
-                    {formatTZS(totalContributions)} received in contributions
+                    {formatPrice(totalContributions)} received in contributions
                   </div>
                 </div>
               </CardContent>
@@ -451,7 +436,7 @@ const EventManagement = () => {
               <CardTitle>Event Description</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">{event.description}</p>
+              <p className="text-muted-foreground">{eventDescription}</p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -471,8 +456,8 @@ const EventManagement = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {event.services.map((service) => (
-                <div
+                {eventServices.map((service: any) => (
+                  <div
                     key={service.id}
                     className={`p-4 rounded-lg border transition-colors ${
                       service.completed ? "bg-green-50 border-green-200" : "bg-card border-border"
@@ -557,6 +542,11 @@ const EventManagement = () => {
                     </div>
                   </div>
                 ))}
+                {eventServices.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No services added yet. Click "Add Service" to get started.
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -569,16 +559,16 @@ const EventManagement = () => {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 mb-6">
-                {committee.map((member) => (
+                {committee.map((member: any) => (
                   <div key={member.id} className="flex items-center gap-3 p-3 border rounded-lg">
                     <Avatar>
                       <AvatarImage src={member.avatar} />
-                      <AvatarFallback>{member.name.charAt(0)}</AvatarFallback>
+                      <AvatarFallback>{member.name?.charAt(0) || 'M'}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
                       <h4 className="font-medium">{member.name}</h4>
                       <p className="text-sm text-muted-foreground">{member.role}</p>
-                      <p className="text-sm text-muted-foreground">{member.contact}</p>
+                      <p className="text-sm text-muted-foreground">{member.email || member.contact}</p>
                     </div>
                   </div>
                 ))}
@@ -598,12 +588,12 @@ const EventManagement = () => {
                     onChange={(e) => setNewMember({ ...newMember, role: e.target.value })}
                   />
                   <Input
-                    placeholder="Contact"
+                    placeholder="Contact (Email)"
                     value={newMember.contact}
                     onChange={(e) => setNewMember({ ...newMember, contact: e.target.value })}
                   />
                 </div>
-                <Button onClick={addCommitteeMember} className="mt-3" size="sm">
+                <Button onClick={handleAddCommitteeMember} className="mt-3" size="sm">
                   <UserPlus className="w-4 h-4 mr-2" />
                   Add Member
                 </Button>
@@ -618,31 +608,42 @@ const EventManagement = () => {
               <CardTitle>Contributions & Pledges</CardTitle>
               <PledgeDialog 
                 eventId={id!} 
-                onPledgeAdded={(pledge) => setContributions([...contributions, pledge])} 
+                onPledgeAdded={(pledge) => setLocalContributions([...localContributions, pledge])} 
               />
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {contributions.map((contribution) => (
+                {contributions.map((contribution: any) => (
                   <div key={contribution.id} className="flex items-center gap-3 p-3 border rounded-lg">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      contribution.type === 'money' ? 'bg-green-100' :
+                      contribution.type === 'money' || contribution.payment_method === 'mpesa' ? 'bg-green-100' :
                       contribution.type === 'service' ? 'bg-blue-100' : 'bg-purple-100'
                     }`}>
                       <DollarSign className="w-5 h-5" />
                     </div>
                     <div className="flex-1">
-                      <h4 className="font-medium">{contribution.name}</h4>
+                      <h4 className="font-medium">{contribution.contributor_name || contribution.name}</h4>
                       <div className="text-sm text-muted-foreground">
-                        {contribution.type === 'money' ? formatTZS(contribution.amount) : contribution.amount}
+                        {contribution.amount ? formatPrice(contribution.amount) : contribution.amount}
                       </div>
-                      <p className="text-sm text-muted-foreground">{contribution.date}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {contribution.created_at ? new Date(contribution.created_at).toLocaleDateString() : contribution.date}
+                      </p>
                     </div>
-                    <Badge className={contribution.status === 'received' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
+                    <Badge className={
+                      (contribution.status === 'received' || contribution.status === 'confirmed') 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-yellow-100 text-yellow-800'
+                    }>
                       {contribution.status}
                     </Badge>
                   </div>
                 ))}
+                {contributions.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No contributions yet.
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
-import { CreditCard, Check, Sparkles, Zap, Shield, Gift, QrCode, Users, Clock, Star } from 'lucide-react';
+import { CreditCard, Check, Sparkles, Zap, Shield, Gift, QrCode, Users, Clock, Star, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useToast } from '@/hooks/use-toast';
+import { useNuruCard, useNuruCardTypes } from '@/data/useNuruCards';
 
 const NuruCards = () => {
   useWorkspaceMeta({
@@ -13,35 +13,12 @@ const NuruCards = () => {
   });
 
   const { toast } = useToast();
-  const [userCard, setUserCard] = useState<'none' | 'regular' | 'premium'>('none');
-  const [cardNumber, setCardNumber] = useState<string>('');
-  const [eventsAttended, setEventsAttended] = useState<number>(0);
+  const { card, loading: cardLoading, error: cardError, requestCard, upgradeCard, refetch } = useNuruCard();
+  const { cardTypes, loading: typesLoading } = useNuruCardTypes();
 
-  // Load card data from localStorage on mount
-  useEffect(() => {
-    const savedCard = localStorage.getItem('nuruCard');
-    if (savedCard) {
-      const cardData = JSON.parse(savedCard);
-      setUserCard(cardData.type || 'none');
-      setCardNumber(cardData.cardNumber || '');
-      setEventsAttended(cardData.eventsAttended || 0);
-    }
-  }, []);
-
-  // Save card data to localStorage whenever it changes
-  const saveCardData = (type: 'none' | 'regular' | 'premium', cardNum?: string) => {
-    const cardData = {
-      type,
-      cardNumber: cardNum || cardNumber || `NURU-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
-      eventsAttended: eventsAttended,
-      createdAt: new Date().toISOString()
-    };
-    localStorage.setItem('nuruCard', JSON.stringify(cardData));
-    setUserCard(type);
-    if (cardNum || !cardNumber) {
-      setCardNumber(cardData.cardNumber);
-    }
-  };
+  const userCardType = card?.card_type?.name?.toLowerCase() || 'none';
+  const cardNumber = card?.card_number || '';
+  const eventsAttended = card?.usage_stats?.events_attended || 0;
 
   const regularFeatures = [
     { icon: QrCode, text: 'QR Code Check-in' },
@@ -61,24 +38,79 @@ const NuruCards = () => {
     { icon: Sparkles, text: 'Premium Badge' }
   ];
 
-  const handleRequestCard = (type: 'regular' | 'premium') => {
-    const newCardNumber = `NURU-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
-    saveCardData(type, newCardNumber);
-    toast({
-      title: "Card Created!",
-      description: `Your ${type} Nuru Card has been created successfully!`,
-    });
+  const handleRequestCard = async (type: 'regular' | 'premium') => {
+    try {
+      const cardType = cardTypes.find(ct => ct.name.toLowerCase() === type);
+      if (cardType) {
+        await requestCard(cardType.id);
+        toast({
+          title: "Card Requested!",
+          description: `Your ${type} Nuru Card request has been submitted!`,
+        });
+        refetch();
+      } else {
+        toast({
+          title: "Error",
+          description: "Card type not available. Please try again later.",
+          variant: "destructive"
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to request card. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleUpgrade = () => {
-    saveCardData('premium');
-    toast({
-      title: "Upgraded to Premium!",
-      description: "You now have access to all premium features and benefits.",
-    });
+  const handleUpgrade = async () => {
+    try {
+      const premiumType = cardTypes.find(ct => ct.name.toLowerCase() === 'premium');
+      if (premiumType && card) {
+        await upgradeCard(premiumType.id);
+        toast({
+          title: "Upgraded to Premium!",
+          description: "You now have access to all premium features and benefits.",
+        });
+        refetch();
+      } else {
+        toast({
+          title: "Error",
+          description: "Premium upgrade not available. Please try again later.",
+          variant: "destructive"
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to upgrade card. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
-  if (userCard === 'none') {
+  if (cardLoading || typesLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (cardError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-destructive mb-4">Failed to load card information. Please try again.</p>
+          <Button onClick={() => refetch()}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  // No card yet - show card options
+  if (!card || userCardType === 'none') {
     return (
       <div className="space-y-6">
         <div>
@@ -96,7 +128,7 @@ const NuruCards = () => {
             <p className="text-muted-foreground mb-6">
               Skip the queues and check in instantly with your Nuru Card. Just scan and go!
             </p>
-            <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
+            <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground flex-wrap">
               <div className="flex items-center gap-2">
                 <Check className="w-4 h-4 text-green-600" />
                 <span>Instant Check-in</span>
@@ -114,79 +146,87 @@ const NuruCards = () => {
         </Card>
 
         {/* Card Options */}
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Regular Card */}
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex items-center justify-between mb-2">
-                <CardTitle>Regular Card</CardTitle>
-                <Badge variant="outline">FREE</Badge>
-              </div>
-              <CardDescription>Perfect for event attendees</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-3xl font-bold">TZS 0</div>
-              
-              <ul className="space-y-3">
-                {regularFeatures.map((feature, index) => (
-                  <li key={index} className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <feature.icon className="w-4 h-4 text-primary" />
-                    </div>
-                    <span className="text-sm">{feature.text}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <Button 
-                className="w-full mt-4" 
-                onClick={() => handleRequestCard('regular')}
-              >
-                Request Regular Card
-              </Button>
+        {cardTypes.length === 0 ? (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <p className="text-muted-foreground">No card types available at the moment. Please check back later.</p>
             </CardContent>
           </Card>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Regular Card */}
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex items-center justify-between mb-2">
+                  <CardTitle>Regular Card</CardTitle>
+                  <Badge variant="outline">FREE</Badge>
+                </div>
+                <CardDescription>Perfect for event attendees</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="text-3xl font-bold">TZS 0</div>
+                
+                <ul className="space-y-3">
+                  {regularFeatures.map((feature, index) => (
+                    <li key={index} className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <feature.icon className="w-4 h-4 text-primary" />
+                      </div>
+                      <span className="text-sm">{feature.text}</span>
+                    </li>
+                  ))}
+                </ul>
 
-          {/* Premium Card */}
-          <Card className="hover:shadow-lg transition-shadow border-primary/50 relative overflow-hidden">
-            <div className="absolute top-4 right-4">
-              <Badge className="bg-gradient-to-r from-nuru-yellow to-primary text-foreground">
-                POPULAR
-              </Badge>
-            </div>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                Premium Card
-                <Sparkles className="w-5 h-5 text-primary" />
-              </CardTitle>
-              <CardDescription>Exclusive benefits and VIP access</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold">TZS 50,000</span>
-                <span className="text-muted-foreground">/year</span>
+                <Button 
+                  className="w-full mt-4" 
+                  onClick={() => handleRequestCard('regular')}
+                >
+                  Request Regular Card
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Premium Card */}
+            <Card className="hover:shadow-lg transition-shadow border-primary/50 relative overflow-hidden">
+              <div className="absolute top-4 right-4">
+                <Badge className="bg-gradient-to-r from-nuru-yellow to-primary text-foreground">
+                  POPULAR
+                </Badge>
               </div>
-              
-              <ul className="space-y-3">
-                {premiumFeatures.map((feature, index) => (
-                  <li key={index} className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-nuru-yellow/20 to-primary/20 flex items-center justify-center flex-shrink-0">
-                      <feature.icon className="w-4 h-4 text-primary" />
-                    </div>
-                    <span className="text-sm">{feature.text}</span>
-                  </li>
-                ))}
-              </ul>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  Premium Card
+                  <Sparkles className="w-5 h-5 text-primary" />
+                </CardTitle>
+                <CardDescription>Exclusive benefits and VIP access</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-bold">TZS 50,000</span>
+                  <span className="text-muted-foreground">/year</span>
+                </div>
+                
+                <ul className="space-y-3">
+                  {premiumFeatures.map((feature, index) => (
+                    <li key={index} className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-nuru-yellow/20 to-primary/20 flex items-center justify-center flex-shrink-0">
+                        <feature.icon className="w-4 h-4 text-primary" />
+                      </div>
+                      <span className="text-sm">{feature.text}</span>
+                    </li>
+                  ))}
+                </ul>
 
-              <Button 
-                className="w-full mt-4 bg-gradient-to-r from-nuru-yellow to-primary hover:opacity-90" 
-                onClick={() => handleRequestCard('premium')}
-              >
-                Request Premium Card
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+                <Button 
+                  className="w-full mt-4 bg-gradient-to-r from-nuru-yellow to-primary hover:opacity-90" 
+                  onClick={() => handleRequestCard('premium')}
+                >
+                  Request Premium Card
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* How It Works */}
         <Card>
@@ -229,16 +269,18 @@ const NuruCards = () => {
     );
   }
 
-  // If user has a card
+  // User has a card
+  const isPremium = userCardType === 'premium';
+  
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold mb-2">My Nuru Card</h1>
-        <p className="text-muted-foreground">Your {userCard} card details</p>
+        <p className="text-muted-foreground">Your {userCardType} card details</p>
       </div>
 
       {/* Card Display */}
-      <Card className={`${userCard === 'premium' ? 'bg-gradient-to-br from-nuru-yellow/10 to-primary/10 border-primary/50' : ''}`}>
+      <Card className={`${isPremium ? 'bg-gradient-to-br from-nuru-yellow/10 to-primary/10 border-primary/50' : ''}`}>
         <CardContent className="p-8">
           <div className="flex flex-col md:flex-row items-center gap-8">
             {/* QR Code */}
@@ -252,9 +294,9 @@ const NuruCards = () => {
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
                 <h2 className="text-2xl font-bold">
-                  {userCard === 'premium' ? 'Premium' : 'Regular'} Nuru Card
+                  {isPremium ? 'Premium' : 'Regular'} Nuru Card
                 </h2>
-                {userCard === 'premium' && (
+                {isPremium && (
                   <Badge className="bg-gradient-to-r from-nuru-yellow to-primary text-foreground">
                     <Sparkles className="w-3 h-3 mr-1" />
                     PREMIUM
@@ -272,7 +314,9 @@ const NuruCards = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Status</p>
-                  <Badge variant="outline" className="text-green-600 border-green-600">Active</Badge>
+                  <Badge variant="outline" className="text-green-600 border-green-600">
+                    {card?.status || 'Active'}
+                  </Badge>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Events Attended</p>
@@ -280,11 +324,16 @@ const NuruCards = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Valid Until</p>
-                  <p className="font-semibold">Dec 2025</p>
+                  <p className="font-semibold">
+                    {card?.valid_until 
+                      ? new Date(card.valid_until).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+                      : 'N/A'
+                    }
+                  </p>
                 </div>
               </div>
 
-              {userCard === 'regular' && (
+              {!isPremium && (
                 <Button 
                   onClick={handleUpgrade}
                   className="bg-gradient-to-r from-nuru-yellow to-primary hover:opacity-90"
@@ -305,7 +354,7 @@ const NuruCards = () => {
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 gap-4">
-            {(userCard === 'premium' ? premiumFeatures : regularFeatures).map((feature, index) => (
+            {(isPremium ? premiumFeatures : regularFeatures).map((feature, index) => (
               <div key={index} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                   <feature.icon className="w-5 h-5 text-primary" />

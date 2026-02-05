@@ -12,6 +12,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { useLogout } from '@/api/useLogout';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useNotifications, useConversations } from '@/data/useSocial';
 
 interface HeaderProps {
   onMenuToggle?: () => void;
@@ -19,18 +20,12 @@ interface HeaderProps {
 }
 
 const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
-  const [showNotifications, setShowNotifications] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const navigate = useNavigate();
   const { logout } = useLogout();
   const { data: currentUser } = useCurrentUser();
-
-  const notifications = [
-    { id: 1, text: "John liked your event", time: "2 minutes ago", unread: true },
-    { id: 2, text: "New message from Sarah", time: "1 hour ago", unread: true },
-    { id: 3, text: "Event reminder: Wedding ceremony", time: "3 hours ago", unread: false },
-    { id: 4, text: "Someone commented on your post", time: "1 day ago", unread: false },
-  ];
+  const { unreadCount: notificationCount } = useNotifications();
+  const { unreadCount: messageCount } = useConversations();
 
   const renderAvatar = () => {
     if (currentUser?.avatar) {
@@ -45,14 +40,14 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
       // Generate initials
       const initials = `${currentUser.first_name[0]}${currentUser.last_name[0]}`.toUpperCase();
       return (
-        <div className="w-full h-full flex items-center justify-center bg-gray-300 text-white font-semibold">
+        <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground font-semibold">
           {initials}
         </div>
       );
     } else {
       // Default placeholder
       return (
-        <div className="w-full h-full flex items-center justify-center bg-gray-300 text-white font-semibold">
+        <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground font-semibold">
           ?
         </div>
       );
@@ -90,9 +85,11 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
         <NavLink to="/messages">
           <Button variant="ghost" size="icon" className="relative">
             <MessageCircle className="w-5 h-5" />
-            <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 md:w-5 md:h-5 flex items-center justify-center text-[10px] md:text-xs">
-              2
-            </span>
+            {messageCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 md:w-5 md:h-5 flex items-center justify-center text-[10px] md:text-xs">
+                {messageCount > 99 ? '99+' : messageCount}
+              </span>
+            )}
           </Button>
         </NavLink>
 
@@ -100,9 +97,11 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
         <NavLink to="/notifications">
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="w-5 h-5" />
-            <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 md:w-5 md:h-5 flex items-center justify-center text-[10px] md:text-xs">
-              3
-            </span>
+            {notificationCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 md:w-5 md:h-5 flex items-center justify-center text-[10px] md:text-xs">
+                {notificationCount > 99 ? '99+' : notificationCount}
+              </span>
+            )}
           </Button>
         </NavLink>
 
@@ -188,7 +187,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
               <Separator className="my-1" />
               <Button
                 variant="ghost"
-                className="justify-start gap-2 text-red-600 hover:text-red-600 hover:bg-red-50"
+                className="justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
                 onClick={() => {
                   setPopoverOpen(false);
                   logout();

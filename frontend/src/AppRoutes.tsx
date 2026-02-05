@@ -1,5 +1,5 @@
 // AppRoutes.tsx
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import PrivateRoute from "@/components/PrivateRoute";
 import FullPageLoader from "@/components/FullPageLoader";
@@ -27,6 +27,8 @@ import ProviderChat from "@/components/ProviderChat";
 import MyMoments from "@/components/MyMoments";
 import LiveChat from "@/components/LiveChat";
 import NuruCards from "@/components/NuruCards";
+import BookingList from "@/components/bookings/BookingList";
+import BookingDetail from "@/components/bookings/BookingDetail";
 
 import Index from "@/pages/Index";
 import Contact from "@/pages/Contact";
@@ -48,20 +50,51 @@ import VerifyPhone from "@/pages/VerifyPhone";
 export default function AppRoutes() {
   const { userIsLoggedIn, isLoading } = useCurrentUser();
 
+  // Show loader while checking auth status - this is critical!
+  // Without this, the routes would render before we know if user is logged in
   if (isLoading) return <FullPageLoader />;
   
   return (
     <BrowserRouter>
       <ScrollToTop />
       <Routes>
-        {/* Root - dynamic landing or workspace */}
-        <Route path="/" element={userIsLoggedIn ? <Layout /> : <Index />} />
+        {/* Authenticated Layout Routes - uses Layout wrapper */}
+        {userIsLoggedIn ? (
+          <Route element={<Layout />}>
+            <Route path="/" element={<Feed />} />
+            <Route path="/messages" element={<Messages />} />
+            <Route path="/my-events" element={<MyEvents />} />
+            <Route path="/find-services" element={<FindServices />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/help" element={<Help />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/post/:id" element={<MomentDetail />} />
+            <Route path="/create-event" element={<CreateEvent />} />
+            <Route path="/event-management/:id" element={<EventManagement />} />
+            <Route path="/my-services" element={<MyServices />} />
+            <Route path="/services/new" element={<AddService />} />
+            <Route path="/services/edit/:id" element={<EditService />} />
+            <Route path="/services/verify/:serviceId/:serviceType" element={<ServiceVerification />} />
+            <Route path="/service/:id" element={<ServiceDetail />} />
+            <Route path="/profile" element={<UserProfile />} />
+            <Route path="/circle" element={<Circle />} />
+            <Route path="/communities" element={<Communities />} />
+            <Route path="/provider-chat" element={<ProviderChat />} />
+            <Route path="/my-posts" element={<MyMoments />} />
+            <Route path="/live-chat" element={<LiveChat />} />
+            <Route path="/nuru-cards" element={<NuruCards />} />
+            <Route path="/bookings" element={<BookingList />} />
+            <Route path="/bookings/:id" element={<BookingDetail />} />
+          </Route>
+        ) : (
+          <Route path="/" element={<Index />} />
+        )}
 
-        {/* Public Pages */}
+        {/* Public Pages - always accessible */}
         <Route path="/contact" element={<Contact />} />
         <Route path="/faqs" element={<FAQs />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={userIsLoggedIn ? <Navigate to="/" replace /> : <Register />} />
+        <Route path="/login" element={userIsLoggedIn ? <Navigate to="/" replace /> : <Login />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/verify-phone" element={<VerifyPhone />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
@@ -72,42 +105,7 @@ export default function AppRoutes() {
         <Route path="/features/nfc-cards" element={<NfcCards />} />
         <Route path="/features/payments" element={<Payments />} />
 
-        {/* Protected Pages - nested inside Layout */}
-        {userIsLoggedIn && (
-          <Route
-            path="/"
-            element={
-              <PrivateRoute userIsLoggedIn={userIsLoggedIn}>
-                <Layout />
-              </PrivateRoute>
-            }
-          >
-            <Route index element={<Feed />} />
-            <Route path="messages" element={<Messages />} />
-            <Route path="my-events" element={<MyEvents />} />
-            <Route path="find-services" element={<FindServices />} />
-            <Route path="notifications" element={<Notifications />} />
-            <Route path="help" element={<Help />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="post/:id" element={<MomentDetail />} />
-            <Route path="create-event" element={<CreateEvent />} />
-            <Route path="event-management/:id" element={<EventManagement />} />
-            <Route path="my-services" element={<MyServices />} />
-            <Route path="services/new" element={<AddService />} />
-            <Route path="services/edit/:id" element={<EditService />} />
-            <Route path="services/verify/:serviceId/:serviceType" element={<ServiceVerification />}/>
-            <Route path="service/:id" element={<ServiceDetail />} />
-            <Route path="profile" element={<UserProfile />} />
-            <Route path="circle" element={<Circle />} />
-            <Route path="communities" element={<Communities />} />
-            <Route path="provider-chat" element={<ProviderChat />} />
-            <Route path="my-posts" element={<MyMoments />} />
-            <Route path="live-chat" element={<LiveChat />} />
-            <Route path="nuru-cards" element={<NuruCards />} />
-          </Route>
-        )}
-
-        {/* 404 */}
+        {/* 404 - catch all unmatched routes */}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>

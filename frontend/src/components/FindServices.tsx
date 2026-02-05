@@ -1,64 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, Star, MapPin, CheckCircle, Eye, MessageCircle } from 'lucide-react';
+import { Search, Star, MapPin, CheckCircle, Eye, MessageCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
-
-const serviceProviders = [
-  {
-    id: '1',
-    name: 'Elite Photography Studios',
-    category: 'Photography',
-    rating: 4.9,
-    reviews: 127,
-    location: 'Dar es Salaam',
-    price: 'From TZS 300,000',
-    verified: true,
-    image: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=150&h=150&fit=crop&crop=face',
-    description: 'Professional wedding and event photography with 8+ years experience'
-  },
-  {
-    id: '2',
-    name: 'Royal Events Decoration',
-    category: 'Decoration',
-    rating: 4.8,
-    reviews: 89,
-    location: 'Arusha',
-    price: 'From TZS 500,000',
-    verified: true,
-    image: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=150&h=150&fit=crop',
-    description: 'Luxury event decoration and styling for weddings, parties, and corporate events'
-  },
-  {
-    id: '3',
-    name: 'Master Chef Catering',
-    category: 'Catering',
-    rating: 4.7,
-    reviews: 156,
-    location: 'Mwanza',
-    price: 'From TZS 15,000/person',
-    verified: false,
-    image: 'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=150&h=150&fit=crop',
-    description: 'Authentic Tanzanian and international cuisine for all event sizes'
-  },
-  {
-    id: '4',
-    name: 'Sound & Lights Pro',
-    category: 'Audio/Visual',
-    rating: 4.9,
-    reviews: 98,
-    location: 'Dodoma',
-    price: 'From TZS 200,000',
-    verified: true,
-    image: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=150&h=150&fit=crop',
-    description: 'Professional sound systems, lighting, and DJ services'
-  }
-];
+import { useServices } from '@/data/useUserServices';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const FindServices = () => {
   useWorkspaceMeta({
@@ -67,6 +17,7 @@ const FindServices = () => {
   });
 
   const navigate = useNavigate();
+  const { services, loading, error, refetch } = useServices();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedLocation, setSelectedLocation] = useState('all');
@@ -86,33 +37,21 @@ const FindServices = () => {
 
   const handleAssignProvider = (providerName: string) => {
     if (!assignServiceId || !assignEventId) return;
-
-    const events = JSON.parse(localStorage.getItem('events') || '[]');
-    const updatedEvents = events.map((event: any) => {
-      if (event.id === assignEventId) {
-        return {
-          ...event,
-          services: event.services.map((service: any) =>
-            service.id === assignServiceId
-              ? { ...service, providerName }
-              : service
-          )
-        };
-      }
-      return event;
-    });
-
-    localStorage.setItem('events', JSON.stringify(updatedEvents));
+    // This would call an API to assign the provider
     localStorage.removeItem('assignServiceId');
     localStorage.removeItem('assignEventId');
     navigate(`/event-management/${assignEventId}`);
   };
 
-  const filteredProviders = serviceProviders.filter(provider => {
-    const matchesSearch = provider.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         provider.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || provider.category === selectedCategory;
-    const matchesLocation = selectedLocation === 'all' || provider.location.includes(selectedLocation);
+  // Get unique categories and locations from services
+  const categories = [...new Set(services.map(s => s.service_category?.name).filter(Boolean))] as string[];
+  const locations = [...new Set(services.map(s => s.location).filter(Boolean))] as string[];
+
+  const filteredProviders = services.filter(provider => {
+    const matchesSearch = provider.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         provider.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || provider.service_category?.name === selectedCategory;
+    const matchesLocation = selectedLocation === 'all' || provider.location?.includes(selectedLocation);
     
     return matchesSearch && matchesCategory && matchesLocation;
   });
@@ -127,6 +66,68 @@ const FindServices = () => {
       />
     ));
   };
+
+  const formatPrice = (provider: any) => {
+    if (provider.min_price && provider.max_price) {
+      return `${provider.min_price.toLocaleString()} - ${provider.max_price.toLocaleString()} ${provider.currency || 'TZS'}`;
+    }
+    if (provider.min_price) {
+      return `From ${provider.min_price.toLocaleString()} ${provider.currency || 'TZS'}`;
+    }
+    return 'Price on request';
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <Skeleton className="h-9 w-48 mb-2" />
+          <Skeleton className="h-5 w-64" />
+        </div>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex flex-col md:flex-row gap-4">
+              <Skeleton className="h-10 flex-1" />
+              <Skeleton className="h-10 w-48" />
+              <Skeleton className="h-10 w-48" />
+            </div>
+          </CardContent>
+        </Card>
+        <div className="grid gap-6">
+          {[1, 2, 3].map((i) => (
+            <Card key={i}>
+              <CardContent className="p-6">
+                <div className="flex gap-6">
+                  <Skeleton className="w-32 h-32 rounded-lg" />
+                  <div className="flex-1 space-y-3">
+                    <Skeleton className="h-6 w-48" />
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Find Services</h1>
+          <p className="text-muted-foreground">Discover trusted service providers for your events</p>
+        </div>
+        <div className="text-center py-12">
+          <p className="text-destructive mb-4">Failed to load services. Please try again.</p>
+          <Button onClick={() => refetch()}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -162,10 +163,9 @@ const FindServices = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="Photography">Photography</SelectItem>
-                <SelectItem value="Decoration">Decoration</SelectItem>
-                <SelectItem value="Catering">Catering</SelectItem>
-                <SelectItem value="Audio/Visual">Audio/Visual</SelectItem>
+                {categories.map(category => (
+                  <SelectItem key={category} value={category!}>{category}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={selectedLocation} onValueChange={setSelectedLocation}>
@@ -174,10 +174,9 @@ const FindServices = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Locations</SelectItem>
-                <SelectItem value="Dar es Salaam">Dar es Salaam</SelectItem>
-                <SelectItem value="Arusha">Arusha</SelectItem>
-                <SelectItem value="Mwanza">Mwanza</SelectItem>
-                <SelectItem value="Dodoma">Dodoma</SelectItem>
+                {locations.map(location => (
+                  <SelectItem key={location} value={location!}>{location}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -185,131 +184,141 @@ const FindServices = () => {
       </Card>
 
       {/* Results */}
-      <div className="grid gap-6">
-        {filteredProviders.map((provider) => (
-          <Card 
-            key={provider.id} 
-            className="hover:shadow-md transition-shadow cursor-pointer"
-            onClick={() => navigate(`/service/${provider.id}`)}
-          >
-            <CardContent className="p-6">
-              <div className="flex flex-col md:flex-row gap-6">
-                <div className="w-full md:w-32 h-32 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-                  <img
-                    src={provider.image}
-                    alt={provider.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                
-                <div className="flex-1">
-                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="text-xl font-semibold">{provider.name}</h3>
-                        {provider.verified && (
-                          <Badge className="bg-green-100 text-green-800">
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Verified
-                          </Badge>
+      {filteredProviders.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <p className="text-muted-foreground">
+              {services.length === 0 
+                ? 'No service providers available yet.' 
+                : 'No service providers found matching your criteria.'}
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-6">
+          {filteredProviders.map((provider) => (
+            <Card 
+              key={provider.id} 
+              className="hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => navigate(`/service/${provider.id}`)}
+            >
+              <CardContent className="p-6">
+                <div className="flex flex-col md:flex-row gap-6">
+                  <div className="w-full md:w-32 h-32 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                    {provider.images && provider.images.length > 0 && (
+                      <img
+                        src={typeof provider.images[0] === 'string' ? provider.images[0] : provider.images[0]?.url}
+                        alt={provider.title}
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                  </div>
+                  
+                  <div className="flex-1">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="text-xl font-semibold">{provider.title}</h3>
+                          {provider.verification_status === 'verified' && (
+                            <Badge className="bg-green-100 text-green-800">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Verified
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center gap-4 mb-3">
+                          <div className="flex items-center gap-1">
+                            {renderStars(provider.rating || 0)}
+                            <span className="ml-1 font-medium">{provider.rating || 0}</span>
+                            <span className="text-muted-foreground">({provider.review_count || 0} reviews)</span>
+                          </div>
+                          {provider.service_category?.name && (
+                            <Badge variant="secondary">{provider.service_category.name}</Badge>
+                          )}
+                        </div>
+                        
+                        <p className="text-muted-foreground mb-3 line-clamp-2">{provider.description}</p>
+                        
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
+                          {provider.location && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-4 h-4" />
+                              {provider.location}
+                            </span>
+                          )}
+                          <span className="font-medium text-primary">{formatPrice(provider)}</span>
+                        </div>
+
+                        <div className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                          Click card to view provider profile
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col gap-2">
+                        {assignMode ? (
+                          <>
+                            <Button 
+                              size="sm" 
+                              className="w-full md:w-auto"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAssignProvider(provider.title);
+                              }}
+                            >
+                              Assign Provider
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-full md:w-auto"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/provider-chat?providerId=${provider.id}&providerName=${encodeURIComponent(provider.title)}&serviceId=${assignServiceId}&eventId=${assignEventId}`);
+                              }}
+                            >
+                              <MessageCircle className="w-4 h-4 mr-2" />
+                              Chat
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button 
+                              size="sm" 
+                              className="w-full md:w-auto"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/service/${provider.id}`);
+                              }}
+                            >
+                              <Eye className="w-4 h-4 mr-2" />
+                              View Profile
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="w-full md:w-auto"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/provider-chat?providerId=${provider.id}&providerName=${encodeURIComponent(provider.title)}`);
+                              }}
+                            >
+                              <MessageCircle className="w-4 h-4 mr-2" />
+                              Chat
+                            </Button>
+                          </>
                         )}
                       </div>
-                      
-                      <div className="flex items-center gap-4 mb-3">
-                        <div className="flex items-center gap-1">
-                          {renderStars(provider.rating)}
-                          <span className="ml-1 font-medium">{provider.rating}</span>
-                          <span className="text-muted-foreground">({provider.reviews} reviews)</span>
-                        </div>
-                        <Badge variant="secondary">{provider.category}</Badge>
-                      </div>
-                      
-                      <p className="text-muted-foreground mb-3">{provider.description}</p>
-                      
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-4 h-4" />
-                          {provider.location}
-                        </span>
-                        <span className="font-medium text-primary">{provider.price}</span>
-                      </div>
-
-                      <div className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                        Click card to view provider profile
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-col gap-2">
-                      {assignMode ? (
-                        <>
-                          <Button 
-                            size="sm" 
-                            className="w-full md:w-auto"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleAssignProvider(provider.name);
-                            }}
-                          >
-                            Assign Provider
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full md:w-auto"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/provider-chat?providerId=${provider.id}&providerName=${encodeURIComponent(provider.name)}&providerImage=${encodeURIComponent(provider.image)}&serviceId=${assignServiceId}&eventId=${assignEventId}`);
-                            }}
-                          >
-                            <MessageCircle className="w-4 h-4 mr-2" />
-                            Chat
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <Button 
-                            size="sm" 
-                            className="w-full md:w-auto"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/service/${provider.id}`);
-                            }}
-                          >
-                            <Eye className="w-4 h-4 mr-2" />
-                            View Profile
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="w-full md:w-auto"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/provider-chat?providerId=${provider.id}&providerName=${encodeURIComponent(provider.name)}&providerImage=${encodeURIComponent(provider.image)}`);
-                            }}
-                          >
-                            <MessageCircle className="w-4 h-4 mr-2" />
-                            Chat
-                          </Button>
-                        </>
-                      )}
                     </div>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-      
-      {filteredProviders.length === 0 && (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <p className="text-muted-foreground">No service providers found matching your criteria.</p>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   );
 };
 
-export default FindServices
+export default FindServices;

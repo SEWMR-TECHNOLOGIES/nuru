@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { Mail, Eye, EyeOff } from "lucide-react";
@@ -10,8 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
 import { useQueryClient } from "@tanstack/react-query";
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+import { api } from "@/lib/api";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -47,17 +46,13 @@ const Login = () => {
 
     setIsLoading(true);
     try {
-      const res = await fetch(`${BASE_URL}/auth/signin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          credential: formData.credential,
-          password: formData.password
-        })
+      const response = await api.auth.signin({
+        credential: formData.credential,
+        password: formData.password
       });
-      const data = await res.json();
-      if (data.success) {
-        const user = data.data.user;
+      
+      if (response.success) {
+        const user = response.data.user;
 
         if (!user.is_email_verified) {
           toast({ title: "Email not verified", description: "Please verify your email to continue.", variant: "destructive" });
@@ -74,14 +69,14 @@ const Login = () => {
           navigate(`/verify-phone?phone=${user.phone}`);
           return;
         }
-        const token = data.data.access_token;
+        const token = response.data.access_token;
         localStorage.setItem("token", token);
         localStorage.setItem("login", Date.now().toString());
         qc.setQueryData(["currentUser"], user);
-        toast({ title: "Welcome back!", description: data.message });
+        toast({ title: "Welcome back!", description: response.message });
         navigate("/", { replace: true });
       } else {
-        toast({ title: "Login Failed", description: data.message, variant: "destructive" });
+        toast({ title: "Login Failed", description: response.message, variant: "destructive" });
       }
     } catch (err) {
       toast({ title: "Error", description: "Unable to reach server. Try again later.", variant: "destructive" });

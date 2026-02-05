@@ -1,100 +1,115 @@
-import { useState, useEffect } from 'react';
-import { Plus, UserMinus, Users, Search } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, UserMinus, Users, Search, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
-
-interface CircleMember {
-  id: string;
-  name: string;
-  avatar: string;
-  mutualFriends: number;
-  addedDate: string;
-}
+import { useCircles, useFollowSuggestions } from '@/data/useSocial';
 
 const Circle = () => {
-  const [circleMembers, setCircleMembers] = useState<CircleMember[]>([]);
+  const { 
+    circles, 
+    loading, 
+    createCircle, 
+    deleteCircle,
+    addMember,
+    removeMember 
+  } = useCircles();
+  const { suggestions, loading: suggestionsLoading } = useFollowSuggestions(10);
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newPeopleSearch, setNewPeopleSearch] = useState('');
+  const [isAdding, setIsAdding] = useState<string | null>(null);
 
   useWorkspaceMeta({
     title: 'My Circle',
     description: 'Manage your circle of friends and connections on Nuru.'
   });
 
-  useEffect(() => {
-    const stored = localStorage.getItem('circleMembers');
-    if (stored) {
-      setCircleMembers(JSON.parse(stored));
-    }
-  }, []);
+  // Get circle members from the first circle (or create a default circle concept)
+  const mainCircle = circles[0];
+  const circleMembers = mainCircle?.members || [];
 
-  const saveToLocalStorage = (members: CircleMember[]) => {
-    localStorage.setItem('circleMembers', JSON.stringify(members));
-    setCircleMembers(members);
+  const handleAddToCircle = async (userId: string, userName: string) => {
+    setIsAdding(userId);
+    try {
+      if (mainCircle) {
+        await addMember(mainCircle.id, userId);
+      } else {
+        // Create a default circle first
+        const newCircle = await createCircle({ name: 'My Circle', description: 'My close friends' });
+        if (newCircle) {
+          await addMember(newCircle.id, userId);
+        }
+      }
+      toast.success(`${userName} added to your circle`);
+      setIsAddDialogOpen(false);
+    } catch (err) {
+      toast.error('Failed to add to circle');
+    } finally {
+      setIsAdding(null);
+    }
   };
 
-  const suggestedPeople = [
-    {
-      id: '1',
-      name: 'Sarah Johnson',
-      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face',
-      mutualFriends: 5
-    },
-    {
-      id: '2',
-      name: 'Mark Wilson',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=face',
-      mutualFriends: 8
-    },
-    {
-      id: '3',
-      name: 'Lisa Chen',
-      avatar: 'https://images.unsplash.com/photo-1520813792240-56fc4a3765a7?w=100&h=100&fit=crop&crop=face',
-      mutualFriends: 3
-    },
-    {
-      id: '4',
-      name: 'James Brown',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
-      mutualFriends: 12
+  const handleRemoveFromCircle = async (userId: string, userName: string) => {
+    if (!mainCircle) return;
+    try {
+      await removeMember(mainCircle.id, userId);
+      toast.success(`${userName} removed from your circle`);
+    } catch (err) {
+      toast.error('Failed to remove from circle');
     }
-  ];
-
-  const addToCircle = (person: typeof suggestedPeople[0]) => {
-    if (circleMembers.find(m => m.id === person.id)) {
-      toast.error('Already in your circle');
-      return;
-    }
-
-    const newMember: CircleMember = {
-      ...person,
-      addedDate: new Date().toISOString()
-    };
-
-    saveToLocalStorage([...circleMembers, newMember]);
-    toast.success(`${person.name} added to your circle`);
-    setIsAddDialogOpen(false);
   };
 
-  const removeFromCircle = (id: string) => {
-    const member = circleMembers.find(m => m.id === id);
-    saveToLocalStorage(circleMembers.filter(m => m.id !== id));
-    toast.success(`${member?.name} removed from your circle`);
-  };
-
-  const filteredMembers = circleMembers.filter(member =>
-    member.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredMembers = circleMembers.filter((member: any) =>
+    `${member.first_name} ${member.last_name}`.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredNewPeople = suggestedPeople
-    .filter(p => !circleMembers.find(m => m.id === p.id))
-    .filter(p => p.name.toLowerCase().includes(newPeopleSearch.toLowerCase()));
+  const filteredSuggestions = suggestions
+    .filter(p => !circleMembers.find((m: any) => m.id === p.id))
+    .filter(p => 
+      `${p.first_name} ${p.last_name}`.toLowerCase().includes(newPeopleSearch.toLowerCase())
+    );
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center gap-2">
+              <Users className="w-7 h-7 md:w-8 md:h-8" />
+              My Circle
+            </h1>
+            <Skeleton className="h-4 w-32 mt-1" />
+          </div>
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <Skeleton className="h-10 w-full" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <Card key={i}>
+              <CardContent className="p-6">
+                <div className="flex flex-col items-center text-center space-y-4">
+                  <Skeleton className="w-20 h-20 rounded-full" />
+                  <div className="space-y-2 w-full">
+                    <Skeleton className="h-5 w-3/4 mx-auto" />
+                    <Skeleton className="h-4 w-1/2 mx-auto" />
+                  </div>
+                  <Skeleton className="h-8 w-full" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -136,25 +151,41 @@ const Circle = () => {
             </div>
 
             <div className="space-y-3 overflow-y-auto flex-1">
-              {filteredNewPeople.length > 0 ? (
-                filteredNewPeople.map((person) => (
+              {suggestionsLoading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3">
+                    <Skeleton className="w-12 h-12 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-3 w-1/2" />
+                    </div>
+                    <Skeleton className="h-8 w-16" />
+                  </div>
+                ))
+              ) : filteredSuggestions.length > 0 ? (
+                filteredSuggestions.map((person) => (
                   <div key={person.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
                     <Avatar className="w-12 h-12">
                       <AvatarImage src={person.avatar} />
-                      <AvatarFallback>{person.name[0]}</AvatarFallback>
+                      <AvatarFallback>{person.first_name?.[0]}{person.last_name?.[0]}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <h3 className="font-medium text-foreground">{person.name}</h3>
+                      <h3 className="font-medium text-foreground">{person.first_name} {person.last_name}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {person.mutualFriends} mutual friends
+                        {(person as any).mutual_count || 0} mutual friends
                       </p>
                     </div>
                     <Button
                       size="sm"
-                      onClick={() => addToCircle(person)}
+                      onClick={() => handleAddToCircle(person.id, `${person.first_name} ${person.last_name}`)}
                       className="bg-nuru-yellow hover:bg-nuru-yellow/90 text-foreground"
+                      disabled={isAdding === person.id}
                     >
-                      Add
+                      {isAdding === person.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        'Add'
+                      )}
                     </Button>
                   </div>
                 ))
@@ -162,7 +193,7 @@ const Circle = () => {
                 <p className="text-center text-muted-foreground py-8">
                   {newPeopleSearch 
                     ? 'No people found matching your search'
-                    : 'All suggested people are already in your circle'
+                    : 'No suggestions available'
                   }
                 </p>
               )}
@@ -187,27 +218,31 @@ const Circle = () => {
       {/* Circle Members */}
       {filteredMembers.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredMembers.map((member) => (
+          {filteredMembers.map((member: any) => (
             <Card key={member.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4 md:p-6">
                 <div className="flex flex-col items-center text-center space-y-4">
                   <Avatar className="w-20 h-20">
                     <AvatarImage src={member.avatar} />
-                    <AvatarFallback className="text-xl">{member.name[0]}</AvatarFallback>
+                    <AvatarFallback className="text-xl">{member.first_name?.[0]}{member.last_name?.[0]}</AvatarFallback>
                   </Avatar>
                   <div>
-                    <h3 className="font-semibold text-lg text-foreground">{member.name}</h3>
+                    <h3 className="font-semibold text-lg text-foreground">
+                      {member.first_name} {member.last_name}
+                    </h3>
                     <p className="text-sm text-muted-foreground">
-                      {member.mutualFriends} mutual friends
+                      {member.mutual_count || 0} mutual friends
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Added {new Date(member.addedDate).toLocaleDateString()}
-                    </p>
+                    {member.added_at && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Added {new Date(member.added_at).toLocaleDateString()}
+                      </p>
+                    )}
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => removeFromCircle(member.id)}
+                    onClick={() => handleRemoveFromCircle(member.id, `${member.first_name} ${member.last_name}`)}
                     className="w-full"
                   >
                     <UserMinus className="w-4 h-4 mr-2" />

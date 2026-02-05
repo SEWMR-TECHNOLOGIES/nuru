@@ -1,11 +1,16 @@
-import { Camera, Image, MapPin, X } from 'lucide-react';
+import { Camera, Image, MapPin, X, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { useMoments } from '@/data/useSocial';
+import { toast } from 'sonner';
 
 const CreatePostBox = () => {
   const [text, setText] = useState('');
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const { createMoment } = useMoments();
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -19,8 +24,42 @@ const CreatePostBox = () => {
   };
 
   const removeImage = (index: number) => {
+    // Clean up the URL object to prevent memory leaks
+    URL.revokeObjectURL(previews[index]);
     setImages(prev => prev.filter((_, i) => i !== index));
     setPreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async () => {
+    if (!text.trim() && images.length === 0) {
+      toast.error('Please add some content or images');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append('content', text);
+      
+      images.forEach((image, index) => {
+        formData.append(`images`, image);
+      });
+
+      await createMoment(formData);
+      
+      // Clear form on success
+      setText('');
+      previews.forEach(url => URL.revokeObjectURL(url));
+      setImages([]);
+      setPreviews([]);
+      
+      toast.success('Moment shared successfully!');
+    } catch (error) {
+      console.error('Failed to share moment:', error);
+      toast.error('Failed to share moment. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -32,11 +71,15 @@ const CreatePostBox = () => {
           placeholder="Share a moment..."
           value={text}
           onChange={e => setText(e.target.value)}
-          className="flex-1 bg-transparent text-muted-foreground text-base md:text-lg outline-none border-0 placeholder:text-muted-foreground"
+          disabled={isSubmitting}
+          className="flex-1 bg-transparent text-foreground text-base md:text-lg outline-none border-0 placeholder:text-muted-foreground disabled:opacity-50"
         />
 
         <div className="flex items-center gap-1 md:gap-2">
-          <button className="p-1.5 md:p-2 hover:bg-muted rounded-lg transition-colors">
+          <button 
+            className="p-1.5 md:p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50"
+            disabled={isSubmitting}
+          >
             <Camera className="w-4 h-4 md:w-5 md:h-5 text-muted-foreground" />
           </button>
 
@@ -48,10 +91,14 @@ const CreatePostBox = () => {
               multiple
               className="hidden"
               onChange={handleImageChange}
+              disabled={isSubmitting}
             />
           </label>
 
-          <button className="p-1.5 md:p-2 hover:bg-muted rounded-lg transition-colors">
+          <button 
+            className="p-1.5 md:p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50"
+            disabled={isSubmitting}
+          >
             <MapPin className="w-4 h-4 md:w-5 md:h-5 text-muted-foreground" />
           </button>
         </div>
@@ -69,7 +116,8 @@ const CreatePostBox = () => {
               />
               <button
                 onClick={() => removeImage(0)}
-                className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70 transition-colors"
+                disabled={isSubmitting}
+                className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70 transition-colors disabled:opacity-50"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -88,7 +136,8 @@ const CreatePostBox = () => {
                   />
                   <button
                     onClick={() => removeImage(idx)}
-                    className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full hover:bg-black/70 transition-colors"
+                    disabled={isSubmitting}
+                    className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full hover:bg-black/70 transition-colors disabled:opacity-50"
                   >
                     <X className="w-3 h-3 md:w-4 md:h-4" />
                   </button>
@@ -104,9 +153,17 @@ const CreatePostBox = () => {
         <Button
           size="sm"
           className="px-3 md:px-4 py-1.5 md:py-2 rounded-lg bg-nuru-yellow text-black font-medium hover:bg-nuru-yellow/95 text-sm"
-          disabled={!text && images.length === 0}
+          disabled={(!text.trim() && images.length === 0) || isSubmitting}
+          onClick={handleSubmit}
         >
-          Share Moment
+          {isSubmitting ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Sharing...
+            </>
+          ) : (
+            'Share Moment'
+          )}
         </Button>
       </div>
     </div>

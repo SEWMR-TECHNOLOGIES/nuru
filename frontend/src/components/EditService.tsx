@@ -43,18 +43,26 @@ const EditService = () => {
   const [images, setImages] = useState<string[]>([]);
 
   const [initialLoadDone, setInitialLoadDone] = useState(false);
+
   // When the service is loaded, set initial form values
   useEffect(() => {
     if (service) {
       setTitle(service.title || '');
-      const categoryId = service.categoryId || service.category_id || '';
+      const categoryId = service.service_category_id || '';
       setServiceCategoryId(categoryId);
-      setServiceTypeId(service.serviceTypeId || service.service_type_id || ''); // <-- only here
+      setServiceTypeId(service.service_type_id || '');
       setDescription(service.description || '');
-      setMinPrice((service.price?.split('-')[0] || '').replace(/,/g, ''));
-      setMaxPrice((service.price?.split('-')[1] || '').replace(/,/g, ''));
+      // Handle price - check for min_price/max_price first, then fall back to formatted string parsing
+      const minPriceValue = service.min_price?.toString() || '';
+      const maxPriceValue = service.max_price?.toString() || '';
+      setMinPrice(minPriceValue.replace(/,/g, ''));
+      setMaxPrice(maxPriceValue.replace(/,/g, ''));
       setLocation(service.location || '');
-      setImages(service.images || []);
+      // Extract image URLs from the images array
+      const imageUrls = (service.images || []).map(img => 
+        typeof img === 'string' ? img : img.url
+      );
+      setImages(imageUrls);
       setInitialLoadDone(true);
     }
   }, [service]);
@@ -68,8 +76,6 @@ const EditService = () => {
       }
     }
   }, [serviceCategoryId]);
-
-
 
   const formatPrice = (value: string) => {
     const numbers = value.replace(/[^\d]/g, '');
@@ -115,6 +121,8 @@ const EditService = () => {
             service_type_id: serviceTypeId,
             description,
             price: formattedPrice,
+            min_price: parseInt(minPrice.replace(/,/g, ''), 10) || 0,
+            max_price: parseInt(maxPrice.replace(/,/g, ''), 10) || 0,
             location,
             images,
           }),

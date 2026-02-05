@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
 
 export const useLogout = () => {
   const queryClient = useQueryClient();
@@ -8,20 +9,15 @@ export const useLogout = () => {
 
   const logout = async () => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/logout`, {
-        method: "POST",
-        credentials: "include",
-      });
+      const response = await api.auth.logout();
 
-      if (!res.ok) throw new Error("Failed to logout");
+      if (!response.success) throw new Error("Failed to logout");
 
       // Clear local auth token
       localStorage.removeItem("token");
 
       // Clear currentUser cache so hook/UI updates immediately
       queryClient.setQueryData(["currentUser"], null);
-      // Optionally clear all queries or more specific keys:
-      // queryClient.clear(); // use with care in big apps
 
       // Broadcast logout to other tabs
       window.localStorage.setItem("logout", Date.now().toString());

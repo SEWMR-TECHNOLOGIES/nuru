@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { 
@@ -18,8 +18,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL; 
+import { api } from "@/lib/api";
 
 const Register = () => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -92,25 +91,21 @@ const Register = () => {
   // Signup API call
   const handleSignup = async (): Promise<string | null> => {
     try {
-      const res = await fetch(`${BASE_URL}/users/signup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          username: formData.username,
-          email: formData.email,
-          phone: formData.phone,
-          password: formData.password
-        })
+      const response = await api.auth.signup({
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        username: formData.username,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password
       });
-      const data = await res.json();
-      if (data.success) {
-        toast({ title: "Signup successful", description: data.message });
-        setUserId(data.data.id); // still set state
-        return data.data.id; // return the ID
+      
+      if (response.success) {
+        toast({ title: "Signup successful", description: response.message });
+        setUserId(response.data.id);
+        return response.data.id;
       } else {
-        toast({ title: "Signup failed", description: data.message, variant: "destructive" });
+        toast({ title: "Signup failed", description: response.message, variant: "destructive" });
         return null;
       }
     } catch (err) {
@@ -123,29 +118,29 @@ const Register = () => {
   const handleVerifyOtp = async () => {
     if (!userId) return false;
 
-    setIsSubmitting(true); // show loading
+    setIsSubmitting(true);
     try {
       // Verify email OTP
-      const emailRes = await fetch(`${BASE_URL}/users/verify-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, verification_type: "email", otp_code: otp.email })
+      const emailResponse = await api.auth.verifyOtp({ 
+        user_id: userId, 
+        verification_type: "email", 
+        otp_code: otp.email 
       });
-      const emailData = await emailRes.json();
-      if (!emailData.success) {
-        toast({ title: "Email OTP Failed", description: emailData.message, variant: "destructive" });
+      
+      if (!emailResponse.success) {
+        toast({ title: "Email OTP Failed", description: emailResponse.message, variant: "destructive" });
         return false;
       }
 
       // Verify phone OTP
-      const phoneRes = await fetch(`${BASE_URL}/users/verify-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, verification_type: "phone", otp_code: otp.phone })
+      const phoneResponse = await api.auth.verifyOtp({ 
+        user_id: userId, 
+        verification_type: "phone", 
+        otp_code: otp.phone 
       });
-      const phoneData = await phoneRes.json();
-      if (!phoneData.success) {
-        toast({ title: "Phone OTP Failed", description: phoneData.message, variant: "destructive" });
+      
+      if (!phoneResponse.success) {
+        toast({ title: "Phone OTP Failed", description: phoneResponse.message, variant: "destructive" });
         return false;
       }
 
@@ -154,7 +149,7 @@ const Register = () => {
       toast({ title: "Error", description: "Unable to verify OTPs. Try again later.", variant: "destructive" });
       return false;
     } finally {
-      setIsSubmitting(false); // hide loading
+      setIsSubmitting(false);
     }
   };
 
@@ -166,16 +161,11 @@ const Register = () => {
 
     setResendLoading(true);
     try {
-      const res = await fetch(`${BASE_URL}/users/request-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: uid, verification_type: type })
-      });
-      const data = await res.json();
+      const response = await api.auth.requestOtp({ user_id: uid, verification_type: type });
       toast({
-        title: data.success ? "OTP Sent" : "Failed",
-        description: data.message,
-        variant: data.success ? "default" : "destructive"
+        title: response.success ? "OTP Sent" : "Failed",
+        description: response.message,
+        variant: response.success ? "default" : "destructive"
       });
     } catch (err) {
       toast({ title: "Error", description: "Unable to resend OTP. Try again later.", variant: "destructive" });

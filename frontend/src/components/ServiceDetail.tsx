@@ -10,6 +10,7 @@ import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useUserService } from '@/hooks/useUserService';
 import { formatPrice } from '@/utils/formatPrice';
 import { ServiceDetailLoadingSkeleton } from '@/components/ui/ServiceLoadingSkeleton';
+import { UserService, ServicePackage, ServiceReview } from '@/lib/api/types';
 
 const ServiceDetail = () => {
   const { id } = useParams();
@@ -19,6 +20,8 @@ const ServiceDetail = () => {
   const [bookedDates, setBookedDates] = useState<Date[]>([]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [packages, setPackages] = useState<ServicePackage[]>([]);
+  const [reviews, setReviews] = useState<ServiceReview[]>([]);
 
   // Update meta when service changes
   useWorkspaceMeta({
@@ -40,6 +43,27 @@ const ServiceDetail = () => {
     ];
     setBookedDates(mockBookedDates);
   }, [service]);
+
+  // Helper function to get image URL
+  const getImageUrl = (img: any): string => {
+    if (typeof img === 'string') return img;
+    if (img && typeof img === 'object' && img.url) return img.url;
+    return '';
+  };
+
+  // Helper to format price display
+  const formatPriceDisplay = (svc: UserService): string => {
+    if (svc.min_price) {
+      return `From ${formatPrice(svc.min_price)}`;
+    }
+    return 'Price on request';
+  };
+
+  // Helper to get category name
+  const getCategoryName = (svc: UserService): string => {
+    if (svc.service_category?.name) return svc.service_category.name;
+    return 'Service';
+  };
 
   if (loading) {
     return <ServiceDetailLoadingSkeleton />;
@@ -63,6 +87,7 @@ const ServiceDetail = () => {
   };
 
   const hasImages = Array.isArray(service.images) && service.images.length > 0;
+  const imageUrls = hasImages ? service.images.map(getImageUrl) : [];
   const openLightbox = (index: number) => { setLightboxIndex(index); setLightboxOpen(true); };
   const closeLightbox = () => setLightboxOpen(false);
 
@@ -79,16 +104,16 @@ const ServiceDetail = () => {
       {/* Service Images Carousel */}
       {hasImages && (
         <div className="space-y-2">
-          {service.images.length === 1 ? (
+          {imageUrls.length === 1 ? (
             <div
               className="relative w-full h-80 rounded-lg overflow-hidden border cursor-pointer"
               onClick={() => openLightbox(0)}
             >
-              <img src={service.images[0]} alt={`${service.title}`} className="w-full h-full object-cover" />
+              <img src={imageUrls[0]} alt={`${service.title}`} className="w-full h-full object-cover" />
             </div>
           ) : (
             <div className="flex gap-3 overflow-x-auto py-2">
-              {service.images.map((img, idx) => (
+              {imageUrls.map((img, idx) => (
                 <div
                   key={idx}
                   className="relative w-64 h-48 flex-shrink-0 rounded-lg overflow-hidden border cursor-pointer hover:opacity-80 transition-opacity"
@@ -111,12 +136,12 @@ const ServiceDetail = () => {
               className="absolute -top-3 -right-3 bg-white rounded-full p-2 shadow z-50 hover:bg-gray-100"
               aria-label="Close"
             >✕</button>
-            <img src={service.images[lightboxIndex]} alt={`zoom ${lightboxIndex}`} className="max-w-full max-h-[85vh] object-contain rounded" />
-            {service.images.length > 1 && (
+            <img src={imageUrls[lightboxIndex]} alt={`zoom ${lightboxIndex}`} className="max-w-full max-h-[85vh] object-contain rounded" />
+            {imageUrls.length > 1 && (
               <>
-                <button onClick={() => setLightboxIndex((i) => (i - 1 + service.images.length) % service.images.length)}
+                <button onClick={() => setLightboxIndex((i) => (i - 1 + imageUrls.length) % imageUrls.length)}
                   className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 p-3 rounded-full hover:bg-white text-xl" aria-label="Previous">‹</button>
-                <button onClick={() => setLightboxIndex((i) => (i + 1) % service.images.length)}
+                <button onClick={() => setLightboxIndex((i) => (i + 1) % imageUrls.length)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 p-3 rounded-full hover:bg-white text-xl" aria-label="Next">›</button>
               </>
             )}
@@ -130,7 +155,7 @@ const ServiceDetail = () => {
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
               <h1 className="text-3xl font-bold text-foreground mb-2">{service.title}</h1>
-              <p className="text-muted-foreground">{service.category}</p>
+              <p className="text-muted-foreground">{getCategoryName(service)}</p>
             </div>
           </div>
         </div>
@@ -140,11 +165,11 @@ const ServiceDetail = () => {
             <div className="flex-1">
               <div className="flex items-center gap-4 mb-4">
                 <div className="flex items-center gap-1">
-                  {renderStars(service.rating)}
-                  <span className="ml-2 font-semibold">{service.rating}</span>
-                  <span className="text-muted-foreground">({service.totalReviews} reviews)</span>
+                  {renderStars(service.rating || 0)}
+                  <span className="ml-2 font-semibold">{service.rating || 0}</span>
+                  <span className="text-muted-foreground">({service.review_count || 0} reviews)</span>
                 </div>
-                {service.verified && (
+                {service.verification_status === 'verified' && (
                   <Badge className="bg-green-100 text-green-800">
                     <CheckCircle className="w-3 h-3 mr-1" />
                     Verified
@@ -157,11 +182,11 @@ const ServiceDetail = () => {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>
                   <p className="font-medium">Base Price</p>
-                  <p className="text-muted-foreground">From {formatPrice(service.basePrice)}</p>
+                  <p className="text-muted-foreground">{formatPriceDisplay(service)}</p>
                 </div>
                 <div>
                   <p className="font-medium">Experience</p>
-                  <p className="text-muted-foreground">{service.yearsExperience} years</p>
+                  <p className="text-muted-foreground">{service.years_experience || 0} years</p>
                 </div>
                 <div>
                   <p className="font-medium">Location</p>
@@ -169,7 +194,7 @@ const ServiceDetail = () => {
                 </div>
                 <div>
                   <p className="font-medium">Availability</p>
-                  <p className="text-muted-foreground">{service.availability}</p>
+                  <p className="text-muted-foreground">{service.availability || 'available'}</p>
                 </div>
               </div>
             </div>
@@ -180,23 +205,27 @@ const ServiceDetail = () => {
                   <CardTitle>Service Packages</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {service.packages.map((pkg, index) => (
-                    <div key={index} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-center mb-2">
-                        <h4 className="font-medium">{pkg.name}</h4>
-                        <span className="font-bold text-primary">{formatPrice(pkg.price)}</span>
+                  {packages.length > 0 ? (
+                    packages.map((pkg, index) => (
+                      <div key={pkg.id || index} className="border rounded-lg p-4">
+                        <div className="flex justify-between items-center mb-2">
+                          <h4 className="font-medium">{pkg.name}</h4>
+                          <span className="font-bold text-primary">{formatPrice(pkg.price)}</span>
+                        </div>
+                        {pkg.description && <p className="text-muted-foreground mb-2">{pkg.description}</p>}
+                        <ul className="text-sm text-muted-foreground space-y-1">
+                          {pkg.features.map((feature, idx) => (
+                            <li key={idx} className="flex items-center gap-2">
+                              <CheckCircle className="w-3 h-3 text-green-500" />
+                              {feature}
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                      {pkg.description && <p className="text-muted-foreground mb-2">{pkg.description}</p>}
-                      <ul className="text-sm text-muted-foreground space-y-1">
-                        {pkg.features.map((feature, idx) => (
-                          <li key={idx} className="flex items-center gap-2">
-                            <CheckCircle className="w-3 h-3 text-green-500" />
-                            {feature}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground text-sm">No packages available yet.</p>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -287,23 +316,15 @@ const ServiceDetail = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CalendarIcon className="w-5 h-5" />
-            Past Events ({service.pastEvents.length})
+            Completed Events ({service.completed_events || 0})
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4">
-            {service.pastEvents.map((event, index) => (
-              <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                <div>
-                  <h4 className="font-medium">{event.name}</h4>
-                  <p className="text-sm text-muted-foreground">{event.type} • {event.date}</p>
-                </div>
-                <div className="flex items-center gap-1">
-                  {renderStars(event.rating)}
-                </div>
-              </div>
-            ))}
-          </div>
+          {(service.completed_events || 0) > 0 ? (
+            <p className="text-muted-foreground">This provider has completed {service.completed_events} events.</p>
+          ) : (
+            <p className="text-muted-foreground">No past events to display yet.</p>
+          )}
         </CardContent>
       </Card>
 
@@ -316,27 +337,31 @@ const ServiceDetail = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {service.reviews.map((review) => (
-            <div key={review.id} className="border-b pb-4 last:border-b-0">
-              <div className="flex items-start gap-4">
-                <Avatar>
-                  <AvatarFallback>{review.clientName.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <h4 className="font-medium">{review.clientName}</h4>
-                      <p className="text-sm text-muted-foreground">{review.eventType} • {review.date}</p>
+          {reviews.length > 0 ? (
+            reviews.map((review) => (
+              <div key={review.id} className="border-b pb-4 last:border-b-0">
+                <div className="flex items-start gap-4">
+                  <Avatar>
+                    <AvatarFallback>{review.user_name.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <h4 className="font-medium">{review.user_name}</h4>
+                        <p className="text-sm text-muted-foreground">{review.event_type} • {review.created_at}</p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {renderStars(review.rating)}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      {renderStars(review.rating)}
-                    </div>
+                    <p className="text-muted-foreground">{review.comment}</p>
                   </div>
-                  <p className="text-muted-foreground">{review.comment}</p>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <p className="text-muted-foreground">No reviews yet. Be the first to review this service!</p>
+          )}
         </CardContent>
       </Card>
     </div>

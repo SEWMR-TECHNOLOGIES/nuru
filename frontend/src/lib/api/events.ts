@@ -1,0 +1,346 @@
+/**
+ * Events API - User events management
+ */
+
+import { get, post, put, del, postFormData, putFormData, buildQueryString } from "./helpers";
+import type { 
+  Event, 
+  EventGuest, 
+  CommitteeMember, 
+  EventContribution, 
+  EventScheduleItem, 
+  EventBudgetItem,
+  PaginatedResponse 
+} from "./types";
+
+export interface EventQueryParams {
+  page?: number;
+  limit?: number;
+  status?: "draft" | "published" | "cancelled" | "completed" | "all";
+  sort_by?: "created_at" | "start_date" | "title";
+  sort_order?: "asc" | "desc";
+}
+
+export interface GuestQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  rsvp_status?: "pending" | "confirmed" | "declined" | "maybe" | "all";
+  invitation_status?: "sent" | "not_sent" | "all";
+  checked_in?: boolean;
+  table_number?: string;
+  sort_by?: "name" | "created_at" | "rsvp_status" | "table_number";
+  sort_order?: "asc" | "desc";
+}
+
+export interface ContributionQueryParams {
+  page?: number;
+  limit?: number;
+  status?: "pending" | "confirmed" | "failed" | "all";
+  sort_by?: "created_at" | "amount" | "contributor_name";
+  sort_order?: "asc" | "desc";
+}
+
+export const eventsApi = {
+  // ============================================================================
+  // EVENT CRUD
+  // ============================================================================
+  
+  /**
+   * Get all events for current user
+   */
+  getAll: (params?: EventQueryParams) => 
+    get<{ events: Event[]; pagination: PaginatedResponse<Event>["pagination"] }>(`/user-events/${buildQueryString(params)}`),
+
+  /**
+   * Get a single event by ID
+   */
+  getById: (eventId: string) => get<Event>(`/user-events/${eventId}`),
+
+  /**
+   * Create a new event
+   */
+  create: (formData: FormData) => postFormData<Event>("/user-events/", formData),
+
+  /**
+   * Update an event
+   */
+  update: (eventId: string, formData: FormData) => putFormData<Event>(`/user-events/${eventId}`, formData),
+
+  /**
+   * Delete an event
+   */
+  delete: (eventId: string) => del(`/user-events/${eventId}`),
+
+  /**
+   * Publish an event
+   */
+  publish: (eventId: string) => post<{ id: string; status: string; published_at: string; public_url: string }>(`/user-events/${eventId}/publish`),
+
+  /**
+   * Cancel an event
+   */
+  cancel: (eventId: string, data: { reason?: string; notify_guests?: boolean; notify_vendors?: boolean }) => 
+    post<{ id: string; status: string; cancelled_at: string }>(`/user-events/${eventId}/cancel`, data),
+
+  // ============================================================================
+  // EVENT GUESTS
+  // ============================================================================
+
+  /**
+   * Get event guests
+   */
+  getGuests: (eventId: string, params?: GuestQueryParams) => 
+    get<{ 
+      guests: EventGuest[]; 
+      summary: { total: number; confirmed: number; pending: number; declined: number; maybe: number; checked_in: number };
+      pagination: PaginatedResponse<EventGuest>["pagination"];
+    }>(`/user-events/${eventId}/guests${buildQueryString(params)}`),
+
+  /**
+   * Get single guest
+   */
+  getGuest: (eventId: string, guestId: string) => get<EventGuest>(`/user-events/${eventId}/guests/${guestId}`),
+
+  /**
+   * Add a guest
+   */
+  addGuest: (eventId: string, data: Partial<EventGuest>) => post<EventGuest>(`/user-events/${eventId}/guests`, data),
+
+  /**
+   * Bulk add guests
+   */
+  addGuestsBulk: (eventId: string, data: { guests: Partial<EventGuest>[]; skip_duplicates?: boolean; default_tags?: string[] }) => 
+    post<{ imported: number; skipped: number; errors: Array<{ row: number; name?: string; error: string }>; guests: EventGuest[] }>(`/user-events/${eventId}/guests/bulk`, data),
+
+  /**
+   * Import guests from CSV
+   */
+  importGuestsCSV: (eventId: string, formData: FormData) => 
+    postFormData<{ imported: number; skipped: number; errors: Array<{ row: number; error: string }> }>(`/user-events/${eventId}/guests/import`, formData),
+
+  /**
+   * Update a guest
+   */
+  updateGuest: (eventId: string, guestId: string, data: Partial<EventGuest>) => 
+    put<EventGuest>(`/user-events/${eventId}/guests/${guestId}`, data),
+
+  /**
+   * Delete a guest
+   */
+  deleteGuest: (eventId: string, guestId: string) => del(`/user-events/${eventId}/guests/${guestId}`),
+
+  /**
+   * Delete multiple guests
+   */
+  deleteGuestsBulk: (eventId: string, guest_ids: string[]) => 
+    del<{ deleted: number }>(`/user-events/${eventId}/guests/bulk`, { guest_ids }),
+
+  /**
+   * Send invitation to guest
+   */
+  sendInvitation: (eventId: string, guestId: string, data: { method: "email" | "sms" | "whatsapp"; custom_message?: string; include_calendar?: boolean; include_map?: boolean }) => 
+    post<{ guest_id: string; method: string; sent_at: string; invitation_url: string }>(`/user-events/${eventId}/guests/${guestId}/invite`, data),
+
+  /**
+   * Send bulk invitations
+   */
+  sendBulkInvitations: (eventId: string, data: { method: "email" | "sms" | "whatsapp"; guest_ids?: string[]; filter?: { rsvp_status?: string; invitation_sent?: boolean; tags?: string[] }; custom_message?: string }) => 
+    post<{ total_selected: number; sent_count: number; failed_count: number; failures: Array<{ guest_id: string; name: string; reason: string }> }>(`/user-events/${eventId}/guests/invite-all`, data),
+
+  /**
+   * Resend invitation
+   */
+  resendInvitation: (eventId: string, guestId: string, data: { method: "email" | "sms" | "whatsapp"; custom_message?: string }) => 
+    post<{ guest_id: string; method: string; sent_at: string; resend_count: number }>(`/user-events/${eventId}/guests/${guestId}/resend-invite`, data),
+
+  /**
+   * Check-in guest
+   */
+  checkinGuest: (eventId: string, guestId: string, data?: { plus_ones_checked_in?: number; notes?: string }) => 
+    post<{ guest_id: string; name: string; checked_in: boolean; checked_in_at: string; table_number?: string; seat_number?: number }>(`/user-events/${eventId}/guests/${guestId}/checkin`, data),
+
+  /**
+   * Check-in guest by QR code
+   */
+  checkinGuestByQR: (eventId: string, data: { qr_code: string; plus_ones_checked_in?: number }) => 
+    post<{ guest_id: string; name: string; checked_in: boolean; checked_in_at: string; table_number?: string }>(`/user-events/${eventId}/guests/checkin-qr`, data),
+
+  /**
+   * Undo check-in
+   */
+  undoCheckin: (eventId: string, guestId: string) => 
+    post<{ guest_id: string; checked_in: boolean }>(`/user-events/${eventId}/guests/${guestId}/undo-checkin`),
+
+  /**
+   * Export guests
+   */
+  exportGuests: (eventId: string, params?: { format?: "csv" | "xlsx" | "pdf"; fields?: string; rsvp_status?: string }) => 
+    get<Blob>(`/user-events/${eventId}/guests/export${buildQueryString(params)}`),
+
+  // ============================================================================
+  // PUBLIC RSVP (No Auth)
+  // ============================================================================
+
+  /**
+   * Get public RSVP page data
+   */
+  getPublicRSVP: (eventId: string, guestId: string, token: string) => 
+    get<{ event: Partial<Event>; guest: Partial<EventGuest>; rsvp_options: { allow_plus_ones: boolean; max_plus_ones: number; require_dietary_info: boolean; deadline_passed: boolean } }>(`/events/${eventId}/rsvp/${guestId}?token=${token}`),
+
+  /**
+   * Submit public RSVP
+   */
+  submitPublicRSVP: (eventId: string, data: { guest_id: string; token: string; rsvp_status: "confirmed" | "declined" | "maybe"; plus_ones?: number; plus_one_names?: string[]; dietary_requirements?: string; allergies?: string; message?: string }) => 
+    post<{ event: Partial<Event>; rsvp_status: string; calendar_link?: string; map_link?: string }>(`/events/${eventId}/rsvp`, data),
+
+  // ============================================================================
+  // COMMITTEE
+  // ============================================================================
+
+  /**
+   * Get committee members
+   */
+  getCommittee: (eventId: string) => get<CommitteeMember[]>(`/user-events/${eventId}/committee`),
+
+  /**
+   * Add committee member
+   */
+  addCommitteeMember: (eventId: string, data: { name: string; email?: string; phone?: string; role: string; role_description?: string; permissions: string[]; send_invitation?: boolean; invitation_message?: string }) => 
+    post<CommitteeMember>(`/user-events/${eventId}/committee`, data),
+
+  /**
+   * Update committee member
+   */
+  updateCommitteeMember: (eventId: string, memberId: string, data: Partial<CommitteeMember>) => 
+    put<CommitteeMember>(`/user-events/${eventId}/committee/${memberId}`, data),
+
+  /**
+   * Remove committee member
+   */
+  removeCommitteeMember: (eventId: string, memberId: string) => 
+    del(`/user-events/${eventId}/committee/${memberId}`),
+
+  /**
+   * Resend committee invitation
+   */
+  resendCommitteeInvitation: (eventId: string, memberId: string) => 
+    post<{ member_id: string; sent_at: string }>(`/user-events/${eventId}/committee/${memberId}/resend-invite`),
+
+  // ============================================================================
+  // CONTRIBUTIONS
+  // ============================================================================
+
+  /**
+   * Get event contributions
+   */
+  getContributions: (eventId: string, params?: ContributionQueryParams) => 
+    get<{ 
+      contributions: EventContribution[]; 
+      summary: { total_contributions: number; total_amount: number; target_amount?: number; progress_percentage: number; confirmed_count: number; pending_count: number; currency: string };
+      pagination: PaginatedResponse<EventContribution>["pagination"];
+    }>(`/user-events/${eventId}/contributions${buildQueryString(params)}`),
+
+  /**
+   * Record manual contribution
+   */
+  addContribution: (eventId: string, data: Partial<EventContribution>) => 
+    post<EventContribution>(`/user-events/${eventId}/contributions`, data),
+
+  /**
+   * Update contribution
+   */
+  updateContribution: (eventId: string, contributionId: string, data: Partial<EventContribution>) => 
+    put<EventContribution>(`/user-events/${eventId}/contributions/${contributionId}`, data),
+
+  /**
+   * Delete contribution
+   */
+  deleteContribution: (eventId: string, contributionId: string) => 
+    del(`/user-events/${eventId}/contributions/${contributionId}`),
+
+  /**
+   * Send thank you to contributor
+   */
+  sendThankYou: (eventId: string, contributionId: string, data: { method: "email" | "sms" | "whatsapp"; custom_message?: string }) => 
+    post<{ contribution_id: string; thank_you_sent: boolean; thank_you_sent_at: string; method: string }>(`/user-events/${eventId}/contributions/${contributionId}/thank`, data),
+
+  /**
+   * Send bulk thank you
+   */
+  sendBulkThankYou: (eventId: string, data: { contribution_ids?: string[]; filter?: { thank_you_sent?: boolean; status?: string }; method: "email" | "sms" | "whatsapp"; custom_message?: string }) => 
+    post<{ sent_count: number; failed_count: number; failures: Array<{ contribution_id: string; reason: string }> }>(`/user-events/${eventId}/contributions/thank-all`, data),
+
+  /**
+   * Get public contribution page
+   */
+  getPublicContributionPage: (eventId: string) => 
+    get<{ event: Partial<Event>; contribution_info: { enabled: boolean; description?: string; target_amount?: number; current_amount: number; progress_percentage: number; contributor_count: number; currency: string; suggested_amounts?: number[] }; payment_methods: Array<{ id: string; name: string; icon: string; instructions: string }>; recent_contributions: Array<{ contributor_name: string; amount: number; message?: string; created_at: string }> }>(`/events/${eventId}/contribute`),
+
+  /**
+   * Submit public contribution
+   */
+  submitPublicContribution: (eventId: string, data: { contributor_name: string; contributor_email?: string; contributor_phone?: string; amount: number; payment_method: string; message?: string; is_anonymous?: boolean }) => 
+    post<{ contribution_id: string; status: string; payment_instructions?: { paybill?: string; account?: string; phone?: string } }>(`/events/${eventId}/contribute`, data),
+
+  // ============================================================================
+  // SCHEDULE
+  // ============================================================================
+
+  /**
+   * Get event schedule
+   */
+  getSchedule: (eventId: string) => get<EventScheduleItem[]>(`/user-events/${eventId}/schedule`),
+
+  /**
+   * Add schedule item
+   */
+  addScheduleItem: (eventId: string, data: Partial<EventScheduleItem>) => 
+    post<EventScheduleItem>(`/user-events/${eventId}/schedule`, data),
+
+  /**
+   * Update schedule item
+   */
+  updateScheduleItem: (eventId: string, itemId: string, data: Partial<EventScheduleItem>) => 
+    put<EventScheduleItem>(`/user-events/${eventId}/schedule/${itemId}`, data),
+
+  /**
+   * Delete schedule item
+   */
+  deleteScheduleItem: (eventId: string, itemId: string) => 
+    del(`/user-events/${eventId}/schedule/${itemId}`),
+
+  /**
+   * Reorder schedule items
+   */
+  reorderSchedule: (eventId: string, data: { items: Array<{ id: string; display_order: number }> }) => 
+    put<EventScheduleItem[]>(`/user-events/${eventId}/schedule/reorder`, data),
+
+  // ============================================================================
+  // BUDGET
+  // ============================================================================
+
+  /**
+   * Get event budget items
+   */
+  getBudget: (eventId: string) => 
+    get<{ items: EventBudgetItem[]; summary: { total_estimated: number; total_actual: number; variance: number; currency: string } }>(`/user-events/${eventId}/budget`),
+
+  /**
+   * Add budget item
+   */
+  addBudgetItem: (eventId: string, data: Partial<EventBudgetItem>) => 
+    post<EventBudgetItem>(`/user-events/${eventId}/budget`, data),
+
+  /**
+   * Update budget item
+   */
+  updateBudgetItem: (eventId: string, itemId: string, data: Partial<EventBudgetItem>) => 
+    put<EventBudgetItem>(`/user-events/${eventId}/budget/${itemId}`, data),
+
+  /**
+   * Delete budget item
+   */
+  deleteBudgetItem: (eventId: string, itemId: string) => 
+    del(`/user-events/${eventId}/budget/${itemId}`),
+};

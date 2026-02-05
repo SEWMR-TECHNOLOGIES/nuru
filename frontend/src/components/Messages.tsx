@@ -1,27 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, Image, MapPin, X, Send, Plus, ChevronLeft } from 'lucide-react';
+import { Image, MapPin, X, Send, Plus, ChevronLeft, MessageCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import sampleImage from '@/assets/feed-images/birthday.webp';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
-
-type ChatItem = {
-  id: number;
-  name: string;
-  message: string;
-  time: string;
-  avatar: string;
-  unread: number; // now number of unread messages
-  active: boolean;
-};
-
-type Msg = {
-  id: number;
-  text?: string;
-  time: string;
-  sent: boolean;
-  image?: string;
-};
+import { useConversations, useConversationMessages, useSendMessage } from '@/data/useSocial';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const Messages = () => {
   useWorkspaceMeta({
@@ -29,59 +12,11 @@ const Messages = () => {
     description: 'Chat with event organizers, service providers, and your community on Nuru.'
   });
 
-  const chats: ChatItem[] = [
-    {
-      id: 1,
-      name: 'Sarah Johnson',
-      message: "Hey! Are you coming to the wedding?",
-      time: '2m ago',
-      avatar:
-        'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop&crop=face',
-      unread: 3,
-      active: true
-    },
-    {
-      id: 2,
-      name: 'Michael Brown',
-      message: 'Thanks for organizing the memorial service',
-      time: '1h ago',
-      avatar:
-        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop&crop=face',
-      unread: 0,
-      active: false
-    },
-    {
-      id: 3,
-      name: 'Event Planning Team',
-      message: 'Your event has been approved!',
-      time: '3h ago',
-      avatar:
-        'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=40&h=40&fit=crop&crop=face',
-      unread: 7,
-      active: false
-    }
-  ];
+  const { conversations, loading: conversationsLoading, error: conversationsError, refetch: refetchConversations } = useConversations();
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const { messages, loading: messagesLoading, refetch: refetchMessages } = useConversationMessages(selectedConversationId || '');
+  const { sendMessage, loading: sending } = useSendMessage();
 
-  const messagesPerChat: Record<number, Msg[]> = {
-    1: [
-      { id: 1, text: "Hey! Are you coming to the wedding?", time: '2:30 PM', sent: false, image: sampleImage },
-      { id: 2, text: "Yes, I'll be there! Looking forward to it 😊", time: '2:32 PM', sent: true },
-      { id: 3, text: "Great! The ceremony starts at 4 PM. Don't forget to dress formally", time: '2:33 PM', sent: false },
-      { id: 4, text: "Perfect, I already have my outfit ready. Should I bring anything?", time: '2:35 PM', sent: true },
-      { id: 5, text: "Just bring yourself! Everything else is taken care of", time: '2:36 PM', sent: false }
-    ],
-    2: [
-      { id: 1, text: "Thanks for your help with the memorial logistics.", time: '11:00 AM', sent: false },
-      { id: 2, text: "No problem — happy to help. Let me know if you need volunteers.", time: '11:05 AM', sent: true }
-    ],
-    3: [
-      { id: 1, text: "Your event has been approved. Congratulations!", time: '9:20 AM', sent: false },
-      { id: 2, text: "Thanks! We'll update the attendees list.", time: '9:25 AM', sent: true }
-    ]
-  };
-
-  const [messages, setMessages] = useState<Msg[]>(messagesPerChat[1]);
-  const [selectedChatIdx, setSelectedChatIdx] = useState<number>(0);
   const [input, setInput] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -90,16 +25,21 @@ const Messages = () => {
   const inputFileRef = useRef<HTMLInputElement | null>(null);
   const isMobile = useIsMobile();
 
+  // Select first conversation by default
+  useEffect(() => {
+    if (conversations.length > 0 && !selectedConversationId) {
+      setSelectedConversationId(conversations[0].id);
+    }
+  }, [conversations, selectedConversationId]);
+
   useEffect(() => {
     if (messagesRef.current) {
       messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
     }
   }, [messages, imagePreview]);
 
-  const handleSelectChat = (index: number) => {
-    setSelectedChatIdx(index);
-    const chat = chats[index];
-    setMessages(messagesPerChat[chat.id] ?? []);
+  const handleSelectConversation = (conversationId: string) => {
+    setSelectedConversationId(conversationId);
     if (isMobile) {
       setShowChatList(false);
     }
@@ -119,30 +59,78 @@ const Messages = () => {
     if (inputFileRef.current) inputFileRef.current.value = '';
   };
 
-  const sendMessage = () => {
-    if (!input.trim() && !imageFile) return;
+  const handleSendMessage = async () => {
+    if ((!input.trim() && !imageFile) || !selectedConversationId) return;
 
-    const newMsg: Msg = {
-      id: messages.length + 1,
-      text: input.trim() || undefined,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      sent: true,
-      image: imagePreview || undefined
-    };
-
-    setMessages((prev) => [...prev, newMsg]);
-    setInput('');
-    removeImage();
+    try {
+      await sendMessage(selectedConversationId, input.trim(), imageFile ? [imagePreview!] : undefined);
+      setInput('');
+      removeImage();
+      refetchMessages();
+    } catch (err) {
+      console.error('Failed to send message:', err);
+    }
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendMessage();
+      handleSendMessage();
     }
   };
 
-  const currentChat = chats[selectedChatIdx];
+  const selectedConversation = conversations.find(c => c.id === selectedConversationId);
+
+  if (conversationsLoading) {
+    return (
+      <div className="h-full flex bg-slate-50/20">
+        <div className="w-80 bg-card border-r border-border overflow-y-auto">
+          <div className="p-4 border-b border-border">
+            <Skeleton className="h-6 w-24" />
+          </div>
+          <div className="p-2 space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="p-3 flex items-center gap-3">
+                <Skeleton className="w-12 h-12 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-full" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    );
+  }
+
+  if (conversationsError) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-destructive mb-4">Failed to load messages. Please try again.</p>
+          <Button onClick={() => refetchConversations()}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (conversations.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <MessageCircle className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+          <p className="text-muted-foreground mb-2">No messages yet</p>
+          <p className="text-sm text-muted-foreground">
+            Start a conversation with an event organizer or service provider
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex bg-slate-50/20">
@@ -156,25 +144,27 @@ const Messages = () => {
         </div>
 
         <div className="p-2 space-y-2">
-          {chats.map((chat, idx) => {
-            const isSelected = idx === selectedChatIdx;
+          {conversations.map((conversation) => {
+            const isSelected = conversation.id === selectedConversationId;
+            const otherParticipant = conversation.participants?.find(p => p.user_id !== conversation.last_message?.sender_id);
+            
             return (
               <button
-                key={chat.id}
-                onClick={() => handleSelectChat(idx)}
+                key={conversation.id}
+                onClick={() => handleSelectConversation(conversation.id)}
                 className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${
                   isSelected ? 'bg-nuru-yellow/20' : 'hover:bg-muted/50'
                 }`}
               >
                 <div className="relative">
                   <img
-                    src={chat.avatar}
-                    alt={chat.name}
+                    src={otherParticipant?.user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face'}
+                    alt={otherParticipant?.user?.first_name || 'User'}
                     className={`w-12 h-12 rounded-full object-cover ${isSelected ? 'ring-2 ring-nuru-yellow/40' : ''}`}
                   />
-                  {chat.unread > 0 && (
+                  {conversation.unread_count > 0 && (
                     <span className="absolute -top-1 -right-1 min-w-[18px] h-4 bg-primary text-white text-[10px] font-semibold flex items-center justify-center rounded-full px-1 ring-2 ring-card">
-                      {chat.unread}
+                      {conversation.unread_count}
                     </span>
                   )}
                 </div>
@@ -183,16 +173,20 @@ const Messages = () => {
                   <div className="flex items-center justify-between gap-2">
                     <h3
                       className={`font-medium text-sm truncate ${
-                        chat.unread > 0 ? 'text-foreground' : 'text-foreground/80'
+                        conversation.unread_count > 0 ? 'text-foreground' : 'text-foreground/80'
                       }`}
                     >
-                      {chat.name}
+                      {otherParticipant?.user?.first_name} {otherParticipant?.user?.last_name}
                     </h3>
-                    <span className="text-xs text-muted-foreground flex-shrink-0">{chat.time}</span>
+                    <span className="text-xs text-muted-foreground flex-shrink-0">
+                      {conversation.last_message?.created_at 
+                        ? new Date(conversation.last_message.created_at).toLocaleDateString()
+                        : ''}
+                    </span>
                   </div>
 
-                  <p className={`text-sm truncate mt-1 ${chat.unread > 0 ? 'font-medium text-foreground/90' : 'text-muted-foreground'}`}>
-                    {chat.message}
+                  <p className={`text-sm truncate mt-1 ${conversation.unread_count > 0 ? 'font-medium text-foreground/90' : 'text-muted-foreground'}`}>
+                    {conversation.last_message?.content || 'No messages yet'}
                   </p>
                 </div>
               </button>
@@ -203,94 +197,122 @@ const Messages = () => {
 
       {/* Chat Details */}
       <div className={`${isMobile ? (showChatList ? 'hidden' : 'w-full') : 'flex-1'} flex flex-col bg-card`}>
-        <div className="p-4 border-b border-border flex items-center gap-3">
-          <img src={currentChat.avatar} alt={currentChat.name} className="w-10 h-10 rounded-full object-cover" />
-          <div className="flex-1">
-            <h3 className="font-semibold">{currentChat.name}</h3>
-            <p className="text-sm text-muted-foreground">Active 5 minutes ago</p>
-          </div>
-          {isMobile && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowChatList(true)}
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </Button>
-          )}
-        </div>
-
-        <div ref={messagesRef} className="flex-1 p-3 md:p-4 overflow-y-auto space-y-4">
-          {messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.sent ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[75%] md:max-w-xs lg:max-w-md px-3 md:px-4 py-2 rounded-lg ${
-                msg.sent ? 'bg-nuru-yellow/20 text-foreground' : 'bg-muted'
-              }`}>
-                {msg.image && (
-                  <div className="mb-2 rounded-lg overflow-hidden border border-border">
-                    <img src={msg.image} alt="sent" className="w-full h-32 md:h-40 object-cover" />
-                  </div>
-                )}
-                {msg.text && <p className="text-sm break-words">{msg.text}</p>}
-                <p className={`text-xs mt-1 ${msg.sent ? 'text-foreground/70' : 'text-muted-foreground'}`}>{msg.time}</p>
+        {selectedConversation ? (
+          <>
+            <div className="p-4 border-b border-border flex items-center gap-3">
+              {isMobile && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowChatList(true)}
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </Button>
+              )}
+              <img 
+                src={selectedConversation.participants?.[0]?.user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face'} 
+                alt="User" 
+                className="w-10 h-10 rounded-full object-cover" 
+              />
+              <div className="flex-1">
+                <h3 className="font-semibold">
+                  {selectedConversation.participants?.[0]?.user?.first_name} {selectedConversation.participants?.[0]?.user?.last_name}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {selectedConversation.participants?.[0]?.user?.is_online ? 'Online' : 'Offline'}
+                </p>
               </div>
             </div>
-          ))}
-        </div>
 
-        <div className="p-3 md:p-4 border-t border-border">
-          {imagePreview && (
-            <div className="mb-3 relative w-full max-h-40 md:max-h-48 rounded-lg overflow-hidden border border-border">
-              <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
-              <button
-                onClick={removeImage}
-                className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70 transition-colors"
-                aria-label="Remove image"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 md:gap-2 bg-transparent rounded-lg px-2 md:px-3 py-2 flex-1 border border-border">
-              <input
-                type="text"
-                placeholder="Type a message..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={onKeyDown}
-                className="flex-1 bg-transparent text-muted-foreground text-sm outline-none placeholder:text-muted-foreground min-w-0"
-                aria-label="Type a message"
-              />
-
-              <label className="p-1.5 md:p-2 hover:bg-muted rounded-lg cursor-pointer transition-colors shrink-0" title="Attach image">
-                <Image className="w-4 h-4 md:w-5 md:h-5 text-muted-foreground" />
-                <input
-                  ref={inputFileRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-              </label>
-
-              <button className="p-1.5 md:p-2 hover:bg-muted rounded-lg transition-colors shrink-0 hidden sm:block" title="Location">
-                <MapPin className="w-4 h-4 md:w-5 md:h-5 text-muted-foreground" />
-              </button>
+            <div ref={messagesRef} className="flex-1 p-3 md:p-4 overflow-y-auto space-y-4">
+              {messagesLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-muted-foreground">No messages in this conversation</p>
+                </div>
+              ) : (
+                messages.map((msg) => (
+                  <div key={msg.id} className={`flex ${msg.is_sender ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[75%] md:max-w-xs lg:max-w-md px-3 md:px-4 py-2 rounded-lg ${
+                      msg.is_sender ? 'bg-nuru-yellow/20 text-foreground' : 'bg-muted'
+                    }`}>
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <div className="mb-2 rounded-lg overflow-hidden border border-border">
+                          <img src={msg.attachments[0]} alt="attachment" className="w-full h-32 md:h-40 object-cover" />
+                        </div>
+                      )}
+                      {msg.content && <p className="text-sm break-words">{msg.content}</p>}
+                      <p className={`text-xs mt-1 ${msg.is_sender ? 'text-foreground/70' : 'text-muted-foreground'}`}>
+                        {msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
 
-            <Button
-              size="sm"
-              className="px-3 md:px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/95 shrink-0"
-              onClick={sendMessage}
-              disabled={!input.trim() && !imagePreview}
-              aria-label="Send message"
-            >
-              <Send className="w-3.5 h-3.5 md:w-4 md:h-4" />
-            </Button>
+            <div className="p-3 md:p-4 border-t border-border">
+              {imagePreview && (
+                <div className="mb-3 relative w-full max-h-40 md:max-h-48 rounded-lg overflow-hidden border border-border">
+                  <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
+                  <button
+                    onClick={removeImage}
+                    className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70 transition-colors"
+                    aria-label="Remove image"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 md:gap-2 bg-transparent rounded-lg px-2 md:px-3 py-2 flex-1 border border-border">
+                  <input
+                    type="text"
+                    placeholder="Type a message..."
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={onKeyDown}
+                    className="flex-1 bg-transparent text-muted-foreground text-sm outline-none placeholder:text-muted-foreground min-w-0"
+                    aria-label="Type a message"
+                  />
+
+                  <label className="p-1.5 md:p-2 hover:bg-muted rounded-lg cursor-pointer transition-colors shrink-0" title="Attach image">
+                    <Image className="w-4 h-4 md:w-5 md:h-5 text-muted-foreground" />
+                    <input
+                      ref={inputFileRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                  </label>
+
+                  <button className="p-1.5 md:p-2 hover:bg-muted rounded-lg transition-colors shrink-0 hidden sm:block" title="Location">
+                    <MapPin className="w-4 h-4 md:w-5 md:h-5 text-muted-foreground" />
+                  </button>
+                </div>
+
+                <Button
+                  size="sm"
+                  className="px-3 md:px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/95 shrink-0"
+                  onClick={handleSendMessage}
+                  disabled={(!input.trim() && !imagePreview) || sending}
+                  aria-label="Send message"
+                >
+                  {sending ? <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" /> : <Send className="w-3.5 h-3.5 md:w-4 md:h-4" />}
+                </Button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-muted-foreground">Select a conversation to start messaging</p>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

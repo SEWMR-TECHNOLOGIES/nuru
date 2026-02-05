@@ -1,43 +1,32 @@
 import { useQuery, UseQueryResult } from "@tanstack/react-query";
+import { api, User } from "@/lib/api";
 
-export interface CurrentUser {
-  id: string;
-  first_name: string;
-  last_name: string;
-  username: string;
-  email: string;
-  phone: string;
-  avatar: string | null;
-}
+export type { User as CurrentUser } from "@/lib/api";
 
-const fetchCurrentUser = async (): Promise<CurrentUser | null> => {
-  const token = localStorage.getItem("token"); 
-  const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/me`, {
-    credentials: "include", 
-    headers: token
-      ? {
-          Authorization: `Bearer ${token}`,
-        }
-      : undefined,
-  });
+const fetchCurrentUser = async (): Promise<User | null> => {
+  const token = localStorage.getItem("token");
+  if (!token) return null;
 
-  if (!res.ok) return null;
-
-  const data = await res.json();
-
-  // Add avatar as null for now
-  return {
-    ...data,
-    avatar: null
-  };
+  try {
+    const response = await api.auth.me();
+    if (response.success) {
+      return {
+        ...response.data,
+        avatar: response.data.avatar || null,
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
 };
 
-export const useCurrentUser = (): UseQueryResult<CurrentUser | null> & { userIsLoggedIn: boolean } => {
+export const useCurrentUser = (): UseQueryResult<User | null> & { userIsLoggedIn: boolean } => {
   const query = useQuery({
     queryKey: ["currentUser"],
     queryFn: fetchCurrentUser,
     staleTime: 1000 * 60 * 5, // 5 minutes
-    retry: false, // don't retry on 401
+    retry: false,
   });
 
   const userIsLoggedIn = !!query.data;

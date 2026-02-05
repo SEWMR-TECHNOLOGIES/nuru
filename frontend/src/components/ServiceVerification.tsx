@@ -20,7 +20,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useWorkspaceMeta } from "@/hooks/useWorkspaceMeta";
-import { useServiceKyc } from "@/data/useUserServiceKyc";
+import { useUserServiceKyc } from "@/data/useUserServiceKyc";
 import { ServiceLoadingSkeleton } from "@/components/ui/ServiceLoadingSkeleton";
 
 interface VerificationItem {
@@ -37,7 +37,7 @@ interface VerificationItem {
 const ServiceVerification = () => {
   const { serviceId } = useParams<{ serviceId: string }>();
   const navigate = useNavigate();
-  const { kycList, loading, error, refetch } = useServiceKyc(serviceId); // <-- add refetch from hook
+  const { kycList, loading, error, refetch } = useUserServiceKyc(serviceId ?? null);
   const [items, setItems] = useState<VerificationItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 

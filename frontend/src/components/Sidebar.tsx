@@ -10,7 +10,9 @@ import {
   Briefcase,
   User,
   Users,
-  UsersRound
+  UsersRound,
+  ClipboardList,
+  CreditCard
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NavLink } from 'react-router-dom'
@@ -30,6 +32,8 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
   const secondaryItems = [
     { icon: Search, label: 'Find Services', path: '/find-services' },
     { icon: Briefcase, label: 'My Services', path: '/my-services' },
+    { icon: ClipboardList, label: 'Bookings', path: '/bookings' },
+    { icon: CreditCard, label: 'Nuru Cards', path: '/nuru-cards' },
     { icon: Users, label: 'My Circle', path: '/circle' },
     { icon: UsersRound, label: 'Communities', path: '/communities' },
     { icon: HelpCircle, label: 'Help', path: '/help' },
