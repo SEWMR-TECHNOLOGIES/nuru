@@ -19,12 +19,48 @@ const Index = () => {
   ];
 
   const eventTypes = [
-    { name: "Weddings", icon: "💒", color: "from-pink-500/20 to-rose-500/10" },
-    { name: "Birthdays", icon: "🎂", color: "from-amber-500/20 to-orange-500/10" },
-    { name: "Memorials", icon: "🕯️", color: "from-slate-500/20 to-gray-500/10" },
-    { name: "Corporate", icon: "🏢", color: "from-blue-500/20 to-indigo-500/10" },
-    { name: "Graduations", icon: "🎓", color: "from-purple-500/20 to-violet-500/10" },
-    { name: "Baby Showers", icon: "👶", color: "from-cyan-500/20 to-teal-500/10" },
+    { 
+      name: "Weddings", 
+      desc: "Celebrate love stories",
+      image: "https://images.unsplash.com/photo-1519741497674-611481863552?w=600&q=80",
+      size: "large"
+    },
+    { 
+      name: "Birthdays", 
+      desc: "Mark another year",
+      image: "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=600&q=80",
+      size: "small"
+    },
+    { 
+      name: "Memorials", 
+      desc: "Honor those we cherish",
+      image: "https://images.unsplash.com/photo-1501973801540-537f08ccae7b?w=600&q=80",
+      size: "medium"
+    },
+    { 
+      name: "Corporate", 
+      desc: "Elevate your brand",
+      image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&q=80",
+      size: "small"
+    },
+    { 
+      name: "Graduations", 
+      desc: "Celebrate achievements",
+      image: "https://images.unsplash.com/photo-1627556704290-2b1f5853ff78?w=600&q=80",
+      size: "medium"
+    },
+    { 
+      name: "Baby Showers", 
+      desc: "Welcome new beginnings",
+      image: "https://images.unsplash.com/photo-1555252333-9f8e92e65df9?w=600&q=80",
+      size: "small"
+    },
+    { 
+      name: "Anniversaries", 
+      desc: "Cherish milestones together",
+      image: "https://images.unsplash.com/photo-1529636798458-92182e662485?w=600&q=80",
+      size: "small"
+    },
   ];
 
   return (
@@ -156,73 +192,79 @@ const Index = () => {
               Plan with clarity. Organize with ease. For every occasion life brings.
             </motion.p>
 
-            {/* Futuristic Typography Constellation */}
-            <div className="relative h-[200px] md:h-[260px] max-w-5xl mx-auto">
+            {/* Creative Bento Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 max-w-5xl mx-auto auto-rows-[140px] md:auto-rows-[180px]">
               {eventTypes.map((event, index) => {
-                // Constellation positioning - scattered but balanced
-                const positions = [
-                  { left: "5%", top: "20%", size: "xl", opacity: 0.9, rotate: -3 },
-                  { left: "28%", top: "65%", size: "lg", opacity: 0.7, rotate: 2 },
-                  { left: "42%", top: "10%", size: "md", opacity: 0.5, rotate: -1 },
-                  { left: "58%", top: "70%", size: "xl", opacity: 0.85, rotate: 1 },
-                  { left: "75%", top: "25%", size: "lg", opacity: 0.6, rotate: -2 },
-                  { left: "88%", top: "55%", size: "md", opacity: 0.75, rotate: 3 },
-                ];
-                const pos = positions[index];
-                
-                const sizeClasses = {
-                  xl: "text-2xl md:text-4xl font-semibold",
-                  lg: "text-xl md:text-2xl font-medium",
-                  md: "text-base md:text-lg font-normal",
+                // Define grid spans for bento layout
+                const gridClasses = {
+                  large: "col-span-2 row-span-2",
+                  medium: "col-span-2 md:col-span-1 row-span-2",
+                  small: "col-span-1 row-span-1",
                 };
 
                 return (
                   <motion.div
                     key={event.name}
-                    initial={{ opacity: 0, filter: "blur(10px)" }}
-                    animate={{ 
-                      opacity: pos.opacity, 
-                      filter: "blur(0px)",
-                      rotate: pos.rotate
-                    }}
+                    initial={{ opacity: 0, y: 30, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
                     transition={{ 
-                      duration: 0.8, 
-                      delay: 0.8 + index * 0.12,
-                      ease: "easeOut"
+                      duration: 0.6, 
+                      delay: 0.6 + index * 0.1,
+                      ease: [0.22, 1, 0.36, 1]
                     }}
-                    className="absolute"
-                    style={{ left: pos.left, top: pos.top }}
+                    whileHover={{ 
+                      scale: 1.02,
+                      transition: { duration: 0.3 }
+                    }}
+                    className={`
+                      ${gridClasses[event.size as keyof typeof gridClasses]}
+                      relative group cursor-pointer overflow-hidden rounded-2xl
+                    `}
                   >
-                    <motion.span
-                      animate={{ 
-                        y: [0, -6, 0],
-                      }}
-                      transition={{
-                        duration: 5 + index * 0.8,
-                        repeat: Infinity,
-                        ease: "easeInOut",
-                        delay: index * 0.4
-                      }}
-                      whileHover={{ 
-                        scale: 1.1, 
-                        opacity: 1,
-                        transition: { duration: 0.2 }
-                      }}
-                      className={`
-                        ${sizeClasses[pos.size as keyof typeof sizeClasses]}
-                        text-foreground cursor-default
-                        transition-all duration-300
-                        hover:text-foreground
-                        block
-                      `}
-                      style={{ opacity: pos.opacity }}
-                    >
-                      {event.name}
-                    </motion.span>
+                    {/* Background Image */}
+                    <div className="absolute inset-0">
+                      <img 
+                        src={event.image} 
+                        alt={event.name}
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                      />
+                      {/* Gradient Overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                    </div>
+                    
+                    {/* Content */}
+                    <div className="absolute inset-0 p-4 md:p-5 flex flex-col justify-end">
+                      <motion.div
+                        initial={{ y: 10, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ delay: 0.8 + index * 0.1 }}
+                      >
+                        <h3 className={`
+                          font-semibold text-white mb-1
+                          ${event.size === 'large' ? 'text-2xl md:text-3xl' : 
+                            event.size === 'medium' ? 'text-xl md:text-2xl' : 'text-lg'}
+                        `}>
+                          {event.name}
+                        </h3>
+                        <p className={`
+                          text-white/70 leading-relaxed
+                          ${event.size === 'small' ? 'hidden md:block text-sm' : 'text-sm md:text-base'}
+                        `}>
+                          {event.desc}
+                        </p>
+                      </motion.div>
+                    </div>
+
+                    {/* Hover Glow Effect */}
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
+                      <div className="absolute inset-0 bg-gradient-to-t from-primary/20 via-transparent to-transparent" />
+                    </div>
+
+                    {/* Corner Accent */}
+                    <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-white/30 group-hover:bg-white/60 transition-colors duration-300" />
                   </motion.div>
                 );
               })}
-              
             </div>
           </div>
         </div>
@@ -344,19 +386,41 @@ const Index = () => {
               Join thousands of organizers who trust Nuru to create meaningful moments.
             </p>
 
-            {/* Animated event pills */}
-            <div className="flex flex-wrap justify-center gap-4 mb-12">
-              {["Plan", "Invite", "Celebrate", "Remember"].map((action, index) => (
-                <motion.span
-                  key={action}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.4 + index * 0.1 }}
+            {/* Enhanced Action Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-14 max-w-3xl mx-auto">
+              {[
+                { action: "Plan", icon: "📋", desc: "Organize every detail" },
+                { action: "Invite", icon: "✉️", desc: "Reach your guests" },
+                { action: "Gather", icon: "🤝", desc: "Bring people together" },
+                { action: "Remember", icon: "💫", desc: "Preserve the moments" },
+              ].map((item, index) => (
+                <motion.div
+                  key={item.action}
+                  initial={{ opacity: 0, y: 30, scale: 0.9 }}
+                  whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ 
+                    duration: 0.5, 
+                    delay: 0.3 + index * 0.1,
+                    ease: [0.22, 1, 0.36, 1]
+                  }}
                   viewport={{ once: true }}
-                  className="px-6 py-3 rounded-full border border-border text-foreground font-medium"
+                  whileHover={{ 
+                    y: -8,
+                    transition: { duration: 0.3 }
+                  }}
+                  className="group relative"
                 >
-                  {action}
-                </motion.span>
+                  <div className="relative bg-card/50 backdrop-blur-sm border border-border rounded-2xl p-5 text-center overflow-hidden transition-all duration-300 group-hover:border-foreground/20 group-hover:bg-card">
+                    {/* Gradient glow on hover */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    
+                    <div className="relative">
+                      <span className="text-2xl md:text-3xl block mb-2">{item.icon}</span>
+                      <h4 className="font-semibold text-foreground text-lg mb-1">{item.action}</h4>
+                      <p className="text-xs text-muted-foreground hidden md:block">{item.desc}</p>
+                    </div>
+                  </div>
+                </motion.div>
               ))}
             </div>
 
