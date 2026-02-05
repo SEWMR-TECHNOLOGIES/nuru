@@ -146,7 +146,7 @@ def get_user_services(
             "past_events": service.past_events if hasattr(service, "past_events") else 0,
             "availability": service.availability.value if service.availability else "Available",
             "location": service.location,
-            "kycList": kyc_status_list,
+            "kyc_list": kyc_status_list,
             "service_type_id": str(service.service_type_id) if service.service_type_id else None,
             "service_type_name": service_type_name,
         })
