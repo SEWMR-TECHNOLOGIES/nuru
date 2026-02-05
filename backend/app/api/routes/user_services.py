@@ -135,20 +135,20 @@ def get_user_services(
             "title": service.title,
             "category": service.category.name if service.category else None,
             "description": service.description,
-            "basePrice": service.min_price,
+            "base_price": service.min_price,
             "price": f"{format_price(service.min_price)} - {format_price(service.max_price)}" if service.min_price and service.max_price else None,
             "rating": avg_rating,
-            "reviewCount": review_count,
-            "isVerified": service.is_verified,
-            "verificationProgress": verification_progress,
-            "verificationStatus": service.verification_status.value,
+            "review_count": review_count,
+            "is_verified": service.is_verified,
+            "verification_progress": verification_progress,
+            "verification_status": service.verification_status.value if service.verification_status else None,
             "images": images,
-            "pastEvents": service.past_events if hasattr(service, "past_events") else 0,
+            "past_events": service.past_events if hasattr(service, "past_events") else 0,
             "availability": service.availability.value if service.availability else "Available",
             "location": service.location,
             "kycList": kyc_status_list,
-            "serviceTypeId": str(service.service_type_id) if service.service_type_id else None,
-            "serviceTypeName": service_type_name,
+            "service_type_id": str(service.service_type_id) if service.service_type_id else None,
+            "service_type_name": service_type_name,
         })
 
     return api_response(
@@ -187,11 +187,11 @@ def get_user_service_details(
     reviews_list = [
         {
             "id": str(r.id),
-            "clientName": r.user.full_name if hasattr(r, "user") else "Anonymous",
+            "client_name": r.user.full_name if hasattr(r, "user") else "Anonymous",
             "rating": r.rating,
             "comment": r.review,
             "date": r.created_at.isoformat(),
-            "eventType": r.review_event_type if hasattr(r, "review_event_type") else "N/A"
+            "event_type": r.review_event_type if hasattr(r, "review_event_type") else "N/A"
         }
         for r in ratings
     ]
@@ -241,22 +241,22 @@ def get_user_service_details(
         "id": str(service.id),
         "title": service.title,
         "category": service.category.name if service.category else None,
-        "categoryId": str(service.category_id) if service.category_id else None,
+        "category_id": str(service.category_id) if service.category_id else None,
         "description": service.description,
-        "basePrice": service.min_price,
+        "base_price": service.min_price,
         "price": f"{format_price(service.min_price)} - {format_price(service.max_price)}" if service.min_price and service.max_price else None,
         "rating": avg_rating,
-        "reviewCount": review_count,
-        "isVerified": service.is_verified,
-        "verificationProgress": verification_progress,
-        "verificationStatus": service.verification_status.value,
+        "review_count": review_count,
+        "is_verified": service.is_verified,
+        "verification_progress": verification_progress,
+        "verification_status": service.verification_status.value if service.verification_status else None,
         "images": images,
-        "pastEvents": past_events_list,
+        "past_events": past_events_list,
         "availability": service.availability.value if service.availability else "Available",
         "location": service.location,
-        "kycList": kyc_status_list,
-        "serviceTypeId": str(service.service_type_id) if service.service_type_id else None,
-        "serviceTypeName": service.service_type.name if service.service_type else None,
+        "kyc_list": kyc_status_list,
+        "service_type_id": str(service.service_type_id) if service.service_type_id else None,
+        "service_type_name": service.service_type.name if service.service_type else None,
         "reviews": reviews_list,
         "packages": packages_list
     }
