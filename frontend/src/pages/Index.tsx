@@ -292,9 +292,6 @@ const Index = () => {
             viewport={{ once: true }}
             className="mb-16"
           >
-            <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest mb-4">
-              What we offer
-            </p>
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground max-w-lg">
               Tools built for the moments that matter
             </h2>

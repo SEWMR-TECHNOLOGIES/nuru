@@ -89,9 +89,10 @@ class ServicePackage(Base):
     name = Column(Text, nullable=False)
     price = Column(Numeric, nullable=False)
     description = Column(Text)
-    features = Column(JSONB, default=list)  
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    features = Column(JSONB, default=list)
+    display_order = Column(Integer, default=0)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     service = relationship("UserService", backref="packages")
 

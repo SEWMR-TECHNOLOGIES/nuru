@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from core.base import Base
-from models.enums import EventServiceStatusEnum, EventStatusEnum, PaymentStatusEnum, PaymentMethodEnum, PriorityLevelEnum
+from models.enums import EventServiceStatusEnum, EventStatusEnum, PaymentStatusEnum, PaymentMethodEnum, PriorityLevelEnum, RSVPStatusEnum
 
 class EventType(Base):
     __tablename__ = 'event_types'
@@ -26,8 +26,8 @@ class Event(Base):
     name = Column(Text, nullable=False)
     event_type_id = Column(UUID(as_uuid=True), ForeignKey('event_types.id'))
     description = Column(Text)
-    start_date = Column(Date)             # YYYY-MM-DD
-    start_time = Column(Time)             # HH:MM
+    start_date = Column(Date)
+    start_time = Column(Time)
     end_date = Column(Date, nullable=True)
     end_time = Column(Time, nullable=True)
     expected_guests = Column(Integer)
@@ -35,8 +35,12 @@ class Event(Base):
     budget = Column(Numeric)
     contributions_total = Column(Numeric, default=0)
     status = Column(Enum(EventStatusEnum), default=EventStatusEnum.draft)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    currency_id = Column(UUID(as_uuid=True), ForeignKey('currencies.id'))
+    cover_image_url = Column(Text)
+    is_public = Column(Boolean, default=False)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
 
 class EventService(Base):
     __tablename__ = 'event_services'
@@ -101,3 +105,38 @@ class EventTypeService(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     event_type = relationship("EventType", backref="recommended_services")
     service_type = relationship("ServiceType")
+
+class EventInvitation(Base):
+    __tablename__ = 'event_invitations'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'))
+    invited_user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
+    invited_by_user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'))
+    invitation_code = Column(Text, unique=True)
+    rsvp_status = Column(Enum(RSVPStatusEnum), default=RSVPStatusEnum.pending)
+    invited_at = Column(DateTime, server_default=func.now())
+    rsvp_at = Column(DateTime)
+    notes = Column(Text)
+    sent_via = Column(Text)
+    sent_at = Column(DateTime)
+    reminder_sent_at = Column(DateTime)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+class EventAttendee(Base):
+    __tablename__ = 'event_attendees'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'))
+    attendee_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
+    invitation_id = Column(UUID(as_uuid=True), ForeignKey('event_invitations.id', ondelete='SET NULL'))
+    rsvp_status = Column(Enum(RSVPStatusEnum), default=RSVPStatusEnum.pending)
+    checked_in = Column(Boolean, default=False)
+    checked_in_at = Column(DateTime)
+    nuru_card_id = Column(UUID(as_uuid=True), ForeignKey('nuru_cards.id', ondelete='SET NULL'))
+    meal_preference = Column(Text)
+    dietary_restrictions = Column(Text)
+    special_requests = Column(Text)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

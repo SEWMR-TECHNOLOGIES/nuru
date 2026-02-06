@@ -1,4 +1,5 @@
 import enum
+
 class EventStatusEnum(enum.Enum):
     draft = "draft"
     confirmed = "confirmed"
@@ -56,6 +57,17 @@ class NotificationTypeEnum(enum.Enum):
     service_rejected = "service_rejected"
     account_created = "account_created"
     system = "system"
+    contribution_received = "contribution_received"
+    booking_request = "booking_request"
+    booking_accepted = "booking_accepted"
+    booking_rejected = "booking_rejected"
+    rsvp_received = "rsvp_received"
+    committee_invite = "committee_invite"
+    moment_view = "moment_view"
+    moment_reaction = "moment_reaction"
+    comment = "comment"
+    mention = "mention"
+    circle_add = "circle_add"
 
 class UploadFileTypeEnum(enum.Enum):
     image = "image"
@@ -67,3 +79,45 @@ class PriorityLevelEnum(enum.Enum):
     high = "high"
     medium = "medium"
     low = "low"
+
+class SocialProviderEnum(enum.Enum):
+    google = "google"
+    facebook = "facebook"
+    apple = "apple"
+    twitter = "twitter"
+
+class MomentContentTypeEnum(enum.Enum):
+    image = "image"
+    video = "video"
+
+class MomentPrivacyEnum(enum.Enum):
+    everyone = "everyone"
+    circle_only = "circle_only"
+    close_friends = "close_friends"
+
+class StickerTypeEnum(enum.Enum):
+    poll = "poll"
+    question = "question"
+    countdown = "countdown"
+    mention = "mention"
+    location = "location"
+    link = "link"
+    hashtag = "hashtag"
+
+class CardOrderStatusEnum(enum.Enum):
+    pending = "pending"
+    processing = "processing"
+    shipped = "shipped"
+    delivered = "delivered"
+    cancelled = "cancelled"
+
+class CardTypeEnum(enum.Enum):
+    standard = "standard"
+    premium = "premium"
+    custom = "custom"
+
+class ChatSessionStatusEnum(enum.Enum):
+    waiting = "waiting"
+    active = "active"
+    ended = "ended"
+    abandoned = "abandoned"

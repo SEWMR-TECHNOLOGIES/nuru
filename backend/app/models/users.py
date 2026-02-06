@@ -1,6 +1,6 @@
 # models/users.py
-from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Text, JSON, Enum
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Integer, Text, JSON, Enum
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from core.base import Base  
@@ -22,14 +22,18 @@ class User(Base):
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now())
 
+
 class UserProfile(Base):
     __tablename__ = 'user_profiles'
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), primary_key=True)
     bio = Column(Text)
     profile_picture_url = Column(Text)
-    social_links = Column(JSON)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now())
+    social_links = Column(JSONB)
+    country_id = Column(UUID(as_uuid=True), ForeignKey('countries.id'))
+    website_url = Column(Text)
+    location = Column(Text)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 class UserIdentityVerification(Base):
     __tablename__ = 'user_identity_verifications'
@@ -61,3 +65,47 @@ class AttendeeProfile(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
     rsvp_code = Column(Text, unique=True)
     created_at = Column(DateTime, default=func.now())
+
+class UserFeed(Base):
+    __tablename__ = 'user_feeds'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
+    title = Column(Text)
+    content = Column(Text)
+    location = Column(Text)
+    is_public = Column(Boolean, default=True)
+    allow_echo = Column(Boolean, default=True)
+    glow_count = Column(Integer, default=0)
+    echo_count = Column(Integer, default=0)
+    spark_count = Column(Integer, default=0)
+    video_url = Column(Text)
+    video_thumbnail_url = Column(Text)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+class UserServiceRating(Base):
+    __tablename__ = "user_service_ratings"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    user_service_id = Column(UUID(as_uuid=True), ForeignKey("user_services.id", ondelete="CASCADE"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    rating = Column(Integer, nullable=False)
+    review = Column(Text)
+    helpful_count = Column(Integer, default=0)
+    not_helpful_count = Column(Integer, default=0)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+class Message(Base):
+    __tablename__ = 'messages'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    conversation_id = Column(UUID(as_uuid=True), ForeignKey('conversations.id', ondelete='CASCADE'))
+    sender_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
+    message_text = Column(Text, nullable=False)
+    attachments = Column(JSONB, default=list)
+    is_read = Column(Boolean, default=False)
+    reply_to_id = Column(UUID(as_uuid=True), ForeignKey('messages.id'))
+    created_at = Column(DateTime, server_default=func.now())
+
