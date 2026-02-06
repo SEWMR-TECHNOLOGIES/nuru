@@ -24,3 +24,4 @@ ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "avif"}
 ALLOWED_UPLOAD_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "pdf", "doc", "docx", "mp4", "mov", "avi"}
 MAX_KYC_FILE_SIZE = 1 * 1024 * 1024
 MAX_FILES_PER_KYC = 3
+REFRESH_TOKEN_EXPIRE_DAYS = 30  # 30 days

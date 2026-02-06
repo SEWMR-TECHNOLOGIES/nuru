@@ -79,3 +79,36 @@ def paginated_response(items, pagination, message="Records retrieved successfull
         "message": message,
         "data": data
     }
+
+def standard_response(
+    success: bool,
+    message: str,
+    data=None,
+    errors: list | None = None,
+    pagination: dict | None = None,
+    wrap_items=True
+) -> dict:
+    """
+    Returns a standard API response consistent with the NURU docs.
+    
+    - If `success=False`, include `errors`.
+    - If `pagination` is provided, wrap `data` with 'items' + 'pagination'.
+    """
+    response = {
+        "success": success,
+        "message": message
+    }
+
+    if not success:
+        response["errors"] = errors or []
+    else:
+        if pagination:
+            # Wrap items with pagination
+            if wrap_items:
+                response["data"] = {"items": data, "pagination": pagination}
+            else:
+                response["data"] = data
+        else:
+            response["data"] = data
+
+    return response

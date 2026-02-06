@@ -2,7 +2,7 @@ import hashlib
 import jwt
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from core.config import ALGORITHM, SECRET_KEY
+from core.config import ALGORITHM, REFRESH_TOKEN_EXPIRE_DAYS, SECRET_KEY
 from models.users import User
 from fastapi import Depends, HTTPException, Request, Cookie
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -64,3 +64,27 @@ def get_user_by_credential(db: Session, credential: str):
         (User.phone == credential) |
         (User.username == credential)
     ).first()
+
+
+def create_refresh_token(data: dict, expires_delta: timedelta = None):
+    """
+    Create a JWT refresh token.
+    """
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
+    to_encode.update({"exp": expire})
+    token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return token
+
+
+def verify_refresh_token(token: str):
+    """
+    Verify a refresh token. Returns payload if valid, else None.
+    """
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
