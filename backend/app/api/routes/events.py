@@ -1596,6 +1596,7 @@ def add_guest(
         updated_at=now,
     )
     db.add(invitation)
+    db.flush()
 
     # Create attendee
     att = EventAttendee(
@@ -1611,7 +1612,6 @@ def add_guest(
         updated_at=now,
     )
     db.add(att)
-    db.flush()
 
     # Add plus ones
     plus_one_names = body.get("plus_one_names", [])
