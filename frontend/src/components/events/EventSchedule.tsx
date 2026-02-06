@@ -29,6 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useEventSchedule } from '@/data/useEvents';
 import { toast } from 'sonner';
+import { showCaughtError } from '@/lib/api';
 import type { EventScheduleItem } from '@/lib/api/types';
 
 interface EventScheduleProps {
@@ -75,7 +76,7 @@ const EventSchedule = ({ eventId }: EventScheduleProps) => {
       setAddDialogOpen(false);
       resetForm();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to add item');
+      showCaughtError(err, 'Failed to add item');
     } finally {
       setIsSubmitting(false);
     }
@@ -102,7 +103,7 @@ const EventSchedule = ({ eventId }: EventScheduleProps) => {
       setSelectedItem(null);
       resetForm();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to update item');
+      showCaughtError(err, 'Failed to update item');
     } finally {
       setIsSubmitting(false);
     }
@@ -115,7 +116,7 @@ const EventSchedule = ({ eventId }: EventScheduleProps) => {
       await deleteItem(itemId);
       toast.success('Schedule item deleted');
     } catch (err: any) {
-      toast.error(err.message || 'Failed to delete item');
+      showCaughtError(err, 'Failed to delete item');
     }
   };
 

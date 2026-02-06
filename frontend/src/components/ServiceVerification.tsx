@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useWorkspaceMeta } from "@/hooks/useWorkspaceMeta";
 import { useUserServiceKyc } from "@/data/useUserServiceKyc";
+import { userServicesApi, showApiErrors, showCaughtError } from "@/lib/api";
 import { ServiceLoadingSkeleton } from "@/components/ui/ServiceLoadingSkeleton";
 
 interface VerificationItem {
@@ -123,30 +124,21 @@ const ServiceVerification = () => {
       return;
     }
 
-    const form = new FormData();
-    itemsToSubmit.forEach((item) => {
-      item.files.forEach((file) => {
-        form.append("kyc_files", file);
-        form.append("kyc_ids", item.id);
-      });
-    });
-
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/services/submit-verification/${serviceId}`,
-        {
-          method: "POST",
-          body: form,
-          headers: { Authorization: token ? `Bearer ${token}` : "" },
+      // Upload each file individually to match backend's per-file endpoint
+      for (const item of itemsToSubmit) {
+        for (const file of item.files) {
+          const form = new FormData();
+          form.append("file", file);
+          form.append("kyc_requirement_id", item.id);
+
+          const result = await userServicesApi.uploadKyc(serviceId!, form);
+          if (showApiErrors(result, `Failed to upload ${file.name}`)) {
+            return;
+          }
         }
-      );
-      const result = await response.json();
-      if (!result.success) {
-        toast.error(result.message || "Failed to submit verification");
-        return;
       }
-      toast.success(result.message);
+      toast.success("Verification documents submitted successfully");
 
       // Refresh KYC data
       await refetch();
@@ -155,7 +147,7 @@ const ServiceVerification = () => {
       if (partial) navigate("/my-services"); 
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "An unexpected error occurred.");
+      showCaughtError(err);
     } finally {
       setIsSubmitting(false);
     }

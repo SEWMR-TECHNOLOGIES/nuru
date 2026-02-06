@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
 import { useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, showApiErrorsShadcn } from "@/lib/api";
 import nuruLogo from "@/assets/nuru-logo.png";
 
 const Login = () => {
@@ -68,7 +68,7 @@ const Login = () => {
         toast({ title: "Welcome back!", description: response.message });
         navigate("/", { replace: true });
       } else {
-        toast({ title: "Login Failed", description: response.message, variant: "destructive" });
+        showApiErrorsShadcn(response, toast, "Login Failed");
       }
     } catch (err) {
       toast({ title: "Error", description: "Unable to reach server. Try again later.", variant: "destructive" });

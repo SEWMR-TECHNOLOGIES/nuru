@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { bookingsApi, BookingQueryParams } from "@/lib/api/bookings";
 import type { BookingRequest } from "@/lib/api/types";
+import { throwApiError } from "@/lib/api/showApiErrors";
 
 // ============================================================================
 // MY BOOKINGS (Client perspective)
@@ -47,7 +48,7 @@ export const useMyBookings = (initialParams?: BookingQueryParams) => {
         await fetchBookings();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -60,7 +61,7 @@ export const useMyBookings = (initialParams?: BookingQueryParams) => {
         await fetchBookings();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -119,7 +120,7 @@ export const useIncomingBookings = (initialParams?: BookingQueryParams) => {
         await fetchBookings();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -132,7 +133,7 @@ export const useIncomingBookings = (initialParams?: BookingQueryParams) => {
         await fetchBookings();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -222,7 +223,7 @@ export const useBookingCalendar = (startDate: string, endDate: string, serviceId
         await fetchCalendar();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -236,7 +237,7 @@ export const useBookingCalendar = (startDate: string, endDate: string, serviceId
         await fetchCalendar();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }

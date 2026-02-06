@@ -43,6 +43,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useMyBookings, useIncomingBookings } from '@/data/useBookings';
 import { toast } from 'sonner';
+import { showCaughtError } from '@/lib/api';
 import { formatPrice } from '@/utils/formatPrice';
 import type { BookingRequest } from '@/lib/api/types';
 
@@ -98,7 +99,7 @@ const MyBookingsTab = () => {
       setSelectedBooking(null);
       setCancelReason('');
     } catch (err: any) {
-      toast.error(err.message || 'Failed to cancel booking');
+      showCaughtError(err, 'Failed to cancel booking');
     } finally {
       setIsSubmitting(false);
     }
@@ -280,7 +281,7 @@ const IncomingBookingsTab = () => {
       setSelectedBooking(null);
       setResponseData({ message: '', quoted_price: '', deposit_required: '', reason: '' });
     } catch (err: any) {
-      toast.error(err.message || 'Failed to respond to booking');
+      showCaughtError(err, 'Failed to respond to booking');
     } finally {
       setIsSubmitting(false);
     }
@@ -291,7 +292,7 @@ const IncomingBookingsTab = () => {
       await completeBooking(bookingId);
       toast.success('Booking marked as complete');
     } catch (err: any) {
-      toast.error(err.message || 'Failed to complete booking');
+      showCaughtError(err, 'Failed to complete booking');
     }
   };
 

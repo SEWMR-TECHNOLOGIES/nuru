@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { eventsApi, EventQueryParams, GuestQueryParams, ContributionQueryParams } from "@/lib/api/events";
+import { throwApiError } from "@/lib/api/showApiErrors";
 import type { 
   Event, 
   EventGuest, 
@@ -125,7 +126,7 @@ export const useEventGuests = (eventId: string | null, initialParams?: GuestQuer
         await fetchGuests();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -139,7 +140,7 @@ export const useEventGuests = (eventId: string | null, initialParams?: GuestQuer
         await fetchGuests();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -152,7 +153,7 @@ export const useEventGuests = (eventId: string | null, initialParams?: GuestQuer
       if (response.success) {
         await fetchGuests();
       } else {
-        throw new Error(response.message);
+        throwApiError(response);
       }
     } catch (err) {
       throw err;
@@ -167,7 +168,7 @@ export const useEventGuests = (eventId: string | null, initialParams?: GuestQuer
         await fetchGuests();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -181,7 +182,7 @@ export const useEventGuests = (eventId: string | null, initialParams?: GuestQuer
         await fetchGuests();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -241,7 +242,7 @@ export const useEventCommittee = (eventId: string | null) => {
         await fetchCommittee();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -255,7 +256,7 @@ export const useEventCommittee = (eventId: string | null) => {
         await fetchCommittee();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -268,7 +269,7 @@ export const useEventCommittee = (eventId: string | null) => {
       if (response.success) {
         await fetchCommittee();
       } else {
-        throw new Error(response.message);
+        throwApiError(response);
       }
     } catch (err) {
       throw err;
@@ -321,7 +322,7 @@ export const useEventContributions = (eventId: string | null, initialParams?: Co
         await fetchContributions();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -335,7 +336,7 @@ export const useEventContributions = (eventId: string | null, initialParams?: Co
         await fetchContributions();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -383,7 +384,7 @@ export const useEventSchedule = (eventId: string | null) => {
         await fetchSchedule();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -397,7 +398,7 @@ export const useEventSchedule = (eventId: string | null) => {
         await fetchSchedule();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -410,7 +411,7 @@ export const useEventSchedule = (eventId: string | null) => {
       if (response.success) {
         await fetchSchedule();
       } else {
-        throw new Error(response.message);
+        throwApiError(response);
       }
     } catch (err) {
       throw err;
@@ -461,7 +462,7 @@ export const useEventBudget = (eventId: string | null) => {
         await fetchBudget();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -475,7 +476,7 @@ export const useEventBudget = (eventId: string | null) => {
         await fetchBudget();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -488,7 +489,7 @@ export const useEventBudget = (eventId: string | null) => {
       if (response.success) {
         await fetchBudget();
       } else {
-        throw new Error(response.message);
+        throwApiError(response);
       }
     } catch (err) {
       throw err;
@@ -512,7 +513,7 @@ export const useDeleteEvent = () => {
     try {
       const response = await eventsApi.delete(eventId);
       if (!response.success) {
-        throw new Error(response.message || "Failed to delete event");
+        throwApiError(response, "Failed to delete event");
       }
       return true;
     } catch (err) {

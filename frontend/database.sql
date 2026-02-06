@@ -145,63 +145,6 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     updated_at timestamp DEFAULT now()
 );
 
-
--- ============================================================================
--- NEW: USER CIRCLES (Social connections / Friends)
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS user_circles (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
-    circle_member_id uuid REFERENCES users(id) ON DELETE CASCADE,
-    mutual_friends_count integer DEFAULT 0,
-    created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now(),
-    UNIQUE(user_id, circle_member_id)
-);
-CREATE INDEX IF NOT EXISTS idx_user_circles_user ON user_circles(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_circles_member ON user_circles(circle_member_id);
-
-
--- ============================================================================
--- NEW: USER FOLLOWERS
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS user_followers (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    follower_id uuid REFERENCES users(id) ON DELETE CASCADE,
-    following_id uuid REFERENCES users(id) ON DELETE CASCADE,
-    created_at timestamp DEFAULT now(),
-    UNIQUE(follower_id, following_id)
-);
-CREATE INDEX IF NOT EXISTS idx_user_followers_follower ON user_followers(follower_id);
-CREATE INDEX IF NOT EXISTS idx_user_followers_following ON user_followers(following_id);
-
-
--- ============================================================================
--- NEW: USER SETTINGS / PREFERENCES
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS user_settings (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid REFERENCES users(id) ON DELETE CASCADE UNIQUE,
-    email_notifications boolean DEFAULT true,
-    push_notifications boolean DEFAULT true,
-    glows_echoes_notifications boolean DEFAULT true,
-    event_invitation_notifications boolean DEFAULT true,
-    follower_notifications boolean DEFAULT true,
-    message_notifications boolean DEFAULT true,
-    profile_visibility boolean DEFAULT true,
-    private_profile boolean DEFAULT false,
-    two_factor_enabled boolean DEFAULT false,
-    dark_mode boolean DEFAULT false,
-    language text DEFAULT 'en',
-    timezone text DEFAULT 'UTC',
-    created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_user_settings_user ON user_settings(user_id);
-
 -- VERIFICATION OTPS
 CREATE TABLE IF NOT EXISTS user_verification_otps (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -417,7 +360,7 @@ CREATE TABLE IF NOT EXISTS user_feed_sparks (
 
 
 -- ============================================================================
--- NEW: USER FEED COMMENTS (Threaded) 
+-- NEW: USER FEED COMMENTS (Threaded)
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS user_feed_comments (
@@ -448,7 +391,7 @@ CREATE INDEX IF NOT EXISTS idx_comment_glows_comment ON user_feed_comment_glows(
 
 
 -- ============================================================================
--- NEW: USER FEED PINNED POSTS 
+-- NEW: USER FEED PINNED POSTS
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS user_feed_pinned (
@@ -462,36 +405,8 @@ CREATE TABLE IF NOT EXISTS user_feed_pinned (
 CREATE INDEX IF NOT EXISTS idx_feed_pinned_user ON user_feed_pinned(user_id);
 
 
-
 -- ============================================================================
--- NEW: USER ACTIVITY LOGS (for analytics/security)
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS user_activity_logs (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
-    activity_type text NOT NULL,
-    entity_type text,
-    entity_id uuid,
-    ip_address text,
-    user_agent text,
-    metadata jsonb,
-    created_at timestamp DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON user_activity_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_activity_logs_type ON user_activity_logs(activity_type);
-
-
--- ============================================================================
--- PERFORMANCE INDEXES (additional)
--- ============================================================================
-
-CREATE INDEX IF NOT EXISTS idx_user_verification_otps_user ON user_verification_otps(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_verification_otps_type ON user_verification_otps(verification_type);
-
-
--- ============================================================================
--- NEW: USER MOMENTS (Stories - 24hr Content) 
+-- NEW: USER MOMENTS (Stories - 24hr Content)
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS user_moments (
@@ -515,7 +430,7 @@ CREATE INDEX IF NOT EXISTS idx_user_moments_active ON user_moments(is_active, ex
 
 
 -- ============================================================================
--- NEW: USER MOMENT STICKERS 
+-- NEW: USER MOMENT STICKERS
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS user_moment_stickers (
@@ -533,7 +448,7 @@ CREATE INDEX IF NOT EXISTS idx_moment_stickers_moment ON user_moment_stickers(mo
 
 
 -- ============================================================================
--- NEW: USER MOMENT VIEWERS 
+-- NEW: USER MOMENT VIEWERS
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS user_moment_viewers (
@@ -550,7 +465,7 @@ CREATE INDEX IF NOT EXISTS idx_moment_viewers_viewer ON user_moment_viewers(view
 
 
 -- ============================================================================
--- NEW: USER MOMENT HIGHLIGHTS 
+-- NEW: USER MOMENT HIGHLIGHTS
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS user_moment_highlights (
@@ -700,32 +615,6 @@ CREATE INDEX IF NOT EXISTS idx_review_helpful_rating ON service_review_helpful(r
 
 
 -- ============================================================================
--- NEW: SERVICE BOOKING REQUESTS (MODIFIED: added package_id, quoted_price, etc.)
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS service_booking_requests (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_service_id uuid REFERENCES user_services(id) ON DELETE CASCADE,
-    requester_user_id uuid REFERENCES users(id) ON DELETE CASCADE,
-    event_id uuid REFERENCES events(id) ON DELETE SET NULL,
-    package_id uuid REFERENCES service_packages(id),
-    message text,
-    proposed_price numeric,
-    quoted_price numeric,
-    deposit_required numeric,
-    deposit_paid boolean DEFAULT false,
-    vendor_notes text,
-    status text DEFAULT 'pending',
-    responded_at timestamp,
-    created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_booking_requests_service ON service_booking_requests(user_service_id);
-CREATE INDEX IF NOT EXISTS idx_booking_requests_requester ON service_booking_requests(requester_user_id);
-CREATE INDEX IF NOT EXISTS idx_booking_requests_package ON service_booking_requests(package_id);
-
-
--- ============================================================================
 -- EVENT TYPES AND EVENTS
 -- ============================================================================
 
@@ -758,6 +647,9 @@ CREATE TABLE IF NOT EXISTS events (
     currency_id uuid REFERENCES currencies(id),
     cover_image_url text,
     is_public boolean DEFAULT false,
+    theme_color VARCHAR(7),
+    dress_code VARCHAR(100),
+    special_instructions TEXT,
     created_at timestamp DEFAULT now(),
     updated_at timestamp DEFAULT now()
 );
@@ -967,7 +859,8 @@ CREATE TABLE IF NOT EXISTS contribution_thank_you_messages (
     sent_via text,
     sent_at timestamp,
     is_sent boolean DEFAULT false,
-    created_at timestamp DEFAULT now()
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_thank_you_event ON contribution_thank_you_messages(event_id);
 CREATE INDEX IF NOT EXISTS idx_thank_you_contribution ON contribution_thank_you_messages(contribution_id);
@@ -1034,6 +927,38 @@ CREATE TABLE IF NOT EXISTS event_guest_plus_ones (
 );
 CREATE INDEX IF NOT EXISTS idx_plus_ones_attendee ON event_guest_plus_ones(attendee_id);
 
+-- EVENT SCHEDULE ITEMS (for API §3.2 "schedule")
+CREATE TABLE IF NOT EXISTS event_schedule_items (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    title text NOT NULL,
+    description text,
+    start_time timestamp NOT NULL,
+    end_time timestamp,
+    location text,
+    display_order integer DEFAULT 0,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_schedule_items_event ON event_schedule_items(event_id);
+
+-- EVENT BUDGET ITEMS (for API §3.2 "budget_items")
+CREATE TABLE IF NOT EXISTS event_budget_items (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    category text NOT NULL,
+    item_name text NOT NULL,
+    estimated_cost numeric,
+    actual_cost numeric,
+    vendor_name text,
+    status text DEFAULT 'pending',
+    notes text,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_budget_items_event ON event_budget_items(event_id);
+
+
 -- ============================================================================
 -- CHAT (MODIFIED: messages has reply_to_id)
 -- ============================================================================
@@ -1071,42 +996,6 @@ CREATE INDEX IF NOT EXISTS idx_messages_is_read ON messages(is_read);
 CREATE INDEX IF NOT EXISTS idx_messages_reply ON messages(reply_to_id);
 
 
-
--- ============================================================================
--- NEW: LIVE CHAT SESSIONS
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS live_chat_sessions (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    agent_id uuid REFERENCES users(id) ON DELETE SET NULL,
-    ticket_id uuid REFERENCES support_tickets(id) ON DELETE SET NULL,
-    status chat_session_status DEFAULT 'waiting',
-    started_at timestamp,
-    ended_at timestamp,
-    wait_time_seconds integer,
-    duration_seconds integer,
-    rating integer CHECK (rating >= 1 AND rating <= 5),
-    feedback text,
-    created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_live_chat_sessions_user ON live_chat_sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_live_chat_sessions_agent ON live_chat_sessions(agent_id);
-CREATE INDEX IF NOT EXISTS idx_live_chat_sessions_status ON live_chat_sessions(status);
-
-CREATE TABLE IF NOT EXISTS live_chat_messages (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id uuid NOT NULL REFERENCES live_chat_sessions(id) ON DELETE CASCADE,
-    sender_id uuid REFERENCES users(id) ON DELETE SET NULL,
-    is_agent boolean DEFAULT false,
-    is_system boolean DEFAULT false,
-    message_text text NOT NULL,
-    attachments jsonb DEFAULT '[]'::jsonb,
-    created_at timestamp DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_live_chat_messages_session ON live_chat_messages(session_id);
-
 -- ============================================================================
 -- NOTIFICATIONS
 -- ============================================================================
@@ -1123,6 +1012,64 @@ CREATE TABLE IF NOT EXISTS notifications (
     is_read boolean DEFAULT false,
     created_at timestamp DEFAULT now()
 );
+
+
+-- ============================================================================
+-- NEW: USER CIRCLES (Social connections / Friends)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS user_circles (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    circle_member_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    mutual_friends_count integer DEFAULT 0,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now(),
+    UNIQUE(user_id, circle_member_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_circles_user ON user_circles(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_circles_member ON user_circles(circle_member_id);
+
+
+-- ============================================================================
+-- NEW: USER FOLLOWERS
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS user_followers (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    follower_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    following_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    created_at timestamp DEFAULT now(),
+    UNIQUE(follower_id, following_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_followers_follower ON user_followers(follower_id);
+CREATE INDEX IF NOT EXISTS idx_user_followers_following ON user_followers(following_id);
+
+
+-- ============================================================================
+-- NEW: USER SETTINGS / PREFERENCES
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS user_settings (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+    email_notifications boolean DEFAULT true,
+    push_notifications boolean DEFAULT true,
+    glows_echoes_notifications boolean DEFAULT true,
+    event_invitation_notifications boolean DEFAULT true,
+    follower_notifications boolean DEFAULT true,
+    message_notifications boolean DEFAULT true,
+    profile_visibility boolean DEFAULT true,
+    private_profile boolean DEFAULT false,
+    two_factor_enabled boolean DEFAULT false,
+    dark_mode boolean DEFAULT false,
+    language text DEFAULT 'en',
+    timezone text DEFAULT 'UTC',
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_user_settings_user ON user_settings(user_id);
+
 
 -- ============================================================================
 -- NEW: COMMUNITIES
@@ -1150,6 +1097,7 @@ CREATE TABLE IF NOT EXISTS community_members (
 );
 CREATE INDEX IF NOT EXISTS idx_community_members_community ON community_members(community_id);
 CREATE INDEX IF NOT EXISTS idx_community_members_user ON community_members(user_id);
+
 
 -- ============================================================================
 -- NEW: SESSIONS (for auth tokens)
@@ -1252,6 +1200,69 @@ CREATE TABLE IF NOT EXISTS faqs (
 CREATE INDEX IF NOT EXISTS idx_faqs_category ON faqs(category);
 CREATE INDEX IF NOT EXISTS idx_faqs_order ON faqs(display_order);
 
+
+-- ============================================================================
+-- NEW: LIVE CHAT SESSIONS
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS live_chat_sessions (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    agent_id uuid REFERENCES users(id) ON DELETE SET NULL,
+    ticket_id uuid REFERENCES support_tickets(id) ON DELETE SET NULL,
+    status chat_session_status DEFAULT 'waiting',
+    started_at timestamp,
+    ended_at timestamp,
+    wait_time_seconds integer,
+    duration_seconds integer,
+    rating integer CHECK (rating >= 1 AND rating <= 5),
+    feedback text,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_live_chat_sessions_user ON live_chat_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_live_chat_sessions_agent ON live_chat_sessions(agent_id);
+CREATE INDEX IF NOT EXISTS idx_live_chat_sessions_status ON live_chat_sessions(status);
+
+CREATE TABLE IF NOT EXISTS live_chat_messages (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id uuid NOT NULL REFERENCES live_chat_sessions(id) ON DELETE CASCADE,
+    sender_id uuid REFERENCES users(id) ON DELETE SET NULL,
+    is_agent boolean DEFAULT false,
+    is_system boolean DEFAULT false,
+    message_text text NOT NULL,
+    attachments jsonb DEFAULT '[]'::jsonb,
+    created_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_live_chat_messages_session ON live_chat_messages(session_id);
+
+
+-- ============================================================================
+-- NEW: SERVICE BOOKING REQUESTS (MODIFIED: added package_id, quoted_price, etc.)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS service_booking_requests (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_service_id uuid REFERENCES user_services(id) ON DELETE CASCADE,
+    requester_user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    event_id uuid REFERENCES events(id) ON DELETE SET NULL,
+    package_id uuid REFERENCES service_packages(id),
+    message text,
+    proposed_price numeric,
+    quoted_price numeric,
+    deposit_required numeric,
+    deposit_paid boolean DEFAULT false,
+    vendor_notes text,
+    status text DEFAULT 'pending',
+    responded_at timestamp,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_booking_requests_service ON service_booking_requests(user_service_id);
+CREATE INDEX IF NOT EXISTS idx_booking_requests_requester ON service_booking_requests(requester_user_id);
+CREATE INDEX IF NOT EXISTS idx_booking_requests_package ON service_booking_requests(package_id);
+
+
 -- ============================================================================
 -- NEW: PROMOTIONS / ADVERTISING
 -- ============================================================================
@@ -1303,7 +1314,34 @@ CREATE TABLE IF NOT EXISTS file_uploads (
 CREATE INDEX IF NOT EXISTS idx_file_uploads_user ON file_uploads(user_id);
 CREATE INDEX IF NOT EXISTS idx_file_uploads_entity ON file_uploads(entity_type, entity_id);
 
---- ALL DONE TILL HERE
+
+-- ============================================================================
+-- NEW: USER ACTIVITY LOGS (for analytics/security)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS user_activity_logs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    activity_type text NOT NULL,
+    entity_type text,
+    entity_id uuid,
+    ip_address text,
+    user_agent text,
+    extra_data jsonb,
+    created_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON user_activity_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_type ON user_activity_logs(activity_type);
+
+
+-- ============================================================================
+-- PERFORMANCE INDEXES (additional)
+-- ============================================================================
+
+CREATE INDEX IF NOT EXISTS idx_user_verification_otps_user ON user_verification_otps(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_verification_otps_type ON user_verification_otps(verification_type);
+
+
 -- ============================================================================
 -- SEED DATA: IDENTITY DOCUMENT REQUIREMENTS
 -- ============================================================================
@@ -1552,6 +1590,13 @@ FROM service_types st
 JOIN kyc_requirements kr ON kr.name IN ('Government-issued ID','Business License')
 WHERE st.category_id = (SELECT id FROM service_categories WHERE name='Cleaning');
 
+-- Logistics
+INSERT INTO service_kyc_mapping (service_type_id, kyc_requirement_id)
+SELECT st.id, kr.id
+FROM service_types st
+JOIN kyc_requirements kr ON kr.name IN ('Government-issued ID','Business License','Tax Compliance Certificate')
+WHERE st.category_id = (SELECT id FROM service_categories WHERE name='Logistics')
+AND st.requires_kyc = true;
 
 -- ============================================================================
 -- SEED DATA: EVENT TYPES
@@ -1569,7 +1614,8 @@ VALUES
   ('Festival', 'Public celebrations or cultural festivals with performances and activities', 'Fireworks'),
   ('Graduation', 'Ceremonies marking educational achievements', 'GraduationCap'),
   ('Baby Shower', 'Celebrations for expecting parents before the birth of a child', 'BabyCarriage'),
-  ('Exhibition', 'Trade shows, expos, and art exhibitions showcasing products or work', 'Landmark');
+  ('Exhibition', 'Trade shows, expos, and art exhibitions showcasing products or work', 'Landmark'),
+  ('Send Off', 'Farewell events marking departures, retirements, or goodbyes', 'PlaneDeparture');
 
 
 -- ============================================================================

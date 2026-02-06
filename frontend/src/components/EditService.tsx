@@ -18,6 +18,7 @@ import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useUserServiceDetails } from '@/data/useUserService';
 import { useServiceCategories } from '@/data/useServiceCategories';
 import { useServiceTypes } from '@/data/useServiceTypes';
+import { userServicesApi } from '@/lib/api';
 import { ServiceDetailLoadingSkeleton } from '@/components/ui/ServiceLoadingSkeleton';
 
 const EditService = () => {
@@ -103,44 +104,27 @@ const EditService = () => {
     e.preventDefault();
     
     try {
-      const token = localStorage.getItem('token');
-      const formattedPrice = `${formatPrice(minPrice)} - ${formatPrice(maxPrice)} TZS`;
+      const form = new FormData();
+      form.append('title', title);
+      form.append('service_category_id', serviceCategoryId);
+      form.append('service_type_id', serviceTypeId);
+      form.append('description', description);
+      form.append('min_price', String(parseInt(minPrice.replace(/,/g, ''), 10) || 0));
+      form.append('max_price', String(parseInt(maxPrice.replace(/,/g, ''), 10) || 0));
+      form.append('location', location);
 
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/user-services/${id}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: token ? `Bearer ${token}` : '',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            title,
-            service_category_id: serviceCategoryId,
-            service_type_id: serviceTypeId,
-            description,
-            price: formattedPrice,
-            min_price: parseInt(minPrice.replace(/,/g, ''), 10) || 0,
-            max_price: parseInt(maxPrice.replace(/,/g, ''), 10) || 0,
-            location,
-            images,
-          }),
-        }
-      );
+      const response = await userServicesApi.update(id!, form);
 
-      const data = await response.json();
-
-      if (data.success) {
+      if (response.success) {
         toast({
           title: 'Service updated!',
-          description: 'Your service has been updated successfully.',
+          description: response.message || 'Your service has been updated successfully.',
         });
         navigate('/my-services');
       } else {
         toast({
           title: 'Update failed',
-          description: data.message || 'Failed to update service',
+          description: response.message || 'Failed to update service',
           variant: 'destructive',
         });
       }

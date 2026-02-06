@@ -48,8 +48,11 @@ const MyEvents = () => {
   };
 
   const getEventImage = (event: any) => {
-    if (event.images && event.images.length > 0) return event.images[0];
     if (event.cover_image) return event.cover_image;
+    if (event.images && event.images.length > 0) {
+      const featured = event.images.find((img: any) => img.is_featured);
+      return featured ? featured.image_url : event.images[0].image_url;
+    }
     if (event.gallery_images && event.gallery_images.length > 0) return event.gallery_images[0];
     return null;
   };

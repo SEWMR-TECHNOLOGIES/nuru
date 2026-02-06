@@ -7,8 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+import { authApi, showApiErrorsShadcn } from "@/lib/api";
 
 const VerifyEmail = () => {
   const [otp, setOtp] = useState("");
@@ -31,11 +30,8 @@ const VerifyEmail = () => {
       navigate("/login");
       return;
     }
-
-    // Automatically request OTP on page load
     resendOtp();
   }, []);
-
 
   const handleVerify = async () => {
     if (!otp) {
@@ -50,19 +46,14 @@ const VerifyEmail = () => {
 
     setLoading(true);
     try {
-      const res = await fetch(`${BASE_URL}/users/verify-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, verification_type: "email", otp_code: otp })
-      });
-      const data = await res.json();
+      const data = await authApi.verifyOtp({ user_id: userId, verification_type: "email", otp_code: otp });
 
       if (data.success) {
         toast({ title: "Email verified!", description: data.message });
         localStorage.removeItem("userId");
         navigate("/login");
       } else {
-        toast({ title: "Verification failed", description: data.message, variant: "destructive" });
+        showApiErrorsShadcn(data, toast, "Verification failed");
       }
     } catch (err) {
       toast({ title: "Error", description: "Unable to verify. Try again.", variant: "destructive" });
@@ -80,12 +71,7 @@ const VerifyEmail = () => {
 
     setResendLoading(true);
     try {
-      const res = await fetch(`${BASE_URL}/users/request-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, verification_type: "email" })
-      });
-      const data = await res.json();
+      const data = await authApi.requestOtp({ user_id: userId, verification_type: "email" });
       toast({
         title: data.success ? "OTP Sent" : "Failed to send",
         description: data.message,

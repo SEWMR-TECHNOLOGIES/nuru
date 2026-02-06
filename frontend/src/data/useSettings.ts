@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { settingsApi, UserSettings } from "@/lib/api/settings";
+import { throwApiError } from "@/lib/api/showApiErrors";
 
 export const useSettings = () => {
   const [settings, setSettings] = useState<UserSettings | null>(null);
@@ -40,7 +41,7 @@ export const useSettings = () => {
         setSettings(response.data);
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     } finally {
@@ -54,7 +55,7 @@ export const useSettings = () => {
       if (response.success) {
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -67,7 +68,7 @@ export const useSettings = () => {
         await fetchSettings();
         return true;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }

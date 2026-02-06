@@ -17,6 +17,7 @@ import { socialApi } from "./api/social";
 import { nuruCardsApi } from "./api/nuruCards";
 import { supportApi } from "./api/support";
 import { get, post, put, patch, del, postFormData, putFormData } from "./api/helpers";
+export { showApiErrors, showApiErrorsShadcn, showCaughtError, showCaughtErrorShadcn, throwApiError, ApiError } from "./api/showApiErrors";
 
 // Re-export types
 export * from "./api/types";

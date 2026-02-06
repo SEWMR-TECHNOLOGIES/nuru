@@ -41,6 +41,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useEventCommittee } from '@/data/useEvents';
 import { toast } from 'sonner';
+import { showCaughtError } from '@/lib/api';
 import type { CommitteeMember } from '@/lib/api/types';
 
 interface EventCommitteeProps {
@@ -118,7 +119,7 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
       setAddDialogOpen(false);
       resetForm();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to add member');
+      showCaughtError(err, 'Failed to add member');
     } finally {
       setIsSubmitting(false);
     }
@@ -131,7 +132,7 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
       await removeMember(memberId);
       toast.success('Member removed');
     } catch (err: any) {
-      toast.error(err.message || 'Failed to remove member');
+      showCaughtError(err, 'Failed to remove member');
     }
   };
 

@@ -16,21 +16,8 @@ import EventRSVP from './EventRSVP';
 import { useEvent, useEventCommittee, useEventContributions } from '@/data/useEvents';
 import { useToast } from '@/hooks/use-toast';
 import { formatPrice } from '@/utils/formatPrice';
+import { EventManagementSkeleton } from '@/components/ui/EventManagementSkeleton';
 
-interface LocalEventData {
-  id: string;
-  title: string;
-  description: string;
-  date: string;
-  time: string;
-  location: string;
-  expectedGuests: string;
-  budget: string;
-  eventType: string;
-  services: any[];
-  status: string;
-  images?: string[];
-}
 
 const EventManagement = () => {
   const { id } = useParams();
@@ -42,15 +29,10 @@ const EventManagement = () => {
   const { members: apiCommittee, addMember, removeMember, loading: committeeLoading } = useEventCommittee(id || null);
   const { contributions: apiContributions, summary: contributionSummary, addContribution, loading: contributionsLoading } = useEventContributions(id || null);
 
-  // Local state for localStorage fallback (during migration)
-  const [localEvent, setLocalEvent] = useState<LocalEventData | null>(null);
-  const [localCommittee, setLocalCommittee] = useState<any[]>([]);
-  const [localContributions, setLocalContributions] = useState<any[]>([]);
-
-  // Use API data if available, otherwise fall back to localStorage
-  const event = apiEvent || localEvent;
-  const committee = apiCommittee.length > 0 ? apiCommittee : localCommittee;
-  const contributions = apiContributions.length > 0 ? apiContributions : localContributions;
+  // Use API data directly - no localStorage fallback
+  const event = apiEvent;
+  const committee = apiCommittee;
+  const contributions = apiContributions;
 
   useWorkspaceMeta({
     title: event?.title || 'Event Management',
@@ -67,53 +49,13 @@ const EventManagement = () => {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
-  const allAvailableServices = [
-    { id: 's1', name: 'Event Coordinator', category: 'Planning', estimatedCost: 'TZS 500,000-2,000,000' },
-    { id: 's2', name: 'Photographer', category: 'Media', estimatedCost: 'TZS 500,000-2,000,000' },
-    { id: 's3', name: 'Videographer', category: 'Media', estimatedCost: 'TZS 800,000-3,000,000' },
-    { id: 's4', name: 'Catering Service', category: 'Food & Drink', estimatedCost: 'TZS 1,000,000-5,000,000' },
-    { id: 's5', name: 'DJ/Music', category: 'Entertainment', estimatedCost: 'TZS 300,000-1,500,000' },
-    { id: 's6', name: 'Decorations', category: 'Decor', estimatedCost: 'TZS 400,000-2,000,000' },
-    { id: 's7', name: 'Transportation', category: 'Logistics', estimatedCost: 'TZS 200,000-1,000,000' },
-    { id: 's8', name: 'Wedding Cake', category: 'Food & Drink', estimatedCost: 'TZS 300,000-1,500,000' },
-  ];
+  const allAvailableServices: any[] = [];
 
-  const filteredServices = allAvailableServices.filter(service =>
-    service.name.toLowerCase().includes(serviceSearch.toLowerCase()) ||
-    service.category.toLowerCase().includes(serviceSearch.toLowerCase())
+  const filteredServices = allAvailableServices.filter((service: any) =>
+    service.name?.toLowerCase().includes(serviceSearch.toLowerCase()) ||
+    service.category?.toLowerCase().includes(serviceSearch.toLowerCase())
   );
 
-  // Load from localStorage as fallback
-  useEffect(() => {
-    if (!apiEvent && !eventLoading) {
-      const events = JSON.parse(localStorage.getItem('events') || '[]');
-      const foundEvent = events.find((e: LocalEventData) => e.id === id);
-      if (foundEvent) {
-        setLocalEvent(foundEvent);
-      }
-    }
-  }, [id, apiEvent, eventLoading]);
-
-  useEffect(() => {
-    if (apiCommittee.length === 0 && !committeeLoading) {
-      setLocalCommittee([
-        {
-          id: '1',
-          name: 'Michael Chen',
-          role: 'Best Man',
-          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
-          contact: 'michael@email.com'
-        },
-        {
-          id: '2',
-          name: 'Emily Davis',
-          role: 'Maid of Honor',
-          avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b5c5?w=150&h=150&fit=crop&crop=face',
-          contact: 'emily@email.com'
-        }
-      ]);
-    }
-  }, [apiCommittee, committeeLoading]);
 
   const handleAddCommitteeMember = async () => {
     if (newMember.name && newMember.role) {
@@ -125,116 +67,49 @@ const EventManagement = () => {
           permissions: ['view']
         });
         toast({ title: "Member added successfully" });
-      } catch {
-        // Fallback to local state
-        const member = {
-          id: Date.now().toString(),
-          ...newMember,
-          avatar: `https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face`
-        };
-        setLocalCommittee([...localCommittee, member]);
+      } catch (err: any) {
+        toast({ title: "Failed to add member", description: err?.message || "An error occurred", variant: "destructive" });
       }
       setNewMember({ name: '', role: '', contact: '' });
     }
   };
 
   const toggleServiceComplete = (serviceId: string) => {
-    if (!localEvent) return;
-    
-    const updatedServices = localEvent.services.map(service =>
-      service.id === serviceId ? { ...service, completed: !service.completed } : service
-    );
-    
-    const updatedEvent = { ...localEvent, services: updatedServices };
-    setLocalEvent(updatedEvent);
-    
-    const events = JSON.parse(localStorage.getItem('events') || '[]');
-    const updatedEvents = events.map((e: LocalEventData) => 
-      e.id === id ? updatedEvent : e
-    );
-    localStorage.setItem('events', JSON.stringify(updatedEvents));
+    // TODO: implement via API when service management endpoints are available
   };
 
   const handleRemoveProvider = (serviceId: string) => {
-    if (!localEvent) return;
-    
-    const updatedServices = localEvent.services.map(service =>
-      service.id === serviceId ? { ...service, providerName: undefined } : service
-    );
-    
-    const updatedEvent = { ...localEvent, services: updatedServices };
-    setLocalEvent(updatedEvent);
-    
-    const events = JSON.parse(localStorage.getItem('events') || '[]');
-    const updatedEvents = events.map((e: LocalEventData) =>
-      e.id === id ? updatedEvent : e
-    );
-    localStorage.setItem('events', JSON.stringify(updatedEvents));
+    // TODO: implement via API
   };
 
   const handleAddService = (selectedService: any) => {
-    if (!localEvent) return;
-
-    const newService = {
-      id: `service_${Date.now()}`,
-      name: selectedService.name,
-      category: selectedService.category,
-      estimated_cost: selectedService.estimatedCost,
-      priority: 'medium',
-      completed: false,
-    };
-
-    const updatedEvent = {
-      ...localEvent,
-      services: [...localEvent.services, newService]
-    };
-    
-    setLocalEvent(updatedEvent);
-    
-    const events = JSON.parse(localStorage.getItem('events') || '[]');
-    const updatedEvents = events.map((e: LocalEventData) =>
-      e.id === id ? updatedEvent : e
-    );
-    localStorage.setItem('events', JSON.stringify(updatedEvents));
+    // TODO: implement via API
     setShowAddServiceDialog(false);
     setServiceSearch('');
   };
 
   const handleRemoveService = () => {
-    if (!localEvent || !deleteServiceId) return;
-    
-    const updatedServices = localEvent.services.filter(service => service.id !== deleteServiceId);
-    const updatedEvent = { ...localEvent, services: updatedServices };
-    setLocalEvent(updatedEvent);
-    
-    const events = JSON.parse(localStorage.getItem('events') || '[]');
-    const updatedEvents = events.map((e: LocalEventData) =>
-      e.id === id ? updatedEvent : e
-    );
-    localStorage.setItem('events', JSON.stringify(updatedEvents));
+    // TODO: implement via API
     setDeleteServiceId(null);
   };
 
   if (eventLoading) {
-    return <div className="flex items-center justify-center h-64">Loading event...</div>;
+    return <EventManagementSkeleton />;
   }
 
   if (!event) {
     return <div className="text-center py-8 text-muted-foreground">Event not found</div>;
   }
 
-  // Compute values from local or API event
-  const eventServices = (localEvent?.services || []);
-  const completedServices = eventServices.filter((s: any) => s.completed).length;
-  const totalServices = eventServices.length;
-  const progress = totalServices > 0 ? (completedServices / totalServices) * 100 : 0;
+  // Compute values from API event
+  const eventServices: any[] = [];
+  const completedServices = 0;
+  const totalServices = 0;
+  const progress = 0;
 
-  const totalContributions = contributionSummary?.total_amount || 
-    localContributions
-      .filter(c => c.status === 'received' && c.type === 'money')
-      .reduce((sum, c) => sum + (parseInt(String(c.amount).replace(/[^0-9]/g, '')) || 0), 0);
+  const totalContributions = contributionSummary?.total_amount || 0;
 
-  const eventImages = localEvent?.images || (apiEvent?.gallery_images as string[]) || [];
+  const eventImages = (apiEvent?.gallery_images as string[]) || [];
   const hasImages = eventImages.length > 0;
 
   const openLightbox = (index: number) => {
@@ -243,12 +118,12 @@ const EventManagement = () => {
   };
   const closeLightbox = () => setLightboxOpen(false);
 
-  const eventTitle = localEvent?.title || apiEvent?.title || '';
-  const eventDate = localEvent?.date || apiEvent?.start_date || '';
-  const eventLocation = localEvent?.location || apiEvent?.location || '';
-  const eventGuests = localEvent?.expectedGuests || apiEvent?.guest_count || 0;
-  const eventBudget = localEvent?.budget || (apiEvent?.budget ? formatPrice(apiEvent.budget) : '');
-  const eventDescription = localEvent?.description || apiEvent?.description || '';
+  const eventTitle = apiEvent?.title || '';
+  const eventDate = apiEvent?.start_date || '';
+  const eventLocation = apiEvent?.location || '';
+  const eventGuests = apiEvent?.guest_count || 0;
+  const eventBudget = apiEvent?.budget ? formatPrice(apiEvent.budget) : '';
+  const eventDescription = apiEvent?.description || '';
 
   return (
     <div>
@@ -608,7 +483,12 @@ const EventManagement = () => {
               <CardTitle>Contributions & Pledges</CardTitle>
               <PledgeDialog 
                 eventId={id!} 
-                onPledgeAdded={(pledge) => setLocalContributions([...localContributions, pledge])} 
+                onPledgeAdded={async (pledge) => {
+                  // Use API to add contribution
+                  try {
+                    await addContribution(pledge);
+                  } catch {}
+                }} 
               />
             </CardHeader>
             <CardContent>

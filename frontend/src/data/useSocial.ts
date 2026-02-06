@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { socialApi, FeedQueryParams, MomentQueryParams } from "@/lib/api/social";
 import type { FeedPost, Moment, Circle, UserProfile } from "@/lib/api/types";
+import { throwApiError } from "@/lib/api/showApiErrors";
 
 // ============================================================================
 // FEED
@@ -92,7 +93,7 @@ export const usePost = (postId: string | null) => {
         setPost(prev => prev ? { ...prev, is_liked: true, likes_count: response.data.likes_count } : null);
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -106,7 +107,7 @@ export const usePost = (postId: string | null) => {
         setPost(prev => prev ? { ...prev, is_liked: false, likes_count: response.data.likes_count } : null);
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -152,7 +153,7 @@ export const usePostComments = (postId: string | null) => {
         await fetchComments();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -165,7 +166,7 @@ export const usePostComments = (postId: string | null) => {
       if (response.success) {
         await fetchComments();
       } else {
-        throw new Error(response.message);
+        throwApiError(response);
       }
     } catch (err) {
       throw err;
@@ -214,7 +215,7 @@ export const useMoments = (params?: MomentQueryParams) => {
         await fetchMoments();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -226,7 +227,7 @@ export const useMoments = (params?: MomentQueryParams) => {
       if (response.success) {
         await fetchMoments();
       } else {
-        throw new Error(response.message);
+        throwApiError(response);
       }
     } catch (err) {
       throw err;
@@ -318,7 +319,7 @@ export const useFollowing = (userId: string | null) => {
         await fetchFollowing();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -331,7 +332,7 @@ export const useFollowing = (userId: string | null) => {
         await fetchFollowing();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -430,7 +431,7 @@ export const useCircles = () => {
         await fetchCircles();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -443,7 +444,7 @@ export const useCircles = () => {
         await fetchCircles();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -455,7 +456,7 @@ export const useCircles = () => {
       if (response.success) {
         await fetchCircles();
       } else {
-        throw new Error(response.message);
+        throwApiError(response);
       }
     } catch (err) {
       throw err;
@@ -469,7 +470,7 @@ export const useCircles = () => {
         await fetchCircles();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -482,7 +483,7 @@ export const useCircles = () => {
         await fetchCircles();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -550,7 +551,7 @@ export const useCommunities = () => {
         await fetchCommunities();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -629,7 +630,7 @@ export const useMarkAllNotificationsRead = () => {
     try {
       const response = await socialApi.markAllNotificationsRead();
       if (!response.success) {
-        throw new Error(response.message);
+        throwApiError(response);
       }
       return true;
     } catch (err) {
@@ -724,7 +725,7 @@ export const useSendMessage = () => {
     try {
       const response = await socialApi.sendMessage(conversationId, { content, attachments });
       if (!response.success) {
-        throw new Error(response.message);
+        throwApiError(response);
       }
       return response.data;
     } catch (err) {

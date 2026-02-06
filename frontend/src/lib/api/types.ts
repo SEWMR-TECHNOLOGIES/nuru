@@ -171,6 +171,14 @@ export interface Country {
 // EVENT TYPES
 // ============================================================================
 
+export interface EventImage {
+  id: string;
+  image_url: string;
+  caption?: string;
+  is_featured?: boolean;
+  created_at?: string;
+}
+
 export interface Event {
   id: string;
   user_id: string;
@@ -188,6 +196,7 @@ export interface Event {
     longitude: number;
   };
   cover_image?: string;
+  images?: EventImage[];
   gallery_images?: string[];
   theme_color?: string;
   is_public: boolean;
@@ -200,6 +209,7 @@ export interface Event {
   contribution_enabled?: boolean;
   contribution_target?: number;
   contribution_description?: string;
+  expected_guests?: number;
   guest_count?: number;
   confirmed_guest_count?: number;
   pending_guest_count?: number;

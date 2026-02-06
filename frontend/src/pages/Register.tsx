@@ -9,7 +9,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
-import { api } from "@/lib/api";
+import { api, showApiErrorsShadcn } from "@/lib/api";
 import nuruLogo from "@/assets/nuru-logo.png";
 
 const Register = () => {
@@ -85,7 +85,7 @@ const Register = () => {
         setUserId(response.data.id);
         return response.data.id;
       } else {
-        toast({ title: "Signup failed", description: response.message, variant: "destructive" });
+        showApiErrorsShadcn(response, toast, "Signup failed");
         return null;
       }
     } catch (err) {
@@ -106,7 +106,7 @@ const Register = () => {
       });
       
       if (!emailResponse.success) {
-        toast({ title: "Email OTP Failed", description: emailResponse.message, variant: "destructive" });
+        showApiErrorsShadcn(emailResponse, toast, "Email OTP Failed");
         return false;
       }
 
@@ -117,7 +117,7 @@ const Register = () => {
       });
       
       if (!phoneResponse.success) {
-        toast({ title: "Phone OTP Failed", description: phoneResponse.message, variant: "destructive" });
+        showApiErrorsShadcn(phoneResponse, toast, "Phone OTP Failed");
         return false;
       }
 

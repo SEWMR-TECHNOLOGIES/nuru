@@ -43,6 +43,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useEventContributions } from '@/data/useEvents';
 import { toast } from 'sonner';
+import { showCaughtError } from '@/lib/api';
 import { formatPrice } from '@/utils/formatPrice';
 
 interface EventContributionsProps {
@@ -107,7 +108,7 @@ const EventContributions = ({ eventId }: EventContributionsProps) => {
       setAddDialogOpen(false);
       resetForm();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to record contribution');
+      showCaughtError(err, 'Failed to record contribution');
     } finally {
       setIsSubmitting(false);
     }
@@ -118,7 +119,7 @@ const EventContributions = ({ eventId }: EventContributionsProps) => {
       await sendThankYou(contributionId, 'email');
       toast.success('Thank you message sent');
     } catch (err: any) {
-      toast.error(err.message || 'Failed to send thank you');
+      showCaughtError(err, 'Failed to send thank you');
     }
   };
 

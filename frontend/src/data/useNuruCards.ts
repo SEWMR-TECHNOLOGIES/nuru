@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { nuruCardsApi } from "@/lib/api/nuruCards";
 import type { NuruCard, NuruCardType } from "@/lib/api/types";
+import { throwApiError } from "@/lib/api/showApiErrors";
 
 // ============================================================================
 // CARD TYPES
@@ -77,7 +78,7 @@ export const useNuruCard = () => {
         await fetchCard();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -91,7 +92,7 @@ export const useNuruCard = () => {
         await fetchCard();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -137,7 +138,7 @@ export const useMyCards = () => {
         await fetchCards();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -150,7 +151,7 @@ export const useMyCards = () => {
         await fetchCards();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -163,7 +164,7 @@ export const useMyCards = () => {
         await fetchCards();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -176,7 +177,7 @@ export const useMyCards = () => {
         await fetchCards();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -238,7 +239,7 @@ export const useCardCheckIn = () => {
         setResult(response.data);
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Check-in failed";
       setError(message);
@@ -258,7 +259,7 @@ export const useCardCheckIn = () => {
         setResult(response.data);
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Quick check-in failed";
       setError(message);
@@ -384,7 +385,7 @@ export const usePremiumBenefits = () => {
       if (response.success) {
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }

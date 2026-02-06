@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { supportApi, SupportTicket, FAQ, FAQCategory } from "@/lib/api/support";
+import { throwApiError } from "@/lib/api/showApiErrors";
 
 // ============================================================================
 // SUPPORT TICKETS
@@ -46,7 +47,7 @@ export const useMyTickets = (initialParams?: { page?: number; limit?: number; st
         await fetchTickets();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -90,7 +91,7 @@ export const useTicket = (ticketId: string | null) => {
         await fetchTicket();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -104,7 +105,7 @@ export const useTicket = (ticketId: string | null) => {
         await fetchTicket();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -118,7 +119,7 @@ export const useTicket = (ticketId: string | null) => {
         await fetchTicket();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -132,7 +133,7 @@ export const useTicket = (ticketId: string | null) => {
         await fetchTicket();
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -216,7 +217,7 @@ export const useFAQs = (category?: string, search?: string) => {
         ));
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -261,7 +262,7 @@ export const useLiveChat = () => {
         setSession(response.data);
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to start chat";
       setError(message);
@@ -277,7 +278,7 @@ export const useLiveChat = () => {
       if (response.success) {
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -290,7 +291,7 @@ export const useLiveChat = () => {
         setSession(null);
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -303,7 +304,7 @@ export const useLiveChat = () => {
         setSession(response.data);
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -348,7 +349,7 @@ export const useContactInfo = () => {
       if (response.success) {
         return response.data;
       }
-      throw new Error(response.message);
+      throwApiError(response);
     } catch (err) {
       throw err;
     }

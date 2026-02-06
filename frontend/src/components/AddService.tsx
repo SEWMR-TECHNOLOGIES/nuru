@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useServiceCategories } from '@/data/useServiceCategories';
 import { useServiceTypes } from '@/data/useServiceTypes';
+import { userServicesApi, showApiErrors, showCaughtError } from '@/lib/api';
 
 const AddService = () => {
   useWorkspaceMeta({
@@ -19,10 +20,8 @@ const AddService = () => {
   });
 
   const navigate = useNavigate();
-
   const { categories } = useServiceCategories();
-  const { serviceTypes, fetchServiceTypes } = useServiceTypes(); 
-  
+  const { serviceTypes, fetchServiceTypes } = useServiceTypes();
 
   const [formData, setFormData] = useState({
     title: '',
@@ -32,13 +31,11 @@ const AddService = () => {
     minPrice: '',
     maxPrice: '',
     location: '',
-    availability: 'Available'
   });
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-
-  // Fetch service types whenever category changes
   useEffect(() => {
     if (formData.category) {
       fetchServiceTypes(formData.category);
@@ -48,20 +45,14 @@ const AddService = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-
-    Array.from(files).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setImages(prev => [...prev, event.target!.result as string]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+    const filesArray = Array.from(files);
+    setImages(prev => [...prev, ...filesArray]);
+    setPreviews(prev => [...prev, ...filesArray.map(f => URL.createObjectURL(f))]);
   };
 
   const removeImage = (index: number) => {
     setImages(prev => prev.filter((_, i) => i !== index));
+    setPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -77,43 +68,25 @@ const AddService = () => {
       form.append("max_price", formData.maxPrice.replace(/,/g, ""));
       form.append("location", formData.location || "");
 
-      if (images.length > 0) {
-        const fileInput = document.getElementById("image-upload") as HTMLInputElement;
-        if (fileInput?.files) {
-          Array.from(fileInput.files).forEach((file) => {
-            form.append("files", file);
-          });
-        }
-      }
-
-      const token = localStorage.getItem("token");
-
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/services/create`, {
-        method: "POST",
-        body: form,
-        headers: {
-          Authorization: token ? `Bearer ${token}` : ""
-        },
-        credentials: "include" 
+      images.forEach((file) => {
+        form.append("files", file);
       });
 
-      const result = await response.json();
+      const response = await userServicesApi.create(form);
 
-      if (!result.success) {
-        toast.error(result.message || "Failed to create service");
+      if (showApiErrors(response, "Failed to create service")) {
         return;
       }
 
-      toast.success(result.message);
-      navigate(`/services/verify/${result.data.id}/${formData.serviceType}`);
+      toast.success(response.message || "Service created successfully");
+      navigate(`/services/verify/${(response.data as any)?.id}/${formData.serviceType}`);
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "An unexpected error occurred.");
+      showCaughtError(err);
     } finally {
-      setIsSubmitting(false); // Reset here
+      setIsSubmitting(false);
     }
   };
-
 
   const formatPrice = (value: string) => {
     const numbers = value.replace(/[^\d]/g, '');
@@ -125,11 +98,7 @@ const AddService = () => {
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl md:text-3xl font-bold">Add New Service</h1>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/my-services')}
-          >
+          <Button variant="ghost" size="icon" onClick={() => navigate('/my-services')}>
             <ChevronLeft className="w-5 h-5" />
           </Button>
         </div>
@@ -151,7 +120,6 @@ const AddService = () => {
                 />
               </div>
 
-              {/* Service Category */}
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>
                 <Select
@@ -170,7 +138,6 @@ const AddService = () => {
                 </Select>
               </div>
 
-              {/* Service Type (dependent on category) */}
               <div className="space-y-2">
                 <Label htmlFor="serviceType">Service Type *</Label>
                 <Select
@@ -251,15 +218,11 @@ const AddService = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {images.length > 0 && (
+                {previews.length > 0 && (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {images.map((image, index) => (
+                    {previews.map((src, index) => (
                       <div key={index} className="relative group">
-                        <img
-                          src={image}
-                          alt={`Service ${index + 1}`}
-                          className="w-full h-32 object-cover rounded-lg"
-                        />
+                        <img src={src} alt={`Service ${index + 1}`} className="w-full h-32 object-cover rounded-lg" />
                         <Button
                           type="button"
                           variant="destructive"
@@ -275,12 +238,8 @@ const AddService = () => {
                 )}
                 <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
                   <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground mb-2">
-                    Click to upload or drag and drop
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    PNG, JPG, or WEBP (max. 0.5MB per file)
-                  </p>
+                  <p className="text-muted-foreground mb-2">Click to upload or drag and drop</p>
+                  <p className="text-sm text-muted-foreground">PNG, JPG, or WEBP (max. 0.5MB per file)</p>
                   <label htmlFor="image-upload">
                     <Button type="button" variant="outline" className="mt-4" onClick={() => document.getElementById('image-upload')?.click()}>
                       Choose Files
@@ -300,13 +259,7 @@ const AddService = () => {
           </Card>
 
           <div className="flex gap-4">
-            <Button
-              type="button"
-              variant="outline"
-              className="flex-1"
-              onClick={() => navigate('/my-services')}
-              disabled={isSubmitting}
-            >
+            <Button type="button" variant="outline" className="flex-1" onClick={() => navigate('/my-services')} disabled={isSubmitting}>
               Cancel
             </Button>
             <Button type="submit" className="flex-1" disabled={isSubmitting}>

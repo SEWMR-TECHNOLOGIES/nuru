@@ -44,6 +44,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useEventGuests } from '@/data/useEvents';
 import { toast } from 'sonner';
+import { showCaughtError } from '@/lib/api';
 import type { EventGuest } from '@/lib/api/types';
 
 interface EventGuestListProps {
@@ -91,7 +92,7 @@ const EventGuestList = ({ eventId }: EventGuestListProps) => {
       setAddDialogOpen(false);
       setNewGuest({ name: '', email: '', phone: '', plus_ones: 0, dietary_requirements: '', notes: '' });
     } catch (err: any) {
-      toast.error(err.message || 'Failed to add guest');
+      showCaughtError(err, 'Failed to add guest');
     } finally {
       setIsSubmitting(false);
     }
@@ -107,7 +108,7 @@ const EventGuestList = ({ eventId }: EventGuestListProps) => {
       setInviteDialogOpen(false);
       setSelectedGuest(null);
     } catch (err: any) {
-      toast.error(err.message || 'Failed to send invitation');
+      showCaughtError(err, 'Failed to send invitation');
     } finally {
       setIsSubmitting(false);
     }
@@ -118,7 +119,7 @@ const EventGuestList = ({ eventId }: EventGuestListProps) => {
       await checkinGuest(guestId);
       toast.success('Guest checked in successfully');
     } catch (err: any) {
-      toast.error(err.message || 'Failed to check in guest');
+      showCaughtError(err, 'Failed to check in guest');
     }
   };
 
@@ -129,7 +130,7 @@ const EventGuestList = ({ eventId }: EventGuestListProps) => {
       await deleteGuest(guestId);
       toast.success('Guest removed');
     } catch (err: any) {
-      toast.error(err.message || 'Failed to remove guest');
+      showCaughtError(err, 'Failed to remove guest');
     }
   };
 

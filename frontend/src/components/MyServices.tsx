@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { showApiErrors, showCaughtError } from '@/lib/api';
 import { userServicesApi } from '@/lib/api';
 import type { ServiceReview } from '@/lib/api/types';
 
@@ -86,36 +87,25 @@ const MyServices = () => {
 
     setIsSubmitting(true);
     try {
-      const form = new FormData();
-      form.append('name', packageForm.name.trim());
-      form.append('description', packageForm.description.trim());
-      form.append('price', packageForm.price);
-      form.append('features', packageForm.features);
+      const packageData = {
+        name: packageForm.name.trim(),
+        description: packageForm.description.trim(),
+        price: Number(packageForm.price),
+        features: packageForm.features.split(',').map(f => f.trim()).filter(Boolean),
+      };
 
-      const token = localStorage.getItem("token");
+      const result = await userServicesApi.addPackage(selectedServiceId, packageData);
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/services/${selectedServiceId}/packages/add`, {
-        method: 'POST',
-        body: form,
-        headers: {
-          Authorization: token ? `Bearer ${token}` : ''
-        },
-        credentials: 'include'
-      });
-
-      const result = await response.json();
-
-      if (!result.success) {
-        toast.error(result.message || 'Failed to add package.');
+      if (showApiErrors(result, 'Failed to add package.')) {
         return;
       }
 
-      toast.success('Package added successfully.');
+      toast.success(result.message || 'Package added successfully.');
       setPackageDialogOpen(false);
       setPackageForm({ name: '', description: '', features: '', price: '' });
       setSelectedServiceId(null);
     } catch (err: any) {
-      toast.error(err.message || 'An unexpected error occurred.');
+      showCaughtError(err);
     } finally {
       setIsSubmitting(false);
     }
