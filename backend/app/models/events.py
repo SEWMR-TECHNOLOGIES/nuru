@@ -40,18 +40,24 @@ class Event(Base):
     currency_id = Column(UUID(as_uuid=True), ForeignKey('currencies.id'))
     cover_image_url = Column(Text)
     is_public = Column(Boolean, default=False)
+    theme_color = Column(String(7), nullable=True)              
+    dress_code = Column(String(100), nullable=True)            
+    special_instructions = Column(Text, nullable=True)        
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-    services = relationship("EventService", back_populates="event")
-    images = relationship("EventImage", back_populates="event")
-    invitations = relationship("EventInvitation", back_populates="event")
-    attendees = relationship("EventAttendee", back_populates="event")
-    venue_coordinates = relationship("EventVenueCoordinate", uselist=False, back_populates="event")
-    settings = relationship("EventSetting", uselist=False, back_populates="event")
-    contribution_targets = relationship("EventContributionTarget", back_populates="event")
-    contributions = relationship("EventContribution", back_populates="event")
-    thank_you_messages = relationship("ContributionThankYouMessage", back_populates="event")
-    committee_members = relationship("EventCommitteeMember", back_populates="event")
+
+    services = relationship("EventService", back_populates="event", cascade="all, delete-orphan")
+    images = relationship("EventImage", back_populates="event", cascade="all, delete-orphan")
+    invitations = relationship("EventInvitation", back_populates="event", cascade="all, delete-orphan")
+    attendees = relationship("EventAttendee", back_populates="event", cascade="all, delete-orphan")
+    venue_coordinates = relationship("EventVenueCoordinate", uselist=False, back_populates="event", cascade="all, delete-orphan")
+    settings = relationship("EventSetting", uselist=False, back_populates="event", cascade="all, delete-orphan")
+    contribution_targets = relationship("EventContributionTarget", back_populates="event", cascade="all, delete-orphan")
+    contributions = relationship("EventContribution", back_populates="event", cascade="all, delete-orphan")
+    thank_you_messages = relationship("ContributionThankYouMessage", back_populates="event", cascade="all, delete-orphan")
+    committee_members = relationship("EventCommitteeMember", back_populates="event", cascade="all, delete-orphan")
+    schedule_items = relationship("EventScheduleItem", back_populates="event", cascade="all, delete-orphan")
+    budget_items = relationship("EventBudgetItem", back_populates="event", cascade="all, delete-orphan")
 
 class EventTypeService(Base):
     __tablename__ = "event_type_services"
@@ -225,6 +231,8 @@ class EventAttendee(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     event = relationship("Event", back_populates="attendees")
+    plus_ones = relationship("EventGuestPlusOne", back_populates="attendee",cascade="all, delete-orphan")
+
 
 class EventContributionTarget(Base):
     __tablename__ = "event_contribution_targets"
@@ -270,3 +278,54 @@ class ContributionThankYouMessage(Base):
 
     event = relationship("Event", back_populates="thank_you_messages")
     contribution = relationship("EventContribution")
+
+class EventScheduleItem(Base):
+    __tablename__ = "event_schedule_items"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id", ondelete="CASCADE"), nullable=False)
+    title = Column(Text, nullable=False)
+    description = Column(Text, nullable=True)
+    start_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime, nullable=True)
+    location = Column(Text, nullable=True)
+    display_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    event = relationship("Event", back_populates="schedule_items")
+
+
+class EventBudgetItem(Base):
+    __tablename__ = "event_budget_items"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id", ondelete="CASCADE"), nullable=False)
+    category = Column(Text, nullable=False)
+    item_name = Column(Text, nullable=False)
+    estimated_cost = Column(Numeric, nullable=True)
+    actual_cost = Column(Numeric, nullable=True)
+    vendor_name = Column(Text, nullable=True)
+    status = Column(Text, default="pending")
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    event = relationship("Event", back_populates="budget_items")
+
+class EventGuestPlusOne(Base):
+    """Represents a guest brought by an attendee (plus-one)."""
+    __tablename__ = "event_guest_plus_ones"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    attendee_id = Column(UUID(as_uuid=True), ForeignKey("event_attendees.id", ondelete="CASCADE"), nullable=False)
+    name = Column(Text, nullable=False)
+    email = Column(Text, nullable=True)
+    phone = Column(Text, nullable=True)
+    meal_preference = Column(Text, nullable=True)
+    checked_in = Column(Boolean, default=False)
+    checked_in_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    attendee = relationship("EventAttendee", back_populates="plus_ones")
