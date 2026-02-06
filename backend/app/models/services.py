@@ -121,6 +121,7 @@ class UserServiceRating(Base):
     not_helpful_count = Column(Integer, default=0)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    service = relationship("UserService", back_populates="ratings")
 
 class UserServiceVerification(Base):
     __tablename__ = "user_service_verifications"
