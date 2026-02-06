@@ -84,19 +84,6 @@ class UserFeed(Base):
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
-class UserServiceRating(Base):
-    __tablename__ = "user_service_ratings"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    user_service_id = Column(UUID(as_uuid=True), ForeignKey("user_services.id", ondelete="CASCADE"))
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
-    rating = Column(Integer, nullable=False)
-    review = Column(Text)
-    helpful_count = Column(Integer, default=0)
-    not_helpful_count = Column(Integer, default=0)
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-
 class Message(Base):
     __tablename__ = 'messages'
 
