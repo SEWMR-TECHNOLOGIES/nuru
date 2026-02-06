@@ -7,11 +7,13 @@ import os
 import re
 import uuid
 from typing import List, Optional
+
 import httpx
 import pytz
 from fastapi import APIRouter, Depends, File, Form, UploadFile, Body
 from sqlalchemy import func as sa_func, case, and_
 from sqlalchemy.orm import Session, joinedload
+
 from core.config import (
     ALLOWED_IMAGE_EXTENSIONS,
     MAX_EVENT_IMAGES,
@@ -1609,6 +1611,7 @@ def add_guest(
         updated_at=now,
     )
     db.add(att)
+    db.flush()
 
     # Add plus ones
     plus_one_names = body.get("plus_one_names", [])
@@ -2271,6 +2274,7 @@ def add_committee_member(
         updated_at=now,
     )
     db.add(cm)
+    db.flush()
 
     # Create permissions
     permissions_input = body.get("permissions", [])
