@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Sparkles, Star, MapPin, Loader2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,9 +64,8 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
     try {
       const params: Record<string, any> = {
         event_type_id: eventTypeId,
-        sort_by: "rating" as const,
+        sort_by: "rating",
         limit: 6,
-        available: true,
       };
       if (location) params.location = location;
       if (budget) {
@@ -92,6 +91,13 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
       setFetched(true);
     }
   }, [eventTypeId, location, budget]);
+
+  // Auto-fetch when event type changes
+  useEffect(() => {
+    if (eventTypeId && !fetched) {
+      fetchRecommendations();
+    }
+  }, [eventTypeId, fetchRecommendations, fetched]);
 
   return (
     <Card>

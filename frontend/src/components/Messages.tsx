@@ -1,11 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, MapPin, X, Send, Plus, ChevronLeft, MessageCircle, Loader2 } from 'lucide-react';
+import { Image, MapPin, X, Send, Plus, ChevronLeft, MessageCircle, Loader2, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useConversations, useConversationMessages, useSendMessage } from '@/data/useSocial';
+import { messagesApi } from '@/lib/api/messages';
 import { Skeleton } from '@/components/ui/skeleton';
-
+import UserSearchInput from '@/components/events/UserSearchInput';
+import type { SearchedUser } from '@/hooks/useUserSearch';
+import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 const Messages = () => {
   useWorkspaceMeta({
     title: 'Messages',
@@ -21,6 +30,8 @@ const Messages = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showChatList, setShowChatList] = useState(true);
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const [startingChat, setStartingChat] = useState(false);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const inputFileRef = useRef<HTMLInputElement | null>(null);
   const isMobile = useIsMobile();
@@ -81,6 +92,27 @@ const Messages = () => {
 
   const selectedConversation = conversations.find(c => c.id === selectedConversationId);
 
+  const handleStartNewChat = async (user: SearchedUser) => {
+    setStartingChat(true);
+    try {
+      const response = await messagesApi.startConversation({
+        recipient_id: user.id,
+        content: `Hi ${user.first_name}!`,
+        context_type: "general",
+      });
+      if (response.success && response.data) {
+        setNewChatOpen(false);
+        refetchConversations();
+        setSelectedConversationId(response.data.conversation?.id || null);
+        toast.success(`Chat started with ${user.first_name}`);
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to start conversation");
+    } finally {
+      setStartingChat(false);
+    }
+  };
+
   if (conversationsLoading) {
     return (
       <div className="h-full flex bg-slate-50/20">
@@ -100,8 +132,15 @@ const Messages = () => {
             ))}
           </div>
         </div>
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        <div className="flex-1 flex flex-col">
+          <div className="p-4 border-b border-border"><Skeleton className="h-6 w-32" /></div>
+          <div className="space-y-4 p-4 flex-1">
+            {[1,2,3,4].map(i => (
+              <div key={i} className={`flex ${i%2===0?'justify-end':'justify-start'}`}>
+                <Skeleton className={`h-12 rounded-lg ${i%2===0?'w-48':'w-56'}`} />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -118,27 +157,59 @@ const Messages = () => {
     );
   }
 
+  const newChatDialog = (
+    <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>New Conversation</DialogTitle>
+        </DialogHeader>
+        <div className="py-4">
+          <p className="text-sm text-muted-foreground mb-3">Search for a user to start chatting with</p>
+          <UserSearchInput 
+            onSelect={handleStartNewChat} 
+            placeholder="Search by name, email, or phone..." 
+            disabled={startingChat}
+            allowRegister={false}
+          />
+          {startingChat && (
+            <div className="flex items-center gap-2 mt-3 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" /> Starting conversation...
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+
   if (conversations.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <MessageCircle className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-          <p className="text-muted-foreground mb-2">No messages yet</p>
-          <p className="text-sm text-muted-foreground">
-            Start a conversation with an event organizer or service provider
-          </p>
+      <>
+        {newChatDialog}
+        <div className="h-full flex items-center justify-center">
+          <div className="text-center">
+            <MessageCircle className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground mb-2">No messages yet</p>
+            <p className="text-sm text-muted-foreground mb-4">
+              Start a conversation with an event organizer or service provider
+            </p>
+            <Button onClick={() => setNewChatOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" /> New Message
+            </Button>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
+    <>
+    {newChatDialog}
     <div className="h-full flex bg-slate-50/20">
       {/* Chat List */}
       <div className={`${isMobile ? (showChatList ? 'w-full' : 'hidden') : 'w-80'} bg-card border-r border-border overflow-y-auto`}>
         <div className="p-4 border-b border-border flex items-center justify-between">
           <h2 className="font-semibold text-lg">Messages</h2>
-          <Button size="sm" className="rounded-lg p-2" aria-label="New message">
+          <Button size="sm" className="rounded-lg p-2" aria-label="New message" onClick={() => setNewChatOpen(true)}>
             <Plus className="w-4 h-4" />
           </Button>
         </div>
@@ -225,9 +296,13 @@ const Messages = () => {
             </div>
 
             <div ref={messagesRef} className="flex-1 p-3 md:p-4 overflow-y-auto space-y-4">
-              {messagesLoading ? (
-                <div className="flex items-center justify-center h-full">
-                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            {messagesLoading ? (
+                <div className="space-y-4 p-4">
+                  {[1,2,3,4,5].map(i => (
+                    <div key={i} className={`flex ${i%2===0?'justify-end':'justify-start'}`}>
+                      <div className="space-y-2"><Skeleton className={`h-12 rounded-lg ${i%2===0?'w-48':'w-56'}`} /><Skeleton className="h-3 w-16" /></div>
+                    </div>
+                  ))}
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
@@ -315,6 +390,7 @@ const Messages = () => {
         )}
       </div>
     </div>
+    </>
   );
 };
 

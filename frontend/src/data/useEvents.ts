@@ -25,8 +25,6 @@ export const useEvents = (initialParams?: EventQueryParams) => {
   const [pagination, setPagination] = useState<any>(null);
 
   const fetchEvents = useCallback(async (params?: EventQueryParams) => {
-    setLoading(true);
-    setError(null);
     try {
       const response = await eventsApi.getAll(params || initialParams);
       if (response.success) {
@@ -60,8 +58,6 @@ export const useEvent = (eventId: string | null) => {
 
   const fetchEvent = useCallback(async () => {
     if (!eventId) return;
-    setLoading(true);
-    setError(null);
     try {
       const response = await eventsApi.getById(eventId);
       if (response.success) {
@@ -96,8 +92,6 @@ export const useEventGuests = (eventId: string | null, initialParams?: GuestQuer
 
   const fetchGuests = useCallback(async (params?: GuestQueryParams) => {
     if (!eventId) return;
-    setLoading(true);
-    setError(null);
     try {
       const response = await eventsApi.getGuests(eventId, params || initialParams);
       if (response.success) {
@@ -214,8 +208,6 @@ export const useEventCommittee = (eventId: string | null) => {
 
   const fetchCommittee = useCallback(async () => {
     if (!eventId) return;
-    setLoading(true);
-    setError(null);
     try {
       const response = await eventsApi.getCommittee(eventId);
       if (response.success) {
@@ -292,8 +284,6 @@ export const useEventContributions = (eventId: string | null, initialParams?: Co
 
   const fetchContributions = useCallback(async (params?: ContributionQueryParams) => {
     if (!eventId) return;
-    setLoading(true);
-    setError(null);
     try {
       const response = await eventsApi.getContributions(eventId, params || initialParams);
       if (response.success) {
@@ -328,6 +318,34 @@ export const useEventContributions = (eventId: string | null, initialParams?: Co
     }
   };
 
+  const updateContribution = async (contributionId: string, data: Partial<EventContribution>) => {
+    if (!eventId) return null;
+    try {
+      const response = await eventsApi.updateContribution(eventId, contributionId, data);
+      if (response.success) {
+        await fetchContributions();
+        return response.data;
+      }
+      throwApiError(response);
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  const deleteContribution = async (contributionId: string) => {
+    if (!eventId) return;
+    try {
+      const response = await eventsApi.deleteContribution(eventId, contributionId);
+      if (response.success) {
+        await fetchContributions();
+      } else {
+        throwApiError(response);
+      }
+    } catch (err) {
+      throw err;
+    }
+  };
+
   const sendThankYou = async (contributionId: string, method: "email" | "sms" | "whatsapp", customMessage?: string) => {
     if (!eventId) return null;
     try {
@@ -342,7 +360,7 @@ export const useEventContributions = (eventId: string | null, initialParams?: Co
     }
   };
 
-  return { contributions, summary, loading, error, pagination, refetch: fetchContributions, addContribution, sendThankYou };
+  return { contributions, summary, loading, error, pagination, refetch: fetchContributions, addContribution, updateContribution, deleteContribution, sendThankYou };
 };
 
 // ============================================================================

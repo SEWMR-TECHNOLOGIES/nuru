@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Upload, X } from 'lucide-react';
+import { ChevronLeft, Upload, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -35,10 +35,12 @@ const AddService = () => {
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingTypes, setIsLoadingTypes] = useState(false);
 
   useEffect(() => {
     if (formData.category) {
-      fetchServiceTypes(formData.category);
+      setIsLoadingTypes(true);
+      fetchServiceTypes(formData.category).finally(() => setIsLoadingTypes(false));
     }
   }, [formData.category]);
 
@@ -144,10 +146,16 @@ const AddService = () => {
                   value={formData.serviceType}
                   onValueChange={(value) => setFormData({ ...formData, serviceType: value })}
                   required
-                  disabled={!formData.category}
+                  disabled={!formData.category || isLoadingTypes}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a service type" />
+                    {isLoadingTypes ? (
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        <Loader2 className="w-4 h-4 animate-spin" />Loading types...
+                      </span>
+                    ) : (
+                      <SelectValue placeholder="Select a service type" />
+                    )}
                   </SelectTrigger>
                   <SelectContent>
                     {serviceTypes.map(st => (

@@ -2,7 +2,7 @@
  * Profile API - User profiles and social features
  */
 
-import { get, post, put, del, putFormData, buildQueryString } from "./helpers";
+import { get, post, put, del, putFormData, postFormData, buildQueryString } from "./helpers";
 import type { UserProfile, User, Event, FeedPost, UserService, PaginatedResponse } from "./types";
 
 export interface FollowersQueryParams {
@@ -144,4 +144,18 @@ export const profileApi = {
    * Download account data
    */
   downloadData: () => post<{ download_url: string; expires_at: string }>("/users/download-data"),
+
+  // ============================================================================
+  // IDENTITY VERIFICATION
+  // ============================================================================
+
+  /**
+   * Submit identity verification documents
+   */
+  submitVerification: (formData: FormData) => postFormData<{ status: string; submitted_at: string }>("/users/verify-identity", formData),
+
+  /**
+   * Get verification status
+   */
+  getVerificationStatus: () => get<{ status: string; submitted_at?: string; verified_at?: string; rejection_reason?: string }>("/users/verify-identity/status"),
 };

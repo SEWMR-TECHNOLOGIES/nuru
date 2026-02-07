@@ -56,7 +56,7 @@ const CreateEvent: React.FC = () => {
               title: event.title || "",
               description: event.description || "",
               date: event.start_date ? new Date(event.start_date) : undefined,
-              time: "",
+              time: (event as any).start_time || "",
               location: event.location || "",
               expectedGuests: event.expected_guests ? String(event.expected_guests) : "",
               budget: event.budget ? String(event.budget) : "",

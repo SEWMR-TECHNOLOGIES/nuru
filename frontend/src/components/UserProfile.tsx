@@ -1,6 +1,9 @@
-// src/components/UserProfile.tsx
 import { useEffect, useState } from "react";
-import { MapPin, Calendar, CheckCircle, Star, Edit, Settings, User, Camera } from "lucide-react";
+import { 
+  MapPin, Calendar, CheckCircle, Edit, Camera, Loader2, 
+  Mail, Phone, User as UserIcon, Shield, ShieldCheck, ShieldAlert,
+  Upload, FileText, AlertCircle, Clock
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,253 +11,236 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useWorkspaceMeta } from "@/hooks/useWorkspaceMeta";
-
-interface UserData {
-  name: string;
-  first_name?: string;
-  last_name?: string;
-  username?: string;
-  email: string;
-  phone: string;
-  location: string;
-  bio: string;
-  avatar: string | null;
-  coverPhoto: string;
-  joinDate: string;
-  isVerified: boolean;
-  verificationLevel: "Basic" | "Premium" | "Pro";
-  servicesOffered: number;
-  eventsAttended: number;
-  eventsHosted: number;
-  rating: number;
-  reviewCount: number;
-}
-
-interface Achievement {
-  id: string;
-  title: string;
-  description: string;
-  icon: string;
-  earned: boolean;
-  earnedDate?: string;
-}
+import { profileApi } from "@/lib/api/profile";
+import { showCaughtError } from "@/lib/api";
+import { toast } from "sonner";
+import { formatDateMedium } from "@/utils/formatDate";
 
 const UserProfile = () => {
-  const { data: currentUser } = useCurrentUser();
+  const { data: currentUser, isLoading: userLoading } = useCurrentUser();
 
   useWorkspaceMeta({
     title: 'Profile',
-    description: 'View and manage your Nuru profile, achievements, and account settings.'
+    description: 'View and manage your Nuru profile and account settings.'
   });
 
   const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [verificationStep, setVerificationStep] = useState<"idle" | "form" | "submitted" | "verified">("idle");
+  const [verifyFiles, setVerifyFiles] = useState<{ id_front?: File; id_back?: File; selfie?: File }>({});
 
-  // Default local state (will be merged with currentUser if present)
-  const [userData, setUserData] = useState<UserData>({
-    name: "Sarah Johnson",
-    first_name: "Sarah",
-    last_name: "Johnson",
-    username: "sarah.j",
-    email: "sarah.j@email.com",
-    phone: "+1 (555) 123-4567",
-    location: "New York, NY",
-    bio: "Passionate event planner and photographer with over 5 years of experience creating memorable celebrations. I specialize in weddings, birthdays, and corporate events.",
-    avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b5c5?w=200&h=200&fit=crop&crop=face",
-    coverPhoto: "https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=1200&h=400&fit=crop",
-    joinDate: "2019-03-15",
-    isVerified: true,
-    verificationLevel: "Premium",
-    servicesOffered: 2,
-    eventsAttended: 45,
-    eventsHosted: 18,
-    rating: 4.9,
-    reviewCount: 78,
+  const [editData, setEditData] = useState({
+    first_name: "",
+    last_name: "",
+    bio: "",
+    phone: "",
+    location: "",
   });
 
-  // Achievements remain unchanged
-  const [achievements] = useState<Achievement[]>([
-    { id: "1", title: "First Event", description: "Successfully hosted your first event", icon: "🎉", earned: true, earnedDate: "2019-04-20" },
-    { id: "2", title: "Photography Pro", description: "Completed 25 photography gigs", icon: "📸", earned: true, earnedDate: "2023-08-15" },
-    { id: "3", title: "Event Master", description: "Hosted 15+ successful events", icon: "👑", earned: true, earnedDate: "2024-01-10" },
-    { id: "4", title: "Community Helper", description: "Helped organize 50+ community events", icon: "🤝", earned: false },
-    { id: "5", title: "Five Star Host", description: "Maintain 5-star rating for 6 months", icon: "⭐", earned: false },
-  ]);
-
-  const [editData, setEditData] = useState<UserData>(userData);
-
-  // When currentUser becomes available, merge into local UI state
   useEffect(() => {
-    if (!currentUser) return;
-
-    const first = currentUser.first_name ?? "";
-    const last = currentUser.last_name ?? "";
-    const fullName = `${first} ${last}`.trim() || userData.name;
-
-    // Map API fields into our UI shape. avatar currently null by spec.
-    setUserData((prev) => ({
-      ...prev,
-      name: fullName,
-      first_name: currentUser.first_name ?? prev.first_name,
-      last_name: currentUser.last_name ?? prev.last_name,
-      username: currentUser.username ?? prev.username,
-      email: currentUser.email ?? prev.email,
-      phone: currentUser.phone ?? prev.phone,
-      // keep avatar null for now (server returns avatar when available)
-      avatar: (currentUser as any).avatar ?? null,
-    }));
-
-    // keep editData in sync when not editing
-    setEditData((prev) => ({
-      ...prev,
-      name: fullName,
-      first_name: currentUser.first_name ?? prev.first_name,
-      last_name: currentUser.last_name ?? prev.last_name,
-      username: currentUser.username ?? prev.username,
-      email: currentUser.email ?? prev.email,
-      phone: currentUser.phone ?? prev.phone,
-      avatar: (currentUser as any).avatar ?? null,
-    }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (currentUser) {
+      setEditData({
+        first_name: currentUser.first_name || "",
+        last_name: currentUser.last_name || "",
+        bio: (currentUser as any).bio || "",
+        phone: currentUser.phone || "",
+        location: (currentUser as any).location || "",
+      });
+      // Check verification status
+      if ((currentUser as any).is_identity_verified) {
+        setVerificationStep("verified");
+      }
+    }
   }, [currentUser]);
 
-  const handleSave = () => {
-    setUserData(editData);
-    setIsEditing(false);
-    // Save to localStorage (mock persistence)
-    localStorage.setItem("userProfile", JSON.stringify(editData));
-  };
-
-  const handleCancel = () => {
-    setEditData(userData);
-    setIsEditing(false);
-  };
-
-  const getYearsOnPlatform = () => {
-    const joinYear = new Date(userData.joinDate).getFullYear();
-    const currentYear = new Date().getFullYear();
-    return currentYear - joinYear;
-  };
-
-  const getVerificationColor = (level: string) => {
-    switch (level) {
-      case "Basic":
-        return "bg-gray-100 text-gray-800";
-      case "Premium":
-        return "bg-blue-100 text-blue-800";
-      case "Pro":
-        return "bg-purple-100 text-purple-800";
-      default:
-        return "bg-gray-100 text-gray-800";
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const formData = new FormData();
+      formData.append("first_name", editData.first_name);
+      formData.append("last_name", editData.last_name);
+      formData.append("bio", editData.bio);
+      formData.append("phone", editData.phone);
+      formData.append("location", editData.location);
+      await profileApi.update(formData);
+      toast.success("Profile updated successfully");
+      setIsEditing(false);
+    } catch (err: any) {
+      showCaughtError(err, "Failed to update profile");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const renderStars = (rating: number) =>
-    Array.from({ length: 5 }, (_, i) => (
-      <Star
-        key={i}
-        className={`w-4 h-4 ${
-          i < Math.floor(rating)
-            ? "text-yellow-400 fill-current"
-            : i < rating
-            ? "text-yellow-400 fill-current opacity-50"
-            : "text-gray-300"
-        }`}
-      />
-    ));
+  const handleStartVerification = () => setVerificationStep("form");
 
-  const renderAvatar = () => {
-    if (userData.avatar) {
-      return <AvatarImage src={userData.avatar} alt={userData.name} />;
+  const handleSubmitVerification = async () => {
+    if (!verifyFiles.id_front) {
+      toast.error("Please upload the front of your ID");
+      return;
     }
-
-    // Take first letter of first and last names (fallback to name split)
-    const first = (userData.first_name ?? userData.name.split(" ")[0] ?? "").charAt(0);
-    const last = (userData.last_name ?? userData.name.split(" ")[1] ?? "").charAt(0);
-    const initials = `${first}${last}`.toUpperCase() || "?";
-
-    return <AvatarFallback className="text-2xl">{initials}</AvatarFallback>;
+    setSaving(true);
+    try {
+      const formData = new FormData();
+      if (verifyFiles.id_front) formData.append("id_front", verifyFiles.id_front);
+      if (verifyFiles.id_back) formData.append("id_back", verifyFiles.id_back);
+      if (verifyFiles.selfie) formData.append("selfie", verifyFiles.selfie);
+      await profileApi.submitVerification(formData);
+      setVerificationStep("submitted");
+      toast.success("Verification documents submitted for review");
+    } catch (err: any) {
+      showCaughtError(err, "Failed to submit verification");
+    } finally {
+      setSaving(false);
+    }
   };
 
+  if (userLoading) {
+    return (
+      <div className="space-y-6">
+        <Card className="overflow-hidden">
+          <Skeleton className="h-48 w-full" />
+          <CardContent className="pt-0">
+            <div className="flex gap-6 -mt-16 relative z-10">
+              <Skeleton className="w-32 h-32 rounded-full" />
+              <div className="flex-1 mt-16 space-y-3">
+                <Skeleton className="h-7 w-48" />
+                <Skeleton className="h-4 w-full max-w-md" />
+                <div className="flex gap-4">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-4 w-24" />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <div className="grid md:grid-cols-4 gap-4">
+          {[1,2,3,4].map(i => <Skeleton key={i} className="h-24 rounded-lg" />)}
+        </div>
+        <Skeleton className="h-64 rounded-lg" />
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-muted-foreground">Please log in to view your profile.</p>
+      </div>
+    );
+  }
+
+  const fullName = `${currentUser.first_name || ""} ${currentUser.last_name || ""}`.trim() || "User";
+  const initials = `${(currentUser.first_name || "U").charAt(0)}${(currentUser.last_name || "").charAt(0)}`.toUpperCase();
+  const joinDate = currentUser.created_at ? formatDateMedium(currentUser.created_at) : "N/A";
+  const isVerified = (currentUser as any).is_identity_verified || verificationStep === "verified";
 
   return (
     <div className="space-y-6">
-      {/* Cover Photo & Profile Header */}
-      <Card className="overflow-hidden">
-        <div
-          className="h-48 bg-gradient-to-r from-primary to-primary/80 relative"
-          style={{
-            backgroundImage: userData.coverPhoto ? `url(${userData.coverPhoto})` : undefined,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-        >
-          <div className="absolute inset-0 bg-black/20" />
-          <Button
-            variant="secondary"
-            size="sm"
-            className="absolute top-4 right-4"
-            onClick={() => setIsEditing(!isEditing)}
-          >
-            {isEditing ? <Settings className="w-4 h-4 mr-2" /> : <Edit className="w-4 h-4 mr-2" />}
-            {isEditing ? "Cancel" : "Edit Profile"}
-          </Button>
+      {/* Profile Header */}
+      <Card className="overflow-hidden border-0 shadow-lg">
+        <div className="h-44 bg-gradient-to-br from-primary via-primary/80 to-primary/60 relative">
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDE4YzEwIDAgMTggOCAxOCAxOHMtOCAxOC0xOCAxOC0xOC04LTE4LTE4IDgtMTggMTgtMTh6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-30" />
+          {!isEditing && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="absolute top-4 right-4 gap-2"
+              onClick={() => setIsEditing(true)}
+            >
+              <Edit className="w-4 h-4" />
+              Edit Profile
+            </Button>
+          )}
         </div>
 
-        <CardContent className="pt-0">
+        <CardContent className="pt-0 pb-6">
           <div className="flex flex-col md:flex-row gap-6 -mt-16 relative z-10">
-            <div className="relative">
-              <Avatar className="w-32 h-32 border-4 border-background">
-                {renderAvatar()}
+            <div className="relative flex-shrink-0">
+              <Avatar className="w-32 h-32 border-4 border-background shadow-xl">
+                <AvatarImage src={currentUser.avatar || undefined} alt={fullName} />
+                <AvatarFallback className="text-2xl font-semibold bg-primary/10 text-primary">{initials}</AvatarFallback>
               </Avatar>
-              {isEditing && (
-                <Button size="sm" variant="secondary" className="absolute bottom-0 right-0 rounded-full w-8 h-8 p-0">
-                  <Camera className="w-4 h-4" />
-                </Button>
+              {isVerified && (
+                <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1">
+                  <ShieldCheck className="w-6 h-6 text-green-600" />
+                </div>
               )}
             </div>
 
-            <div className="flex-1 mt-16 md:mt-4">
+            <div className="flex-1 mt-14 md:mt-4">
               {isEditing ? (
                 <div className="space-y-4">
-                  <Input value={editData.name} onChange={(e) => setEditData({ ...editData, name: e.target.value })} className="text-xl font-bold" />
-                  <Textarea value={editData.bio} onChange={(e) => setEditData({ ...editData, bio: e.target.value })} rows={3} />
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <Input placeholder="Email" value={editData.email} onChange={(e) => setEditData({ ...editData, email: e.target.value })} />
-                    <Input placeholder="Phone" value={editData.phone} onChange={(e) => setEditData({ ...editData, phone: e.target.value })} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">First Name</label>
+                      <Input value={editData.first_name} onChange={(e) => setEditData(prev => ({ ...prev, first_name: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Last Name</label>
+                      <Input value={editData.last_name} onChange={(e) => setEditData(prev => ({ ...prev, last_name: e.target.value }))} />
+                    </div>
                   </div>
-                  <Input placeholder="Location" value={editData.location} onChange={(e) => setEditData({ ...editData, location: e.target.value })} />
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Bio</label>
+                    <Textarea value={editData.bio} onChange={(e) => setEditData(prev => ({ ...prev, bio: e.target.value }))} rows={3} placeholder="Tell us about yourself..." />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Phone</label>
+                      <Input value={editData.phone} onChange={(e) => setEditData(prev => ({ ...prev, phone: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Location</label>
+                      <Input value={editData.location} onChange={(e) => setEditData(prev => ({ ...prev, location: e.target.value }))} placeholder="City, Country" />
+                    </div>
+                  </div>
                   <div className="flex gap-3">
-                    <Button onClick={handleSave}>Save Changes</Button>
-                    <Button variant="outline" onClick={handleCancel}>
-                      Cancel
+                    <Button onClick={handleSave} disabled={saving}>
+                      {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : "Save Changes"}
                     </Button>
+                    <Button variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
                   </div>
                 </div>
               ) : (
                 <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <h1 className="text-2xl font-bold">{userData.name}</h1>
-                    {userData.isVerified && <CheckCircle className="w-6 h-6 text-blue-500" />}
-                    <Badge className={getVerificationColor(userData.verificationLevel)}>{userData.verificationLevel} Member</Badge>
+                  <div className="flex items-center gap-3 mb-2">
+                    <h1 className="text-2xl font-bold text-foreground">{fullName}</h1>
+                    {isVerified && (
+                      <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 gap-1">
+                        <CheckCircle className="w-3 h-3" /> Verified
+                      </Badge>
+                    )}
                   </div>
-
-                  <p className="text-muted-foreground mb-4">{userData.bio}</p>
-
-                  <div className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <MapPin className="w-4 h-4" />
-                      {userData.location}
+                  {currentUser.username && (
+                    <p className="text-muted-foreground text-sm mb-2">@{currentUser.username}</p>
+                  )}
+                  {(currentUser as any).bio && (
+                    <p className="text-muted-foreground mb-4 max-w-lg">{(currentUser as any).bio}</p>
+                  )}
+                  <div className="flex flex-wrap items-center gap-5 text-sm text-muted-foreground">
+                    {currentUser.email && (
+                      <span className="flex items-center gap-1.5">
+                        <Mail className="w-4 h-4" /> {currentUser.email}
+                      </span>
+                    )}
+                    {currentUser.phone && (
+                      <span className="flex items-center gap-1.5">
+                        <Phone className="w-4 h-4" /> {currentUser.phone}
+                      </span>
+                    )}
+                    {(currentUser as any).location && (
+                      <span className="flex items-center gap-1.5">
+                        <MapPin className="w-4 h-4" /> {(currentUser as any).location}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4" /> Joined {joinDate}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
-                      {getYearsOnPlatform()} years on Nuru
-                    </span>
-                    <div className="flex items-center gap-1">
-                      {renderStars(userData.rating)}
-                      <span className="ml-1">{userData.rating} ({userData.reviewCount} reviews)</span>
-                    </div>
                   </div>
                 </div>
               )}
@@ -263,138 +249,176 @@ const UserProfile = () => {
         </CardContent>
       </Card>
 
-      {/* Stats Overview */}
-      <div className="grid md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-primary">{userData.servicesOffered}</div>
-            <div className="text-sm text-muted-foreground">Services Offered</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">{userData.eventsHosted}</div>
-            <div className="text-sm text-muted-foreground">Events Hosted</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{userData.eventsAttended}</div>
-            <div className="text-sm text-muted-foreground">Events Attended</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-yellow-600">{getYearsOnPlatform()}</div>
-            <div className="text-sm text-muted-foreground">Years Active</div>
-          </CardContent>
-        </Card>
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label: "Events", value: currentUser.event_count ?? 0, color: "text-primary" },
+          { label: "Services", value: currentUser.service_count ?? 0, color: "text-primary" },
+          { label: "Followers", value: currentUser.follower_count ?? 0, color: "text-primary" },
+          { label: "Following", value: currentUser.following_count ?? 0, color: "text-primary" },
+        ].map(stat => (
+          <Card key={stat.label} className="border-0 shadow-sm">
+            <CardContent className="p-4 text-center">
+              <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
+              <div className="text-xs text-muted-foreground mt-1">{stat.label}</div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Identity Verification */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Identity Verification</CardTitle>
-          <p className="text-sm text-muted-foreground mt-1">
-            Complete your identity verification to build trust and unlock premium features
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <h4 className="font-medium">Verification Status</h4>
-                  {userData.isVerified ? (
-                    <Badge className="bg-green-600 gap-1">
-                      <CheckCircle className="w-3 h-3" />
-                      Verified
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="border-orange-500 text-orange-700">
-                      Not Verified
-                    </Badge>
-                  )}
+      {/* Tabs: Identity Verification & Contact */}
+      <Tabs defaultValue="verification" className="space-y-4">
+        <TabsList className="bg-muted/50">
+          <TabsTrigger value="verification" className="gap-2">
+            <Shield className="w-4 h-4" /> Identity Verification
+          </TabsTrigger>
+          <TabsTrigger value="contact" className="gap-2">
+            <UserIcon className="w-4 h-4" /> Contact Info
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="verification">
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg">Identity Verification</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Verify your identity to build trust and unlock premium features
+              </p>
+            </CardHeader>
+            <CardContent>
+              {verificationStep === "verified" || isVerified ? (
+                <div className="flex items-center gap-4 p-5 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-200 dark:border-green-800/30">
+                  <div className="w-14 h-14 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center flex-shrink-0">
+                    <ShieldCheck className="w-7 h-7 text-green-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-green-800 dark:text-green-400">Identity Verified</h4>
+                    <p className="text-sm text-green-700/70 dark:text-green-500/70">
+                      Your identity has been verified. You have full access to all platform features.
+                    </p>
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  {userData.isVerified 
-                    ? "Your identity has been verified. You can now offer services on our platform."
-                    : "Verify your identity to start offering services and gain customer trust."
-                  }
-                </p>
-              </div>
-            </div>
-            
-            {!userData.isVerified && (
-              <Button className="w-full" onClick={() => window.location.href = '/services/verify/identity'}>
-                Start Identity Verification
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Achievements */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Achievements</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-4">
-            {achievements.map((achievement) => (
-              <div
-                key={achievement.id}
-                className={`flex items-center gap-3 p-4 rounded-lg border transition-colors ${
-                  achievement.earned ? "border-green-200 bg-green-50" : "border-gray-200 bg-gray-50 opacity-60"
-                }`}
-              >
-                <div className="text-2xl">{achievement.icon}</div>
-                <div className="flex-1">
-                  <h4 className="font-medium">{achievement.title}</h4>
-                  <p className="text-sm text-muted-foreground">{achievement.description}</p>
-                  {achievement.earned && achievement.earnedDate && (
-                    <p className="text-xs text-green-600 mt-1">Earned {new Date(achievement.earnedDate).toLocaleDateString()}</p>
-                  )}
+              ) : verificationStep === "submitted" ? (
+                <div className="flex items-center gap-4 p-5 bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-200 dark:border-amber-800/30">
+                  <div className="w-14 h-14 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Clock className="w-7 h-7 text-amber-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-amber-800 dark:text-amber-400">Under Review</h4>
+                    <p className="text-sm text-amber-700/70 dark:text-amber-500/70">
+                      Your documents have been submitted and are being reviewed. This usually takes 1-3 business days.
+                    </p>
+                  </div>
                 </div>
-                {achievement.earned && <CheckCircle className="w-5 h-5 text-green-500" />}
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              ) : verificationStep === "form" ? (
+                <div className="space-y-5">
+                  <div className="p-4 bg-muted/30 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+                      <div className="text-sm text-muted-foreground">
+                        <p className="font-medium text-foreground mb-1">Documents Required</p>
+                        <p>Upload clear photos of your government-issued ID (front & back) and a selfie for verification.</p>
+                      </div>
+                    </div>
+                  </div>
 
-      {/* Contact Information */}
-      {!isEditing && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Contact Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="font-medium mb-2">Name</h4>
-                <p className="text-muted-foreground">{userData.name}</p>
-              </div>
-              <div>
-                <h4 className="font-medium mb-2">Username</h4>
-                <p className="text-muted-foreground">{userData.username ?? "-"}</p>
-              </div>
+                  {/* Upload slots */}
+                  {[
+                    { key: "id_front" as const, label: "ID Front", desc: "Front side of your national ID or passport" },
+                    { key: "id_back" as const, label: "ID Back", desc: "Back side of your national ID" },
+                    { key: "selfie" as const, label: "Selfie", desc: "A clear photo of your face" },
+                  ].map(slot => (
+                    <div key={slot.key} className="border border-dashed border-border rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
+                            {verifyFiles[slot.key] ? <FileText className="w-5 h-5 text-green-600" /> : <Upload className="w-5 h-5 text-muted-foreground" />}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{slot.label} {slot.key !== "selfie" && "*"}</p>
+                            <p className="text-xs text-muted-foreground">{verifyFiles[slot.key] ? verifyFiles[slot.key]!.name : slot.desc}</p>
+                          </div>
+                        </div>
+                        <label className="cursor-pointer">
+                          <Button variant="outline" size="sm" asChild>
+                            <span>{verifyFiles[slot.key] ? "Change" : "Upload"}</span>
+                          </Button>
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept="image/*,.pdf"
+                            onChange={(e) => {
+                              if (e.target.files?.[0]) {
+                                setVerifyFiles(prev => ({ ...prev, [slot.key]: e.target.files![0] }));
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ))}
 
-              <div>
-                <h4 className="font-medium mb-2">Email</h4>
-                <p className="text-muted-foreground">{userData.email}</p>
+                  <div className="flex gap-3">
+                    <Button onClick={handleSubmitVerification} disabled={saving || !verifyFiles.id_front}>
+                      {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Submitting...</> : "Submit for Review"}
+                    </Button>
+                    <Button variant="outline" onClick={() => setVerificationStep("idle")}>Cancel</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-4 p-5 bg-muted/30 rounded-xl">
+                  <div className="w-14 h-14 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
+                    <ShieldAlert className="w-7 h-7 text-muted-foreground" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold">Not Yet Verified</h4>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Verify your identity to gain trust, offer services, and access all features.
+                    </p>
+                    <Button onClick={handleStartVerification} size="sm">
+                      <Shield className="w-4 h-4 mr-2" />
+                      Start Verification
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="contact">
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg">Contact Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-2 gap-6">
+                {[
+                  { label: "Full Name", value: fullName, icon: UserIcon },
+                  { label: "Username", value: currentUser.username ? `@${currentUser.username}` : "—", icon: UserIcon },
+                  { label: "Email", value: currentUser.email, icon: Mail, verified: currentUser.is_email_verified },
+                  { label: "Phone", value: currentUser.phone || "—", icon: Phone, verified: currentUser.is_phone_verified },
+                ].map(item => (
+                  <div key={item.label} className="flex items-start gap-3 p-3 rounded-lg bg-muted/20">
+                    <div className="w-9 h-9 bg-muted/50 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <item.icon className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">{item.label}</p>
+                      <p className="font-medium text-sm">{item.value}</p>
+                      {item.verified !== undefined && (
+                        <Badge variant="outline" className={`mt-1 text-xs ${item.verified ? "border-green-300 text-green-700" : "border-amber-300 text-amber-700"}`}>
+                          {item.verified ? "Verified" : "Not verified"}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div>
-                <h4 className="font-medium mb-2">Phone</h4>
-                <p className="text-muted-foreground">{userData.phone}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

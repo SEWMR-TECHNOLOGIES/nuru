@@ -819,6 +819,10 @@ CREATE INDEX IF NOT EXISTS idx_event_service_payments_event_service ON event_ser
 
 -- ============================================================================
 -- EVENT CONTRIBUTIONS
+-- Contributors do NOT need to be registered Nuru users.
+-- contributor_user_id is optional (nullable) — manual contributors use
+-- contributor_name + contributor_contact (jsonb with email/phone).
+-- contributed_at = NULL means pledge (pending), NOT NULL means confirmed payment.
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS event_contribution_targets (
@@ -834,13 +838,13 @@ CREATE INDEX IF NOT EXISTS idx_contrib_targets_event ON event_contribution_targe
 CREATE TABLE IF NOT EXISTS event_contributions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id uuid REFERENCES events(id) ON DELETE CASCADE,
-    contributor_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
-    contributor_name text,
-    contributor_contact jsonb,
+    contributor_user_id uuid REFERENCES users(id) ON DELETE SET NULL,  -- optional: non-Nuru contributors leave this NULL
+    contributor_name text,                                             -- display name for non-Nuru contributors
+    contributor_contact jsonb,                                         -- {email, phone} for non-Nuru contributors
     amount numeric NOT NULL,
     payment_method payment_method,
     transaction_ref text,
-    contributed_at timestamp DEFAULT now(),
+    contributed_at timestamp DEFAULT now(),                             -- NULL = pledge/pending, NOT NULL = confirmed
     created_at timestamp DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_event_contributions_event ON event_contributions(event_id);

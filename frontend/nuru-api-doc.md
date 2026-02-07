@@ -3389,8 +3389,12 @@ Authorization: Bearer {access_token}
 
 ---
 
-## 6.2 Record Manual Contribution
-Records a contribution received outside the platform.
+## 6.2 Record Contribution or Pledge
+Records a contribution (confirmed payment) or pledge (pending commitment) for an event.
+Contributors do NOT need to be registered Nuru users — manual entry with name/email/phone is supported.
+
+- **status: "pending"** = Pledge (target/commitment, not yet paid)
+- **status: "confirmed"** = Actual payment received
 
 ```
 POST /user-events/{eventId}/contributions
@@ -3404,14 +3408,11 @@ Content-Type: application/json
   "contributor_name": "John Smith",
   "contributor_email": "john.smith@example.com",
   "contributor_phone": "+254712345686",
+  "contributor_user_id": null,
   "amount": 30000.00,
-  "currency": "KES",
   "payment_method": "cash",
   "payment_reference": "CASH-001",
-  "message": "Wishing you all the best!",
-  "is_anonymous": false,
-  "received_date": "2025-02-05T12:00:00Z",
-  "notes": "Received at the office"
+  "status": "confirmed"
 }
 ```
 
@@ -3420,14 +3421,11 @@ Content-Type: application/json
 | contributor_name | string | Yes | Contributor's name |
 | contributor_email | string | No | Contributor's email |
 | contributor_phone | string | No | Contributor's phone |
-| amount | number | Yes | Contribution amount (positive number) |
-| currency | string | No | Currency code (default: event currency) |
-| payment_method | string | Yes | Method: cash, bank_transfer, mpesa, cheque, other |
+| contributor_user_id | uuid | No | Link to Nuru user (optional, contributors need not be users) |
+| amount | number | Yes | Amount (positive number) |
+| payment_method | string | No | Method: cash, bank_transfer, mobile, card (default: mobile) |
 | payment_reference | string | No | Payment reference number |
-| message | string | No | Message from contributor |
-| is_anonymous | boolean | No | Record as anonymous (default: false) |
-| received_date | datetime | No | When contribution was received (default: now) |
-| notes | string | No | Internal notes |
+| status | string | No | "pending" for pledge, "confirmed" for payment (default: confirmed) |
 
 **Success Response (201 Created):**
 ```json
@@ -3440,14 +3438,15 @@ Content-Type: application/json
     "contributor_name": "John Smith",
     "contributor_email": "john.smith@example.com",
     "contributor_phone": "+254712345686",
+    "contributor_user_id": null,
     "amount": 30000.00,
-    "currency": "KES",
+    "currency": "TZS",
     "payment_method": "cash",
     "payment_reference": "CASH-001",
     "status": "confirmed",
-    "message": "Wishing you all the best!",
     "is_anonymous": false,
-    "notes": "Received at the office",
+    "thank_you_sent": false,
+    "thank_you_sent_at": null,
     "created_at": "2025-02-05T18:00:00Z",
     "confirmed_at": "2025-02-05T18:00:00Z"
   }
@@ -5274,6 +5273,74 @@ GET /services?event_type_id=abc123&sort_by=rating&limit=6&available=true&locatio
 The Create Event page includes a "Service Recommendations" section that calls this endpoint when the user clicks "Get Recommendations". Results are displayed as service cards with provider info, ratings, pricing, and a link to view full details.
 
 ---
+
+---
+
+# 🪪 MODULE 21: IDENTITY VERIFICATION
+
+---
+
+## 21.1 Submit Identity Verification
+Submit documents for identity verification.
+
+```
+POST /users/verify-identity
+Content-Type: multipart/form-data
+Authorization: Bearer {access_token}
+```
+
+**Form Fields:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| id_front | file | Yes | Front side of government-issued ID (jpg, png, pdf) |
+| id_back | file | No | Back side of ID document |
+| selfie | file | No | Clear selfie photo for face matching |
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Verification documents submitted successfully",
+  "data": {
+    "status": "submitted",
+    "submitted_at": "2025-02-05T14:30:00Z"
+  }
+}
+```
+
+**Error Response (400 Bad Request):**
+```json
+{
+  "success": false,
+  "message": "ID front document is required"
+}
+```
+
+---
+
+## 21.2 Get Verification Status
+Returns the current identity verification status.
+
+```
+GET /users/verify-identity/status
+Authorization: Bearer {access_token}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Verification status retrieved",
+  "data": {
+    "status": "verified",
+    "submitted_at": "2025-02-05T14:30:00Z",
+    "verified_at": "2025-02-07T10:15:00Z",
+    "rejection_reason": null
+  }
+}
+```
+
+**Possible status values:** `not_submitted`, `submitted`, `verified`, `rejected`
 
 ---
 

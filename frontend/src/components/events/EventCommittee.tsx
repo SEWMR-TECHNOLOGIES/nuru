@@ -6,16 +6,15 @@ import {
   Phone, 
   MoreVertical,
   Shield,
-  Crown,
   Edit,
   Trash,
-  Send
+  Send,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Dialog,
   DialogContent,
@@ -37,12 +36,17 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useEventCommittee } from '@/data/useEvents';
+import { usePolling } from '@/hooks/usePolling';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
-import type { CommitteeMember } from '@/lib/api/types';
+import UserSearchInput from './UserSearchInput';
+import CommitteeSkeletonLoader from './CommitteeSkeletonLoader';
+import CommitteePermissionsBadge from './CommitteePermissionsBadge';
+import type { SearchedUser } from '@/hooks/useUserSearch';
 
 interface EventCommitteeProps {
   eventId: string;
@@ -74,24 +78,30 @@ const AVAILABLE_PERMISSIONS = [
 
 const EventCommittee = ({ eventId }: EventCommitteeProps) => {
   const { members, loading, error, addMember, updateMember, removeMember, refetch } = useEventCommittee(eventId);
-  
+  usePolling(refetch, 15000);
+
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedRole, setSelectedRole] = useState('');
   const [customRole, setCustomRole] = useState('');
+  const [selectedUser, setSelectedUser] = useState<SearchedUser | null>(null);
   const [newMember, setNewMember] = useState({
-    name: '',
-    email: '',
-    phone: '',
     role_description: '',
     permissions: [] as string[],
     send_invitation: true,
     invitation_message: ''
   });
 
+  // Edit state
+  const [editRole, setEditRole] = useState('');
+  const [editCustomRole, setEditCustomRole] = useState('');
+  const [editPermissions, setEditPermissions] = useState<string[]>([]);
+
   const handleAddMember = async () => {
-    if (!newMember.name.trim()) {
-      toast.error('Please enter the member name');
+    if (!selectedUser) {
+      toast.error('Please search and select a user');
       return;
     }
     if (!selectedRole) {
@@ -106,9 +116,9 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
     setIsSubmitting(true);
     try {
       await addMember({
-        name: newMember.name,
-        email: newMember.email || undefined,
-        phone: newMember.phone || undefined,
+        name: `${selectedUser.first_name} ${selectedUser.last_name}`,
+        email: selectedUser.email,
+        phone: selectedUser.phone || undefined,
         role: roleName,
         role_description: newMember.role_description || undefined,
         permissions: newMember.permissions,
@@ -125,9 +135,51 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
     }
   };
 
+  const handleEditMember = (member: any) => {
+    setEditingMember(member);
+    // Find matching role
+    const matchedRole = AVAILABLE_ROLES.find(r => r.name === member.role);
+    if (matchedRole) {
+      setEditRole(matchedRole.id);
+      setEditCustomRole('');
+    } else {
+      setEditRole('custom');
+      setEditCustomRole(member.role || '');
+    }
+    // Normalize permissions to string[]
+    const perms = Array.isArray(member.permissions)
+      ? member.permissions
+      : typeof member.permissions === 'object' && member.permissions
+        ? Object.entries(member.permissions).filter(([, v]) => v === true).map(([k]) => k)
+        : [];
+    setEditPermissions(perms);
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdateMember = async () => {
+    if (!editingMember) return;
+    const roleName = editRole === 'custom'
+      ? editCustomRole
+      : AVAILABLE_ROLES.find(r => r.id === editRole)?.name || editRole;
+
+    setIsSubmitting(true);
+    try {
+      await updateMember(editingMember.id, {
+        role: roleName,
+        permissions: editPermissions,
+      } as any);
+      toast.success('Committee member updated');
+      setEditDialogOpen(false);
+      setEditingMember(null);
+    } catch (err: any) {
+      showCaughtError(err, 'Failed to update member');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleRemoveMember = async (memberId: string) => {
     if (!confirm('Are you sure you want to remove this committee member?')) return;
-    
     try {
       await removeMember(memberId);
       toast.success('Member removed');
@@ -136,11 +188,19 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
     }
   };
 
+  const handleResendInvite = async (memberId: string) => {
+    try {
+      const { eventsApi } = await import('@/lib/api/events');
+      await eventsApi.resendCommitteeInvitation(eventId, memberId);
+      toast.success('Invitation resent');
+    } catch (err: any) {
+      showCaughtError(err, 'Failed to resend invitation');
+    }
+  };
+
   const resetForm = () => {
+    setSelectedUser(null);
     setNewMember({
-      name: '',
-      email: '',
-      phone: '',
       role_description: '',
       permissions: [],
       send_invitation: true,
@@ -159,6 +219,14 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
     }));
   };
 
+  const toggleEditPermission = (permissionId: string) => {
+    setEditPermissions(prev =>
+      prev.includes(permissionId)
+        ? prev.filter(p => p !== permissionId)
+        : [...prev, permissionId]
+    );
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
@@ -172,13 +240,8 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
     }
   };
 
-  if (loading) {
-    return <div className="p-6 text-center text-muted-foreground">Loading committee...</div>;
-  }
-
-  if (error) {
-    return <div className="p-6 text-center text-red-500">{error}</div>;
-  }
+  if (loading) return <CommitteeSkeletonLoader />;
+  if (error) return <div className="p-6 text-center text-red-500">{error}</div>;
 
   return (
     <div className="space-y-6">
@@ -193,7 +256,6 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
         </Button>
       </div>
 
-      {/* Committee Members */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {members.length === 0 ? (
           <Card className="col-span-full">
@@ -216,6 +278,7 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
                     <Avatar>
+                      <AvatarImage src={member.avatar || undefined} />
                       <AvatarFallback>{member.name.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div>
@@ -230,11 +293,11 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleEditMember(member)}>
                         <Edit className="w-4 h-4 mr-2" />Edit
                       </DropdownMenuItem>
                       {member.status === 'invited' && (
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleResendInvite(member.id)}>
                           <Send className="w-4 h-4 mr-2" />Resend Invite
                         </DropdownMenuItem>
                       )}
@@ -244,28 +307,21 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-
                 <div className="space-y-2 text-sm">
                   {member.email && (
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <Mail className="w-3 h-3" />
-                      <span className="truncate">{member.email}</span>
+                      <Mail className="w-3 h-3" /><span className="truncate">{member.email}</span>
                     </div>
                   )}
                   {member.phone && (
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <Phone className="w-3 h-3" />
-                      <span>{member.phone}</span>
+                      <Phone className="w-3 h-3" /><span>{member.phone}</span>
                     </div>
                   )}
                 </div>
-
                 <div className="flex items-center justify-between mt-4 pt-3 border-t">
                   {getStatusBadge(member.status)}
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <Shield className="w-3 h-3" />
-                    <span className="text-xs">{member.permissions.length} permissions</span>
-                  </div>
+                  <CommitteePermissionsBadge permissions={member.permissions} />
                 </div>
               </CardContent>
             </Card>
@@ -281,43 +337,28 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="member-name">Name *</Label>
-              <Input
-                id="member-name"
-                value={newMember.name}
-                onChange={(e) => setNewMember(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Full name"
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="member-email">Email</Label>
-                <Input
-                  id="member-email"
-                  type="email"
-                  value={newMember.email}
-                  onChange={(e) => setNewMember(prev => ({ ...prev, email: e.target.value }))}
-                  placeholder="email@example.com"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="member-phone">Phone</Label>
-                <Input
-                  id="member-phone"
-                  value={newMember.phone}
-                  onChange={(e) => setNewMember(prev => ({ ...prev, phone: e.target.value }))}
-                  placeholder="+255..."
-                />
-              </div>
+              <Label>Search User *</Label>
+              {selectedUser ? (
+                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                  <Avatar className="w-8 h-8">
+                    <AvatarImage src={selectedUser.avatar || undefined} />
+                    <AvatarFallback>{selectedUser.first_name?.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{selectedUser.first_name} {selectedUser.last_name}</p>
+                    <p className="text-xs text-muted-foreground">{selectedUser.email}</p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => setSelectedUser(null)}>Change</Button>
+                </div>
+              ) : (
+                <UserSearchInput onSelect={setSelectedUser} />
+              )}
             </div>
 
             <div className="space-y-2">
               <Label>Role *</Label>
               <Select value={selectedRole} onValueChange={setSelectedRole}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a role" />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
                 <SelectContent>
                   {AVAILABLE_ROLES.map(role => (
                     <SelectItem key={role.id} value={role.id}>
@@ -333,13 +374,8 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
 
             {selectedRole === 'custom' && (
               <div className="space-y-2">
-                <Label htmlFor="custom-role">Custom Role Name</Label>
-                <Input
-                  id="custom-role"
-                  value={customRole}
-                  onChange={(e) => setCustomRole(e.target.value)}
-                  placeholder="Enter role name"
-                />
+                <Label>Custom Role Name</Label>
+                <Input value={customRole} onChange={(e) => setCustomRole(e.target.value)} placeholder="Enter role name" />
               </div>
             )}
 
@@ -348,11 +384,7 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
               <div className="grid gap-2 max-h-40 overflow-y-auto border rounded-md p-3">
                 {AVAILABLE_PERMISSIONS.map(perm => (
                   <div key={perm.id} className="flex items-start gap-2">
-                    <Checkbox
-                      id={perm.id}
-                      checked={newMember.permissions.includes(perm.id)}
-                      onCheckedChange={() => togglePermission(perm.id)}
-                    />
+                    <Checkbox id={perm.id} checked={newMember.permissions.includes(perm.id)} onCheckedChange={() => togglePermission(perm.id)} />
                     <div>
                       <Label htmlFor={perm.id} className="text-sm font-medium cursor-pointer">{perm.label}</Label>
                       <p className="text-xs text-muted-foreground">{perm.description}</p>
@@ -363,19 +395,14 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
             </div>
 
             <div className="flex items-center gap-2">
-              <Checkbox
-                id="send-invite"
-                checked={newMember.send_invitation}
-                onCheckedChange={(checked) => setNewMember(prev => ({ ...prev, send_invitation: !!checked }))}
-              />
+              <Checkbox id="send-invite" checked={newMember.send_invitation} onCheckedChange={(checked) => setNewMember(prev => ({ ...prev, send_invitation: !!checked }))} />
               <Label htmlFor="send-invite" className="cursor-pointer">Send invitation to join committee</Label>
             </div>
 
             {newMember.send_invitation && (
               <div className="space-y-2">
-                <Label htmlFor="invite-message">Custom Invitation Message (optional)</Label>
+                <Label>Custom Invitation Message (optional)</Label>
                 <Textarea
-                  id="invite-message"
                   value={newMember.invitation_message}
                   onChange={(e) => setNewMember(prev => ({ ...prev, invitation_message: e.target.value }))}
                   placeholder="Add a personal message..."
@@ -385,11 +412,64 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setAddDialogOpen(false); resetForm(); }}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => { setAddDialogOpen(false); resetForm(); }}>Cancel</Button>
             <Button onClick={handleAddMember} disabled={isSubmitting}>
-              {isSubmitting ? 'Adding...' : 'Add Member'}
+              {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Adding...</> : 'Add Member'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Member Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={(open) => { setEditDialogOpen(open); if (!open) setEditingMember(null); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Committee Member — {editingMember?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Role *</Label>
+              <Select value={editRole} onValueChange={setEditRole}>
+                <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
+                <SelectContent>
+                  {AVAILABLE_ROLES.map(role => (
+                    <SelectItem key={role.id} value={role.id}>
+                      <div>
+                        <p className="font-medium">{role.name}</p>
+                        <p className="text-xs text-muted-foreground">{role.description}</p>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {editRole === 'custom' && (
+              <div className="space-y-2">
+                <Label>Custom Role Name</Label>
+                <Input value={editCustomRole} onChange={(e) => setEditCustomRole(e.target.value)} placeholder="Enter role name" />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>Permissions</Label>
+              <div className="grid gap-2 max-h-40 overflow-y-auto border rounded-md p-3">
+                {AVAILABLE_PERMISSIONS.map(perm => (
+                  <div key={perm.id} className="flex items-start gap-2">
+                    <Checkbox id={`edit-${perm.id}`} checked={editPermissions.includes(perm.id)} onCheckedChange={() => toggleEditPermission(perm.id)} />
+                    <div>
+                      <Label htmlFor={`edit-${perm.id}`} className="text-sm font-medium cursor-pointer">{perm.label}</Label>
+                      <p className="text-xs text-muted-foreground">{perm.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setEditDialogOpen(false); setEditingMember(null); }}>Cancel</Button>
+            <Button onClick={handleUpdateMember} disabled={isSubmitting}>
+              {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>
