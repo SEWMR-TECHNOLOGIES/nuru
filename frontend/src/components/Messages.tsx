@@ -97,13 +97,12 @@ const Messages = () => {
     try {
       const response = await messagesApi.startConversation({
         recipient_id: user.id,
-        content: `Hi ${user.first_name}!`,
-        context_type: "general",
+        message: `Hi ${user.first_name}!`,
       });
       if (response.success && response.data) {
         setNewChatOpen(false);
         refetchConversations();
-        setSelectedConversationId(response.data.conversation?.id || null);
+        setSelectedConversationId(response.data.id || null);
         toast.success(`Chat started with ${user.first_name}`);
       }
     } catch (err: any) {
@@ -217,7 +216,6 @@ const Messages = () => {
         <div className="p-2 space-y-2">
           {conversations.map((conversation) => {
             const isSelected = conversation.id === selectedConversationId;
-            const otherParticipant = conversation.participants?.find(p => p.user_id !== conversation.last_message?.sender_id);
             
             return (
               <button
@@ -229,8 +227,8 @@ const Messages = () => {
               >
                 <div className="relative">
                   <img
-                    src={otherParticipant?.user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face'}
-                    alt={otherParticipant?.user?.first_name || 'User'}
+                    src={conversation.participant?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face'}
+                    alt={conversation.participant?.name || 'User'}
                     className={`w-12 h-12 rounded-full object-cover ${isSelected ? 'ring-2 ring-nuru-yellow/40' : ''}`}
                   />
                   {conversation.unread_count > 0 && (
@@ -247,11 +245,11 @@ const Messages = () => {
                         conversation.unread_count > 0 ? 'text-foreground' : 'text-foreground/80'
                       }`}
                     >
-                      {otherParticipant?.user?.first_name} {otherParticipant?.user?.last_name}
+                      {conversation.participant?.name || 'Unknown'}
                     </h3>
                     <span className="text-xs text-muted-foreground flex-shrink-0">
-                      {conversation.last_message?.created_at 
-                        ? new Date(conversation.last_message.created_at).toLocaleDateString()
+                      {conversation.last_message?.sent_at 
+                        ? new Date(conversation.last_message.sent_at).toLocaleDateString()
                         : ''}
                     </span>
                   </div>
@@ -281,17 +279,15 @@ const Messages = () => {
                 </Button>
               )}
               <img 
-                src={selectedConversation.participants?.[0]?.user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face'} 
+                src={selectedConversation.participant?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face'} 
                 alt="User" 
                 className="w-10 h-10 rounded-full object-cover" 
               />
               <div className="flex-1">
                 <h3 className="font-semibold">
-                  {selectedConversation.participants?.[0]?.user?.first_name} {selectedConversation.participants?.[0]?.user?.last_name}
+                  {selectedConversation.participant?.name || 'Unknown'}
                 </h3>
-                <p className="text-sm text-muted-foreground">
-                  {selectedConversation.participants?.[0]?.user?.is_online ? 'Online' : 'Offline'}
-                </p>
+                <p className="text-sm text-muted-foreground">Chat</p>
               </div>
             </div>
 

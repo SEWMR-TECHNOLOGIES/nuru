@@ -46,6 +46,41 @@ import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
 import { formatPrice } from '@/utils/formatPrice';
 import type { BookingRequest } from '@/lib/api/types';
+import { Skeleton } from '@/components/ui/skeleton';
+
+const BookingListSkeleton = () => (
+  <div className="space-y-4">
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+      {[1, 2, 3, 4, 5].map(i => (
+        <Card key={i}>
+          <CardContent className="p-4 text-center space-y-2">
+            <Skeleton className="h-8 w-12 mx-auto" />
+            <Skeleton className="h-4 w-16 mx-auto" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+    <div className="flex gap-4">
+      <Skeleton className="h-10 flex-1" />
+      <Skeleton className="h-10 w-40" />
+    </div>
+    {[1, 2, 3].map(i => (
+      <Card key={i}>
+        <CardContent className="p-4">
+          <div className="flex gap-4">
+            <Skeleton className="w-16 h-16 rounded-lg" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-5 w-48" />
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+            <Skeleton className="h-6 w-20" />
+          </div>
+        </CardContent>
+      </Card>
+    ))}
+  </div>
+);
 
 const BookingList = () => {
   const navigate = useNavigate();
@@ -114,7 +149,7 @@ const MyBookingsTab = () => {
   });
 
   if (loading) {
-    return <div className="text-center py-8 text-muted-foreground">Loading bookings...</div>;
+    return <BookingListSkeleton />;
   }
 
   if (error) {
@@ -305,7 +340,7 @@ const IncomingBookingsTab = () => {
   });
 
   if (loading) {
-    return <div className="text-center py-8 text-muted-foreground">Loading requests...</div>;
+    return <BookingListSkeleton />;
   }
 
   if (error) {

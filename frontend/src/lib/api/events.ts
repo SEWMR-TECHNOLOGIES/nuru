@@ -46,11 +46,21 @@ export const eventsApi = {
   // EVENT CRUD
   // ============================================================================
   
-  /**
-   * Get all events for current user
-   */
   getAll: (params?: EventQueryParams) => 
     get<{ events: Event[]; pagination: PaginatedResponse<Event>["pagination"] }>(`/user-events/${buildQueryString(params)}`),
+
+  // ============================================================================
+  // INVITED & COMMITTEE EVENTS (Dashboard visibility)
+  // ============================================================================
+
+  getInvitedEvents: (params?: { page?: number; limit?: number }) =>
+    get<{ events: any[]; pagination: PaginatedResponse<Event>["pagination"] }>(`/user-events/invited${buildQueryString(params)}`),
+
+  getCommitteeEvents: (params?: { page?: number; limit?: number }) =>
+    get<{ events: any[]; pagination: PaginatedResponse<Event>["pagination"] }>(`/user-events/committee${buildQueryString(params)}`),
+
+  getInvitationCard: (eventId: string) =>
+    get<{ event: any; guest: any; organizer: any; invitation_code: string; qr_code_data: string; rsvp_deadline?: string }>(`/user-events/${eventId}/invitation-card`),
 
   /**
    * Get a single event by ID
@@ -73,15 +83,22 @@ export const eventsApi = {
   delete: (eventId: string) => del(`/user-events/${eventId}`),
 
   /**
-   * Publish an event
+   * Update event status (draft, published, confirmed, cancelled, completed)
    */
-  publish: (eventId: string) => post<{ id: string; status: string; published_at: string; public_url: string }>(`/user-events/${eventId}/publish`),
+  updateStatus: (eventId: string, status: "draft" | "published" | "confirmed" | "cancelled" | "completed") =>
+    put<{ id: string; status: string; updated_at: string }>(`/user-events/${eventId}/status`, { status }),
 
   /**
-   * Cancel an event
+   * Publish an event (convenience alias)
    */
-  cancel: (eventId: string, data: { reason?: string; notify_guests?: boolean; notify_vendors?: boolean }) => 
-    post<{ id: string; status: string; cancelled_at: string }>(`/user-events/${eventId}/cancel`, data),
+  publish: (eventId: string) =>
+    put<{ id: string; status: string; updated_at: string }>(`/user-events/${eventId}/status`, { status: "published" }),
+
+  /**
+   * Cancel an event (convenience alias)
+   */
+  cancel: (eventId: string, _data?: { reason?: string; notify_guests?: boolean; notify_vendors?: boolean }) =>
+    put<{ id: string; status: string; updated_at: string }>(`/user-events/${eventId}/status`, { status: "cancelled" }),
 
   // ============================================================================
   // EVENT GUESTS

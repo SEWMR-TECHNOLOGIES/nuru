@@ -1,10 +1,11 @@
-import { CreditCard, Check, Sparkles, Zap, Shield, Gift, QrCode, Users, Clock, Star, Loader2 } from 'lucide-react';
+import { CreditCard, Check, Sparkles, Zap, Shield, Gift, QrCode, Users, Clock, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useToast } from '@/hooks/use-toast';
 import { useNuruCard, useNuruCardTypes } from '@/data/useNuruCards';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const NuruCards = () => {
   useWorkspaceMeta({
@@ -92,8 +93,37 @@ const NuruCards = () => {
 
   if (cardLoading || typesLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+        <Card>
+          <CardContent className="p-8">
+            <div className="flex flex-col items-center space-y-4">
+              <Skeleton className="w-16 h-16 rounded-full" />
+              <Skeleton className="h-6 w-64" />
+              <Skeleton className="h-4 w-80" />
+            </div>
+          </CardContent>
+        </Card>
+        <div className="grid md:grid-cols-2 gap-6">
+          {[1, 2].map(i => (
+            <Card key={i}>
+              <CardContent className="p-6 space-y-4">
+                <Skeleton className="h-6 w-32" />
+                <Skeleton className="h-8 w-24" />
+                {[1, 2, 3, 4].map(j => (
+                  <div key={j} className="flex items-center gap-3">
+                    <Skeleton className="w-8 h-8 rounded-full" />
+                    <Skeleton className="h-4 w-32" />
+                  </div>
+                ))}
+                <Skeleton className="h-10 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }

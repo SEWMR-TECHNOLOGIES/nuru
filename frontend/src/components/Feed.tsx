@@ -61,7 +61,7 @@ const Feed = () => {
     return date.toLocaleDateString();
   };
 
-  const posts = apiPosts.map(transformApiPost);
+  const posts = (apiPosts || []).map(transformApiPost);
 
   useWorkspaceMeta({
     title: "Workspace",

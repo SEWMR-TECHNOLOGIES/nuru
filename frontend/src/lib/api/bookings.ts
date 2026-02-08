@@ -45,7 +45,7 @@ export const bookingsApi = {
       bookings: BookingRequest[]; 
       summary: { total: number; pending: number; accepted: number; rejected: number; completed: number; cancelled: number };
       pagination: PaginatedResponse<BookingRequest>["pagination"];
-    }>(`/bookings/my${buildQueryString(params)}`),
+    }>(`/bookings/${buildQueryString(params)}`),
 
   /**
    * Get booking detail
@@ -76,7 +76,7 @@ export const bookingsApi = {
       bookings: BookingRequest[]; 
       summary: { total: number; pending: number; accepted: number; rejected: number; completed: number; cancelled: number };
       pagination: PaginatedResponse<BookingRequest>["pagination"];
-    }>(`/bookings/incoming${buildQueryString(params)}`),
+    }>(`/bookings/received${buildQueryString(params)}`),
 
   /**
    * Respond to booking (accept/reject)

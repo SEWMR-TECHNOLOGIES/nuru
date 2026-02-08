@@ -1140,6 +1140,102 @@ GET /user-events/
 Authorization: Bearer {access_token}
 ```
 
+---
+
+### 3.1.1 GET /user-events/invited — Events User Is Invited To
+
+Returns events the authenticated user has been invited to, with RSVP status and invitation details.
+
+```
+GET /user-events/invited
+Authorization: Bearer {access_token}
+```
+
+**Query Parameters:** `page` (int, default 1), `limit` (int, default 20)
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "events": [
+      {
+        "id": "uuid", "title": "Wedding", "event_type": {"id": "uuid", "name": "Wedding"},
+        "start_date": "2025-08-15", "start_time": "14:00", "location": "Dar es Salaam",
+        "organizer": {"name": "Jane Doe"},
+        "invitation": {"id": "uuid", "rsvp_status": "pending", "invitation_code": "ABC123", "invited_at": "2025-06-01T10:00:00"},
+        "attendee_id": "uuid"
+      }
+    ],
+    "pagination": { "page": 1, "limit": 20, "total_items": 3, "total_pages": 1 }
+  }
+}
+```
+
+---
+
+### 3.1.2 GET /user-events/committee — Events User Manages As Committee
+
+Returns events where the authenticated user is a committee member, with role and permissions.
+
+```
+GET /user-events/committee
+Authorization: Bearer {access_token}
+```
+
+**Query Parameters:** `page` (int, default 1), `limit` (int, default 20)
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "events": [
+      {
+        "id": "uuid", "title": "Corporate Gala", "event_type": {"id": "uuid", "name": "Corporate"},
+        "start_date": "2025-09-20", "location": "Arusha",
+        "organizer": {"name": "John Doe"},
+        "committee_membership": {
+          "id": "uuid", "role": "Coordinator", "role_description": "Manages logistics",
+          "permissions": {"can_view_guests": true, "can_manage_guests": true, "can_edit_event": false}
+        },
+        "guest_count": 150, "confirmed_guest_count": 80
+      }
+    ],
+    "pagination": { "page": 1, "limit": 20, "total_items": 1, "total_pages": 1 }
+  }
+}
+```
+
+---
+
+### 3.1.3 GET /user-events/{eventId}/invitation-card — Digital Invitation Card
+
+Returns all data needed to render and print a digital invitation card with QR code data. Requires the user to have been invited to the event.
+
+```
+GET /user-events/{eventId}/invitation-card
+Authorization: Bearer {access_token}
+```
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "event": {"id": "uuid", "title": "Wedding", "event_type": "Wedding", "start_date": "2025-08-15", "start_time": "14:00", "location": "Dar es Salaam", "venue": "Serena Hotel", "theme_color": "#FF6B6B", "dress_code": "Formal"},
+    "guest": {"name": "Alice Smith", "attendee_id": "uuid", "rsvp_status": "confirmed"},
+    "organizer": {"name": "Jane Doe"},
+    "invitation_code": "ABC123",
+    "qr_code_data": "nuru://event/uuid/checkin/uuid",
+    "rsvp_deadline": "2025-08-01T23:59:59"
+  }
+}
+```
+
+---
+
+
 **Query Parameters:**
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
@@ -3271,7 +3367,35 @@ Authentication: None (uses invitation token)
 
 ---
 
-# 💰 MODULE 6: EVENT CONTRIBUTIONS
+# 📋 MODULE 6A: USER CONTRIBUTORS (Address Book)
+
+Contributors are NOT registered Nuru users. They are stored in a personal address book (`user_contributors`) per user.
+
+---
+
+## 6A.1 `GET /user-contributors/` — List user's contributors (search, paginate)
+## 6A.2 `POST /user-contributors/` — Create contributor `{ name, email?, phone?, notes? }`
+## 6A.3 `PUT /user-contributors/{id}` — Update contributor
+## 6A.4 `DELETE /user-contributors/{id}` — Delete contributor
+
+---
+
+# 💰 MODULE 6B: EVENT CONTRIBUTORS & CONTRIBUTIONS
+
+Event contributors link a `user_contributor` to a specific event with a pledge. Payments are recorded per event contributor.
+
+---
+
+## 6B.1 `GET /user-contributors/events/{eventId}/contributors` — List event contributors with pledge/paid/balance summary
+## 6B.2 `POST /user-contributors/events/{eventId}/contributors` — Add contributor (existing `contributor_id` or inline `name/email/phone` + `pledge_amount`)
+## 6B.3 `PUT /user-contributors/events/{eventId}/contributors/{ecId}` — Update pledge `{ pledge_amount }`
+## 6B.4 `DELETE /user-contributors/events/{eventId}/contributors/{ecId}` — Remove from event
+## 6B.5 `POST /user-contributors/events/{eventId}/contributors/{ecId}/payments` — Record payment `{ amount, payment_method, payment_reference }`
+## 6B.6 `GET /user-contributors/events/{eventId}/contributors/{ecId}/payments` — Payment history
+
+---
+
+# 💰 MODULE 6C: LEGACY CONTRIBUTIONS (backward compat)
 
 ---
 

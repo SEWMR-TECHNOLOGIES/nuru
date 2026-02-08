@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft,
@@ -48,12 +49,21 @@ const BookingDetail = () => {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Booking Details</h1>
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-            <ChevronLeft className="w-5 h-5" />
-          </Button>
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <Skeleton className="h-10 w-10 rounded" />
         </div>
-        <div className="text-center py-12 text-muted-foreground">Loading booking details...</div>
+        <div className="grid md:grid-cols-3 gap-6">
+          <div className="md:col-span-2 space-y-6">
+            <Card><CardContent className="p-6"><div className="flex gap-4"><Skeleton className="w-20 h-20 rounded-lg" /><div className="flex-1 space-y-2"><Skeleton className="h-5 w-48" /><Skeleton className="h-4 w-32" /></div></div></CardContent></Card>
+            <Card><CardContent className="p-6 space-y-3"><Skeleton className="h-5 w-40" /><Skeleton className="h-4 w-64" /><Skeleton className="h-4 w-48" /></CardContent></Card>
+          </div>
+          <div className="space-y-6">
+            <Card><CardContent className="p-6 space-y-3"><Skeleton className="h-6 w-full" /><Skeleton className="h-6 w-full" /><Skeleton className="h-6 w-full" /></CardContent></Card>
+          </div>
+        </div>
       </div>
     );
   }

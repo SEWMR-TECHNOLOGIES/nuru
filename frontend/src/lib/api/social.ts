@@ -40,19 +40,19 @@ export const socialApi = {
    * Get user feed
    */
   getFeed: (params?: FeedQueryParams) => 
-    get<{ items: FeedPost[]; pagination: PaginatedResponse<FeedPost>["pagination"] }>(`/feed${buildQueryString(params)}`),
+    get<{ items: FeedPost[]; pagination: PaginatedResponse<FeedPost>["pagination"] }>(`/posts/feed${buildQueryString(params)}`),
 
   /**
    * Get trending posts
    */
   getTrending: (params?: { limit?: number; period?: "day" | "week" | "month" }) => 
-    get<FeedPost[]>(`/feed/trending${buildQueryString(params)}`),
+    get<FeedPost[]>(`/posts/trending${buildQueryString(params)}`),
 
   /**
    * Get posts from a specific user
    */
   getUserPosts: (userId: string, params?: PostQueryParams) => 
-    get<{ posts: FeedPost[]; pagination: PaginatedResponse<FeedPost>["pagination"] }>(`/users/${userId}/posts${buildQueryString(params)}`),
+    get<{ posts: FeedPost[]; pagination: PaginatedResponse<FeedPost>["pagination"] }>(`/posts/user/${userId}${buildQueryString(params)}`),
 
   // ============================================================================
   // POSTS
@@ -202,7 +202,7 @@ export const socialApi = {
    * Get follow suggestions
    */
   getFollowSuggestions: (params?: { limit?: number }) => 
-    get<UserProfile[]>(`/users/suggestions${buildQueryString(params)}`),
+    get<UserProfile[]>(`/users/search${buildQueryString({ ...params, suggested: true })}`),
 
   // ============================================================================
   // CIRCLES (Close friends groups)
@@ -249,6 +249,39 @@ export const socialApi = {
     get<{ members: UserProfile[] }>(`/circles/${circleId}/members`),
 
   // ============================================================================
+  // COMMUNITIES
+  // ============================================================================
+
+  /**
+   * Get all communities
+   */
+  getCommunities: (params?: { page?: number; limit?: number }) =>
+    get<any[]>(`/communities${buildQueryString(params)}`),
+
+  /**
+   * Get my communities
+   */
+  getMyCommunities: () => get<any[]>("/communities/my"),
+
+  /**
+   * Create a community
+   */
+  createCommunity: (data: { name: string; description?: string; is_public?: boolean }) =>
+    post<any>("/communities", data),
+
+  /**
+   * Join a community
+   */
+  joinCommunity: (communityId: string) =>
+    post<{ joined: boolean; member_count: number }>(`/communities/${communityId}/join`),
+
+  /**
+   * Leave a community
+   */
+  leaveCommunity: (communityId: string) =>
+    post<{ left: boolean; member_count: number }>(`/communities/${communityId}/leave`),
+
+  // ============================================================================
   // NOTIFICATIONS
   // ============================================================================
 
@@ -270,30 +303,18 @@ export const socialApi = {
     put<{ notification_id: string; is_read: boolean }>(`/notifications/${notificationId}/read`),
 
   // ============================================================================
-  // CONVERSATIONS (Messages)
+  // CONVERSATIONS (Messages) - aligned with /messages/ backend routes
   // ============================================================================
 
-  /**
-   * Get conversations list
-   */
   getConversations: (params?: { page?: number; limit?: number }) => 
-    get<{ conversations: Array<{ id: string; participants: Array<{ user_id: string; user?: { first_name: string; last_name: string; avatar?: string; is_online?: boolean } }>; last_message?: { content: string; sender_id: string; created_at: string }; unread_count: number }>; pagination: any }>(`/conversations${buildQueryString(params)}`),
+    get<any[]>(`/messages/${buildQueryString(params)}`),
 
-  /**
-   * Get messages for a conversation
-   */
   getMessages: (conversationId: string, params?: { page?: number; limit?: number }) => 
-    get<{ messages: Array<{ id: string; content: string; sender_id: string; is_sender: boolean; attachments?: string[]; created_at: string; read_at?: string }>; pagination: any }>(`/conversations/${conversationId}/messages${buildQueryString(params)}`),
+    get<any[]>(`/messages/${conversationId}${buildQueryString(params)}`),
 
-  /**
-   * Send a message
-   */
   sendMessage: (conversationId: string, data: { content: string; attachments?: string[] }) => 
-    post<{ id: string; content: string; created_at: string }>(`/conversations/${conversationId}/messages`, data),
+    post<{ id: string; content: string; sent_at: string }>(`/messages/${conversationId}`, data),
 
-  /**
-   * Create new conversation
-   */
-  createConversation: (data: { participant_ids: string[]; initial_message?: string }) => 
-    post<{ id: string; participants: any[] }>("/conversations", data),
+  createConversation: (data: { recipient_id: string; message?: string }) => 
+    post<any>("/messages/start", data),
 };

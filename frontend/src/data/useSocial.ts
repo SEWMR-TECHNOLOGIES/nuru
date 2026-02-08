@@ -516,22 +516,20 @@ export const useCommunities = () => {
     setLoading(true);
     setError(null);
     try {
-      // Fetch all communities - in real API this would be different endpoints
-      const response = await socialApi.getCircles(); // Using circles API as placeholder
-      if (response.success) {
-        const allCommunities = response.data.map((c: any) => ({
-          id: c.id,
-          name: c.name,
-          description: c.description,
-          image: c.icon,
-          member_count: c.member_count || 0,
-          is_creator: false,
-          is_member: false
-        }));
-        setCommunities(allCommunities);
-        setMyCommunities(allCommunities.filter((c: Community) => c.is_member));
-      } else {
-        setError(response.message || "Failed to fetch communities");
+      const [allResponse, myResponse] = await Promise.all([
+        socialApi.getCommunities(),
+        socialApi.getMyCommunities(),
+      ]);
+      if (allResponse.success) {
+        const items = Array.isArray(allResponse.data) ? allResponse.data : [];
+        setCommunities(items);
+      }
+      if (myResponse.success) {
+        const myItems = Array.isArray(myResponse.data) ? myResponse.data : [];
+        setMyCommunities(myItems);
+      }
+      if (!allResponse.success) {
+        setError(allResponse.message || "Failed to fetch communities");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -546,7 +544,7 @@ export const useCommunities = () => {
 
   const createCommunity = async (data: { name: string; description?: string }) => {
     try {
-      const response = await socialApi.createCircle(data);
+      const response = await socialApi.createCommunity(data);
       if (response.success) {
         await fetchCommunities();
         return response.data;
@@ -559,8 +557,12 @@ export const useCommunities = () => {
 
   const joinCommunity = async (communityId: string) => {
     try {
-      // This would be a different API endpoint in real implementation
-      await fetchCommunities();
+      const response = await socialApi.joinCommunity(communityId);
+      if (response.success) {
+        await fetchCommunities();
+        return response.data;
+      }
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -568,8 +570,12 @@ export const useCommunities = () => {
 
   const leaveCommunity = async (communityId: string) => {
     try {
-      // This would be a different API endpoint in real implementation
-      await fetchCommunities();
+      const response = await socialApi.leaveCommunity(communityId);
+      if (response.success) {
+        await fetchCommunities();
+        return response.data;
+      }
+      throwApiError(response);
     } catch (err) {
       throw err;
     }
@@ -603,8 +609,12 @@ export const useNotifications = () => {
     try {
       const response = await socialApi.getNotifications();
       if (response.success) {
-        setNotifications(response.data.notifications);
-        setUnreadCount(response.data.unread_count);
+        // Backend returns data as a flat array via standard_response
+        const items = Array.isArray(response.data) ? response.data : (response.data?.notifications || []);
+        setNotifications(items);
+        // Compute unread count from items if not provided separately
+        const unread = response.data?.unread_count ?? items.filter((n: any) => !n.is_read).length;
+        setUnreadCount(unread);
       } else {
         setError(response.message || "Failed to fetch notifications");
       }
@@ -659,9 +669,9 @@ export const useConversations = () => {
     try {
       const response = await socialApi.getConversations();
       if (response.success) {
-        setConversations(response.data.conversations);
-        // Calculate total unread messages
-        const totalUnread = response.data.conversations.reduce(
+        const convs = Array.isArray(response.data) ? response.data : (response.data as any)?.conversations || [];
+        setConversations(convs);
+        const totalUnread = convs.reduce(
           (acc: number, conv: any) => acc + (conv.unread_count || 0), 
           0
         );
@@ -699,7 +709,8 @@ export const useConversationMessages = (conversationId: string) => {
     try {
       const response = await socialApi.getMessages(conversationId);
       if (response.success) {
-        setMessages(response.data.messages);
+        const msgs = Array.isArray(response.data) ? response.data : (response.data as any)?.messages || [];
+        setMessages(msgs);
       } else {
         setError(response.message || "Failed to fetch messages");
       }

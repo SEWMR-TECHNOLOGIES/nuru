@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { Plus, UserMinus, Users, Search, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
-import { useCircles, useFollowSuggestions } from '@/data/useSocial';
+import { useCircles } from '@/data/useSocial';
+import UserSearchInput from './events/UserSearchInput';
+import type { SearchedUser } from '@/hooks/useUserSearch';
 
 const Circle = () => {
   const { 
@@ -19,12 +21,10 @@ const Circle = () => {
     addMember,
     removeMember 
   } = useCircles();
-  const { suggestions, loading: suggestionsLoading } = useFollowSuggestions(10);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [newPeopleSearch, setNewPeopleSearch] = useState('');
-  const [isAdding, setIsAdding] = useState<string | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
 
   useWorkspaceMeta({
     title: 'My Circle',
@@ -35,24 +35,23 @@ const Circle = () => {
   const mainCircle = circles[0];
   const circleMembers = mainCircle?.members || [];
 
-  const handleAddToCircle = async (userId: string, userName: string) => {
-    setIsAdding(userId);
+  const handleUserSelected = async (user: SearchedUser) => {
+    setIsAdding(true);
     try {
       if (mainCircle) {
-        await addMember(mainCircle.id, userId);
+        await addMember(mainCircle.id, user.id);
       } else {
-        // Create a default circle first
         const newCircle = await createCircle({ name: 'My Circle', description: 'My close friends' });
         if (newCircle) {
-          await addMember(newCircle.id, userId);
+          await addMember(newCircle.id, user.id);
         }
       }
-      toast.success(`${userName} added to your circle`);
+      toast.success(`${user.first_name} ${user.last_name} added to your circle`);
       setIsAddDialogOpen(false);
     } catch (err) {
       toast.error('Failed to add to circle');
     } finally {
-      setIsAdding(null);
+      setIsAdding(false);
     }
   };
 
@@ -69,12 +68,6 @@ const Circle = () => {
   const filteredMembers = circleMembers.filter((member: any) =>
     `${member.first_name} ${member.last_name}`.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const filteredSuggestions = suggestions
-    .filter(p => !circleMembers.find((m: any) => m.id === p.id))
-    .filter(p => 
-      `${p.first_name} ${p.last_name}`.toLowerCase().includes(newPeopleSearch.toLowerCase())
-    );
 
   // Loading state
   if (loading) {
@@ -134,70 +127,12 @@ const Circle = () => {
         </Button>
 
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Add People to Your Circle</DialogTitle>
+              <DialogDescription>Search for a Nuru user by name, email, or phone to add them to your circle.</DialogDescription>
             </DialogHeader>
-            
-            {/* Search for new people */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input
-                placeholder="Search for people..."
-                value={newPeopleSearch}
-                onChange={(e) => setNewPeopleSearch(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-
-            <div className="space-y-3 overflow-y-auto flex-1">
-              {suggestionsLoading ? (
-                Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3">
-                    <Skeleton className="w-12 h-12 rounded-full" />
-                    <div className="flex-1 space-y-2">
-                      <Skeleton className="h-4 w-3/4" />
-                      <Skeleton className="h-3 w-1/2" />
-                    </div>
-                    <Skeleton className="h-8 w-16" />
-                  </div>
-                ))
-              ) : filteredSuggestions.length > 0 ? (
-                filteredSuggestions.map((person) => (
-                  <div key={person.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                    <Avatar className="w-12 h-12">
-                      <AvatarImage src={person.avatar} />
-                      <AvatarFallback>{person.first_name?.[0]}{person.last_name?.[0]}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <h3 className="font-medium text-foreground">{person.first_name} {person.last_name}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {(person as any).mutual_count || 0} mutual friends
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={() => handleAddToCircle(person.id, `${person.first_name} ${person.last_name}`)}
-                      className="bg-nuru-yellow hover:bg-nuru-yellow/90 text-foreground"
-                      disabled={isAdding === person.id}
-                    >
-                      {isAdding === person.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        'Add'
-                      )}
-                    </Button>
-                  </div>
-                ))
-              ) : (
-                <p className="text-center text-muted-foreground py-8">
-                  {newPeopleSearch 
-                    ? 'No people found matching your search'
-                    : 'No suggestions available'
-                  }
-                </p>
-              )}
-            </div>
+            <UserSearchInput onSelect={handleUserSelected} placeholder="Search by name, email or phone..." disabled={isAdding} />
           </DialogContent>
         </Dialog>
       </div>
@@ -279,5 +214,4 @@ const Circle = () => {
     </div>
   );
 };
-
 export default Circle;

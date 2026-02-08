@@ -1,10 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- ============================================================================
 -- ENUMS
--- ============================================================================
-
-CREATE TYPE event_status AS ENUM ('draft', 'confirmed', 'completed', 'cancelled');
+CREATE TYPE event_status AS ENUM ('draft', 'confirmed', 'completed', 'published', 'cancelled');
 CREATE TYPE payment_status AS ENUM ('pending', 'completed', 'refunded');
 CREATE TYPE payment_method AS ENUM ('mobile', 'bank', 'card');
 CREATE TYPE rsvp_status AS ENUM ('pending', 'confirmed', 'declined', 'checked_in');
@@ -29,12 +26,6 @@ CREATE TYPE card_order_status AS ENUM ('pending', 'processing', 'shipped', 'deli
 CREATE TYPE card_type AS ENUM ('standard', 'premium', 'custom');
 CREATE TYPE chat_session_status AS ENUM ('waiting', 'active', 'ended', 'abandoned');
 
-
--- ============================================================================
--- REFERENCE TABLES
--- ============================================================================
-
--- CURRENCIES
 CREATE TABLE IF NOT EXISTS currencies (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     code char(3) NOT NULL UNIQUE,
@@ -46,7 +37,6 @@ CREATE TABLE IF NOT EXISTS currencies (
     updated_at timestamp DEFAULT now()
 );
 
--- COUNTRIES
 CREATE TABLE IF NOT EXISTS countries (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     code char(2) NOT NULL UNIQUE,
@@ -58,11 +48,6 @@ CREATE TABLE IF NOT EXISTS countries (
     updated_at timestamp DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_countries_code ON countries(code);
-
-
--- ============================================================================
--- SERVICE / KYC
--- ============================================================================
 
 CREATE TABLE IF NOT EXISTS service_categories (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -111,11 +96,6 @@ CREATE TABLE IF NOT EXISTS identity_document_requirements (
     updated_at timestamp DEFAULT now()
 );
 
-
--- ============================================================================
--- USERS
--- ============================================================================
-
 CREATE TABLE IF NOT EXISTS users (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     first_name text NOT NULL,
@@ -132,7 +112,6 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at timestamp DEFAULT now()
 );
 
--- USER PROFILES (MODIFIED: added country_id, website_url, location)
 CREATE TABLE IF NOT EXISTS user_profiles (
     user_id uuid PRIMARY KEY REFERENCES users(id),
     bio text,
@@ -145,7 +124,6 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     updated_at timestamp DEFAULT now()
 );
 
--- VERIFICATION OTPS
 CREATE TABLE IF NOT EXISTS user_verification_otps (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid REFERENCES users(id) ON DELETE CASCADE,
@@ -170,18 +148,6 @@ CREATE TABLE IF NOT EXISTS user_identity_verifications (
     updated_at timestamp DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS attendee_profiles (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
-    rsvp_code text UNIQUE,
-    created_at timestamp DEFAULT now()
-);
-
-
--- ============================================================================
--- NEW: USER BLOCKS
--- ============================================================================
-
 CREATE TABLE IF NOT EXISTS user_blocks (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     blocker_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -192,11 +158,6 @@ CREATE TABLE IF NOT EXISTS user_blocks (
 );
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker ON user_blocks(blocker_id);
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked ON user_blocks(blocked_id);
-
-
--- ============================================================================
--- NEW: USER SOCIAL ACCOUNTS (OAuth)
--- ============================================================================
 
 CREATE TABLE IF NOT EXISTS user_social_accounts (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -219,11 +180,6 @@ CREATE TABLE IF NOT EXISTS user_social_accounts (
 CREATE INDEX IF NOT EXISTS idx_user_social_accounts_user ON user_social_accounts(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_social_accounts_provider ON user_social_accounts(provider);
 
-
--- ============================================================================
--- NEW: USER TWO-FACTOR SECRETS
--- ============================================================================
-
 CREATE TABLE IF NOT EXISTS user_two_factor_secrets (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
@@ -235,11 +191,6 @@ CREATE TABLE IF NOT EXISTS user_two_factor_secrets (
     updated_at timestamp DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_user_2fa_user ON user_two_factor_secrets(user_id);
-
-
--- ============================================================================
--- NEW: USER PRIVACY SETTINGS
--- ============================================================================
 
 CREATE TABLE IF NOT EXISTS user_privacy_settings (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -256,10 +207,125 @@ CREATE TABLE IF NOT EXISTS user_privacy_settings (
 );
 CREATE INDEX IF NOT EXISTS idx_user_privacy_user ON user_privacy_settings(user_id);
 
+CREATE TABLE IF NOT EXISTS user_circles (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    circle_member_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    mutual_friends_count integer DEFAULT 0,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now(),
+    UNIQUE(user_id, circle_member_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_circles_user ON user_circles(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_circles_member ON user_circles(circle_member_id);
 
--- ============================================================================
--- NURU CARDS
--- ============================================================================
+CREATE TABLE IF NOT EXISTS user_followers (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    follower_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    following_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    created_at timestamp DEFAULT now(),
+    UNIQUE(follower_id, following_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_followers_follower ON user_followers(follower_id);
+CREATE INDEX IF NOT EXISTS idx_user_followers_following ON user_followers(following_id);
+
+CREATE TABLE IF NOT EXISTS user_settings (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+    email_notifications boolean DEFAULT true,
+    push_notifications boolean DEFAULT true,
+    glows_echoes_notifications boolean DEFAULT true,
+    event_invitation_notifications boolean DEFAULT true,
+    follower_notifications boolean DEFAULT true,
+    message_notifications boolean DEFAULT true,
+    profile_visibility boolean DEFAULT true,
+    private_profile boolean DEFAULT false,
+    two_factor_enabled boolean DEFAULT false,
+    dark_mode boolean DEFAULT false,
+    language text DEFAULT 'en',
+    timezone text DEFAULT 'UTC',
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_user_settings_user ON user_settings(user_id);
+
+CREATE TABLE IF NOT EXISTS user_activity_logs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    activity_type text NOT NULL,
+    entity_type text,
+    entity_id uuid,
+    ip_address text,
+    user_agent text,
+    extra_data jsonb,
+    created_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON user_activity_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_type ON user_activity_logs(activity_type);
+
+CREATE TABLE IF NOT EXISTS communities (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name text NOT NULL,
+    description text,
+    cover_image_url text,
+    is_public boolean DEFAULT true,
+    member_count integer DEFAULT 0,
+    created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS community_members (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    community_id uuid REFERENCES communities(id) ON DELETE CASCADE,
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    role text DEFAULT 'member',
+    joined_at timestamp DEFAULT now(),
+    UNIQUE(community_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_community_members_community ON community_members(community_id);
+CREATE INDEX IF NOT EXISTS idx_community_members_user ON community_members(user_id);
+
+CREATE TABLE IF NOT EXISTS user_sessions (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    token_hash text NOT NULL,
+    device_info jsonb,
+    ip_address text,
+    expires_at timestamp NOT NULL,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token_hash);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    token_hash text NOT NULL UNIQUE,
+    expires_at timestamp NOT NULL,
+    is_used boolean DEFAULT false,
+    created_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id);
+
+CREATE TABLE IF NOT EXISTS achievements (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name text NOT NULL UNIQUE,
+    description text,
+    icon text,
+    criteria jsonb,
+    created_at timestamp DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS user_achievements (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    achievement_id uuid REFERENCES achievements(id) ON DELETE CASCADE,
+    earned_at timestamp DEFAULT now(),
+    UNIQUE(user_id, achievement_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_achievements_user ON user_achievements(user_id);
 
 CREATE TABLE IF NOT EXISTS nuru_cards (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -270,11 +336,6 @@ CREATE TABLE IF NOT EXISTS nuru_cards (
     created_at timestamp DEFAULT now(),
     updated_at timestamp DEFAULT now()
 );
-
-
--- ============================================================================
--- NEW: NURU CARD ORDERS
--- ============================================================================
 
 CREATE TABLE IF NOT EXISTS nuru_card_orders (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -301,11 +362,6 @@ CREATE TABLE IF NOT EXISTS nuru_card_orders (
 );
 CREATE INDEX IF NOT EXISTS idx_card_orders_user ON nuru_card_orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_card_orders_status ON nuru_card_orders(status);
-
-
--- ============================================================================
--- FEEDS (SOCIAL) - MODIFIED: added video_url, video_thumbnail_url
--- ============================================================================
 
 CREATE TABLE IF NOT EXISTS user_feeds (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -358,11 +414,6 @@ CREATE TABLE IF NOT EXISTS user_feed_sparks (
     created_at timestamp DEFAULT now()
 );
 
-
--- ============================================================================
--- NEW: USER FEED COMMENTS (Threaded)
--- ============================================================================
-
 CREATE TABLE IF NOT EXISTS user_feed_comments (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     feed_id uuid NOT NULL REFERENCES user_feeds(id) ON DELETE CASCADE,
@@ -389,11 +440,6 @@ CREATE TABLE IF NOT EXISTS user_feed_comment_glows (
 );
 CREATE INDEX IF NOT EXISTS idx_comment_glows_comment ON user_feed_comment_glows(comment_id);
 
-
--- ============================================================================
--- NEW: USER FEED PINNED POSTS
--- ============================================================================
-
 CREATE TABLE IF NOT EXISTS user_feed_pinned (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -403,11 +449,6 @@ CREATE TABLE IF NOT EXISTS user_feed_pinned (
     UNIQUE(user_id, feed_id)
 );
 CREATE INDEX IF NOT EXISTS idx_feed_pinned_user ON user_feed_pinned(user_id);
-
-
--- ============================================================================
--- NEW: USER MOMENTS (Stories - 24hr Content)
--- ============================================================================
 
 CREATE TABLE IF NOT EXISTS user_moments (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -428,11 +469,6 @@ CREATE INDEX IF NOT EXISTS idx_user_moments_user ON user_moments(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_moments_expires ON user_moments(expires_at);
 CREATE INDEX IF NOT EXISTS idx_user_moments_active ON user_moments(is_active, expires_at);
 
-
--- ============================================================================
--- NEW: USER MOMENT STICKERS
--- ============================================================================
-
 CREATE TABLE IF NOT EXISTS user_moment_stickers (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     moment_id uuid NOT NULL REFERENCES user_moments(id) ON DELETE CASCADE,
@@ -446,11 +482,6 @@ CREATE TABLE IF NOT EXISTS user_moment_stickers (
 );
 CREATE INDEX IF NOT EXISTS idx_moment_stickers_moment ON user_moment_stickers(moment_id);
 
-
--- ============================================================================
--- NEW: USER MOMENT VIEWERS
--- ============================================================================
-
 CREATE TABLE IF NOT EXISTS user_moment_viewers (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     moment_id uuid NOT NULL REFERENCES user_moments(id) ON DELETE CASCADE,
@@ -462,11 +493,6 @@ CREATE TABLE IF NOT EXISTS user_moment_viewers (
 );
 CREATE INDEX IF NOT EXISTS idx_moment_viewers_moment ON user_moment_viewers(moment_id);
 CREATE INDEX IF NOT EXISTS idx_moment_viewers_viewer ON user_moment_viewers(viewer_id);
-
-
--- ============================================================================
--- NEW: USER MOMENT HIGHLIGHTS
--- ============================================================================
 
 CREATE TABLE IF NOT EXISTS user_moment_highlights (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -490,11 +516,6 @@ CREATE TABLE IF NOT EXISTS user_moment_highlight_items (
 );
 CREATE INDEX IF NOT EXISTS idx_moment_highlight_items_highlight ON user_moment_highlight_items(highlight_id);
 
-
--- ============================================================================
--- USER SERVICES (vendors)
--- ============================================================================
-
 CREATE TABLE IF NOT EXISTS user_services (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid REFERENCES users(id) ON DELETE CASCADE,
@@ -506,8 +527,8 @@ CREATE TABLE IF NOT EXISTS user_services (
     max_price numeric,
     availability service_availability DEFAULT 'available',
     verification_status verification_status DEFAULT 'pending',
-    verification_progress INTEGER DEFAULT 0,
-    is_verified BOOLEAN DEFAULT false,
+    verification_progress integer DEFAULT 0,
+    is_verified boolean DEFAULT false,
     location text,
     is_active boolean DEFAULT true,
     created_at timestamp DEFAULT now(),
@@ -524,20 +545,18 @@ CREATE TABLE IF NOT EXISTS user_service_images (
     updated_at timestamp DEFAULT now()
 );
 
--- SERVICE PACKAGES (MODIFIED: added display_order, features)
 CREATE TABLE IF NOT EXISTS service_packages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_service_id UUID NOT NULL REFERENCES user_services(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    price NUMERIC NOT NULL,
-    description TEXT,
-    features JSONB,
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_service_id uuid NOT NULL REFERENCES user_services(id) ON DELETE CASCADE,
+    name text NOT NULL,
+    price numeric NOT NULL,
+    description text,
+    features jsonb,
     display_order integer DEFAULT 0,
-    created_at TIMESTAMP DEFAULT now(),
-    updated_at TIMESTAMP DEFAULT now()
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
 );
 
--- USER SERVICE RATINGS (MODIFIED: added helpful_count, not_helpful_count)
 CREATE TABLE IF NOT EXISTS user_service_ratings (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_service_id uuid REFERENCES user_services(id) ON DELETE CASCADE,
@@ -583,11 +602,6 @@ CREATE TABLE IF NOT EXISTS user_service_kyc_status (
     updated_at timestamp DEFAULT now()
 );
 
-
--- ============================================================================
--- NEW: SERVICE REVIEW PHOTOS
--- ============================================================================
-
 CREATE TABLE IF NOT EXISTS service_review_photos (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     rating_id uuid NOT NULL REFERENCES user_service_ratings(id) ON DELETE CASCADE,
@@ -597,11 +611,6 @@ CREATE TABLE IF NOT EXISTS service_review_photos (
     created_at timestamp DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_review_photos_rating ON service_review_photos(rating_id);
-
-
--- ============================================================================
--- NEW: SERVICE REVIEW HELPFUL VOTES
--- ============================================================================
 
 CREATE TABLE IF NOT EXISTS service_review_helpful (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -613,11 +622,6 @@ CREATE TABLE IF NOT EXISTS service_review_helpful (
 );
 CREATE INDEX IF NOT EXISTS idx_review_helpful_rating ON service_review_helpful(rating_id);
 
-
--- ============================================================================
--- EVENT TYPES AND EVENTS
--- ============================================================================
-
 CREATE TABLE IF NOT EXISTS event_types (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name text NOT NULL UNIQUE,
@@ -628,7 +632,6 @@ CREATE TABLE IF NOT EXISTS event_types (
     updated_at timestamp DEFAULT now()
 );
 
--- EVENTS (MODIFIED: added currency_id, cover_image_url, is_public)
 CREATE TABLE IF NOT EXISTS events (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organizer_id uuid REFERENCES users(id) ON DELETE CASCADE,
@@ -647,9 +650,9 @@ CREATE TABLE IF NOT EXISTS events (
     currency_id uuid REFERENCES currencies(id),
     cover_image_url text,
     is_public boolean DEFAULT false,
-    theme_color VARCHAR(7),
-    dress_code VARCHAR(100),
-    special_instructions TEXT,
+    theme_color varchar(7),
+    dress_code varchar(100),
+    special_instructions text,
     created_at timestamp DEFAULT now(),
     updated_at timestamp DEFAULT now()
 );
@@ -658,14 +661,14 @@ CREATE INDEX IF NOT EXISTS idx_events_public ON events(is_public) WHERE is_publi
 CREATE INDEX IF NOT EXISTS idx_events_currency ON events(currency_id);
 
 CREATE TABLE IF NOT EXISTS event_type_services (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_type_id UUID NOT NULL REFERENCES event_types(id) ON DELETE CASCADE,
-    service_type_id UUID NOT NULL REFERENCES service_types(id) ON DELETE CASCADE,
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_type_id uuid NOT NULL REFERENCES event_types(id) ON DELETE CASCADE,
+    service_type_id uuid NOT NULL REFERENCES service_types(id) ON DELETE CASCADE,
     priority priority_level NOT NULL DEFAULT 'medium',
-    is_mandatory BOOLEAN DEFAULT TRUE,
-    description TEXT,
-    created_at TIMESTAMP DEFAULT now(),
-    updated_at TIMESTAMP DEFAULT now()
+    is_mandatory boolean DEFAULT true,
+    description text,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS event_images (
@@ -678,33 +681,24 @@ CREATE TABLE IF NOT EXISTS event_images (
     updated_at timestamp DEFAULT now()
 );
 
-
--- ============================================================================
--- NEW: EVENT VENUE COORDINATES
--- ============================================================================
-
 CREATE TABLE IF NOT EXISTS event_venue_coordinates (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE UNIQUE,
+    event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     latitude numeric NOT NULL,
     longitude numeric NOT NULL,
     formatted_address text,
     place_id text,
     venue_name text,
     created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now()
+    updated_at timestamp DEFAULT now(),
+    UNIQUE(event_id)
 );
 CREATE INDEX IF NOT EXISTS idx_venue_coords_event ON event_venue_coordinates(event_id);
 CREATE INDEX IF NOT EXISTS idx_venue_coords_location ON event_venue_coordinates(latitude, longitude);
 
-
--- ============================================================================
--- NEW: EVENT SETTINGS
--- ============================================================================
-
 CREATE TABLE IF NOT EXISTS event_settings (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE UNIQUE,
+    event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     rsvp_enabled boolean DEFAULT true,
     rsvp_deadline timestamp,
     allow_plus_ones boolean DEFAULT false,
@@ -724,14 +718,10 @@ CREATE TABLE IF NOT EXISTS event_settings (
     show_guest_list boolean DEFAULT false,
     show_committee boolean DEFAULT true,
     created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now()
+    updated_at timestamp DEFAULT now(),
+    UNIQUE(event_id)
 );
 CREATE INDEX IF NOT EXISTS idx_event_settings_event ON event_settings(event_id);
-
-
--- ============================================================================
--- COMMITTEE ROLES AND MEMBERS
--- ============================================================================
 
 CREATE TABLE IF NOT EXISTS committee_roles (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -755,14 +745,9 @@ CREATE INDEX IF NOT EXISTS idx_event_committee_event ON event_committee_members(
 CREATE INDEX IF NOT EXISTS idx_event_committee_user ON event_committee_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_event_committee_role ON event_committee_members(role_id);
 
-
--- ============================================================================
--- NEW: COMMITTEE PERMISSIONS
--- ============================================================================
-
 CREATE TABLE IF NOT EXISTS committee_permissions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    committee_member_id uuid NOT NULL REFERENCES event_committee_members(id) ON DELETE CASCADE UNIQUE,
+    committee_member_id uuid NOT NULL REFERENCES event_committee_members(id) ON DELETE CASCADE,
     can_view_guests boolean DEFAULT true,
     can_manage_guests boolean DEFAULT false,
     can_send_invitations boolean DEFAULT false,
@@ -777,26 +762,22 @@ CREATE TABLE IF NOT EXISTS committee_permissions (
     can_edit_event boolean DEFAULT false,
     can_manage_committee boolean DEFAULT false,
     created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now()
+    updated_at timestamp DEFAULT now(),
+    UNIQUE(committee_member_id)
 );
 CREATE INDEX IF NOT EXISTS idx_committee_perms_member ON committee_permissions(committee_member_id);
-
-
--- ============================================================================
--- EVENT SERVICES & PAYMENTS
--- ============================================================================
 
 CREATE TABLE IF NOT EXISTS event_services (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     service_id uuid NOT NULL REFERENCES service_types(id) ON DELETE CASCADE,
-    provider_user_service_id uuid NULL REFERENCES user_services(id) ON DELETE SET NULL,
-    provider_user_id uuid NULL REFERENCES users(id) ON DELETE SET NULL,
-    agreed_price numeric NULL,
+    provider_user_service_id uuid REFERENCES user_services(id) ON DELETE SET NULL,
+    provider_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+    agreed_price numeric,
     is_payment_settled boolean DEFAULT false NOT NULL,
     service_status event_service_status DEFAULT 'pending' NOT NULL,
-    notes text NULL,
-    assigned_at timestamp NULL,
+    notes text,
+    assigned_at timestamp,
     created_at timestamp DEFAULT now() NOT NULL,
     updated_at timestamp DEFAULT now() NOT NULL
 );
@@ -816,18 +797,22 @@ CREATE TABLE IF NOT EXISTS event_service_payments (
 );
 CREATE INDEX IF NOT EXISTS idx_event_service_payments_event_service ON event_service_payments(event_service_id);
 
-
--- ============================================================================
--- EVENT CONTRIBUTIONS
--- Contributors do NOT need to be registered Nuru users.
--- contributor_user_id is optional (nullable) — manual contributors use
--- contributor_name + contributor_contact (jsonb with email/phone).
--- contributed_at = NULL means pledge (pending), NOT NULL means confirmed payment.
--- ============================================================================
+CREATE TABLE IF NOT EXISTS user_contributors (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name text NOT NULL,
+    email text,
+    phone text,
+    notes text,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now(),
+    UNIQUE(user_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_user_contributors_user ON user_contributors(user_id);
 
 CREATE TABLE IF NOT EXISTS event_contribution_targets (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id uuid REFERENCES events(id) ON DELETE CASCADE,
+    event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     target_amount numeric NOT NULL,
     description text,
     created_at timestamp DEFAULT now(),
@@ -835,25 +820,33 @@ CREATE TABLE IF NOT EXISTS event_contribution_targets (
 );
 CREATE INDEX IF NOT EXISTS idx_contrib_targets_event ON event_contribution_targets(event_id);
 
+CREATE TABLE IF NOT EXISTS event_contributors (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    contributor_id uuid NOT NULL REFERENCES user_contributors(id) ON DELETE CASCADE,
+    pledge_amount numeric DEFAULT 0,
+    notes text,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now(),
+    UNIQUE(event_id, contributor_id)
+);
+CREATE INDEX IF NOT EXISTS idx_event_contributors_event ON event_contributors(event_id);
+
 CREATE TABLE IF NOT EXISTS event_contributions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id uuid REFERENCES events(id) ON DELETE CASCADE,
-    contributor_user_id uuid REFERENCES users(id) ON DELETE SET NULL,  -- optional: non-Nuru contributors leave this NULL
-    contributor_name text,                                             -- display name for non-Nuru contributors
-    contributor_contact jsonb,                                         -- {email, phone} for non-Nuru contributors
+    event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    event_contributor_id uuid NOT NULL REFERENCES event_contributors(id) ON DELETE CASCADE,
+    contributor_name text NOT NULL,
+    contributor_contact jsonb,
     amount numeric NOT NULL,
     payment_method payment_method,
     transaction_ref text,
-    contributed_at timestamp DEFAULT now(),                             -- NULL = pledge/pending, NOT NULL = confirmed
-    created_at timestamp DEFAULT now()
+    contributed_at timestamp DEFAULT now(),
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_event_contributions_event ON event_contributions(event_id);
-CREATE INDEX IF NOT EXISTS idx_event_contributions_user ON event_contributions(contributor_user_id);
-
-
--- ============================================================================
--- NEW: CONTRIBUTION THANK-YOU MESSAGES
--- ============================================================================
+CREATE INDEX IF NOT EXISTS idx_event_contributions_contributor ON event_contributions(event_contributor_id);
 
 CREATE TABLE IF NOT EXISTS contribution_thank_you_messages (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -868,11 +861,6 @@ CREATE TABLE IF NOT EXISTS contribution_thank_you_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_thank_you_event ON contribution_thank_you_messages(event_id);
 CREATE INDEX IF NOT EXISTS idx_thank_you_contribution ON contribution_thank_you_messages(contribution_id);
-
-
--- ============================================================================
--- EVENT INVITATIONS & ATTENDEES (MODIFIED: added sent_via, sent_at, reminder_sent_at)
--- ============================================================================
 
 CREATE TABLE IF NOT EXISTS event_invitations (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -893,7 +881,6 @@ CREATE TABLE IF NOT EXISTS event_invitations (
 CREATE INDEX IF NOT EXISTS idx_event_invitations_event ON event_invitations(event_id);
 CREATE INDEX IF NOT EXISTS idx_event_invitations_user ON event_invitations(invited_user_id);
 
--- EVENT ATTENDEES (MODIFIED: added meal_preference, dietary_restrictions, special_requests)
 CREATE TABLE IF NOT EXISTS event_attendees (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id uuid REFERENCES events(id) ON DELETE CASCADE,
@@ -912,10 +899,12 @@ CREATE TABLE IF NOT EXISTS event_attendees (
 CREATE INDEX IF NOT EXISTS idx_event_attendees_event ON event_attendees(event_id);
 CREATE INDEX IF NOT EXISTS idx_event_attendees_user ON event_attendees(attendee_id);
 
-
--- ============================================================================
--- NEW: EVENT GUEST PLUS-ONES
--- ============================================================================
+CREATE TABLE IF NOT EXISTS attendee_profiles (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    rsvp_code text UNIQUE,
+    created_at timestamp DEFAULT now()
+);
 
 CREATE TABLE IF NOT EXISTS event_guest_plus_ones (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -931,7 +920,6 @@ CREATE TABLE IF NOT EXISTS event_guest_plus_ones (
 );
 CREATE INDEX IF NOT EXISTS idx_plus_ones_attendee ON event_guest_plus_ones(attendee_id);
 
--- EVENT SCHEDULE ITEMS (for API §3.2 "schedule")
 CREATE TABLE IF NOT EXISTS event_schedule_items (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
@@ -946,7 +934,6 @@ CREATE TABLE IF NOT EXISTS event_schedule_items (
 );
 CREATE INDEX IF NOT EXISTS idx_schedule_items_event ON event_schedule_items(event_id);
 
--- EVENT BUDGET ITEMS (for API §3.2 "budget_items")
 CREATE TABLE IF NOT EXISTS event_budget_items (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
@@ -961,11 +948,6 @@ CREATE TABLE IF NOT EXISTS event_budget_items (
     updated_at timestamp DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_budget_items_event ON event_budget_items(event_id);
-
-
--- ============================================================================
--- CHAT (MODIFIED: messages has reply_to_id)
--- ============================================================================
 
 CREATE TABLE IF NOT EXISTS conversations (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -999,170 +981,6 @@ CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
 CREATE INDEX IF NOT EXISTS idx_messages_is_read ON messages(is_read);
 CREATE INDEX IF NOT EXISTS idx_messages_reply ON messages(reply_to_id);
 
-
--- ============================================================================
--- NOTIFICATIONS
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS notifications (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    recipient_id uuid REFERENCES users(id) ON DELETE CASCADE,
-    sender_ids jsonb,
-    type notification_type NOT NULL,
-    reference_id uuid,
-    reference_type text,
-    message_template text NOT NULL,
-    message_data jsonb NOT NULL DEFAULT '{}'::jsonb,
-    is_read boolean DEFAULT false,
-    created_at timestamp DEFAULT now()
-);
-
-
--- ============================================================================
--- NEW: USER CIRCLES (Social connections / Friends)
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS user_circles (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
-    circle_member_id uuid REFERENCES users(id) ON DELETE CASCADE,
-    mutual_friends_count integer DEFAULT 0,
-    created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now(),
-    UNIQUE(user_id, circle_member_id)
-);
-CREATE INDEX IF NOT EXISTS idx_user_circles_user ON user_circles(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_circles_member ON user_circles(circle_member_id);
-
-
--- ============================================================================
--- NEW: USER FOLLOWERS
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS user_followers (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    follower_id uuid REFERENCES users(id) ON DELETE CASCADE,
-    following_id uuid REFERENCES users(id) ON DELETE CASCADE,
-    created_at timestamp DEFAULT now(),
-    UNIQUE(follower_id, following_id)
-);
-CREATE INDEX IF NOT EXISTS idx_user_followers_follower ON user_followers(follower_id);
-CREATE INDEX IF NOT EXISTS idx_user_followers_following ON user_followers(following_id);
-
-
--- ============================================================================
--- NEW: USER SETTINGS / PREFERENCES
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS user_settings (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid REFERENCES users(id) ON DELETE CASCADE UNIQUE,
-    email_notifications boolean DEFAULT true,
-    push_notifications boolean DEFAULT true,
-    glows_echoes_notifications boolean DEFAULT true,
-    event_invitation_notifications boolean DEFAULT true,
-    follower_notifications boolean DEFAULT true,
-    message_notifications boolean DEFAULT true,
-    profile_visibility boolean DEFAULT true,
-    private_profile boolean DEFAULT false,
-    two_factor_enabled boolean DEFAULT false,
-    dark_mode boolean DEFAULT false,
-    language text DEFAULT 'en',
-    timezone text DEFAULT 'UTC',
-    created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_user_settings_user ON user_settings(user_id);
-
-
--- ============================================================================
--- NEW: COMMUNITIES
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS communities (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    name text NOT NULL,
-    description text,
-    cover_image_url text,
-    is_public boolean DEFAULT true,
-    member_count integer DEFAULT 0,
-    created_by uuid REFERENCES users(id) ON DELETE SET NULL,
-    created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS community_members (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    community_id uuid REFERENCES communities(id) ON DELETE CASCADE,
-    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
-    role text DEFAULT 'member',
-    joined_at timestamp DEFAULT now(),
-    UNIQUE(community_id, user_id)
-);
-CREATE INDEX IF NOT EXISTS idx_community_members_community ON community_members(community_id);
-CREATE INDEX IF NOT EXISTS idx_community_members_user ON community_members(user_id);
-
-
--- ============================================================================
--- NEW: SESSIONS (for auth tokens)
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS user_sessions (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
-    token_hash text NOT NULL,
-    device_info jsonb,
-    ip_address text,
-    expires_at timestamp NOT NULL,
-    created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token_hash);
-
-
--- ============================================================================
--- NEW: PASSWORD RESET TOKENS
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS password_reset_tokens (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
-    token_hash text NOT NULL UNIQUE,
-    expires_at timestamp NOT NULL,
-    is_used boolean DEFAULT false,
-    created_at timestamp DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id);
-
-
--- ============================================================================
--- NEW: USER ACHIEVEMENTS / BADGES
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS achievements (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    name text NOT NULL UNIQUE,
-    description text,
-    icon text,
-    criteria jsonb,
-    created_at timestamp DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS user_achievements (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
-    achievement_id uuid REFERENCES achievements(id) ON DELETE CASCADE,
-    earned_at timestamp DEFAULT now(),
-    UNIQUE(user_id, achievement_id)
-);
-CREATE INDEX IF NOT EXISTS idx_user_achievements_user ON user_achievements(user_id);
-
-
--- ============================================================================
--- NEW: SUPPORT TICKETS
--- ============================================================================
-
 CREATE TABLE IF NOT EXISTS support_tickets (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid REFERENCES users(id) ON DELETE CASCADE,
@@ -1184,11 +1002,6 @@ CREATE TABLE IF NOT EXISTS support_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_support_messages_ticket ON support_messages(ticket_id);
 
-
--- ============================================================================
--- NEW: FAQS
--- ============================================================================
-
 CREATE TABLE IF NOT EXISTS faqs (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     question text NOT NULL,
@@ -1203,11 +1016,6 @@ CREATE TABLE IF NOT EXISTS faqs (
 );
 CREATE INDEX IF NOT EXISTS idx_faqs_category ON faqs(category);
 CREATE INDEX IF NOT EXISTS idx_faqs_order ON faqs(display_order);
-
-
--- ============================================================================
--- NEW: LIVE CHAT SESSIONS
--- ============================================================================
 
 CREATE TABLE IF NOT EXISTS live_chat_sessions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1238,12 +1046,20 @@ CREATE TABLE IF NOT EXISTS live_chat_messages (
     attachments jsonb DEFAULT '[]'::jsonb,
     created_at timestamp DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_live_chat_messages_session ON live_chat_messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_live_chat_messages_session ON live_chat_messages(session_id); 
 
-
--- ============================================================================
--- NEW: SERVICE BOOKING REQUESTS (MODIFIED: added package_id, quoted_price, etc.)
--- ============================================================================
+CREATE TABLE IF NOT EXISTS notifications (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    recipient_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    sender_ids jsonb,
+    type notification_type NOT NULL,
+    reference_id uuid,
+    reference_type text,
+    message_template text NOT NULL,
+    message_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+    is_read boolean DEFAULT false,
+    created_at timestamp DEFAULT now()
+);
 
 CREATE TABLE IF NOT EXISTS service_booking_requests (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1265,11 +1081,6 @@ CREATE TABLE IF NOT EXISTS service_booking_requests (
 CREATE INDEX IF NOT EXISTS idx_booking_requests_service ON service_booking_requests(user_service_id);
 CREATE INDEX IF NOT EXISTS idx_booking_requests_requester ON service_booking_requests(requester_user_id);
 CREATE INDEX IF NOT EXISTS idx_booking_requests_package ON service_booking_requests(package_id);
-
-
--- ============================================================================
--- NEW: PROMOTIONS / ADVERTISING
--- ============================================================================
 
 CREATE TABLE IF NOT EXISTS promotions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1299,11 +1110,6 @@ CREATE TABLE IF NOT EXISTS promoted_events (
 );
 CREATE INDEX IF NOT EXISTS idx_promoted_events_event ON promoted_events(event_id);
 
-
--- ============================================================================
--- NEW: FILE UPLOADS (General file tracking)
--- ============================================================================
-
 CREATE TABLE IF NOT EXISTS file_uploads (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid REFERENCES users(id) ON DELETE CASCADE,
@@ -1318,38 +1124,7 @@ CREATE TABLE IF NOT EXISTS file_uploads (
 CREATE INDEX IF NOT EXISTS idx_file_uploads_user ON file_uploads(user_id);
 CREATE INDEX IF NOT EXISTS idx_file_uploads_entity ON file_uploads(entity_type, entity_id);
 
-
--- ============================================================================
--- NEW: USER ACTIVITY LOGS (for analytics/security)
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS user_activity_logs (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
-    activity_type text NOT NULL,
-    entity_type text,
-    entity_id uuid,
-    ip_address text,
-    user_agent text,
-    extra_data jsonb,
-    created_at timestamp DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON user_activity_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_activity_logs_type ON user_activity_logs(activity_type);
-
-
--- ============================================================================
--- PERFORMANCE INDEXES (additional)
--- ============================================================================
-
-CREATE INDEX IF NOT EXISTS idx_user_verification_otps_user ON user_verification_otps(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_verification_otps_type ON user_verification_otps(verification_type);
-
-
--- ============================================================================
--- SEED DATA: IDENTITY DOCUMENT REQUIREMENTS
--- ============================================================================
-
+-- SEED DATA
 INSERT INTO identity_document_requirements (name, description)
 VALUES
   ('Passport', 'Government-issued passport for identity verification'),
@@ -1357,11 +1132,6 @@ VALUES
   ('Driver License', 'Valid driving license issued by government'),
   ('Social Security Card', 'Government-issued social security card for identity verification'),
   ('Voter ID', 'Government-issued voter identification card for identity verification');
-
-
--- ============================================================================
--- SEED DATA: CURRENCIES
--- ============================================================================
 
 INSERT INTO currencies (code, name, symbol, decimal_places) VALUES
   ('KES', 'Kenyan Shilling', 'KSh', 2),
@@ -1374,11 +1144,6 @@ INSERT INTO currencies (code, name, symbol, decimal_places) VALUES
   ('ZAR', 'South African Rand', 'R', 2),
   ('NGN', 'Nigerian Naira', '₦', 2);
 
-
--- ============================================================================
--- SEED DATA: COUNTRIES
--- ============================================================================
-
 INSERT INTO countries (code, name, phone_code, currency_id) VALUES
   ('KE', 'Kenya', '+254', (SELECT id FROM currencies WHERE code = 'KES')),
   ('TZ', 'Tanzania', '+255', (SELECT id FROM currencies WHERE code = 'TZS')),
@@ -1388,11 +1153,6 @@ INSERT INTO countries (code, name, phone_code, currency_id) VALUES
   ('NG', 'Nigeria', '+234', (SELECT id FROM currencies WHERE code = 'NGN')),
   ('US', 'United States', '+1', (SELECT id FROM currencies WHERE code = 'USD')),
   ('GB', 'United Kingdom', '+44', (SELECT id FROM currencies WHERE code = 'GBP'));
-
-
--- ============================================================================
--- SEED DATA: SERVICE CATEGORIES
--- ============================================================================
 
 INSERT INTO service_categories (name, description)
 VALUES
@@ -1407,11 +1167,6 @@ VALUES
   ('Security', 'This category includes services that ensure the safety and order of events, including security guards, bouncers, access control, and emergency response teams.'),
   ('Cleaning', 'This category covers event hygiene and waste management services, including venue cleaning before, during, and after the event, and disposal of waste materials.');
 
-
--- ============================================================================
--- SEED DATA: KYC REQUIREMENTS
--- ============================================================================
-
 INSERT INTO kyc_requirements (name, description)
 VALUES
   ('Government-issued ID', 'Passport, National ID, or Driver''s License'),
@@ -1419,11 +1174,6 @@ VALUES
   ('Tax Compliance Certificate', 'Proof of tax registration and compliance'),
   ('Professional Certification', 'Certificates proving service expertise such as DJ license, catering certificate, or security license'),
   ('Portfolio/Work Samples', 'Photos, videos, or examples demonstrating previous work and experience');
-
-
--- ============================================================================
--- SEED DATA: SERVICE TYPES
--- ============================================================================
 
 -- Entertainment
 INSERT INTO service_types (name, description, requires_kyc, category_id)
@@ -1526,85 +1276,67 @@ FROM (VALUES
 ) AS t(name, description, requires_kyc), service_categories sc
 WHERE sc.name = 'Cleaning';
 
-
--- ============================================================================
--- SEED DATA: SERVICE KYC MAPPING
--- ============================================================================
-
--- Entertainment
+-- Service KYC Mapping
 INSERT INTO service_kyc_mapping (service_type_id, kyc_requirement_id)
 SELECT st.id, kr.id
 FROM service_types st
 JOIN kyc_requirements kr ON kr.name IN ('Government-issued ID','Portfolio/Work Samples','Professional Certification')
 WHERE st.name IN ('Wedding DJ','Corporate DJ','Live Band','MC / Host','Cultural Dancers','Comedian');
 
--- Catering
 INSERT INTO service_kyc_mapping (service_type_id, kyc_requirement_id)
 SELECT st.id, kr.id
 FROM service_types st
 JOIN kyc_requirements kr ON kr.name IN ('Government-issued ID','Business License','Tax Compliance Certificate','Portfolio/Work Samples')
 WHERE st.category_id = (SELECT id FROM service_categories WHERE name='Catering');
 
--- Photography and Videography
 INSERT INTO service_kyc_mapping (service_type_id, kyc_requirement_id)
 SELECT st.id, kr.id
 FROM service_types st
 JOIN kyc_requirements kr ON kr.name IN ('Government-issued ID','Portfolio/Work Samples')
 WHERE st.category_id = (SELECT id FROM service_categories WHERE name='Photography and Videography');
 
--- Decor and Setup
 INSERT INTO service_kyc_mapping (service_type_id, kyc_requirement_id)
 SELECT st.id, kr.id
 FROM service_types st
 JOIN kyc_requirements kr ON kr.name IN ('Government-issued ID','Portfolio/Work Samples')
 WHERE st.category_id = (SELECT id FROM service_categories WHERE name='Decor and Setup');
 
--- Planning
 INSERT INTO service_kyc_mapping (service_type_id, kyc_requirement_id)
 SELECT st.id, kr.id
 FROM service_types st
 JOIN kyc_requirements kr ON kr.name IN ('Government-issued ID','Business License','Portfolio/Work Samples')
 WHERE st.category_id = (SELECT id FROM service_categories WHERE name='Planning');
 
--- Rentals
 INSERT INTO service_kyc_mapping (service_type_id, kyc_requirement_id)
 SELECT st.id, kr.id
 FROM service_types st
 JOIN kyc_requirements kr ON kr.name IN ('Government-issued ID','Business License')
 WHERE st.category_id = (SELECT id FROM service_categories WHERE name='Rentals');
 
--- Audio Visual
 INSERT INTO service_kyc_mapping (service_type_id, kyc_requirement_id)
 SELECT st.id, kr.id
 FROM service_types st
 JOIN kyc_requirements kr ON kr.name IN ('Government-issued ID','Portfolio/Work Samples','Professional Certification')
 WHERE st.category_id = (SELECT id FROM service_categories WHERE name='Audio Visual');
 
--- Security
 INSERT INTO service_kyc_mapping (service_type_id, kyc_requirement_id)
 SELECT st.id, kr.id
 FROM service_types st
 JOIN kyc_requirements kr ON kr.name IN ('Government-issued ID','Professional Certification')
 WHERE st.category_id = (SELECT id FROM service_categories WHERE name='Security');
 
--- Cleaning
 INSERT INTO service_kyc_mapping (service_type_id, kyc_requirement_id)
 SELECT st.id, kr.id
 FROM service_types st
 JOIN kyc_requirements kr ON kr.name IN ('Government-issued ID','Business License')
 WHERE st.category_id = (SELECT id FROM service_categories WHERE name='Cleaning');
 
--- Logistics
 INSERT INTO service_kyc_mapping (service_type_id, kyc_requirement_id)
 SELECT st.id, kr.id
 FROM service_types st
 JOIN kyc_requirements kr ON kr.name IN ('Government-issued ID','Business License','Tax Compliance Certificate')
 WHERE st.category_id = (SELECT id FROM service_categories WHERE name='Logistics')
 AND st.requires_kyc = true;
-
--- ============================================================================
--- SEED DATA: EVENT TYPES
--- ============================================================================
 
 INSERT INTO event_types (name, description, icon)
 VALUES
@@ -1620,11 +1352,6 @@ VALUES
   ('Baby Shower', 'Celebrations for expecting parents before the birth of a child', 'BabyCarriage'),
   ('Exhibition', 'Trade shows, expos, and art exhibitions showcasing products or work', 'Landmark'),
   ('Send Off', 'Farewell events marking departures, retirements, or goodbyes', 'PlaneDeparture');
-
-
--- ============================================================================
--- SEED DATA: COMMITTEE ROLES
--- ============================================================================
 
 INSERT INTO committee_roles (role_name, description)
 VALUES

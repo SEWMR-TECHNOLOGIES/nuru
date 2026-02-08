@@ -7,6 +7,15 @@ import { bookingsApi, BookingQueryParams } from "@/lib/api/bookings";
 import type { BookingRequest } from "@/lib/api/types";
 import { throwApiError } from "@/lib/api/showApiErrors";
 
+const computeSummary = (items: any[]) => ({
+  total: items.length,
+  pending: items.filter((b: any) => b.status === 'pending').length,
+  accepted: items.filter((b: any) => b.status === 'accepted').length,
+  rejected: items.filter((b: any) => b.status === 'rejected').length,
+  completed: items.filter((b: any) => b.status === 'completed').length,
+  cancelled: items.filter((b: any) => b.status === 'cancelled').length,
+});
+
 // ============================================================================
 // MY BOOKINGS (Client perspective)
 // ============================================================================
@@ -24,9 +33,13 @@ export const useMyBookings = (initialParams?: BookingQueryParams) => {
     try {
       const response = await bookingsApi.getMyBookings(params || initialParams);
       if (response.success) {
-        setBookings(response.data.bookings);
-        setSummary(response.data.summary);
-        setPagination(response.data.pagination);
+        // Backend returns flat array via standard_response
+        const items = Array.isArray(response.data) ? response.data : (response.data?.bookings || []);
+        setBookings(items);
+        // Compute summary from items if not provided
+        const s = response.data?.summary || computeSummary(items);
+        setSummary(s);
+        setPagination(response.data?.pagination || (response as any).pagination || null);
       } else {
         setError(response.message || "Failed to fetch bookings");
       }
@@ -96,9 +109,11 @@ export const useIncomingBookings = (initialParams?: BookingQueryParams) => {
     try {
       const response = await bookingsApi.getIncomingBookings(params || initialParams);
       if (response.success) {
-        setBookings(response.data.bookings);
-        setSummary(response.data.summary);
-        setPagination(response.data.pagination);
+        const items = Array.isArray(response.data) ? response.data : (response.data?.bookings || []);
+        setBookings(items);
+        const s = response.data?.summary || computeSummary(items);
+        setSummary(s);
+        setPagination(response.data?.pagination || (response as any).pagination || null);
       } else {
         setError(response.message || "Failed to fetch bookings");
       }
