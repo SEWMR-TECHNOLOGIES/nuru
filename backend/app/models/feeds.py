@@ -19,6 +19,7 @@ class UserFeed(Base):
     location = Column(Text)
     is_public = Column(Boolean, default=True)
     allow_echo = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True)
     glow_count = Column(Integer, default=0)
     echo_count = Column(Integer, default=0)
     spark_count = Column(Integer, default=0)
@@ -106,6 +107,7 @@ class UserFeedComment(Base):
     reply_count = Column(Integer, default=0)
     is_edited = Column(Boolean, default=False)
     is_pinned = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

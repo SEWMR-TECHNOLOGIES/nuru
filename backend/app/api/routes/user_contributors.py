@@ -1,0 +1,488 @@
+# User Contributors Routes - /user-contributors/...
+# Handles personal contributor address book & event contributor management
+
+import math
+import uuid
+from datetime import datetime
+from typing import Optional
+
+import pytz
+from fastapi import APIRouter, Depends, Body, Query
+from sqlalchemy import func as sa_func
+from sqlalchemy.orm import Session, joinedload
+
+from core.database import get_db
+from models import (
+    UserContributor, EventContributor, EventContribution,
+    Event, User, Currency,
+)
+from models.enums import PaymentMethodEnum
+from utils.auth import get_current_user
+from utils.helpers import standard_response
+
+EAT = pytz.timezone("Africa/Nairobi")
+
+router = APIRouter(prefix="/user-contributors", tags=["User Contributors"])
+
+
+# ──────────────────────────────────────────────
+# Helpers
+# ──────────────────────────────────────────────
+
+def _contributor_dict(c: UserContributor) -> dict:
+    return {
+        "id": str(c.id),
+        "user_id": str(c.user_id),
+        "name": c.name,
+        "email": c.email,
+        "phone": c.phone,
+        "notes": c.notes,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+        "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+    }
+
+
+def _event_contributor_dict(ec: EventContributor) -> dict:
+    total_paid = sum(float(c.amount or 0) for c in ec.contributions)
+    pledge = float(ec.pledge_amount or 0)
+    return {
+        "id": str(ec.id),
+        "event_id": str(ec.event_id),
+        "contributor_id": str(ec.contributor_id),
+        "contributor": _contributor_dict(ec.contributor) if ec.contributor else None,
+        "pledge_amount": pledge,
+        "total_paid": total_paid,
+        "balance": max(0, pledge - total_paid),
+        "notes": ec.notes,
+        "created_at": ec.created_at.isoformat() if ec.created_at else None,
+        "updated_at": ec.updated_at.isoformat() if ec.updated_at else None,
+    }
+
+
+def _currency_code(db: Session, event: Event) -> str:
+    if event.currency_id:
+        cur = db.query(Currency).filter(Currency.id == event.currency_id).first()
+        if cur:
+            return cur.code.strip()
+    return "TZS"
+
+
+# ══════════════════════════════════════════════
+# ADDRESS BOOK (UserContributor CRUD)
+# ══════════════════════════════════════════════
+
+@router.get("/")
+def get_all_contributors(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query("name"),
+    sort_order: Optional[str] = Query("asc"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    q = db.query(UserContributor).filter(UserContributor.user_id == current_user.id)
+
+    if search:
+        like = f"%{search}%"
+        q = q.filter(
+            (UserContributor.name.ilike(like)) |
+            (UserContributor.email.ilike(like)) |
+            (UserContributor.phone.ilike(like))
+        )
+
+    total = q.count()
+
+    if sort_by == "created_at":
+        order_col = UserContributor.created_at
+    else:
+        order_col = UserContributor.name
+
+    if sort_order == "desc":
+        q = q.order_by(order_col.desc())
+    else:
+        q = q.order_by(order_col.asc())
+
+    contributors = q.offset((page - 1) * limit).limit(limit).all()
+
+    return standard_response(True, "Contributors fetched", {
+        "contributors": [_contributor_dict(c) for c in contributors],
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "total_pages": math.ceil(total / limit) if limit else 1,
+        },
+    })
+
+
+@router.get("/{contributor_id}")
+def get_contributor(contributor_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        cid = uuid.UUID(contributor_id)
+    except ValueError:
+        return standard_response(False, "Invalid contributor ID")
+
+    c = db.query(UserContributor).filter(UserContributor.id == cid, UserContributor.user_id == current_user.id).first()
+    if not c:
+        return standard_response(False, "Contributor not found")
+
+    return standard_response(True, "Contributor fetched", _contributor_dict(c))
+
+
+@router.post("/")
+def create_contributor(body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    name = (body.get("name") or "").strip()
+    if not name:
+        return standard_response(False, "Name is required")
+
+    existing = db.query(UserContributor).filter(
+        UserContributor.user_id == current_user.id,
+        UserContributor.name == name,
+    ).first()
+    if existing:
+        return standard_response(False, "A contributor with this name already exists")
+
+    now = datetime.now(EAT)
+    c = UserContributor(
+        id=uuid.uuid4(),
+        user_id=current_user.id,
+        name=name,
+        email=(body.get("email") or "").strip() or None,
+        phone=(body.get("phone") or "").strip() or None,
+        notes=(body.get("notes") or "").strip() or None,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(c)
+    db.commit()
+
+    return standard_response(True, "Contributor created", _contributor_dict(c))
+
+
+@router.put("/{contributor_id}")
+def update_contributor(contributor_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        cid = uuid.UUID(contributor_id)
+    except ValueError:
+        return standard_response(False, "Invalid contributor ID")
+
+    c = db.query(UserContributor).filter(UserContributor.id == cid, UserContributor.user_id == current_user.id).first()
+    if not c:
+        return standard_response(False, "Contributor not found")
+
+    if "name" in body and body["name"]:
+        c.name = body["name"].strip()
+    if "email" in body:
+        c.email = (body["email"] or "").strip() or None
+    if "phone" in body:
+        c.phone = (body["phone"] or "").strip() or None
+    if "notes" in body:
+        c.notes = (body["notes"] or "").strip() or None
+
+    c.updated_at = datetime.now(EAT)
+    db.commit()
+
+    return standard_response(True, "Contributor updated", _contributor_dict(c))
+
+
+@router.delete("/{contributor_id}")
+def delete_contributor(contributor_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        cid = uuid.UUID(contributor_id)
+    except ValueError:
+        return standard_response(False, "Invalid contributor ID")
+
+    c = db.query(UserContributor).filter(UserContributor.id == cid, UserContributor.user_id == current_user.id).first()
+    if not c:
+        return standard_response(False, "Contributor not found")
+
+    db.delete(c)
+    db.commit()
+
+    return standard_response(True, "Contributor deleted")
+
+
+# ══════════════════════════════════════════════
+# EVENT CONTRIBUTORS
+# ══════════════════════════════════════════════
+
+@router.get("/events/{event_id}/contributors")
+def get_event_contributors(
+    event_id: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=100),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID")
+
+    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
+    if not event:
+        return standard_response(False, "Event not found or access denied")
+
+    q = db.query(EventContributor).options(
+        joinedload(EventContributor.contributor),
+        joinedload(EventContributor.contributions),
+    ).filter(EventContributor.event_id == eid)
+
+    if search:
+        like = f"%{search}%"
+        q = q.join(UserContributor).filter(
+            (UserContributor.name.ilike(like)) |
+            (UserContributor.email.ilike(like)) |
+            (UserContributor.phone.ilike(like))
+        )
+
+    total = q.count()
+    ecs = q.order_by(EventContributor.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
+
+    ec_dicts = [_event_contributor_dict(ec) for ec in ecs]
+
+    total_pledged = sum(d["pledge_amount"] for d in ec_dicts)
+    total_paid = sum(d["total_paid"] for d in ec_dicts)
+    currency = _currency_code(db, event)
+
+    return standard_response(True, "Event contributors fetched", {
+        "event_contributors": ec_dicts,
+        "summary": {
+            "total_pledged": total_pledged,
+            "total_paid": total_paid,
+            "total_balance": max(0, total_pledged - total_paid),
+            "count": total,
+            "currency": currency,
+        },
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "total_pages": math.ceil(total / limit) if limit else 1,
+        },
+    })
+
+
+@router.post("/events/{event_id}/contributors")
+def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID")
+
+    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
+    if not event:
+        return standard_response(False, "Event not found or access denied")
+
+    now = datetime.now(EAT)
+    contributor_id = body.get("contributor_id")
+
+    if contributor_id:
+        # Link existing contributor
+        try:
+            cid = uuid.UUID(contributor_id)
+        except ValueError:
+            return standard_response(False, "Invalid contributor ID")
+
+        contributor = db.query(UserContributor).filter(UserContributor.id == cid, UserContributor.user_id == current_user.id).first()
+        if not contributor:
+            return standard_response(False, "Contributor not found in your address book")
+    else:
+        # Create new contributor inline
+        name = (body.get("name") or "").strip()
+        if not name:
+            return standard_response(False, "Name is required for new contributors")
+
+        contributor = db.query(UserContributor).filter(
+            UserContributor.user_id == current_user.id,
+            UserContributor.name == name,
+        ).first()
+
+        if not contributor:
+            contributor = UserContributor(
+                id=uuid.uuid4(),
+                user_id=current_user.id,
+                name=name,
+                email=(body.get("email") or "").strip() or None,
+                phone=(body.get("phone") or "").strip() or None,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(contributor)
+            db.flush()
+
+    # Check if already linked
+    existing = db.query(EventContributor).filter(
+        EventContributor.event_id == eid,
+        EventContributor.contributor_id == contributor.id,
+    ).first()
+    if existing:
+        return standard_response(False, "This contributor is already added to this event")
+
+    ec = EventContributor(
+        id=uuid.uuid4(),
+        event_id=eid,
+        contributor_id=contributor.id,
+        pledge_amount=body.get("pledge_amount", 0),
+        notes=(body.get("notes") or "").strip() or None,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(ec)
+    db.commit()
+
+    # Reload with relationships
+    ec = db.query(EventContributor).options(
+        joinedload(EventContributor.contributor),
+        joinedload(EventContributor.contributions),
+    ).filter(EventContributor.id == ec.id).first()
+
+    return standard_response(True, "Contributor added to event", _event_contributor_dict(ec))
+
+
+@router.put("/events/{event_id}/contributors/{ec_id}")
+def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        eid = uuid.UUID(event_id)
+        ecid = uuid.UUID(ec_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+
+    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
+    if not event:
+        return standard_response(False, "Event not found or access denied")
+
+    ec = db.query(EventContributor).options(
+        joinedload(EventContributor.contributor),
+        joinedload(EventContributor.contributions),
+    ).filter(EventContributor.id == ecid, EventContributor.event_id == eid).first()
+    if not ec:
+        return standard_response(False, "Event contributor not found")
+
+    if "pledge_amount" in body:
+        ec.pledge_amount = body["pledge_amount"]
+    if "notes" in body:
+        ec.notes = (body["notes"] or "").strip() or None
+
+    ec.updated_at = datetime.now(EAT)
+    db.commit()
+
+    return standard_response(True, "Event contributor updated", _event_contributor_dict(ec))
+
+
+@router.delete("/events/{event_id}/contributors/{ec_id}")
+def remove_from_event(event_id: str, ec_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        eid = uuid.UUID(event_id)
+        ecid = uuid.UUID(ec_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+
+    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
+    if not event:
+        return standard_response(False, "Event not found or access denied")
+
+    ec = db.query(EventContributor).filter(EventContributor.id == ecid, EventContributor.event_id == eid).first()
+    if not ec:
+        return standard_response(False, "Event contributor not found")
+
+    db.delete(ec)
+    db.commit()
+
+    return standard_response(True, "Contributor removed from event")
+
+
+# ══════════════════════════════════════════════
+# PAYMENTS
+# ══════════════════════════════════════════════
+
+@router.post("/events/{event_id}/contributors/{ec_id}/payments")
+def record_payment(event_id: str, ec_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        eid = uuid.UUID(event_id)
+        ecid = uuid.UUID(ec_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+
+    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
+    if not event:
+        return standard_response(False, "Event not found or access denied")
+
+    ec = db.query(EventContributor).options(
+        joinedload(EventContributor.contributor),
+    ).filter(EventContributor.id == ecid, EventContributor.event_id == eid).first()
+    if not ec:
+        return standard_response(False, "Event contributor not found")
+
+    amount = body.get("amount")
+    if not amount or float(amount) <= 0:
+        return standard_response(False, "A valid payment amount is required")
+
+    payment_method_str = body.get("payment_method")
+    payment_method = None
+    if payment_method_str:
+        try:
+            payment_method = PaymentMethodEnum(payment_method_str)
+        except ValueError:
+            pass
+
+    now = datetime.now(EAT)
+    contribution = EventContribution(
+        id=uuid.uuid4(),
+        event_id=eid,
+        event_contributor_id=ec.id,
+        contributor_name=ec.contributor.name if ec.contributor else "Unknown",
+        amount=float(amount),
+        payment_method=payment_method,
+        transaction_ref=(body.get("payment_reference") or "").strip() or None,
+        contributed_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(contribution)
+    db.commit()
+
+    return standard_response(True, "Payment recorded", {
+        "id": str(contribution.id),
+        "amount": float(contribution.amount),
+        "payment_method": payment_method_str,
+        "payment_reference": contribution.transaction_ref,
+        "created_at": contribution.created_at.isoformat(),
+    })
+
+
+@router.get("/events/{event_id}/contributors/{ec_id}/payments")
+def get_payment_history(event_id: str, ec_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        eid = uuid.UUID(event_id)
+        ecid = uuid.UUID(ec_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+
+    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
+    if not event:
+        return standard_response(False, "Event not found or access denied")
+
+    ec = db.query(EventContributor).options(
+        joinedload(EventContributor.contributor),
+        joinedload(EventContributor.contributions),
+    ).filter(EventContributor.id == ecid, EventContributor.event_id == eid).first()
+    if not ec:
+        return standard_response(False, "Event contributor not found")
+
+    payments = sorted(ec.contributions, key=lambda p: p.created_at or datetime.min, reverse=True)
+
+    return standard_response(True, "Payment history fetched", {
+        "contributor": _contributor_dict(ec.contributor) if ec.contributor else None,
+        "pledge_amount": float(ec.pledge_amount or 0),
+        "total_paid": sum(float(p.amount or 0) for p in payments),
+        "payments": [{
+            "id": str(p.id),
+            "amount": float(p.amount),
+            "payment_method": p.payment_method.value if p.payment_method else None,
+            "payment_reference": p.transaction_ref,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        } for p in payments],
+    })

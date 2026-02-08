@@ -14,7 +14,7 @@ security = HTTPBearer()
 def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    session_id: str = Cookie(None),
+    session_cookie: str = Cookie(None, alias="session_id"),
     db: Session = Depends(get_db)
 ):
     """
@@ -37,8 +37,8 @@ def get_current_user(
             raise HTTPException(status_code=401, detail="Invalid token")
 
     # Fallback to session cookie
-    if not user and session_id:
-        user = db.query(User).filter(User.id == session_id).first()
+    if not user and session_cookie:
+        user = db.query(User).filter(User.id == session_cookie).first()
 
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")

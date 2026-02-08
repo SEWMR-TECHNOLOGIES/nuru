@@ -17,6 +17,9 @@ from .nuru_cards import router as nuru_cards_router
 from .support import router as support_router
 from .settings import router as settings_router
 from .uploads import router as uploads_router
+from .circles import router as circles_router
+from .communities import router as communities_router
+from .user_contributors import router as user_contributors_router
 
 # All routers to be included in main app
 all_routers = [
@@ -36,6 +39,9 @@ all_routers = [
     support_router,       # /support/...
     settings_router,      # /settings/...
     uploads_router,       # /uploads/...
+    circles_router,       # /circles/...
+    communities_router,   # /communities/...
+    user_contributors_router,  # /user-contributors/...
 ]
 
 __all__ = [
@@ -55,5 +61,8 @@ __all__ = [
     "support_router",
     "settings_router",
     "uploads_router",
+    "circles_router",
+    "communities_router",
+    "user_contributors_router",
     "all_routers",
 ]
