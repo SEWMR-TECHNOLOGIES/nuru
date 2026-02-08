@@ -1,69 +1,56 @@
-# Public Events Routes - /events/...
-# Handles public event discovery and RSVP functionality
+# Uploads Routes - /uploads/...
+# Handles file uploads (images, documents)
 
 from fastapi import APIRouter
 
 from models import (
-    Event,
-    EventType,
-    EventImage,
-    EventAttendee,
-    EventInvitation,
-    EventGuestPlusOne,
+    FileUpload,
+    User,
 )
 
-router = APIRouter(prefix="/events", tags=["Public Events"])
+router = APIRouter(prefix="/uploads", tags=["Uploads"])
 
 
 # ──────────────────────────────────────────────
-# Search/Discover Public Events
+# Upload File
 # ──────────────────────────────────────────────
-@router.get("/")
-async def search_events():
-    """Searches and filters public events."""
+@router.post("/")
+async def upload_file():
+    """Uploads a file and returns the URL."""
     pass
 
 
 # ──────────────────────────────────────────────
-# Get Public Event Details
+# Upload Multiple Files
 # ──────────────────────────────────────────────
-@router.get("/{event_id}")
-async def get_public_event(event_id: str):
-    """Returns public details of an event."""
+@router.post("/bulk")
+async def upload_files():
+    """Uploads multiple files."""
     pass
 
 
 # ──────────────────────────────────────────────
-# Get RSVP Page (Public)
+# Get Upload
 # ──────────────────────────────────────────────
-@router.get("/{event_id}/rsvp/{guest_id}")
-async def get_rsvp_page(event_id: str, guest_id: str):
-    """Returns event details for the public RSVP page."""
+@router.get("/{upload_id}")
+async def get_upload(upload_id: str):
+    """Returns information about an upload."""
     pass
 
 
 # ──────────────────────────────────────────────
-# Submit RSVP (Public)
+# Delete Upload
 # ──────────────────────────────────────────────
-@router.post("/{event_id}/rsvp")
-async def submit_rsvp(event_id: str):
-    """Allows guests to respond to their invitation."""
+@router.delete("/{upload_id}")
+async def delete_upload(upload_id: str):
+    """Deletes an uploaded file."""
     pass
 
 
 # ──────────────────────────────────────────────
-# Get Featured/Trending Events
+# Get Signed Upload URL
 # ──────────────────────────────────────────────
-@router.get("/featured")
-async def get_featured_events():
-    """Returns featured/trending public events."""
-    pass
-
-
-# ──────────────────────────────────────────────
-# Get Nearby Events
-# ──────────────────────────────────────────────
-@router.get("/nearby")
-async def get_nearby_events():
-    """Returns events near a location."""
+@router.post("/signed-url")
+async def get_signed_upload_url():
+    """Returns a pre-signed URL for direct upload."""
     pass

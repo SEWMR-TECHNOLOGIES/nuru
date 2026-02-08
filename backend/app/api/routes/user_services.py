@@ -1,269 +1,202 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from typing import List
-from models.services import KYCRequirement, ServiceKYCMapping, UserService, UserServiceKYCStatus
-from core.database import get_db
-from utils.auth import get_current_user
-from utils.helpers import api_response, format_price
-from models.users import User
-from models.enums import VerificationStatusEnum
-import uuid
+# User Services Routes - /user-services/...
+# Handles vendor service management: CRUD, KYC verification, packages, availability, bookings
 
-router = APIRouter()
+from fastapi import APIRouter
 
-@router.get("/{service_id}/kyc")
-def get_user_service_kyc(
-    service_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Fetch all KYC requirements for a given user's service with their status and remarks.
-    """
-    # Verify the service belongs to the current user
-    service = db.query(UserService).filter(
-        UserService.id == service_id,
-        UserService.user_id == current_user.id
-    ).first()
+from models import (
+    UserService,
+    UserServiceImage,
+    UserServiceVerification,
+    UserServiceVerificationFile,
+    UserServiceKYCStatus,
+    ServicePackage,
+    UserServiceRating,
+    ServiceReviewHelpful,
+    ServiceCategory,
+    ServiceType,
+    ServiceKYCMapping,
+    KYCRequirement,
+    ServiceBookingRequest,
+)
 
-    if not service:
-        raise HTTPException(status_code=404, detail="Service not found or does not belong to the user.")
+router = APIRouter(prefix="/user-services", tags=["User Services"])
 
-    # Get KYC requirements mapped to the service type
-    kyc_mappings = (
-        db.query(ServiceKYCMapping)
-        .join(KYCRequirement)
-        .filter(
-            ServiceKYCMapping.service_type_id == service.service_type_id,
-            KYCRequirement.is_active == True
-        )
-        .all()
-    )
 
-    kyc_list = []
-    for mapping in kyc_mappings:
-        kyc_req = mapping.kyc_requirement
-
-        # Fetch KYC status for this service and requirement
-        kyc_status = db.query(UserServiceKYCStatus).filter(
-            UserServiceKYCStatus.user_service_id == service.id,
-            UserServiceKYCStatus.kyc_requirement_id == kyc_req.id
-        ).first()
-
-        kyc_list.append({
-            "id": str(kyc_req.id),
-            "name": kyc_req.name,
-            "description": kyc_req.description,
-            "is_mandatory": mapping.is_mandatory,
-            "status": kyc_status.status.value if kyc_status else None,
-            "remarks": kyc_status.remarks if kyc_status else None,
-            "reviewed_at": kyc_status.reviewed_at.isoformat() if kyc_status and kyc_status.reviewed_at else None,
-            "created_at": kyc_req.created_at.isoformat(),
-            "updated_at": kyc_req.updated_at.isoformat(),
-        })
-
-    return api_response(
-        success=True,
-        message=f"KYC requirements for service '{service.title}' fetched successfully.",
-        data=kyc_list
-    )
-
+# ──────────────────────────────────────────────
+# Get All My Services
+# ──────────────────────────────────────────────
 @router.get("/")
-def get_user_services(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Fetch all services for the current user with details, service type,
-    images, ratings, and calculated verification progress based on KYC status.
-    """
-    services = db.query(UserService).filter(UserService.user_id == current_user.id).all()
-    response_data = []
+async def get_my_services():
+    """Returns all services created by the authenticated user."""
+    pass
 
-    for service in services:
-        # Fetch images
-        images = [img.image_url for img in service.images]
 
-        # Calculate average rating
-        ratings = [r.rating for r in service.ratings]
-        avg_rating = round(sum(ratings) / len(ratings), 1) if ratings else 0
-        review_count = len(ratings)
-
-        # Fetch KYC mappings for service type
-        kyc_mappings = (
-            db.query(ServiceKYCMapping)
-            .filter(ServiceKYCMapping.service_type_id == service.service_type_id)
-            .all()
-        )
-
-        # Calculate verified KYC count
-        verified_count = 0
-        kyc_status_list = []
-
-        for mapping in kyc_mappings:
-            kyc_req = mapping.kyc_requirement
-            kyc_status = (
-                db.query(UserServiceKYCStatus)
-                .filter(
-                    UserServiceKYCStatus.user_service_id == service.id,
-                    UserServiceKYCStatus.kyc_requirement_id == kyc_req.id,
-                )
-                .first()
-            )
-            status = kyc_status.status if kyc_status else None
-            if status == VerificationStatusEnum.verified:
-                verified_count += 1
-
-            kyc_status_list.append({
-                "id": str(kyc_req.id),
-                "name": kyc_req.name,
-                "description": kyc_req.description,
-                "is_mandatory": mapping.is_mandatory,
-                "status": status.value if status else None,
-                "remarks": kyc_status.remarks if kyc_status else None
-            })
-
-        # Calculate verification progress
-        total_kyc = len(kyc_mappings)
-        verification_progress = int((verified_count / total_kyc) * 100) if total_kyc > 0 else 0
-
-        # Add service type details
-        service_type_name = service.service_type.name if service.service_type else None
-
-        response_data.append({
-            "id": str(service.id),
-            "title": service.title,
-            "category": service.category.name if service.category else None,
-            "description": service.description,
-            "base_price": service.min_price,
-            "price": f"{format_price(service.min_price)} - {format_price(service.max_price)}" if service.min_price and service.max_price else None,
-            "rating": avg_rating,
-            "review_count": review_count,
-            "is_verified": service.is_verified,
-            "verification_progress": verification_progress,
-            "verification_status": service.verification_status.value if service.verification_status else None,
-            "images": images,
-            "past_events": service.past_events if hasattr(service, "past_events") else 0,
-            "availability": service.availability.value if service.availability else "Available",
-            "location": service.location,
-            "kyc_list": kyc_status_list,
-            "service_type_id": str(service.service_type_id) if service.service_type_id else None,
-            "service_type_name": service_type_name,
-        })
-
-    return api_response(
-        success=True,
-        message="User services fetched successfully.",
-        data=response_data
-    )
-
+# ──────────────────────────────────────────────
+# Get Single Service
+# ──────────────────────────────────────────────
 @router.get("/{service_id}")
-def get_user_service_details(
-    service_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Fetch detailed information for a single user's service,
-    including category, type, images, KYC status, ratings, verification progress,
-    packages, past events, and reviews.
-    """
-    # Verify ownership
-    service = db.query(UserService).filter(
-        UserService.id == service_id,
-        UserService.user_id == current_user.id
-    ).first()
+async def get_service(service_id: str):
+    """Returns detailed information about a specific service."""
+    pass
 
-    if not service:
-        raise HTTPException(status_code=404, detail="Service not found or does not belong to the user.")
 
-    # Images
-    images = [img.image_url for img in service.images]
+# ──────────────────────────────────────────────
+# Create Service
+# ──────────────────────────────────────────────
+@router.post("/")
+async def create_service():
+    """Creates a new service listing."""
+    pass
 
-    # Ratings
-    ratings = service.ratings
-    avg_rating = round(sum(r.rating for r in ratings) / len(ratings), 1) if ratings else 0
-    review_count = len(ratings)
-    reviews_list = [
-        {
-            "id": str(r.id),
-            "client_name": r.user.full_name if hasattr(r, "user") else "Anonymous",
-            "rating": r.rating,
-            "comment": r.review,
-            "date": r.created_at.isoformat(),
-            "event_type": r.review_event_type if hasattr(r, "review_event_type") else "N/A"
-        }
-        for r in ratings
-    ]
 
-    # KYC
-    kyc_mappings = db.query(ServiceKYCMapping).filter(ServiceKYCMapping.service_type_id == service.service_type_id).all()
-    verified_count = 0
-    kyc_status_list = []
-    for mapping in kyc_mappings:
-        kyc_req = mapping.kyc_requirement
-        kyc_status = db.query(UserServiceKYCStatus).filter(
-            UserServiceKYCStatus.user_service_id == service.id,
-            UserServiceKYCStatus.kyc_requirement_id == kyc_req.id
-        ).first()
-        status = kyc_status.status if kyc_status else None
-        if status == VerificationStatusEnum.verified:
-            verified_count += 1
-        kyc_status_list.append({
-            "id": str(kyc_req.id),
-            "name": kyc_req.name,
-            "description": kyc_req.description,
-            "is_mandatory": mapping.is_mandatory,
-            "status": status.value if status else None,
-            "remarks": kyc_status.remarks if kyc_status else None,
-            "reviewed_at": kyc_status.reviewed_at.isoformat() if kyc_status and kyc_status.reviewed_at else None
-        })
+# ──────────────────────────────────────────────
+# Update Service
+# ──────────────────────────────────────────────
+@router.put("/{service_id}")
+async def update_service(service_id: str):
+    """Updates an existing service."""
+    pass
 
-    total_kyc = len(kyc_mappings)
-    verification_progress = int((verified_count / total_kyc) * 100) if total_kyc > 0 else 0
 
-    # Packages
-    packages_list = [
-        {
-            "id": str(pkg.id),
-            "name": pkg.name,
-            "price": pkg.price,
-            "description": pkg.description,
-            "features": pkg.features if pkg.features else []
-        }
-        for pkg in getattr(service, "packages", [])
-    ]
+# ──────────────────────────────────────────────
+# Delete Service
+# ──────────────────────────────────────────────
+@router.delete("/{service_id}")
+async def delete_service(service_id: str):
+    """Deletes a service listing."""
+    pass
 
-    # Past events placeholder (if using a separate table, join it instead)
-    past_events_list = getattr(service, "past_events", [])
 
-    response_data = {
-        "id": str(service.id),
-        "title": service.title,
-        "category": service.category.name if service.category else None,
-        "category_id": str(service.category_id) if service.category_id else None,
-        "description": service.description,
-        "base_price": service.min_price,
-        "price": f"{format_price(service.min_price)} - {format_price(service.max_price)}" if service.min_price and service.max_price else None,
-        "rating": avg_rating,
-        "review_count": review_count,
-        "is_verified": service.is_verified,
-        "verification_progress": verification_progress,
-        "verification_status": service.verification_status.value if service.verification_status else None,
-        "images": images,
-        "past_events": past_events_list,
-        "availability": service.availability.value if service.availability else "Available",
-        "location": service.location,
-        "kyc_list": kyc_status_list,
-        "service_type_id": str(service.service_type_id) if service.service_type_id else None,
-        "service_type_name": service.service_type.name if service.service_type else None,
-        "reviews": reviews_list,
-        "packages": packages_list
-    }
+# ──────────────────────────────────────────────
+# KYC VERIFICATION
+# ──────────────────────────────────────────────
+@router.get("/{service_id}/kyc")
+async def get_kyc_status(service_id: str):
+    """Returns KYC verification status for a service."""
+    pass
 
-    return api_response(
-        success=True,
-        message=f"Service '{service.title}' details fetched successfully.",
-        data=response_data
-    )
 
+@router.post("/{service_id}/kyc")
+async def upload_kyc_document(service_id: str):
+    """Uploads a KYC document for verification."""
+    pass
+
+
+@router.put("/{service_id}/kyc/{kyc_id}")
+async def resubmit_kyc_document(service_id: str, kyc_id: str):
+    """Resubmits a rejected KYC document."""
+    pass
+
+
+@router.delete("/{service_id}/kyc/{kyc_id}")
+async def delete_kyc_document(service_id: str, kyc_id: str):
+    """Removes a submitted KYC document."""
+    pass
+
+
+# ──────────────────────────────────────────────
+# PACKAGES
+# ──────────────────────────────────────────────
+@router.get("/{service_id}/packages")
+async def get_packages(service_id: str):
+    """Returns all packages for a service."""
+    pass
+
+
+@router.post("/{service_id}/packages")
+async def create_package(service_id: str):
+    """Creates a new service package."""
+    pass
+
+
+@router.put("/{service_id}/packages/{package_id}")
+async def update_package(service_id: str, package_id: str):
+    """Updates an existing package."""
+    pass
+
+
+@router.delete("/{service_id}/packages/{package_id}")
+async def delete_package(service_id: str, package_id: str):
+    """Deletes a service package."""
+    pass
+
+
+@router.put("/{service_id}/packages/reorder")
+async def reorder_packages(service_id: str):
+    """Updates the display order of packages."""
+    pass
+
+
+# ──────────────────────────────────────────────
+# IMAGES
+# ──────────────────────────────────────────────
+@router.post("/{service_id}/images")
+async def upload_service_images(service_id: str):
+    """Uploads images for a service."""
+    pass
+
+
+@router.delete("/{service_id}/images/{image_id}")
+async def delete_service_image(service_id: str, image_id: str):
+    """Deletes a service image."""
+    pass
+
+
+@router.put("/{service_id}/images/reorder")
+async def reorder_service_images(service_id: str):
+    """Reorders service images."""
+    pass
+
+
+# ──────────────────────────────────────────────
+# AVAILABILITY
+# ──────────────────────────────────────────────
+@router.get("/{service_id}/availability")
+async def get_availability(service_id: str):
+    """Returns availability settings for a service."""
+    pass
+
+
+@router.put("/{service_id}/availability")
+async def update_availability(service_id: str):
+    """Updates availability settings."""
+    pass
+
+
+# ──────────────────────────────────────────────
+# BOOKINGS (Vendor View)
+# ──────────────────────────────────────────────
+@router.get("/{service_id}/bookings")
+async def get_service_bookings(service_id: str):
+    """Returns all booking requests for a service."""
+    pass
+
+
+@router.put("/{service_id}/bookings/{booking_id}")
+async def respond_to_booking(service_id: str, booking_id: str):
+    """Responds to a booking request (accept/decline/quote)."""
+    pass
+
+
+# ──────────────────────────────────────────────
+# REVIEWS (Vendor View)
+# ──────────────────────────────────────────────
+@router.get("/{service_id}/reviews")
+async def get_service_reviews(service_id: str):
+    """Returns all reviews for a service."""
+    pass
+
+
+@router.post("/{service_id}/reviews/{review_id}/reply")
+async def reply_to_review(service_id: str, review_id: str):
+    """Replies to a customer review."""
+    pass
+
+
+# ──────────────────────────────────────────────
+# ANALYTICS
+# ──────────────────────────────────────────────
+@router.get("/{service_id}/analytics")
+async def get_service_analytics(service_id: str):
+    """Returns analytics for a service."""
+    pass

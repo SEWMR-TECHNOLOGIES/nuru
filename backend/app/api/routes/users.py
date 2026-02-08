@@ -1,22 +1,28 @@
-# backend/app/api/routes/users.py
 
-from datetime import datetime
-from uuid import UUID
-from fastapi import APIRouter, Request, Depends
-from sqlalchemy.orm import Session
 import hashlib
 import traceback
-from utils.notification_service import send_verification_email, send_verification_sms
+from datetime import datetime
+from uuid import UUID
+from fastapi import APIRouter, Request, Depends, HTTPException
+from sqlalchemy.orm import Session
 from core.database import get_db
-from models.users import User, UserVerificationOTP
-from utils.validation_functions import validate_email, validate_tanzanian_phone, validate_password_strength, validate_username
+from models import User, UserVerificationOTP, UserProfile, UserSetting, UserFollower, UserCircle
+from models.enums import OTPVerificationTypeEnum
+from utils.auth import get_current_user
 from utils.helpers import standard_response, generate_otp, get_expiry, mask_email, mask_phone
+from utils.notification_service import send_verification_email, send_verification_sms
+from utils.validation_functions import validate_email, validate_tanzanian_phone, validate_password_strength, validate_username
+from utils.user_payload import build_user_payload
 
-router = APIRouter()
+router = APIRouter(prefix="/users", tags=["Users"])
 
 
+# ──────────────────────────────────────────────
+# Sign Up
+# ──────────────────────────────────────────────
 @router.post("/signup")
 async def signup(request: Request, db: Session = Depends(get_db)):
+    """Creates a new user account."""
     if request.headers.get("content-type") != "application/json":
         return standard_response(False, "Content type must be 'application/json'. Please send your data in JSON format.")
 
@@ -80,6 +86,14 @@ async def signup(request: Request, db: Session = Depends(get_db)):
         db.add(user)
         db.commit()
         db.refresh(user)
+        
+        # Create default profile and settings
+        profile = UserProfile(user_id=user.id)
+        settings = UserSetting(user_id=user.id)
+        db.add(profile)
+        db.add(settings)
+        db.commit()
+        
     except Exception:
         db.rollback()
         print(traceback.format_exc())
@@ -97,8 +111,12 @@ async def signup(request: Request, db: Session = Depends(get_db)):
     return standard_response(True, f"Hello, {first_name}! Your account has been successfully created. Please use the OTP sent to your email and phone to activate your account.", user_data)
 
 
+# ──────────────────────────────────────────────
+# Request OTP
+# ──────────────────────────────────────────────
 @router.post("/request-otp")
 async def request_otp(request: Request, db: Session = Depends(get_db)):
+    """Sends a new OTP code to user's email or phone."""
     if request.headers.get("content-type") != "application/json":
         return standard_response(False, "Content type must be 'application/json'. Please send your data in JSON format.")
 
@@ -128,7 +146,7 @@ async def request_otp(request: Request, db: Session = Depends(get_db)):
     otp_entry = UserVerificationOTP(
         user_id=user.id,
         otp_code=code,
-        verification_type=verification_type,
+        verification_type=OTPVerificationTypeEnum[verification_type],
         expires_at=expires_at
     )
     db.add(otp_entry)
@@ -151,8 +169,12 @@ async def request_otp(request: Request, db: Session = Depends(get_db)):
         return standard_response(False, f"Failed to send verification code: {str(e)}")
 
 
+# ──────────────────────────────────────────────
+# Verify OTP
+# ──────────────────────────────────────────────
 @router.post("/verify-otp")
 async def verify_otp(request: Request, db: Session = Depends(get_db)):
+    """Verifies email or phone using OTP code."""
     if request.headers.get("content-type") != "application/json":
         return standard_response(False, "Content type must be 'application/json'. Send JSON data.")
 
@@ -183,7 +205,7 @@ async def verify_otp(request: Request, db: Session = Depends(get_db)):
         db.query(UserVerificationOTP)
         .filter(
             UserVerificationOTP.user_id == user.id,
-            UserVerificationOTP.verification_type == verification_type,
+            UserVerificationOTP.verification_type == OTPVerificationTypeEnum[verification_type],
             UserVerificationOTP.is_used == False
         )
         .order_by(UserVerificationOTP.created_at.desc())
@@ -203,7 +225,7 @@ async def verify_otp(request: Request, db: Session = Depends(get_db)):
 
     db.query(UserVerificationOTP).filter(
         UserVerificationOTP.user_id == user.id,
-        UserVerificationOTP.verification_type == verification_type,
+        UserVerificationOTP.verification_type == OTPVerificationTypeEnum[verification_type],
         UserVerificationOTP.is_used == False,
         UserVerificationOTP.id != otp_entry.id
     ).delete(synchronize_session=False)
@@ -216,3 +238,63 @@ async def verify_otp(request: Request, db: Session = Depends(get_db)):
     db.commit()
 
     return standard_response(True, f"{verification_type.capitalize()} verified successfully.")
+
+
+# ──────────────────────────────────────────────
+# Search Users
+# ──────────────────────────────────────────────
+@router.get("/search")
+async def search_users(
+    q: str = "",
+    page: int = 1,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Search for other users to start a conversation with."""
+    if not q:
+        return standard_response(True, "Please provide a search term", [])
+
+    page = max(1, page)
+    limit = max(1, min(limit, 50))
+    offset = (page - 1) * limit
+
+    # Search by username, first_name, last_name, phone, email
+    search_term = f"%{q}%"
+    query = db.query(User).filter(
+        (User.id != current_user.id) &  # Exclude self
+        (User.is_active == True) &
+        (
+            User.username.ilike(search_term) |
+            User.first_name.ilike(search_term) |
+            User.last_name.ilike(search_term) |
+            User.email.ilike(search_term) |
+            User.phone.ilike(search_term)
+        )
+    )
+
+    total = query.count()
+    users = query.limit(limit).offset(offset).all()
+
+    results = []
+    for u in users:
+        profile = db.query(UserProfile).filter(UserProfile.user_id == u.id).first()
+        results.append({
+            "id": str(u.id),
+            "username": u.username,
+            "full_name": f"{u.first_name} {u.last_name}",
+            "avatar": profile.profile_picture_url if profile else None,
+            "is_verified": u.is_identity_verified
+        })
+
+    return standard_response(True, "Users found", {
+        "items": results,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total_items": total,
+            "total_pages": (total + limit - 1) // limit,
+            "has_next": (page * limit) < total,
+            "has_previous": page > 1
+        }
+    })

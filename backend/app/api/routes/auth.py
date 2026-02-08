@@ -1,28 +1,35 @@
-# backend/app/api/routes/auth.py
 
-from fastapi import APIRouter, Cookie, Request, Depends, Response
+import hashlib
+import re
+from datetime import datetime, timedelta
+from fastapi import APIRouter, Cookie, Request, Depends, Response, HTTPException
 from sqlalchemy.orm import Session
-from utils.user_payload import build_user_payload
-from models.users import User
+from models import PasswordResetToken, User
 from core.database import get_db
 from utils.auth import (
+    generate_reset_token,
     get_current_user,
+    is_token_expired,
     verify_password,
     create_access_token,
     create_refresh_token,
     get_user_by_credential,
     verify_refresh_token
 )
+from utils.user_payload import build_user_payload
+from utils.notification_service import send_password_reset_email
 from utils.validation_functions import validate_tanzanian_phone
 from utils.helpers import standard_response
-import re
 
-router = APIRouter()
+router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
+# ──────────────────────────────────────────────
+# Sign In
+# ──────────────────────────────────────────────
 @router.post("/signin")
 async def signin(request: Request, response: Response, db: Session = Depends(get_db)):
-    """Sign in with email, phone, or username"""
+    """Authenticates a user and returns access token."""
     if request.headers.get("content-type") != "application/json":
         return standard_response(
             False,
@@ -91,9 +98,27 @@ async def signin(request: Request, response: Response, db: Session = Depends(get
     )
 
 
+# ──────────────────────────────────────────────
+# Logout
+# ──────────────────────────────────────────────
+@router.post("/logout")
+async def logout(response: Response):
+    """Invalidates the current access token."""
+    response.delete_cookie(
+        key="session_id",
+        path="/",
+        samesite="lax",
+        httponly=True,
+    )
+    return standard_response(True, "Logged out successfully")
+
+
+# ──────────────────────────────────────────────
+# Refresh Token
+# ──────────────────────────────────────────────
 @router.post("/refresh")
 async def refresh_token(request: Request):
-    """Refresh expired access token"""
+    """Refreshes an expired access token."""
     try:
         payload = await request.json()
     except Exception:
@@ -123,23 +148,102 @@ async def refresh_token(request: Request):
     )
 
 
+# ──────────────────────────────────────────────
+# Get Current User
+# ──────────────────────────────────────────────
 @router.get("/me")
-async def read_current_user(
+async def get_current_user_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Return the authenticated user's full profile"""
+    """Returns the authenticated user's profile."""
     user_payload = build_user_payload(db, current_user)
     return standard_response(True, "User retrieved successfully", user_payload)
 
 
-@router.post("/logout")
-async def logout(response: Response, session_id: str = Cookie(None)):
-    """Logout the user by clearing the session cookie"""
-    response.delete_cookie(
-        key="session_id",
-        path="/",
-        samesite="lax",
-        httponly=True,
+# ──────────────────────────────────────────────
+# Forgot Password
+# ──────────────────────────────────────────────
+@router.post("/forgot-password")
+async def forgot_password(request: Request, db: Session = Depends(get_db)):
+    """Initiates password reset process."""
+    payload = await request.json()
+    email = payload.get("email")
+
+    if not email:
+        return standard_response(False, "Email is required")
+
+    user = db.query(User).filter(User.email == email).first()
+
+    # Always return success (avoid email enumeration)
+    if not user:
+        return standard_response(True, "If the email exists, reset instructions were sent")
+
+    raw_token, token_hash = generate_reset_token()
+
+    reset = PasswordResetToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=datetime.utcnow() + timedelta(minutes=10)
     )
-    return standard_response(True, "Logged out successfully")
+
+    db.add(reset)
+    db.commit()
+
+    send_password_reset_email(
+        to_email=user.email,
+        token=raw_token,
+        first_name=user.first_name
+    )
+
+    return standard_response(True, "If the email exists, reset instructions were sent")
+
+
+# ──────────────────────────────────────────────
+# Reset Password
+# ──────────────────────────────────────────────
+@router.post("/reset-password")
+async def reset_password(request: Request, db: Session = Depends(get_db)):
+    """Resets password using reset token."""
+    payload = await request.json()
+
+    token = payload.get("token")
+    password = payload.get("password")
+    password_confirmation = payload.get("password_confirmation")
+
+    if not token or not password:
+        return standard_response(False, "Token and password are required")
+
+    if password != password_confirmation:
+        return standard_response(False, "Passwords do not match")
+
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+    reset = (
+        db.query(PasswordResetToken)
+        .filter(
+            PasswordResetToken.token_hash == token_hash,
+            PasswordResetToken.is_used == False
+        )
+        .first()
+    )
+
+    if not reset:
+        return standard_response(False, "Invalid or used token")
+
+    if is_token_expired(reset.expires_at):
+        return standard_response(False, "Token has expired")
+
+    user = db.query(User).filter(User.id == reset.user_id).first()
+    if not user:
+        return standard_response(False, "User not found")
+
+    # Update password
+    user.password_hash = hashlib.sha256(password.encode()).hexdigest()
+
+    # Mark token used
+    reset.is_used = True
+
+    db.commit()
+
+    return standard_response(True, "Password reset successfully")

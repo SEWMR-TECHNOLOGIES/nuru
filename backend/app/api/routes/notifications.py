@@ -1,69 +1,83 @@
-# Public Events Routes - /events/...
-# Handles public event discovery and RSVP functionality
+# Notifications Routes - /notifications/...
+# Handles user notifications
 
 from fastapi import APIRouter
 
 from models import (
-    Event,
-    EventType,
-    EventImage,
-    EventAttendee,
-    EventInvitation,
-    EventGuestPlusOne,
+    Notification,
+    User,
 )
 
-router = APIRouter(prefix="/events", tags=["Public Events"])
+router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 
 # ──────────────────────────────────────────────
-# Search/Discover Public Events
+# Get Notifications
 # ──────────────────────────────────────────────
 @router.get("/")
-async def search_events():
-    """Searches and filters public events."""
+async def get_notifications():
+    """Returns notifications for the authenticated user."""
     pass
 
 
 # ──────────────────────────────────────────────
-# Get Public Event Details
+# Get Unread Count
 # ──────────────────────────────────────────────
-@router.get("/{event_id}")
-async def get_public_event(event_id: str):
-    """Returns public details of an event."""
+@router.get("/unread/count")
+async def get_unread_count():
+    """Returns unread notification count."""
     pass
 
 
 # ──────────────────────────────────────────────
-# Get RSVP Page (Public)
+# Mark as Read
 # ──────────────────────────────────────────────
-@router.get("/{event_id}/rsvp/{guest_id}")
-async def get_rsvp_page(event_id: str, guest_id: str):
-    """Returns event details for the public RSVP page."""
+@router.put("/{notification_id}/read")
+async def mark_as_read(notification_id: str):
+    """Marks a notification as read."""
     pass
 
 
 # ──────────────────────────────────────────────
-# Submit RSVP (Public)
+# Mark All as Read
 # ──────────────────────────────────────────────
-@router.post("/{event_id}/rsvp")
-async def submit_rsvp(event_id: str):
-    """Allows guests to respond to their invitation."""
+@router.put("/read-all")
+async def mark_all_as_read():
+    """Marks all notifications as read."""
     pass
 
 
 # ──────────────────────────────────────────────
-# Get Featured/Trending Events
+# Delete Notification
 # ──────────────────────────────────────────────
-@router.get("/featured")
-async def get_featured_events():
-    """Returns featured/trending public events."""
+@router.delete("/{notification_id}")
+async def delete_notification(notification_id: str):
+    """Deletes a notification."""
     pass
 
 
 # ──────────────────────────────────────────────
-# Get Nearby Events
+# Clear All Notifications
 # ──────────────────────────────────────────────
-@router.get("/nearby")
-async def get_nearby_events():
-    """Returns events near a location."""
+@router.delete("/")
+async def clear_all_notifications():
+    """Clears all notifications."""
+    pass
+
+
+# ──────────────────────────────────────────────
+# Register Push Token
+# ──────────────────────────────────────────────
+@router.post("/push-token")
+async def register_push_token():
+    """Registers a device push notification token."""
+    pass
+
+
+# ──────────────────────────────────────────────
+# Unregister Push Token
+# ──────────────────────────────────────────────
+@router.delete("/push-token")
+async def unregister_push_token():
+    """Unregisters a device push notification token."""
     pass
