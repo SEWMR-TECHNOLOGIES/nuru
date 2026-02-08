@@ -1,6 +1,6 @@
 from sqlalchemy import func
 from models.services import UserService
-from models.users import (
+from models import (
     UserProfile, UserFollower, UserCircle,
     UserSetting, UserMoment
 )

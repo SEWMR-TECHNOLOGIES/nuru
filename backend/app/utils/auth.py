@@ -1,15 +1,15 @@
 import hashlib
+import secrets
 import jwt
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from core.config import ALGORITHM, REFRESH_TOKEN_EXPIRE_DAYS, SECRET_KEY
+from core.config import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, REFRESH_TOKEN_EXPIRE_DAYS, SECRET_KEY
 from models.users import User
 from fastapi import Depends, HTTPException, Request, Cookie
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from core.database import get_db
 
 security = HTTPBearer()
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
 def get_current_user(
     request: Request,
@@ -88,3 +88,11 @@ def verify_refresh_token(token: str):
         return None
     except jwt.InvalidTokenError:
         return None
+
+def generate_reset_token() -> tuple[str, str]:
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    return raw_token, token_hash
+
+def is_token_expired(expires_at: datetime) -> bool:
+    return datetime.utcnow() > expires_at

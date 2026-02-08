@@ -45,3 +45,22 @@ def send_verification_email(to_email: str, code: str, first_name: str = ""):
     except Exception as e:
         print("Failed to send verification email:", e)
         raise e
+
+def send_password_reset_email(to_email: str, token: str, first_name: str = ""):
+    payload = {
+        "to_email": to_email,
+        "code": token,
+        "first_name": first_name
+    }
+
+    response = requests.post(
+        "https://api.sewmrtechnologies.com/mail/nuru/send-password-reset.php",
+        json=payload,
+        timeout=10
+    )
+
+    response.raise_for_status()
+    result = response.json()
+
+    if not result.get("success"):
+        raise Exception(result.get("message", "Failed to send reset email"))
