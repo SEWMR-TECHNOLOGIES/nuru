@@ -1,122 +1,113 @@
-# models/events.py
-# Contains all event-related models, fully aligned with SQL schema
-
-from sqlalchemy import Column, Date, Enum, Integer, String, Text, Boolean, ForeignKey, DateTime, Numeric, Time
+from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Integer, Numeric, Text, Enum, String
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from core.base import Base
-from models.enums import (
-    EventServiceStatusEnum, EventStatusEnum, PaymentStatusEnum,
-    PaymentMethodEnum, PriorityLevelEnum, RSVPStatusEnum
-)
+from models.enums import EventStatusEnum, PriorityLevelEnum
+
+
+# ──────────────────────────────────────────────
+# Event Tables
+# ──────────────────────────────────────────────
 
 class EventType(Base):
     __tablename__ = 'event_types'
+
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    name = Column(Text, unique=True, nullable=False)
+    name = Column(Text, nullable=False, unique=True)
     description = Column(Text)
     icon = Column(String(50))
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    events = relationship("Event", back_populates="event_type")
+    event_type_services = relationship("EventTypeService", back_populates="event_type")
+
 
 class Event(Base):
     __tablename__ = 'events'
+
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     organizer_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
     name = Column(Text, nullable=False)
     event_type_id = Column(UUID(as_uuid=True), ForeignKey('event_types.id'))
     description = Column(Text)
-    start_date = Column(Date)
-    start_time = Column(Time)
-    end_date = Column(Date, nullable=True)
-    end_time = Column(Time, nullable=True)
+    start_date = Column(DateTime)
+    start_time = Column(DateTime)
+    end_date = Column(DateTime)
+    end_time = Column(DateTime)
     expected_guests = Column(Integer)
     location = Column(Text)
     budget = Column(Numeric)
     contributions_total = Column(Numeric, default=0)
-    status = Column(Enum(EventStatusEnum), default=EventStatusEnum.draft)
+    status = Column(Enum(EventStatusEnum, name="event_status_enum"), default=EventStatusEnum.draft)
     currency_id = Column(UUID(as_uuid=True), ForeignKey('currencies.id'))
     cover_image_url = Column(Text)
     is_public = Column(Boolean, default=False)
-    theme_color = Column(String(7), nullable=True)              
-    dress_code = Column(String(100), nullable=True)            
-    special_instructions = Column(Text, nullable=True)        
+    theme_color = Column(String(7))
+    dress_code = Column(String(100))
+    special_instructions = Column(Text)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
-    services = relationship("EventService", back_populates="event", cascade="all, delete-orphan")
-    images = relationship("EventImage", back_populates="event", cascade="all, delete-orphan")
-    invitations = relationship("EventInvitation", back_populates="event", cascade="all, delete-orphan")
-    attendees = relationship("EventAttendee", back_populates="event", cascade="all, delete-orphan")
-    venue_coordinates = relationship("EventVenueCoordinate", uselist=False, back_populates="event", cascade="all, delete-orphan")
-    settings = relationship("EventSetting", uselist=False, back_populates="event", cascade="all, delete-orphan")
-    contribution_targets = relationship("EventContributionTarget", back_populates="event", cascade="all, delete-orphan")
-    contributions = relationship("EventContribution", back_populates="event", cascade="all, delete-orphan")
-    thank_you_messages = relationship("ContributionThankYouMessage", back_populates="event", cascade="all, delete-orphan")
-    committee_members = relationship("EventCommitteeMember", back_populates="event", cascade="all, delete-orphan")
-    schedule_items = relationship("EventScheduleItem", back_populates="event", cascade="all, delete-orphan")
-    budget_items = relationship("EventBudgetItem", back_populates="event", cascade="all, delete-orphan")
+    # Relationships
+    organizer = relationship("User", back_populates="organized_events")
+    event_type = relationship("EventType", back_populates="events")
+    currency = relationship("Currency", back_populates="events")
+    images = relationship("EventImage", back_populates="event")
+    venue_coordinate = relationship("EventVenueCoordinate", back_populates="event", uselist=False)
+    event_setting = relationship("EventSetting", back_populates="event", uselist=False)
+    committee_members = relationship("EventCommitteeMember", back_populates="event")
+    event_services = relationship("EventService", back_populates="event")
+    contribution_targets = relationship("EventContributionTarget", back_populates="event")
+    event_contributors = relationship("EventContributor", back_populates="event")
+    contributions = relationship("EventContribution", back_populates="event")
+    thank_you_messages = relationship("ContributionThankYouMessage", back_populates="event")
+    invitations = relationship("EventInvitation", back_populates="event")
+    attendees = relationship("EventAttendee", back_populates="event")
+    schedule_items = relationship("EventScheduleItem", back_populates="event")
+    budget_items = relationship("EventBudgetItem", back_populates="event")
+    booking_requests = relationship("ServiceBookingRequest", back_populates="event")
+    promoted_events = relationship("PromotedEvent", back_populates="event")
+
 
 class EventTypeService(Base):
-    __tablename__ = "event_type_services"
+    __tablename__ = 'event_type_services'
+
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    event_type_id = Column(UUID(as_uuid=True), ForeignKey("event_types.id", ondelete="CASCADE"), nullable=False)
-    service_type_id = Column(UUID(as_uuid=True), ForeignKey("service_types.id", ondelete="CASCADE"), nullable=False)
-    priority = Column(Enum(PriorityLevelEnum, name="priority_level"), nullable=False, default=PriorityLevelEnum.medium)
+    event_type_id = Column(UUID(as_uuid=True), ForeignKey('event_types.id', ondelete='CASCADE'), nullable=False)
+    service_type_id = Column(UUID(as_uuid=True), ForeignKey('service_types.id', ondelete='CASCADE'), nullable=False)
+    priority = Column(Enum(PriorityLevelEnum, name="priority_level_enum"), nullable=False, default=PriorityLevelEnum.medium)
     is_mandatory = Column(Boolean, default=True)
-    description = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    event_type = relationship("EventType", backref="recommended_services")
-    service_type = relationship("ServiceType")
+    description = Column(Text)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    event_type = relationship("EventType", back_populates="event_type_services")
+    service_type = relationship("ServiceType", back_populates="event_type_services")
+
 
 class EventImage(Base):
     __tablename__ = 'event_images'
+
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
+    event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'))
     image_url = Column(Text, nullable=False)
-    caption = Column(Text, nullable=True)
+    caption = Column(Text)
     is_featured = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Relationships
     event = relationship("Event", back_populates="images")
 
-class EventService(Base):
-    __tablename__ = 'event_services'
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
-    service_id = Column(UUID(as_uuid=True), ForeignKey('service_types.id', ondelete='CASCADE'), nullable=False)
-    provider_user_service_id = Column(UUID(as_uuid=True), ForeignKey('user_services.id', ondelete='SET NULL'), nullable=True)
-    provider_user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-    agreed_price = Column(Numeric, nullable=True)
-    is_payment_settled = Column(Boolean, default=False, nullable=False)
-    service_status = Column(Enum(EventServiceStatusEnum, name="event_service_status"), default=EventServiceStatusEnum.pending, nullable=False)
-    notes = Column(Text, nullable=True)
-    assigned_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=func.now(), nullable=False)
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
-    event = relationship("Event", back_populates="services")
-    service = relationship("ServiceType")
-    provider_service = relationship("UserService", foreign_keys=[provider_user_service_id])
-    provider_user = relationship("User", foreign_keys=[provider_user_id])
-
-class EventServicePayment(Base):
-    __tablename__ = 'event_service_payments'
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    event_service_id = Column(UUID(as_uuid=True), ForeignKey('event_services.id', ondelete='CASCADE'))
-    provider_user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'))
-    amount = Column(Numeric, nullable=False)
-    status = Column(Enum(PaymentStatusEnum, native_enum=False), default=PaymentStatusEnum.pending)
-    payment_date = Column(DateTime, default=func.now())
-    method = Column(Enum(PaymentMethodEnum, native_enum=False), nullable=False)
-    transaction_ref = Column(Text)
-    provider_transaction_ref = Column(Text)
-    event_service = relationship("EventService")
 
 class EventVenueCoordinate(Base):
     __tablename__ = 'event_venue_coordinates'
+
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False, unique=True)
     latitude = Column(Numeric, nullable=False)
@@ -124,12 +115,16 @@ class EventVenueCoordinate(Base):
     formatted_address = Column(Text)
     place_id = Column(Text)
     venue_name = Column(Text)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    event = relationship("Event", back_populates="venue_coordinates")
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    event = relationship("Event", back_populates="venue_coordinate")
+
 
 class EventSetting(Base):
     __tablename__ = 'event_settings'
+
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False, unique=True)
     rsvp_enabled = Column(Boolean, default=True)
@@ -137,7 +132,7 @@ class EventSetting(Base):
     allow_plus_ones = Column(Boolean, default=False)
     max_plus_ones = Column(Integer, default=1)
     require_meal_preference = Column(Boolean, default=False)
-    meal_options = Column(JSONB, default=list)
+    meal_options = Column(JSONB, server_default="'[]'::jsonb")
     contributions_enabled = Column(Boolean, default=True)
     contribution_target_amount = Column(Numeric)
     show_contribution_progress = Column(Boolean, default=True)
@@ -150,182 +145,8 @@ class EventSetting(Base):
     is_public = Column(Boolean, default=False)
     show_guest_list = Column(Boolean, default=False)
     show_committee = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    event = relationship("Event", back_populates="settings")
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
-class CommitteeRole(Base):
-    __tablename__ = 'committee_roles'
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    role_name = Column(Text, unique=True, nullable=False)
-    description = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-
-class EventCommitteeMember(Base):
-    __tablename__ = 'event_committee_members'
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'))
-    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
-    role_id = Column(UUID(as_uuid=True), ForeignKey('committee_roles.id', ondelete='SET NULL'))
-    assigned_by = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'))
-    assigned_at = Column(DateTime, default=func.now())
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    event = relationship("Event", back_populates="committee_members")
-
-class CommitteePermission(Base):
-    __tablename__ = 'committee_permissions'
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    committee_member_id = Column(UUID(as_uuid=True), ForeignKey('event_committee_members.id', ondelete='CASCADE'), unique=True)
-    can_view_guests = Column(Boolean, default=True)
-    can_manage_guests = Column(Boolean, default=False)
-    can_send_invitations = Column(Boolean, default=False)
-    can_check_in_guests = Column(Boolean, default=False)
-    can_view_budget = Column(Boolean, default=False)
-    can_manage_budget = Column(Boolean, default=False)
-    can_view_contributions = Column(Boolean, default=False)
-    can_manage_contributions = Column(Boolean, default=False)
-    can_view_vendors = Column(Boolean, default=True)
-    can_manage_vendors = Column(Boolean, default=False)
-    can_approve_bookings = Column(Boolean, default=False)
-    can_edit_event = Column(Boolean, default=False)
-    can_manage_committee = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-
-class EventInvitation(Base):
-    __tablename__ = "event_invitations"
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id", ondelete="CASCADE"))
-    invited_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
-    invited_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
-    invitation_code = Column(Text, unique=True)
-    rsvp_status = Column(Enum(RSVPStatusEnum), default=RSVPStatusEnum.pending)
-    invited_at = Column(DateTime, default=func.now())
-    rsvp_at = Column(DateTime, nullable=True)
-    notes = Column(Text, nullable=True)
-    sent_via = Column(Text, nullable=True)
-    sent_at = Column(DateTime, nullable=True)
-    reminder_sent_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-
-    event = relationship("Event", back_populates="invitations")
-
-class EventAttendee(Base):
-    __tablename__ = "event_attendees"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id", ondelete="CASCADE"))
-    attendee_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
-    invitation_id = Column(UUID(as_uuid=True), ForeignKey("event_invitations.id", ondelete="SET NULL"))
-    rsvp_status = Column(Enum(RSVPStatusEnum), default=RSVPStatusEnum.pending)
-    checked_in = Column(Boolean, default=False)
-    checked_in_at = Column(DateTime, nullable=True)
-    nuru_card_id = Column(UUID(as_uuid=True), ForeignKey("nuru_cards.id", ondelete="SET NULL"))
-    meal_preference = Column(Text, nullable=True)
-    dietary_restrictions = Column(Text, nullable=True)
-    special_requests = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-
-    event = relationship("Event", back_populates="attendees")
-    plus_ones = relationship("EventGuestPlusOne", back_populates="attendee",cascade="all, delete-orphan")
-
-
-class EventContributionTarget(Base):
-    __tablename__ = "event_contribution_targets"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id", ondelete="CASCADE"))
-    target_amount = Column(Numeric, nullable=False)
-    description = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-
-    event = relationship("Event", back_populates="contribution_targets")
-
-
-class EventContribution(Base):
-    __tablename__ = "event_contributions"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id", ondelete="CASCADE"))
-    contributor_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    contributor_name = Column(Text, nullable=True)
-    contributor_contact = Column(JSONB, nullable=True)
-    amount = Column(Numeric, nullable=False)
-    payment_method = Column(Enum(PaymentMethodEnum), nullable=True)
-    transaction_ref = Column(Text, nullable=True)
-    contributed_at = Column(DateTime, default=func.now())
-    created_at = Column(DateTime, default=func.now())
-
-    event = relationship("Event", back_populates="contributions")
-
-class ContributionThankYouMessage(Base):
-    __tablename__ = "contribution_thank_you_messages"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id", ondelete="CASCADE"), nullable=False)
-    contribution_id = Column(UUID(as_uuid=True), ForeignKey("event_contributions.id", ondelete="CASCADE"), unique=True, nullable=False)
-    message = Column(Text, nullable=False)
-    sent_via = Column(Text, nullable=True)
-    sent_at = Column(DateTime, nullable=True)
-    is_sent = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-
-    event = relationship("Event", back_populates="thank_you_messages")
-    contribution = relationship("EventContribution")
-
-class EventScheduleItem(Base):
-    __tablename__ = "event_schedule_items"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id", ondelete="CASCADE"), nullable=False)
-    title = Column(Text, nullable=False)
-    description = Column(Text, nullable=True)
-    start_time = Column(DateTime, nullable=False)
-    end_time = Column(DateTime, nullable=True)
-    location = Column(Text, nullable=True)
-    display_order = Column(Integer, default=0)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-
-    event = relationship("Event", back_populates="schedule_items")
-
-
-class EventBudgetItem(Base):
-    __tablename__ = "event_budget_items"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id", ondelete="CASCADE"), nullable=False)
-    category = Column(Text, nullable=False)
-    item_name = Column(Text, nullable=False)
-    estimated_cost = Column(Numeric, nullable=True)
-    actual_cost = Column(Numeric, nullable=True)
-    vendor_name = Column(Text, nullable=True)
-    status = Column(Text, default="pending")
-    notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-
-    event = relationship("Event", back_populates="budget_items")
-
-class EventGuestPlusOne(Base):
-    """Represents a guest brought by an attendee (plus-one)."""
-    __tablename__ = "event_guest_plus_ones"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    attendee_id = Column(UUID(as_uuid=True), ForeignKey("event_attendees.id", ondelete="CASCADE"), nullable=False)
-    name = Column(Text, nullable=False)
-    email = Column(Text, nullable=True)
-    phone = Column(Text, nullable=True)
-    meal_preference = Column(Text, nullable=True)
-    checked_in = Column(Boolean, default=False)
-    checked_in_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-
-    attendee = relationship("EventAttendee", back_populates="plus_ones")
+    # Relationships
+    event = relationship("Event", back_populates="event_setting")

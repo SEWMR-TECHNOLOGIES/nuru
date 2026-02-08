@@ -1,20 +1,25 @@
 import enum
 
+
 class EventStatusEnum(enum.Enum):
     draft = "draft"
     confirmed = "confirmed"
     completed = "completed"
+    published = "published"
     cancelled = "cancelled"
+
 
 class PaymentStatusEnum(enum.Enum):
     pending = "pending"
     completed = "completed"
     refunded = "refunded"
 
+
 class PaymentMethodEnum(enum.Enum):
     mobile = "mobile"
     bank = "bank"
     card = "card"
+
 
 class RSVPStatusEnum(enum.Enum):
     pending = "pending"
@@ -22,18 +27,22 @@ class RSVPStatusEnum(enum.Enum):
     declined = "declined"
     checked_in = "checked_in"
 
+
 class VerificationStatusEnum(enum.Enum):
     pending = "pending"
     verified = "verified"
     rejected = "rejected"
 
+
 class OTPVerificationTypeEnum(enum.Enum):
     phone = "phone"
     email = "email"
 
+
 class ConversationTypeEnum(enum.Enum):
     user_to_user = "user_to_user"
     user_to_service = "user_to_service"
+
 
 class EventServiceStatusEnum(enum.Enum):
     pending = "pending"
@@ -42,10 +51,12 @@ class EventServiceStatusEnum(enum.Enum):
     completed = "completed"
     cancelled = "cancelled"
 
+
 class ServiceAvailabilityEnum(enum.Enum):
     available = "available"
     limited = "limited"
     unavailable = "unavailable"
+
 
 class NotificationTypeEnum(enum.Enum):
     glow = "glow"
@@ -69,16 +80,19 @@ class NotificationTypeEnum(enum.Enum):
     mention = "mention"
     circle_add = "circle_add"
 
+
 class UploadFileTypeEnum(enum.Enum):
     image = "image"
     pdf = "pdf"
     video = "video"
     doc = "doc"
 
+
 class PriorityLevelEnum(enum.Enum):
     high = "high"
     medium = "medium"
     low = "low"
+
 
 class SocialProviderEnum(enum.Enum):
     google = "google"
@@ -86,14 +100,17 @@ class SocialProviderEnum(enum.Enum):
     apple = "apple"
     twitter = "twitter"
 
+
 class MomentContentTypeEnum(enum.Enum):
     image = "image"
     video = "video"
+
 
 class MomentPrivacyEnum(enum.Enum):
     everyone = "everyone"
     circle_only = "circle_only"
     close_friends = "close_friends"
+
 
 class StickerTypeEnum(enum.Enum):
     poll = "poll"
@@ -104,6 +121,7 @@ class StickerTypeEnum(enum.Enum):
     link = "link"
     hashtag = "hashtag"
 
+
 class CardOrderStatusEnum(enum.Enum):
     pending = "pending"
     processing = "processing"
@@ -111,10 +129,12 @@ class CardOrderStatusEnum(enum.Enum):
     delivered = "delivered"
     cancelled = "cancelled"
 
+
 class CardTypeEnum(enum.Enum):
     standard = "standard"
     premium = "premium"
     custom = "custom"
+
 
 class ChatSessionStatusEnum(enum.Enum):
     waiting = "waiting"
