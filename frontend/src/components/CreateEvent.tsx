@@ -30,7 +30,7 @@ const CreateEvent: React.FC = () => {
     location: "",
     expectedGuests: "",
     budget: "",
-    eventType: "wedding",
+    eventType: "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -165,27 +165,48 @@ const CreateEvent: React.FC = () => {
           <CardContent className="space-y-4">
             {/* Event Type Selection */}
             <div>
-              <label className="block text-sm font-medium mb-2">Event Type</label>
-              <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
-                {displayedEventTypes.map((type) => (
-                  <button
-                    key={type.id}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, eventType: type.id })}
-                    className={cn(
-                      "p-3 rounded-lg border text-center transition-colors",
-                      formData.eventType === type.id
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border hover:bg-muted/50"
-                    )}
-                  >
-                    <div className="text-2xl mb-1">
-                      <EventIcon iconName={type.icon} />
+              <label className="block text-sm font-medium mb-2">
+                Event Type <span className="text-destructive">*</span>
+              </label>
+              {loadingEventTypes ? (
+                <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+                  {[1,2,3,4,5].map(i => (
+                    <div key={i} className="p-4 rounded-xl border border-border animate-pulse">
+                      <div className="w-8 h-8 bg-muted rounded-lg mx-auto mb-2" />
+                      <div className="h-3 bg-muted rounded w-16 mx-auto" />
                     </div>
-                    <div className="text-sm font-medium">{type.name}</div>
-                  </button>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : displayedEventTypes.length === 0 ? (
+                <p className="text-sm text-muted-foreground p-4 text-center border border-dashed rounded-lg">No event types available</p>
+              ) : (
+                <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+                  {displayedEventTypes.map((type) => (
+                    <button
+                      key={type.id}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, eventType: type.id })}
+                      className={cn(
+                        "p-4 rounded-xl border-2 text-center transition-all duration-200 group",
+                        formData.eventType === type.id
+                          ? "border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20"
+                          : "border-border hover:border-primary/30 hover:bg-muted/50"
+                      )}
+                    >
+                      <div className={cn(
+                        "text-2xl mb-1.5 transition-transform duration-200",
+                        formData.eventType === type.id ? "scale-110" : "group-hover:scale-105"
+                      )}>
+                        <EventIcon iconName={type.icon} />
+                      </div>
+                      <div className="text-xs font-medium leading-tight">{type.name}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {!formData.eventType && !loadingEventTypes && displayedEventTypes.length > 0 && (
+                <p className="text-xs text-destructive mt-1">Please select an event type</p>
+              )}
             </div>
 
             {/* Title and Location */}
@@ -357,7 +378,7 @@ const CreateEvent: React.FC = () => {
           </Button>
           <Button
             type="submit"
-            disabled={!formData.title || !formData.date || isSubmitting}
+            disabled={!formData.title || !formData.date || !formData.eventType || isSubmitting}
           >
             {isSubmitting ? (editId ? "Updating event..." : "Creating event...") : (editId ? "Update Event" : "Create Event")}
           </Button>

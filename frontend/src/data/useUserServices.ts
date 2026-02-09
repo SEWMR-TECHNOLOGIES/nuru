@@ -1,8 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
 import { api, UserService, servicesApi } from "@/lib/api";
 
+interface ServicesSummary {
+  total_services: number;
+  active_services: number;
+  verified_services: number;
+  pending_verification: number;
+  total_reviews: number;
+  average_rating: number;
+}
+
 export const useUserServices = () => {
   const [services, setServices] = useState<UserService[]>([]);
+  const [summary, setSummary] = useState<ServicesSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -12,8 +22,17 @@ export const useUserServices = () => {
 
     try {
       const response = await api.userServices.getAll();
-      if (response.success) {
-        setServices(response.data);
+      if (response.success && response.data) {
+        // API returns { services: [...], summary: {...} } per nuru-api-doc
+        const data = response.data as any;
+        if (data.services && Array.isArray(data.services)) {
+          setServices(data.services);
+          setSummary(data.summary || null);
+        } else if (Array.isArray(data)) {
+          setServices(data);
+        } else {
+          setServices([]);
+        }
       } else {
         setError(response.message || "Failed to fetch user services");
       }
@@ -28,7 +47,7 @@ export const useUserServices = () => {
     fetchServices();
   }, [fetchServices]);
 
-  return { services, loading, error, refetch: fetchServices };
+  return { services, summary, loading, error, refetch: fetchServices };
 };
 
 // ============================================================================

@@ -1233,6 +1233,65 @@ Authorization: Bearer {access_token}
 }
 ```
 
+### 3.1.4 PUT /user-events/invited/{eventId}/rsvp — Respond to Invitation (Authenticated)
+
+Allows an authenticated invited user to accept or decline an event invitation. Updates both the invitation and attendee records.
+
+```
+PUT /user-events/invited/{eventId}/rsvp
+Authorization: Bearer {access_token}
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "rsvp_status": "confirmed",
+  "meal_preference": "Vegetarian",
+  "dietary_restrictions": "No nuts",
+  "special_requests": "Wheelchair access needed"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| rsvp_status | string | Yes | Response status: confirmed, declined, pending |
+| meal_preference | string | No | Guest's meal preference |
+| dietary_restrictions | string | No | Dietary restrictions |
+| special_requests | string | No | Special requests or notes |
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "RSVP updated successfully",
+  "data": {
+    "event_id": "b50e8400-e29b-41d4-a716-446655440001",
+    "rsvp_status": "confirmed",
+    "rsvp_at": "2025-02-08T14:30:00+03:00",
+    "attendee_id": "c50e8400-e29b-41d4-a716-446655440001"
+  }
+}
+```
+
+**Error Responses:**
+
+400 Bad Request - Invalid Status:
+```json
+{
+  "success": false,
+  "message": "Invalid rsvp_status. Must be one of: confirmed, declined, pending"
+}
+```
+
+404 Not Found - No Invitation:
+```json
+{
+  "success": false,
+  "message": "You do not have an invitation for this event"
+}
+```
+
 ---
 
 

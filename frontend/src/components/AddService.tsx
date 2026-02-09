@@ -71,7 +71,7 @@ const AddService = () => {
       form.append("location", formData.location || "");
 
       images.forEach((file) => {
-        form.append("files", file);
+        form.append("images", file);
       });
 
       const response = await userServicesApi.create(form);

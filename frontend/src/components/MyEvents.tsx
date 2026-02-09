@@ -32,10 +32,14 @@ const MyEvents = () => {
   });
 
   const navigate = useNavigate();
-  const { events, loading, error, refetch } = useEvents();
+  const { events: fetchedEvents, loading, error, refetch } = useEvents();
   const { deleteEvent, loading: deleting } = useDeleteEvent();
   usePolling(refetch, 15000);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+  const [localStatusOverrides, setLocalStatusOverrides] = useState<Record<string, string>>({});
+  
+  // Merge local overrides with fetched events
+  const events = fetchedEvents.map((e: any) => localStatusOverrides[e.id] ? { ...e, status: localStatusOverrides[e.id] } : e);
 
   const statusStyles: Record<string, string> = {
     draft: "bg-muted text-muted-foreground",
@@ -55,20 +59,16 @@ const MyEvents = () => {
   };
 
   const handleStatusChange = async (eventId: string, newStatus: string) => {
+    // Optimistic update
+    setLocalStatusOverrides(prev => ({ ...prev, [eventId]: newStatus }));
     setUpdatingStatus(eventId);
     try {
-      if (newStatus === 'published') {
-        await eventsApi.publish(eventId);
-      } else if (newStatus === 'cancelled') {
-        await eventsApi.cancel(eventId, { notify_guests: true, notify_vendors: true });
-      } else {
-        const fd = new FormData();
-        fd.append('status', newStatus);
-        await eventsApi.update(eventId, fd);
-      }
+      await eventsApi.updateStatus(eventId, newStatus as any);
       toast.success(`Event status updated to ${newStatus}`);
       refetch();
     } catch (err: any) {
+      // Rollback
+      setLocalStatusOverrides(prev => { const next = { ...prev }; delete next[eventId]; return next; });
       showCaughtError(err, 'Failed to update status');
     } finally {
       setUpdatingStatus(null);
@@ -158,7 +158,7 @@ const MyEvents = () => {
                         <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{event.description || event.text}</p>
                         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-3">
                           <span className="flex items-center gap-1.5"><Users className="w-4 h-4" /><span>{expectedGuests} expected</span></span>
-                          <span className="flex items-center gap-1.5"><UserCheck className="w-4 h-4" /><span>{guestCount} confirmed</span></span>
+                          <span className="flex items-center gap-1.5"><UserCheck className="w-4 h-4" /><span>{event.confirmed_guest_count || 0} confirmed</span></span>
                           <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4" /><span>{eventDate ? new Date(eventDate).toLocaleDateString() : ''}</span></span>
                         </div>
                         {event.budget && <p className="text-sm font-medium text-foreground mt-2">{formatBudget(event.budget)}</p>}

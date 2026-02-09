@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useNavigate } from 'react-router-dom';
 import { eventsApi } from '@/lib/api/events';
 import { toast } from 'sonner';
+import { showCaughtError } from '@/lib/api';
 import InvitationCard from './InvitationCard';
 
 const rsvpStyles: Record<string, string> = {
@@ -28,6 +29,7 @@ const InvitedEvents = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [respondingId, setRespondingId] = useState<string | null>(null);
 
   const fetchInvited = useCallback(async () => {
     setLoading(true);
@@ -46,6 +48,28 @@ const InvitedEvents = () => {
   }, []);
 
   useEffect(() => { fetchInvited(); }, [fetchInvited]);
+
+  const handleRSVP = async (eventId: string, rsvpStatus: 'confirmed' | 'declined') => {
+    setRespondingId(eventId);
+    try {
+      const response = await eventsApi.respondToInvitation(eventId, { rsvp_status: rsvpStatus });
+      if (response.success) {
+        toast.success(rsvpStatus === 'confirmed' ? 'You have accepted the invitation!' : 'You have declined the invitation.');
+        // Update local state
+        setEvents(prev => prev.map(ev =>
+          ev.id === eventId
+            ? { ...ev, invitation: { ...ev.invitation, rsvp_status: rsvpStatus } }
+            : ev
+        ));
+      } else {
+        toast.error(response.message || 'Failed to update RSVP');
+      }
+    } catch (err: any) {
+      showCaughtError(err, 'Failed to respond to invitation');
+    } finally {
+      setRespondingId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -90,12 +114,12 @@ const InvitedEvents = () => {
         {events.map((event) => {
           const rsvpStatus = event.invitation?.rsvp_status || 'pending';
           const RsvpIcon = rsvpIcons[rsvpStatus] || HelpCircle;
+          const isResponding = respondingId === event.id;
 
           return (
             <article
               key={event.id}
-              className="bg-card rounded-lg border border-border overflow-hidden hover:bg-muted/10 transition-colors cursor-pointer"
-              onClick={() => navigate(`/event-management/${event.id}`)}
+              className="bg-card rounded-lg border border-border overflow-hidden transition-colors"
             >
               <div className="p-4">
                 <div className="flex flex-col sm:flex-row gap-4">
@@ -147,18 +171,80 @@ const InvitedEvents = () => {
                       </p>
                     )}
 
+                    {/* RSVP Action Buttons */}
                     <div className="flex flex-wrap items-center gap-2 mt-3">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedEventId(event.id);
-                        }}
-                      >
-                        <Printer className="w-4 h-4 mr-1" />
-                        Invitation Card
-                      </Button>
+                      {rsvpStatus === 'pending' && (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRSVP(event.id, 'confirmed');
+                            }}
+                            disabled={isResponding}
+                            className="gap-1.5"
+                          >
+                            {isResponding ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                            Accept
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRSVP(event.id, 'declined');
+                            }}
+                            disabled={isResponding}
+                            className="gap-1.5 text-destructive hover:text-destructive"
+                          >
+                            {isResponding ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                            Decline
+                          </Button>
+                        </>
+                      )}
+                      {rsvpStatus === 'confirmed' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRSVP(event.id, 'declined');
+                          }}
+                          disabled={isResponding}
+                          className="gap-1.5 text-destructive hover:text-destructive"
+                        >
+                          {isResponding ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                          Cancel RSVP
+                        </Button>
+                      )}
+                      {rsvpStatus === 'declined' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRSVP(event.id, 'confirmed');
+                          }}
+                          disabled={isResponding}
+                          className="gap-1.5"
+                        >
+                          {isResponding ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                          Accept Instead
+                        </Button>
+                      )}
+                      {rsvpStatus === 'confirmed' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedEventId(event.id);
+                          }}
+                        >
+                          <Printer className="w-4 h-4 mr-1" />
+                          Invitation Card
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>

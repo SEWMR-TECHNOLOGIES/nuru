@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { 
   Calendar, 
   Plus, 
@@ -39,6 +40,7 @@ interface EventScheduleProps {
 const EventSchedule = ({ eventId }: EventScheduleProps) => {
   const { schedule, loading, error, addItem, updateItem, deleteItem, refetch } = useEventSchedule(eventId);
   
+  const { confirm, ConfirmDialog } = useConfirmDialog();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<EventScheduleItem | null>(null);
@@ -110,7 +112,13 @@ const EventSchedule = ({ eventId }: EventScheduleProps) => {
   };
 
   const handleDeleteItem = async (itemId: string) => {
-    if (!confirm('Are you sure you want to delete this schedule item?')) return;
+    const confirmed = await confirm({
+      title: 'Delete Schedule Item',
+      description: 'Are you sure you want to delete this schedule item? This action cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!confirmed) return;
     
     try {
       await deleteItem(itemId);
@@ -160,6 +168,7 @@ const EventSchedule = ({ eventId }: EventScheduleProps) => {
 
   return (
     <div className="space-y-6">
+      <ConfirmDialog />
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold">Event Schedule</h2>

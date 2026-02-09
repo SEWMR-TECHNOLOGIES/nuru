@@ -1,19 +1,7 @@
 import { useState } from 'react';
 import { 
-  UserPlus, 
-  Send, 
-  Search, 
-  Filter, 
-  CheckCircle, 
-  Clock, 
-  X,
-  QrCode,
-  Mail,
-  Phone,
-  MoreVertical,
-  Edit,
-  Trash,
-  Loader2
+  UserPlus, Send, Search, Filter, CheckCircle, Clock, X,
+  QrCode, Mail, Phone, MoreVertical, Edit, Trash, Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useEventGuests } from '@/data/useEvents';
 import { usePolling } from '@/hooks/usePolling';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
 import UserSearchInput from './UserSearchInput';
@@ -47,6 +36,7 @@ interface EventGuestListProps {
 const EventGuestList = ({ eventId }: EventGuestListProps) => {
   const { guests, summary, loading, error, refetch, addGuest, deleteGuest, sendInvitation, checkinGuest } = useEventGuests(eventId);
   usePolling(refetch, 15000);
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -71,6 +61,7 @@ const EventGuestList = ({ eventId }: EventGuestListProps) => {
     setIsSubmitting(true);
     try {
       await addGuest({
+        user_id: selectedUser.id,
         name: `${selectedUser.first_name} ${selectedUser.last_name}`,
         email: selectedUser.email,
         phone: selectedUser.phone || undefined,
@@ -115,7 +106,13 @@ const EventGuestList = ({ eventId }: EventGuestListProps) => {
   };
 
   const handleDeleteGuest = async (guestId: string) => {
-    if (!confirm('Are you sure you want to remove this guest?')) return;
+    const confirmed = await confirm({
+      title: 'Remove Guest',
+      description: 'Are you sure you want to remove this guest? This action cannot be undone.',
+      confirmLabel: 'Remove',
+      destructive: true,
+    });
+    if (!confirmed) return;
     try {
       await deleteGuest(guestId);
       toast.success('Guest removed');
@@ -125,7 +122,8 @@ const EventGuestList = ({ eventId }: EventGuestListProps) => {
   };
 
   const filteredGuests = guests.filter(guest => {
-    const matchesSearch = guest.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const name = guest.name || '';
+    const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       guest.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       guest.phone?.includes(searchQuery);
     const matchesStatus = statusFilter === 'all' || guest.rsvp_status === statusFilter;
@@ -152,6 +150,8 @@ const EventGuestList = ({ eventId }: EventGuestListProps) => {
 
   return (
     <div className="space-y-6">
+      <ConfirmDialog />
+
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card><CardContent className="p-4 text-center"><p className="text-2xl font-bold">{summary.total}</p><p className="text-sm text-muted-foreground">Total</p></CardContent></Card>
@@ -193,10 +193,13 @@ const EventGuestList = ({ eventId }: EventGuestListProps) => {
               filteredGuests.map((guest) => (
                 <div key={guest.id} className="p-4 flex items-center justify-between hover:bg-muted/50">
                   <div className="flex items-center gap-4">
-                    <Avatar><AvatarFallback>{guest.name.charAt(0)}</AvatarFallback></Avatar>
+                    <Avatar>
+                      <AvatarImage src={guest.avatar || undefined} />
+                      <AvatarFallback>{(guest.name || 'G').charAt(0)}</AvatarFallback>
+                    </Avatar>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="font-medium">{guest.name}</p>
+                        <p className="font-medium">{guest.name || 'Unknown'}</p>
                         {guest.plus_ones > 0 && <Badge variant="outline" className="text-xs">+{guest.plus_ones}</Badge>}
                       </div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -220,7 +223,7 @@ const EventGuestList = ({ eventId }: EventGuestListProps) => {
                           <DropdownMenuItem onClick={() => handleCheckin(guest.id)}><CheckCircle className="w-4 h-4 mr-2" />Check In</DropdownMenuItem>
                         )}
                         <DropdownMenuItem><Edit className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteGuest(guest.id)}>
+                        <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteGuest(guest.id)}>
                           <Trash className="w-4 h-4 mr-2" />Remove
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -233,7 +236,7 @@ const EventGuestList = ({ eventId }: EventGuestListProps) => {
         </CardContent>
       </Card>
 
-      {/* Add Guest Dialog - User Search */}
+      {/* Add Guest Dialog */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Add Guest</DialogTitle></DialogHeader>

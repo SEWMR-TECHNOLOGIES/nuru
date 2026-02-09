@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { formatPrice } from '@/utils/formatPrice';
 import { Star, MapPin, CheckCircle, Calendar, Users, Plus, Edit, Eye, Package, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,7 +25,7 @@ const MyServices = () => {
   });
 
   const navigate = useNavigate();
-  const { services, loading, error, refetch } = useUserServices();
+  const { services, summary, loading, error, refetch } = useUserServices();
 
   
   // Reviews state - fetched from API
@@ -38,8 +39,8 @@ const MyServices = () => {
         setReviewsLoading(true);
         try {
           const response = await userServicesApi.getReviews(services[0].id, { limit: 5 });
-          if (response.success) {
-            setReviews(response.data.reviews);
+          if (response.success && response.data) {
+            setReviews(Array.isArray(response.data.reviews) ? response.data.reviews : []);
           }
         } catch {
           // ignore
@@ -126,20 +127,29 @@ const MyServices = () => {
     ));
   };
 
-  // Helper function to get image URL from service images
+  // Helper function to get image URL from service image object (per API doc: {id, url, is_primary, ...})
   const getImageUrl = (img: any): string => {
     if (typeof img === 'string') return img;
-    if (img && typeof img === 'object' && img.url) return img.url;
+    if (img && typeof img === 'object') {
+      return img.url || img.image_url || img.file_url || img.thumbnail_url || '';
+    }
     return '';
   };
 
-  // Helper function to format price display (API returns snake_case)
+  // Get images array safely from service
+  const getServiceImages = (service: any): any[] => {
+    if (Array.isArray(service.images) && service.images.length > 0) return service.images;
+    if (service.primary_image) return [{ url: service.primary_image }];
+    return [];
+  };
+
+  // Helper function to format price display using centralized formatPrice
   const formatPriceDisplay = (service: any): string => {
     if (service.min_price && service.max_price) {
-      return `${service.min_price.toLocaleString()} - ${service.max_price.toLocaleString()} ${service.currency || 'TZS'}`;
+      return `${formatPrice(service.min_price)} - ${formatPrice(service.max_price)}`;
     }
     if (service.min_price) {
-      return `From ${service.min_price.toLocaleString()} ${service.currency || 'TZS'}`;
+      return `From ${formatPrice(service.min_price)}`;
     }
     return 'Price on request';
   };
@@ -196,7 +206,7 @@ const MyServices = () => {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Events</p>
                 <p className="text-2xl font-bold">
-                  {services.reduce((sum, service) => sum + (service.completed_events || 0), 0)}
+                  {summary?.total_reviews ?? services.reduce((sum, service) => sum + (service.review_count || 0), 0)}
                 </p>
               </div>
               <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
@@ -250,7 +260,7 @@ const MyServices = () => {
                 {/* Images */}
                 <div className="w-full md:w-48 flex-shrink-0">
                   <div className="grid grid-cols-2 gap-2">
-                    {(service.images || []).slice(0, 4).map((image, index) => (
+                    {getServiceImages(service).slice(0, 4).map((image, index) => (
                       <img
                         key={index}
                         src={getImageUrl(image)}
@@ -482,7 +492,7 @@ const MyServices = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pkg-price">Price (TZS)</Label>
+              <Label htmlFor="pkg-price">Price</Label>
               <Input
                 id="pkg-price"
                 type="number"

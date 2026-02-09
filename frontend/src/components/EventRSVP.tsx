@@ -33,6 +33,7 @@ const EventRSVP = ({ eventId }: { eventId: string }) => {
     setIsSubmitting(true);
     try {
       await addGuest({
+        user_id: user.id,
         name: `${user.first_name} ${user.last_name}`,
         email: user.email,
         phone: user.phone || undefined,
@@ -109,7 +110,8 @@ const EventRSVP = ({ eventId }: { eventId: string }) => {
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <Avatar>
-                        <AvatarFallback>{guest.name?.charAt(0)}</AvatarFallback>
+                        <AvatarImage src={guest.avatar || undefined} />
+                        <AvatarFallback>{(guest.name || 'G').charAt(0)}</AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 mb-1">

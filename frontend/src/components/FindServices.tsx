@@ -274,7 +274,7 @@ const FindServices = () => {
                               className="w-full md:w-auto"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                navigate(`/provider-chat?providerId=${provider.id}&providerName=${encodeURIComponent(provider.title)}&serviceId=${assignServiceId}&eventId=${assignEventId}`);
+                                navigate(`/provider-chat?providerId=${provider.user_id || provider.id}&providerName=${encodeURIComponent(provider.title)}&serviceId=${assignServiceId}&eventId=${assignEventId}`);
                               }}
                             >
                               <MessageCircle className="w-4 h-4 mr-2" />
@@ -300,7 +300,7 @@ const FindServices = () => {
                               className="w-full md:w-auto"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                navigate(`/provider-chat?providerId=${provider.id}&providerName=${encodeURIComponent(provider.title)}`);
+                                navigate(`/provider-chat?providerId=${provider.user_id || provider.id}&providerName=${encodeURIComponent(provider.title)}`);
                               }}
                             >
                               <MessageCircle className="w-4 h-4 mr-2" />

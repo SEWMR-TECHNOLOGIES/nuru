@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Calendar, MapPin, Clock, QrCode, Printer, X, Loader2 } from 'lucide-react';
+import { Calendar, MapPin, QrCode, Printer, Download, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { eventsApi } from '@/lib/api/events';
 
 interface InvitationCardProps {
@@ -42,19 +42,27 @@ const InvitationCard = ({ eventId, open, onClose }: InvitationCardProps) => {
       <head>
         <title>Event Invitation</title>
         <style>
+          @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: 'Segoe UI', system-ui, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f5f5f5; padding: 20px; }
-          .card { background: white; border-radius: 16px; padding: 40px; max-width: 500px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; }
-          .title { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
-          .type { font-size: 14px; color: #666; margin-bottom: 24px; }
-          .detail { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 0; font-size: 15px; color: #333; }
-          .label { font-weight: 600; }
-          .qr { margin: 24px auto; width: 160px; height: 160px; background: #f0f0f0; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #999; }
-          .guest-name { font-size: 18px; font-weight: 600; margin-top: 20px; }
-          .status { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 500; margin-top: 8px; background: #e8f5e9; color: #2e7d32; }
-          .organizer { font-size: 13px; color: #888; margin-top: 20px; }
-          .code { font-size: 12px; color: #aaa; margin-top: 8px; letter-spacing: 1px; }
-          @media print { body { background: white; } .card { box-shadow: none; } }
+          body { font-family: 'Inter', system-ui, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f8f6f3; padding: 20px; }
+          .invitation-card { background: white; border-radius: 24px; max-width: 440px; width: 100%; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.08); }
+          .card-accent { height: 6px; }
+          .card-body { padding: 40px 32px; text-align: center; }
+          .invited-label { font-size: 11px; text-transform: uppercase; letter-spacing: 4px; color: #9ca3af; margin-bottom: 16px; font-weight: 500; }
+          .event-title { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 700; color: #1a1a1a; line-height: 1.2; }
+          .event-type { font-size: 13px; color: #6b7280; margin-top: 6px; }
+          .divider { width: 40px; height: 2px; background: #e5e7eb; margin: 24px auto; border-radius: 1px; }
+          .detail-row { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 6px 0; font-size: 14px; color: #374151; }
+          .detail-icon { width: 16px; height: 16px; color: #9ca3af; }
+          .qr-section { margin: 28px auto; padding: 16px; background: #fafaf9; border-radius: 16px; display: inline-block; }
+          .guest-section { margin-top: 24px; }
+          .guest-name { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; color: #1a1a1a; }
+          .rsvp-badge { display: inline-block; padding: 4px 16px; border-radius: 24px; font-size: 12px; font-weight: 600; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px; }
+          .rsvp-confirmed { background: #ecfdf5; color: #059669; }
+          .organizer { font-size: 12px; color: #9ca3af; margin-top: 24px; }
+          .invite-code { font-size: 11px; color: #d1d5db; margin-top: 8px; letter-spacing: 2px; font-family: monospace; }
+          .footer-note { font-size: 11px; color: #9ca3af; margin-top: 20px; font-style: italic; padding: 0 16px; line-height: 1.5; }
+          @media print { body { background: white; } .invitation-card { box-shadow: none; } }
         </style>
       </head>
       <body>
@@ -70,104 +78,124 @@ const InvitationCard = ({ eventId, open, onClose }: InvitationCardProps) => {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Digital Invitation Card</DialogTitle>
-        </DialogHeader>
-
+      <DialogContent className="max-w-lg p-0 overflow-hidden border-0 bg-transparent shadow-none">
         {loading ? (
-          <div className="flex items-center justify-center py-12">
+          <div className="flex items-center justify-center py-16 bg-card rounded-2xl">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
           </div>
         ) : error ? (
-          <div className="text-center py-8">
+          <div className="text-center py-12 bg-card rounded-2xl px-6">
             <p className="text-destructive">{error}</p>
+            <Button variant="outline" onClick={onClose} className="mt-4">Close</Button>
           </div>
         ) : data ? (
-          <>
+          <div className="bg-card rounded-2xl overflow-hidden shadow-2xl">
             <div ref={cardRef}>
-              <div className="card" style={{ borderTop: `4px solid ${themeColor}` }}>
-                <div className="text-center">
-                  <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">You are invited to</p>
-                  <h2 className="title text-2xl font-bold text-foreground">{data.event?.title}</h2>
-                  {data.event?.event_type && (
-                    <p className="type text-sm text-muted-foreground mt-1">{data.event.event_type}</p>
-                  )}
-                </div>
+              <div className="invitation-card">
+                {/* Accent bar */}
+                <div className="card-accent" style={{ background: `linear-gradient(135deg, ${themeColor}, ${themeColor}99)` }} />
 
-                <div className="mt-6 space-y-3">
-                  {data.event?.start_date && (
-                    <div className="detail flex items-center justify-center gap-2 text-sm">
-                      <Calendar className="w-4 h-4 text-muted-foreground" />
-                      <span>
-                        {new Date(data.event.start_date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                        {data.event.start_time && ` at ${data.event.start_time}`}
-                      </span>
-                    </div>
-                  )}
-                  {(data.event?.venue || data.event?.location) && (
-                    <div className="detail flex items-center justify-center gap-2 text-sm">
-                      <MapPin className="w-4 h-4 text-muted-foreground" />
-                      <span>{data.event.venue || data.event.location}</span>
-                    </div>
-                  )}
-                  {data.event?.venue_address && data.event.venue_address !== data.event.venue && (
-                    <p className="text-xs text-muted-foreground text-center">{data.event.venue_address}</p>
-                  )}
-                </div>
-
-                {data.event?.dress_code && (
-                  <p className="text-sm text-center mt-4">
-                    <span className="font-medium">Dress Code:</span> {data.event.dress_code}
-                  </p>
-                )}
-
-                <div className="qr mt-6 mx-auto w-40 h-40 bg-muted/20 rounded-xl flex items-center justify-center border border-border">
-                  <div className="text-center">
-                    <QrCode className="w-16 h-16 mx-auto text-muted-foreground" />
-                    <p className="text-[10px] text-muted-foreground mt-1">Scan for check-in</p>
+                {/* Card body */}
+                <div className="card-body" style={{ padding: '40px 32px', textAlign: 'center' }}>
+                  {/* Sparkle decoration */}
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
+                    <Sparkles className="w-5 h-5" style={{ color: themeColor, opacity: 0.6 }} />
                   </div>
+
+                  <p className="invited-label" style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '4px', color: '#9ca3af', marginBottom: '16px', fontWeight: 500 }}>
+                    You are cordially invited to
+                  </p>
+
+                  <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 700, color: 'var(--foreground)', lineHeight: 1.2 }}>
+                    {data.event?.title}
+                  </h2>
+
+                  {data.event?.event_type && (
+                    <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '6px' }}>
+                      {data.event.event_type}
+                    </p>
+                  )}
+
+                  <div style={{ width: '40px', height: '2px', background: '#e5e7eb', margin: '24px auto', borderRadius: '1px' }} />
+
+                  {/* Event details */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {data.event?.start_date && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '14px', color: 'var(--foreground)' }}>
+                        <Calendar className="w-4 h-4 text-muted-foreground" />
+                        <span>
+                          {new Date(data.event.start_date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                          {data.event.start_time && ` · ${data.event.start_time}`}
+                        </span>
+                      </div>
+                    )}
+                    {(data.event?.venue || data.event?.location) && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '14px', color: 'var(--foreground)' }}>
+                        <MapPin className="w-4 h-4 text-muted-foreground" />
+                        <span>{data.event.venue || data.event.location}</span>
+                      </div>
+                    )}
+                    {data.event?.venue_address && data.event.venue_address !== data.event.venue && (
+                      <p className="text-xs text-muted-foreground">{data.event.venue_address}</p>
+                    )}
+                  </div>
+
+                  {data.event?.dress_code && (
+                    <p className="text-sm mt-5 text-foreground/80">
+                      <span className="font-medium">Dress Code:</span> {data.event.dress_code}
+                    </p>
+                  )}
+
+                  {/* QR Code section */}
+                  <div style={{ margin: '28px auto 0', padding: '16px', background: 'var(--muted)', borderRadius: '16px', display: 'inline-block' }}>
+                    <QrCode className="w-20 h-20 mx-auto" style={{ color: themeColor }} />
+                    <p className="text-[10px] text-muted-foreground mt-2">Scan for check-in</p>
+                  </div>
+
+                  {/* Guest info */}
+                  <div style={{ marginTop: '24px' }}>
+                    <p style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 600, color: 'var(--foreground)' }}>
+                      {data.guest?.name}
+                    </p>
+                    <span className={`inline-block mt-2 px-4 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${
+                      data.guest?.rsvp_status === 'confirmed' ? 'bg-green-50 text-green-700 ring-1 ring-green-200' :
+                      data.guest?.rsvp_status === 'declined' ? 'bg-destructive/10 text-destructive ring-1 ring-destructive/20' :
+                      'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
+                    }`}>
+                      {data.guest?.rsvp_status?.charAt(0).toUpperCase() + data.guest?.rsvp_status?.slice(1)}
+                    </span>
+                  </div>
+
+                  {data.organizer?.name && (
+                    <p className="text-xs text-muted-foreground mt-6">
+                      Hosted by <span className="font-medium">{data.organizer.name}</span>
+                    </p>
+                  )}
+
+                  {data.invitation_code && (
+                    <p className="text-[10px] text-muted-foreground/60 mt-2 tracking-[3px] font-mono">
+                      {data.invitation_code}
+                    </p>
+                  )}
+
+                  {data.event?.special_instructions && (
+                    <p className="text-xs text-muted-foreground mt-5 italic leading-relaxed px-4">
+                      {data.event.special_instructions}
+                    </p>
+                  )}
                 </div>
-
-                <div className="mt-6 text-center">
-                  <p className="guest-name text-lg font-semibold">{data.guest?.name}</p>
-                  <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs font-medium ${
-                    data.guest?.rsvp_status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                    data.guest?.rsvp_status === 'declined' ? 'bg-destructive/10 text-destructive' :
-                    'bg-amber-100 text-amber-800'
-                  }`}>
-                    RSVP: {data.guest?.rsvp_status?.charAt(0).toUpperCase() + data.guest?.rsvp_status?.slice(1)}
-                  </span>
-                </div>
-
-                {data.organizer?.name && (
-                  <p className="organizer text-xs text-muted-foreground text-center mt-6">
-                    Hosted by {data.organizer.name}
-                  </p>
-                )}
-
-                {data.invitation_code && (
-                  <p className="code text-[10px] text-muted-foreground text-center mt-2 tracking-widest">
-                    Code: {data.invitation_code}
-                  </p>
-                )}
-
-                {data.event?.special_instructions && (
-                  <p className="text-xs text-muted-foreground text-center mt-4 italic">
-                    {data.event.special_instructions}
-                  </p>
-                )}
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 mt-4">
-              <Button variant="outline" onClick={onClose}>Close</Button>
-              <Button onClick={handlePrint}>
-                <Printer className="w-4 h-4 mr-2" />
-                Print Card
+            {/* Action buttons */}
+            <div className="flex justify-end gap-2 p-4 border-t border-border bg-muted/30">
+              <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
+              <Button size="sm" onClick={handlePrint} className="gap-2">
+                <Printer className="w-4 h-4" />
+                Print
               </Button>
             </div>
-          </>
+          </div>
         ) : null}
       </DialogContent>
     </Dialog>

@@ -2,7 +2,7 @@
  * Social Data Hooks - Feed, Posts, Moments, Followers, Circles
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { socialApi, FeedQueryParams, MomentQueryParams } from "@/lib/api/social";
 import type { FeedPost, Moment, Circle, UserProfile } from "@/lib/api/types";
 import { throwApiError } from "@/lib/api/showApiErrors";
@@ -662,9 +662,10 @@ export const useConversations = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const isFirstLoad = useRef(true);
 
   const fetchConversations = useCallback(async () => {
-    setLoading(true);
+    if (isFirstLoad.current) setLoading(true);
     setError(null);
     try {
       const response = await socialApi.getConversations();
@@ -683,20 +684,34 @@ export const useConversations = () => {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
+      isFirstLoad.current = false;
     }
+  }, []);
+
+  /** Optimistically clear unread count for a conversation */
+  const clearUnread = useCallback((conversationId: string) => {
+    setConversations(prev => {
+      const conv = prev.find(c => c.id === conversationId);
+      if (conv && conv.unread_count > 0) {
+        setUnreadCount(u => Math.max(0, u - (conv.unread_count || 0)));
+        return prev.map(c => c.id === conversationId ? { ...c, unread_count: 0 } : c);
+      }
+      return prev;
+    });
   }, []);
 
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
 
-  return { conversations, loading, error, unreadCount, refetch: fetchConversations };
+  return { conversations, loading, error, unreadCount, refetch: fetchConversations, clearUnread };
 };
 
 export const useConversationMessages = (conversationId: string) => {
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isInitialLoad = useRef(true);
 
   const fetchMessages = useCallback(async () => {
     if (!conversationId) {
@@ -704,7 +719,10 @@ export const useConversationMessages = (conversationId: string) => {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    // Only show loading on initial fetch, not on silent refreshes
+    if (isInitialLoad.current) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const response = await socialApi.getMessages(conversationId);
@@ -718,14 +736,25 @@ export const useConversationMessages = (conversationId: string) => {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
+      isInitialLoad.current = false;
     }
+  }, [conversationId]);
+
+  // Reset initial load flag when conversation changes
+  useEffect(() => {
+    isInitialLoad.current = true;
   }, [conversationId]);
 
   useEffect(() => {
     fetchMessages();
   }, [fetchMessages]);
 
-  return { messages, loading, error, refetch: fetchMessages };
+  /** Optimistically append a message without refetching */
+  const appendMessage = useCallback((msg: any) => {
+    setMessages(prev => [...prev, msg]);
+  }, []);
+
+  return { messages, loading, error, refetch: fetchMessages, appendMessage };
 };
 
 export const useSendMessage = () => {

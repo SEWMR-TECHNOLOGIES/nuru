@@ -18,6 +18,7 @@ import { useEventContributions } from '@/data/useEvents';
 import { useContributorSearch } from '@/hooks/useContributorSearch';
 import { usePolling } from '@/hooks/usePolling';
 import { toast } from 'sonner';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { showCaughtError } from '@/lib/api';
 import { formatPrice } from '@/utils/formatPrice';
 import { formatDateMedium } from '@/utils/formatDate';
@@ -54,6 +55,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
   const { contributions, summary: legacySummary, loading: contribLoading, refetch: refetchContrib, sendThankYou } = useEventContributions(eventId);
   
   usePolling(() => { refetchEC(); refetchContrib(); }, 15000);
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [addContributorDialogOpen, setAddContributorDialogOpen] = useState(false);
@@ -116,10 +118,11 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
         });
       } else {
         if (!newContributor.name.trim()) { toast.error('Name is required'); setIsSubmitting(false); return; }
+        if (!newContributor.phone.trim()) { toast.error('Phone number is required'); setIsSubmitting(false); return; }
         await addToEvent({
           name: newContributor.name,
           email: newContributor.email || undefined,
-          phone: newContributor.phone || undefined,
+          phone: newContributor.phone,
           pledge_amount: newContributor.pledge_amount ? parseFloat(newContributor.pledge_amount) : 0,
           notes: newContributor.notes || undefined,
         });
@@ -172,7 +175,13 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
   };
 
   const handleRemove = async (ecId: string) => {
-    if (!confirm('Remove this contributor from the event?')) return;
+    const confirmed = await confirm({
+      title: 'Remove Contributor',
+      description: 'Are you sure you want to remove this contributor from the event? This action cannot be undone.',
+      confirmLabel: 'Remove',
+      destructive: true,
+    });
+    if (!confirmed) return;
     try {
       await removeFromEvent(ecId);
       toast.success('Removed');
@@ -221,7 +230,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
+      <ConfirmDialog />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Total Raised</p><p className="text-2xl font-bold text-green-600">{formatPrice(summary.total_paid)}</p></div><div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center"><DollarSign className="w-5 h-5 text-green-600" /></div></div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Contributors</p><p className="text-2xl font-bold">{summary.count}</p></div><div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center"><Users className="w-5 h-5 text-blue-600" /></div></div></CardContent></Card>
@@ -342,7 +351,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
                 <div className="space-y-2"><Label>Name *</Label><Input value={newContributor.name} onChange={(e) => setNewContributor(p => ({ ...p, name: e.target.value }))} placeholder="Full name" /></div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Email</Label><Input type="email" value={newContributor.email} onChange={(e) => setNewContributor(p => ({ ...p, email: e.target.value }))} placeholder="email@example.com" /></div>
-                  <div className="space-y-2"><Label>Phone</Label><Input value={newContributor.phone} onChange={(e) => setNewContributor(p => ({ ...p, phone: e.target.value }))} placeholder="+255..." /></div>
+                  <div className="space-y-2"><Label>Phone *</Label><Input value={newContributor.phone} onChange={(e) => setNewContributor(p => ({ ...p, phone: e.target.value }))} placeholder="+255..." required /></div>
                 </div>
                 <div className="space-y-2"><Label>Pledge Amount ({currency})</Label><Input type="number" min="0" value={newContributor.pledge_amount} onChange={(e) => setNewContributor(p => ({ ...p, pledge_amount: e.target.value }))} placeholder="e.g. 20000" /></div>
                 <div className="space-y-2"><Label>Notes</Label><Textarea value={newContributor.notes} onChange={(e) => setNewContributor(p => ({ ...p, notes: e.target.value }))} rows={2} /></div>

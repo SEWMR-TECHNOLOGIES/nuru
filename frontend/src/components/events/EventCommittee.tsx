@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { 
   Users, 
   Plus, 
@@ -79,6 +80,7 @@ const AVAILABLE_PERMISSIONS = [
 const EventCommittee = ({ eventId }: EventCommitteeProps) => {
   const { members, loading, error, addMember, updateMember, removeMember, refetch } = useEventCommittee(eventId);
   usePolling(refetch, 15000);
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -179,7 +181,13 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
   };
 
   const handleRemoveMember = async (memberId: string) => {
-    if (!confirm('Are you sure you want to remove this committee member?')) return;
+    const confirmed = await confirm({
+      title: 'Remove Committee Member',
+      description: 'Are you sure you want to remove this committee member? This action cannot be undone.',
+      confirmLabel: 'Remove',
+      destructive: true,
+    });
+    if (!confirmed) return;
     try {
       await removeMember(memberId);
       toast.success('Member removed');
@@ -245,6 +253,7 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
 
   return (
     <div className="space-y-6">
+      <ConfirmDialog />
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold">Event Committee</h2>

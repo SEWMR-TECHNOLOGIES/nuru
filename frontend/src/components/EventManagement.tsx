@@ -59,7 +59,14 @@ const EventManagement = () => {
   const totalServices = 0;
   const progress = 0;
 
-  const eventImages = (apiEvent?.gallery_images as string[]) || [];
+  const eventImages: string[] = (() => {
+    if (apiEvent?.gallery_images && (apiEvent.gallery_images as string[]).length > 0) return apiEvent.gallery_images as string[];
+    if ((apiEvent as any)?.images?.length > 0) {
+      return (apiEvent as any).images.map((img: any) => img.image_url || img.url || img);
+    }
+    const cover = (apiEvent as any)?.cover_image || (apiEvent as any)?.cover_image_url;
+    return cover ? [cover] : [];
+  })();
   const hasImages = eventImages.length > 0;
 
   const openLightbox = (index: number) => { setLightboxIndex(index); setLightboxOpen(true); };

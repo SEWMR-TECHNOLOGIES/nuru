@@ -56,6 +56,9 @@ export const eventsApi = {
   getInvitedEvents: (params?: { page?: number; limit?: number }) =>
     get<{ events: any[]; pagination: PaginatedResponse<Event>["pagination"] }>(`/user-events/invited${buildQueryString(params)}`),
 
+  respondToInvitation: (eventId: string, data: { rsvp_status: "confirmed" | "declined" | "pending"; meal_preference?: string; dietary_restrictions?: string; special_requests?: string }) =>
+    put<{ event_id: string; rsvp_status: string; rsvp_at: string; attendee_id?: string }>(`/user-events/invited/${eventId}/rsvp`, data),
+
   getCommitteeEvents: (params?: { page?: number; limit?: number }) =>
     get<{ events: any[]; pagination: PaginatedResponse<Event>["pagination"] }>(`/user-events/committee${buildQueryString(params)}`),
 

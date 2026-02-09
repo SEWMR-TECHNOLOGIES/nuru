@@ -41,6 +41,8 @@ export interface User {
   avatar: string | null;
   bio?: string;
   location?: string;
+  is_active?: boolean;
+  is_identity_verified?: boolean;
   is_email_verified?: boolean;
   is_phone_verified?: boolean;
   is_vendor?: boolean;
@@ -226,7 +228,9 @@ export interface Event {
 export interface EventGuest {
   id: string;
   event_id: string;
+  user_id?: string;
   name: string;
+  avatar?: string;
   email?: string;
   phone?: string;
   rsvp_status: "pending" | "confirmed" | "declined" | "maybe";

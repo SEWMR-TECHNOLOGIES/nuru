@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { 
   MapPin, Calendar, CheckCircle, Edit, Camera, Loader2, 
   Mail, Phone, User as UserIcon, Shield, ShieldCheck, ShieldAlert,
-  Upload, FileText, AlertCircle, Clock
+  Upload, FileText, AlertCircle, Clock, ImagePlus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,9 +19,12 @@ import { profileApi } from "@/lib/api/profile";
 import { showCaughtError } from "@/lib/api";
 import { toast } from "sonner";
 import { formatDateMedium } from "@/utils/formatDate";
+import { useQueryClient } from "@tanstack/react-query";
+import AvatarCropDialog from "@/components/AvatarCropDialog";
 
 const UserProfile = () => {
   const { data: currentUser, isLoading: userLoading } = useCurrentUser();
+  const queryClient = useQueryClient();
 
   useWorkspaceMeta({
     title: 'Profile',
@@ -30,8 +33,15 @@ const UserProfile = () => {
 
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [verificationStep, setVerificationStep] = useState<"idle" | "form" | "submitted" | "verified">("idle");
+  const [avatarSaving, setAvatarSaving] = useState(false);
+  const [verificationStep, setVerificationStep] = useState<"idle" | "form" | "submitted" | "verified" | "rejected">("idle");
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [verifyFiles, setVerifyFiles] = useState<{ id_front?: File; id_back?: File; selfie?: File }>({});
+
+  // Avatar crop state
+  const [cropDialogOpen, setCropDialogOpen] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string>("");
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const [editData, setEditData] = useState({
     first_name: "",
@@ -41,18 +51,35 @@ const UserProfile = () => {
     location: "",
   });
 
+  // Fetch verification status from API on mount
   useEffect(() => {
     if (currentUser) {
       setEditData({
         first_name: currentUser.first_name || "",
         last_name: currentUser.last_name || "",
-        bio: (currentUser as any).bio || "",
+        bio: currentUser.bio || "",
         phone: currentUser.phone || "",
-        location: (currentUser as any).location || "",
+        location: currentUser.location || "",
       });
-      // Check verification status
-      if ((currentUser as any).is_identity_verified) {
+
+      if (currentUser.is_identity_verified) {
         setVerificationStep("verified");
+      } else {
+        // Fetch actual verification status from API
+        profileApi.getVerificationStatus().then(res => {
+          if (res.success && res.data) {
+            const status = res.data.status;
+            if (status === "verified") setVerificationStep("verified");
+            else if (status === "pending") setVerificationStep("submitted");
+            else if (status === "rejected") {
+              setVerificationStep("rejected");
+              setRejectionReason(res.data.rejection_reason || null);
+            }
+            // "unverified" stays as "idle"
+          }
+        }).catch(() => {
+          // Silently fail - verification status check is non-critical
+        });
       }
     }
   }, [currentUser]);
@@ -67,12 +94,50 @@ const UserProfile = () => {
       formData.append("phone", editData.phone);
       formData.append("location", editData.location);
       await profileApi.update(formData);
+      await queryClient.invalidateQueries({ queryKey: ["currentUser"] });
       toast.success("Profile updated successfully");
       setIsEditing(false);
     } catch (err: any) {
       showCaughtError(err, "Failed to update profile");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAvatarFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be under 5MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropImageSrc(reader.result as string);
+      setCropDialogOpen(true);
+    };
+    reader.readAsDataURL(file);
+    // Reset input so same file can be selected again
+    e.target.value = "";
+  };
+
+  const handleCroppedAvatar = async (blob: Blob) => {
+    setAvatarSaving(true);
+    try {
+      const formData = new FormData();
+      formData.append("avatar", blob, "avatar.jpg");
+      const res = await profileApi.update(formData);
+      if (res.success) {
+        await queryClient.invalidateQueries({ queryKey: ["currentUser"] });
+        toast.success("Avatar updated!");
+        setCropDialogOpen(false);
+      } else {
+        toast.error(res.message || "Failed to update avatar");
+      }
+    } catch (err: any) {
+      showCaughtError(err, "Failed to upload avatar");
+    } finally {
+      setAvatarSaving(false);
     }
   };
 
@@ -89,9 +154,14 @@ const UserProfile = () => {
       if (verifyFiles.id_front) formData.append("id_front", verifyFiles.id_front);
       if (verifyFiles.id_back) formData.append("id_back", verifyFiles.id_back);
       if (verifyFiles.selfie) formData.append("selfie", verifyFiles.selfie);
-      await profileApi.submitVerification(formData);
-      setVerificationStep("submitted");
-      toast.success("Verification documents submitted for review");
+      const res = await profileApi.submitVerification(formData);
+      if (res.success) {
+        setVerificationStep("submitted");
+        setVerifyFiles({});
+        toast.success("Verification documents submitted for review");
+      } else {
+        toast.error(res.message || "Failed to submit verification");
+      }
     } catch (err: any) {
       showCaughtError(err, "Failed to submit verification");
     } finally {
@@ -137,19 +207,45 @@ const UserProfile = () => {
   const fullName = `${currentUser.first_name || ""} ${currentUser.last_name || ""}`.trim() || "User";
   const initials = `${(currentUser.first_name || "U").charAt(0)}${(currentUser.last_name || "").charAt(0)}`.toUpperCase();
   const joinDate = currentUser.created_at ? formatDateMedium(currentUser.created_at) : "N/A";
-  const isVerified = (currentUser as any).is_identity_verified || verificationStep === "verified";
+  const isVerified = currentUser.is_identity_verified || verificationStep === "verified";
 
   return (
     <div className="space-y-6">
-      {/* Profile Header */}
+      {/* Hidden avatar file input */}
+      <input
+        ref={avatarInputRef}
+        type="file"
+        className="hidden"
+        accept="image/jpeg,image/png,image/webp"
+        onChange={handleAvatarFileSelect}
+      />
+
+      {/* Avatar Crop Dialog */}
+      <AvatarCropDialog
+        open={cropDialogOpen}
+        onClose={() => setCropDialogOpen(false)}
+        imageSrc={cropImageSrc}
+        onCropComplete={handleCroppedAvatar}
+        saving={avatarSaving}
+      />
+
+      {/* Profile Header - Improved Cover */}
       <Card className="overflow-hidden border-0 shadow-lg">
-        <div className="h-44 bg-gradient-to-br from-primary via-primary/80 to-primary/60 relative">
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDE4YzEwIDAgMTggOCAxOCAxOHMtOCAxOC0xOCAxOC0xOC04LTE4LTE4IDgtMTggMTgtMTh6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-30" />
+        <div className="relative h-52 md:h-56">
+          {/* Gradient cover with pattern overlay */}
+          <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/85 to-accent" />
+          <div className="absolute inset-0 opacity-[0.08]" style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23fff' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          }} />
+          {/* Decorative blobs */}
+          <div className="absolute -top-12 -right-12 w-48 h-48 bg-primary-foreground/5 rounded-full blur-2xl" />
+          <div className="absolute -bottom-8 -left-8 w-36 h-36 bg-primary-foreground/5 rounded-full blur-xl" />
+
           {!isEditing && (
             <Button
               variant="secondary"
               size="sm"
-              className="absolute top-4 right-4 gap-2"
+              className="absolute top-4 right-4 gap-2 shadow-md backdrop-blur-sm bg-background/80 hover:bg-background/95"
               onClick={() => setIsEditing(true)}
             >
               <Edit className="w-4 h-4" />
@@ -160,13 +256,24 @@ const UserProfile = () => {
 
         <CardContent className="pt-0 pb-6">
           <div className="flex flex-col md:flex-row gap-6 -mt-16 relative z-10">
-            <div className="relative flex-shrink-0">
-              <Avatar className="w-32 h-32 border-4 border-background shadow-xl">
+            {/* Avatar with camera button */}
+            <div className="relative flex-shrink-0 group">
+              <Avatar className="w-32 h-32 border-4 border-background shadow-xl ring-2 ring-primary/10">
                 <AvatarImage src={currentUser.avatar || undefined} alt={fullName} />
                 <AvatarFallback className="text-2xl font-semibold bg-primary/10 text-primary">{initials}</AvatarFallback>
               </Avatar>
+
+              {/* Camera overlay */}
+              <button
+                onClick={() => avatarInputRef.current?.click()}
+                className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                title="Change avatar"
+              >
+                <Camera className="w-6 h-6 text-white" />
+              </button>
+
               {isVerified && (
-                <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1">
+                <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1 shadow-sm">
                   <ShieldCheck className="w-6 h-6 text-green-600" />
                 </div>
               )}
@@ -219,8 +326,8 @@ const UserProfile = () => {
                   {currentUser.username && (
                     <p className="text-muted-foreground text-sm mb-2">@{currentUser.username}</p>
                   )}
-                  {(currentUser as any).bio && (
-                    <p className="text-muted-foreground mb-4 max-w-lg">{(currentUser as any).bio}</p>
+                  {currentUser.bio && (
+                    <p className="text-muted-foreground mb-4 max-w-lg">{currentUser.bio}</p>
                   )}
                   <div className="flex flex-wrap items-center gap-5 text-sm text-muted-foreground">
                     {currentUser.email && (
@@ -233,9 +340,9 @@ const UserProfile = () => {
                         <Phone className="w-4 h-4" /> {currentUser.phone}
                       </span>
                     )}
-                    {(currentUser as any).location && (
+                    {currentUser.location && (
                       <span className="flex items-center gap-1.5">
-                        <MapPin className="w-4 h-4" /> {(currentUser as any).location}
+                        <MapPin className="w-4 h-4" /> {currentUser.location}
                       </span>
                     )}
                     <span className="flex items-center gap-1.5">
@@ -252,21 +359,21 @@ const UserProfile = () => {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Events", value: currentUser.event_count ?? 0, color: "text-primary" },
-          { label: "Services", value: currentUser.service_count ?? 0, color: "text-primary" },
-          { label: "Followers", value: currentUser.follower_count ?? 0, color: "text-primary" },
-          { label: "Following", value: currentUser.following_count ?? 0, color: "text-primary" },
+          { label: "Events", value: currentUser.event_count ?? 0 },
+          { label: "Services", value: currentUser.service_count ?? 0 },
+          { label: "Followers", value: currentUser.follower_count ?? 0 },
+          { label: "Following", value: currentUser.following_count ?? 0 },
         ].map(stat => (
-          <Card key={stat.label} className="border-0 shadow-sm">
+          <Card key={stat.label} className="border-0 shadow-sm hover:shadow-md transition-shadow">
             <CardContent className="p-4 text-center">
-              <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
+              <div className="text-2xl font-bold text-primary">{stat.value}</div>
               <div className="text-xs text-muted-foreground mt-1">{stat.label}</div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Tabs: Identity Verification & Contact */}
+      {/* Tabs */}
       <Tabs defaultValue="verification" className="space-y-4">
         <TabsList className="bg-muted/50">
           <TabsTrigger value="verification" className="gap-2">
@@ -310,6 +417,24 @@ const UserProfile = () => {
                     </p>
                   </div>
                 </div>
+              ) : verificationStep === "rejected" ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4 p-5 bg-destructive/5 rounded-xl border border-destructive/20">
+                    <div className="w-14 h-14 bg-destructive/10 rounded-full flex items-center justify-center flex-shrink-0">
+                      <ShieldAlert className="w-7 h-7 text-destructive" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-destructive">Verification Rejected</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {rejectionReason || "Your verification was rejected. Please re-submit with clearer documents."}
+                      </p>
+                    </div>
+                  </div>
+                  <Button onClick={handleStartVerification} size="sm">
+                    <Shield className="w-4 h-4 mr-2" />
+                    Re-submit Documents
+                  </Button>
+                </div>
               ) : verificationStep === "form" ? (
                 <div className="space-y-5">
                   <div className="p-4 bg-muted/30 rounded-lg">
@@ -322,7 +447,6 @@ const UserProfile = () => {
                     </div>
                   </div>
 
-                  {/* Upload slots */}
                   {[
                     { key: "id_front" as const, label: "ID Front", desc: "Front side of your national ID or passport" },
                     { key: "id_back" as const, label: "ID Back", desc: "Back side of your national ID" },

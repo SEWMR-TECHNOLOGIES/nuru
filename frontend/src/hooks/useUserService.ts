@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { api, UserService } from "@/lib/api";
+import { servicesApi, UserService } from "@/lib/api";
 
 export const useUserService = (serviceId: string | null) => {
   const [service, setService] = useState<UserService | null>(null);
@@ -13,7 +13,7 @@ export const useUserService = (serviceId: string | null) => {
     setError(null);
 
     try {
-      const response = await api.userServices.getById(serviceId);
+      const response = await servicesApi.getById(serviceId);
       if (response.success) {
         setService(response.data);
       } else {

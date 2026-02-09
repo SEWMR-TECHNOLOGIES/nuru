@@ -38,6 +38,18 @@ export async function request<T>(
   try {
     const response = await fetch(url, config);
 
+    // Handle 401 globally - token expired or invalid
+    if (response.status === 401) {
+      const currentToken = localStorage.getItem("token");
+      if (currentToken) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("refresh_token");
+        // Show message and redirect
+        const event = new CustomEvent("auth:session-expired");
+        window.dispatchEvent(event);
+      }
+    }
+
     // Our backend is not fully consistent:
     // - Most endpoints return { success, message, data }
     // - Some endpoints return just the raw object (e.g. /auth/me)

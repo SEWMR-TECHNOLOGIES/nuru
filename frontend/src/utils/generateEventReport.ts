@@ -134,7 +134,7 @@ export const generateEventReport = (event: EventReportData) => {
         <div class="info-grid">
           <div class="info-item"><div class="label">Event Budget</div><div class="value">${event.budget ? fmt(event.budget) : '—'}</div></div>
           <div class="info-item"><div class="label">Total Raised</div><div class="value" style="color:#16a34a">${fmt(event.contribution_total || 0)}</div></div>
-          <div class="info-item"><div class="label">Contributors</div><div class="value">${event.contribution_count || 0}</div></div>
+          <div class="info-item"><div class="label">Unique Contributors</div><div class="value">${event.contribution_count || 0}</div></div>
           ${event.budget ? `<div class="info-item"><div class="label">Outstanding</div><div class="value" style="color:#dc2626">${fmt(outstanding)}</div></div>` : ''}
           ${event.contribution_target ? `<div class="info-item"><div class="label">Contribution Target</div><div class="value">${fmt(event.contribution_target)}</div></div>` : ''}
           <div class="info-item"><div class="label">Committee Members</div><div class="value">${event.committee_count || 0}</div></div>
