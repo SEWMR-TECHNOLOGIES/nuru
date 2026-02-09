@@ -7,12 +7,13 @@ from models import (
 from models.events import Event
 
 def build_user_payload(db, user):
+    """
+    Build a FLAT user payload matching the API doc format.
+    Returns fields like avatar, bio, follower_count, event_count directly
+    — NOT nested under profile/stats/roles/settings.
+    """
     profile = db.query(UserProfile).filter(
         UserProfile.user_id == user.id
-    ).first()
-
-    settings = db.query(UserSetting).filter(
-        UserSetting.user_id == user.id
     ).first()
 
     followers = db.query(func.count(UserFollower.id)).filter(
@@ -21,10 +22,6 @@ def build_user_payload(db, user):
 
     following = db.query(func.count(UserFollower.id)).filter(
         UserFollower.follower_id == user.id
-    ).scalar()
-
-    mutual_friends = db.query(func.count(UserCircle.id)).filter(
-        UserCircle.user_id == user.id
     ).scalar()
 
     services_count = db.query(func.count(UserService.id)).filter(
@@ -48,38 +45,21 @@ def build_user_payload(db, user):
         "username": user.username,
         "email": user.email,
         "phone": user.phone,
+        "avatar": profile.profile_picture_url if profile else None,
+        "bio": profile.bio if profile else None,
+        "location": profile.location if profile else None,
+        "website": profile.website_url if profile else None,
+        "social_links": profile.social_links if profile else {},
         "is_active": user.is_active,
         "is_identity_verified": user.is_identity_verified,
         "is_phone_verified": user.is_phone_verified,
         "is_email_verified": user.is_email_verified,
+        "is_vendor": services_count > 0,
+        "follower_count": followers,
+        "following_count": following,
+        "event_count": events_count,
+        "service_count": services_count,
+        "moments_count": moments_count,
         "created_at": user.created_at,
-
-        "profile": {
-            "bio": profile.bio if profile else None,
-            "avatar": profile.profile_picture_url if profile else None,
-            "location": profile.location if profile else None,
-            "website": profile.website_url if profile else None,
-            "social_links": profile.social_links if profile else {}
-        },
-
-        "stats": {
-            "followers": followers,
-            "following": following,
-            "mutual_friends": mutual_friends,
-            "events_created": events_count,
-            "services_count": services_count,
-            "moments_count": moments_count
-        },
-
-        "roles": {
-            "is_vendor": services_count > 0,
-            "is_event_organizer": events_count > 0
-        },
-
-        "settings": {
-            "dark_mode": settings.dark_mode if settings else False,
-            "language": settings.language if settings else "en",
-            "private_profile": settings.private_profile if settings else False,
-            "two_factor_enabled": settings.two_factor_enabled if settings else False
-        }
+        "updated_at": getattr(user, "updated_at", None),
     }

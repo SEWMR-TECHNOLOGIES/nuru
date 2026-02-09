@@ -1055,13 +1055,21 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
     if not name:
         return standard_response(False, "Guest name is required.")
 
-    email = body.get("email")
-    phone = body.get("phone")
+    # Prefer user_id if provided (from user search), otherwise fallback to email/phone lookup
+    user_id = body.get("user_id")
     attendee_user = None
-    if email:
-        attendee_user = db.query(User).filter(User.email == email).first()
-    if not attendee_user and phone:
-        attendee_user = db.query(User).filter(User.phone == phone).first()
+    if user_id:
+        try:
+            attendee_user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()
+        except ValueError:
+            pass
+    if not attendee_user:
+        email = body.get("email")
+        phone = body.get("phone")
+        if email:
+            attendee_user = db.query(User).filter(User.email == email).first()
+        if not attendee_user and phone:
+            attendee_user = db.query(User).filter(User.phone == phone).first()
 
     now = datetime.now(EAT)
 
@@ -2159,3 +2167,95 @@ def record_service_payment(event_id: str, service_id: str, body: dict = Body(...
     db.commit()
 
     return standard_response(True, "Payment recorded successfully", {"id": str(payment.id), "amount": float(payment.amount) if payment.amount else None})
+
+
+# ──────────────────────────────────────────────
+# RSVP Respond (Authenticated – for invited users)
+# ──────────────────────────────────────────────
+@router.put("/invited/{event_id}/rsvp")
+def respond_to_invitation(
+    event_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Allows an invited user to accept/decline an event invitation."""
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID format")
+
+    rsvp_status = body.get("rsvp_status")
+    valid_statuses = {"confirmed", "declined", "pending"}
+    if rsvp_status not in valid_statuses:
+        return standard_response(False, f"Invalid rsvp_status. Must be one of: {', '.join(valid_statuses)}")
+
+    # Find the invitation
+    invitation = db.query(EventInvitation).filter(
+        EventInvitation.event_id == eid,
+        EventInvitation.invited_user_id == current_user.id,
+    ).first()
+
+    if not invitation:
+        # Also check if user is an attendee without an invitation record
+        attendee = db.query(EventAttendee).filter(
+            EventAttendee.event_id == eid,
+            EventAttendee.attendee_id == current_user.id,
+        ).first()
+        if not attendee:
+            return standard_response(False, "You do not have an invitation for this event")
+
+        # Update attendee directly
+        attendee.rsvp_status = RSVPStatusEnum(rsvp_status)
+        attendee.updated_at = datetime.now(EAT)
+        db.commit()
+
+        return standard_response(True, "RSVP updated successfully", {
+            "event_id": str(eid),
+            "rsvp_status": rsvp_status,
+            "rsvp_at": attendee.updated_at.isoformat(),
+        })
+
+    # Update invitation
+    invitation.rsvp_status = RSVPStatusEnum(rsvp_status)
+    invitation.rsvp_at = datetime.now(EAT)
+    invitation.updated_at = datetime.now(EAT)
+
+    # Update or create attendee record
+    attendee = db.query(EventAttendee).filter(
+        EventAttendee.event_id == eid,
+        EventAttendee.attendee_id == current_user.id,
+    ).first()
+
+    now = datetime.now(EAT)
+    if attendee:
+        attendee.rsvp_status = RSVPStatusEnum(rsvp_status)
+        attendee.updated_at = now
+    else:
+        attendee = EventAttendee(
+            id=uuid.uuid4(),
+            event_id=eid,
+            attendee_id=current_user.id,
+            invitation_id=invitation.id,
+            rsvp_status=RSVPStatusEnum(rsvp_status),
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(attendee)
+
+    # Update meal/dietary if provided
+    if body.get("meal_preference"):
+        attendee.meal_preference = body["meal_preference"]
+    if body.get("dietary_restrictions"):
+        attendee.dietary_restrictions = body["dietary_restrictions"]
+    if body.get("special_requests"):
+        attendee.special_requests = body["special_requests"]
+
+    db.commit()
+
+    return standard_response(True, "RSVP updated successfully", {
+        "event_id": str(eid),
+        "rsvp_status": rsvp_status,
+        "rsvp_at": invitation.rsvp_at.isoformat(),
+        "attendee_id": str(attendee.id),
+    })

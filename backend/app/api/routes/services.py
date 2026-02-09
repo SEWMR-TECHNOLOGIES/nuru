@@ -144,7 +144,7 @@ def search_services(
             "service_type_name": s.service_type.name if s.service_type else None,
             "min_price": float(s.min_price) if s.min_price else None,
             "max_price": float(s.max_price) if s.max_price else None,
-            "currency": "KES", # Default
+            "currency": "TZS", # Default
             "location": s.location,
             "primary_image": primary_image,
             "rating": round(avg, 1),

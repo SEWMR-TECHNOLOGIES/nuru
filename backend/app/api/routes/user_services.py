@@ -30,8 +30,19 @@ router = APIRouter(prefix="/user-services", tags=["User Services"])
 
 
 def _service_dict(db, service):
-    """Build service response dict with KYC progress."""
-    images = [img.image_url for img in service.images]
+    """Build service response dict matching nuru-api-doc structure."""
+    # Images as objects per API doc
+    images = []
+    for img in service.images:
+        images.append({
+            "id": str(img.id),
+            "url": img.image_url,
+            "thumbnail_url": getattr(img, "thumbnail_url", None),
+            "alt": getattr(img, "alt_text", None),
+            "is_primary": getattr(img, "is_primary", False),
+            "display_order": getattr(img, "display_order", 0),
+        })
+
     ratings = [r.rating for r in service.ratings]
     avg_rating = round(sum(ratings) / len(ratings), 1) if ratings else 0
 
@@ -52,23 +63,35 @@ def _service_dict(db, service):
     packages = [{"id": str(p.id), "name": p.name, "price": float(p.price) if p.price else None, "description": p.description, "features": p.features or []} for p in getattr(service, "packages", [])]
 
     return {
-        "id": str(service.id), "title": service.title,
-        "category": service.category.name if service.category else None,
-        "category_id": str(service.category_id) if service.category_id else None,
+        "id": str(service.id),
+        "user_id": str(service.user_id),
+        "title": service.title,
         "description": service.description,
-        "base_price": float(service.min_price) if service.min_price else None,
-        "price": f"{format_price(service.min_price)} - {format_price(service.max_price)}" if service.min_price and service.max_price else None,
-        "rating": avg_rating, "review_count": len(ratings),
-        "is_verified": service.is_verified,
-        "verification_progress": verification_progress,
-        "verification_status": service.verification_status.value if service.verification_status else None,
-        "images": images,
-        "availability": service.availability.value if hasattr(service.availability, "value") else (service.availability or "available"),
-        "location": service.location,
-        "kyc_list": kyc_list,
+        "service_category_id": str(service.category_id) if service.category_id else None,
+        "service_category": {"id": str(service.category.id), "name": service.category.name} if service.category else None,
         "service_type_id": str(service.service_type_id) if service.service_type_id else None,
+        "service_type": {"id": str(service.service_type.id), "name": service.service_type.name} if service.service_type else None,
         "service_type_name": service.service_type.name if service.service_type else None,
+        "category": service.category.name if service.category else None,
+        "min_price": float(service.min_price) if service.min_price else None,
+        "max_price": float(service.max_price) if service.max_price else None,
+        "currency": "KES",
+        "location": service.location,
+        "status": "active" if service.is_active else "inactive",
+        "verification_status": service.verification_status.value if service.verification_status else "unverified",
+        "verification_progress": verification_progress,
+        "images": images,
+        "rating": avg_rating,
+        "review_count": len(ratings),
+        "booking_count": getattr(service, "booking_count", 0) or 0,
+        "completed_events": getattr(service, "completed_events", 0) or 0,
+        "availability": service.availability.value if hasattr(service.availability, "value") else (service.availability or "available"),
+        "is_verified": service.is_verified,
+        "kyc_list": kyc_list,
         "packages": packages,
+        "package_count": len(packages),
+        "created_at": service.created_at.isoformat() if service.created_at else None,
+        "updated_at": service.updated_at.isoformat() if service.updated_at else None,
     }
 
 
@@ -78,7 +101,19 @@ def _service_dict(db, service):
 @router.get("/")
 def get_my_services(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     services = db.query(UserService).filter(UserService.user_id == current_user.id).all()
-    return standard_response(True, "User services fetched successfully", [_service_dict(db, s) for s in services])
+    service_list = [_service_dict(db, s) for s in services]
+
+    # Build summary per API doc
+    summary = {
+        "total_services": len(service_list),
+        "active_services": sum(1 for s in service_list if s["status"] == "active"),
+        "verified_services": sum(1 for s in service_list if s["verification_status"] == "verified"),
+        "pending_verification": sum(1 for s in service_list if s["verification_status"] == "pending"),
+        "total_reviews": sum(s["review_count"] for s in service_list),
+        "average_rating": round(sum(s["rating"] for s in service_list) / len(service_list), 1) if service_list else 0,
+    }
+
+    return standard_response(True, "Services retrieved successfully", {"services": service_list, "summary": summary})
 
 
 # ──────────────────────────────────────────────
@@ -141,12 +176,25 @@ async def create_service(
             unique_name = f"{uuid.uuid4().hex}{ext}"
             async with httpx.AsyncClient() as client:
                 try:
-                    resp = await client.post(UPLOAD_SERVICE_URL, data={"target_path": f"nuru/uploads/services/{service.id}/"}, files={"file": (unique_name, content, file.content_type)}, timeout=20)
+                    resp = await client.post(
+                        UPLOAD_SERVICE_URL,
+                        data={"target_path": f"nuru/uploads/services/{service.id}/"},
+                        files={"file": (unique_name, content, file.content_type)},
+                        timeout=20
+                    )
                     result = resp.json()
                     if result.get("success"):
-                        db.add(UserServiceImage(id=uuid.uuid4(), user_service_id=service.id, image_url=result["data"]["url"], is_primary=i == 0, created_at=now))
-                except Exception:
-                    pass
+                        img = UserServiceImage(
+                            id=uuid.uuid4(),
+                            user_service_id=service.id,
+                            image_url=result["data"]["url"],
+                            created_at=now
+                        )
+                        db.add(img)
+                        db.flush()  # <<< add this line
+                except Exception as e:
+                    print(f"Image upload failed: {e}")  # <<< change this line to see errors
+
 
     try:
         db.commit()
@@ -244,25 +292,26 @@ def get_kyc_status(service_id: str, db: Session = Depends(get_db), current_user:
 @router.post("/{service_id}/kyc")
 async def upload_kyc_document(
     service_id: str, kyc_requirement_id: str = Form(...),
-    document: UploadFile = File(...),
+    file: UploadFile = File(...),
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     try:
         sid = uuid.UUID(service_id)
+        krid = uuid.UUID(kyc_requirement_id)
     except ValueError:
-        return standard_response(False, "Invalid service ID")
+        return standard_response(False, "Invalid service or KYC requirement ID")
 
     service = db.query(UserService).filter(UserService.id == sid, UserService.user_id == current_user.id).first()
     if not service:
         return standard_response(False, "Service not found")
 
     now = datetime.now(EAT)
-    content = await document.read()
-    _, ext = os.path.splitext(document.filename or "doc")
+    content = await file.read()
+    _, ext = os.path.splitext(file.filename or "doc")
     unique_name = f"{uuid.uuid4().hex}{ext}"
 
     async with httpx.AsyncClient() as client:
-        resp = await client.post(UPLOAD_SERVICE_URL, data={"target_path": f"nuru/uploads/kyc/{service.id}/"}, files={"file": (unique_name, content, document.content_type)}, timeout=20)
+        resp = await client.post(UPLOAD_SERVICE_URL, data={"target_path": f"nuru/uploads/kyc/{service.id}/"}, files={"file": (unique_name, content, file.content_type)}, timeout=20)
 
     result = resp.json()
     if not result.get("success"):
@@ -270,17 +319,48 @@ async def upload_kyc_document(
 
     doc_url = result["data"]["url"]
 
-    kyc_status = db.query(UserServiceKYCStatus).filter(UserServiceKYCStatus.user_service_id == service.id, UserServiceKYCStatus.kyc_requirement_id == uuid.UUID(kyc_requirement_id)).first()
+    # Ensure a verification record exists for this service
+    verification = db.query(UserServiceVerification).filter(
+        UserServiceVerification.user_service_id == service.id,
+        UserServiceVerification.submitted_by_user_id == current_user.id,
+    ).first()
+    if not verification:
+        verification = UserServiceVerification(
+            id=uuid.uuid4(), user_service_id=service.id,
+            submitted_by_user_id=current_user.id,
+            verification_status=VerificationStatusEnum.pending,
+            created_at=now, updated_at=now,
+        )
+        db.add(verification)
+        db.flush()
+
+    # Store the file reference
+    ver_file = UserServiceVerificationFile(
+        id=uuid.uuid4(), verification_id=verification.id,
+        kyc_requirement_id=krid, file_url=doc_url,
+        created_at=now, updated_at=now,
+    )
+    db.add(ver_file)
+
+    # Update or create KYC status
+    kyc_status = db.query(UserServiceKYCStatus).filter(
+        UserServiceKYCStatus.user_service_id == service.id,
+        UserServiceKYCStatus.kyc_requirement_id == krid,
+    ).first()
     if not kyc_status:
-        kyc_status = UserServiceKYCStatus(id=uuid.uuid4(), user_service_id=service.id, kyc_requirement_id=uuid.UUID(kyc_requirement_id), status=VerificationStatusEnum.pending, document_url=doc_url, created_at=now, updated_at=now)
+        kyc_status = UserServiceKYCStatus(
+            id=uuid.uuid4(), user_service_id=service.id,
+            kyc_requirement_id=krid, verification_id=verification.id,
+            status=VerificationStatusEnum.pending,
+            created_at=now, updated_at=now,
+        )
         db.add(kyc_status)
     else:
-        kyc_status.document_url = doc_url
         kyc_status.status = VerificationStatusEnum.pending
         kyc_status.updated_at = now
 
     db.commit()
-    return standard_response(True, "KYC document uploaded successfully", {"document_url": doc_url})
+    return standard_response(True, "KYC document uploaded successfully", {"file_url": doc_url})
 
 
 @router.put("/{service_id}/kyc/{kyc_id}")

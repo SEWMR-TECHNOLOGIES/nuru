@@ -35,8 +35,8 @@ def _moment_dict(db, m, current_user_id=None):
     return {
         "id": str(m.id),
         "author": {"id": str(user.id), "name": f"{user.first_name} {user.last_name}", "avatar": profile.profile_picture_url if profile else None} if user else None,
-        "content": m.content, "media_url": m.media_url,
-        "media_type": m.media_type if hasattr(m, "media_type") else "image",
+        "caption": m.caption, "content_type": m.content_type.value if m.content_type else "image",
+        "media_url": m.media_url,
         "location": m.location if hasattr(m, "location") else None,
         "viewer_count": viewer_count, "has_seen": has_seen,
         "is_active": m.is_active,
@@ -110,10 +110,13 @@ async def create_moment(
                 pass
 
     moment = UserMoment(
-        id=uuid.uuid4(), user_id=current_user.id, content=content.strip() if content else None,
-        media_url=media_url, is_active=True,
+        id=uuid.uuid4(), user_id=current_user.id,
+        caption=content.strip() if content else None,
+        content_type="image",
+        media_url=media_url or "",
+        is_active=True,
         expires_at=now + timedelta(hours=duration_hours),
-        created_at=now, updated_at=now,
+        created_at=now,
     )
     if hasattr(moment, "location") and location:
         moment.location = location.strip()

@@ -4,6 +4,7 @@ import os
 import uuid
 from datetime import datetime
 from typing import List
+import enum
 
 import httpx
 import pytz
@@ -18,6 +19,20 @@ from utils.helpers import standard_response
 
 EAT = pytz.timezone("Africa/Nairobi")
 router = APIRouter(prefix="/uploads", tags=["Uploads"])
+
+
+# helper to map MIME type to enum
+def map_mime_to_enum(mime: str) -> str:
+    if mime.startswith("image/"):
+        return "image"
+    elif mime == "application/pdf":
+        return "pdf"
+    elif mime.startswith("video/"):
+        return "video"
+    elif mime in ["application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]:
+        return "doc"
+    else:
+        return "doc"  # fallback for unknown types
 
 
 @router.post("/")
@@ -41,8 +56,9 @@ async def upload_file(file: UploadFile = File(...), db: Session = Depends(get_db
         return standard_response(False, result.get("message", "Upload failed"))
 
     url = result["data"]["url"]
+    file_enum_type = map_mime_to_enum(file.content_type)
 
-    upload = FileUpload(id=uuid.uuid4(), user_id=current_user.id, file_url=url, file_name=file.filename, file_type=file.content_type, file_size=len(content), created_at=now)
+    upload = FileUpload(id=uuid.uuid4(), user_id=current_user.id, file_url=url, original_name=file.filename, file_type=file_enum_type, file_size=len(content), created_at=now)
     db.add(upload)
     db.commit()
 
@@ -67,7 +83,8 @@ async def upload_files(files: List[UploadFile] = File(...), db: Session = Depend
                 result = resp.json()
                 if result.get("success"):
                     url = result["data"]["url"]
-                    upload = FileUpload(id=uuid.uuid4(), user_id=current_user.id, file_url=url, file_name=file.filename, file_type=file.content_type, file_size=len(content), created_at=now)
+                    file_enum_type = map_mime_to_enum(file.content_type)
+                    upload = FileUpload(id=uuid.uuid4(), user_id=current_user.id, file_url=url, original_name=file.filename, file_type=file_enum_type, file_size=len(content), created_at=now)
                     db.add(upload)
                     uploaded.append({"id": str(upload.id), "url": url, "file_name": file.filename})
             except Exception:
@@ -88,7 +105,7 @@ def get_upload(upload_id: str, db: Session = Depends(get_db), current_user: User
     if not upload:
         return standard_response(False, "Upload not found")
 
-    return standard_response(True, "Upload retrieved", {"id": str(upload.id), "url": upload.file_url, "file_name": upload.file_name, "file_type": upload.file_type, "file_size": upload.file_size})
+    return standard_response(True, "Upload retrieved", {"id": str(upload.id), "url": upload.file_url, "file_name": upload.original_name, "file_type": upload.file_type, "file_size": upload.file_size})
 
 
 @router.delete("/{upload_id}")

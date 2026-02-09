@@ -79,6 +79,58 @@ def get_conversations(db: Session = Depends(get_db), current_user: User = Depend
     return standard_response(True, "Conversations retrieved successfully", [_conversation_dict(db, c, current_user.id) for c in convs])
 
 
+# ── Static /start route MUST come before /{conversation_id} to avoid route conflict ──
+
+@router.post("/start")
+def start_conversation(body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Starts a new conversation with another user, or returns existing one."""
+    recipient_id = body.get("recipient_id")
+    if not recipient_id:
+        return standard_response(False, "Recipient ID is required")
+
+    try:
+        rid = uuid.UUID(recipient_id)
+    except ValueError:
+        return standard_response(False, "Invalid recipient ID")
+
+    if str(rid) == str(current_user.id):
+        return standard_response(False, "You cannot start a conversation with yourself")
+
+    recipient = db.query(User).filter(User.id == rid).first()
+    if not recipient:
+        return standard_response(False, "Recipient not found")
+
+    existing = db.query(Conversation).filter(
+        or_(
+            (Conversation.user_one_id == current_user.id) & (Conversation.user_two_id == rid),
+            (Conversation.user_one_id == rid) & (Conversation.user_two_id == current_user.id),
+        )
+    ).first()
+
+    if existing:
+        return standard_response(True, "Conversation already exists", _conversation_dict(db, existing, current_user.id))
+
+    now = datetime.now(EAT)
+    conv = Conversation(
+        user_one_id=current_user.id,
+        user_two_id=rid,
+        type=ConversationTypeEnum.user_to_user,
+    )
+    db.add(conv)
+    db.flush()
+
+    initial_message = body.get("message", "").strip()
+    if initial_message:
+        msg = Message(conversation_id=conv.id, sender_id=current_user.id, message_text=initial_message, is_read=False)
+        db.add(msg)
+
+    db.commit()
+    db.refresh(conv)
+    return standard_response(True, "Conversation started successfully", _conversation_dict(db, conv, current_user.id))
+
+
+# ── Dynamic /{conversation_id} routes ──
+
 @router.get("/{conversation_id}")
 def get_messages(conversation_id: str, page: int = 1, limit: int = 50, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Returns paginated messages for a conversation."""
@@ -146,54 +198,6 @@ def send_message(conversation_id: str, body: dict = Body(...), db: Session = Dep
     return standard_response(True, "Message sent successfully", {
         "id": str(msg.id), "content": msg.message_text, "sent_at": msg.created_at.isoformat() if msg.created_at else now.isoformat()
     })
-
-
-@router.post("/start")
-def start_conversation(body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Starts a new conversation with another user, or returns existing one."""
-    recipient_id = body.get("recipient_id")
-    if not recipient_id:
-        return standard_response(False, "Recipient ID is required")
-
-    try:
-        rid = uuid.UUID(recipient_id)
-    except ValueError:
-        return standard_response(False, "Invalid recipient ID")
-
-    if str(rid) == str(current_user.id):
-        return standard_response(False, "You cannot start a conversation with yourself")
-
-    recipient = db.query(User).filter(User.id == rid).first()
-    if not recipient:
-        return standard_response(False, "Recipient not found")
-
-    existing = db.query(Conversation).filter(
-        or_(
-            (Conversation.user_one_id == current_user.id) & (Conversation.user_two_id == rid),
-            (Conversation.user_one_id == rid) & (Conversation.user_two_id == current_user.id),
-        )
-    ).first()
-
-    if existing:
-        return standard_response(True, "Conversation already exists", _conversation_dict(db, existing, current_user.id))
-
-    now = datetime.now(EAT)
-    conv = Conversation(
-        user_one_id=current_user.id,
-        user_two_id=rid,
-        type=ConversationTypeEnum.user_to_user,
-    )
-    db.add(conv)
-    db.flush()
-
-    initial_message = body.get("message", "").strip()
-    if initial_message:
-        msg = Message(conversation_id=conv.id, sender_id=current_user.id, message_text=initial_message, is_read=False)
-        db.add(msg)
-
-    db.commit()
-    db.refresh(conv)
-    return standard_response(True, "Conversation started successfully", _conversation_dict(db, conv, current_user.id))
 
 
 @router.put("/{conversation_id}/read")

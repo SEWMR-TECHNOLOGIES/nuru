@@ -53,7 +53,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    # Default to 24 hours if ACCESS_TOKEN_EXPIRE_MINUTES is too short
+    default_minutes = max(ACCESS_TOKEN_EXPIRE_MINUTES, 1440)  # At least 24 hours
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=default_minutes))
     to_encode.update({"exp": expire})
     token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return token
