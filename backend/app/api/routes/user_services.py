@@ -39,7 +39,7 @@ def _service_dict(db, service):
             "url": img.image_url,
             "thumbnail_url": getattr(img, "thumbnail_url", None),
             "alt": getattr(img, "alt_text", None),
-            "is_primary": getattr(img, "is_primary", False),
+            "is_featured": getattr(img, "is_featured", False),
             "display_order": getattr(img, "display_order", 0),
         })
 

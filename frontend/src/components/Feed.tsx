@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import CreatePostBox from './CreatePostBox';
 import Moment from './Moment';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
@@ -8,6 +8,14 @@ import { Button } from '@/components/ui/button';
 
 const Feed = () => {
   const { items: apiPosts, loading, error, refetch } = useFeed();
+  const hasLoadedOnce = useRef(false);
+
+  // Track first successful load to suppress skeleton on re-mount
+  useEffect(() => {
+    if (!loading && apiPosts.length >= 0) {
+      hasLoadedOnce.current = true;
+    }
+  }, [loading, apiPosts]);
 
   useEffect(() => {
     const savedPosition = sessionStorage.getItem('feedScrollPosition');
@@ -22,44 +30,36 @@ const Feed = () => {
     }
   }, []);
 
-  // Transform API posts to match the component format
-  const transformApiPost = (apiPost: any) => ({
-    id: apiPost.id,
-    type: apiPost.post_type || 'event',
-    author: {
-      name: apiPost.user?.first_name && apiPost.user?.last_name 
-        ? `${apiPost.user.first_name} ${apiPost.user.last_name}` 
-        : apiPost.user?.username || 'Anonymous',
-      avatar: apiPost.user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face',
-      timeAgo: apiPost.created_at ? getTimeAgo(apiPost.created_at) : 'Recently'
-    },
-    content: {
-      title: apiPost.title,
-      text: apiPost.content,
-      image: apiPost.images?.[0]
-    },
-    event: apiPost.event ? {
-      title: apiPost.event.title,
-      text: apiPost.content,
-      image: apiPost.images?.[0] || apiPost.event.cover_image,
-      hostedBy: apiPost.user?.first_name || 'Host',
-      date: apiPost.event.start_date
-    } : undefined,
-    likes: apiPost.like_count || 0,
-    comments: apiPost.comment_count || 0
-  });
-
   const getTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
     if (diffInSeconds < 60) return 'Just now';
     if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
     if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
     if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
     return date.toLocaleDateString();
   };
+
+  const transformApiPost = (apiPost: any) => ({
+    id: apiPost.id,
+    type: apiPost.post_type || 'moment',
+    author: {
+      name: apiPost.author?.name || apiPost.user?.first_name
+        ? `${apiPost.user?.first_name || ''} ${apiPost.user?.last_name || ''}`.trim() || apiPost.author?.name || 'Anonymous'
+        : 'Anonymous',
+      avatar: apiPost.author?.avatar || apiPost.user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face',
+      timeAgo: apiPost.created_at ? getTimeAgo(apiPost.created_at) : 'Recently'
+    },
+    content: {
+      title: apiPost.title || '',
+      text: apiPost.content,
+      image: apiPost.images?.[0] || apiPost.media?.[0]?.url
+    },
+    likes: apiPost.glow_count || 0,
+    comments: apiPost.comment_count || 0,
+    has_glowed: apiPost.has_glowed || false,
+  });
 
   const posts = (apiPosts || []).map(transformApiPost);
 
@@ -68,7 +68,10 @@ const Feed = () => {
     description: "See the latest events, weddings, birthdays, and community posts on Nuru."
   });
 
-  if (loading) {
+  // Only show skeleton on first load, not on re-mount when data is cached
+  const showSkeleton = loading && !hasLoadedOnce.current && posts.length === 0;
+
+  if (showSkeleton) {
     return (
       <div className="space-y-4 md:space-y-6 pb-4">
         <CreatePostBox />
@@ -90,7 +93,7 @@ const Feed = () => {
     );
   }
 
-  if (error) {
+  if (error && posts.length === 0) {
     return (
       <div className="space-y-4 md:space-y-6 pb-4">
         <CreatePostBox />
@@ -102,78 +105,17 @@ const Feed = () => {
     );
   }
 
-  // Placeholder posts to show when feed is empty
-  const placeholderPosts = [
-    {
-      id: 'placeholder-1',
-      type: 'moment',
-      author: {
-        name: 'Sarah Johnson',
-        avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop&crop=face',
-        timeAgo: '2 hours ago'
-      },
-      content: {
-        title: '',
-        text: 'Just finished setting up the venue for tomorrow\'s big celebration! Can\'t wait to see everyone there 🎉',
-        image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=800&h=600&fit=crop'
-      },
-      likes: 24,
-      comments: 5
-    },
-    {
-      id: 'placeholder-2',
-      type: 'event',
-      author: {
-        name: 'Michael Chen',
-        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop&crop=face',
-        timeAgo: '5 hours ago'
-      },
-      content: {
-        title: 'Annual Community Gathering',
-        text: 'Join us for our annual community gathering this weekend. Food, music, and great company!',
-        image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=800&h=600&fit=crop'
-      },
-      event: {
-        title: 'Annual Community Gathering',
-        text: 'Join us for our annual community gathering this weekend.',
-        image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=800&h=600&fit=crop',
-        hostedBy: 'Michael',
-        date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      likes: 45,
-      comments: 12
-    },
-    {
-      id: 'placeholder-3',
-      type: 'moment',
-      author: {
-        name: 'Emily Wilson',
-        avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop&crop=face',
-        timeAgo: '1 day ago'
-      },
-      content: {
-        title: '',
-        text: 'Beautiful sunset at the beach party yesterday. Making memories that last forever! 🌅',
-        image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&h=600&fit=crop'
-      },
-      likes: 67,
-      comments: 8
-    }
-  ];
-
-  const displayPosts = posts.length > 0 ? posts : placeholderPosts;
-
   return (
     <div className="space-y-4 md:space-y-6 pb-4">
       <CreatePostBox />
-      
-      {posts.length === 0 && (
-        <div className="text-center py-4 mb-2">
-          <p className="text-muted-foreground text-sm">Be the first to share something with the community!</p>
+
+      {posts.length === 0 && !loading && (
+        <div className="text-center py-8">
+          <p className="text-muted-foreground text-sm">No posts yet. Be the first to share something with the community!</p>
         </div>
       )}
-      
-      {displayPosts.map((post) => (
+
+      {posts.map((post) => (
         <div key={post.id}>
           <Moment post={post} />
         </div>

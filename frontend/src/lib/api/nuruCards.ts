@@ -43,6 +43,24 @@ export const nuruCardsApi = {
     post<NuruCard>("/nuru-cards/request", data),
 
   /**
+   * Order a new card (per API doc 17.3)
+   */
+  orderCard: (data: {
+    type: "regular" | "premium";
+    holder_name: string;
+    template?: string;
+    nfc_enabled?: boolean;
+    delivery_address?: {
+      street?: string;
+      city?: string;
+      postal_code?: string;
+      country?: string;
+      phone?: string;
+    };
+    payment_method?: string;
+  }) => post<any>("/nuru-cards/order", data),
+
+  /**
    * Register a new card
    */
   registerCard: (data: {

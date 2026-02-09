@@ -6,13 +6,14 @@ import { toast } from 'sonner';
 
 /**
  * ProviderChat - Redirects to the real Messages view.
- * Starts or finds a conversation with the service provider user.
+ * Starts or finds a service-specific conversation with the provider.
  */
 const ProviderChat = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const providerId = searchParams.get('providerId');
   const providerName = searchParams.get('providerName') || 'Service Provider';
+  const serviceId = searchParams.get('serviceId') || undefined;
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,10 +24,10 @@ const ProviderChat = () => {
 
     const initChat = async () => {
       try {
-        // Try to start a conversation - backend should return existing one if it exists
         const response = await messagesApi.startConversation({
           recipient_id: providerId,
           message: `Hi, I'm interested in your services.`,
+          service_id: serviceId,
         });
 
         if (response.success && response.data?.id) {
@@ -42,7 +43,7 @@ const ProviderChat = () => {
     };
 
     initChat();
-  }, [providerId, navigate]);
+  }, [providerId, serviceId, navigate]);
 
   return (
     <div className="h-full flex items-center justify-center">

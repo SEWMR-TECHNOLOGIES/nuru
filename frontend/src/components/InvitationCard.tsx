@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
-import { Calendar, MapPin, QrCode, Printer, Download, Loader2, Sparkles } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Printer, Download, Loader2 } from 'lucide-react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { eventsApi } from '@/lib/api/events';
+import jsPDF from 'jspdf';
 
 interface InvitationCardProps {
   eventId: string;
@@ -14,7 +16,8 @@ const InvitationCard = ({ eventId, open, onClose }: InvitationCardProps) => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
+  const [exporting, setExporting] = useState(false);
+  const qrCanvasRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open || !eventId) return;
@@ -22,59 +25,376 @@ const InvitationCard = ({ eventId, open, onClose }: InvitationCardProps) => {
     setError(null);
     eventsApi.getInvitationCard(eventId)
       .then((res) => {
-        if (res.success) {
-          setData(res.data);
-        } else {
-          setError(res.message || 'Failed to load invitation');
-        }
+        if (res.success) setData(res.data);
+        else setError(res.message || 'Failed to load invitation');
       })
       .catch(() => setError('Failed to load invitation card'))
       .finally(() => setLoading(false));
   }, [open, eventId]);
 
-  const handlePrint = () => {
-    if (!cardRef.current) return;
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Event Invitation</title>
-        <style>
-          @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: 'Inter', system-ui, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f8f6f3; padding: 20px; }
-          .invitation-card { background: white; border-radius: 24px; max-width: 440px; width: 100%; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.08); }
-          .card-accent { height: 6px; }
-          .card-body { padding: 40px 32px; text-align: center; }
-          .invited-label { font-size: 11px; text-transform: uppercase; letter-spacing: 4px; color: #9ca3af; margin-bottom: 16px; font-weight: 500; }
-          .event-title { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 700; color: #1a1a1a; line-height: 1.2; }
-          .event-type { font-size: 13px; color: #6b7280; margin-top: 6px; }
-          .divider { width: 40px; height: 2px; background: #e5e7eb; margin: 24px auto; border-radius: 1px; }
-          .detail-row { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 6px 0; font-size: 14px; color: #374151; }
-          .detail-icon { width: 16px; height: 16px; color: #9ca3af; }
-          .qr-section { margin: 28px auto; padding: 16px; background: #fafaf9; border-radius: 16px; display: inline-block; }
-          .guest-section { margin-top: 24px; }
-          .guest-name { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; color: #1a1a1a; }
-          .rsvp-badge { display: inline-block; padding: 4px 16px; border-radius: 24px; font-size: 12px; font-weight: 600; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px; }
-          .rsvp-confirmed { background: #ecfdf5; color: #059669; }
-          .organizer { font-size: 12px; color: #9ca3af; margin-top: 24px; }
-          .invite-code { font-size: 11px; color: #d1d5db; margin-top: 8px; letter-spacing: 2px; font-family: monospace; }
-          .footer-note { font-size: 11px; color: #9ca3af; margin-top: 20px; font-style: italic; padding: 0 16px; line-height: 1.5; }
-          @media print { body { background: white; } .invitation-card { box-shadow: none; } }
-        </style>
-      </head>
-      <body>
-        ${cardRef.current.innerHTML}
-      </body>
-      </html>
-    `);
-    printWindow.document.close();
-    setTimeout(() => { printWindow.print(); }, 500);
+  const buildQrValue = () => {
+    if (data?.guest?.attendee_id)
+      return `https://nuru.tz/event/${data.event?.id}/checkin/${data.guest.attendee_id}`;
+    if (data?.invitation_code)
+      return `https://nuru.tz/event/${data.event?.id}/rsvp/${data.invitation_code}`;
+    return `https://nuru.tz/event/${data?.event?.id}`;
   };
 
-  const themeColor = data?.event?.theme_color || '#F5A623';
+  const formatDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString('en-GB', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    });
+
+  const rsvpLabel = (status: string) => {
+    if (status === 'confirmed') return { label: 'CONFIRMED', bg: '#059669' };
+    if (status === 'declined') return { label: 'DECLINED', bg: '#dc2626' };
+    return { label: 'PENDING', bg: '#d97706' };
+  };
+
+  const themeColor = data?.event?.theme_color || '#C8956C';
+
+  // Get QR code as an Image element from the hidden canvas
+  const getQrImage = useCallback((): HTMLCanvasElement | null => {
+    if (!qrCanvasRef.current) return null;
+    const canvas = qrCanvasRef.current.querySelector('canvas');
+    return canvas || null;
+  }, []);
+
+  // Draw the entire invitation card to a canvas
+  const drawCardToCanvas = useCallback((scale = 3): HTMLCanvasElement => {
+    const W = 440 * scale;
+    const H = 680 * scale;
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d')!;
+    const s = scale;
+
+    // Background gradient
+    const grad = ctx.createLinearGradient(0, 0, W * 0.3, H);
+    grad.addColorStop(0, '#0f1729');
+    grad.addColorStop(0.4, '#1C274C');
+    grad.addColorStop(1, '#2a1f3d');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Top gold bar
+    const topBar = ctx.createLinearGradient(0, 0, W, 0);
+    topBar.addColorStop(0, themeColor);
+    topBar.addColorStop(0.5, '#f5c87a');
+    topBar.addColorStop(1, themeColor);
+    ctx.fillStyle = topBar;
+    ctx.fillRect(0, 0, W, 5 * s);
+
+    // Decorative circles
+    ctx.beginPath();
+    ctx.arc(W + 30 * s, -30 * s, 120 * s, 0, Math.PI * 2);
+    ctx.fillStyle = `${themeColor}12`;
+    ctx.fill();
+
+    let y = 50 * s;
+
+    // "YOU ARE INVITED"
+    ctx.textAlign = 'center';
+    ctx.fillStyle = themeColor;
+    ctx.font = `600 ${10 * s}px 'Segoe UI', system-ui, sans-serif`;
+    ctx.fillText('YOU ARE INVITED', W / 2, y);
+    y += 16 * s;
+
+    // Diamond divider
+    ctx.save();
+    ctx.translate(W / 2, y);
+    ctx.rotate(Math.PI / 4);
+    ctx.fillStyle = themeColor;
+    ctx.fillRect(-4 * s, -4 * s, 8 * s, 8 * s);
+    ctx.restore();
+    ctx.strokeStyle = `${themeColor}60`;
+    ctx.lineWidth = 1 * s;
+    ctx.beginPath(); ctx.moveTo(W / 2 - 60 * s, y); ctx.lineTo(W / 2 - 12 * s, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(W / 2 + 12 * s, y); ctx.lineTo(W / 2 + 60 * s, y); ctx.stroke();
+    y += 28 * s;
+
+    // Event title (word wrap)
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `700 ${28 * s}px Georgia, serif`;
+    const title = data?.event?.title || 'Event';
+    const maxTitleW = W - 60 * s;
+    const words = title.split(' ');
+    let line = '';
+    const titleLines: string[] = [];
+    for (const word of words) {
+      const test = line ? `${line} ${word}` : word;
+      if (ctx.measureText(test).width > maxTitleW) { titleLines.push(line); line = word; }
+      else line = test;
+    }
+    if (line) titleLines.push(line);
+    for (const tl of titleLines) { ctx.fillText(tl, W / 2, y); y += 34 * s; }
+
+    // Event type badge
+    if (data?.event?.event_type) {
+      y += 4 * s;
+      const badge = data.event.event_type.toUpperCase();
+      ctx.font = `600 ${9 * s}px 'Segoe UI', system-ui, sans-serif`;
+      const bw = ctx.measureText(badge).width + 28 * s;
+      const bx = (W - bw) / 2;
+      ctx.fillStyle = `${themeColor}30`;
+      ctx.strokeStyle = `${themeColor}50`;
+      ctx.lineWidth = 1 * s;
+      ctx.beginPath(); ctx.roundRect(bx, y - 12 * s, bw, 20 * s, 10 * s); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = themeColor;
+      ctx.fillText(badge, W / 2, y + 2 * s);
+      y += 24 * s;
+    }
+    y += 10 * s;
+
+    // Details card
+    const detailH = 70 * s;
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.beginPath(); ctx.roundRect(30 * s, y, W - 60 * s, detailH, 14 * s); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1 * s; ctx.stroke();
+
+    let dy = y + 24 * s;
+    ctx.font = `500 ${13 * s}px 'Segoe UI', system-ui, sans-serif`;
+    ctx.fillStyle = '#e2e8f0';
+    if (data?.event?.start_date) {
+      const dateStr = formatDate(data.event.start_date);
+      const timeStr = data.event.start_time ? ` · ${data.event.start_time}` : '';
+      ctx.fillText(`📅  ${dateStr}${timeStr}`, W / 2, dy);
+      dy += 22 * s;
+    }
+    if (data?.event?.venue || data?.event?.location) {
+      ctx.fillText(`📍  ${data.event.venue || data.event.location}`, W / 2, dy);
+    }
+    y += detailH + 14 * s;
+
+    if (data?.event?.dress_code) {
+      ctx.font = `400 ${11 * s}px 'Segoe UI', system-ui, sans-serif`;
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(`Dress Code: ${data.event.dress_code}`, W / 2, y);
+      y += 20 * s;
+    }
+    y += 8 * s;
+
+    // QR Code — draw from the hidden QRCodeCanvas directly
+    const qrSize = 96 * s;
+    const qrCanvas = getQrImage();
+    const qrX = (W - qrSize) / 2;
+    if (qrCanvas) {
+      ctx.drawImage(qrCanvas, qrX, y, qrSize, qrSize);
+    }
+    y += qrSize + 10 * s;
+
+    // "Scan to check in"
+    ctx.font = `400 ${8 * s}px 'Segoe UI', system-ui, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillText('SCAN TO CHECK IN', W / 2, y);
+    y += 28 * s;
+
+    // Guest name
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `600 ${22 * s}px Georgia, serif`;
+    ctx.fillText(data?.guest?.name || '', W / 2, y);
+    y += 14 * s;
+
+    // RSVP badge
+    if (data?.guest?.rsvp_status) {
+      y += 8 * s;
+      const r = rsvpLabel(data.guest.rsvp_status);
+      ctx.font = `700 ${9 * s}px 'Segoe UI', system-ui, sans-serif`;
+      const rw = ctx.measureText(r.label).width + 30 * s;
+      ctx.fillStyle = r.bg;
+      ctx.beginPath(); ctx.roundRect((W - rw) / 2, y - 10 * s, rw, 20 * s, 10 * s); ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(r.label, W / 2, y + 4 * s);
+      y += 24 * s;
+    }
+    y += 10 * s;
+
+    // Hosted by
+    if (data?.organizer?.name) {
+      ctx.font = `400 ${10 * s}px 'Segoe UI', system-ui, sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fillText(`Hosted by ${data.organizer.name}`, W / 2, y);
+      y += 16 * s;
+    }
+
+    // Invitation code
+    if (data?.invitation_code) {
+      ctx.font = `400 ${8 * s}px 'Courier New', monospace`;
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.fillText(data.invitation_code, W / 2, y);
+    }
+
+    // Bottom gold bar
+    const bottomBar = ctx.createLinearGradient(0, 0, W, 0);
+    bottomBar.addColorStop(0, themeColor);
+    bottomBar.addColorStop(0.5, '#f5c87a');
+    bottomBar.addColorStop(1, themeColor);
+    ctx.fillStyle = bottomBar;
+    ctx.fillRect(0, H - 5 * s, W, 5 * s);
+
+    return canvas;
+  }, [data, themeColor, getQrImage]);
+
+  const handleDownloadPdf = async () => {
+    setExporting(true);
+    try {
+      // Small delay to ensure QR canvas is rendered
+      await new Promise(r => setTimeout(r, 100));
+      const canvas = drawCardToCanvas(3);
+      const imgData = canvas.toDataURL('image/png');
+      const pdfW = canvas.width * 0.264583 / 3;
+      const pdfH = canvas.height * 0.264583 / 3;
+      const pdf = new jsPDF({ orientation: pdfW > pdfH ? 'l' : 'p', unit: 'mm', format: [pdfW, pdfH] });
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
+      pdf.save(`invitation-${data?.event?.title?.replace(/\s+/g, '-').toLowerCase() || 'card'}.pdf`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handlePrint = async () => {
+    setExporting(true);
+    try {
+      await new Promise(r => setTimeout(r, 100));
+      const canvas = drawCardToCanvas(3);
+      const imgData = canvas.toDataURL('image/png');
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+      printWindow.document.write(`
+        <!DOCTYPE html><html><head><title>Event Invitation</title>
+        <style>* { margin: 0; padding: 0; } body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f5f3ef; } img { max-width: 440px; width: 100%; height: auto; } @media print { body { background: white; } }</style>
+        </head><body><img src="${imgData}" /></body></html>
+      `);
+      printWindow.document.close();
+      setTimeout(() => printWindow.print(), 300);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Visual preview card (inline styles for display)
+  const PreviewCard = () => {
+    if (!data) return null;
+    const tc = themeColor;
+    return (
+      <div style={{
+        width: 440, margin: '0 auto',
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        background: `linear-gradient(160deg, #0f1729 0%, #1C274C 40%, #2a1f3d 100%)`,
+        position: 'relative', overflow: 'hidden', borderRadius: 16,
+      }}>
+        <div style={{ height: 5, background: `linear-gradient(90deg, ${tc}, #f5c87a, ${tc})` }} />
+        <div style={{ position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: '50%', background: `${tc}12` }} />
+
+        <div style={{ textAlign: 'center', padding: '40px 32px 0', position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 14 }}>
+            <div style={{ width: 50, height: 1, background: `${tc}60` }} />
+            <div style={{ width: 8, height: 8, transform: 'rotate(45deg)', background: tc }} />
+            <div style={{ width: 50, height: 1, background: `${tc}60` }} />
+          </div>
+
+          <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 5, color: tc, fontWeight: 600, marginBottom: 18 }}>
+            You are invited
+          </p>
+
+          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 30, fontWeight: 700, color: '#fff', lineHeight: 1.25, marginBottom: 8, textShadow: '0 2px 12px rgba(0,0,0,0.3)' }}>
+            {data.event?.title}
+          </h2>
+
+          {data.event?.event_type && (
+            <span style={{ display: 'inline-block', marginTop: 8, padding: '5px 18px', borderRadius: 20, fontSize: 9, fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', background: `${tc}30`, color: tc, border: `1px solid ${tc}50` }}>
+              {data.event.event_type}
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '24px 40px' }}>
+          <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.1)' }} />
+          <div style={{ width: 5, height: 5, transform: 'rotate(45deg)', background: tc }} />
+          <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.1)' }} />
+        </div>
+
+        <div style={{ padding: '0 32px', textAlign: 'center' }}>
+          <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 14, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.08)' }}>
+            {data.event?.start_date && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 14, color: '#e2e8f0', marginBottom: 10 }}>
+                <span>📅</span>
+                <span style={{ fontWeight: 500 }}>{formatDate(data.event.start_date)}{data.event.start_time && ` · ${data.event.start_time}`}</span>
+              </div>
+            )}
+            {(data.event?.venue || data.event?.location) && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 14, color: '#e2e8f0' }}>
+                <span>📍</span>
+                <span>{data.event.venue || data.event.location}</span>
+              </div>
+            )}
+          </div>
+          {data.event?.dress_code && (
+            <p style={{ fontSize: 11, marginTop: 14, color: '#94a3b8' }}>
+              <span style={{ fontWeight: 600, color: tc }}>Dress Code:</span> {data.event.dress_code}
+            </p>
+          )}
+        </div>
+
+        {/* QR Code - no white bg card around it */}
+        <div style={{ textAlign: 'center', margin: '26px auto 0' }}>
+          <QRCodeCanvas
+            value={buildQrValue()}
+            size={96}
+            level="H"
+            includeMargin={false}
+            fgColor="#ffffff"
+            bgColor="transparent"
+          />
+          <p style={{ fontSize: 8, color: 'rgba(255,255,255,0.35)', marginTop: 8, letterSpacing: 2, textTransform: 'uppercase' }}>
+            Scan to check in
+          </p>
+        </div>
+
+        {/* Hidden QR for PDF export (needs dark fg on white bg for scanning) */}
+        <div ref={qrCanvasRef} style={{ position: 'absolute', left: -9999, top: -9999 }}>
+          <QRCodeCanvas
+            value={buildQrValue()}
+            size={288}
+            level="H"
+            includeMargin={false}
+            fgColor="#1C274C"
+            bgColor="#ffffff"
+          />
+        </div>
+
+        <div style={{ textAlign: 'center', margin: '22px 32px 0' }}>
+          <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 600, color: '#fff' }}>
+            {data.guest?.name}
+          </p>
+          {data.guest?.rsvp_status && (() => {
+            const r = rsvpLabel(data.guest.rsvp_status);
+            return (
+              <span style={{ display: 'inline-block', marginTop: 10, padding: '4px 20px', borderRadius: 20, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, background: r.bg, color: '#fff' }}>
+                {r.label}
+              </span>
+            );
+          })()}
+        </div>
+
+        <div style={{ textAlign: 'center', padding: '22px 32px 30px' }}>
+          {data.organizer?.name && (
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+              Hosted by <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.65)' }}>{data.organizer.name}</span>
+            </p>
+          )}
+          {data.invitation_code && (
+            <p style={{ fontSize: 8, color: 'rgba(255,255,255,0.18)', marginTop: 8, letterSpacing: 4, fontFamily: "'Courier New', monospace" }}>
+              {data.invitation_code}
+            </p>
+          )}
+        </div>
+
+        <div style={{ height: 5, background: `linear-gradient(90deg, ${tc}, #f5c87a, ${tc})` }} />
+      </div>
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -90,107 +410,14 @@ const InvitationCard = ({ eventId, open, onClose }: InvitationCardProps) => {
           </div>
         ) : data ? (
           <div className="bg-card rounded-2xl overflow-hidden shadow-2xl">
-            <div ref={cardRef}>
-              <div className="invitation-card">
-                {/* Accent bar */}
-                <div className="card-accent" style={{ background: `linear-gradient(135deg, ${themeColor}, ${themeColor}99)` }} />
-
-                {/* Card body */}
-                <div className="card-body" style={{ padding: '40px 32px', textAlign: 'center' }}>
-                  {/* Sparkle decoration */}
-                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
-                    <Sparkles className="w-5 h-5" style={{ color: themeColor, opacity: 0.6 }} />
-                  </div>
-
-                  <p className="invited-label" style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '4px', color: '#9ca3af', marginBottom: '16px', fontWeight: 500 }}>
-                    You are cordially invited to
-                  </p>
-
-                  <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 700, color: 'var(--foreground)', lineHeight: 1.2 }}>
-                    {data.event?.title}
-                  </h2>
-
-                  {data.event?.event_type && (
-                    <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '6px' }}>
-                      {data.event.event_type}
-                    </p>
-                  )}
-
-                  <div style={{ width: '40px', height: '2px', background: '#e5e7eb', margin: '24px auto', borderRadius: '1px' }} />
-
-                  {/* Event details */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {data.event?.start_date && (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '14px', color: 'var(--foreground)' }}>
-                        <Calendar className="w-4 h-4 text-muted-foreground" />
-                        <span>
-                          {new Date(data.event.start_date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                          {data.event.start_time && ` · ${data.event.start_time}`}
-                        </span>
-                      </div>
-                    )}
-                    {(data.event?.venue || data.event?.location) && (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '14px', color: 'var(--foreground)' }}>
-                        <MapPin className="w-4 h-4 text-muted-foreground" />
-                        <span>{data.event.venue || data.event.location}</span>
-                      </div>
-                    )}
-                    {data.event?.venue_address && data.event.venue_address !== data.event.venue && (
-                      <p className="text-xs text-muted-foreground">{data.event.venue_address}</p>
-                    )}
-                  </div>
-
-                  {data.event?.dress_code && (
-                    <p className="text-sm mt-5 text-foreground/80">
-                      <span className="font-medium">Dress Code:</span> {data.event.dress_code}
-                    </p>
-                  )}
-
-                  {/* QR Code section */}
-                  <div style={{ margin: '28px auto 0', padding: '16px', background: 'var(--muted)', borderRadius: '16px', display: 'inline-block' }}>
-                    <QrCode className="w-20 h-20 mx-auto" style={{ color: themeColor }} />
-                    <p className="text-[10px] text-muted-foreground mt-2">Scan for check-in</p>
-                  </div>
-
-                  {/* Guest info */}
-                  <div style={{ marginTop: '24px' }}>
-                    <p style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 600, color: 'var(--foreground)' }}>
-                      {data.guest?.name}
-                    </p>
-                    <span className={`inline-block mt-2 px-4 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${
-                      data.guest?.rsvp_status === 'confirmed' ? 'bg-green-50 text-green-700 ring-1 ring-green-200' :
-                      data.guest?.rsvp_status === 'declined' ? 'bg-destructive/10 text-destructive ring-1 ring-destructive/20' :
-                      'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
-                    }`}>
-                      {data.guest?.rsvp_status?.charAt(0).toUpperCase() + data.guest?.rsvp_status?.slice(1)}
-                    </span>
-                  </div>
-
-                  {data.organizer?.name && (
-                    <p className="text-xs text-muted-foreground mt-6">
-                      Hosted by <span className="font-medium">{data.organizer.name}</span>
-                    </p>
-                  )}
-
-                  {data.invitation_code && (
-                    <p className="text-[10px] text-muted-foreground/60 mt-2 tracking-[3px] font-mono">
-                      {data.invitation_code}
-                    </p>
-                  )}
-
-                  {data.event?.special_instructions && (
-                    <p className="text-xs text-muted-foreground mt-5 italic leading-relaxed px-4">
-                      {data.event.special_instructions}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Action buttons */}
+            <PreviewCard />
             <div className="flex justify-end gap-2 p-4 border-t border-border bg-muted/30">
               <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
-              <Button size="sm" onClick={handlePrint} className="gap-2">
+              <Button size="sm" onClick={handleDownloadPdf} disabled={exporting} className="gap-2">
+                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                Download PDF
+              </Button>
+              <Button variant="outline" size="sm" onClick={handlePrint} disabled={exporting} className="gap-2">
                 <Printer className="w-4 h-4" />
                 Print
               </Button>

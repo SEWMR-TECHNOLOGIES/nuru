@@ -380,3 +380,30 @@
     scroll-snap-align: start;
   }
 }
+
+/* ── Print Styles for Nuru Card ── */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  #nuru-card-print,
+  #nuru-card-print * {
+    visibility: visible !important;
+  }
+  #nuru-card-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .no-print {
+    display: none !important;
+  }
+  /* Ensure QR renders crisply */
+  .print-qr svg {
+    width: 160px !important;
+    height: 160px !important;
+  }
+}

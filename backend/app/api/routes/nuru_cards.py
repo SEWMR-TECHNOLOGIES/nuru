@@ -35,12 +35,73 @@ def get_card_details(card_id: str, db: Session = Depends(get_db), current_user: 
 
 
 @router.post("/orders")
-def order_card(body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def order_card_legacy(body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     now = datetime.now(EAT)
     order = NuruCardOrder(id=uuid.uuid4(), user_id=current_user.id, card_type=body.get("card_type", "regular"), status="pending", created_at=now, updated_at=now)
     db.add(order)
     db.commit()
     return standard_response(True, "Card order placed successfully", {"order_id": str(order.id)})
+
+
+@router.post("/order")
+def order_card(body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Order a new Nuru Card (API doc 17.3)"""
+    import random, string
+    now = datetime.now(EAT)
+
+    card_type = body.get("type", "regular")
+    holder_name = body.get("holder_name", "").strip()
+    if not holder_name:
+        return standard_response(False, "Holder name is required")
+
+    # Generate card number
+    seq = ''.join(random.choices(string.digits, k=6))
+    card_number = f"NURU-{now.strftime('%Y')}-{seq}"
+
+    delivery = body.get("delivery_address", {})
+
+    # Create order
+    order = NuruCardOrder(
+        id=uuid.uuid4(),
+        user_id=current_user.id,
+        card_type=card_type,
+        quantity=1,
+        delivery_name=holder_name,
+        delivery_phone=delivery.get("phone", ""),
+        delivery_address=delivery.get("street", ""),
+        delivery_city=delivery.get("city", ""),
+        delivery_postal_code=delivery.get("postal_code", ""),
+        delivery_instructions=body.get("template", ""),
+        status="pending",
+        amount=0 if card_type == "regular" else 50000,
+        payment_ref=body.get("payment_method", "mpesa"),
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(order)
+
+    # Create the card itself
+    card = NuruCard(
+        id=uuid.uuid4(),
+        user_id=current_user.id,
+        card_number=card_number,
+        is_active=True,
+        issued_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(card)
+    db.commit()
+
+    return standard_response(True, "Card order placed successfully", {
+        "order_id": str(order.id),
+        "card_id": str(card.id),
+        "card_number": card_number,
+        "type": card_type,
+        "status": "pending",
+        "amount": order.amount,
+        "created_at": now.isoformat(),
+    })
 
 
 @router.get("/orders/{order_id}")

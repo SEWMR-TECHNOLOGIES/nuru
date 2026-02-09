@@ -35,6 +35,7 @@ const UserProfile = () => {
   const [saving, setSaving] = useState(false);
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [verificationStep, setVerificationStep] = useState<"idle" | "form" | "submitted" | "verified" | "rejected">("idle");
+  const [verificationLoading, setVerificationLoading] = useState(true);
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [verifyFiles, setVerifyFiles] = useState<{ id_front?: File; id_back?: File; selfie?: File }>({});
 
@@ -64,8 +65,10 @@ const UserProfile = () => {
 
       if (currentUser.is_identity_verified) {
         setVerificationStep("verified");
+        setVerificationLoading(false);
       } else {
         // Fetch actual verification status from API
+        setVerificationLoading(true);
         profileApi.getVerificationStatus().then(res => {
           if (res.success && res.data) {
             const status = res.data.status;
@@ -75,10 +78,9 @@ const UserProfile = () => {
               setVerificationStep("rejected");
               setRejectionReason(res.data.rejection_reason || null);
             }
-            // "unverified" stays as "idle"
           }
-        }).catch(() => {
-          // Silently fail - verification status check is non-critical
+        }).catch(() => {}).finally(() => {
+          setVerificationLoading(false);
         });
       }
     }
@@ -393,7 +395,15 @@ const UserProfile = () => {
               </p>
             </CardHeader>
             <CardContent>
-              {verificationStep === "verified" || isVerified ? (
+              {verificationLoading ? (
+                <div className="flex items-center gap-4 p-5 bg-muted/30 rounded-xl">
+                  <Skeleton className="w-14 h-14 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-5 w-40" />
+                    <Skeleton className="h-4 w-64" />
+                  </div>
+                </div>
+              ) : verificationStep === "verified" || isVerified ? (
                 <div className="flex items-center gap-4 p-5 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-200 dark:border-green-800/30">
                   <div className="w-14 h-14 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center flex-shrink-0">
                     <ShieldCheck className="w-7 h-7 text-green-600" />

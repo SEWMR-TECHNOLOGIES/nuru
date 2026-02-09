@@ -124,7 +124,7 @@ def search_services(
         
         primary_image = None
         for img in s.images:
-            if img.is_primary:
+            if img.is_featured:
                 primary_image = img.image_url
                 break
         if not primary_image and s.images:
@@ -174,7 +174,7 @@ def get_service_details(service_id: str, db: Session = Depends(get_db)):
     ratings = service.ratings
     avg_rating = round(sum(r.rating for r in ratings) / len(ratings), 1) if ratings else 0
     
-    images = [{"url": img.image_url, "is_primary": img.is_primary} for img in service.images]
+    images = [{"url": img.image_url, "is_featured": img.is_featured} for img in service.images]
     packages = [{"id": str(p.id), "name": p.name, "price": float(p.price), "features": p.features} for p in service.packages]
     
     # Reviews preview (top 3)

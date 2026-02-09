@@ -23,8 +23,10 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
     try {
       const response = await socialApi.getFeed(params || initialParams);
       if (response.success) {
-        setItems(response.data.items);
-        setPagination(response.data.pagination);
+        const feedData = response.data as any;
+        const feedItems = feedData?.posts || feedData?.items || (Array.isArray(feedData) ? feedData : []);
+        setItems(feedItems);
+        setPagination(feedData?.pagination);
       } else {
         setError(response.message || "Failed to fetch feed");
       }
@@ -43,11 +45,13 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
     try {
       const response = await socialApi.getFeed({ ...(initialParams || {}), page });
       if (response.success) {
-        setItems(prev => [...prev, ...response.data.items]);
-        setPagination(response.data.pagination);
+        const feedData = response.data as any;
+        const moreItems = feedData?.posts || feedData?.items || (Array.isArray(feedData) ? feedData : []);
+        setItems(prev => [...prev, ...moreItems]);
+        setPagination(feedData?.pagination);
       }
     } catch (err) {
-      console.error("Failed to load more:", err);
+      // silent
     }
   };
 
@@ -85,12 +89,12 @@ export const usePost = (postId: string | null) => {
     if (postId) fetchPost();
   }, [fetchPost, postId]);
 
-  const likePost = async () => {
+  const glowPost = async () => {
     if (!postId) return;
     try {
-      const response = await socialApi.likePost(postId);
+      const response = await socialApi.glowPost(postId);
       if (response.success) {
-        setPost(prev => prev ? { ...prev, is_liked: true, likes_count: response.data.likes_count } : null);
+        setPost(prev => prev ? { ...prev, has_glowed: true, glow_count: (prev as any).glow_count + 1 } : null);
         return response.data;
       }
       throwApiError(response);
@@ -99,12 +103,12 @@ export const usePost = (postId: string | null) => {
     }
   };
 
-  const unlikePost = async () => {
+  const unglowPost = async () => {
     if (!postId) return;
     try {
-      const response = await socialApi.unlikePost(postId);
+      const response = await socialApi.unglowPost(postId);
       if (response.success) {
-        setPost(prev => prev ? { ...prev, is_liked: false, likes_count: response.data.likes_count } : null);
+        setPost(prev => prev ? { ...prev, has_glowed: false, glow_count: Math.max(0, (prev as any).glow_count - 1) } : null);
         return response.data;
       }
       throwApiError(response);
@@ -113,7 +117,7 @@ export const usePost = (postId: string | null) => {
     }
   };
 
-  return { post, loading, error, refetch: fetchPost, likePost, unlikePost };
+  return { post, loading, error, refetch: fetchPost, glowPost, unglowPost };
 };
 
 export const usePostComments = (postId: string | null) => {
@@ -129,8 +133,9 @@ export const usePostComments = (postId: string | null) => {
     try {
       const response = await socialApi.getComments(postId, params);
       if (response.success) {
-        setComments(response.data.comments);
-        setPagination(response.data.pagination);
+        const data = response.data as any;
+        setComments(data?.comments || data?.items || (Array.isArray(data) ? data : []));
+        setPagination(data?.pagination);
       } else {
         setError(response.message || "Failed to fetch comments");
       }
@@ -192,8 +197,9 @@ export const useMoments = (params?: MomentQueryParams) => {
     try {
       const response = await socialApi.getMoments(params);
       if (response.success) {
-        setUsers(response.data.users);
-        setMyMoments(response.data.my_moments);
+        const data = response.data as any;
+        setUsers(data?.users || []);
+        setMyMoments(data?.my_moments || []);
       } else {
         setError(response.message || "Failed to fetch moments");
       }
@@ -238,8 +244,7 @@ export const useMoments = (params?: MomentQueryParams) => {
     try {
       const response = await socialApi.viewMoment(momentId);
       return response.success ? response.data : null;
-    } catch (err) {
-      console.error("Failed to mark moment as viewed:", err);
+    } catch {
       return null;
     }
   };
@@ -264,8 +269,9 @@ export const useFollowers = (userId: string | null) => {
     try {
       const response = await socialApi.getFollowers(userId, params);
       if (response.success) {
-        setFollowers(response.data.followers);
-        setPagination(response.data.pagination);
+        const data = response.data as any;
+        setFollowers(data?.followers || data?.items || (Array.isArray(data) ? data : []));
+        setPagination(data?.pagination);
       } else {
         setError(response.message || "Failed to fetch followers");
       }
@@ -296,8 +302,9 @@ export const useFollowing = (userId: string | null) => {
     try {
       const response = await socialApi.getFollowing(userId, params);
       if (response.success) {
-        setFollowing(response.data.following);
-        setPagination(response.data.pagination);
+        const data = response.data as any;
+        setFollowing(data?.following || data?.items || (Array.isArray(data) ? data : []));
+        setPagination(data?.pagination);
       } else {
         setError(response.message || "Failed to fetch following");
       }
@@ -352,7 +359,8 @@ export const useFollowSuggestions = (limit?: number) => {
     try {
       const response = await socialApi.getFollowSuggestions({ limit });
       if (response.success) {
-        setSuggestions(response.data);
+        const data = response.data as any;
+        setSuggestions(Array.isArray(data) ? data : data?.items || []);
       } else {
         setError(response.message || "Failed to fetch suggestions");
       }
@@ -395,14 +403,16 @@ export const useCircles = () => {
     try {
       const response = await socialApi.getCircles();
       if (response.success) {
-        // Fetch members for each circle
+        const data = response.data as any;
+        const circlesList = Array.isArray(data) ? data : data?.items || [];
         const circlesWithMembers = await Promise.all(
-          response.data.map(async (circle: any) => {
+          circlesList.map(async (circle: any) => {
             try {
               const membersResponse = await socialApi.getCircleMembers(circle.id);
+              const membersData = membersResponse.data as any;
               return {
                 ...circle,
-                members: membersResponse.success ? membersResponse.data.members : []
+                members: membersResponse.success ? (membersData?.members || []) : []
               };
             } catch {
               return { ...circle, members: [] };
@@ -496,19 +506,9 @@ export const useCircles = () => {
 // COMMUNITIES
 // ============================================================================
 
-interface Community {
-  id: string;
-  name: string;
-  description?: string;
-  image?: string;
-  member_count?: number;
-  is_creator?: boolean;
-  is_member?: boolean;
-}
-
 export const useCommunities = () => {
-  const [communities, setCommunities] = useState<Community[]>([]);
-  const [myCommunities, setMyCommunities] = useState<Community[]>([]);
+  const [communities, setCommunities] = useState<any[]>([]);
+  const [myCommunities, setMyCommunities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -516,21 +516,19 @@ export const useCommunities = () => {
     setLoading(true);
     setError(null);
     try {
-      const [allResponse, myResponse] = await Promise.all([
+      const [allRes, myRes] = await Promise.all([
         socialApi.getCommunities(),
-        socialApi.getMyCommunities(),
+        socialApi.getMyCommunities()
       ]);
-      if (allResponse.success) {
-        const items = Array.isArray(allResponse.data) ? allResponse.data : [];
-        setCommunities(items);
+      if (allRes.success) {
+        const data = allRes.data as any;
+        setCommunities(Array.isArray(data) ? data : data?.items || []);
       }
-      if (myResponse.success) {
-        const myItems = Array.isArray(myResponse.data) ? myResponse.data : [];
-        setMyCommunities(myItems);
+      if (myRes.success) {
+        const data = myRes.data as any;
+        setMyCommunities(Array.isArray(data) ? data : data?.items || []);
       }
-      if (!allResponse.success) {
-        setError(allResponse.message || "Failed to fetch communities");
-      }
+      if (!allRes.success) setError(allRes.message || "Failed to fetch communities");
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -542,79 +540,48 @@ export const useCommunities = () => {
     fetchCommunities();
   }, [fetchCommunities]);
 
-  const createCommunity = async (data: { name: string; description?: string }) => {
-    try {
-      const response = await socialApi.createCommunity(data);
-      if (response.success) {
-        await fetchCommunities();
-        return response.data;
-      }
-      throwApiError(response);
-    } catch (err) {
-      throw err;
-    }
+  const createCommunity = async (data: { name: string; description?: string; is_public?: boolean }) => {
+    const response = await socialApi.createCommunity(data);
+    if (response.success) { await fetchCommunities(); return response.data; }
+    throwApiError(response);
   };
 
   const joinCommunity = async (communityId: string) => {
-    try {
-      const response = await socialApi.joinCommunity(communityId);
-      if (response.success) {
-        await fetchCommunities();
-        return response.data;
-      }
-      throwApiError(response);
-    } catch (err) {
-      throw err;
-    }
+    const response = await socialApi.joinCommunity(communityId);
+    if (response.success) { await fetchCommunities(); return response.data; }
+    throwApiError(response);
   };
 
   const leaveCommunity = async (communityId: string) => {
-    try {
-      const response = await socialApi.leaveCommunity(communityId);
-      if (response.success) {
-        await fetchCommunities();
-        return response.data;
-      }
-      throwApiError(response);
-    } catch (err) {
-      throw err;
-    }
+    const response = await socialApi.leaveCommunity(communityId);
+    if (response.success) { await fetchCommunities(); return response.data; }
+    throwApiError(response);
   };
 
-  return { 
-    communities, 
-    myCommunities, 
-    loading, 
-    error, 
-    refetch: fetchCommunities, 
-    createCommunity, 
-    joinCommunity, 
-    leaveCommunity 
-  };
+  return { communities, myCommunities, loading, error, refetch: fetchCommunities, createCommunity, joinCommunity, leaveCommunity };
 };
 
 // ============================================================================
 // NOTIFICATIONS
 // ============================================================================
 
-export const useNotifications = () => {
+export const useNotifications = (filter?: "all" | "unread") => {
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [pagination, setPagination] = useState<any>(null);
 
-  const fetchNotifications = useCallback(async () => {
+  const fetchNotifications = useCallback(async (params?: { page?: number; limit?: number }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await socialApi.getNotifications();
+      const response = await socialApi.getNotifications({ ...params, filter });
       if (response.success) {
-        // Backend returns data as a flat array via standard_response
-        const items = Array.isArray(response.data) ? response.data : (response.data?.notifications || []);
-        setNotifications(items);
-        // Compute unread count from items if not provided separately
-        const unread = response.data?.unread_count ?? items.filter((n: any) => !n.is_read).length;
-        setUnreadCount(unread);
+        const data = response.data as any;
+        setNotifications(data?.notifications || data?.items || (Array.isArray(data) ? data : []));
+        setUnreadCount(data?.unread_count || 0);
+        setPagination(data?.pagination);
       } else {
         setError(response.message || "Failed to fetch notifications");
       }
@@ -623,33 +590,49 @@ export const useNotifications = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filter]);
 
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
 
-  return { notifications, loading, error, unreadCount, refetch: fetchNotifications };
+  const markAllRead = async () => {
+    try {
+      const response = await socialApi.markAllNotificationsRead();
+      if (response.success) {
+        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+        setUnreadCount(0);
+      }
+    } catch {
+      // silent
+    }
+  };
+
+  const markRead = async (notificationId: string) => {
+    try {
+      const response = await socialApi.markNotificationRead(notificationId);
+      if (response.success) {
+        setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch {
+      // silent
+    }
+  };
+
+  return { notifications, unreadCount, loading, error, pagination, refetch: fetchNotifications, markAllRead, markRead };
 };
 
 export const useMarkAllNotificationsRead = () => {
   const [loading, setLoading] = useState(false);
-
   const markAllAsRead = async () => {
     setLoading(true);
     try {
-      const response = await socialApi.markAllNotificationsRead();
-      if (!response.success) {
-        throwApiError(response);
-      }
-      return true;
-    } catch (err) {
-      throw err;
+      await socialApi.markAllNotificationsRead();
     } finally {
       setLoading(false);
     }
   };
-
   return { markAllAsRead, loading };
 };
 
@@ -659,24 +642,20 @@ export const useMarkAllNotificationsRead = () => {
 
 export const useConversations = () => {
   const [conversations, setConversations] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const isFirstLoad = useRef(true);
 
   const fetchConversations = useCallback(async () => {
-    if (isFirstLoad.current) setLoading(true);
+    setLoading(true);
     setError(null);
     try {
       const response = await socialApi.getConversations();
       if (response.success) {
-        const convs = Array.isArray(response.data) ? response.data : (response.data as any)?.conversations || [];
-        setConversations(convs);
-        const totalUnread = convs.reduce(
-          (acc: number, conv: any) => acc + (conv.unread_count || 0), 
-          0
-        );
-        setUnreadCount(totalUnread);
+        const data = response.data as any;
+        const list = Array.isArray(data) ? data : data?.items || data?.conversations || [];
+        setConversations(list);
+        setUnreadCount(list.filter((c: any) => c.unread_count > 0).length);
       } else {
         setError(response.message || "Failed to fetch conversations");
       }
@@ -684,51 +663,34 @@ export const useConversations = () => {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
-      isFirstLoad.current = false;
     }
-  }, []);
-
-  /** Optimistically clear unread count for a conversation */
-  const clearUnread = useCallback((conversationId: string) => {
-    setConversations(prev => {
-      const conv = prev.find(c => c.id === conversationId);
-      if (conv && conv.unread_count > 0) {
-        setUnreadCount(u => Math.max(0, u - (conv.unread_count || 0)));
-        return prev.map(c => c.id === conversationId ? { ...c, unread_count: 0 } : c);
-      }
-      return prev;
-    });
   }, []);
 
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
 
-  return { conversations, loading, error, unreadCount, refetch: fetchConversations, clearUnread };
+  const clearUnread = (conversationId: string) => {
+    setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, unread_count: 0 } : c));
+  };
+
+  return { conversations, unreadCount, loading, error, refetch: fetchConversations, clearUnread };
 };
 
-export const useConversationMessages = (conversationId: string) => {
+export const useConversationMessages = (conversationId: string | null) => {
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const isInitialLoad = useRef(true);
 
   const fetchMessages = useCallback(async () => {
-    if (!conversationId) {
-      setMessages([]);
-      setLoading(false);
-      return;
-    }
-    // Only show loading on initial fetch, not on silent refreshes
-    if (isInitialLoad.current) {
-      setLoading(true);
-    }
+    if (!conversationId) return;
+    setLoading(true);
     setError(null);
     try {
       const response = await socialApi.getMessages(conversationId);
       if (response.success) {
-        const msgs = Array.isArray(response.data) ? response.data : (response.data as any)?.messages || [];
-        setMessages(msgs);
+        const data = response.data as any;
+        setMessages(Array.isArray(data) ? data : data?.items || data?.messages || []);
       } else {
         setError(response.message || "Failed to fetch messages");
       }
@@ -736,44 +698,45 @@ export const useConversationMessages = (conversationId: string) => {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
-      isInitialLoad.current = false;
     }
   }, [conversationId]);
 
-  // Reset initial load flag when conversation changes
   useEffect(() => {
-    isInitialLoad.current = true;
-  }, [conversationId]);
+    if (conversationId) fetchMessages();
+  }, [fetchMessages, conversationId]);
 
-  useEffect(() => {
-    fetchMessages();
-  }, [fetchMessages]);
-
-  /** Optimistically append a message without refetching */
-  const appendMessage = useCallback((msg: any) => {
+  const appendMessage = (msg: any) => {
     setMessages(prev => [...prev, msg]);
-  }, []);
+  };
 
-  return { messages, loading, error, refetch: fetchMessages, appendMessage };
+  return { messages, loading, error, refetch: fetchMessages, setMessages, appendMessage };
 };
 
 export const useSendMessage = () => {
-  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const loading = sending; // alias for backwards compat
 
   const sendMessage = async (conversationId: string, content: string, attachments?: string[]) => {
-    setLoading(true);
+    setSending(true);
     try {
       const response = await socialApi.sendMessage(conversationId, { content, attachments });
-      if (!response.success) {
-        throwApiError(response);
-      }
-      return response.data;
-    } catch (err) {
-      throw err;
+      if (response.success) return response.data;
+      throwApiError(response);
     } finally {
-      setLoading(false);
+      setSending(false);
     }
   };
 
-  return { sendMessage, loading };
+  const createConversation = async (data: { recipient_id: string; message?: string }) => {
+    setSending(true);
+    try {
+      const response = await socialApi.createConversation(data);
+      if (response.success) return response.data;
+      throwApiError(response);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return { sendMessage, createConversation, sending, loading };
 };

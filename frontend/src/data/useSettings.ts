@@ -1,13 +1,15 @@
 /**
- * Settings Data Hook
+ * Settings Data Hook - aligned with nuru-api-doc MODULE 19
+ * Response format: { success, data: { notifications: {...}, privacy: {...}, ... } }
+ * Update responses: { success, data: { notifications: {...}, updated_at } }
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { settingsApi, UserSettings } from "@/lib/api/settings";
+import { settingsApi, AllSettings } from "@/lib/api/settings";
 import { throwApiError } from "@/lib/api/showApiErrors";
 
 export const useSettings = () => {
-  const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [settings, setSettings] = useState<AllSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
@@ -17,7 +19,7 @@ export const useSettings = () => {
     setError(null);
     try {
       const response = await settingsApi.getSettings();
-      if (response.success) {
+      if (response.success && response.data) {
         setSettings(response.data);
       } else {
         setError(response.message || "Failed to fetch settings");
@@ -33,17 +35,55 @@ export const useSettings = () => {
     fetchSettings();
   }, [fetchSettings]);
 
-  const updateSettings = async (data: Partial<UserSettings>) => {
+  const updateNotifications = async (data: any) => {
     setUpdating(true);
     try {
-      const response = await settingsApi.updateSettings(data);
-      if (response.success) {
-        setSettings(response.data);
+      const response = await settingsApi.updateNotifications(data);
+      if (response.success && response.data) {
+        // API returns { notifications: {...}, updated_at } in data
+        const updatedNotifications = response.data.notifications;
+        if (updatedNotifications) {
+          setSettings(prev => prev ? { ...prev, notifications: updatedNotifications } : prev);
+        }
         return response.data;
       }
       throwApiError(response);
-    } catch (err) {
-      throw err;
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const updatePrivacy = async (data: any) => {
+    setUpdating(true);
+    try {
+      const response = await settingsApi.updatePrivacy(data);
+      if (response.success && response.data) {
+        // API returns { privacy: {...}, updated_at } in data
+        const updatedPrivacy = response.data.privacy;
+        if (updatedPrivacy) {
+          setSettings(prev => prev ? { ...prev, privacy: updatedPrivacy } : prev);
+        }
+        return response.data;
+      }
+      throwApiError(response);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const updatePreferences = async (data: any) => {
+    setUpdating(true);
+    try {
+      const response = await settingsApi.updatePreferences(data);
+      if (response.success && response.data) {
+        // API returns { preferences: {...}, updated_at } in data
+        const updatedPreferences = response.data.preferences;
+        if (updatedPreferences) {
+          setSettings(prev => prev ? { ...prev, preferences: updatedPreferences } : prev);
+        }
+        return response.data;
+      }
+      throwApiError(response);
     } finally {
       setUpdating(false);
     }
@@ -52,18 +92,16 @@ export const useSettings = () => {
   const enableTwoFactor = async () => {
     try {
       const response = await settingsApi.enableTwoFactor();
-      if (response.success) {
-        return response.data;
-      }
+      if (response.success) return response.data;
       throwApiError(response);
     } catch (err) {
       throw err;
     }
   };
 
-  const disableTwoFactor = async (code: string) => {
+  const disableTwoFactor = async (code: string, password: string) => {
     try {
-      const response = await settingsApi.disableTwoFactor({ code });
+      const response = await settingsApi.disableTwoFactor({ code, password });
       if (response.success) {
         await fetchSettings();
         return true;
@@ -74,13 +112,15 @@ export const useSettings = () => {
     }
   };
 
-  return { 
-    settings, 
-    loading, 
-    error, 
+  return {
+    settings,
+    loading,
+    error,
     updating,
-    refetch: fetchSettings, 
-    updateSettings,
+    refetch: fetchSettings,
+    updateNotifications,
+    updatePrivacy,
+    updatePreferences,
     enableTwoFactor,
     disableTwoFactor
   };

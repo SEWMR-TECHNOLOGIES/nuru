@@ -15,13 +15,32 @@ const Settings = () => {
     description: 'Manage your account settings, notifications, privacy, and preferences.'
   });
 
-  const { settings, loading, updating, updateSettings } = useSettings();
+  const { settings, loading, updating, updateNotifications, updatePrivacy, updatePreferences } = useSettings();
 
-  const handleToggle = async (key: string, value: boolean) => {
+  const handleNotificationToggle = async (path: string, value: boolean) => {
     try {
-      await updateSettings({ [key]: value });
+      const [section, key] = path.split('.');
+      await updateNotifications({ [section]: { [key]: value } });
       toast.success('Settings updated');
-    } catch (err) {
+    } catch {
+      toast.error('Failed to update settings');
+    }
+  };
+
+  const handlePrivacyToggle = async (key: string, value: boolean) => {
+    try {
+      await updatePrivacy({ [key]: value });
+      toast.success('Settings updated');
+    } catch {
+      toast.error('Failed to update settings');
+    }
+  };
+
+  const handlePreferenceChange = async (key: string, value: any) => {
+    try {
+      await updatePreferences({ [key]: value });
+      toast.success('Settings updated');
+    } catch {
       toast.error('Failed to update settings');
     }
   };
@@ -61,65 +80,46 @@ const Settings = () => {
     );
   }
 
+  const notif = settings?.notifications;
+  const privacy = settings?.privacy;
+  const prefs = settings?.preferences;
+  const security = settings?.security;
+
   return (
     <div className="h-full overflow-y-auto p-4 md:p-6">
       <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6">Settings</h1>
       
       <div className="space-y-6 max-w-3xl">
-        {/* Account Settings */}
+        {/* Push Notification Settings */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <User className="w-5 h-5" />
-              <CardTitle>Account Settings</CardTitle>
+              <Bell className="w-5 h-5" />
+              <CardTitle>Push Notifications</CardTitle>
             </div>
-            <CardDescription>Manage your account information and preferences</CardDescription>
+            <CardDescription>Choose what push notifications you receive</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Email Notifications</Label>
-                <p className="text-sm text-muted-foreground">Receive email about your account activity</p>
+                <Label>Push Notifications</Label>
+                <p className="text-sm text-muted-foreground">Enable push notifications</p>
               </div>
               <Switch 
-                checked={settings?.email_notifications ?? true}
-                onCheckedChange={(checked) => handleToggle('email_notifications', checked)}
+                checked={notif?.push?.enabled ?? true}
+                onCheckedChange={(v) => handleNotificationToggle('push.enabled', v)}
                 disabled={updating}
               />
             </div>
             <Separator />
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Profile Visibility</Label>
-                <p className="text-sm text-muted-foreground">Make your profile visible to everyone</p>
-              </div>
-              <Switch 
-                checked={settings?.profile_visibility ?? true}
-                onCheckedChange={(checked) => handleToggle('profile_visibility', checked)}
-                disabled={updating}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Notification Settings */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Bell className="w-5 h-5" />
-              <CardTitle>Notification Preferences</CardTitle>
-            </div>
-            <CardDescription>Choose what notifications you want to receive</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
                 <Label>Glows & Echoes</Label>
                 <p className="text-sm text-muted-foreground">When someone glows or echoes your post</p>
               </div>
               <Switch 
-                checked={settings?.glows_echoes_notifications ?? true}
-                onCheckedChange={(checked) => handleToggle('glows_echoes_notifications', checked)}
+                checked={notif?.push?.glows_and_echoes ?? true}
+                onCheckedChange={(v) => handleNotificationToggle('push.glows_and_echoes', v)}
                 disabled={updating}
               />
             </div>
@@ -130,8 +130,8 @@ const Settings = () => {
                 <p className="text-sm text-muted-foreground">When you're invited to an event</p>
               </div>
               <Switch 
-                checked={settings?.event_invitation_notifications ?? true}
-                onCheckedChange={(checked) => handleToggle('event_invitation_notifications', checked)}
+                checked={notif?.push?.event_invitations ?? true}
+                onCheckedChange={(v) => handleNotificationToggle('push.event_invitations', v)}
                 disabled={updating}
               />
             </div>
@@ -142,8 +142,8 @@ const Settings = () => {
                 <p className="text-sm text-muted-foreground">When someone starts following you</p>
               </div>
               <Switch 
-                checked={settings?.new_follower_notifications ?? true}
-                onCheckedChange={(checked) => handleToggle('new_follower_notifications', checked)}
+                checked={notif?.push?.new_followers ?? true}
+                onCheckedChange={(v) => handleNotificationToggle('push.new_followers', v)}
                 disabled={updating}
               />
             </div>
@@ -154,8 +154,56 @@ const Settings = () => {
                 <p className="text-sm text-muted-foreground">When you receive a new message</p>
               </div>
               <Switch 
-                checked={settings?.message_notifications ?? true}
-                onCheckedChange={(checked) => handleToggle('message_notifications', checked)}
+                checked={notif?.push?.messages ?? true}
+                onCheckedChange={(v) => handleNotificationToggle('push.messages', v)}
+                disabled={updating}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Email Notification Settings */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Bell className="w-5 h-5" />
+              <CardTitle>Email Notifications</CardTitle>
+            </div>
+            <CardDescription>Control email notification preferences</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Email Notifications</Label>
+                <p className="text-sm text-muted-foreground">Receive email about your account activity</p>
+              </div>
+              <Switch 
+                checked={notif?.email?.enabled ?? true}
+                onCheckedChange={(v) => handleNotificationToggle('email.enabled', v)}
+                disabled={updating}
+              />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Weekly Digest</Label>
+                <p className="text-sm text-muted-foreground">Weekly summary of activity</p>
+              </div>
+              <Switch 
+                checked={notif?.email?.weekly_digest ?? true}
+                onCheckedChange={(v) => handleNotificationToggle('email.weekly_digest', v)}
+                disabled={updating}
+              />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Marketing</Label>
+                <p className="text-sm text-muted-foreground">Promotional emails and offers</p>
+              </div>
+              <Switch 
+                checked={notif?.email?.marketing ?? false}
+                onCheckedChange={(v) => handleNotificationToggle('email.marketing', v)}
                 disabled={updating}
               />
             </div>
@@ -174,12 +222,60 @@ const Settings = () => {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Private Profile</Label>
-                <p className="text-sm text-muted-foreground">Only approved followers can see your posts</p>
+                <Label>Show Email</Label>
+                <p className="text-sm text-muted-foreground">Display email on your profile</p>
               </div>
               <Switch 
-                checked={settings?.private_profile ?? false}
-                onCheckedChange={(checked) => handleToggle('private_profile', checked)}
+                checked={privacy?.show_email ?? false}
+                onCheckedChange={(v) => handlePrivacyToggle('show_email', v)}
+                disabled={updating}
+              />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Show Phone</Label>
+                <p className="text-sm text-muted-foreground">Display phone number on your profile</p>
+              </div>
+              <Switch 
+                checked={privacy?.show_phone ?? false}
+                onCheckedChange={(v) => handlePrivacyToggle('show_phone', v)}
+                disabled={updating}
+              />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Show Location</Label>
+                <p className="text-sm text-muted-foreground">Display location on your profile</p>
+              </div>
+              <Switch 
+                checked={privacy?.show_location ?? true}
+                onCheckedChange={(v) => handlePrivacyToggle('show_location', v)}
+                disabled={updating}
+              />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Activity Status</Label>
+                <p className="text-sm text-muted-foreground">Show when you're online</p>
+              </div>
+              <Switch 
+                checked={privacy?.show_activity_status ?? true}
+                onCheckedChange={(v) => handlePrivacyToggle('show_activity_status', v)}
+                disabled={updating}
+              />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Read Receipts</Label>
+                <p className="text-sm text-muted-foreground">Show when you've read messages</p>
+              </div>
+              <Switch 
+                checked={privacy?.show_read_receipts ?? true}
+                onCheckedChange={(v) => handlePrivacyToggle('show_read_receipts', v)}
                 disabled={updating}
               />
             </div>
@@ -190,7 +286,7 @@ const Settings = () => {
                 <p className="text-sm text-muted-foreground">Add an extra layer of security</p>
               </div>
               <Button variant="outline" size="sm" disabled={updating}>
-                {settings?.two_factor_enabled ? 'Disable' : 'Enable'}
+                {security?.two_factor_enabled ? 'Disable' : 'Enable'}
               </Button>
             </div>
             <Separator />
@@ -203,14 +299,14 @@ const Settings = () => {
           </CardContent>
         </Card>
 
-        {/* Appearance */}
+        {/* Preferences */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Moon className="w-5 h-5" />
-              <CardTitle>Appearance</CardTitle>
+              <Globe className="w-5 h-5" />
+              <CardTitle>Preferences</CardTitle>
             </div>
-            <CardDescription>Customize how Nuru looks on your device</CardDescription>
+            <CardDescription>Set your language, theme, and regional preferences</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
@@ -219,35 +315,42 @@ const Settings = () => {
                 <p className="text-sm text-muted-foreground">Use dark theme</p>
               </div>
               <Switch 
-                checked={settings?.dark_mode ?? false}
-                onCheckedChange={(checked) => handleToggle('dark_mode', checked)}
+                checked={prefs?.theme === 'dark'}
+                onCheckedChange={(v) => handlePreferenceChange('theme', v ? 'dark' : 'light')}
                 disabled={updating}
               />
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Language & Region */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Globe className="w-5 h-5" />
-              <CardTitle>Language & Region</CardTitle>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Compact Mode</Label>
+                <p className="text-sm text-muted-foreground">Use compact layout</p>
+              </div>
+              <Switch 
+                checked={prefs?.compact_mode ?? false}
+                onCheckedChange={(v) => handlePreferenceChange('compact_mode', v)}
+                disabled={updating}
+              />
             </div>
-            <CardDescription>Set your language and regional preferences</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+            <Separator />
             <div className="space-y-2">
               <Label>Language</Label>
               <Button variant="outline" className="w-full justify-between" disabled={updating}>
-                {settings?.language || 'English (US)'}
+                {prefs?.language === 'en' ? 'English' : prefs?.language || 'English'}
               </Button>
             </div>
             <Separator />
             <div className="space-y-2">
               <Label>Time Zone</Label>
               <Button variant="outline" className="w-full justify-between" disabled={updating}>
-                {settings?.timezone || '(UTC-05:00) Eastern Time'}
+                {prefs?.timezone || 'Africa/Nairobi'}
+              </Button>
+            </div>
+            <Separator />
+            <div className="space-y-2">
+              <Label>Currency</Label>
+              <Button variant="outline" className="w-full justify-between" disabled={updating}>
+                {prefs?.currency || 'KES'}
               </Button>
             </div>
           </CardContent>

@@ -205,12 +205,16 @@ const FindServices = () => {
               <CardContent className="p-6">
                 <div className="flex flex-col md:flex-row gap-6">
                   <div className="w-full md:w-32 h-32 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-                    {provider.images && provider.images.length > 0 && (
+                    {((provider as any).primary_image || (provider.images && provider.images.length > 0)) ? (
                       <img
-                        src={typeof provider.images[0] === 'string' ? provider.images[0] : provider.images[0]?.url}
+                        src={(provider as any).primary_image || (typeof provider.images?.[0] === 'string' ? provider.images[0] : provider.images?.[0]?.url)}
                         alt={provider.title}
                         className="w-full h-full object-cover"
                       />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-muted-foreground">
+                        {provider.title?.slice(0, 2).toUpperCase()}
+                      </div>
                     )}
                   </div>
                   
@@ -274,7 +278,7 @@ const FindServices = () => {
                               className="w-full md:w-auto"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                navigate(`/provider-chat?providerId=${provider.user_id || provider.id}&providerName=${encodeURIComponent(provider.title)}&serviceId=${assignServiceId}&eventId=${assignEventId}`);
+                                navigate(`/provider-chat?providerId=${(provider as any).provider?.id || provider.user_id || provider.id}&providerName=${encodeURIComponent(provider.title)}&serviceId=${assignServiceId}&eventId=${assignEventId}`);
                               }}
                             >
                               <MessageCircle className="w-4 h-4 mr-2" />
@@ -300,7 +304,7 @@ const FindServices = () => {
                               className="w-full md:w-auto"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                navigate(`/provider-chat?providerId=${provider.user_id || provider.id}&providerName=${encodeURIComponent(provider.title)}`);
+                                navigate(`/provider-chat?providerId=${(provider as any).provider?.id || provider.user_id || provider.id}&providerName=${encodeURIComponent(provider.title)}&serviceId=${provider.id}`);
                               }}
                             >
                               <MessageCircle className="w-4 h-4 mr-2" />

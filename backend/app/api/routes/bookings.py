@@ -19,20 +19,26 @@ router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
 def _booking_dict(db, b):
     service = db.query(UserService).filter(UserService.id == b.user_service_id).first() if b.user_service_id else None
-    client = db.query(User).filter(User.id == b.client_id).first() if b.client_id else None
-    vendor = db.query(User).filter(User.id == b.vendor_id).first() if b.vendor_id else None
+    requester = db.query(User).filter(User.id == b.requester_user_id).first() if b.requester_user_id else None
+    # Vendor is the service owner
+    vendor = None
+    if service and service.user_id:
+        vendor = db.query(User).filter(User.id == service.user_id).first()
     event = db.query(Event).filter(Event.id == b.event_id).first() if b.event_id else None
 
     return {
         "id": str(b.id),
         "service": {"id": str(service.id), "title": service.title} if service else None,
-        "client": {"id": str(client.id), "name": f"{client.first_name} {client.last_name}"} if client else None,
+        "client": {"id": str(requester.id), "name": f"{requester.first_name} {requester.last_name}"} if requester else None,
         "vendor": {"id": str(vendor.id), "name": f"{vendor.first_name} {vendor.last_name}"} if vendor else None,
         "event": {"id": str(event.id), "title": event.name} if event else None,
-        "status": b.status.value if hasattr(b.status, "value") else b.status,
-        "message": b.message, "budget": float(b.budget) if b.budget else None,
+        "status": b.status if isinstance(b.status, str) else (b.status.value if hasattr(b.status, "value") else b.status),
+        "message": b.message,
+        "proposed_price": float(b.proposed_price) if b.proposed_price else None,
         "quoted_price": float(b.quoted_price) if b.quoted_price else None,
-        "event_date": b.event_date.isoformat() if b.event_date else None,
+        "deposit_required": float(b.deposit_required) if b.deposit_required else None,
+        "deposit_paid": b.deposit_paid,
+        "vendor_notes": b.vendor_notes,
         "created_at": b.created_at.isoformat() if b.created_at else None,
         "updated_at": b.updated_at.isoformat() if b.updated_at else None,
     }
@@ -40,13 +46,17 @@ def _booking_dict(db, b):
 
 @router.get("/")
 def get_my_bookings(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    bookings = db.query(ServiceBookingRequest).filter(ServiceBookingRequest.client_id == current_user.id).order_by(ServiceBookingRequest.created_at.desc()).all()
+    bookings = db.query(ServiceBookingRequest).filter(ServiceBookingRequest.requester_user_id == current_user.id).order_by(ServiceBookingRequest.created_at.desc()).all()
     return standard_response(True, "Bookings retrieved successfully", [_booking_dict(db, b) for b in bookings])
 
 
 @router.get("/received")
 def get_received_bookings(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    bookings = db.query(ServiceBookingRequest).filter(ServiceBookingRequest.vendor_id == current_user.id).order_by(ServiceBookingRequest.created_at.desc()).all()
+    # Find bookings for services owned by the current user
+    my_service_ids = [s.id for s in db.query(UserService.id).filter(UserService.user_id == current_user.id).all()]
+    if not my_service_ids:
+        return standard_response(True, "Received bookings retrieved successfully", [])
+    bookings = db.query(ServiceBookingRequest).filter(ServiceBookingRequest.user_service_id.in_(my_service_ids)).order_by(ServiceBookingRequest.created_at.desc()).all()
     return standard_response(True, "Received bookings retrieved successfully", [_booking_dict(db, b) for b in bookings])
 
 
@@ -128,7 +138,7 @@ def accept_quote(booking_id: str, db: Session = Depends(get_db), current_user: U
     except ValueError:
         return standard_response(False, "Invalid booking ID")
 
-    b = db.query(ServiceBookingRequest).filter(ServiceBookingRequest.id == bid, ServiceBookingRequest.client_id == current_user.id).first()
+    b = db.query(ServiceBookingRequest).filter(ServiceBookingRequest.id == bid, ServiceBookingRequest.requester_user_id == current_user.id).first()
     if not b:
         return standard_response(False, "Booking not found")
 

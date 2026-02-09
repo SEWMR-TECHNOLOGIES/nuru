@@ -1,7 +1,8 @@
 import { X, Loader2, Navigation } from 'lucide-react';
 import { useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { useMoments } from '@/data/useSocial';
+import { socialApi } from '@/lib/api/social';
+import { useFeed } from '@/data/useSocial';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -71,7 +72,7 @@ const CreatePostBox = () => {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   
-  const { createMoment } = useMoments();
+  const { refetch: refetchFeed } = useFeed();
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -261,12 +262,8 @@ const CreatePostBox = () => {
       formData.append('content', sanitizedContent);
       
       // Add location if available
-      if (location) {
-        formData.append('latitude', location.latitude.toString());
-        formData.append('longitude', location.longitude.toString());
-        if (location.name) {
-          formData.append('location_name', location.name);
-        }
+      if (location?.name) {
+        formData.append('location', location.name);
       }
       
       // Add images
@@ -274,7 +271,13 @@ const CreatePostBox = () => {
         formData.append('images', image);
       });
 
-      await createMoment(formData);
+      const response = await socialApi.createPost(formData);
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to create post');
+      }
+      
+      // Refresh the feed
+      refetchFeed();
       
       // Clear form on success
       setText('');

@@ -49,22 +49,21 @@ const RightSidebar = () => {
   const { services, loading: servicesLoading } = useServices();
   const { suggestions, loading: suggestionsLoading } = useFollowSuggestions(3);
 
+  // Track if we've ever loaded data to avoid skeleton flicker on re-mount
+  const hasLoadedEvents = events.length > 0 || !eventsLoading;
+  const hasLoadedServices = services.length > 0 || !servicesLoading;
+  const hasLoadedSuggestions = suggestions.length > 0 || !suggestionsLoading;
+
   // Get upcoming events (first 3)
   const upcomingEvents = events?.slice(0, 3) || [];
   
-  // Get service providers (first 4 unique categories)
-  const serviceCategories = services?.reduce((acc: any[], service) => {
-    const categoryName = service.service_category?.name || 'Other';
-    if (acc.length < 4 && !acc.find(s => (s.service_category?.name || 'Other') === categoryName)) {
-      acc.push(service);
-    }
-    return acc;
-  }, []) || [];
+  // Service providers (first 4)
+  const topServices = services?.slice(0, 4) || [];
 
   return (
     <div className="space-y-6">
       {/* Upcoming Events */}
-      {eventsLoading ? (
+      {eventsLoading && !hasLoadedEvents ? (
         <SidebarCardSkeleton title="Upcoming Events" count={3} />
       ) : upcomingEvents.length > 0 ? (
         <div className="bg-card rounded-lg p-4 border border-border">
@@ -102,28 +101,46 @@ const RightSidebar = () => {
       )}
 
       {/* Service Providers */}
-      {servicesLoading ? (
+      {servicesLoading && !hasLoadedServices ? (
         <SidebarCardSkeleton title="Service Providers" count={4} />
-      ) : serviceCategories.length > 0 ? (
+      ) : services.length > 0 ? (
         <div className="bg-card rounded-lg p-4 border border-border">
           <h2 className="font-semibold text-foreground mb-4">Service Providers</h2>
           <div className="grid grid-cols-2 gap-3">
-            {serviceCategories.map((service) => (
-              <div key={service.id} className="text-center cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors">
-                <div className="w-16 h-16 rounded-lg bg-muted mx-auto mb-2 overflow-hidden flex items-center justify-center">
-                  {service.images?.[0]?.url ? (
-                    <img
-                      src={service.images[0].url}
-                      alt={service.service_category?.name || 'Service'}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Users className="w-6 h-6 text-muted-foreground" />
+            {services.slice(0, 4).map((service: any) => {
+              // Try all possible image field variations from the API
+              const imgUrl = service.primary_image?.thumbnail_url 
+                || service.primary_image?.url 
+                || service.primary_image 
+                || service.images?.[0]?.thumbnail_url 
+                || service.images?.[0]?.url 
+                || service.images?.[0]
+                || service.cover_image
+                || service.image_url
+                || service.media?.[0]?.url
+                || service.media?.[0]?.thumbnail_url;
+              const title = service.title || service.name || service.service_category?.name || 'Service';
+              const initials = title.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
+              return (
+                <div key={service.id} className="text-center cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors">
+                  <div className="w-16 h-16 rounded-lg bg-muted mx-auto mb-2 overflow-hidden flex items-center justify-center">
+                    {imgUrl ? (
+                      <img
+                        src={imgUrl}
+                        alt={title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-sm font-semibold text-muted-foreground">{initials}</span>
+                    )}
+                  </div>
+                  <p className="text-xs font-medium text-foreground capitalize line-clamp-2">{title}</p>
+                  {service.provider?.name && (
+                    <p className="text-[10px] text-muted-foreground truncate">{service.provider.name}</p>
                   )}
                 </div>
-                <p className="text-xs font-medium text-foreground capitalize">{service.service_category?.name || 'Service'}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ) : (
@@ -144,7 +161,7 @@ const RightSidebar = () => {
       )}
 
       {/* Friend Suggestions / People You May Know */}
-      {suggestionsLoading ? (
+      {suggestionsLoading && !hasLoadedSuggestions ? (
         <SidebarCardSkeleton title="People You May Know" count={3} />
       ) : suggestions.length > 0 ? (
         <div className="bg-card rounded-lg p-4 border border-border">

@@ -7,10 +7,11 @@ from datetime import datetime
 import pytz
 from fastapi import APIRouter, Depends, Body
 from sqlalchemy import func as sa_func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from models import Conversation, Message, User, UserProfile
+from models import Conversation, Message, User, UserProfile, UserService, UserServiceImage
 from models.enums import ConversationTypeEnum
 from utils.auth import get_current_user
 from utils.helpers import standard_response
@@ -32,13 +33,39 @@ def _conversation_dict(db, conv, current_user_id):
         Message.is_read == False
     ).scalar() or 0
 
+    # If this is a service conversation, include service info
+    service_info = None
+    if conv.service_id:
+        svc = db.query(UserService).filter(UserService.id == conv.service_id).first()
+        if svc:
+            # Get featured or first image for the service
+            svc_image = None
+            for img in svc.images:
+                if img.is_featured:
+                    svc_image = img.image_url
+                    break
+            if not svc_image and svc.images:
+                svc_image = svc.images[0].image_url
+            service_info = {
+                "id": str(svc.id),
+                "title": svc.title,
+                "image": svc_image,
+            }
+
+    # For service conversations, show service name/image instead of person
+    participant_name = f"{other.first_name} {other.last_name}" if other else None
+    participant_avatar = profile.profile_picture_url if profile else None
+    display_name = service_info["title"] if service_info else participant_name
+    display_avatar = service_info["image"] if service_info else participant_avatar
+
     return {
         "id": str(conv.id),
         "participant": {
             "id": str(other.id) if other else None,
-            "name": f"{other.first_name} {other.last_name}" if other else None,
-            "avatar": profile.profile_picture_url if profile else None,
+            "name": display_name,
+            "avatar": display_avatar,
         },
+        "service": service_info,
         "last_message": {
             "content": last_msg.message_text if last_msg else None,
             "sent_at": last_msg.created_at.isoformat() if last_msg else None,
@@ -83,8 +110,10 @@ def get_conversations(db: Session = Depends(get_db), current_user: User = Depend
 
 @router.post("/start")
 def start_conversation(body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Starts a new conversation with another user, or returns existing one."""
+    """Starts a new conversation with another user, or returns existing one.
+    If service_id is provided, creates/finds a service-specific conversation."""
     recipient_id = body.get("recipient_id")
+    service_id_str = body.get("service_id")
     if not recipient_id:
         return standard_response(False, "Recipient ID is required")
 
@@ -100,31 +129,65 @@ def start_conversation(body: dict = Body(...), db: Session = Depends(get_db), cu
     if not recipient:
         return standard_response(False, "Recipient not found")
 
-    existing = db.query(Conversation).filter(
-        or_(
-            (Conversation.user_one_id == current_user.id) & (Conversation.user_two_id == rid),
-            (Conversation.user_one_id == rid) & (Conversation.user_two_id == current_user.id),
-        )
-    ).first()
+    # Resolve optional service_id
+    sid = None
+    if service_id_str:
+        try:
+            sid = uuid.UUID(service_id_str)
+        except ValueError:
+            pass
+
+    # Look for an existing conversation – if service_id provided, match it specifically
+    if sid:
+        existing = db.query(Conversation).filter(
+            or_(
+                (Conversation.user_one_id == current_user.id) & (Conversation.user_two_id == rid),
+                (Conversation.user_one_id == rid) & (Conversation.user_two_id == current_user.id),
+            ),
+            Conversation.service_id == sid,
+        ).first()
+    else:
+        existing = db.query(Conversation).filter(
+            or_(
+                (Conversation.user_one_id == current_user.id) & (Conversation.user_two_id == rid),
+                (Conversation.user_one_id == rid) & (Conversation.user_two_id == current_user.id),
+            ),
+            Conversation.service_id.is_(None),
+        ).first()
 
     if existing:
         return standard_response(True, "Conversation already exists", _conversation_dict(db, existing, current_user.id))
 
-    now = datetime.now(EAT)
+    conv_type = ConversationTypeEnum.user_to_service if sid else ConversationTypeEnum.user_to_user
     conv = Conversation(
         user_one_id=current_user.id,
         user_two_id=rid,
-        type=ConversationTypeEnum.user_to_user,
+        type=conv_type,
+        service_id=sid,
     )
     db.add(conv)
-    db.flush()
 
     initial_message = body.get("message", "").strip()
     if initial_message:
+        db.flush()
         msg = Message(conversation_id=conv.id, sender_id=current_user.id, message_text=initial_message, is_read=False)
         db.add(msg)
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        # Unique constraint hit – find the existing conversation (check both user orderings)
+        existing = db.query(Conversation).filter(
+            or_(
+                (Conversation.user_one_id == current_user.id) & (Conversation.user_two_id == rid),
+                (Conversation.user_one_id == rid) & (Conversation.user_two_id == current_user.id),
+            ),
+        ).first()
+        if existing:
+            return standard_response(True, "Conversation already exists", _conversation_dict(db, existing, current_user.id))
+        return standard_response(False, "Could not start conversation")
+
     db.refresh(conv)
     return standard_response(True, "Conversation started successfully", _conversation_dict(db, conv, current_user.id))
 

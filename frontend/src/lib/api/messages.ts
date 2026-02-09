@@ -13,7 +13,7 @@ export const messagesApi = {
   getConversations: () =>
     get<any[]>("/messages/"),
 
-  startConversation: (data: { recipient_id: string; message?: string }) =>
+  startConversation: (data: { recipient_id: string; message?: string; service_id?: string }) =>
     post<any>("/messages/start", data),
 
   archiveConversation: (conversationId: string) =>

@@ -42,6 +42,7 @@ const Messages = () => {
   const [input, setInput] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [showChatList, setShowChatList] = useState(true);
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [startingChat, setStartingChat] = useState(false);
@@ -102,18 +103,22 @@ const Messages = () => {
 
     // Upload image first if present
     if (imageFile) {
+      setUploadingImage(true);
       try {
         const uploadRes = await uploadsApi.upload(imageFile);
         if (uploadRes.success && uploadRes.data?.url) {
           uploadedUrl = uploadRes.data.url;
         } else {
           toast.error('Failed to upload image');
+          setUploadingImage(false);
           return;
         }
       } catch {
         toast.error('Failed to upload image');
+        setUploadingImage(false);
         return;
       }
+      setUploadingImage(false);
     }
 
     const attachments = uploadedUrl ? [uploadedUrl] : undefined;
@@ -133,7 +138,6 @@ const Messages = () => {
 
     try {
       await sendMessage(selectedConversationId, messageContent, attachments);
-      // Silently refresh to get server-confirmed message
       refetchMessages();
     } catch (err) {
       console.error('Failed to send message:', err);
@@ -419,14 +423,11 @@ const Messages = () => {
                           ? 'bg-primary text-primary-foreground rounded-2xl rounded-br-md' 
                           : 'bg-card border border-border text-foreground rounded-2xl rounded-bl-md shadow-sm'
                       }`}>
-                        {msg.attachments && msg.attachments.length > 0 && (() => {
-                          console.log('Message attachment URL:', msg.attachments[0]);
-                          return (
+                        {msg.attachments && msg.attachments.length > 0 && (
                             <div className="mb-2 rounded-lg overflow-hidden">
                               <img src={msg.attachments[0]} alt="attachment" className="w-full h-32 md:h-40 object-cover" />
                             </div>
-                          );
-                        })()}
+                        )}
                         {msg.content && <p className="text-sm break-words">{msg.content}</p>}
                         <p className={`text-[10px] mt-1 ${isSender ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
                           {msg.created_at ? new Date(msg.created_at.endsWith('Z') || msg.created_at.includes('+') ? msg.created_at : msg.created_at + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
@@ -437,6 +438,14 @@ const Messages = () => {
                 })
               )}
             </div>
+
+            {/* Upload progress indicator */}
+            {uploadingImage && (
+              <div className="px-4 py-2 border-t border-border flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Uploading image...</span>
+              </div>
+            )}
 
             {/* Input area */}
             <div className="p-3 md:p-4 border-t border-border">
@@ -481,10 +490,10 @@ const Messages = () => {
                   size="icon"
                   className="rounded-full w-10 h-10 bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
                   onClick={handleSendMessage}
-                  disabled={(!input.trim() && !imagePreview) || sending}
+                  disabled={(!input.trim() && !imagePreview) || sending || uploadingImage}
                   aria-label="Send message"
                 >
-                  {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {(sending || uploadingImage) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </Button>
               </div>
             </div>
