@@ -9,6 +9,7 @@ engine = create_engine(
     config.DATABASE_URL,
     echo=False,
     future=True,
+    poolclass=NullPool,
 )
 
 # 2. Create the configured SessionLocal class
