@@ -363,4 +363,38 @@ export const eventsApi = {
    */
   deleteBudgetItem: (eventId: string, itemId: string) => 
     del(`/user-events/${eventId}/budget/${itemId}`),
+
+  // ============================================================================
+  // EVENT SERVICES (Assign providers to event)
+  // ============================================================================
+
+  /**
+   * Get event services
+   */
+  getEventServices: (eventId: string) =>
+    get<any[]>(`/user-events/${eventId}/services`),
+
+  /**
+   * Assign a service provider to event
+   */
+  addEventService: (eventId: string, data: { provider_user_service_id: string; service_id?: string; agreed_price?: number; notes?: string }) =>
+    post<any>(`/user-events/${eventId}/services`, data),
+
+  /**
+   * Update event service
+   */
+  updateEventService: (eventId: string, serviceId: string, data: { agreed_price?: number; notes?: string; service_status?: string }) =>
+    put<any>(`/user-events/${eventId}/services/${serviceId}`, data),
+
+  /**
+   * Remove service from event
+   */
+  removeEventService: (eventId: string, serviceId: string) =>
+    del(`/user-events/${eventId}/services/${serviceId}`),
+
+  /**
+   * Record service payment
+   */
+  recordServicePayment: (eventId: string, serviceId: string, data: { amount: number; method: string; transaction_ref?: string }) =>
+    post<any>(`/user-events/${eventId}/services/${serviceId}/payment`, data),
 };

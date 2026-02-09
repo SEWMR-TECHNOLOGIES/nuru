@@ -36,6 +36,15 @@ const CreateEvent: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+
+  const handleToggleService = (serviceId: string) => {
+    setSelectedServices(prev =>
+      prev.includes(serviceId)
+        ? prev.filter(id => id !== serviceId)
+        : [...prev, serviceId]
+    );
+  };
   const { eventTypes, loading: loadingEventTypes, fetchEventTypes } = useEventTypes();
 
   useEffect(() => {
@@ -120,9 +129,20 @@ const CreateEvent: React.FC = () => {
         return;
       }
 
-      toast.success(response.message || (editId ? "Event updated successfully." : "Event created successfully."));
-      
       const createdId = (response.data as any)?.id || editId;
+
+      // Assign selected services to the event
+      if (selectedServices.length > 0 && createdId) {
+        for (const svcId of selectedServices) {
+          try {
+            await eventsApi.addEventService(createdId, { provider_user_service_id: svcId });
+          } catch {
+            // Silent fail for individual service assignments
+          }
+        }
+      }
+
+      toast.success(response.message || (editId ? "Event updated successfully." : "Event created successfully."));
       navigate(`/event-management/${createdId}`);
     } catch (err: any) {
       console.error("Event API error:", err);
@@ -370,6 +390,8 @@ const CreateEvent: React.FC = () => {
           eventTypeName={displayedEventTypes.find(t => t.id === formData.eventType)?.name}
           location={formData.location}
           budget={formData.budget}
+          selectedServiceIds={selectedServices}
+          onToggleService={handleToggleService}
         />
 
         <div className="flex justify-end gap-3">
