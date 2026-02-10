@@ -34,7 +34,7 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
-    }
+    } 
   }, [initialParams]);
 
   useEffect(() => {
@@ -670,9 +670,12 @@ export const useConversations = () => {
     fetchConversations();
   }, [fetchConversations]);
 
-  const clearUnread = (conversationId: string) => {
+  // FIX: Wrapped in useCallback so it has a stable reference across renders.
+  // Without this, any useEffect that depends on clearUnread will re-fire
+  // every render, causing the infinite loop.
+  const clearUnread = useCallback((conversationId: string) => {
     setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, unread_count: 0 } : c));
-  };
+  }, []);
 
   return { conversations, unreadCount, loading, error, refetch: fetchConversations, clearUnread };
 };
@@ -705,9 +708,10 @@ export const useConversationMessages = (conversationId: string | null) => {
     if (conversationId) fetchMessages();
   }, [fetchMessages, conversationId]);
 
-  const appendMessage = (msg: any) => {
+  // FIX: Wrapped in useCallback for stability
+  const appendMessage = useCallback((msg: any) => {
     setMessages(prev => [...prev, msg]);
-  };
+  }, []);
 
   return { messages, loading, error, refetch: fetchMessages, setMessages, appendMessage };
 };

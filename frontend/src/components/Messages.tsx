@@ -51,6 +51,9 @@ const Messages = () => {
   const inputFileRef = useRef<HTMLInputElement | null>(null);
   const isMobile = useIsMobile();
 
+  // FIX: Ref to prevent duplicate mark-as-read calls
+  const lastMarkedRef = useRef<string | null>(null);
+
   // Select first conversation by default
   useEffect(() => {
     if (conversations.length > 0 && !selectedConversationId) {
@@ -65,14 +68,15 @@ const Messages = () => {
     }
   }, [messages, imagePreview]);
 
-  // Mark conversation as read when selected
-  // Mark as read + optimistically clear badge immediately
+  // FIX: Mark conversation as read when selected — only fires once per conversation
   useEffect(() => {
-    if (selectedConversationId) {
+    if (selectedConversationId && selectedConversationId !== lastMarkedRef.current) {
+      lastMarkedRef.current = selectedConversationId;
       clearUnread(selectedConversationId);
       messagesApi.markAsRead(selectedConversationId).catch(() => {});
     }
-  }, [selectedConversationId, clearUnread]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConversationId]);
 
   const handleSelectConversation = (conversationId: string) => {
     setSelectedConversationId(conversationId);
