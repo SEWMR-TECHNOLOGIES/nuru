@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Calendar, X, ChevronLeft, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FormattedNumberInput } from "@/components/ui/formatted-number-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -135,7 +136,7 @@ const CreateEvent: React.FC = () => {
       if (selectedServices.length > 0 && createdId) {
         for (const svcId of selectedServices) {
           try {
-            await eventsApi.addEventService(createdId, { provider_user_service_id: svcId });
+            await eventsApi.addEventService(createdId, { provider_service_id: svcId });
           } catch {
             // Silent fail for individual service assignments
           }
@@ -301,22 +302,21 @@ const CreateEvent: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Expected Guests</label>
-                <Input
-                  type="number"
+                <FormattedNumberInput
                   placeholder="50"
                   value={formData.expectedGuests}
-                  onChange={(e) => setFormData({ ...formData, expectedGuests: e.target.value })}
+                  onChange={(v) => setFormData({ ...formData, expectedGuests: v })}
                 />
               </div>
             </div>
 
             {/* Budget */}
             <div>
-              <label className="block text-sm font-medium mb-2">Estimated Budget</label>
-              <Input
-                placeholder="e.g., 5000000"
+              <label className="block text-sm font-medium mb-2">Estimated Budget (TZS)</label>
+              <FormattedNumberInput
+                placeholder="e.g., 5,000,000"
                 value={formData.budget}
-                onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
+                onChange={(v) => setFormData({ ...formData, budget: v })}
               />
             </div>
 

@@ -384,17 +384,17 @@ const Index = () => {
             </p>
 
             {/* Enhanced Action Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-14 max-w-3xl mx-auto">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-14 max-w-4xl mx-auto">
               {[
-                { action: "Plan", icon: "📋", desc: "Organize every detail" },
-                { action: "Invite", icon: "✉️", desc: "Reach your guests" },
-                { action: "Gather", icon: "🤝", desc: "Bring people together" },
-                { action: "Remember", icon: "💫", desc: "Preserve the moments" },
+                { action: "Plan", desc: "Organize every detail with precision", gradient: "from-primary/8 to-primary/3" },
+                { action: "Invite", desc: "Reach your guests with style", gradient: "from-accent/15 to-accent/5" },
+                { action: "Gather", desc: "Bring people together seamlessly", gradient: "from-primary/6 to-accent/8" },
+                { action: "Remember", desc: "Preserve the moments forever", gradient: "from-accent/10 to-primary/5" },
               ].map((item, index) => (
                 <motion.div
                   key={item.action}
-                  initial={{ opacity: 0, y: 30, scale: 0.9 }}
-                  whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
                   transition={{ 
                     duration: 0.5, 
                     delay: 0.3 + index * 0.1,
@@ -402,19 +402,20 @@ const Index = () => {
                   }}
                   viewport={{ once: true }}
                   whileHover={{ 
-                    y: -8,
+                    y: -6,
                     transition: { duration: 0.3 }
                   }}
-                  className="group relative"
+                  className="group"
                 >
-                  <div className="relative bg-card/50 backdrop-blur-sm border border-border rounded-2xl p-5 text-center overflow-hidden transition-all duration-300 group-hover:border-foreground/20 group-hover:bg-card">
-                    {/* Gradient glow on hover */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className={`relative bg-gradient-to-br ${item.gradient} backdrop-blur-sm border border-border/50 rounded-3xl p-6 md:p-8 text-center overflow-hidden transition-all duration-500 group-hover:border-foreground/15 group-hover:shadow-lg`}>
+                    {/* Subtle shine effect */}
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+                      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-foreground/10 to-transparent" />
+                    </div>
                     
                     <div className="relative">
-                      <span className="text-2xl md:text-3xl block mb-2">{item.icon}</span>
-                      <h4 className="font-semibold text-foreground text-lg mb-1">{item.action}</h4>
-                      <p className="text-xs text-muted-foreground hidden md:block">{item.desc}</p>
+                      <h4 className="font-bold text-foreground text-xl md:text-2xl mb-2 tracking-tight">{item.action}</h4>
+                      <p className="text-xs md:text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
                     </div>
                   </div>
                 </motion.div>

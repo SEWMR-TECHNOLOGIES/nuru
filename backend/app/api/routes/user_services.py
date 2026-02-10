@@ -75,7 +75,7 @@ def _service_dict(db, service):
         "category": service.category.name if service.category else None,
         "min_price": float(service.min_price) if service.min_price else None,
         "max_price": float(service.max_price) if service.max_price else None,
-        "currency": "KES",
+        "currency": "TZS",
         "location": service.location,
         "status": "active" if service.is_active else "inactive",
         "verification_status": service.verification_status.value if service.verification_status else "unverified",

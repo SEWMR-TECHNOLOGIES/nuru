@@ -30,6 +30,10 @@ from models import (
 )
 from utils.auth import get_current_user
 from utils.helpers import format_price, standard_response
+from utils.sms import (
+    sms_guest_added, sms_committee_invite, sms_contribution_recorded,
+    sms_contribution_target_set, sms_thank_you, sms_booking_notification,
+)
 
 EAT = pytz.timezone("Africa/Nairobi")
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
@@ -1089,6 +1093,19 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
         db.rollback()
         return standard_response(False, f"Failed to add guest: {str(e)}")
 
+    # Create notification + send SMS for the invited user
+    if attendee_user and attendee_user.id != current_user.id:
+        try:
+            from utils.notify import notify_event_invitation
+            notify_event_invitation(db, attendee_user.id, current_user.id, eid, event.name)
+            db.commit()
+        except Exception:
+            pass
+        # SMS to guest
+        event_date = event.start_date.strftime("%d/%m/%Y") if event.start_date else ""
+        organizer_name = f"{current_user.first_name} {current_user.last_name}"
+        sms_guest_added(attendee_user.phone, f"{attendee_user.first_name}", event.name, event_date, organizer_name)
+
     return standard_response(True, "Guest added successfully", _attendee_dict(db, att))
 
 
@@ -1480,6 +1497,18 @@ def add_committee_member(event_id: str, body: dict = Body(...), db: Session = De
         db.rollback()
         return standard_response(False, f"Failed to add committee member: {str(e)}")
 
+    # Create notification + send SMS for the committee member
+    if member_user and member_user.id != current_user.id:
+        try:
+            from utils.notify import notify_committee_invite
+            notify_committee_invite(db, member_user.id, current_user.id, eid, event.name, role_name)
+            db.commit()
+        except Exception:
+            pass
+        # SMS to committee member
+        organizer_name = f"{current_user.first_name} {current_user.last_name}"
+        sms_committee_invite(member_user.phone, f"{member_user.first_name}", event.name, role_name, organizer_name)
+
     return standard_response(True, "Committee member added successfully", _member_dict(db, cm))
 
 
@@ -1693,6 +1722,25 @@ def record_contribution(event_id: str, body: dict = Body(...), db: Session = Dep
         db.rollback()
         return standard_response(False, f"Failed to record contribution: {str(e)}")
 
+    # Notify contributor + SMS
+    currency = _currency_code(db, event.currency_id) or "TZS"
+    if contributor_user_id:
+        contributor_user = db.query(User).filter(User.id == contributor_user_id).first()
+        if contributor_user:
+            try:
+                from utils.notify import notify_contribution
+                notify_contribution(db, contributor_user.id, current_user.id, eid, event.name, float(amount), currency)
+                db.commit()
+            except Exception:
+                pass
+            # Calculate total paid for this contributor
+            total_paid = float(db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(
+                EventContribution.event_id == eid, EventContribution.contributor_user_id == contributor_user_id
+            ).scalar())
+            ct = db.query(EventContributionTarget).filter(EventContributionTarget.event_id == eid).first()
+            target = float(ct.target_amount) if ct else 0
+            sms_contribution_recorded(contributor_user.phone, f"{contributor_user.first_name}", event.name, float(amount), target, total_paid, currency)
+
     return standard_response(True, "Contribution recorded successfully", _contribution_dict(db, c, event.currency_id))
 
 
@@ -1781,6 +1829,13 @@ def send_thank_you(event_id: str, contribution_id: str, body: dict = Body(defaul
         thank_you.is_sent = True
 
     db.commit()
+
+    # Send thank-you SMS
+    contributor_user = db.query(User).filter(User.id == c.contributor_user_id).first() if c.contributor_user_id else None
+    if contributor_user and contributor_user.phone:
+        event = db.query(Event).filter(Event.id == eid).first()
+        sms_thank_you(contributor_user.phone, f"{contributor_user.first_name}", event.name if event else "your event", msg)
+
     return standard_response(True, "Thank you sent successfully", {"contribution_id": str(cid), "thank_you_sent": True, "sent_at": now.isoformat()})
 
 
@@ -1810,6 +1865,24 @@ def update_contribution_target(event_id: str, body: dict = Body(...), db: Sessio
         settings.contribution_target_amount = body["target_amount"]
 
     db.commit()
+
+    # SMS all contributors about the new target
+    if "target_amount" in body:
+        target_val = float(body["target_amount"])
+        currency = _currency_code(db, event.currency_id) or "TZS"
+        contributors = db.query(EventContribution).filter(EventContribution.event_id == eid).all()
+        notified_users = set()
+        for contrib in contributors:
+            uid = contrib.contributor_user_id
+            if uid and uid not in notified_users:
+                notified_users.add(uid)
+                cuser = db.query(User).filter(User.id == uid).first()
+                if cuser and cuser.phone:
+                    total_paid = float(db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(
+                        EventContribution.event_id == eid, EventContribution.contributor_user_id == uid
+                    ).scalar())
+                    sms_contribution_target_set(cuser.phone, f"{cuser.first_name}", event.name, target_val, total_paid, currency)
+
     return standard_response(True, "Contribution target updated successfully")
 
 
@@ -2090,6 +2163,21 @@ def add_event_service(event_id: str, body: dict = Body(...), db: Session = Depen
     )
     db.add(es)
     db.commit()
+
+    # Notify & SMS the service provider
+    if body.get("provider_user_id"):
+        try:
+            provider_user = db.query(User).filter(User.id == uuid.UUID(body["provider_user_id"])).first()
+            if provider_user and provider_user.id != current_user.id:
+                from utils.notify import notify_booking
+                provider_svc = db.query(UserService).filter(UserService.id == es.provider_user_service_id).first() if es.provider_user_service_id else None
+                service_name = provider_svc.title if provider_svc else "service"
+                notify_booking(db, provider_user.id, current_user.id, eid, event.name, service_name)
+                db.commit()
+                organizer_name = f"{current_user.first_name} {current_user.last_name}"
+                sms_booking_notification(provider_user.phone, f"{provider_user.first_name}", event.name, organizer_name)
+        except Exception:
+            pass
 
     return standard_response(True, "Service added to event successfully", _service_booking_dict(db, es, event.currency_id))
 

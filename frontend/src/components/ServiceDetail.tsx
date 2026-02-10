@@ -17,11 +17,11 @@ const ServiceDetail = () => {
   const navigate = useNavigate();
 
   const { service, loading, error, refetch } = useUserService(id!);
+  const [packages, setPackages] = useState<ServicePackage[]>([]);
+  const [reviews, setReviews] = useState<ServiceReview[]>([]);
   const [bookedDates, setBookedDates] = useState<Date[]>([]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const [packages, setPackages] = useState<ServicePackage[]>([]);
-  const [reviews, setReviews] = useState<ServiceReview[]>([]);
 
   // Update meta when service changes
   useWorkspaceMeta({
@@ -32,14 +32,21 @@ const ServiceDetail = () => {
   useEffect(() => {
     if (!service) return;
 
-    // Mock booked dates can remain or you can fetch from API if available
+    // Load packages from service data
+    if ((service as any).packages && Array.isArray((service as any).packages)) {
+      setPackages((service as any).packages);
+    }
+
+    // Load reviews from service data
+    if ((service as any).reviews && Array.isArray((service as any).reviews)) {
+      setReviews((service as any).reviews);
+    }
+
+    // Mock booked dates - TODO: replace with API data from event service assignments
     const today = new Date();
     const mockBookedDates = [
       new Date(today.getFullYear(), today.getMonth(), 15),
       new Date(today.getFullYear(), today.getMonth(), 22),
-      new Date(today.getFullYear(), today.getMonth(), 28),
-      new Date(today.getFullYear(), today.getMonth() + 1, 5),
-      new Date(today.getFullYear(), today.getMonth() + 1, 12),
     ];
     setBookedDates(mockBookedDates);
   }, [service]);

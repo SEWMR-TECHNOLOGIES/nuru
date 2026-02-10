@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
@@ -34,8 +33,8 @@ const VerifyPhone = () => {
   }, []);
 
   const handleVerify = async () => {
-    if (!otp) {
-      toast({ title: "Enter code", description: "Please enter the verification code.", variant: "destructive" });
+    if (!otp || otp.length < 6) {
+      toast({ title: "Enter code", description: "Please enter the 6-digit verification code.", variant: "destructive" });
       return;
     }
     if (!userId) {
@@ -100,24 +99,29 @@ const VerifyPhone = () => {
             </p>
           </CardHeader>
 
-          <CardContent className="space-y-4">
-            <div className="relative">
-              <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Enter OTP"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                className="pl-10"
+          <CardContent className="space-y-6">
+            <div className="flex justify-center">
+              <InputOTP
                 maxLength={6}
-              />
+                value={otp}
+                onChange={(value) => setOtp(value)}
+              >
+                <InputOTPGroup className="gap-2 justify-center">
+                  <InputOTPSlot index={0} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                  <InputOTPSlot index={1} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                  <InputOTPSlot index={2} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                  <InputOTPSlot index={3} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                  <InputOTPSlot index={4} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                  <InputOTPSlot index={5} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                </InputOTPGroup>
+              </InputOTP>
             </div>
 
             <div className="flex justify-between items-center">
               <Button onClick={resendOtp} disabled={resendLoading} variant="outline">
                 {resendLoading ? "Sending..." : "Resend OTP"}
               </Button>
-              <Button onClick={handleVerify} disabled={loading}>
+              <Button onClick={handleVerify} disabled={loading || otp.length < 6}>
                 {loading ? "Verifying..." : "Verify"}
               </Button>
             </div>

@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import { 
   DollarSign, Plus, Search, Filter, MoreVertical, Edit, Trash, Send, Download, TrendingUp, Users, Clock, Loader2, Eye, ChevronLeft, ChevronRight, UserPlus
 } from 'lucide-react';
@@ -353,7 +354,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
                   <div className="space-y-2"><Label>Email</Label><Input type="email" value={newContributor.email} onChange={(e) => setNewContributor(p => ({ ...p, email: e.target.value }))} placeholder="email@example.com" /></div>
                   <div className="space-y-2"><Label>Phone *</Label><Input value={newContributor.phone} onChange={(e) => setNewContributor(p => ({ ...p, phone: e.target.value }))} placeholder="+255..." required /></div>
                 </div>
-                <div className="space-y-2"><Label>Pledge Amount ({currency})</Label><Input type="number" min="0" value={newContributor.pledge_amount} onChange={(e) => setNewContributor(p => ({ ...p, pledge_amount: e.target.value }))} placeholder="e.g. 20000" /></div>
+                <div className="space-y-2"><Label>Pledge Amount ({currency})</Label><FormattedNumberInput value={newContributor.pledge_amount} onChange={(v) => setNewContributor(p => ({ ...p, pledge_amount: v }))} placeholder="e.g. 20,000" /></div>
                 <div className="space-y-2"><Label>Notes</Label><Textarea value={newContributor.notes} onChange={(e) => setNewContributor(p => ({ ...p, notes: e.target.value }))} rows={2} /></div>
               </div>
             </TabsContent>
@@ -388,7 +389,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
                   {selectedExistingId && (
                     <div className="space-y-2 pt-2">
                       <Label>Pledge Amount ({currency})</Label>
-                      <Input type="number" min="0" value={existingPledgeAmount} onChange={(e) => setExistingPledgeAmount(e.target.value)} placeholder="e.g. 20000" />
+                      <FormattedNumberInput value={existingPledgeAmount} onChange={(v) => setExistingPledgeAmount(v)} placeholder="e.g. 20,000" />
                     </div>
                   )}
                 </div>
@@ -417,7 +418,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Amount ({currency}) *</Label>
-                <Input type="number" min="0" value={payment.amount} onChange={(e) => setPayment(p => ({ ...p, amount: e.target.value }))} placeholder="0" />
+                <FormattedNumberInput value={payment.amount} onChange={(v) => setPayment(p => ({ ...p, amount: v }))} placeholder="0" />
               </div>
               <div className="space-y-2">
                 <Label>Payment Method</Label>
@@ -445,7 +446,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Pledge Amount ({currency})</Label>
-              <Input type="number" min="0" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} />
+              <FormattedNumberInput value={editAmount} onChange={(v) => setEditAmount(v)} />
             </div>
           </div>
           <DialogFooter>

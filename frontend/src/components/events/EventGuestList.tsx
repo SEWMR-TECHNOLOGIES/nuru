@@ -261,7 +261,7 @@ const EventGuestList = ({ eventId }: EventGuestListProps) => {
             </div>
             <div className="space-y-2">
               <Label>Plus Ones</Label>
-              <Input type="number" min="0" max="10" value={newGuest.plus_ones} onChange={(e) => setNewGuest(prev => ({ ...prev, plus_ones: parseInt(e.target.value) || 0 }))} />
+              <Input type="number" min="0" max="10" value={newGuest.plus_ones} onChange={(e) => setNewGuest(prev => ({ ...prev, plus_ones: parseInt(e.target.value) || 0 }))} autoComplete="off" />
             </div>
             <div className="space-y-2">
               <Label>Dietary Requirements</Label>

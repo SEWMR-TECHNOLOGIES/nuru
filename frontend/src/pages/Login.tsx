@@ -84,13 +84,20 @@ const Login = () => {
       return;
     }
 
+    setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast({ title: "Reset link sent", description: "Check your email for password reset instructions." });
-      setShowForgotPassword(false);
-      setFormData(prev => ({ ...prev, forgotEmail: "" }));
+      const response = await api.auth.forgotPassword(formData.forgotEmail);
+      if (response.success) {
+        toast({ title: "Reset link sent", description: response.message || "Check your email for password reset instructions." });
+        setShowForgotPassword(false);
+        setFormData(prev => ({ ...prev, forgotEmail: "" }));
+      } else {
+        showApiErrorsShadcn(response, toast, "Reset Failed");
+      }
     } catch (err) {
       toast({ title: "Error", description: "Unable to send reset link. Try again later.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
     }
   };
 

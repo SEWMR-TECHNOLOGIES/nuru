@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useSettings } from '@/data/useSettings';
 import { toast } from 'sonner';
+import { useEffect } from 'react';
 
 const Settings = () => {
   useWorkspaceMeta({
@@ -315,8 +316,13 @@ const Settings = () => {
                 <p className="text-sm text-muted-foreground">Use dark theme</p>
               </div>
               <Switch 
-                checked={prefs?.theme === 'dark'}
-                onCheckedChange={(v) => handlePreferenceChange('theme', v ? 'dark' : 'light')}
+                checked={localStorage.getItem('nuru-ui-theme') === 'dark' || document.documentElement.classList.contains('dark')}
+                onCheckedChange={(v) => {
+                  const theme = v ? 'dark' : 'light';
+                  localStorage.setItem('nuru-ui-theme', theme);
+                  document.documentElement.classList.toggle('dark', v);
+                  handlePreferenceChange('theme', theme);
+                }}
                 disabled={updating}
               />
             </div>
@@ -350,7 +356,7 @@ const Settings = () => {
             <div className="space-y-2">
               <Label>Currency</Label>
               <Button variant="outline" className="w-full justify-between" disabled={updating}>
-                {prefs?.currency || 'KES'}
+                {prefs?.currency || 'TZS'}
               </Button>
             </div>
           </CardContent>

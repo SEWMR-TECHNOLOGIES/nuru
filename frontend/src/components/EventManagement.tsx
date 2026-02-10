@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Calendar, MapPin, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,8 @@ import { useEvent } from '@/data/useEvents';
 import { usePolling } from '@/hooks/usePolling';
 import { formatPrice } from '@/utils/formatPrice';
 import { EventManagementSkeleton } from '@/components/ui/EventManagementSkeleton';
+import { eventsApi, showCaughtError } from '@/lib/api';
+import { toast } from 'sonner';
 
 const EventManagement = () => {
   const { id } = useParams();
@@ -41,23 +43,55 @@ const EventManagement = () => {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
-  const allAvailableServices: any[] = [];
-  const filteredServices = allAvailableServices.filter((s: any) =>
-    s.name?.toLowerCase().includes(serviceSearch.toLowerCase()) || s.category?.toLowerCase().includes(serviceSearch.toLowerCase())
-  );
+  // Dynamic event services
+  const [eventServices, setEventServices] = useState<any[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
 
-  const toggleServiceComplete = (_id: string) => {};
-  const handleRemoveProvider = (_id: string) => {};
+  const loadEventServices = async () => {
+    if (!id) return;
+    setServicesLoading(true);
+    try {
+      const res = await eventsApi.getEventServices(id);
+      if (res.success) {
+        const data = res.data as any;
+        setEventServices(Array.isArray(data) ? data : data?.items || []);
+      }
+    } catch { /* silent */ }
+    finally { setServicesLoading(false); }
+  };
+
+  useEffect(() => {
+    if (id) loadEventServices();
+  }, [id]);
+
+  const completedServices = eventServices.filter((s: any) => s.status === 'completed').length;
+  const totalServices = eventServices.length;
+  const progress = totalServices > 0 ? Math.round((completedServices / totalServices) * 100) : 0;
+
+  const toggleServiceComplete = async (serviceId: string) => {
+    try {
+      const svc = eventServices.find(s => s.id === serviceId);
+      const newStatus = svc?.status === 'completed' ? 'pending' : 'completed';
+      await eventsApi.updateEventService(id!, serviceId, { service_status: newStatus });
+      loadEventServices();
+    } catch (err: any) { showCaughtError(err); }
+  };
+
+  const handleRemoveService = async () => {
+    if (!deleteServiceId || !id) return;
+    try {
+      await eventsApi.removeEventService(id, deleteServiceId);
+      toast.success('Service removed');
+      loadEventServices();
+    } catch (err: any) { showCaughtError(err); }
+    setDeleteServiceId(null);
+  };
+
+  const filteredServices: any[] = [];
   const handleAddService = (_s: any) => { setShowAddServiceDialog(false); setServiceSearch(''); };
-  const handleRemoveService = () => { setDeleteServiceId(null); };
 
   if (eventLoading) return <EventManagementSkeleton />;
   if (!event) return <div className="text-center py-8 text-muted-foreground">Event not found</div>;
-
-  const eventServices: any[] = [];
-  const completedServices = 0;
-  const totalServices = 0;
-  const progress = 0;
 
   const eventImages: string[] = (() => {
     if (apiEvent?.gallery_images && (apiEvent.gallery_images as string[]).length > 0) return apiEvent.gallery_images as string[];
@@ -173,23 +207,33 @@ const EventManagement = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {eventServices.map((service: any) => (
-                  <div key={service.id} className={`p-4 rounded-lg border transition-colors ${service.completed ? "bg-green-50 border-green-200" : "bg-card border-border"}`}>
-                    <div className="flex items-start gap-3">
-                      <button onClick={() => toggleServiceComplete(service.id)} className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 ${service.completed ? "bg-green-500 border-green-500 text-white" : "border-muted-foreground hover:border-primary"}`}>
-                        {service.completed && <CheckCircle2 className="w-3 h-3" />}
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <h3 className="font-medium">{service.name}</h3>
-                          <Button size="sm" variant="ghost" onClick={() => setDeleteServiceId(service.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
+                {servicesLoading ? (
+                  <div className="text-center py-8 text-muted-foreground">Loading services...</div>
+                ) : eventServices.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">No services added yet. Click "Add Service" to get started.</div>
+                ) : (
+                  eventServices.map((service: any) => (
+                    <div key={service.id} className={`p-4 rounded-lg border transition-colors ${service.status === 'completed' ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800" : "bg-card border-border"}`}>
+                      <div className="flex items-start gap-3">
+                        <button onClick={() => toggleServiceComplete(service.id)} className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 ${service.status === 'completed' ? "bg-green-500 border-green-500 text-white" : "border-muted-foreground hover:border-primary"}`}>
+                          {service.status === 'completed' && <CheckCircle2 className="w-3 h-3" />}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <h3 className="font-medium">{service.service?.title || 'Unnamed Service'}</h3>
+                            <Button size="sm" variant="ghost" onClick={() => setDeleteServiceId(service.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-1">
+                            {service.service?.category && <span>{service.service.category} • </span>}
+                            {service.service?.provider_name && <span>by {service.service.provider_name} • </span>}
+                            <Badge variant="outline" className="text-xs">{service.status}</Badge>
+                          </p>
+                          {service.quoted_price && <p className="text-sm font-medium">{formatPrice(service.quoted_price)}</p>}
                         </div>
-                        <p className="text-sm text-muted-foreground mb-3">{service.category} • {service.estimated_cost}</p>
                       </div>
                     </div>
-                  </div>
-                ))}
-                {eventServices.length === 0 && <div className="text-center py-8 text-muted-foreground">No services added yet. Click "Add Service" to get started.</div>}
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>

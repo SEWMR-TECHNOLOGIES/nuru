@@ -330,7 +330,7 @@ const PostDetail = () => {
         {postImages.length > 0 && (
           <div className={`px-3 md:px-4 ${postImages.length > 1 ? 'flex gap-2 overflow-x-auto py-1' : ''}`}>
             {postImages.length === 1 ? (
-              <img src={postImages[0]} alt="Post" className="w-full h-48 md:h-64 object-cover rounded-lg" />
+              <img src={postImages[0]} alt="Post" className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30" />
             ) : (
               postImages.map((img: string, idx: number) => (
                 <img key={idx} src={img} alt={`Post ${idx + 1}`} className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg" />
@@ -399,7 +399,7 @@ const PostDetail = () => {
 
       {/* Echoes (Comments) */}
       <div className="bg-card rounded-lg shadow-sm border border-border p-3 md:p-4">
-        <h2 className="text-lg md:text-xl font-semibold mb-3 md:mb-4">Echoes ({commentCount})</h2>
+        <h2 className="text-lg md:text-xl font-semibold mb-3 md:mb-4">{commentCount} {commentCount === 1 ? 'Echo' : 'Echoes'}</h2>
 
         {/* Comment Input — no location field */}
         <div className="flex gap-2 md:gap-3 mb-3 md:mb-4">

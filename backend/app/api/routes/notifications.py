@@ -18,10 +18,45 @@ router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 @router.get("/")
 def get_notifications(page: int = 1, limit: int = 20, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from models import UserProfile
     query = db.query(Notification).filter(Notification.recipient_id == current_user.id).order_by(Notification.created_at.desc())
     items, pagination = paginate(query, page, limit)
-    data = [{"id": str(n.id), "type": n.type.value if n.type else None, "message": n.message_template, "data": n.message_data, "is_read": n.is_read, "reference_id": str(n.reference_id) if n.reference_id else None, "reference_type": n.reference_type, "created_at": n.created_at.isoformat() if n.created_at else None} for n in items]
-    return standard_response(True, "Notifications retrieved", data, pagination=pagination)
+
+    data = []
+    for n in items:
+        # Resolve sender info
+        sender_info = None
+        if n.sender_ids and len(n.sender_ids) > 0:
+            try:
+                sender_id = uuid.UUID(n.sender_ids[0])
+                sender = db.query(User).filter(User.id == sender_id).first()
+                if sender:
+                    profile = db.query(UserProfile).filter(UserProfile.user_id == sender.id).first()
+                    sender_info = {
+                        "id": str(sender.id),
+                        "first_name": sender.first_name,
+                        "last_name": sender.last_name,
+                        "avatar": profile.profile_image_url if profile else None,
+                    }
+            except (ValueError, IndexError):
+                pass
+
+        data.append({
+            "id": str(n.id),
+            "type": n.type.value if n.type else None,
+            "message": n.message_template,
+            "data": n.message_data,
+            "is_read": n.is_read,
+            "reference_id": str(n.reference_id) if n.reference_id else None,
+            "reference_type": n.reference_type,
+            "actor": sender_info,
+            "created_at": n.created_at.isoformat() if n.created_at else None,
+        })
+
+    # unread count
+    unread = db.query(Notification).filter(Notification.recipient_id == current_user.id, Notification.is_read == False).count()
+
+    return standard_response(True, "Notifications retrieved", {"notifications": data, "unread_count": unread}, pagination=pagination)
 
 
 @router.get("/unread/count")

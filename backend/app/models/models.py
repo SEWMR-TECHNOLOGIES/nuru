@@ -510,7 +510,7 @@ class NuruCard(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
-    card_number = Column(String(12), unique=True, nullable=False)
+    card_number = Column(String(20), unique=True, nullable=False)
     is_active = Column(Boolean, default=True)
     issued_at = Column(DateTime, server_default=func.now())
     created_at = Column(DateTime, server_default=func.now())

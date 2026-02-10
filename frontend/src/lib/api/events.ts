@@ -377,7 +377,7 @@ export const eventsApi = {
   /**
    * Assign a service provider to event
    */
-  addEventService: (eventId: string, data: { provider_user_service_id: string; service_id?: string; agreed_price?: number; notes?: string }) =>
+  addEventService: (eventId: string, data: { provider_service_id?: string; service_id?: string; provider_user_id?: string; quoted_price?: number; notes?: string }) =>
     post<any>(`/user-events/${eventId}/services`, data),
 
   /**

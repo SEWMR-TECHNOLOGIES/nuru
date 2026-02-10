@@ -376,13 +376,13 @@ const Messages = () => {
         {selectedConversation ? (
           <>
             {/* Chat header */}
-            <div className="p-4 border-b border-border flex items-center gap-3">
+            <div className="p-3 md:p-4 border-b border-border flex items-center gap-2">
               {isMobile && (
-                <Button variant="ghost" size="icon" onClick={() => setShowChatList(true)}>
+                <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => setShowChatList(true)}>
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
               )}
-              <Avatar className="w-10 h-10">
+              <Avatar className="w-9 h-9 flex-shrink-0">
                 {selectedConversation.participant?.avatar ? (
                   <AvatarImage src={selectedConversation.participant.avatar} alt="User" />
                 ) : null}
@@ -390,11 +390,11 @@ const Messages = () => {
                   {getInitials(selectedConversation.participant?.name)}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1">
-                <h3 className="font-semibold">
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-sm truncate">
                   {selectedConversation.participant?.name || 'Unknown'}
                 </h3>
-                <p className="text-sm text-muted-foreground">Chat</p>
+                <p className="text-xs text-muted-foreground">Chat</p>
               </div>
             </div>
 

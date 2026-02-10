@@ -204,7 +204,7 @@ def get_service_details(service_id: str, db: Session = Depends(get_db)):
         "service_type": service.service_type.name if service.service_type else None,
         "min_price": float(service.min_price) if service.min_price else None,
         "max_price": float(service.max_price) if service.max_price else None,
-        "currency": "KES",
+        "currency": "TZS",
         "location": service.location,
         "service_areas": service.service_areas if hasattr(service, "service_areas") else [],
         "images": images,

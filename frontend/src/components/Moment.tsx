@@ -129,7 +129,7 @@ const Moment = ({ post }: MomentProps) => {
           <img
             src={image}
             alt={title || 'Post image'}
-            className="w-full h-48 md:h-64 object-cover rounded-lg"
+            className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30"
           />
         </div>
       )}
