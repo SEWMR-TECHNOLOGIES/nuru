@@ -62,11 +62,17 @@ const Messages = () => {
   }, [conversations, selectedConversationId]);
 
   // Auto-scroll to bottom when messages change
+  // Poll for new messages every 5 seconds
   useEffect(() => {
-    if (messagesRef.current) {
-      messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
-    }
-  }, [messages, imagePreview]);
+    if (!selectedConversationId) return;
+
+    const interval = setInterval(() => {
+      refetchMessages();
+    }, 5000); // 5 seconds
+
+    return () => clearInterval(interval); // cleanup on conversation change/unmount
+  }, [selectedConversationId, refetchMessages]);
+
 
   // FIX: Mark conversation as read when selected — only fires once per conversation
   useEffect(() => {
