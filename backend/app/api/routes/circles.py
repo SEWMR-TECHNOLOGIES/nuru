@@ -27,7 +27,7 @@ def _member_dict(db, circle_entry):
         "id": str(member.id),
         "first_name": member.first_name,
         "last_name": member.last_name,
-        "avatar": profile.profile_image_url if profile else None,
+        "avatar": profile.profile_picture_url if profile else None,
         "mutual_count": circle_entry.mutual_friends_count or 0,
         "added_at": circle_entry.created_at.isoformat() if circle_entry.created_at else None,
     }

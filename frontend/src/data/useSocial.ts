@@ -405,21 +405,8 @@ export const useCircles = () => {
       if (response.success) {
         const data = response.data as any;
         const circlesList = Array.isArray(data) ? data : data?.items || [];
-        const circlesWithMembers = await Promise.all(
-          circlesList.map(async (circle: any) => {
-            try {
-              const membersResponse = await socialApi.getCircleMembers(circle.id);
-              const membersData = membersResponse.data as any;
-              return {
-                ...circle,
-                members: membersResponse.success ? (membersData?.members || []) : []
-              };
-            } catch {
-              return { ...circle, members: [] };
-            }
-          })
-        );
-        setCircles(circlesWithMembers);
+        // Backend GET /circles/ already returns members inline
+        setCircles(circlesList);
       } else {
         setError(response.message || "Failed to fetch circles");
       }

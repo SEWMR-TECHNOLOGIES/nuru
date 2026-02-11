@@ -335,7 +335,6 @@ const CreatePostBox = () => {
               {/* Visibility selector */}
               <Select value={visibility} onValueChange={(v: 'public' | 'circle') => setVisibility(v)}>
                 <SelectTrigger className="h-7 w-auto gap-1 border-none shadow-none text-xs text-muted-foreground px-2">
-                  {visibility === 'public' ? <Globe className="w-3 h-3" /> : <Users className="w-3 h-3" />}
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

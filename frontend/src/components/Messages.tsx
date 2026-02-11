@@ -61,16 +61,25 @@ const Messages = () => {
     }
   }, [conversations, selectedConversationId]);
 
-  // Auto-scroll to bottom when messages change
+  // Smooth scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesRef.current) {
+      messagesRef.current.scrollTo({
+        top: messagesRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    }
+  }, [messages]);
+
   // Poll for new messages every 5 seconds
   useEffect(() => {
     if (!selectedConversationId) return;
 
     const interval = setInterval(() => {
       refetchMessages();
-    }, 5000); // 5 seconds
+    }, 5000);
 
-    return () => clearInterval(interval); // cleanup on conversation change/unmount
+    return () => clearInterval(interval);
   }, [selectedConversationId, refetchMessages]);
 
 
@@ -376,17 +385,17 @@ const Messages = () => {
         {selectedConversation ? (
           <>
             {/* Chat header */}
-            <div className="p-3 md:p-4 border-b border-border flex items-center gap-2">
+            <div className="px-1 py-2.5 md:p-4 border-b border-border flex items-center gap-1 md:gap-2">
               {isMobile && (
-                <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => setShowChatList(true)}>
+                <Button variant="ghost" size="icon" className="flex-shrink-0 w-8 h-8 p-0" onClick={() => setShowChatList(true)}>
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
               )}
-              <Avatar className="w-9 h-9 flex-shrink-0">
+              <Avatar className="w-8 h-8 md:w-9 md:h-9 flex-shrink-0">
                 {selectedConversation.participant?.avatar ? (
                   <AvatarImage src={selectedConversation.participant.avatar} alt="User" />
                 ) : null}
-                <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
+                <AvatarFallback className="bg-primary/10 text-primary font-semibold text-xs md:text-sm">
                   {getInitials(selectedConversation.participant?.name)}
                 </AvatarFallback>
               </Avatar>

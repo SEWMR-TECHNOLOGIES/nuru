@@ -29,18 +29,32 @@ def _visible_feed_query(db, current_user_id):
     Circle posts: only the author OR users in the author's circle can see them.
     """
     from sqlalchemy import or_, and_
-    circle_member_ids = db.query(UserCircle.user_id).filter(
-        UserCircle.circle_member_id == current_user_id
-    ).subquery()
-    return db.query(UserFeed).filter(
-        UserFeed.is_active == True,
-        or_(
-            UserFeed.visibility == FeedVisibilityEnum.public,
-            UserFeed.visibility.is_(None),
-            UserFeed.user_id == current_user_id,
-            UserFeed.user_id.in_(circle_member_ids),
-        )
+    circle_member_ids = db.query(UserCircle.circle_member_id).filter(
+        UserCircle.user_id == current_user_id
     )
+    circle_member_id_list = [r[0] for r in circle_member_ids.all()]
+    query = db.query(UserFeed).filter(UserFeed.is_active == True)
+    if circle_member_id_list:
+        query = query.filter(
+            or_(
+                UserFeed.visibility == FeedVisibilityEnum.public,
+                UserFeed.visibility.is_(None),
+                UserFeed.user_id == current_user_id,
+                and_(
+                    UserFeed.visibility == FeedVisibilityEnum.circle,
+                    UserFeed.user_id.in_(circle_member_id_list),
+                ),
+            )
+        )
+    else:
+        query = query.filter(
+            or_(
+                UserFeed.visibility == FeedVisibilityEnum.public,
+                UserFeed.visibility.is_(None),
+                UserFeed.user_id == current_user_id,
+            )
+        )
+    return query
 
 EAT = pytz.timezone("Africa/Nairobi")
 router = APIRouter(prefix="/posts", tags=["Posts/Feed"])
