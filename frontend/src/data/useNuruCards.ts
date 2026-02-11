@@ -87,7 +87,7 @@ export const useNuruCard = () => {
   const upgradeCard = async (newCardTypeId: string) => {
     if (!card) throw new Error("No card to upgrade");
     try {
-      const response = await nuruCardsApi.upgradeToPremium(card.id, { payment_method: 'mpesa' });
+      const response = await nuruCardsApi.upgradeToPremium(card.id, { payment_method: 'mobile' });
       if (response.success) {
         await fetchCard();
         return response.data;

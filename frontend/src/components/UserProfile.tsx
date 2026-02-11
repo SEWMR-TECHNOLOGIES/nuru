@@ -1,9 +1,12 @@
 import { useEffect, useState, useRef } from "react";
 import { 
-  MapPin, Calendar, CheckCircle, Edit, Camera, Loader2, 
+  CheckCircle, Edit, Loader2, 
   Mail, Phone, User as UserIcon, Shield, ShieldCheck, ShieldAlert,
   Upload, FileText, AlertCircle, Clock, ImagePlus
 } from "lucide-react";
+import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import LocationIcon from '@/assets/icons/location-icon.svg';
+import CameraIcon from '@/assets/icons/camera-icon.svg';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -271,7 +274,7 @@ const UserProfile = () => {
                 className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                 title="Change avatar"
               >
-                <Camera className="w-6 h-6 text-white" />
+                <img src={CameraIcon} alt="Camera" className="w-6 h-6" />
               </button>
 
               {isVerified && (
@@ -344,11 +347,11 @@ const UserProfile = () => {
                     )}
                     {currentUser.location && (
                       <span className="flex items-center gap-1.5">
-                        <MapPin className="w-4 h-4" /> {currentUser.location}
+                        <img src={LocationIcon} alt="Location" className="w-4 h-4" /> {currentUser.location}
                       </span>
                     )}
                     <span className="flex items-center gap-1.5">
-                      <Calendar className="w-4 h-4" /> Joined {joinDate}
+                      <img src={CalendarIcon} alt="Calendar" className="w-4 h-4" /> Joined {joinDate}
                     </span>
                   </div>
                 </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Calendar, X, ChevronLeft, Upload } from "lucide-react";
+import { X, ChevronLeft, Upload } from "lucide-react";
+import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormattedNumberInput } from "@/components/ui/formatted-number-input";
@@ -282,7 +283,7 @@ const CreateEvent: React.FC = () => {
                         !formData.date && "text-muted-foreground"
                       )}
                     >
-                      <Calendar className="mr-2 h-4 w-4" />
+                      <img src={CalendarIcon} alt="Calendar" className="mr-2 h-4 w-4" />
                       {formData.date ? format(formData.date, "PPP") : "Select date"}
                     </Button>
                   </PopoverTrigger>

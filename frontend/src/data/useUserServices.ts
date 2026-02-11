@@ -10,29 +10,38 @@ interface ServicesSummary {
   average_rating: number;
 }
 
+// Module-level cache for user services
+let _userServicesCache: UserService[] = [];
+let _userServicesSummaryCache: ServicesSummary | null = null;
+let _userServicesHasLoaded = false;
+
 export const useUserServices = () => {
-  const [services, setServices] = useState<UserService[]>([]);
-  const [summary, setSummary] = useState<ServicesSummary | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [services, setServices] = useState<UserService[]>(_userServicesCache);
+  const [summary, setSummary] = useState<ServicesSummary | null>(_userServicesSummaryCache);
+  const [loading, setLoading] = useState(!_userServicesHasLoaded);
   const [error, setError] = useState<string | null>(null);
 
   const fetchServices = useCallback(async () => {
-    setLoading(true);
+    if (!_userServicesHasLoaded) setLoading(true);
     setError(null);
 
     try {
       const response = await api.userServices.getAll();
       if (response.success && response.data) {
-        // API returns { services: [...], summary: {...} } per nuru-api-doc
         const data = response.data as any;
+        let items: UserService[] = [];
+        let sum: ServicesSummary | null = null;
         if (data.services && Array.isArray(data.services)) {
-          setServices(data.services);
-          setSummary(data.summary || null);
+          items = data.services;
+          sum = data.summary || null;
         } else if (Array.isArray(data)) {
-          setServices(data);
-        } else {
-          setServices([]);
+          items = data;
         }
+        _userServicesCache = items;
+        _userServicesSummaryCache = sum;
+        _userServicesHasLoaded = true;
+        setServices(items);
+        setSummary(sum);
       } else {
         setError(response.message || "Failed to fetch user services");
       }
@@ -54,19 +63,27 @@ export const useUserServices = () => {
 // ALL SERVICES (for FindServices page - public listing)
 // ============================================================================
 
+// Module-level cache for public services listing
+let _servicesCache: UserService[] = [];
+let _servicesPaginationCache: any = null;
+let _servicesHasLoaded = false;
+
 export const useServices = (params?: { category?: string; location?: string; search?: string }) => {
-  const [services, setServices] = useState<UserService[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [services, setServices] = useState<UserService[]>(_servicesCache);
+  const [loading, setLoading] = useState(!_servicesHasLoaded);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState<any>(null);
+  const [pagination, setPagination] = useState<any>(_servicesPaginationCache);
 
   const fetchServices = useCallback(async () => {
-    setLoading(true);
+    if (!_servicesHasLoaded) setLoading(true);
     setError(null);
 
     try {
       const response = await servicesApi.search(params);
       if (response.success) {
+        _servicesCache = response.data.services;
+        _servicesPaginationCache = response.data.pagination;
+        _servicesHasLoaded = true;
         setServices(response.data.services);
         setPagination(response.data.pagination);
       } else {

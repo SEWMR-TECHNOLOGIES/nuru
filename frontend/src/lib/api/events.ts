@@ -226,7 +226,7 @@ export const eventsApi = {
   /**
    * Add committee member
    */
-  addCommitteeMember: (eventId: string, data: { name: string; email?: string; phone?: string; role: string; role_description?: string; permissions: string[]; send_invitation?: boolean; invitation_message?: string }) => 
+  addCommitteeMember: (eventId: string, data: { user_id?: string; name: string; email?: string; phone?: string; role: string; role_description?: string; permissions: string[]; send_invitation?: boolean; invitation_message?: string }) => 
     post<CommitteeMember>(`/user-events/${eventId}/committee`, data),
 
   /**

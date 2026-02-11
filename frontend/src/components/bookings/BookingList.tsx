@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Calendar, 
   Clock,
-  MapPin,
   User,
   MessageSquare,
   CheckCircle,
@@ -13,8 +11,11 @@ import {
   Filter,
   Search
 } from 'lucide-react';
+import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -226,7 +227,7 @@ const MyBookingsTab = () => {
         {filteredBookings.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">
-              <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+              <img src={CalendarIcon} alt="Calendar" className="w-12 h-12 mx-auto mb-4" />
               <h3 className="font-medium mb-2">No bookings yet</h3>
               <p className="text-muted-foreground text-sm">
                 Browse services and make your first booking
@@ -416,7 +417,7 @@ const IncomingBookingsTab = () => {
         {filteredBookings.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">
-              <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+              <img src={CalendarIcon} alt="Calendar" className="w-12 h-12 mx-auto mb-4" />
               <h3 className="font-medium mb-2">No booking requests</h3>
               <p className="text-muted-foreground text-sm">
                 When clients request your services, they'll appear here
@@ -450,22 +451,22 @@ const IncomingBookingsTab = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="quoted-price">Quoted Price (TZS)</Label>
-                    <Input
+                    <FormattedNumberInput
                       id="quoted-price"
-                      type="number"
                       value={responseData.quoted_price}
-                      onChange={(e) => setResponseData(prev => ({ ...prev, quoted_price: e.target.value }))}
-                      placeholder="e.g., 500000"
+                      onChange={(value) => setResponseData(prev => ({ ...prev, quoted_price: value }))}
+                      placeholder="e.g., 500,000"
+                      autoComplete="off"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="deposit">Deposit Required (TZS)</Label>
-                    <Input
+                    <FormattedNumberInput
                       id="deposit"
-                      type="number"
                       value={responseData.deposit_required}
-                      onChange={(e) => setResponseData(prev => ({ ...prev, deposit_required: e.target.value }))}
-                      placeholder="e.g., 100000"
+                      onChange={(value) => setResponseData(prev => ({ ...prev, deposit_required: value }))}
+                      placeholder="e.g., 100,000"
+                      autoComplete="off"
                     />
                   </div>
                 </div>
@@ -571,12 +572,12 @@ const BookingCard = ({ booking, onView, onCancel, onAccept, onReject, onComplete
           {/* Event Details */}
           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-1">
-              <Calendar className="w-4 h-4" />
+              <img src={CalendarIcon} alt="Calendar" className="w-4 h-4" />
               <span>{booking.event_date ? new Date(booking.event_date).toLocaleDateString() : 'TBD'}</span>
             </div>
             {booking.location && (
               <div className="flex items-center gap-1">
-                <MapPin className="w-4 h-4" />
+                <img src={LocationIcon} alt="Location" className="w-4 h-4" />
                 <span className="truncate max-w-[150px]">{booking.location}</span>
               </div>
             )}

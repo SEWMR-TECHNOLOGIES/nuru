@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { RefreshCw, Star, MapPin, Loader2, Check, Plus } from "lucide-react";
+import { RefreshCw, Star, Loader2, Check, Plus } from "lucide-react";
+import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -205,7 +206,7 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
                         )}
                         {service.location && (
                           <span className="flex items-center gap-1 truncate">
-                            <MapPin className="w-3 h-3 flex-shrink-0" />
+                            <img src={LocationIcon} alt="Location" className="w-3 h-3 flex-shrink-0" />
                             <span className="truncate">{service.location}</span>
                           </span>
                         )}

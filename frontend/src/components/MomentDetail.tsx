@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Heart, MessageCircle, Share2, Send, Image as ImageIcon, X, Loader2 } from 'lucide-react';
+import { ChevronLeft, Heart, MessageCircle, Share2, Send, X, Loader2 } from 'lucide-react';
+import CustomImageIcon from '@/assets/icons/image-icon.svg';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -355,7 +356,7 @@ const MomentDetail = () => {
                   onChange={handleFileChange}
                 />
                 <button onClick={() => inputFileRef.current?.click()} className="text-muted-foreground hover:text-foreground" type="button">
-                  <ImageIcon className="w-4 h-4" />
+                  <img src={CustomImageIcon} alt="Image" className="w-4 h-4" />
                 </button>
               </div>
               <Button

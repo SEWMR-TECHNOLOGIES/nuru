@@ -1,4 +1,6 @@
-import { Calendar, MapPin, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
+import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useEvents } from '@/data/useEvents';
@@ -79,7 +81,7 @@ const RightSidebar = () => {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <Calendar className="w-5 h-5 text-muted-foreground" />
+                    <img src={CalendarIcon} alt="Calendar" className="w-5 h-5" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -210,16 +212,16 @@ const RightSidebar = () => {
         <div className="space-y-4">
           <div className="p-3 rounded-lg border border-dashed border-border/50">
             <div className="w-full h-24 rounded-lg bg-muted/50 mb-3 flex items-center justify-center">
-              <Calendar className="w-8 h-8 text-muted/50" />
+              <img src={CalendarIcon} alt="Calendar" className="w-8 h-8 opacity-50" />
             </div>
             <div className="space-y-2">
               <div className="h-4 w-3/4 bg-muted/50 rounded" />
               <div className="flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-muted" />
+                <img src={CalendarIcon} alt="Calendar" className="w-3 h-3 opacity-50" />
                 <div className="h-3 w-20 bg-muted/30 rounded" />
               </div>
               <div className="flex items-center gap-1">
-                <MapPin className="w-3 h-3 text-muted" />
+                <img src={LocationIcon} alt="Location" className="w-3 h-3 opacity-50" />
                 <div className="h-3 w-24 bg-muted/30 rounded" />
               </div>
               <div className="flex items-center gap-1">

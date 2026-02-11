@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Calendar, Users, UserCheck, Edit2, Trash2, Loader2, FileText, Mail, Shield } from 'lucide-react';
+import { Users, UserCheck, Edit2, Trash2, Loader2, FileText, Mail, Shield } from 'lucide-react';
+import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -159,7 +160,7 @@ const MyEvents = () => {
                         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-3">
                           <span className="flex items-center gap-1.5"><Users className="w-4 h-4" /><span>{expectedGuests} expected</span></span>
                           <span className="flex items-center gap-1.5"><UserCheck className="w-4 h-4" /><span>{event.confirmed_guest_count || 0} confirmed</span></span>
-                          <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4" /><span>{eventDate ? new Date(eventDate).toLocaleDateString() : ''}</span></span>
+                          <span className="flex items-center gap-1.5"><img src={CalendarIcon} alt="Calendar" className="w-4 h-4" /><span>{eventDate ? new Date(eventDate).toLocaleDateString() : ''}</span></span>
                         </div>
                         {event.budget && <p className="text-sm font-medium text-foreground mt-2">{formatBudget(event.budget)}</p>}
                       </div>
@@ -222,7 +223,7 @@ const MyEvents = () => {
       <Tabs defaultValue="my-events" className="w-full">
         <TabsList className="w-full mb-4">
           <TabsTrigger value="my-events" className="flex-1 gap-1.5">
-            <Calendar className="w-4 h-4" />
+            <img src={CalendarIcon} alt="Calendar" className="w-4 h-4" />
             My Events
           </TabsTrigger>
           <TabsTrigger value="invited" className="flex-1 gap-1.5">

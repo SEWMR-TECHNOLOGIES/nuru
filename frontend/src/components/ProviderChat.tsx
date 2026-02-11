@@ -31,7 +31,8 @@ const ProviderChat = () => {
         });
 
         if (response.success && response.data?.id) {
-          navigate('/messages', { replace: true });
+          // Navigate with conversationId so the correct service-specific thread is selected
+          navigate(`/messages?conversationId=${response.data.id}`, { replace: true });
         } else {
           toast.error(response.message || 'Could not start conversation');
           navigate('/messages', { replace: true });

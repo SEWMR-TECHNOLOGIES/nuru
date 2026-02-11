@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Users, Crown, Plus, Loader2, Heart, Send, Image as ImageIcon, X, Search, Trash2 } from 'lucide-react';
+import { ChevronLeft, Users, Crown, Plus, Loader2, Heart, Send, X, Search, Trash2 } from 'lucide-react';
+import CustomImageIcon from '@/assets/icons/image-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -382,7 +383,7 @@ const CommunityDetail = () => {
             )}
             <div className="flex items-center justify-between">
               <Button type="button" variant="ghost" size="sm" onClick={() => fileRef.current?.click()} disabled={postImages.length >= 10}>
-                <ImageIcon className="w-4 h-4 mr-1" /> Photo
+                <img src={CustomImageIcon} alt="Photo" className="w-4 h-4 mr-1 inline" /> Photo
               </Button>
               <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageSelect} />
               <Button size="sm" onClick={handleCreatePost} disabled={posting || (!postContent.trim() && postImages.length === 0)} className="bg-nuru-yellow hover:bg-nuru-yellow/90 text-foreground">

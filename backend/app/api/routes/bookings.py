@@ -237,7 +237,7 @@ def respond_to_booking(booking_id: str, body: dict = Body(...), db: Session = De
             if b.quoted_price:
                 es.agreed_price = b.quoted_price
             if new_status == "accepted":
-                es.service_status = "confirmed"
+                es.service_status = "assigned"
             es.updated_at = datetime.now(EAT)
 
     db.commit()

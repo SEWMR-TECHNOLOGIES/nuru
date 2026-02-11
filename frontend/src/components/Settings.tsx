@@ -1,4 +1,5 @@
-import { User, Bell, Lock, Globe, Moon, Loader2 } from 'lucide-react';
+import { User, Lock, Globe, Moon, Loader2 } from 'lucide-react';
+import BellIcon from '@/assets/icons/bell-icon.svg';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -96,7 +97,7 @@ const Settings = () => {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Bell className="w-5 h-5" />
+              <img src={BellIcon} alt="Notifications" className="w-5 h-5" />
               <CardTitle>Notifications</CardTitle>
             </div>
             <CardDescription>Choose what notifications you receive</CardDescription>

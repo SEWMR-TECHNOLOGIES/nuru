@@ -289,7 +289,7 @@ export interface EventContribution {
   contributor_avatar?: string;
   amount: number;
   currency: string;
-  payment_method: "mpesa" | "bank_transfer" | "card" | "cash" | "cheque" | "other";
+  payment_method: "cash" | "mobile" | "bank_transfer" | "card" | "cheque" | "other";
   payment_reference?: string;
   mpesa_receipt?: string;
   status: "pending" | "confirmed" | "failed";

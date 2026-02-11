@@ -8,19 +8,23 @@ import type { FeedPost, Moment, Circle, UserProfile } from "@/lib/api/types";
 import { throwApiError } from "@/lib/api/showApiErrors";
 
 // ============================================================================
-// FEED
+// FEED (with module-level cache for scroll preservation)
 // ============================================================================
 
+// Module-level cache so feed data survives unmount/remount cycles
+let _feedCache: FeedPost[] = [];
+let _feedPaginationCache: any = null;
+let _feedHasLoaded = false;
+
 export const useFeed = (initialParams?: FeedQueryParams) => {
-  const [items, setItems] = useState<FeedPost[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<FeedPost[]>(_feedCache);
+  const [loading, setLoading] = useState(!_feedHasLoaded);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState<any>(null);
-  const hasLoadedOnce = useRef(false);
+  const [pagination, setPagination] = useState<any>(_feedPaginationCache);
 
   const fetchFeed = useCallback(async (params?: FeedQueryParams) => {
-    // Only show loading spinner on first load
-    if (!hasLoadedOnce.current) {
+    // Only show loading on very first load (no cached data)
+    if (!_feedHasLoaded) {
       setLoading(true);
     }
     setError(null);
@@ -29,9 +33,11 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
       if (response.success) {
         const feedData = response.data as any;
         const feedItems = feedData?.posts || feedData?.items || (Array.isArray(feedData) ? feedData : []);
+        _feedCache = feedItems;
+        _feedPaginationCache = feedData?.pagination;
+        _feedHasLoaded = true;
         setItems(feedItems);
         setPagination(feedData?.pagination);
-        hasLoadedOnce.current = true;
       } else {
         setError(response.message || "Failed to fetch feed");
       }
@@ -52,7 +58,10 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
       if (response.success) {
         const feedData = response.data as any;
         const moreItems = feedData?.posts || feedData?.items || (Array.isArray(feedData) ? feedData : []);
-        setItems(prev => [...prev, ...moreItems]);
+        const combined = [..._feedCache, ...moreItems];
+        _feedCache = combined;
+        _feedPaginationCache = feedData?.pagination;
+        setItems(combined);
         setPagination(feedData?.pagination);
       }
     } catch (err) {
@@ -186,25 +195,31 @@ export const usePostComments = (postId: string | null) => {
   return { comments, loading, error, pagination, refetch: fetchComments, addComment, deleteComment };
 };
 
-// ============================================================================
-// MOMENTS (Stories)
-// ============================================================================
+// Module-level cache for moments
+let _momentsUsersCache: any[] = [];
+let _momentsMyCache: Moment[] = [];
+let _momentsHasLoaded = false;
 
 export const useMoments = (params?: MomentQueryParams) => {
-  const [users, setUsers] = useState<any[]>([]);
-  const [myMoments, setMyMoments] = useState<Moment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState<any[]>(_momentsUsersCache);
+  const [myMoments, setMyMoments] = useState<Moment[]>(_momentsMyCache);
+  const [loading, setLoading] = useState(!_momentsHasLoaded);
   const [error, setError] = useState<string | null>(null);
 
   const fetchMoments = useCallback(async () => {
-    setLoading(true);
+    if (!_momentsHasLoaded) setLoading(true);
     setError(null);
     try {
       const response = await socialApi.getMoments(params);
       if (response.success) {
         const data = response.data as any;
-        setUsers(data?.users || []);
-        setMyMoments(data?.my_moments || []);
+        const u = data?.users || [];
+        const m = data?.my_moments || [];
+        _momentsUsersCache = u;
+        _momentsMyCache = m;
+        _momentsHasLoaded = true;
+        setUsers(u);
+        setMyMoments(m);
       } else {
         setError(response.message || "Failed to fetch moments");
       }
@@ -261,21 +276,27 @@ export const useMoments = (params?: MomentQueryParams) => {
 // FOLLOWERS
 // ============================================================================
 
+// Module-level cache for followers
+let _followersCache: Map<string, UserProfile[]> = new Map();
+
 export const useFollowers = (userId: string | null) => {
-  const [followers, setFollowers] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = userId ? _followersCache.get(userId) : undefined;
+  const [followers, setFollowers] = useState<UserProfile[]>(cached || []);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<any>(null);
 
   const fetchFollowers = useCallback(async (params?: { page?: number; limit?: number; search?: string }) => {
     if (!userId) return;
-    setLoading(true);
+    if (!_followersCache.has(userId)) setLoading(true);
     setError(null);
     try {
       const response = await socialApi.getFollowers(userId, params);
       if (response.success) {
         const data = response.data as any;
-        setFollowers(data?.followers || data?.items || (Array.isArray(data) ? data : []));
+        const items = data?.followers || data?.items || (Array.isArray(data) ? data : []);
+        _followersCache.set(userId, items);
+        setFollowers(items);
         setPagination(data?.pagination);
       } else {
         setError(response.message || "Failed to fetch followers");
@@ -294,21 +315,27 @@ export const useFollowers = (userId: string | null) => {
   return { followers, loading, error, pagination, refetch: fetchFollowers };
 };
 
+// Module-level cache for following
+let _followingCache: Map<string, UserProfile[]> = new Map();
+
 export const useFollowing = (userId: string | null) => {
-  const [following, setFollowing] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = userId ? _followingCache.get(userId) : undefined;
+  const [following, setFollowing] = useState<UserProfile[]>(cached || []);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<any>(null);
 
   const fetchFollowing = useCallback(async (params?: { page?: number; limit?: number; search?: string }) => {
     if (!userId) return;
-    setLoading(true);
+    if (!_followingCache.has(userId)) setLoading(true);
     setError(null);
     try {
       const response = await socialApi.getFollowing(userId, params);
       if (response.success) {
         const data = response.data as any;
-        setFollowing(data?.following || data?.items || (Array.isArray(data) ? data : []));
+        const items = data?.following || data?.items || (Array.isArray(data) ? data : []);
+        _followingCache.set(userId, items);
+        setFollowing(items);
         setPagination(data?.pagination);
       } else {
         setError(response.message || "Failed to fetch following");
@@ -353,19 +380,26 @@ export const useFollowing = (userId: string | null) => {
   return { following, loading, error, pagination, refetch: fetchFollowing, followUser, unfollowUser };
 };
 
+// Module-level cache for follow suggestions
+let _suggestionsCache: UserProfile[] = [];
+let _suggestionsHasLoaded = false;
+
 export const useFollowSuggestions = (limit?: number) => {
-  const [suggestions, setSuggestions] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [suggestions, setSuggestions] = useState<UserProfile[]>(_suggestionsCache);
+  const [loading, setLoading] = useState(!_suggestionsHasLoaded);
   const [error, setError] = useState<string | null>(null);
 
   const fetchSuggestions = useCallback(async () => {
-    setLoading(true);
+    if (!_suggestionsHasLoaded) setLoading(true);
     setError(null);
     try {
       const response = await socialApi.getFollowSuggestions({ limit });
       if (response.success) {
         const data = response.data as any;
-        setSuggestions(Array.isArray(data) ? data : data?.items || []);
+        const items = Array.isArray(data) ? data : data?.items || [];
+        _suggestionsCache = items;
+        _suggestionsHasLoaded = true;
+        setSuggestions(items);
       } else {
         setError(response.message || "Failed to fetch suggestions");
       }
@@ -397,20 +431,25 @@ interface CircleWithMembers {
   members?: any[];
 }
 
+// Module-level cache for circles
+let _circlesCache: CircleWithMembers[] = [];
+let _circlesHasLoaded = false;
+
 export const useCircles = () => {
-  const [circles, setCircles] = useState<CircleWithMembers[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [circles, setCircles] = useState<CircleWithMembers[]>(_circlesCache);
+  const [loading, setLoading] = useState(!_circlesHasLoaded);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCircles = useCallback(async () => {
-    setLoading(true);
+    if (!_circlesHasLoaded) setLoading(true);
     setError(null);
     try {
       const response = await socialApi.getCircles();
       if (response.success) {
         const data = response.data as any;
         const circlesList = Array.isArray(data) ? data : data?.items || [];
-        // Backend GET /circles/ already returns members inline
+        _circlesCache = circlesList;
+        _circlesHasLoaded = true;
         setCircles(circlesList);
       } else {
         setError(response.message || "Failed to fetch circles");
@@ -498,14 +537,19 @@ export const useCircles = () => {
 // COMMUNITIES
 // ============================================================================
 
+// Module-level cache for communities
+let _communitiesCache: any[] = [];
+let _myCommunitiesCache: any[] = [];
+let _communitiesHasLoaded = false;
+
 export const useCommunities = () => {
-  const [communities, setCommunities] = useState<any[]>([]);
-  const [myCommunities, setMyCommunities] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [communities, setCommunities] = useState<any[]>(_communitiesCache);
+  const [myCommunities, setMyCommunities] = useState<any[]>(_myCommunitiesCache);
+  const [loading, setLoading] = useState(!_communitiesHasLoaded);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCommunities = useCallback(async () => {
-    setLoading(true);
+    if (!_communitiesHasLoaded) setLoading(true);
     setError(null);
     try {
       const [allRes, myRes] = await Promise.all([
@@ -514,12 +558,17 @@ export const useCommunities = () => {
       ]);
       if (allRes.success) {
         const data = allRes.data as any;
-        setCommunities(Array.isArray(data) ? data : data?.items || []);
+        const items = Array.isArray(data) ? data : data?.items || [];
+        _communitiesCache = items;
+        setCommunities(items);
       }
       if (myRes.success) {
         const data = myRes.data as any;
-        setMyCommunities(Array.isArray(data) ? data : data?.items || []);
+        const items = Array.isArray(data) ? data : data?.items || [];
+        _myCommunitiesCache = items;
+        setMyCommunities(items);
       }
+      _communitiesHasLoaded = true;
       if (!allRes.success) setError(allRes.message || "Failed to fetch communities");
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -554,26 +603,50 @@ export const useCommunities = () => {
 };
 
 // ============================================================================
-// NOTIFICATIONS
+// NOTIFICATIONS (with cross-instance sync)
 // ============================================================================
 
+// Module-level cache for notifications
+let _notificationsCache: any[] = [];
+let _notificationsUnreadCache = 0;
+let _notificationsHasLoaded = false;
+const _notifListeners = new Set<(count: number) => void>();
+
+const _broadcastNotifCount = (count: number) => {
+  _notificationsUnreadCache = count;
+  _notifListeners.forEach(fn => fn(count));
+};
+
 export const useNotifications = (filter?: "all" | "unread") => {
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState<any[]>(_notificationsCache);
+  const [unreadCount, setUnreadCount] = useState(_notificationsUnreadCache);
+  const [loading, setLoading] = useState(!_notificationsHasLoaded);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<any>(null);
 
+  // Subscribe to cross-instance count updates
+  useEffect(() => {
+    const handler = (count: number) => setUnreadCount(count);
+    _notifListeners.add(handler);
+    // Sync on mount in case cache changed while unmounted
+    setUnreadCount(_notificationsUnreadCache);
+    return () => { _notifListeners.delete(handler); };
+  }, []);
+
   const fetchNotifications = useCallback(async (params?: { page?: number; limit?: number }) => {
-    setLoading(true);
+    if (!_notificationsHasLoaded) setLoading(true);
     setError(null);
     try {
       const response = await socialApi.getNotifications({ ...params, filter });
       if (response.success) {
         const data = response.data as any;
-        setNotifications(data?.notifications || data?.items || (Array.isArray(data) ? data : []));
-        setUnreadCount(data?.unread_count || 0);
+        const items = data?.notifications || data?.items || (Array.isArray(data) ? data : []);
+        const uc = data?.unread_count || 0;
+        _notificationsCache = items;
+        _notificationsHasLoaded = true;
+        setNotifications(items);
         setPagination(data?.pagination);
+        _broadcastNotifCount(uc);
       } else {
         setError(response.message || "Failed to fetch notifications");
       }
@@ -589,24 +662,27 @@ export const useNotifications = (filter?: "all" | "unread") => {
   }, [fetchNotifications]);
 
   const markAllRead = async () => {
+    // Optimistic update
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    _notificationsCache = _notificationsCache.map(n => ({ ...n, is_read: true }));
+    _broadcastNotifCount(0);
     try {
-      const response = await socialApi.markAllNotificationsRead();
-      if (response.success) {
-        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
-        setUnreadCount(0);
-      }
+      await socialApi.markAllNotificationsRead();
     } catch {
       // silent
     }
   };
 
   const markRead = async (notificationId: string) => {
+    // Check if already read
+    const notif = notifications.find(n => n.id === notificationId);
+    if (notif?.is_read) return;
+    // Optimistic update
+    setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n));
+    _notificationsCache = _notificationsCache.map(n => n.id === notificationId ? { ...n, is_read: true } : n);
+    _broadcastNotifCount(Math.max(0, _notificationsUnreadCache - 1));
     try {
-      const response = await socialApi.markNotificationRead(notificationId);
-      if (response.success) {
-        setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n));
-        setUnreadCount(prev => Math.max(0, prev - 1));
-      }
+      await socialApi.markNotificationRead(notificationId);
     } catch {
       // silent
     }
@@ -632,22 +708,44 @@ export const useMarkAllNotificationsRead = () => {
 // CONVERSATIONS (Messages)
 // ============================================================================
 
+// Module-level cache for conversations (with cross-instance sync)
+let _conversationsCache: any[] = [];
+let _conversationsUnreadCache = 0;
+let _conversationsHasLoaded = false;
+const _convListeners = new Set<(count: number) => void>();
+
+const _broadcastConvCount = (count: number) => {
+  _conversationsUnreadCache = count;
+  _convListeners.forEach(fn => fn(count));
+};
+
 export const useConversations = () => {
-  const [conversations, setConversations] = useState<any[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [conversations, setConversations] = useState<any[]>(_conversationsCache);
+  const [unreadCount, setUnreadCount] = useState(_conversationsUnreadCache);
+  const [loading, setLoading] = useState(!_conversationsHasLoaded);
   const [error, setError] = useState<string | null>(null);
 
+  // Subscribe to cross-instance count updates
+  useEffect(() => {
+    const handler = (count: number) => setUnreadCount(count);
+    _convListeners.add(handler);
+    setUnreadCount(_conversationsUnreadCache);
+    return () => { _convListeners.delete(handler); };
+  }, []);
+
   const fetchConversations = useCallback(async () => {
-    setLoading(true);
+    if (!_conversationsHasLoaded) setLoading(true);
     setError(null);
     try {
       const response = await socialApi.getConversations();
       if (response.success) {
         const data = response.data as any;
         const list = Array.isArray(data) ? data : data?.items || data?.conversations || [];
+        _conversationsCache = list;
+        _conversationsHasLoaded = true;
         setConversations(list);
-        setUnreadCount(list.filter((c: any) => c.unread_count > 0).length);
+        const newCount = list.filter((c: any) => c.unread_count > 0).length;
+        _broadcastConvCount(newCount);
       } else {
         setError(response.message || "Failed to fetch conversations");
       }
@@ -662,11 +760,15 @@ export const useConversations = () => {
     fetchConversations();
   }, [fetchConversations]);
 
-  // FIX: Wrapped in useCallback so it has a stable reference across renders.
-  // Without this, any useEffect that depends on clearUnread will re-fire
-  // every render, causing the infinite loop.
+  // Optimistic clear — updates cache + broadcasts to Header
   const clearUnread = useCallback((conversationId: string) => {
-    setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, unread_count: 0 } : c));
+    setConversations(prev => {
+      const updated = prev.map(c => c.id === conversationId ? { ...c, unread_count: 0 } : c);
+      _conversationsCache = updated;
+      const newCount = updated.filter((c: any) => c.unread_count > 0).length;
+      _broadcastConvCount(newCount);
+      return updated;
+    });
   }, []);
 
   return { conversations, unreadCount, loading, error, refetch: fetchConversations, clearUnread };

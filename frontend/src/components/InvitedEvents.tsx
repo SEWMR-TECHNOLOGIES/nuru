@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Calendar, MapPin, Clock, CheckCircle, XCircle, HelpCircle, Loader2, Printer } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, HelpCircle, Loader2, Printer } from 'lucide-react';
+import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -102,7 +104,7 @@ const InvitedEvents = () => {
   if (events.length === 0) {
     return (
       <div className="text-center py-12">
-        <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+        <img src={CalendarIcon} alt="Calendar" className="w-12 h-12 mx-auto mb-4" />
         <p className="text-muted-foreground">You haven't been invited to any events yet.</p>
       </div>
     );
@@ -147,7 +149,7 @@ const InvitedEvents = () => {
                     <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-3">
                       {event.start_date && (
                         <span className="flex items-center gap-1">
-                          <Calendar className="w-4 h-4" />
+                          <img src={CalendarIcon} alt="Calendar" className="w-4 h-4" />
                           {new Date(event.start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </span>
                       )}
@@ -159,7 +161,7 @@ const InvitedEvents = () => {
                       )}
                       {event.location && (
                         <span className="flex items-center gap-1">
-                          <MapPin className="w-4 h-4" />
+                          <img src={LocationIcon} alt="Location" className="w-4 h-4" />
                           {event.location}
                         </span>
                       )}

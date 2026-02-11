@@ -16,28 +16,30 @@ const computeSummary = (items: any[]) => ({
   cancelled: items.filter((b: any) => b.status === 'cancelled').length,
 });
 
-// ============================================================================
-// MY BOOKINGS (Client perspective)
-// ============================================================================
+// Module-level cache for my bookings
+let _myBookingsCache: BookingRequest[] = [];
+let _myBookingsSummaryCache: any = null;
+let _myBookingsHasLoaded = false;
 
 export const useMyBookings = (initialParams?: BookingQueryParams) => {
-  const [bookings, setBookings] = useState<BookingRequest[]>([]);
-  const [summary, setSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [bookings, setBookings] = useState<BookingRequest[]>(_myBookingsCache);
+  const [summary, setSummary] = useState<any>(_myBookingsSummaryCache);
+  const [loading, setLoading] = useState(!_myBookingsHasLoaded);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<any>(null);
 
   const fetchBookings = useCallback(async (params?: BookingQueryParams) => {
-    setLoading(true);
+    if (!_myBookingsHasLoaded) setLoading(true);
     setError(null);
     try {
       const response = await bookingsApi.getMyBookings(params || initialParams);
       if (response.success) {
-        // Backend returns flat array via standard_response
         const items = Array.isArray(response.data) ? response.data : (response.data?.bookings || []);
-        setBookings(items);
-        // Compute summary from items if not provided
         const s = response.data?.summary || computeSummary(items);
+        _myBookingsCache = items;
+        _myBookingsSummaryCache = s;
+        _myBookingsHasLoaded = true;
+        setBookings(items);
         setSummary(s);
         setPagination(response.data?.pagination || (response as any).pagination || null);
       } else {
@@ -92,26 +94,30 @@ export const useMyBookings = (initialParams?: BookingQueryParams) => {
   };
 };
 
-// ============================================================================
-// INCOMING BOOKINGS (Vendor perspective)
-// ============================================================================
+// Module-level cache for incoming bookings
+let _incomingBookingsCache: BookingRequest[] = [];
+let _incomingBookingsSummaryCache: any = null;
+let _incomingBookingsHasLoaded = false;
 
 export const useIncomingBookings = (initialParams?: BookingQueryParams) => {
-  const [bookings, setBookings] = useState<BookingRequest[]>([]);
-  const [summary, setSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [bookings, setBookings] = useState<BookingRequest[]>(_incomingBookingsCache);
+  const [summary, setSummary] = useState<any>(_incomingBookingsSummaryCache);
+  const [loading, setLoading] = useState(!_incomingBookingsHasLoaded);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<any>(null);
 
   const fetchBookings = useCallback(async (params?: BookingQueryParams) => {
-    setLoading(true);
+    if (!_incomingBookingsHasLoaded) setLoading(true);
     setError(null);
     try {
       const response = await bookingsApi.getIncomingBookings(params || initialParams);
       if (response.success) {
         const items = Array.isArray(response.data) ? response.data : (response.data?.bookings || []);
-        setBookings(items);
         const s = response.data?.summary || computeSummary(items);
+        _incomingBookingsCache = items;
+        _incomingBookingsSummaryCache = s;
+        _incomingBookingsHasLoaded = true;
+        setBookings(items);
         setSummary(s);
         setPagination(response.data?.pagination || (response as any).pagination || null);
       } else {

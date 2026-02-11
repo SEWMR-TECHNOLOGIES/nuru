@@ -1,8 +1,11 @@
-import { Bell, Heart, MessageCircle, UserPlus, Calendar, Loader2, Users, Briefcase, CheckCircle, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Heart, MessageCircle, UserPlus, Loader2, Users, Briefcase, CheckCircle, Trash2 } from 'lucide-react';
+import BellIcon from '@/assets/icons/bell-icon.svg';
+import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
-import { useNotifications, useMarkAllNotificationsRead } from '@/data/useSocial';
+import { useNotifications } from '@/data/useSocial';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 
@@ -19,7 +22,7 @@ const getIcon = (type: string) => {
     case 'event_invite':
     case 'committee_invite':
     case 'rsvp_received':
-      return <Calendar className="w-4 h-4 text-purple-500" />;
+      return <img src={CalendarIcon} alt="Calendar" className="w-4 h-4" />;
     case 'booking_request':
     case 'booking_accepted':
     case 'booking_rejected':
@@ -30,7 +33,7 @@ const getIcon = (type: string) => {
     case 'moment_reaction':
       return <Heart className="w-4 h-4 text-pink-500" />;
     default:
-      return <Bell className="w-4 h-4 text-muted-foreground" />;
+      return <img src={BellIcon} alt="Notification" className="w-4 h-4" />;
   }
 };
 
@@ -47,19 +50,14 @@ const Notifications = () => {
     description: 'Stay updated with glows, echoes, event invitations, and more on Nuru.'
   });
 
-  const { notifications, loading, error, refetch } = useNotifications();
-  const { markAllAsRead, loading: markingRead } = useMarkAllNotificationsRead();
+  const { notifications, unreadCount, loading, error, refetch, markAllRead, markRead } = useNotifications();
+  const [markingRead, setMarkingRead] = useState(false);
 
   const handleMarkAllRead = async () => {
-    try {
-      await markAllAsRead();
-      refetch();
-    } catch (err) {
-      console.error('Failed to mark all as read:', err);
-    }
+    setMarkingRead(true);
+    await markAllRead();
+    setMarkingRead(false);
   };
-
-  const unreadCount = notifications.filter(n => !n.is_read).length;
 
   if (loading) {
     return (
@@ -119,7 +117,7 @@ const Notifications = () => {
       {notifications.length === 0 ? (
         <div className="text-center py-16">
           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-            <Bell className="w-7 h-7 text-muted-foreground" />
+            <img src={BellIcon} alt="Notifications" className="w-7 h-7" />
           </div>
           <h3 className="font-medium text-foreground mb-1">No notifications yet</h3>
           <p className="text-sm text-muted-foreground">
@@ -131,6 +129,7 @@ const Notifications = () => {
           {notifications.map((notification) => (
             <div 
               key={notification.id}
+              onClick={() => !notification.is_read && markRead(notification.id)}
               className={`flex items-start gap-3 p-3 rounded-lg transition-colors hover:bg-muted/50 cursor-pointer ${
                 !notification.is_read ? 'bg-muted/30' : ''
               }`}

@@ -1,37 +1,35 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Star, CheckCircle, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronLeft, Star, CheckCircle, ChevronRight, Loader2, Send } from 'lucide-react';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Textarea } from '@/components/ui/textarea';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useUserService } from '@/hooks/useUserService';
 import { servicesApi } from '@/lib/api/services';
 import { formatPrice } from '@/utils/formatPrice';
 import { ServiceDetailLoadingSkeleton } from '@/components/ui/ServiceLoadingSkeleton';
 import { UserService, ServicePackage, ServiceReview } from '@/lib/api/types';
+import { showApiErrors } from '@/lib/api';
+import { toast } from 'sonner';
 
 interface BookedDate {
   date: string;
-  event_id: string;
-  event_name: string;
-  event_location?: string;
   status: string;
-  agreed_price?: number;
 }
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-const ServiceDetail = () => {
+const PublicServiceDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { service, loading, error, refetch } = useUserService(id!);
+  const { service, loading, error } = useUserService(id!);
   const [packages, setPackages] = useState<ServicePackage[]>([]);
   const [reviews, setReviews] = useState<ServiceReview[]>([]);
   const [bookedDates, setBookedDates] = useState<BookedDate[]>([]);
@@ -40,9 +38,17 @@ const ServiceDetail = () => {
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
+  // Review form
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewHover, setReviewHover] = useState(0);
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsPagination, setReviewsPagination] = useState<any>(null);
+
   useWorkspaceMeta({
     title: service?.title || 'Service Details',
-    description: `View details, availability, and book ${service?.title || 'this service'}.`
+    description: `View details and reviews for ${service?.title || 'this service'}.`
   });
 
   useEffect(() => {
@@ -50,12 +56,12 @@ const ServiceDetail = () => {
     if ((service as any).packages && Array.isArray((service as any).packages)) {
       setPackages((service as any).packages);
     }
-    if ((service as any).reviews && Array.isArray((service as any).reviews)) {
-      setReviews((service as any).reviews);
+    if ((service as any).reviews_preview && Array.isArray((service as any).reviews_preview)) {
+      setReviews((service as any).reviews_preview);
     }
   }, [service]);
 
-  // Load dynamic calendar data
+  // Load calendar data (public - no tooltips)
   useEffect(() => {
     if (!id) return;
     const loadCalendar = async () => {
@@ -63,13 +69,71 @@ const ServiceDetail = () => {
       try {
         const res = await servicesApi.getCalendar(id);
         if (res.success && res.data?.booked_dates) {
-          setBookedDates(res.data.booked_dates);
+          // Strip sensitive info for public view
+          setBookedDates(res.data.booked_dates.map((b: any) => ({
+            date: b.date,
+            status: b.status,
+          })));
         }
       } catch { /* silent */ }
       finally { setCalendarLoading(false); }
     };
     loadCalendar();
   }, [id]);
+
+  // Load full reviews
+  const loadReviews = useCallback(async (page = 1) => {
+    if (!id) return;
+    setReviewsLoading(true);
+    try {
+      const res = await servicesApi.getReviews(id, { page, limit: 10 });
+      if (res.success && res.data) {
+        setReviews(res.data.reviews || []);
+        setReviewsPagination(res.data.pagination || null);
+      }
+    } catch { /* silent */ }
+    finally { setReviewsLoading(false); }
+  }, [id]);
+
+  useEffect(() => {
+    if (id) loadReviews();
+  }, [id, loadReviews]);
+
+  const handleSubmitReview = async () => {
+    if (!id) return;
+    if (reviewRating === 0) {
+      toast.error('Please select a rating');
+      return;
+    }
+    if (reviewComment.trim().length < 10) {
+      toast.error('Review must be at least 10 characters long');
+      return;
+    }
+    if (reviewComment.trim().length > 2000) {
+      toast.error('Review must be at most 2000 characters');
+      return;
+    }
+
+    setSubmittingReview(true);
+    try {
+      const res = await servicesApi.submitReview(id, {
+        rating: reviewRating,
+        comment: reviewComment.trim(),
+      });
+      if (res.success) {
+        toast.success('Review submitted successfully!');
+        setReviewRating(0);
+        setReviewComment('');
+        loadReviews();
+      } else {
+        showApiErrors(res);
+      }
+    } catch (err) {
+      toast.error('Failed to submit review');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   const getImageUrl = (img: any): string => {
     if (typeof img === 'string') return img;
@@ -96,23 +160,23 @@ const ServiceDetail = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const days: Array<{ day: number | null; date: string; isToday: boolean; isPast: boolean; booking: BookedDate | null }> = [];
+    const days: Array<{ day: number | null; date: string; isToday: boolean; isPast: boolean; isBooked: boolean; status: string | null }> = [];
 
-    // Empty slots before first day
     for (let i = 0; i < firstDay; i++) {
-      days.push({ day: null, date: '', isToday: false, isPast: false, booking: null });
+      days.push({ day: null, date: '', isToday: false, isPast: false, isBooked: false, status: null });
     }
 
     for (let d = 1; d <= daysInMonth; d++) {
       const date = new Date(year, month, d);
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const booking = bookedDates.find(b => b.date === dateStr) || null;
+      const booking = bookedDates.find(b => b.date === dateStr);
       days.push({
         day: d,
         date: dateStr,
         isToday: date.toDateString() === today.toDateString(),
         isPast: date < today,
-        booking,
+        isBooked: !!booking,
+        status: booking?.status || null,
       });
     }
 
@@ -131,6 +195,12 @@ const ServiceDetail = () => {
     }
   };
 
+  const renderStars = (rating: number) => {
+    return Array.from({ length: 5 }, (_, i) => (
+      <Star key={i} className={`w-4 h-4 ${i < rating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'}`} />
+    ));
+  };
+
   if (loading) return <ServiceDetailLoadingSkeleton />;
 
   if (error || !service) {
@@ -140,12 +210,6 @@ const ServiceDetail = () => {
       </div>
     );
   }
-
-  const renderStars = (rating: number) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <Star key={i} className={`w-4 h-4 ${i < rating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'}`} />
-    ));
-  };
 
   const hasImages = Array.isArray(service.images) && service.images.length > 0;
   const imageUrls = hasImages ? service.images.map(getImageUrl) : [];
@@ -207,7 +271,7 @@ const ServiceDetail = () => {
             </div>
           </div>
         </div>
-        
+
         <CardContent className="p-6">
           <div className="flex flex-col md:flex-row gap-6">
             <div className="flex-1">
@@ -258,15 +322,15 @@ const ServiceDetail = () => {
         </CardContent>
       </Card>
 
-      {/* Modern Dynamic Availability Calendar */}
+      {/* Public Availability Calendar - No tooltips, no event names */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <img src={CalendarIcon} alt="Calendar" className="w-5 h-5" />
-            Availability Calendar
+            Availability
           </CardTitle>
           <p className="text-sm text-muted-foreground mt-1">
-            Real-time availability based on actual event assignments. Hover on booked dates for details.
+            View provider availability. Colored dates indicate existing bookings.
           </p>
         </CardHeader>
         <CardContent>
@@ -276,176 +340,166 @@ const ServiceDetail = () => {
               <span className="ml-2 text-muted-foreground">Loading calendar...</span>
             </div>
           ) : (
-            <div>
-              <div className="space-y-4">
-                {/* Month Navigation */}
-                <div className="flex items-center justify-between px-2">
-                  <Button variant="ghost" size="icon" onClick={prevMonth}>
-                    <ChevronLeft className="w-5 h-5" />
-                  </Button>
-                  <h3 className="text-lg md:text-xl font-bold">
-                    {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-                  </h3>
-                  <Button variant="ghost" size="icon" onClick={nextMonth}>
-                    <ChevronRight className="w-5 h-5" />
-                  </Button>
-                </div>
+            <div className="space-y-4">
+              {/* Month Navigation */}
+              <div className="flex items-center justify-between px-2">
+                <Button variant="ghost" size="icon" onClick={prevMonth}>
+                  <ChevronLeft className="w-5 h-5" />
+                </Button>
+                <h3 className="text-lg md:text-xl font-bold">
+                  {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+                </h3>
+                <Button variant="ghost" size="icon" onClick={nextMonth}>
+                  <ChevronRight className="w-5 h-5" />
+                </Button>
+              </div>
 
-                {/* Day Headers */}
-                <div className="grid grid-cols-7 gap-1">
-                  {DAYS.map(day => (
-                    <div key={day} className="text-center text-xs md:text-sm font-semibold text-muted-foreground py-2">
-                      {day}
+              {/* Day Headers */}
+              <div className="grid grid-cols-7 gap-1">
+                {DAYS.map(day => (
+                  <div key={day} className="text-center text-xs md:text-sm font-semibold text-muted-foreground py-2">
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              {/* Calendar Grid - NO tooltips for public view */}
+              <div className="grid grid-cols-7 gap-1">
+                {calendarDays.map((cell, idx) => {
+                  if (cell.day === null) {
+                    return <div key={`empty-${idx}`} className="h-12 md:h-16" />;
+                  }
+
+                  return (
+                    <div
+                      key={cell.date}
+                      className={`
+                        relative h-12 md:h-16 rounded-lg flex flex-col items-center justify-center text-sm md:text-base transition-all
+                        ${cell.isToday ? 'ring-2 ring-primary bg-primary/10 font-bold' : ''}
+                        ${cell.isPast && !cell.isBooked ? 'text-muted-foreground/30' : ''}
+                        ${cell.isBooked ? `${getStatusColor(cell.status!)} text-white font-semibold shadow-sm` : ''}
+                        ${!cell.isBooked && !cell.isPast && !cell.isToday ? 'bg-green-50 dark:bg-green-950/20 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30' : ''}
+                      `}
+                    >
+                      <span>{cell.day}</span>
+                      {cell.isBooked && (
+                        <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-white/80" />
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
+              </div>
 
-                {/* Calendar Grid */}
-                <div className="grid grid-cols-7 gap-1">
-                  {calendarDays.map((cell, idx) => {
-                    if (cell.day === null) {
-                      return <div key={`empty-${idx}`} className="h-12 md:h-16" />;
-                    }
-
-                    const isBooked = !!cell.booking;
-                    const isPast = cell.isPast;
-
-                    const dayEl = (
-                      <div
-                        key={cell.date}
-                        className={`
-                          relative h-12 md:h-16 rounded-lg flex flex-col items-center justify-center text-sm md:text-base transition-all
-                          ${cell.isToday ? 'ring-2 ring-primary bg-primary/10 font-bold' : ''}
-                          ${isPast && !isBooked ? 'text-muted-foreground/30' : ''}
-                          ${isBooked ? `${getStatusColor(cell.booking!.status)} text-white font-semibold shadow-sm cursor-pointer` : ''}
-                          ${!isBooked && !isPast && !cell.isToday ? 'bg-green-50 dark:bg-green-950/20 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30' : ''}
-                        `}
-                      >
-                        <span>{cell.day}</span>
-                        {isBooked && (
-                          <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-white/80" />
-                          </div>
-                        )}
-                      </div>
-                    );
-
-                    if (isBooked) {
-                      return (
-                        <Popover key={cell.date}>
-                          <PopoverTrigger asChild>{dayEl}</PopoverTrigger>
-                          <PopoverContent side="top" className="max-w-[250px] p-3">
-                            <div className="space-y-1.5">
-                              <p className="font-semibold text-sm">{cell.booking!.event_name}</p>
-                              {cell.booking!.event_location && (
-                                <p className="text-xs flex items-center gap-1">
-                                  <img src={LocationIcon} alt="Location" className="w-3 h-3" />{cell.booking!.event_location}
-                                </p>
-                              )}
-                              <div className="flex items-center gap-2 text-xs">
-                                <Badge variant="outline" className="text-[10px] h-5">
-                                  {cell.booking!.status}
-                                </Badge>
-                                {cell.booking!.agreed_price && (
-                                  <span className="font-medium">{formatPrice(cell.booking!.agreed_price)}</span>
-                                )}
-                              </div>
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      );
-                    }
-
-                    return dayEl;
-                  })}
-                </div>
-
-                {/* Legend */}
-                <div className="border-t pt-4 mt-4">
-                  <div className="flex flex-wrap items-center gap-3 md:gap-6 justify-center text-xs md:text-sm">
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 md:w-6 md:h-6 rounded bg-amber-500 flex-shrink-0" />
-                      <span>Pending</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 md:w-6 md:h-6 rounded bg-green-500 flex-shrink-0" />
-                      <span>Confirmed</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 md:w-6 md:h-6 rounded bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 flex-shrink-0" />
-                      <span>Available</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 md:w-6 md:h-6 rounded ring-2 ring-primary bg-primary/10 flex-shrink-0" />
-                      <span>Today</span>
-                    </div>
+              {/* Legend */}
+              <div className="border-t pt-4 mt-4">
+                <div className="flex flex-wrap items-center gap-3 md:gap-6 justify-center text-xs md:text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 md:w-6 md:h-6 rounded bg-amber-500 flex-shrink-0" />
+                    <span>Booked</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 md:w-6 md:h-6 rounded bg-green-500 flex-shrink-0" />
+                    <span>Confirmed</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 md:w-6 md:h-6 rounded bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 flex-shrink-0" />
+                    <span>Available</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 md:w-6 md:h-6 rounded ring-2 ring-primary bg-primary/10 flex-shrink-0" />
+                    <span>Today</span>
                   </div>
                 </div>
-
-                {/* Booked Events Summary */}
-                {bookedDates.length > 0 && (
-                  <div className="border-t pt-4 mt-2">
-                    <h4 className="text-sm font-semibold mb-3">Upcoming Assignments ({bookedDates.length})</h4>
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {bookedDates
-                        .filter(b => new Date(b.date) >= new Date(new Date().toDateString()))
-                        .sort((a, b) => a.date.localeCompare(b.date))
-                        .map((b, i) => (
-                          <div key={i} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/50 text-sm">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className={`w-2.5 h-2.5 rounded-full ${getStatusColor(b.status)} flex-shrink-0`} />
-                              <div className="min-w-0">
-                                <p className="font-medium truncate">{b.event_name}</p>
-                                <p className="text-xs text-muted-foreground">{new Date(b.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
-                              </div>
-                            </div>
-                            {b.agreed_price && (
-                              <span className="text-xs font-semibold text-primary flex-shrink-0 ml-2">{formatPrice(b.agreed_price)}</span>
-                            )}
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Past Events */}
+      {/* Submit Review */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <img src={CalendarIcon} alt="Calendar" className="w-5 h-5" />Completed Events ({service.completed_events || 0})
-          </CardTitle>
+          <CardTitle className="flex items-center gap-2"><Star className="w-5 h-5" />Write a Review</CardTitle>
+          <p className="text-sm text-muted-foreground">You can review this service if it was assigned to one of your events.</p>
         </CardHeader>
-        <CardContent>
-          {(service.completed_events || 0) > 0 ? (
-            <p className="text-muted-foreground">This provider has completed {service.completed_events} events.</p>
-          ) : (
-            <p className="text-muted-foreground">No past events to display yet.</p>
-          )}
+        <CardContent className="space-y-4">
+          {/* Star Rating Input */}
+          <div>
+            <p className="text-sm font-medium mb-2">Your Rating</p>
+            <div className="flex gap-1">
+              {Array.from({ length: 5 }, (_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setReviewRating(i + 1)}
+                  onMouseEnter={() => setReviewHover(i + 1)}
+                  onMouseLeave={() => setReviewHover(0)}
+                  className="focus:outline-none"
+                >
+                  <Star
+                    className={`w-7 h-7 transition-colors ${
+                      i < (reviewHover || reviewRating)
+                        ? 'fill-yellow-400 text-yellow-400'
+                        : 'text-muted-foreground'
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium mb-2">Your Review</p>
+            <Textarea
+              placeholder="Share your experience with this service provider (min 10 characters)..."
+              value={reviewComment}
+              onChange={(e) => setReviewComment(e.target.value)}
+              rows={4}
+              maxLength={2000}
+            />
+            <p className="text-xs text-muted-foreground mt-1">{reviewComment.length}/2000</p>
+          </div>
+
+          <Button
+            onClick={handleSubmitReview}
+            disabled={submittingReview || reviewRating === 0 || reviewComment.trim().length < 10}
+          >
+            {submittingReview ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Submitting...</>
+            ) : (
+              <><Send className="w-4 h-4 mr-2" />Submit Review</>
+            )}
+          </Button>
         </CardContent>
       </Card>
 
-      {/* Reviews */}
+      {/* Reviews List */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Star className="w-5 h-5" />Client Reviews</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Star className="w-5 h-5" />Client Reviews ({service.review_count || reviews.length})</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {reviews.length > 0 ? reviews.map((review) => (
+          {reviewsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : reviews.length > 0 ? reviews.map((review) => (
             <div key={review.id} className="border-b pb-4 last:border-b-0">
               <div className="flex items-start gap-4">
                 <Avatar>
-                  <AvatarFallback>{review.user_name.charAt(0)}</AvatarFallback>
+                  <AvatarFallback>
+                    {(review.user_name || 'A').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-2">
                     <div>
-                      <h4 className="font-medium">{review.user_name}</h4>
-                      <p className="text-sm text-muted-foreground">{review.event_type} • {review.created_at}</p>
+                      <h4 className="font-medium">{review.user_name || 'Anonymous'}</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {review.created_at ? new Date(review.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : ''}
+                      </p>
                     </div>
                     <div className="flex items-center gap-1">{renderStars(review.rating)}</div>
                   </div>
@@ -456,10 +510,35 @@ const ServiceDetail = () => {
           )) : (
             <p className="text-muted-foreground">No reviews yet. Be the first to review this service!</p>
           )}
+
+          {/* Pagination */}
+          {reviewsPagination && reviewsPagination.total_pages > 1 && (
+            <div className="flex justify-center gap-2 pt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!reviewsPagination.has_previous}
+                onClick={() => loadReviews(reviewsPagination.page - 1)}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground flex items-center">
+                Page {reviewsPagination.page} of {reviewsPagination.total_pages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!reviewsPagination.has_next}
+                onClick={() => loadReviews(reviewsPagination.page + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
   );
 };
 
-export default ServiceDetail;
+export default PublicServiceDetail;

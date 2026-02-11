@@ -10,19 +10,27 @@ import { throwApiError } from "@/lib/api/showApiErrors";
 // SUPPORT TICKETS
 // ============================================================================
 
+// Module-level cache for support tickets
+let _ticketsCache: SupportTicket[] = [];
+let _ticketsSummaryCache: any = null;
+let _ticketsHasLoaded = false;
+
 export const useMyTickets = (initialParams?: { page?: number; limit?: number; status?: string }) => {
-  const [tickets, setTickets] = useState<SupportTicket[]>([]);
-  const [summary, setSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [tickets, setTickets] = useState<SupportTicket[]>(_ticketsCache);
+  const [summary, setSummary] = useState<any>(_ticketsSummaryCache);
+  const [loading, setLoading] = useState(!_ticketsHasLoaded);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<any>(null);
 
   const fetchTickets = useCallback(async (params?: { page?: number; limit?: number; status?: string }) => {
-    setLoading(true);
+    if (!_ticketsHasLoaded) setLoading(true);
     setError(null);
     try {
       const response = await supportApi.getMyTickets(params || initialParams);
       if (response.success) {
+        _ticketsCache = response.data.tickets;
+        _ticketsSummaryCache = response.data.summary;
+        _ticketsHasLoaded = true;
         setTickets(response.data.tickets);
         setSummary(response.data.summary);
         setPagination(response.data.pagination);

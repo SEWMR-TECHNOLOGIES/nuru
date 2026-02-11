@@ -1,4 +1,6 @@
-import { Calendar, MapPin, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
+import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 
 interface PromotedEventProps {
@@ -38,12 +40,12 @@ const PromotedEvent = ({ title, date, location, image, attendees }: PromotedEven
 
             <div className="flex flex-col gap-1 text-xs md:text-sm text-muted-foreground mb-3">
               <div className="flex items-center gap-1.5 md:gap-2">
-                <Calendar className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <img src={CalendarIcon} alt="Calendar" className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 <span>{date}</span>
               </div>
 
               <div className="flex items-center gap-1.5 md:gap-2">
-                <MapPin className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <img src={LocationIcon} alt="Location" className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 <span className="truncate">{location}</span>
               </div>
 

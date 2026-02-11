@@ -102,3 +102,24 @@ The following items require backend endpoint changes or new endpoints that canno
 - **Chat with own service**: Frontend blocks self-chat - needs policy change
 - **Number auto-formatting**: Requires per-component input handler changes
 - **Event service booking calendar**: Needs `/user-services/{id}/bookings` endpoint for booked dates
+
+## 13. Payment Method Enum Update
+**Problem:** Payment method enum lacked `cash` option; `M-Pesa` naming was biased toward a specific provider.
+**Fix:**
+- Added `cash` to `payment_method` enum (listed first)
+- Renamed all "M-Pesa" references to "Mobile Money" across frontend
+- Removed emoji icons from payment method dropdowns system-wide
+- Updated `PaymentMethodEnum` in both `backend/enums.py` and `backend/models/enums.py`
+- Updated frontend types, components (`EventContributions`, `NuruCards`), and data hooks
+**Files changed:**
+- `database.sql` line 6
+- `backend/enums.py` lines 18-22
+- `backend/models/enums.py` lines 18-22
+- `src/components/events/EventContributions.tsx` lines 37-44, 427
+- `src/components/NuruCards.tsx` lines 43, 529-531
+- `src/data/useNuruCards.ts` line 90
+- `src/lib/api/types.ts` line 292
+**ALTER statement needed on DB:**
+```sql
+ALTER TYPE payment_method ADD VALUE IF NOT EXISTS 'cash' BEFORE 'mobile';
+```

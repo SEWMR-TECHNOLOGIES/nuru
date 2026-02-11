@@ -3,9 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft,
-  Calendar, 
   Clock,
-  MapPin,
   User,
   MessageSquare,
   CheckCircle,
@@ -15,6 +13,8 @@ import {
   Phone,
   Mail
 } from 'lucide-react';
+import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -129,7 +129,7 @@ const BookingDetail = () => {
                   <Button 
                     variant="link" 
                     className="p-0 h-auto" 
-                    onClick={() => navigate(`/service/${booking.service.id}`)}
+                    onClick={() => navigate(`/services/view/${booking.service.id}`)}
                   >
                     View Service →
                   </Button>
@@ -146,7 +146,7 @@ const BookingDetail = () => {
             <CardContent className="space-y-4">
               {booking.event_name && (
                 <div className="flex items-center gap-3">
-                  <Calendar className="w-5 h-5 text-muted-foreground" />
+                  <img src={CalendarIcon} alt="Calendar" className="w-5 h-5" />
                   <div>
                     <p className="font-medium">{booking.event_name}</p>
                     <p className="text-sm text-muted-foreground">{booking.event_type}</p>
@@ -154,7 +154,7 @@ const BookingDetail = () => {
                 </div>
               )}
               <div className="flex items-center gap-3">
-                <Calendar className="w-5 h-5 text-muted-foreground" />
+                <img src={CalendarIcon} alt="Calendar" className="w-5 h-5" />
                 <div>
                     <p className="font-medium">{booking.event_date ? new Date(booking.event_date).toLocaleDateString('en-US', { 
                     weekday: 'long', 
@@ -171,7 +171,7 @@ const BookingDetail = () => {
               </div>
               {(booking.location || booking.venue) && (
                 <div className="flex items-center gap-3">
-                  <MapPin className="w-5 h-5 text-muted-foreground" />
+                  <img src={LocationIcon} alt="Location" className="w-5 h-5" />
                   <div>
                     <p className="font-medium">{booking.venue || booking.location}</p>
                     {booking.event?.venue_address && (

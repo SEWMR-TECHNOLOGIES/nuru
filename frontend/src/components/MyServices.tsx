@@ -1,6 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { formatPrice } from '@/utils/formatPrice';
-import { Star, MapPin, CheckCircle, Calendar, Users, Plus, Edit, Eye, Package, Loader2 } from 'lucide-react';
+import { Star, CheckCircle, Users, Plus, Edit, Eye, Package, Loader2 } from 'lucide-react';
+import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -194,7 +196,7 @@ const MyServices = () => {
                 <p className="text-2xl font-bold">{services.length}</p>
               </div>
               <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-primary" />
+                <img src={CalendarIcon} alt="Calendar" className="w-5 h-5" />
               </div>
             </div>
           </CardContent>
@@ -312,7 +314,7 @@ const MyServices = () => {
                     )}
                     {service.verification_status === 'pending' && (
                       <Badge variant="outline" className="border-orange-500 text-orange-700 bg-orange-50 gap-1.5 px-3 py-1 flex-shrink-0">
-                        <Calendar className="w-3.5 h-3.5" />
+                        <img src={CalendarIcon} alt="Calendar" className="w-3.5 h-3.5" />
                         Pending Verification
                       </Badge>
                     )}
@@ -371,7 +373,7 @@ const MyServices = () => {
                       <div className="flex items-center gap-2">
                         <span className="font-medium">Location:</span>
                         <span className="text-muted-foreground flex items-center gap-1">
-                          <MapPin className="w-4 h-4" />
+                          <img src={LocationIcon} alt="Location" className="w-4 h-4" />
                           {service.location}
                         </span>
                       </div>

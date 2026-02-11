@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Calendar, MapPin, Clock, Users, Shield, Loader2 } from 'lucide-react';
+import { Clock, Users, Shield, Loader2 } from 'lucide-react';
+import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -124,7 +126,7 @@ const CommitteeEvents = () => {
                   <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-3">
                     {event.start_date && (
                       <span className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4" />
+                        <img src={CalendarIcon} alt="Calendar" className="w-4 h-4" />
                         {new Date(event.start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
                       </span>
                     )}
@@ -136,7 +138,7 @@ const CommitteeEvents = () => {
                     )}
                     {event.location && (
                       <span className="flex items-center gap-1">
-                        <MapPin className="w-4 h-4" />
+                        <img src={LocationIcon} alt="Location" className="w-4 h-4" />
                         {event.location}
                       </span>
                     )}

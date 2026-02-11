@@ -16,6 +16,7 @@ class PaymentStatusEnum(enum.Enum):
 
 
 class PaymentMethodEnum(enum.Enum):
+    cash = "cash"
     mobile = "mobile"
     bank = "bank"
     card = "card"

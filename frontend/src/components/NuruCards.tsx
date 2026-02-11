@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
-import { CreditCard, Check, Sparkles, Zap, Shield, Gift, QrCode, Users, Clock, Star, Printer, Download, Loader2, MapPin, Phone } from 'lucide-react';
+import { CreditCard, Check, Sparkles, Zap, Shield, Gift, QrCode, Users, Clock, Star, Printer, Download, Loader2, Phone } from 'lucide-react';
+import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -40,7 +41,7 @@ const NuruCards = () => {
     delivery_postal_code: '',
     delivery_country: 'Tanzania',
     delivery_phone: '',
-    payment_method: 'mpesa',
+    payment_method: 'cash',
   });
   const [exporting, setExporting] = useState(false);
 
@@ -505,7 +506,7 @@ const OrderDialog = ({ open, onClose, orderType, form, setForm, templates, order
 
           <div className="border-t pt-4">
             <p className="font-semibold text-sm mb-3 flex items-center gap-2">
-              <MapPin className="w-4 h-4" /> Delivery Address
+              <img src={LocationIcon} alt="Location" className="w-4 h-4" /> Delivery Address
             </p>
             <div className="space-y-3">
               <Input placeholder="Street address" value={form.delivery_street} onChange={e => update('delivery_street', e.target.value)} />
@@ -526,7 +527,8 @@ const OrderDialog = ({ open, onClose, orderType, form, setForm, templates, order
             <Select value={form.payment_method} onValueChange={v => update('payment_method', v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="mpesa">M-Pesa</SelectItem>
+                <SelectItem value="cash">Cash</SelectItem>
+                <SelectItem value="mobile">Mobile Money</SelectItem>
                 <SelectItem value="card">Card</SelectItem>
                 <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
               </SelectContent>

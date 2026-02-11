@@ -7,7 +7,7 @@ import uuid
 from typing import List, Optional
 
 import pytz
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func as sa_func
 
@@ -16,6 +16,7 @@ from models import (
     EventTypeService, EventService, Event,
     ServiceType, UserService, ServicePackage, UserServiceRating
 )
+from utils.auth import get_current_user
 
 from utils.helpers import format_price, standard_response, paginate
 
@@ -337,7 +338,10 @@ def get_service_calendar(
     end_date: str = None,
     db: Session = Depends(get_db)
 ):
-    """Returns booked dates for a service provider based on actual event assignments."""
+    """Returns booked dates for a service provider based on actual event assignments.
+    Public endpoint - hides event_name, event_location, agreed_price for non-owners.
+    Owner info is only shown when ?owner=true and authenticated as the owner.
+    """
     try:
         sid = uuid.UUID(service_id)
     except ValueError:
@@ -368,16 +372,134 @@ def get_service_calendar(
 
         status = es.service_status.value if hasattr(es.service_status, "value") else str(es.service_status)
 
+        # Only show agreed_price for confirmed/completed (not pending min_price)
+        show_price = float(es.agreed_price) if es.agreed_price and status in ("confirmed", "completed", "accepted") else None
+
         booked_dates.append({
             "date": event_date_str,
             "event_id": str(event.id),
             "event_name": event.name or "Event",
             "event_location": event.location,
             "status": status,
-            "agreed_price": float(es.agreed_price) if es.agreed_price else None,
+            "agreed_price": show_price,
         })
 
     return standard_response(True, "Calendar data retrieved", {
         "service_id": str(sid),
         "booked_dates": booked_dates,
     })
+
+
+# =============================================================================
+# 9.4 Submit Service Review (Authenticated)
+# =============================================================================
+@router.post("/{service_id}/reviews")
+async def submit_service_review(
+    service_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: "User" = Depends(get_current_user),
+):
+    """
+    Submit a review for a service. Only users whose events were served by this
+    provider can leave a review, and only once per service.
+    """
+
+    # Validate UUID
+    try:
+        sid = uuid.UUID(service_id)
+    except ValueError:
+        return standard_response(False, "Invalid service ID")
+
+    # Check service exists
+    service = db.query(UserService).filter(UserService.id == sid).first()
+    if not service:
+        return standard_response(False, "Service not found")
+
+    # Cannot review own service
+    if str(service.user_id) == str(current_user.id):
+        return standard_response(False, "You cannot review your own service")
+
+    # Check eligibility
+    eligible = (
+        db.query(EventService)
+        .join(Event, Event.id == EventService.event_id)
+        .filter(
+            EventService.provider_user_service_id == sid,
+            Event.organizer_id == current_user.id,
+            EventService.service_status.in_(["assigned", "in_progress", "completed"]),
+        )
+        .first()
+    )
+
+    if not eligible:
+        return standard_response(
+            False,
+            "You can only review services that were assigned to your events",
+        )
+
+    # Check if already reviewed
+    existing = db.query(UserServiceRating).filter(
+        UserServiceRating.user_service_id == sid,
+        UserServiceRating.user_id == current_user.id,
+    ).first()
+
+    if existing:
+        return standard_response(False, "You have already reviewed this service")
+
+    # Parse request body properly
+    try:
+        body = await request.json()
+    except Exception:
+        return standard_response(False, "Invalid JSON body")
+
+    rating = body.get("rating")
+    comment = body.get("comment", "").strip()
+
+    # Validate rating
+    if rating is None:
+        return standard_response(False, "Rating is required")
+
+    try:
+        rating = int(rating)
+    except (ValueError, TypeError):
+        return standard_response(False, "Rating must be a number between 1 and 5")
+
+    if rating < 1 or rating > 5:
+        return standard_response(False, "Rating must be between 1 and 5")
+
+    # Validate comment
+    if not comment:
+        return standard_response(False, "Review comment is required")
+
+    if len(comment) < 10:
+        return standard_response(False, "Review must be at least 10 characters long")
+
+    if len(comment) > 2000:
+        return standard_response(False, "Review must be at most 2000 characters long")
+
+    # Create review
+    new_review = UserServiceRating(
+        user_service_id=sid,
+        user_id=current_user.id,
+        rating=rating,
+        review=comment,
+    )
+
+    db.add(new_review)
+    db.commit()
+    db.refresh(new_review)
+
+    return standard_response(
+        True,
+        "Review submitted successfully",
+        {
+            "id": str(new_review.id),
+            "user_name": f"{current_user.first_name} {current_user.last_name}",
+            "rating": new_review.rating,
+            "comment": new_review.review,
+            "created_at": new_review.created_at.isoformat()
+            if new_review.created_at
+            else None,
+        },
+    )

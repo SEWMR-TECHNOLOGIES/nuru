@@ -21,6 +21,7 @@ import EditService from "@/components/EditService";
 import ServiceVerification from "@/components/ServiceVerification";
 import UserProfile from "@/components/UserProfile";
 import ServiceDetail from "@/components/ServiceDetail";
+import PublicServiceDetail from "@/components/PublicServiceDetail";
 import Circle from "@/components/Circle";
 import Communities from "@/components/Communities";
 import ProviderChat from "@/components/ProviderChat";
@@ -95,6 +96,7 @@ export default function AppRoutes() {
           <Route path="/services/edit/:id" element={<EditService />} />
           <Route path="/services/verify/:serviceId/:serviceType" element={<ServiceVerification />} />
           <Route path="/service/:id" element={<ServiceDetail />} />
+          <Route path="/services/view/:id" element={<PublicServiceDetail />} />
           <Route path="/profile" element={<UserProfile />} />
           <Route path="/circle" element={<Circle />} />
           <Route path="/communities" element={<Communities />} />

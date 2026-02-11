@@ -33,11 +33,15 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { socialApi } from '@/lib/api/social';
 import { toast } from 'sonner';
 
+// Module-level cache for my moments/posts
+let _myPostsCache: any[] = [];
+let _myPostsHasLoaded = false;
+
 const MyMoments = () => {
   const navigate = useNavigate();
   const { data: currentUser } = useCurrentUser();
-  const [posts, setPosts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [posts, setPosts] = useState<any[]>(_myPostsCache);
+  const [loading, setLoading] = useState(!_myPostsHasLoaded);
   const [error, setError] = useState<string | null>(null);
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -52,13 +56,15 @@ const MyMoments = () => {
 
   const fetchMyPosts = useCallback(async () => {
     if (!currentUser?.id) return;
-    setLoading(true);
+    if (!_myPostsHasLoaded) setLoading(true);
     setError(null);
     try {
       const response = await socialApi.getUserPosts(currentUser.id);
       if (response.success) {
         const data = response.data as any;
         const postsList = data?.posts || data?.items || (Array.isArray(data) ? data : []);
+        _myPostsCache = postsList;
+        _myPostsHasLoaded = true;
         setPosts(postsList);
       } else {
         setError(response.message || 'Failed to load posts');

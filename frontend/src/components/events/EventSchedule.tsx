@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { 
-  Calendar, 
   Plus, 
   Clock,
-  MapPin,
   MoreVertical,
   Edit,
   Trash,
   GripVertical
 } from 'lucide-react';
+import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -185,7 +185,7 @@ const EventSchedule = ({ eventId }: EventScheduleProps) => {
         <CardContent className="p-6">
           {schedule.length === 0 ? (
             <div className="text-center py-8">
-              <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+              <img src={CalendarIcon} alt="Calendar" className="w-12 h-12 mx-auto mb-4" />
               <h3 className="font-medium mb-2">No schedule items yet</h3>
               <p className="text-muted-foreground text-sm mb-4">
                 Add activities to create your event timeline
@@ -227,7 +227,7 @@ const EventSchedule = ({ eventId }: EventScheduleProps) => {
                           )}
                           {item.location && (
                             <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
-                              <MapPin className="w-3 h-3" />
+                              <img src={LocationIcon} alt="Location" className="w-3 h-3" />
                               <span>{item.location}</span>
                             </div>
                           )}

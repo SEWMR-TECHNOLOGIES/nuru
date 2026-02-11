@@ -14,20 +14,26 @@ import type {
   EventBudgetItem 
 } from "@/lib/api/types";
 
-// ============================================================================
-// EVENTS LIST
-// ============================================================================
+// Module-level cache for events list
+let _eventsCache: Event[] = [];
+let _eventsPaginationCache: any = null;
+let _eventsHasLoaded = false;
 
 export const useEvents = (initialParams?: EventQueryParams) => {
-  const [events, setEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [events, setEvents] = useState<Event[]>(_eventsCache);
+  const [loading, setLoading] = useState(!_eventsHasLoaded);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState<any>(null);
+  const [pagination, setPagination] = useState<any>(_eventsPaginationCache);
 
   const fetchEvents = useCallback(async (params?: EventQueryParams) => {
+    if (!_eventsHasLoaded) setLoading(true);
+    setError(null);
     try {
       const response = await eventsApi.getAll(params || initialParams);
       if (response.success) {
+        _eventsCache = response.data.events;
+        _eventsPaginationCache = response.data.pagination;
+        _eventsHasLoaded = true;
         setEvents(response.data.events);
         setPagination(response.data.pagination);
       } else {

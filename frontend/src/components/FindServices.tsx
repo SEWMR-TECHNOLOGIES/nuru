@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Star, MapPin, CheckCircle, Eye, MessageCircle, Loader2 } from 'lucide-react';
+import { Search, Star, CheckCircle, Eye, MessageCircle, Loader2 } from 'lucide-react';
+import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -200,7 +201,7 @@ const FindServices = () => {
             <Card 
               key={provider.id} 
               className="hover:shadow-md transition-shadow cursor-pointer"
-              onClick={() => navigate(`/service/${provider.id}`)}
+              onClick={() => navigate(`/services/view/${provider.id}`)}
             >
               <CardContent className="p-4 sm:p-6">
                 <div className="flex flex-col sm:flex-row gap-4">
@@ -245,7 +246,7 @@ const FindServices = () => {
                     <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mb-3">
                       {provider.location && (
                         <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3 flex-shrink-0" />
+                          <img src={LocationIcon} alt="Location" className="w-3 h-3 flex-shrink-0" />
                           <span className="truncate">{provider.location}</span>
                         </span>
                       )}
@@ -282,7 +283,7 @@ const FindServices = () => {
                             size="sm" 
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`/service/${provider.id}`);
+                              navigate(`/services/view/${provider.id}`);
                             }}
                           >
                             <Eye className="w-4 h-4 mr-2" />

@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Image, MapPin, X, Send, Plus, ChevronLeft, MessageCircle, Loader2, Search } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { X, Send, Plus, ChevronLeft, MessageCircle, Loader2, Search } from 'lucide-react';
+import CustomImageIcon from '@/assets/icons/image-icon.svg';
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
@@ -27,6 +29,15 @@ const getInitials = (name?: string) => {
   return name.slice(0, 2).toUpperCase();
 };
 
+/** Check if a URL is a valid avatar (not a placeholder/unsplash sample) */
+const isValidAvatar = (url?: string | null): boolean => {
+  if (!url) return false;
+  if (url.includes('unsplash.com')) return false;
+  if (url.includes('placeholder')) return false;
+  if (url.includes('randomuser.me')) return false;
+  return true;
+};
+
 const Messages = () => {
   useWorkspaceMeta({
     title: 'Messages',
@@ -46,10 +57,24 @@ const Messages = () => {
   const [showChatList, setShowChatList] = useState(true);
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [startingChat, setStartingChat] = useState(false);
+  const [selectedNewUser, setSelectedNewUser] = useState<SearchedUser | null>(null);
   const [initialMessage, setInitialMessage] = useState('');
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const inputFileRef = useRef<HTMLInputElement | null>(null);
   const isMobile = useIsMobile();
+
+  // Handle deep-link: ?conversationId=xxx
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const deepLinkId = searchParams.get('conversationId');
+    if (deepLinkId && conversations.length > 0) {
+      const found = conversations.find(c => c.id === deepLinkId);
+      if (found) {
+        setSelectedConversationId(deepLinkId);
+        if (isMobile) setShowChatList(false);
+      }
+    }
+  }, [searchParams, conversations]);
 
   // FIX: Ref to prevent duplicate mark-as-read calls
   const lastMarkedRef = useRef<string | null>(null);
@@ -172,35 +197,41 @@ const Messages = () => {
 
   const selectedConversation = conversations.find(c => c.id === selectedConversationId);
 
-  const handleStartNewChat = async (user: SearchedUser) => {
-    if (!initialMessage.trim()) {
-      toast.error('Please type a message to start the conversation');
-      return;
-    }
-
-    // Check if conversation already exists with this user
-    const existingConv = conversations.find(c => c.participant?.id === user.id);
+  const handleSelectUser = (user: SearchedUser) => {
+    // Check if personal conversation already exists with this user (no service)
+    const existingConv = conversations.find(c => c.participant?.id === user.id && !c.service);
     if (existingConv) {
       setNewChatOpen(false);
+      setSelectedNewUser(null);
       setInitialMessage('');
       setSelectedConversationId(existingConv.id);
       if (isMobile) setShowChatList(false);
+      return;
+    }
+    // Show the message prompt for this user
+    setSelectedNewUser(user);
+  };
+
+  const handleConfirmNewChat = async () => {
+    if (!selectedNewUser) return;
+    if (!initialMessage.trim()) {
+      toast.error('Please type a message to start the conversation');
       return;
     }
 
     setStartingChat(true);
     try {
       const response = await messagesApi.startConversation({
-        recipient_id: user.id,
+        recipient_id: selectedNewUser.id,
         message: initialMessage.trim(),
       });
       if (response.success && response.data) {
         setNewChatOpen(false);
+        setSelectedNewUser(null);
         setInitialMessage('');
         await refetchConversations();
         setSelectedConversationId(response.data.id || null);
         if (isMobile) setShowChatList(false);
-        toast.success(`Chat started with ${user.first_name}`);
       }
     } catch (err: any) {
       toast.error(err?.message || "Failed to start conversation");
@@ -254,38 +285,63 @@ const Messages = () => {
   }
 
   const newChatDialog = (
-    <Dialog open={newChatOpen} onOpenChange={(open) => { setNewChatOpen(open); if (!open) setInitialMessage(''); }}>
+    <Dialog open={newChatOpen} onOpenChange={(open) => { setNewChatOpen(open); if (!open) { setInitialMessage(''); setSelectedNewUser(null); } }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>New Conversation</DialogTitle>
         </DialogHeader>
         <div className="py-4 space-y-4">
-          <div>
-            <p className="text-sm text-muted-foreground mb-3">Search for a user to start chatting with</p>
-            <UserSearchInput 
-              onSelect={handleStartNewChat} 
-              placeholder="Search by name, email, or phone..." 
-              disabled={startingChat || !initialMessage.trim()}
-              allowRegister={false}
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Your first message</label>
-            <textarea
-              value={initialMessage}
-              onChange={(e) => setInitialMessage(e.target.value)}
-              placeholder="Type your message..."
-              rows={1}
-              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground resize-none overflow-hidden"
-              onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 120) + 'px'; }}
-            />
-            {!initialMessage.trim() && (
-              <p className="text-xs text-muted-foreground mt-1">Type a message before selecting a user</p>
-            )}
-          </div>
-          {startingChat && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="w-4 h-4 animate-spin" /> Starting conversation...
+          {!selectedNewUser ? (
+            <div>
+              <p className="text-sm text-muted-foreground mb-3">Search for a person to chat with</p>
+              <UserSearchInput 
+                onSelect={handleSelectUser} 
+                placeholder="Search by name, email, or phone..." 
+                disabled={startingChat}
+                allowRegister={false}
+              />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Selected user card */}
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border">
+                <Avatar className="w-10 h-10">
+                  {isValidAvatar(selectedNewUser.avatar) && (
+                    <AvatarImage src={selectedNewUser.avatar!} alt={selectedNewUser.first_name} />
+                  )}
+                  <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
+                    {getInitials(`${selectedNewUser.first_name} ${selectedNewUser.last_name}`)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate">{selectedNewUser.first_name} {selectedNewUser.last_name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{selectedNewUser.email || selectedNewUser.phone}</p>
+                </div>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedNewUser(null)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              {/* Message input */}
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Say hello 👋</label>
+                <textarea
+                  value={initialMessage}
+                  onChange={(e) => setInitialMessage(e.target.value)}
+                  placeholder={`Write a message to ${selectedNewUser.first_name}...`}
+                  rows={3}
+                  autoFocus
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground resize-none"
+                />
+              </div>
+              
+              <Button 
+                className="w-full" 
+                disabled={!initialMessage.trim() || startingChat}
+                onClick={handleConfirmNewChat}
+              >
+                {startingChat ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Starting...</> : <><Send className="w-4 h-4 mr-2" /> Start Conversation</>}
+              </Button>
             </div>
           )}
         </div>
@@ -341,7 +397,7 @@ const Messages = () => {
               >
                 <div className="relative">
                   <Avatar className={`w-12 h-12 ${isSelected ? 'ring-2 ring-primary/40' : ''}`}>
-                    {conversation.participant?.avatar ? (
+                    {isValidAvatar(conversation.participant?.avatar) ? (
                       <AvatarImage src={conversation.participant.avatar} alt={participantName} />
                     ) : null}
                     <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
@@ -393,7 +449,7 @@ const Messages = () => {
                 </Button>
               )}
               <Avatar className="w-8 h-8 md:w-9 md:h-9 flex-shrink-0">
-                {selectedConversation.participant?.avatar ? (
+                {isValidAvatar(selectedConversation.participant?.avatar) ? (
                   <AvatarImage src={selectedConversation.participant.avatar} alt="User" />
                 ) : null}
                 <AvatarFallback className="bg-primary/10 text-primary font-semibold text-xs md:text-sm">
@@ -430,7 +486,7 @@ const Messages = () => {
                       {/* Receiver avatar */}
                       {!isSender && (
                         <Avatar className="w-7 h-7 mr-2 mt-1 flex-shrink-0">
-                          {selectedConversation.participant?.avatar ? (
+                          {isValidAvatar(selectedConversation.participant?.avatar) ? (
                             <AvatarImage src={selectedConversation.participant.avatar} alt="" />
                           ) : null}
                           <AvatarFallback className="bg-muted text-muted-foreground text-[10px] font-medium">
@@ -497,7 +553,7 @@ const Messages = () => {
                   />
 
                   <label className="p-1.5 hover:bg-muted rounded-full cursor-pointer transition-colors shrink-0" title="Attach image">
-                    <Image className="w-4 h-4 md:w-5 md:h-5 text-muted-foreground" />
+                    <img src={CustomImageIcon} alt="Attach image" className="w-4 h-4 md:w-5 md:h-5" />
                     <input
                       ref={inputFileRef}
                       type="file"

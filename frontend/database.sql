@@ -3,7 +3,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ENUMS
 CREATE TYPE event_status AS ENUM ('draft', 'confirmed', 'completed', 'published', 'cancelled');
 CREATE TYPE payment_status AS ENUM ('pending', 'completed', 'refunded');
-CREATE TYPE payment_method AS ENUM ('mobile', 'bank', 'card');
+CREATE TYPE payment_method AS ENUM ('cash', 'mobile', 'bank', 'card');
 CREATE TYPE rsvp_status AS ENUM ('pending', 'confirmed', 'declined', 'checked_in');
 CREATE TYPE verification_status AS ENUM ('pending', 'verified', 'rejected');
 CREATE TYPE otp_verification_type AS ENUM ('phone', 'email');
@@ -1401,3 +1401,5 @@ ALTER TABLE conversations DROP CONSTRAINT uq_user_to_user;
 CREATE UNIQUE INDEX uq_user_to_user ON conversations (user_one_id, user_two_id) WHERE service_id IS NULL;
 
 ALTER TABLE nuru_cards ALTER COLUMN card_number TYPE VARCHAR(20)
+
+ALTER TYPE payment_method ADD VALUE IF NOT EXISTS 'cash' BEFORE 'mobile';

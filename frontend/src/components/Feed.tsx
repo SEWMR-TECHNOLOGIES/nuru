@@ -7,6 +7,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 
+const SCROLL_KEY = 'feedScrollPosition';
+
+const getScrollContainer = () =>
+  document.querySelector('.flex-1.overflow-y-auto') as HTMLElement | null;
+
 const getInitials = (name: string) => {
   const parts = name.trim().split(/\s+/);
   if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
@@ -16,6 +21,7 @@ const getInitials = (name: string) => {
 const Feed = () => {
   const { items: apiPosts, loading, error, refetch } = useFeed();
   const hasLoadedOnce = useRef(false);
+  const scrollRestoredRef = useRef(false);
 
   useEffect(() => {
     if (!loading && apiPosts.length >= 0) {
@@ -23,18 +29,33 @@ const Feed = () => {
     }
   }, [loading, apiPosts]);
 
+  // Save scroll position before navigating away
   useEffect(() => {
-    const savedPosition = sessionStorage.getItem('feedScrollPosition');
-    if (savedPosition) {
-      setTimeout(() => {
-        const scrollContainer = document.querySelector('.flex-1.overflow-y-auto');
-        if (scrollContainer) {
-          scrollContainer.scrollTop = parseInt(savedPosition, 10);
-        }
-        sessionStorage.removeItem('feedScrollPosition');
-      }, 0);
-    }
+    const container = getScrollContainer();
+    if (!container) return;
+
+    const handleScroll = () => {
+      sessionStorage.setItem(SCROLL_KEY, String(container.scrollTop));
+    };
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Restore scroll position after data is ready (only once per mount)
+  useEffect(() => {
+    if (scrollRestoredRef.current || loading) return;
+    const savedPosition = sessionStorage.getItem(SCROLL_KEY);
+    if (savedPosition) {
+      scrollRestoredRef.current = true;
+      // Use rAF to ensure DOM has rendered with cached data
+      requestAnimationFrame(() => {
+        const container = getScrollContainer();
+        if (container) {
+          container.scrollTop = parseInt(savedPosition, 10);
+        }
+      });
+    }
+  }, [loading, apiPosts]);
 
   const transformApiPost = (apiPost: any) => {
     const authorName = apiPost.author?.name || apiPost.user?.first_name

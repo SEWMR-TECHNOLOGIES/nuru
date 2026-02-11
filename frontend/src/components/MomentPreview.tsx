@@ -1,4 +1,5 @@
-import { Heart, MessageCircle, Share2, ImageIcon } from 'lucide-react';
+import { Heart, MessageCircle, Share2 } from 'lucide-react';
+import CustomImageIcon from '@/assets/icons/image-icon.svg';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 interface LocationData {
@@ -112,7 +113,7 @@ const MomentPreview = ({ text, previews, location }: MomentPreviewProps) => {
         {!text.trim() && previews.length === 0 && location && (
           <div className="flex items-center justify-center py-6 text-muted-foreground">
             <div className="text-center">
-              <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <img src={CustomImageIcon} alt="Image" className="w-8 h-8 mx-auto mb-2 opacity-50" />
               <p className="text-xs">Add text or images to your moment</p>
             </div>
           </div>

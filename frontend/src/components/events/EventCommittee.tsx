@@ -118,6 +118,7 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
     setIsSubmitting(true);
     try {
       await addMember({
+        user_id: selectedUser.id,
         name: `${selectedUser.first_name} ${selectedUser.last_name}`,
         email: selectedUser.email,
         phone: selectedUser.phone || undefined,
@@ -288,7 +289,7 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
                   <div className="flex items-center gap-3">
                     <Avatar>
                       <AvatarImage src={member.avatar || undefined} />
-                      <AvatarFallback>{member.name.charAt(0)}</AvatarFallback>
+                      <AvatarFallback>{(member.name || 'U').charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div>
                       <p className="font-medium">{member.name}</p>

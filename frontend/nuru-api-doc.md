@@ -12667,3 +12667,38 @@ ALTER TABLE user_feeds ADD COLUMN visibility feed_visibility_enum DEFAULT 'publi
 - When vendor accepts a booking via `POST /bookings/{bookingId}/respond`, the `quoted_price` is synced to `EventService.agreed_price`
 - `EventService.service_status` is also updated to `confirmed` on acceptance
 - This ensures the service calendar (`GET /services/{id}/calendar`) shows the actual quoted price, not the service min_price
+
+### Public Service Detail Page (2026-02-11)
+- New frontend page `PublicServiceDetail` at route `/services/view/:id` — any authenticated user can view service details in read-only mode
+- Calendar shows booked/available dates without event names, locations, or agreed prices (those are owner-only in the existing `/service/:id` page)
+- Reviews section displays all client reviews with pagination
+- Review submission form: star rating + comment (min 10 chars, max 2000 chars)
+
+### Submit Service Review Endpoint (2026-02-11)
+- `POST /services/{service_id}/reviews` — Authenticated endpoint
+- **Eligibility**: Only users whose events had this service provider assigned (confirmed/completed/accepted status) can review
+- **Once only**: Each user can review a service only once
+- **Cannot review own service**
+- **Validation**: rating (1-5 integer, required), comment (10-2000 chars, required)
+- **Request Body:**
+```json
+{
+  "rating": 5,
+  "comment": "Excellent service, very professional and timely."
+}
+```
+- **Success Response:**
+```json
+{
+  "success": true,
+  "message": "Review submitted successfully",
+  "data": {
+    "id": "uuid",
+    "user_name": "John Doe",
+    "rating": 5,
+    "comment": "Excellent service...",
+    "created_at": "2026-02-11T10:00:00Z"
+  }
+}
+```
+- **Error responses**: "You cannot review your own service", "You can only review services that were assigned to your events", "You have already reviewed this service", validation errors for rating/comment

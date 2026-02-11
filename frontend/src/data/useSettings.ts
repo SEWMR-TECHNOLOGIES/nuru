@@ -7,18 +7,24 @@
 import { useState, useEffect, useCallback } from "react";
 import { settingsApi } from "@/lib/api/settings";
 
+// Module-level cache for settings
+let _settingsCache: any = null;
+let _settingsHasLoaded = false;
+
 export const useSettings = () => {
-  const [settings, setSettings] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState<any>(_settingsCache);
+  const [loading, setLoading] = useState(!_settingsHasLoaded);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
 
   const fetchSettings = useCallback(async () => {
-    setLoading(true);
+    if (!_settingsHasLoaded) setLoading(true);
     setError(null);
     try {
       const response = await settingsApi.getSettings();
       if (response.success && response.data) {
+        _settingsCache = response.data;
+        _settingsHasLoaded = true;
         setSettings(response.data);
       } else {
         setError(response.message || "Failed to fetch settings");

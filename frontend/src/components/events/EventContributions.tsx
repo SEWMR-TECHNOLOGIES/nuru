@@ -35,12 +35,12 @@ interface EventContributionsProps {
 }
 
 const PAYMENT_METHODS = [
-  { id: 'mpesa', name: 'M-Pesa', icon: '📱' },
-  { id: 'bank_transfer', name: 'Bank Transfer', icon: '🏦' },
-  { id: 'cash', name: 'Cash', icon: '💵' },
-  { id: 'card', name: 'Card', icon: '💳' },
-  { id: 'cheque', name: 'Cheque', icon: '📄' },
-  { id: 'other', name: 'Other', icon: '📋' }
+  { id: 'cash', name: 'Cash' },
+  { id: 'mobile', name: 'Mobile Money' },
+  { id: 'bank_transfer', name: 'Bank Transfer' },
+  { id: 'card', name: 'Card' },
+  { id: 'cheque', name: 'Cheque' },
+  { id: 'other', name: 'Other' }
 ];
 
 const ITEMS_PER_PAGE = 10;
@@ -80,7 +80,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Payment form
-  const [payment, setPayment] = useState({ amount: '', payment_method: 'mpesa', payment_reference: '' });
+  const [payment, setPayment] = useState({ amount: '', payment_method: 'cash', payment_reference: '' });
 
   // Edit pledge
   const [editAmount, setEditAmount] = useState('');
@@ -424,7 +424,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
                 <Label>Payment Method</Label>
                 <Select value={payment.payment_method} onValueChange={(v) => setPayment(p => ({ ...p, payment_method: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{PAYMENT_METHODS.map(m => <SelectItem key={m.id} value={m.id}>{m.icon} {m.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>{PAYMENT_METHODS.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </div>
