@@ -1,16 +1,31 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Users, Crown, Plus, Loader2, Heart, Send, Image as ImageIcon } from 'lucide-react';
+import { ChevronLeft, Users, Crown, Plus, Loader2, Heart, Send, Image as ImageIcon, X, Search, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { socialApi } from '@/lib/api/social';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { getTimeAgo } from '@/utils/getTimeAgo';
+import { useUserSearch } from '@/hooks/useUserSearch';
+
+const getInitials = (name: string) => {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  return name.charAt(0).toUpperCase();
+};
 
 const CommunityDetail = () => {
   const { id } = useParams();
@@ -30,6 +45,27 @@ const CommunityDetail = () => {
   const [postPreviews, setPostPreviews] = useState<string[]>([]);
   const [posting, setPosting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Add member dialog
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [addingMember, setAddingMember] = useState(false);
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const { results: memberSearchResults, loading: memberSearchLoading, search: searchUsers } = useUserSearch();
+
+  useEffect(() => {
+    searchUsers(memberSearchQuery);
+  }, [memberSearchQuery, searchUsers]);
+
+  const fetchMembers = async () => {
+    if (!id) return;
+    try {
+      const mRes = await socialApi.getCommunityMembers(id);
+      if (mRes.success) {
+        const md = mRes.data as any;
+        setMembers(md?.members || (Array.isArray(md) ? md : []));
+      }
+    } catch { /* silent */ }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -64,9 +100,41 @@ const CommunityDetail = () => {
       if (res.success) {
         toast.success('Joined community!');
         setCommunity((prev: any) => prev ? { ...prev, is_member: true, member_count: (prev.member_count || 0) + 1 } : prev);
+        await fetchMembers();
       }
     } catch { toast.error('Failed to join'); }
     finally { setJoining(false); }
+  };
+
+  const handleAddMember = async (userId: string) => {
+    if (!id) return;
+    setAddingMember(true);
+    try {
+      const res = await socialApi.addCommunityMember(id, userId);
+      if (res.success) {
+        toast.success('Member added!');
+        await fetchMembers();
+        setCommunity((prev: any) => prev ? { ...prev, member_count: (prev.member_count || 0) + 1 } : prev);
+        setMemberSearchQuery('');
+      } else {
+        toast.error(res.message || 'Failed to add member');
+      }
+    } catch { toast.error('Failed to add member'); }
+    finally { setAddingMember(false); }
+  };
+
+  const handleRemoveMember = async (userId: string) => {
+    if (!id) return;
+    try {
+      const res = await socialApi.removeCommunityMember(id, userId);
+      if (res.success) {
+        toast.success('Member removed');
+        await fetchMembers();
+        setCommunity((prev: any) => prev ? { ...prev, member_count: Math.max(0, (prev.member_count || 0) - 1) } : prev);
+      } else {
+        toast.error(res.message || 'Failed to remove member');
+      }
+    } catch { toast.error('Failed to remove member'); }
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -94,7 +162,6 @@ const CommunityDetail = () => {
         setPostContent('');
         setPostImages([]);
         setPostPreviews([]);
-        // Refresh posts
         const pRes = await socialApi.getCommunityPosts(id);
         if (pRes.success) {
           const pd = pRes.data as any;
@@ -109,7 +176,6 @@ const CommunityDetail = () => {
 
   const handleGlow = async (postId: string, hasGlowed: boolean) => {
     if (!id) return;
-    // Optimistic update
     setPosts(prev => prev.map(p =>
       p.id === postId
         ? { ...p, has_glowed: !hasGlowed, glow_count: (p.glow_count || 0) + (hasGlowed ? -1 : 1) }
@@ -122,7 +188,6 @@ const CommunityDetail = () => {
         await socialApi.glowCommunityPost(id, postId);
       }
     } catch {
-      // Revert
       setPosts(prev => prev.map(p =>
         p.id === postId
           ? { ...p, has_glowed: hasGlowed, glow_count: (p.glow_count || 0) + (hasGlowed ? 1 : -1) }
@@ -135,6 +200,9 @@ const CommunityDetail = () => {
   const isCreator = community?.is_creator && currentUser && community.created_by
     ? String(community.created_by) === String(currentUser.id)
     : community?.is_creator;
+
+  // Existing member IDs for filtering search results
+  const memberIds = new Set(members.map((m: any) => m.id || m.user_id));
 
   if (loading) {
     return (
@@ -181,7 +249,7 @@ const CommunityDetail = () => {
             </div>
             <p className="text-muted-foreground mt-1">{community.description || 'No description'}</p>
             <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
-              <Users className="w-4 h-4" /> {community.member_count || 0} members
+              <Users className="w-4 h-4" /> {members.length || community.member_count || 0} members
             </p>
           </div>
           {!community.is_member && (
@@ -196,20 +264,42 @@ const CommunityDetail = () => {
       {/* Members preview */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Members ({members.length})</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Members ({members.length})</CardTitle>
+            {isCreator && (
+              <Button size="sm" variant="outline" onClick={() => setAddMemberOpen(true)}>
+                <Plus className="w-4 h-4 mr-1" /> Add Member
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-3">
-            {members.slice(0, 10).map((m: any) => (
-              <div key={m.id} className="flex items-center gap-2">
-                <Avatar className="w-8 h-8">
-                  <AvatarImage src={m.avatar} />
-                  <AvatarFallback className="text-xs">{m.first_name?.[0]}{m.last_name?.[0]}</AvatarFallback>
-                </Avatar>
-                <span className="text-sm">{m.first_name} {m.last_name}</span>
-                {m.role === 'admin' && <Badge variant="outline" className="text-xs">Admin</Badge>}
-              </div>
-            ))}
+            {members.slice(0, 10).map((m: any) => {
+              const mName = m.first_name 
+                ? `${m.first_name} ${m.last_name || ''}`.trim() 
+                : m.name || m.username || 'User';
+              const mUserId = m.user_id || m.id;
+              return (
+                <div key={m.id || mUserId} className="flex items-center gap-2 group">
+                  <Avatar className="w-8 h-8">
+                    <AvatarImage src={m.avatar} />
+                    <AvatarFallback className="text-xs">{getInitials(mName)}</AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm">{mName}</span>
+                  {m.role === 'admin' && <Badge variant="outline" className="text-xs">Admin</Badge>}
+                  {isCreator && String(mUserId) !== String(currentUser?.id) && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleRemoveMember(mUserId); }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive/80"
+                      title="Remove member"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
             {members.length > 10 && (
               <span className="text-sm text-muted-foreground self-center">+{members.length - 10} more</span>
             )}
@@ -217,6 +307,55 @@ const CommunityDetail = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Member Dialog */}
+      <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Member</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name, phone, or email..."
+                value={memberSearchQuery}
+                onChange={(e) => setMemberSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <div className="max-h-60 overflow-y-auto space-y-2">
+              {memberSearchLoading && <p className="text-sm text-muted-foreground text-center py-4">Searching...</p>}
+              {!memberSearchLoading && memberSearchQuery.length >= 2 && memberSearchResults.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">No users found</p>
+              )}
+              {memberSearchResults
+                .filter((u: any) => !memberIds.has(u.id))
+                .map((user: any) => {
+                  const uName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username || 'User';
+                  return (
+                    <div key={user.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="w-9 h-9">
+                          <AvatarImage src={user.avatar} />
+                          <AvatarFallback className="text-xs">{getInitials(uName)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="text-sm font-medium">{uName}</p>
+                          <p className="text-xs text-muted-foreground">@{user.username}</p>
+                        </div>
+                      </div>
+                      <Button size="sm" onClick={() => handleAddMember(user.id)} disabled={addingMember}>
+                        {addingMember ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3 mr-1" />}
+                        Add
+                      </Button>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Creator post input */}
       {isCreator && (
@@ -260,24 +399,22 @@ const CommunityDetail = () => {
           <div className="space-y-4">
             {posts.map((post: any) => {
               const author = post.author || {};
+              const authorName = author.name || `${author.first_name || ''} ${author.last_name || ''}`.trim() || 'Unknown';
               const images = post.images || [];
               return (
                 <Card key={post.id}>
                   <CardContent className="pt-4">
-                    {/* Author */}
                     <div className="flex items-center gap-3 mb-3">
                       <Avatar className="w-9 h-9">
                         <AvatarImage src={author.avatar} />
-                        <AvatarFallback className="text-xs">{author.name?.[0] || '?'}</AvatarFallback>
+                        <AvatarFallback className="text-xs">{getInitials(authorName)}</AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-semibold text-sm">{author.name || 'Unknown'}</p>
+                        <p className="font-semibold text-sm">{authorName}</p>
                         <p className="text-xs text-muted-foreground">{post.created_at ? getTimeAgo(post.created_at) : ''}</p>
                       </div>
                     </div>
-                    {/* Content */}
                     {post.content && <p className="text-foreground whitespace-pre-wrap mb-3">{post.content}</p>}
-                    {/* Images */}
                     {images.length > 0 && (
                       <div className={images.length === 1 ? '' : 'flex gap-2 overflow-x-auto mb-3'}>
                         {images.length === 1 ? (
@@ -289,7 +426,6 @@ const CommunityDetail = () => {
                         )}
                       </div>
                     )}
-                    {/* Glow action */}
                     <div className="flex items-center gap-3 pt-2 border-t border-border">
                       <button
                         onClick={() => handleGlow(post.id, post.has_glowed || false)}

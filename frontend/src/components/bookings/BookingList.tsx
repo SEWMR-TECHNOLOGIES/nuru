@@ -113,7 +113,7 @@ const MyBookingsTab = () => {
   const navigate = useNavigate();
   const { bookings, summary, loading, error, cancelBooking, refetch } = useMyBookings();
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('accepted');
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingRequest | null>(null);
   const [cancelReason, setCancelReason] = useState('');
@@ -283,7 +283,7 @@ const IncomingBookingsTab = () => {
   const navigate = useNavigate();
   const { bookings, summary, loading, error, respondToBooking, completeBooking, refetch } = useIncomingBookings();
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('pending');
   const [responseDialogOpen, setResponseDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingRequest | null>(null);
   const [responseType, setResponseType] = useState<'accept' | 'reject'>('accept');
@@ -553,7 +553,9 @@ const BookingCard = ({ booking, onView, onCancel, onAccept, onReject, onComplete
                 <AvatarImage src={booking.service.primary_image} />
               )}
               <AvatarFallback>
-                {isVendor ? booking.client.name.charAt(0) : booking.service.title.charAt(0)}
+                {isVendor 
+                  ? booking.client.name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+                  : booking.service.title.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
@@ -570,7 +572,7 @@ const BookingCard = ({ booking, onView, onCancel, onAccept, onReject, onComplete
           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-1">
               <Calendar className="w-4 h-4" />
-              <span>{new Date(booking.event_date).toLocaleDateString()}</span>
+              <span>{booking.event_date ? new Date(booking.event_date).toLocaleDateString() : 'TBD'}</span>
             </div>
             {booking.location && (
               <div className="flex items-center gap-1">

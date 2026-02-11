@@ -9,12 +9,31 @@ from fastapi import APIRouter, Depends, Body
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from models import ServiceBookingRequest, UserService, Event, User
+from models import ServiceBookingRequest, UserService, Event, User, EventService
 from utils.auth import get_current_user
 from utils.helpers import standard_response
 
 EAT = pytz.timezone("Africa/Nairobi")
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
+
+
+def _get_primary_image(service):
+    """Get primary image for a service, checking images relation and cover_image."""
+    if hasattr(service, 'images') and service.images:
+        for img in service.images:
+            if hasattr(img, 'is_featured') and img.is_featured:
+                return img.image_url
+        return service.images[0].image_url
+    if hasattr(service, 'cover_image_url') and service.cover_image_url:
+        return service.cover_image_url
+    return None
+
+
+def _user_avatar(user):
+    """Get avatar URL from user profile."""
+    if user and hasattr(user, 'profile') and user.profile:
+        return user.profile.profile_picture_url
+    return None
 
 
 def _booking_dict(db, b):
@@ -26,12 +45,67 @@ def _booking_dict(db, b):
         vendor = db.query(User).filter(User.id == service.user_id).first()
     event = db.query(Event).filter(Event.id == b.event_id).first() if b.event_id else None
 
+    # Build enriched service dict
+    service_dict = None
+    if service:
+        service_dict = {
+            "id": str(service.id),
+            "title": service.title,
+            "primary_image": _get_primary_image(service),
+            "category": service.category.name if hasattr(service, 'category') and service.category else None,
+        }
+
+    # Build enriched client dict
+    client_dict = None
+    if requester:
+        client_dict = {
+            "id": str(requester.id),
+            "name": f"{requester.first_name} {requester.last_name}",
+            "avatar": _user_avatar(requester),
+            "phone": requester.phone,
+            "email": requester.email,
+        }
+
+    # Build enriched vendor dict
+    vendor_dict = None
+    if vendor:
+        vendor_dict = {
+            "id": str(vendor.id),
+            "name": f"{vendor.first_name} {vendor.last_name}",
+            "avatar": _user_avatar(vendor),
+            "phone": vendor.phone,
+            "email": vendor.email,
+        }
+
+    # Build enriched event dict
+    event_dict = None
+    if event:
+        event_date_str = None
+        if event.start_date:
+            event_date_str = event.start_date.isoformat() if hasattr(event.start_date, 'isoformat') else str(event.start_date)
+        event_dict = {
+            "id": str(event.id),
+            "title": event.name,
+            "date": event_date_str,
+            "start_time": event.start_time if hasattr(event, 'start_time') else None,
+            "end_time": event.end_time if hasattr(event, 'end_time') else None,
+            "location": event.location,
+            "venue": event.venue if hasattr(event, 'venue') else None,
+            "guest_count": event.expected_guests if hasattr(event, 'expected_guests') else None,
+        }
+
     return {
         "id": str(b.id),
-        "service": {"id": str(service.id), "title": service.title} if service else None,
-        "client": {"id": str(requester.id), "name": f"{requester.first_name} {requester.last_name}"} if requester else None,
-        "vendor": {"id": str(vendor.id), "name": f"{vendor.first_name} {vendor.last_name}"} if vendor else None,
-        "event": {"id": str(event.id), "title": event.name} if event else None,
+        "service": service_dict,
+        "client": client_dict,
+        "provider": vendor_dict,
+        "event": event_dict,
+        "event_name": event.name if event else None,
+        "event_date": event_dict["date"] if event_dict else None,
+        "event_type": None,
+        "location": event.location if event else None,
+        "venue": event.venue if event and hasattr(event, 'venue') else None,
+        "guest_count": event.expected_guests if event and hasattr(event, 'expected_guests') else None,
         "status": b.status if isinstance(b.status, str) else (b.status.value if hasattr(b.status, "value") else b.status),
         "message": b.message,
         "proposed_price": float(b.proposed_price) if b.proposed_price else None,
@@ -152,6 +226,20 @@ def respond_to_booking(booking_id: str, body: dict = Body(...), db: Session = De
     if "reason" in body and new_status == "rejected": b.vendor_notes = body.get("reason", "")
     b.responded_at = datetime.now(EAT)
     b.updated_at = datetime.now(EAT)
+
+    # Sync quoted_price → EventService.agreed_price so the calendar shows correct price
+    if new_status == "accepted" and b.event_id and b.user_service_id:
+        es = db.query(EventService).filter(
+            EventService.event_id == b.event_id,
+            EventService.provider_user_service_id == b.user_service_id
+        ).first()
+        if es:
+            if b.quoted_price:
+                es.agreed_price = b.quoted_price
+            if new_status == "accepted":
+                es.service_status = "confirmed"
+            es.updated_at = datetime.now(EAT)
+
     db.commit()
 
     # SMS & notification to event organizer

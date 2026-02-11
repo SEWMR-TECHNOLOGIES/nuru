@@ -106,13 +106,22 @@ const BookingDetail = () => {
             <CardContent>
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20 rounded-lg overflow-hidden bg-muted">
-                  {booking.service.primary_image && (
-                    <img 
-                      src={booking.service.primary_image} 
-                      alt={booking.service.title}
-                      className="w-full h-full object-cover"
-                    />
-                  )}
+                  {(() => {
+                    const img = booking.service.primary_image 
+                      || (booking.service as any).image 
+                      || (booking.service as any).cover_image
+                      || (booking.service as any).image_url
+                      || (Array.isArray((booking.service as any).images) && (booking.service as any).images.length > 0
+                        ? ((booking.service as any).images[0]?.url || (booking.service as any).images[0]?.image_url || (booking.service as any).images[0])
+                        : null);
+                    return img ? (
+                      <img src={typeof img === 'string' ? img : ''} alt={booking.service.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-lg font-semibold">
+                        {booking.service.title.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-lg">{booking.service.title}</h3>
@@ -147,12 +156,12 @@ const BookingDetail = () => {
               <div className="flex items-center gap-3">
                 <Calendar className="w-5 h-5 text-muted-foreground" />
                 <div>
-                  <p className="font-medium">{new Date(booking.event_date).toLocaleDateString('en-US', { 
+                    <p className="font-medium">{booking.event_date ? new Date(booking.event_date).toLocaleDateString('en-US', { 
                     weekday: 'long', 
                     year: 'numeric', 
                     month: 'long', 
                     day: 'numeric' 
-                  })}</p>
+                  }) : 'Date TBD'}</p>
                   {booking.event?.start_time && (
                     <p className="text-sm text-muted-foreground">
                       {booking.event.start_time} - {booking.event.end_time}
@@ -280,8 +289,8 @@ const BookingDetail = () => {
               <CardContent className="space-y-4">
                 <div className="flex items-center gap-3">
                   <Avatar>
-                    <AvatarImage src={booking.provider.avatar} />
-                    <AvatarFallback>{booking.provider.name.charAt(0)}</AvatarFallback>
+                    <AvatarImage src={booking.provider.avatar || (booking.provider as any).avatar_url || (booking.provider as any).profile_picture_url} />
+                    <AvatarFallback>{booking.provider.name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <div>
                     <p className="font-medium">{booking.provider.name}</p>
@@ -320,8 +329,8 @@ const BookingDetail = () => {
             <CardContent className="space-y-4">
               <div className="flex items-center gap-3">
                 <Avatar>
-                  <AvatarImage src={booking.client.avatar} />
-                  <AvatarFallback>{booking.client.name.charAt(0)}</AvatarFallback>
+                  <AvatarImage src={booking.client.avatar || (booking.client as any).avatar_url || (booking.client as any).profile_picture_url} />
+                  <AvatarFallback>{booking.client.name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <div>
                   <p className="font-medium">{booking.client.name}</p>

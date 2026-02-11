@@ -16,9 +16,13 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<any>(null);
+  const hasLoadedOnce = useRef(false);
 
   const fetchFeed = useCallback(async (params?: FeedQueryParams) => {
-    setLoading(true);
+    // Only show loading spinner on first load
+    if (!hasLoadedOnce.current) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const response = await socialApi.getFeed(params || initialParams);
@@ -27,6 +31,7 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
         const feedItems = feedData?.posts || feedData?.items || (Array.isArray(feedData) ? feedData : []);
         setItems(feedItems);
         setPagination(feedData?.pagination);
+        hasLoadedOnce.current = true;
       } else {
         setError(response.message || "Failed to fetch feed");
       }

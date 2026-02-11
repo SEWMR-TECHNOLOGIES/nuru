@@ -176,6 +176,10 @@ export const socialApi = {
     post<any>(`/communities/${communityId}/join`),
   leaveCommunity: (communityId: string) =>
     post<any>(`/communities/${communityId}/leave`),
+  addCommunityMember: (communityId: string, userId: string) =>
+    post<any>(`/communities/${communityId}/members`, { user_id: userId }),
+  removeCommunityMember: (communityId: string, userId: string) =>
+    del<any>(`/communities/${communityId}/members/${userId}`),
 
   // ============================================================================
   // NOTIFICATIONS

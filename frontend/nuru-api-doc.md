@@ -12625,3 +12625,45 @@ ALTER TABLE user_feeds ADD COLUMN visibility feed_visibility_enum DEFAULT 'publi
 
 ### Autocomplete Prevention
 - `autoComplete="off"` default on shared `Input` component
+
+# 📋 CHANGELOG (2026-02-11)
+
+## Backend Changes
+
+### Community Member Management
+- `POST /communities/{id}/members` — Creator can add a member by `user_id`
+- `DELETE /communities/{id}/members/{user_id}` — Creator can remove a member
+
+### Service Booking Notification
+- When a service provider is assigned to an event, an in-app notification + SMS is sent to the provider
+
+## Frontend Changes
+
+### Avatar Two-Initials Consistency
+- All avatar fallbacks (MomentDetail, BookingList, BookingDetail, CommunityDetail) now use two-letter initials (e.g., "JD" for John Doe) instead of a single letter
+
+### Feed Silent Refetch
+- Returning from MomentDetail no longer triggers skeleton loaders; data is refetched silently in the background
+
+### Booking Page Fixes
+- Invalid dates handled gracefully (shows "TBD" when event_date is null/invalid)
+- Service image fallback: shows initials when no image available
+- My Bookings tab defaults to showing "Accepted" status bookings
+- Incoming Requests tab defaults to showing "Pending" status bookings
+
+### Community Members Fix
+- Members count now reads from actual fetched members array instead of stale `member_count` field
+- Creator can add members via user search dialog (name, phone, email lookup)
+- Creator can remove members (hover to reveal remove button)
+- Community post author avatars use two-letter initials
+
+### Booking API Response Enrichment (2026-02-11)
+- `_booking_dict` now returns full service data: `primary_image` (resolved from images relation, cover_image_url fallbacks), `category`
+- `client` and `provider` objects now include `avatar` (from user profile `profile_picture_url`), `phone`, and `email`
+- `event` object now includes `date`, `start_time`, `end_time`, `location`, `venue`, `guest_count`
+- Top-level `event_name`, `event_date`, `location`, `venue`, `guest_count` fields populated from event relation
+
+### Booking Respond → Calendar Price Sync (2026-02-11)
+- When vendor accepts a booking via `POST /bookings/{bookingId}/respond`, the `quoted_price` is synced to `EventService.agreed_price`
+- `EventService.service_status` is also updated to `confirmed` on acceptance
+- This ensures the service calendar (`GET /services/{id}/calendar`) shows the actual quoted price, not the service min_price

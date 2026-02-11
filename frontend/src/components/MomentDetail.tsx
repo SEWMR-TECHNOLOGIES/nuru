@@ -13,6 +13,12 @@ import { socialApi } from '@/lib/api/social';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { Skeleton } from '@/components/ui/skeleton';
 
+const getInitials = (name: string) => {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  return name.charAt(0).toUpperCase();
+};
+
 const MomentDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -225,7 +231,7 @@ const MomentDetail = () => {
               <img src={authorAvatar} alt={authorName} className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover flex-shrink-0" />
             ) : (
               <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm flex-shrink-0">
-                {authorName.charAt(0)}
+                {getInitials(authorName)}
               </div>
             )}
             <div className="min-w-0">
@@ -316,7 +322,7 @@ const MomentDetail = () => {
             <img src={currentUser.avatar} alt="You" className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover flex-shrink-0" />
           ) : (
             <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm flex-shrink-0">
-              {currentUser?.first_name?.[0] || '?'}
+              {getInitials(`${currentUser?.first_name || ''} ${currentUser?.last_name || ''}`.trim() || '?')}
             </div>
           )}
           <div className="flex-1 space-y-2">
@@ -392,7 +398,7 @@ const MomentDetail = () => {
                     <img src={cAvatar} alt={cName} className="w-7 h-7 md:w-8 md:h-8 rounded-full object-cover flex-shrink-0" />
                   ) : (
                     <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground flex-shrink-0">
-                      {cName.charAt(0)}
+                      {getInitials(cName)}
                     </div>
                   )}
                   <div className="flex-1">
