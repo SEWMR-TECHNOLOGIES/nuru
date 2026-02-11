@@ -63,7 +63,7 @@ const LiveChat = () => {
     }, 1000);
   };
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
@@ -113,15 +113,17 @@ const LiveChat = () => {
 
       {/* Input */}
       <div className="p-4 border-t border-border">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 bg-transparent rounded-lg px-3 py-2 flex-1 border border-border">
-            <input
-              type="text"
+        <div className="flex items-end gap-2">
+          <div className="flex items-end gap-2 bg-transparent rounded-lg px-3 py-2 flex-1 border border-border">
+            <textarea
               placeholder="Type your message..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
-              className="flex-1 bg-transparent text-muted-foreground text-sm outline-none placeholder:text-muted-foreground"
+              rows={1}
+              className="flex-1 bg-transparent text-foreground text-sm outline-none placeholder:text-muted-foreground resize-none overflow-hidden"
+              style={{ maxHeight: '120px' }}
+              onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 120) + 'px'; }}
               aria-label="Type a message"
             />
           </div>

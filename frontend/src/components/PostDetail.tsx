@@ -306,6 +306,22 @@ const PostDetail = () => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleShare('whatsapp')}>
+                <Share2 className="w-4 h-4 mr-2" />
+                WhatsApp
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleShare('facebook')}>
+                <Share2 className="w-4 h-4 mr-2" />
+                Facebook
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleShare('twitter')}>
+                <Share2 className="w-4 h-4 mr-2" />
+                Twitter
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleShare('copy')}>
+                <Share2 className="w-4 h-4 mr-2" />
+                Copy Link
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={handleSave}>
                 <Bookmark className={`w-4 h-4 mr-2 ${saved ? 'fill-current' : ''}`} />
                 {saved ? 'Unsave' : 'Save'}
@@ -410,7 +426,7 @@ const PostDetail = () => {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendComment(); } }}
                 rows={1}
-                className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground resize-none overflow-hidden break-words"
+                className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground resize-none overflow-hidden whitespace-pre-wrap break-words"
                 style={{ minHeight: '1.5rem', maxHeight: '6rem' }}
                 onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 96) + 'px'; }}
               />

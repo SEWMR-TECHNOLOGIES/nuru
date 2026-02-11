@@ -361,12 +361,14 @@ const CommunityDetail = () => {
       {isCreator && (
         <Card>
           <CardContent className="pt-4">
-            <Textarea
+            <textarea
               placeholder="Share something with your community..."
               value={postContent}
               onChange={(e) => setPostContent(e.target.value)}
-              className="min-h-[80px] resize-none mb-3"
+              rows={2}
               maxLength={2000}
+              className="w-full bg-transparent text-foreground text-sm outline-none placeholder:text-muted-foreground resize-none overflow-hidden border border-border rounded-lg px-3 py-2 mb-3"
+              onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 200) + 'px'; }}
             />
             {postPreviews.length > 0 && (
               <div className="flex gap-2 overflow-x-auto mb-3">
@@ -400,46 +402,79 @@ const CommunityDetail = () => {
             {posts.map((post: any) => {
               const author = post.author || {};
               const authorName = author.name || `${author.first_name || ''} ${author.last_name || ''}`.trim() || 'Unknown';
+              const authorAvatar = author.avatar;
+              const isPlaceholderAvatar = !authorAvatar;
               const images = post.images || [];
               return (
-                <Card key={post.id}>
-                  <CardContent className="pt-4">
-                    <div className="flex items-center gap-3 mb-3">
-                      <Avatar className="w-9 h-9">
-                        <AvatarImage src={author.avatar} />
-                        <AvatarFallback className="text-xs">{getInitials(authorName)}</AvatarFallback>
-                      </Avatar>
+                <div key={post.id} className="bg-card rounded-lg shadow-sm border border-border overflow-hidden">
+                  {/* Post Header */}
+                  <div className="p-3 md:p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2 md:gap-3">
+                      {!isPlaceholderAvatar ? (
+                        <img
+                          src={authorAvatar}
+                          alt={authorName}
+                          className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
+                          {getInitials(authorName)}
+                        </div>
+                      )}
                       <div>
-                        <p className="font-semibold text-sm">{authorName}</p>
-                        <p className="text-xs text-muted-foreground">{post.created_at ? getTimeAgo(post.created_at) : ''}</p>
+                        <h3 className="font-semibold text-sm md:text-base text-foreground">{authorName}</h3>
+                        <p className="text-xs md:text-sm text-muted-foreground">{post.created_at ? getTimeAgo(post.created_at) : ''}</p>
                       </div>
                     </div>
-                    {post.content && <p className="text-foreground whitespace-pre-wrap mb-3">{post.content}</p>}
-                    {images.length > 0 && (
-                      <div className={images.length === 1 ? '' : 'flex gap-2 overflow-x-auto mb-3'}>
-                        {images.length === 1 ? (
-                          <img src={images[0]} alt="" className="w-full max-h-[400px] object-contain rounded-lg bg-muted/30 mb-3" />
-                        ) : (
-                          images.map((img: string, idx: number) => (
-                            <img key={idx} src={img} alt="" className="w-40 h-32 flex-shrink-0 object-cover rounded-lg" />
-                          ))
-                        )}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-3 pt-2 border-t border-border">
+                  </div>
+
+                  {/* Images */}
+                  {images.length > 0 && (
+                    <div className={`px-3 md:px-4 ${images.length > 1 ? 'flex gap-2 overflow-x-auto py-1' : ''}`}>
+                      {images.length === 1 ? (
+                        <img
+                          src={images[0]}
+                          alt=""
+                          className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30"
+                        />
+                      ) : (
+                        images.map((img: string, idx: number) => (
+                          <img
+                            key={idx}
+                            src={img}
+                            alt={`Post ${idx + 1}`}
+                            className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg"
+                          />
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {/* Text content */}
+                  {post.content && (
+                    <div className="px-3 md:px-4 py-3">
+                      <p className="text-foreground text-sm md:text-base whitespace-pre-wrap break-words">{post.content}</p>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="px-3 md:px-4 py-2 md:py-3 border-t border-border flex items-center justify-between">
+                    <div className="flex gap-2">
                       <button
                         onClick={() => handleGlow(post.id, post.has_glowed || false)}
-                        className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-colors text-sm ${
+                        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition-colors text-xs md:text-sm min-w-[60px] md:min-w-[80px] ${
                           post.has_glowed ? 'bg-red-100 text-red-600' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
                         }`}
                       >
-                        <Heart className={`w-4 h-4 ${post.has_glowed ? 'fill-current' : ''}`} />
-                        {post.has_glowed ? 'Glowed' : 'Glow'}
+                        <Heart className={`w-4 h-4 flex-shrink-0 ${post.has_glowed ? 'fill-current' : ''}`} />
+                        <span className="hidden sm:inline whitespace-nowrap">{post.has_glowed ? 'Glowed' : 'Glow'}</span>
                       </button>
-                      <span className="text-xs text-muted-foreground">{post.glow_count || 0} {(post.glow_count || 0) === 1 ? 'Glow' : 'Glows'}</span>
                     </div>
-                  </CardContent>
-                </Card>
+                    <div className="flex items-center gap-3 md:gap-4 text-xs md:text-sm text-muted-foreground">
+                      <span>{post.glow_count || 0} {(post.glow_count || 0) === 1 ? 'Glow' : 'Glows'}</span>
+                    </div>
+                  </div>
+                </div>
               );
             })}
           </div>

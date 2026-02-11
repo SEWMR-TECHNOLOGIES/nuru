@@ -163,7 +163,7 @@ const Messages = () => {
     }
   };
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
@@ -271,12 +271,13 @@ const Messages = () => {
           </div>
           <div>
             <label className="text-sm font-medium text-foreground mb-1.5 block">Your first message</label>
-            <input
-              type="text"
+            <textarea
               value={initialMessage}
               onChange={(e) => setInitialMessage(e.target.value)}
               placeholder="Type your message..."
-              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
+              rows={1}
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground resize-none overflow-hidden"
+              onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 120) + 'px'; }}
             />
             {!initialMessage.trim() && (
               <p className="text-xs text-muted-foreground mt-1">Type a message before selecting a user</p>
@@ -482,14 +483,16 @@ const Messages = () => {
               )}
 
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1 md:gap-2 bg-background rounded-full px-3 md:px-4 py-2 flex-1 border border-border shadow-sm">
-                  <input
-                    type="text"
+                <div className="flex items-end gap-1 md:gap-2 bg-background rounded-2xl px-3 md:px-4 py-2 flex-1 border border-border shadow-sm">
+                  <textarea
                     placeholder="Type a message..."
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={onKeyDown}
-                    className="flex-1 bg-transparent text-foreground text-sm outline-none placeholder:text-muted-foreground min-w-0"
+                    rows={1}
+                    className="flex-1 bg-transparent text-foreground text-sm outline-none placeholder:text-muted-foreground min-w-0 resize-none overflow-hidden"
+                    style={{ maxHeight: '120px' }}
+                    onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 120) + 'px'; }}
                     aria-label="Type a message"
                   />
 

@@ -59,7 +59,7 @@ const Post = ({ post }: PostProps) => {
   const hostedBy = post.event?.hostedBy;
   const date = post.event?.date;
 
-  const shareUrl = `${window.location.origin}/post/${post.id}`;
+  const shareUrl = `${window.location.origin}/shared/post/${post.id}`;
   const shareTitle = title;
 
   const handleShare = (platform: string) => {

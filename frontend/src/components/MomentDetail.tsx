@@ -39,7 +39,7 @@ const MomentDetail = () => {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const inputFileRef = useRef<HTMLInputElement | null>(null);
 
-  const shareUrl = `${window.location.origin}/post/${id}`;
+  const shareUrl = `${window.location.origin}/shared/post/${id}`;
   const shareTitle = post?.title || post?.content?.slice(0, 50) || 'Check out this moment on Nuru';
 
   // getTimeAgo imported from shared utility
@@ -159,7 +159,7 @@ const MomentDetail = () => {
     }
   };
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendEcho();
@@ -334,15 +334,17 @@ const MomentDetail = () => {
                 </button>
               </div>
             )}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 flex-1 border border-border rounded-lg px-3 py-2 min-w-0">
-                <input
-                  type="text"
+            <div className="flex items-end gap-2">
+              <div className="flex items-end gap-1.5 flex-1 border border-border rounded-lg px-3 py-2 min-w-0">
+                <textarea
                   placeholder="Add an echo..."
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={onKeyDown}
-                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground min-w-0"
+                  rows={1}
+                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground min-w-0 resize-none overflow-hidden whitespace-pre-wrap break-words"
+                  style={{ maxHeight: '120px' }}
+                  onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 120) + 'px'; }}
                   autoComplete="off"
                 />
                 <input

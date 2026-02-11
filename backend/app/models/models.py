@@ -599,24 +599,23 @@ class CommunityPost(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     community_id = Column(UUID(as_uuid=True), ForeignKey('communities.id', ondelete='CASCADE'), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    author_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     content = Column(Text)
-    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     # Relationships
     community = relationship("Community", back_populates="posts")
-    user = relationship("User")
-    images = relationship("CommunityPostImage", back_populates="community_post")
-    glows = relationship("CommunityPostGlow", back_populates="community_post")
+    author = relationship("User")
+    images = relationship("CommunityPostImage", back_populates="community_post", foreign_keys="CommunityPostImage.post_id")
+    glows = relationship("CommunityPostGlow", back_populates="community_post", foreign_keys="CommunityPostGlow.post_id")
 
 
 class CommunityPostImage(Base):
     __tablename__ = 'community_post_images'
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    community_post_id = Column(UUID(as_uuid=True), ForeignKey('community_posts.id', ondelete='CASCADE'), nullable=False)
+    post_id = Column(UUID(as_uuid=True), ForeignKey('community_posts.id', ondelete='CASCADE'), nullable=False)
     image_url = Column(Text, nullable=False)
     created_at = Column(DateTime, server_default=func.now())
 
@@ -628,12 +627,12 @@ class CommunityPostGlow(Base):
     __tablename__ = 'community_post_glows'
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    community_post_id = Column(UUID(as_uuid=True), ForeignKey('community_posts.id', ondelete='CASCADE'), nullable=False)
+    post_id = Column(UUID(as_uuid=True), ForeignKey('community_posts.id', ondelete='CASCADE'), nullable=False)
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     created_at = Column(DateTime, server_default=func.now())
 
     __table_args__ = (
-        UniqueConstraint('community_post_id', 'user_id', name='uq_community_post_glow'),
+        UniqueConstraint('post_id', 'user_id', name='uq_community_post_glow'),
     )
 
     # Relationships

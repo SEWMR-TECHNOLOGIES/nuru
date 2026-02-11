@@ -198,7 +198,85 @@ def get_community_members(community_id: str, page: int = 1, limit: int = 20, db:
                 "joined_at": m.joined_at.isoformat() if m.joined_at else None,
             })
 
-    return standard_response(True, "Members retrieved", {"members": members}, pagination=pagination)
+    return standard_response(True, "Members retrieved", {"members": members}, pagination=pagination, wrap_items=False)
+
+
+@router.post("/{community_id}/members")
+def add_community_member(community_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Creator adds a member to the community."""
+    try:
+        cid = uuid.UUID(community_id)
+    except ValueError:
+        return standard_response(False, "Invalid community ID")
+
+    c = db.query(Community).filter(Community.id == cid).first()
+    if not c:
+        return standard_response(False, "Community not found")
+
+    if str(c.created_by) != str(current_user.id):
+        return standard_response(False, "Only the community creator can add members")
+
+    user_id = body.get("user_id")
+    if not user_id:
+        return standard_response(False, "user_id is required")
+
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        return standard_response(False, "Invalid user ID")
+
+    existing = db.query(CommunityMember).filter(
+        CommunityMember.community_id == cid,
+        CommunityMember.user_id == uid
+    ).first()
+    if existing:
+        return standard_response(False, "User is already a member")
+
+    membership = CommunityMember(
+        id=uuid.uuid4(),
+        community_id=cid,
+        user_id=uid,
+        role="member",
+        joined_at=datetime.now(EAT),
+    )
+    db.add(membership)
+    c.member_count = (c.member_count or 0) + 1
+    db.commit()
+
+    return standard_response(True, "Member added", {"member_count": c.member_count})
+
+
+@router.delete("/{community_id}/members/{user_id}")
+def remove_community_member(community_id: str, user_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Creator removes a member from the community."""
+    try:
+        cid = uuid.UUID(community_id)
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+
+    c = db.query(Community).filter(Community.id == cid).first()
+    if not c:
+        return standard_response(False, "Community not found")
+
+    if str(c.created_by) != str(current_user.id):
+        return standard_response(False, "Only the community creator can remove members")
+
+    if str(uid) == str(current_user.id):
+        return standard_response(False, "Cannot remove yourself")
+
+    membership = db.query(CommunityMember).filter(
+        CommunityMember.community_id == cid,
+        CommunityMember.user_id == uid
+    ).first()
+    if not membership:
+        return standard_response(False, "User is not a member")
+
+    db.delete(membership)
+    c.member_count = max((c.member_count or 1) - 1, 0)
+    db.commit()
+
+    return standard_response(True, "Member removed", {"member_count": c.member_count})
 
 
 @router.get("/{community_id}/posts")
@@ -215,21 +293,20 @@ def get_community_posts(community_id: str, page: int = 1, limit: int = 20, db: S
 
     query = db.query(CommunityPost).filter(
         CommunityPost.community_id == cid,
-        CommunityPost.is_active == True,
     ).order_by(CommunityPost.created_at.desc())
 
     items, pagination_data = paginate(query, page, limit)
 
     posts = []
     for cp in items:
-        user = db.query(User).filter(User.id == cp.user_id).first()
-        profile = db.query(UserProfile).filter(UserProfile.user_id == cp.user_id).first() if user else None
-        images = db.query(CommunityPostImage).filter(CommunityPostImage.community_post_id == cp.id).all()
-        glow_count = db.query(sa_func.count(CommunityPostGlow.id)).filter(CommunityPostGlow.community_post_id == cp.id).scalar() or 0
+        user = db.query(User).filter(User.id == cp.author_id).first()
+        profile = db.query(UserProfile).filter(UserProfile.user_id == cp.author_id).first() if user else None
+        images = db.query(CommunityPostImage).filter(CommunityPostImage.post_id == cp.id).all()
+        glow_count = db.query(sa_func.count(CommunityPostGlow.id)).filter(CommunityPostGlow.post_id == cp.id).scalar() or 0
         has_glowed = False
         if current_user:
             has_glowed = db.query(CommunityPostGlow).filter(
-                CommunityPostGlow.community_post_id == cp.id,
+                CommunityPostGlow.post_id == cp.id,
                 CommunityPostGlow.user_id == current_user.id
             ).first() is not None
 
@@ -247,7 +324,7 @@ def get_community_posts(community_id: str, page: int = 1, limit: int = 20, db: S
             "created_at": cp.created_at.isoformat() if cp.created_at else None,
         })
 
-    return standard_response(True, "Community posts retrieved", {"posts": posts}, pagination=pagination_data)
+    return standard_response(True, "Community posts retrieved", {"posts": posts}, pagination=pagination_data, wrap_items=False)
 
 
 @router.post("/{community_id}/posts")
@@ -285,9 +362,8 @@ async def create_community_post(
     cp = CommunityPost(
         id=uuid.uuid4(),
         community_id=cid,
-        user_id=current_user.id,
+        author_id=current_user.id,
         content=content.strip() if content else None,
-        is_active=True,
         created_at=now,
         updated_at=now,
     )
@@ -305,7 +381,7 @@ async def create_community_post(
                     resp = await client.post(UPLOAD_SERVICE_URL, data={"target_path": f"nuru/uploads/communities/{cid}/"}, files={"file": (unique_name, file_content, file.content_type)}, timeout=20)
                     result = resp.json()
                     if result.get("success"):
-                        db.add(CommunityPostImage(id=uuid.uuid4(), community_post_id=cp.id, image_url=result["data"]["url"], created_at=now))
+                        db.add(CommunityPostImage(id=uuid.uuid4(), post_id=cp.id, image_url=result["data"]["url"], created_at=now))
                 except Exception:
                     pass
 
@@ -321,13 +397,13 @@ def glow_community_post(community_id: str, post_id: str, db: Session = Depends(g
         return standard_response(False, "Invalid post ID")
 
     existing = db.query(CommunityPostGlow).filter(
-        CommunityPostGlow.community_post_id == pid,
+        CommunityPostGlow.post_id == pid,
         CommunityPostGlow.user_id == current_user.id
     ).first()
     if existing:
         return standard_response(True, "Already glowed")
 
-    db.add(CommunityPostGlow(id=uuid.uuid4(), community_post_id=pid, user_id=current_user.id, created_at=datetime.now(EAT)))
+    db.add(CommunityPostGlow(id=uuid.uuid4(), post_id=pid, user_id=current_user.id, created_at=datetime.now(EAT)))
     db.commit()
     return standard_response(True, "Post glowed")
 
@@ -340,7 +416,7 @@ def unglow_community_post(community_id: str, post_id: str, db: Session = Depends
         return standard_response(False, "Invalid post ID")
 
     g = db.query(CommunityPostGlow).filter(
-        CommunityPostGlow.community_post_id == pid,
+        CommunityPostGlow.post_id == pid,
         CommunityPostGlow.user_id == current_user.id
     ).first()
     if g:
