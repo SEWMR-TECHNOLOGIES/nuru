@@ -11,6 +11,7 @@ from core.database import get_db
 from models import NuruCard, NuruCardOrder, User, EventAttendee
 from utils.auth import get_current_user
 from utils.helpers import standard_response
+from utils.validation_functions import validate_tanzanian_phone
 
 EAT = pytz.timezone("Africa/Nairobi")
 router = APIRouter(prefix="/nuru-cards", tags=["Nuru Cards"])
@@ -60,6 +61,14 @@ def order_card(body: dict = Body(...), db: Session = Depends(get_db), current_us
 
     delivery = body.get("delivery_address", {})
 
+    # Validate delivery phone
+    delivery_phone = delivery.get("phone", "")
+    if delivery_phone:
+        try:
+            delivery_phone = validate_tanzanian_phone(delivery_phone)
+        except ValueError as e:
+            return standard_response(False, str(e))
+
     # Create order
     order = NuruCardOrder(
         id=uuid.uuid4(),
@@ -67,7 +76,7 @@ def order_card(body: dict = Body(...), db: Session = Depends(get_db), current_us
         card_type=card_type,
         quantity=1,
         delivery_name=holder_name,
-        delivery_phone=delivery.get("phone", ""),
+        delivery_phone=delivery_phone,
         delivery_address=delivery.get("street", ""),
         delivery_city=delivery.get("city", ""),
         delivery_postal_code=delivery.get("postal_code", ""),

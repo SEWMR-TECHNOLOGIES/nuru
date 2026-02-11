@@ -30,6 +30,7 @@ from models import (
 )
 from utils.auth import get_current_user
 from utils.helpers import format_price, standard_response
+from utils.validation_functions import validate_tanzanian_phone
 from utils.sms import (
     sms_guest_added, sms_committee_invite, sms_contribution_recorded,
     sms_contribution_target_set, sms_thank_you, sms_booking_notification,
@@ -1708,9 +1709,17 @@ def record_contribution(event_id: str, body: dict = Body(...), db: Session = Dep
         except ValueError:
             pass
 
+    # Validate contributor phone if provided
+    contributor_phone = body.get("contributor_phone")
+    if contributor_phone:
+        try:
+            contributor_phone = validate_tanzanian_phone(contributor_phone)
+        except ValueError as e:
+            return standard_response(False, str(e))
+
     c = EventContribution(
         id=uuid.uuid4(), event_id=eid, contributor_user_id=contributor_user_id,
-        contributor_name=body.get("contributor_name"), contributor_contact={"email": body.get("contributor_email"), "phone": body.get("contributor_phone")},
+        contributor_name=body.get("contributor_name"), contributor_contact={"email": body.get("contributor_email"), "phone": contributor_phone},
         amount=float(amount), payment_method=body.get("payment_method", "mobile"),
         transaction_ref=body.get("transaction_reference"), contributed_at=now, created_at=now,
     )

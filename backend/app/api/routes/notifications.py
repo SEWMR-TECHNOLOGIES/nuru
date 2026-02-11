@@ -36,7 +36,7 @@ def get_notifications(page: int = 1, limit: int = 20, db: Session = Depends(get_
                         "id": str(sender.id),
                         "first_name": sender.first_name,
                         "last_name": sender.last_name,
-                        "avatar": profile.profile_image_url if profile else None,
+                        "avatar": profile.profile_picture_url if profile else None,
                     }
             except (ValueError, IndexError):
                 pass
@@ -56,7 +56,7 @@ def get_notifications(page: int = 1, limit: int = 20, db: Session = Depends(get_
     # unread count
     unread = db.query(Notification).filter(Notification.recipient_id == current_user.id, Notification.is_read == False).count()
 
-    return standard_response(True, "Notifications retrieved", {"notifications": data, "unread_count": unread}, pagination=pagination)
+    return standard_response(True, "Notifications retrieved", {"notifications": data, "unread_count": unread, "pagination": pagination})
 
 
 @router.get("/unread/count")

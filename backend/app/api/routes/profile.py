@@ -18,7 +18,7 @@ from models.enums import VerificationStatusEnum
 from utils.auth import get_current_user
 from utils.helpers import standard_response
 from utils.user_payload import build_user_payload
-from utils.validation_functions import validate_username
+from utils.validation_functions import validate_username, validate_tanzanian_phone
 
 EAT = pytz.timezone("Africa/Nairobi")
 router = APIRouter(prefix="/users", tags=["Users - Profile"])
@@ -76,7 +76,10 @@ async def update_profile(
     if username and username.strip():
         current_user.username = username.strip()
     if phone and phone.strip():
-        current_user.phone = phone.strip()
+        try:
+            current_user.phone = validate_tanzanian_phone(phone.strip())
+        except ValueError as e:
+            return standard_response(False, str(e))
 
     # Get or create profile
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()

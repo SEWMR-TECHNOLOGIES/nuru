@@ -19,6 +19,7 @@ from models import (
 from models.enums import PaymentMethodEnum
 from utils.auth import get_current_user
 from utils.helpers import standard_response
+from utils.validation_functions import validate_tanzanian_phone
 
 EAT = pytz.timezone("Africa/Nairobi")
 
@@ -144,12 +145,19 @@ def create_contributor(body: dict = Body(...), db: Session = Depends(get_db), cu
         return standard_response(False, "A contributor with this name already exists")
 
     now = datetime.now(EAT)
+    phone = (body.get("phone") or "").strip() or None
+    if phone:
+        try:
+            phone = validate_tanzanian_phone(phone)
+        except ValueError as e:
+            return standard_response(False, str(e))
+
     c = UserContributor(
         id=uuid.uuid4(),
         user_id=current_user.id,
         name=name,
         email=(body.get("email") or "").strip() or None,
-        phone=(body.get("phone") or "").strip() or None,
+        phone=phone,
         notes=(body.get("notes") or "").strip() or None,
         created_at=now,
         updated_at=now,
@@ -176,7 +184,13 @@ def update_contributor(contributor_id: str, body: dict = Body(...), db: Session 
     if "email" in body:
         c.email = (body["email"] or "").strip() or None
     if "phone" in body:
-        c.phone = (body["phone"] or "").strip() or None
+        phone_val = (body["phone"] or "").strip() or None
+        if phone_val:
+            try:
+                phone_val = validate_tanzanian_phone(phone_val)
+            except ValueError as e:
+                return standard_response(False, str(e))
+        c.phone = phone_val
     if "notes" in body:
         c.notes = (body["notes"] or "").strip() or None
 
@@ -301,12 +315,18 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
         ).first()
 
         if not contributor:
+            inline_phone = (body.get("phone") or "").strip() or None
+            if inline_phone:
+                try:
+                    inline_phone = validate_tanzanian_phone(inline_phone)
+                except ValueError as e:
+                    return standard_response(False, str(e))
             contributor = UserContributor(
                 id=uuid.uuid4(),
                 user_id=current_user.id,
                 name=name,
                 email=(body.get("email") or "").strip() or None,
-                phone=(body.get("phone") or "").strip() or None,
+                phone=inline_phone,
                 created_at=now,
                 updated_at=now,
             )
