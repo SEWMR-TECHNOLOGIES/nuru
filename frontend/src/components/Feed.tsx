@@ -7,11 +7,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 
+const getInitials = (name: string) => {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  return name.charAt(0).toUpperCase();
+};
+
 const Feed = () => {
   const { items: apiPosts, loading, error, refetch } = useFeed();
   const hasLoadedOnce = useRef(false);
 
-  // Track first successful load to suppress skeleton on re-mount
   useEffect(() => {
     if (!loading && apiPosts.length >= 0) {
       hasLoadedOnce.current = true;
@@ -31,36 +36,38 @@ const Feed = () => {
     }
   }, []);
 
-  // getTimeAgo imported from shared utility
+  const transformApiPost = (apiPost: any) => {
+    const authorName = apiPost.author?.name || apiPost.user?.first_name
+      ? `${apiPost.user?.first_name || ''} ${apiPost.user?.last_name || ''}`.trim() || apiPost.author?.name || 'Anonymous'
+      : 'Anonymous';
+    const authorAvatar = apiPost.author?.avatar || apiPost.user?.avatar || '';
 
-  const transformApiPost = (apiPost: any) => ({
-    id: apiPost.id,
-    type: apiPost.post_type || 'moment',
-    author: {
-      name: apiPost.author?.name || apiPost.user?.first_name
-        ? `${apiPost.user?.first_name || ''} ${apiPost.user?.last_name || ''}`.trim() || apiPost.author?.name || 'Anonymous'
-        : 'Anonymous',
-      avatar: apiPost.author?.avatar || apiPost.user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face',
-      timeAgo: apiPost.created_at ? getTimeAgo(apiPost.created_at) : 'Recently'
-    },
-    content: {
-      title: apiPost.title || '',
-      text: apiPost.content,
-      image: (() => {
-        const imgs = apiPost.images || apiPost.media || [];
-        if (imgs.length === 0) return undefined;
-        const first = imgs[0];
-        // Handle both string URLs and object {image_url, url}
-        return typeof first === 'string' ? first : (first?.image_url || first?.url);
-      })(),
-      images: (apiPost.images || apiPost.media || []).map((img: any) =>
-        typeof img === 'string' ? img : (img?.image_url || img?.url)
-      ).filter(Boolean),
-    },
-    likes: apiPost.glow_count || 0,
-    comments: apiPost.comment_count || 0,
-    has_glowed: apiPost.has_glowed || false,
-  });
+    return {
+      id: apiPost.id,
+      type: apiPost.post_type || 'moment',
+      author: {
+        name: authorName,
+        avatar: authorAvatar, // Pass raw avatar - Moment component handles fallback
+        timeAgo: apiPost.created_at ? getTimeAgo(apiPost.created_at) : 'Recently'
+      },
+      content: {
+        title: apiPost.title || '',
+        text: apiPost.content,
+        image: (() => {
+          const imgs = apiPost.images || apiPost.media || [];
+          if (imgs.length === 0) return undefined;
+          const first = imgs[0];
+          return typeof first === 'string' ? first : (first?.image_url || first?.url);
+        })(),
+        images: (apiPost.images || apiPost.media || []).map((img: any) =>
+          typeof img === 'string' ? img : (img?.image_url || img?.url)
+        ).filter(Boolean),
+      },
+      likes: apiPost.glow_count || 0,
+      comments: apiPost.comment_count || 0,
+      has_glowed: apiPost.has_glowed || false,
+    };
+  };
 
   const posts = (apiPosts || []).map(transformApiPost);
 
@@ -69,7 +76,6 @@ const Feed = () => {
     description: "See the latest events, weddings, birthdays, and community posts on Nuru."
   });
 
-  // Only show skeleton on first load, not on re-mount when data is cached
   const showSkeleton = loading && !hasLoadedOnce.current && posts.length === 0;
 
   if (showSkeleton) {

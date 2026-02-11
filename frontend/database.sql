@@ -1392,3 +1392,12 @@ VALUES
   ('Security', 'Maintains safety, access control, and emergency response'),
   ('Guest Relations', 'Manages invitations, RSVPs, and guest support'),
   ('Technical Support', 'Handles audiovisual equipment, livestreams, and lighting');
+
+
+CREATE TYPE feed_visibility_enum AS ENUM ('public', 'circle');
+ALTER TABLE user_feeds ADD COLUMN visibility feed_visibility_enum DEFAULT 'public';
+
+ALTER TABLE conversations DROP CONSTRAINT uq_user_to_user;
+CREATE UNIQUE INDEX uq_user_to_user ON conversations (user_one_id, user_two_id) WHERE service_id IS NULL;
+
+ALTER TABLE nuru_cards ALTER COLUMN card_number TYPE VARCHAR(20)

@@ -131,3 +131,26 @@ def notify_booking(db, recipient_id, sender_id, event_id, event_title, service_n
         reference_type="event",
         message_data={"event_title": event_title, "service_name": service_name},
     )
+
+
+def notify_booking_accepted(db, recipient_id, sender_id, event_id, event_title, service_name):
+    """Notify event organizer their booking was accepted."""
+    return create_notification(
+        db, recipient_id, sender_id,
+        "booking_accepted",
+        f"accepted your booking for {service_name} at {event_title}",
+        reference_id=event_id,
+        reference_type="event",
+        message_data={"event_title": event_title, "service_name": service_name},
+    )
+
+
+def notify_circle_add(db, recipient_id, sender_id, sender_name):
+    """Notify user someone added them to their circle."""
+    return create_notification(
+        db, recipient_id, sender_id,
+        "circle_add",
+        "added you to their circle",
+        reference_type="circle",
+        message_data={"sender_name": sender_name},
+    )

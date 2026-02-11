@@ -94,6 +94,15 @@ def add_circle_member(circle_id: str, user_id: str, db: Session = Depends(get_db
         created_at=datetime.now(EAT),
     )
     db.add(entry)
+
+    # Notify the user they've been added to a circle
+    try:
+        from utils.notify import notify_circle_add
+        sender_name = f"{current_user.first_name} {current_user.last_name}"
+        notify_circle_add(db, uid, current_user.id, sender_name)
+    except Exception:
+        pass
+
     db.commit()
 
     count = db.query(sa_func.count(UserCircle.id)).filter(UserCircle.user_id == current_user.id).scalar() or 0

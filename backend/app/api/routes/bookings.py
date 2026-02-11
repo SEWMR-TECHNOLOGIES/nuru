@@ -47,7 +47,16 @@ def _booking_dict(db, b):
 @router.get("/")
 def get_my_bookings(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     bookings = db.query(ServiceBookingRequest).filter(ServiceBookingRequest.requester_user_id == current_user.id).order_by(ServiceBookingRequest.created_at.desc()).all()
-    return standard_response(True, "Bookings retrieved successfully", [_booking_dict(db, b) for b in bookings])
+    items = [_booking_dict(db, b) for b in bookings]
+    summary = {
+        "total": len(items),
+        "pending": sum(1 for b in items if b["status"] == "pending"),
+        "accepted": sum(1 for b in items if b["status"] == "accepted"),
+        "rejected": sum(1 for b in items if b["status"] == "rejected"),
+        "completed": sum(1 for b in items if b["status"] == "completed"),
+        "cancelled": sum(1 for b in items if b["status"] == "cancelled"),
+    }
+    return standard_response(True, "Bookings retrieved successfully", {"bookings": items, "summary": summary})
 
 
 @router.get("/received")
@@ -55,9 +64,18 @@ def get_received_bookings(db: Session = Depends(get_db), current_user: User = De
     # Find bookings for services owned by the current user
     my_service_ids = [s.id for s in db.query(UserService.id).filter(UserService.user_id == current_user.id).all()]
     if not my_service_ids:
-        return standard_response(True, "Received bookings retrieved successfully", [])
+        return standard_response(True, "Received bookings retrieved successfully", {"bookings": [], "summary": {"total": 0, "pending": 0, "accepted": 0, "rejected": 0, "completed": 0, "cancelled": 0}})
     bookings = db.query(ServiceBookingRequest).filter(ServiceBookingRequest.user_service_id.in_(my_service_ids)).order_by(ServiceBookingRequest.created_at.desc()).all()
-    return standard_response(True, "Received bookings retrieved successfully", [_booking_dict(db, b) for b in bookings])
+    items = [_booking_dict(db, b) for b in bookings]
+    summary = {
+        "total": len(items),
+        "pending": sum(1 for b in items if b["status"] == "pending"),
+        "accepted": sum(1 for b in items if b["status"] == "accepted"),
+        "rejected": sum(1 for b in items if b["status"] == "rejected"),
+        "completed": sum(1 for b in items if b["status"] == "completed"),
+        "cancelled": sum(1 for b in items if b["status"] == "cancelled"),
+    }
+    return standard_response(True, "Received bookings retrieved successfully", {"bookings": items, "summary": summary})
 
 
 @router.get("/{booking_id}")
@@ -121,12 +139,43 @@ def respond_to_booking(booking_id: str, body: dict = Body(...), db: Session = De
     if not b:
         return standard_response(False, "Booking not found")
 
-    if "status" in body: b.status = body["status"]
+    # Verify current user owns the service
+    service = db.query(UserService).filter(UserService.id == b.user_service_id).first()
+    if not service or str(service.user_id) != str(current_user.id):
+        return standard_response(False, "You are not authorized to respond to this booking")
+
+    new_status = body.get("status")
+    if new_status: b.status = new_status
     if "quoted_price" in body: b.quoted_price = body["quoted_price"]
-    if "response_message" in body: b.vendor_response = body["response_message"]
+    if "deposit_required" in body: b.deposit_required = body["deposit_required"]
+    if "message" in body: b.vendor_notes = body["message"]
+    if "reason" in body and new_status == "rejected": b.vendor_notes = body.get("reason", "")
     b.responded_at = datetime.now(EAT)
     b.updated_at = datetime.now(EAT)
     db.commit()
+
+    # SMS & notification to event organizer
+    if new_status in ("accepted", "rejected") and b.requester_user_id:
+        try:
+            requester = db.query(User).filter(User.id == b.requester_user_id).first()
+            event = db.query(Event).filter(Event.id == b.event_id).first() if b.event_id else None
+            event_name = event.name if event else "your event"
+            service_name = service.title if service else "service"
+
+            if new_status == "accepted":
+                from utils.notify import notify_booking_accepted
+                notify_booking_accepted(db, b.requester_user_id, current_user.id, b.event_id, event_name, service_name)
+                db.commit()
+                # SMS
+                if requester and requester.phone:
+                    from utils.sms import _send
+                    _send(requester.phone, f"Hello {requester.first_name}, {current_user.first_name} {current_user.last_name} has accepted your booking for {service_name} at {event_name}. Open Nuru app for details.")
+            elif new_status == "rejected":
+                from utils.notify import create_notification
+                create_notification(db, b.requester_user_id, current_user.id, "booking_rejected", f"declined your booking for {service_name} at {event_name}", reference_id=b.event_id, reference_type="event")
+                db.commit()
+        except Exception:
+            pass
 
     return standard_response(True, "Response recorded successfully", _booking_dict(db, b))
 

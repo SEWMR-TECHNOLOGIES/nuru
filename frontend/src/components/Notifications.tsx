@@ -1,28 +1,44 @@
-import { Bell, Heart, MessageCircle, UserPlus, Calendar, Loader2 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Bell, Heart, MessageCircle, UserPlus, Calendar, Loader2, Users, Briefcase, CheckCircle, Trash2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useNotifications, useMarkAllNotificationsRead } from '@/data/useSocial';
 import { Skeleton } from '@/components/ui/skeleton';
-
+import { getTimeAgo } from '@/utils/getTimeAgo';
 
 const getIcon = (type: string) => {
   switch (type) {
     case 'glow':
-    case 'like':
       return <Heart className="w-4 h-4 text-red-500" />;
-    case 'echo':
     case 'comment':
+    case 'echo':
       return <MessageCircle className="w-4 h-4 text-blue-500" />;
     case 'follow':
+    case 'circle_add':
       return <UserPlus className="w-4 h-4 text-green-500" />;
-    case 'event':
-    case 'invitation':
+    case 'event_invite':
+    case 'committee_invite':
+    case 'rsvp_received':
       return <Calendar className="w-4 h-4 text-purple-500" />;
+    case 'booking_request':
+    case 'booking_accepted':
+    case 'booking_rejected':
+      return <Briefcase className="w-4 h-4 text-orange-500" />;
+    case 'contribution_received':
+      return <CheckCircle className="w-4 h-4 text-emerald-500" />;
+    case 'moment_view':
+    case 'moment_reaction':
+      return <Heart className="w-4 h-4 text-pink-500" />;
     default:
-      return <Bell className="w-4 h-4" />;
+      return <Bell className="w-4 h-4 text-muted-foreground" />;
   }
+};
+
+const getInitials = (actor: any) => {
+  if (!actor) return 'N';
+  const f = actor.first_name?.[0] || '';
+  const l = actor.last_name?.[0] || '';
+  return (f + l) || 'N';
 };
 
 const Notifications = () => {
@@ -43,26 +59,21 @@ const Notifications = () => {
     }
   };
 
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+
   if (loading) {
     return (
-      <div className="h-full overflow-y-auto p-4 md:p-6">
-        <div className="flex items-center justify-between mb-6">
-          <Skeleton className="h-8 w-40" />
-          <Skeleton className="h-8 w-28" />
-        </div>
+      <div className="max-w-2xl mx-auto p-4 md:p-6 space-y-4">
+        <Skeleton className="h-8 w-48" />
         <div className="space-y-3">
           {[1, 2, 3, 4, 5].map((i) => (
-            <Card key={i}>
-              <CardContent className="p-4">
-                <div className="flex gap-3">
-                  <Skeleton className="w-12 h-12 rounded-full" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-4 w-3/4" />
-                    <Skeleton className="h-3 w-24" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div key={i} className="flex gap-3 p-4 rounded-lg border border-border">
+              <Skeleton className="w-10 h-10 rounded-full flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            </div>
           ))}
         </div>
       </div>
@@ -71,88 +82,93 @@ const Notifications = () => {
 
   if (error) {
     return (
-      <div className="h-full overflow-y-auto p-4 md:p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl md:text-3xl font-bold">Notifications</h1>
-        </div>
+      <div className="max-w-2xl mx-auto p-4 md:p-6">
+        <h1 className="text-xl md:text-2xl font-bold mb-4">Notifications</h1>
         <div className="text-center py-12">
-          <p className="text-destructive mb-4">Failed to load notifications. Please try again.</p>
-          <Button onClick={() => refetch()}>Retry</Button>
+          <p className="text-destructive mb-4">Failed to load notifications.</p>
+          <Button onClick={() => refetch()} size="sm">Retry</Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full overflow-y-auto p-4 md:p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold">Notifications</h1>
+    <div className="max-w-2xl mx-auto p-4 md:p-6 space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Notifications</h1>
+          {unreadCount > 0 && (
+            <p className="text-sm text-muted-foreground">{unreadCount} unread</p>
+          )}
+        </div>
         {notifications.length > 0 && (
           <Button 
             variant="ghost" 
             size="sm" 
-            className="text-sm"
+            className="text-sm text-muted-foreground"
             onClick={handleMarkAllRead}
             disabled={markingRead}
           >
-            {markingRead ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-            Mark all as read
+            {markingRead ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+            Mark all read
           </Button>
         )}
       </div>
       
       {notifications.length === 0 ? (
-        <div className="text-center py-12">
-          <Bell className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">No notifications yet</p>
-          <p className="text-sm text-muted-foreground mt-1">
+        <div className="text-center py-16">
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+            <Bell className="w-7 h-7 text-muted-foreground" />
+          </div>
+          <h3 className="font-medium text-foreground mb-1">No notifications yet</h3>
+          <p className="text-sm text-muted-foreground">
             We'll notify you when something happens
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-1">
           {notifications.map((notification) => (
-            <Card 
+            <div 
               key={notification.id}
-              className={`hover:border-primary/50 transition-all cursor-pointer ${
-                !notification.is_read ? 'border-l-4 border-l-[hsl(var(--nuru-yellow))]' : ''
+              className={`flex items-start gap-3 p-3 rounded-lg transition-colors hover:bg-muted/50 cursor-pointer ${
+                !notification.is_read ? 'bg-muted/30' : ''
               }`}
             >
-              <CardContent className="p-4">
-                <div className="flex gap-3">
-                  <Avatar className="w-12 h-12 flex-shrink-0">
-                    <AvatarImage src={notification.actor?.avatar} />
-                    <AvatarFallback>
-                      {notification.actor?.first_name?.charAt(0) || 'N'}
-                    </AvatarFallback>
-                  </Avatar>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-3 mb-2">
-                      <div className="flex items-center gap-2">
-                        {getIcon(notification.type)}
-                        <p className="text-sm leading-relaxed">
-                          {notification.actor && (
-                            <span className="font-semibold">
-                              {notification.actor.first_name} {notification.actor.last_name}
-                            </span>
-                          )}{' '}
-                          <span className="text-muted-foreground">{notification.message}</span>
-                        </p>
-                      </div>
-                      {!notification.is_read && (
-                        <div className="w-2.5 h-2.5 bg-[hsl(var(--nuru-yellow))] rounded-full flex-shrink-0 mt-1" />
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {notification.created_at 
-                        ? new Date(notification.created_at).toLocaleDateString()
-                        : ''}
-                    </p>
-                  </div>
+              {/* Avatar */}
+              <div className="relative flex-shrink-0">
+                <Avatar className="w-10 h-10">
+                  <AvatarImage src={notification.actor?.avatar} />
+                  <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                    {getInitials(notification.actor)}
+                  </AvatarFallback>
+                </Avatar>
+                {/* Icon badge */}
+                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-card border border-border flex items-center justify-center">
+                  {getIcon(notification.type)}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+              
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm leading-relaxed">
+                  {notification.actor && (
+                    <span className="font-semibold text-foreground">
+                      {notification.actor.first_name} {notification.actor.last_name}
+                    </span>
+                  )}{' '}
+                  <span className="text-muted-foreground">{notification.message}</span>
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {notification.created_at ? getTimeAgo(notification.created_at) : ''}
+                </p>
+              </div>
+
+              {/* Unread dot */}
+              {!notification.is_read && (
+                <div className="w-2 h-2 bg-[hsl(var(--nuru-yellow))] rounded-full flex-shrink-0 mt-2" />
+              )}
+            </div>
           ))}
         </div>
       )}

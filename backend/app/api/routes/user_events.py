@@ -2170,17 +2170,37 @@ def add_event_service(event_id: str, body: dict = Body(...), db: Session = Depen
         if provider_svc and provider_svc.service_type_id:
             service_id_val = provider_svc.service_type_id
 
+    # Also create a booking request so it shows in vendor's incoming bookings
+    provider_service_id = uuid.UUID(body["provider_service_id"]) if body.get("provider_service_id") else None
+    provider_user_id_val = uuid.UUID(body["provider_user_id"]) if body.get("provider_user_id") else None
+
     es = EventService(
         id=uuid.uuid4(), event_id=eid,
         service_id=service_id_val,
-        provider_user_service_id=uuid.UUID(body["provider_service_id"]) if body.get("provider_service_id") else None,
-        provider_user_id=uuid.UUID(body["provider_user_id"]) if body.get("provider_user_id") else None,
+        provider_user_service_id=provider_service_id,
+        provider_user_id=provider_user_id_val,
         agreed_price=body.get("quoted_price"),
         service_status=EventServiceStatusEnum.pending,
         notes=body.get("notes"),
         created_at=now, updated_at=now,
     )
     db.add(es)
+
+    # Create a ServiceBookingRequest entry for bookings page
+    if provider_service_id:
+        from models import ServiceBookingRequest
+        booking_req = ServiceBookingRequest(
+            id=uuid.uuid4(),
+            user_service_id=provider_service_id,
+            requester_user_id=current_user.id,
+            event_id=eid,
+            message=body.get("notes") or f"Service requested for {event.name}",
+            proposed_price=body.get("quoted_price"),
+            status="pending",
+            created_at=now, updated_at=now,
+        )
+        db.add(booking_req)
+
     db.commit()
 
     # Notify & SMS the service provider

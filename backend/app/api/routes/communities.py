@@ -271,7 +271,14 @@ async def create_community_post(
     if str(c.created_by) != str(current_user.id):
         return standard_response(False, "Only the community creator can post")
 
-    if not content and not images:
+    # Filter out empty file entries
+    valid_images = []
+    if images:
+        for f in images:
+            if f and f.filename and f.size and f.size > 0:
+                valid_images.append(f)
+
+    if not content and not valid_images:
         return standard_response(False, "Content or images are required")
 
     now = datetime.now(EAT)
@@ -287,13 +294,9 @@ async def create_community_post(
     db.add(cp)
     db.flush()
 
-    if images:
-        import os
-        import httpx
+    if valid_images:
         from core.config import UPLOAD_SERVICE_URL
-        for file in images:
-            if not file or not file.filename:
-                continue
+        for file in valid_images:
             file_content = await file.read()
             _, ext = os.path.splitext(file.filename)
             unique_name = f"{uuid.uuid4().hex}{ext}"

@@ -381,6 +381,7 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
     if not ec:
         return standard_response(False, "Event contributor not found")
 
+    old_pledge = float(ec.pledge_amount or 0)
     if "pledge_amount" in body:
         ec.pledge_amount = body["pledge_amount"]
     if "notes" in body:
@@ -388,6 +389,20 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
 
     ec.updated_at = datetime.now(EAT)
     db.commit()
+
+    # Send SMS when pledge target is set/changed (use contributor.phone directly)
+    new_pledge = float(ec.pledge_amount or 0)
+    if new_pledge > 0 and new_pledge != old_pledge and ec.contributor and ec.contributor.phone:
+        try:
+            from utils.sms import sms_contribution_target_set
+            total_paid = sum(float(c.amount or 0) for c in ec.contributions)
+            currency = _currency_code(db, event)
+            sms_contribution_target_set(
+                ec.contributor.phone, ec.contributor.name,
+                event.name, new_pledge, total_paid, currency
+            )
+        except Exception:
+            pass
 
     return standard_response(True, "Event contributor updated", _event_contributor_dict(ec))
 
@@ -463,6 +478,21 @@ def record_payment(event_id: str, ec_id: str, body: dict = Body(...), db: Sessio
     )
     db.add(contribution)
     db.commit()
+
+    # Send SMS to contributor using their phone directly (contributors are NOT nuru users)
+    contributor = ec.contributor
+    if contributor and contributor.phone:
+        try:
+            from utils.sms import sms_contribution_recorded
+            total_paid = sum(float(c.amount or 0) for c in ec.contributions) + float(amount)
+            pledge = float(ec.pledge_amount or 0)
+            currency = _currency_code(db, event)
+            sms_contribution_recorded(
+                contributor.phone, contributor.name,
+                event.name, float(amount), pledge, total_paid, currency
+            )
+        except Exception:
+            pass
 
     return standard_response(True, "Payment recorded", {
         "id": str(contribution.id),

@@ -1,4 +1,3 @@
-
 from datetime import datetime
 import json
 import math
@@ -14,7 +13,7 @@ from sqlalchemy import func as sa_func
 
 from core.database import get_db
 from models import (
-    EventTypeService,
+    EventTypeService, EventService, Event,
     ServiceType, UserService, ServicePackage, UserServiceRating
 )
 
@@ -326,3 +325,59 @@ def get_event_recommendations(event_type_id: str, db: Session = Depends(get_db))
         return standard_response(True, "Recommendations retrieved successfully.", result)
     except Exception as e:
         return standard_response(False, f"Failed to fetch recommendations: {str(e)}")
+
+
+# =============================================================================
+# Service Calendar - Dynamic event assignments
+# =============================================================================
+@router.get("/{service_id}/calendar")
+def get_service_calendar(
+    service_id: str,
+    start_date: str = None,
+    end_date: str = None,
+    db: Session = Depends(get_db)
+):
+    """Returns booked dates for a service provider based on actual event assignments."""
+    try:
+        sid = uuid.UUID(service_id)
+    except ValueError:
+        return standard_response(False, "Invalid service ID")
+
+    service = db.query(UserService).filter(UserService.id == sid).first()
+    if not service:
+        return standard_response(False, "Service not found")
+
+    # Find all EventService entries for this provider's service
+    query = db.query(EventService).filter(
+        EventService.provider_user_service_id == sid
+    )
+
+    event_assignments = query.all()
+
+    booked_dates = []
+    for es in event_assignments:
+        event = db.query(Event).filter(Event.id == es.event_id).first()
+        if not event or not event.start_date:
+            continue
+
+        event_date = event.start_date
+        if hasattr(event_date, 'date'):
+            event_date_str = event_date.strftime("%Y-%m-%d")
+        else:
+            event_date_str = str(event_date)[:10]
+
+        status = es.service_status.value if hasattr(es.service_status, "value") else str(es.service_status)
+
+        booked_dates.append({
+            "date": event_date_str,
+            "event_id": str(event.id),
+            "event_name": event.name or "Event",
+            "event_location": event.location,
+            "status": status,
+            "agreed_price": float(es.agreed_price) if es.agreed_price else None,
+        })
+
+    return standard_response(True, "Calendar data retrieved", {
+        "service_id": str(sid),
+        "booked_dates": booked_dates,
+    })

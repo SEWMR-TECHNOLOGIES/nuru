@@ -1,16 +1,29 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Star, Calendar as CalendarIcon, CheckCircle } from 'lucide-react';
+import { ChevronLeft, Star, Calendar as CalendarIcon, CheckCircle, ChevronRight, MapPin, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Calendar } from '@/components/ui/calendar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useUserService } from '@/hooks/useUserService';
+import { servicesApi } from '@/lib/api/services';
 import { formatPrice } from '@/utils/formatPrice';
 import { ServiceDetailLoadingSkeleton } from '@/components/ui/ServiceLoadingSkeleton';
 import { UserService, ServicePackage, ServiceReview } from '@/lib/api/types';
+
+interface BookedDate {
+  date: string;
+  event_id: string;
+  event_name: string;
+  event_location?: string;
+  status: string;
+  agreed_price?: number;
+}
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 const ServiceDetail = () => {
   const { id } = useParams();
@@ -19,11 +32,12 @@ const ServiceDetail = () => {
   const { service, loading, error, refetch } = useUserService(id!);
   const [packages, setPackages] = useState<ServicePackage[]>([]);
   const [reviews, setReviews] = useState<ServiceReview[]>([]);
-  const [bookedDates, setBookedDates] = useState<Date[]>([]);
+  const [bookedDates, setBookedDates] = useState<BookedDate[]>([]);
+  const [calendarLoading, setCalendarLoading] = useState(true);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
 
-  // Update meta when service changes
   useWorkspaceMeta({
     title: service?.title || 'Service Details',
     description: `View details, availability, and book ${service?.title || 'this service'}.`
@@ -31,50 +45,91 @@ const ServiceDetail = () => {
 
   useEffect(() => {
     if (!service) return;
-
-    // Load packages from service data
     if ((service as any).packages && Array.isArray((service as any).packages)) {
       setPackages((service as any).packages);
     }
-
-    // Load reviews from service data
     if ((service as any).reviews && Array.isArray((service as any).reviews)) {
       setReviews((service as any).reviews);
     }
-
-    // Mock booked dates - TODO: replace with API data from event service assignments
-    const today = new Date();
-    const mockBookedDates = [
-      new Date(today.getFullYear(), today.getMonth(), 15),
-      new Date(today.getFullYear(), today.getMonth(), 22),
-    ];
-    setBookedDates(mockBookedDates);
   }, [service]);
 
-  // Helper function to get image URL
+  // Load dynamic calendar data
+  useEffect(() => {
+    if (!id) return;
+    const loadCalendar = async () => {
+      setCalendarLoading(true);
+      try {
+        const res = await servicesApi.getCalendar(id);
+        if (res.success && res.data?.booked_dates) {
+          setBookedDates(res.data.booked_dates);
+        }
+      } catch { /* silent */ }
+      finally { setCalendarLoading(false); }
+    };
+    loadCalendar();
+  }, [id]);
+
   const getImageUrl = (img: any): string => {
     if (typeof img === 'string') return img;
     if (img && typeof img === 'object' && img.url) return img.url;
     return '';
   };
 
-  // Helper to format price display
   const formatPriceDisplay = (svc: UserService): string => {
-    if (svc.min_price) {
-      return `From ${formatPrice(svc.min_price)}`;
-    }
+    if (svc.min_price) return `From ${formatPrice(svc.min_price)}`;
     return 'Price on request';
   };
 
-  // Helper to get category name
   const getCategoryName = (svc: UserService): string => {
     if (svc.service_category?.name) return svc.service_category.name;
     return 'Service';
   };
 
-  if (loading) {
-    return <ServiceDetailLoadingSkeleton />;
-  }
+  // Calendar logic
+  const calendarDays = useMemo(() => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const days: Array<{ day: number | null; date: string; isToday: boolean; isPast: boolean; booking: BookedDate | null }> = [];
+
+    // Empty slots before first day
+    for (let i = 0; i < firstDay; i++) {
+      days.push({ day: null, date: '', isToday: false, isPast: false, booking: null });
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, month, d);
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const booking = bookedDates.find(b => b.date === dateStr) || null;
+      days.push({
+        day: d,
+        date: dateStr,
+        isToday: date.toDateString() === today.toDateString(),
+        isPast: date < today,
+        booking,
+      });
+    }
+
+    return days;
+  }, [currentMonth, bookedDates]);
+
+  const prevMonth = () => setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  const nextMonth = () => setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'confirmed': case 'completed': return 'bg-green-500';
+      case 'pending': return 'bg-amber-500';
+      case 'cancelled': return 'bg-red-500';
+      default: return 'bg-primary';
+    }
+  };
+
+  if (loading) return <ServiceDetailLoadingSkeleton />;
 
   if (error || !service) {
     return (
@@ -86,10 +141,7 @@ const ServiceDetail = () => {
 
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, i) => (
-      <Star
-        key={i}
-        className={`w-4 h-4 ${i < rating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'}`}
-      />
+      <Star key={i} className={`w-4 h-4 ${i < rating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'}`} />
     ));
   };
 
@@ -112,20 +164,13 @@ const ServiceDetail = () => {
       {hasImages && (
         <div className="space-y-2">
           {imageUrls.length === 1 ? (
-            <div
-              className="relative w-full h-80 rounded-lg overflow-hidden border cursor-pointer"
-              onClick={() => openLightbox(0)}
-            >
-              <img src={imageUrls[0]} alt={`${service.title}`} className="w-full h-full object-cover" />
+            <div className="relative w-full h-80 rounded-lg overflow-hidden border cursor-pointer" onClick={() => openLightbox(0)}>
+              <img src={imageUrls[0]} alt={service.title} className="w-full h-full object-cover" />
             </div>
           ) : (
             <div className="flex gap-3 overflow-x-auto py-2">
               {imageUrls.map((img, idx) => (
-                <div
-                  key={idx}
-                  className="relative w-64 h-48 flex-shrink-0 rounded-lg overflow-hidden border cursor-pointer hover:opacity-80 transition-opacity"
-                  onClick={() => openLightbox(idx)}
-                >
+                <div key={idx} className="relative w-64 h-48 flex-shrink-0 rounded-lg overflow-hidden border cursor-pointer hover:opacity-80 transition-opacity" onClick={() => openLightbox(idx)}>
                   <img src={img} alt={`${service.title} ${idx + 1}`} className="w-full h-full object-cover" />
                 </div>
               ))}
@@ -138,18 +183,12 @@ const ServiceDetail = () => {
       {lightboxOpen && hasImages && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={closeLightbox}>
           <div className="relative max-w-[90vw] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={closeLightbox}
-              className="absolute -top-3 -right-3 bg-white rounded-full p-2 shadow z-50 hover:bg-gray-100"
-              aria-label="Close"
-            >✕</button>
+            <button onClick={closeLightbox} className="absolute -top-3 -right-3 bg-white rounded-full p-2 shadow z-50 hover:bg-gray-100" aria-label="Close">✕</button>
             <img src={imageUrls[lightboxIndex]} alt={`zoom ${lightboxIndex}`} className="max-w-full max-h-[85vh] object-contain rounded" />
             {imageUrls.length > 1 && (
               <>
-                <button onClick={() => setLightboxIndex((i) => (i - 1 + imageUrls.length) % imageUrls.length)}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 p-3 rounded-full hover:bg-white text-xl" aria-label="Previous">‹</button>
-                <button onClick={() => setLightboxIndex((i) => (i + 1) % imageUrls.length)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 p-3 rounded-full hover:bg-white text-xl" aria-label="Next">›</button>
+                <button onClick={() => setLightboxIndex((i) => (i - 1 + imageUrls.length) % imageUrls.length)} className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 p-3 rounded-full hover:bg-white text-xl" aria-label="Previous">‹</button>
+                <button onClick={() => setLightboxIndex((i) => (i + 1) % imageUrls.length)} className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 p-3 rounded-full hover:bg-white text-xl" aria-label="Next">›</button>
               </>
             )}
           </div>
@@ -178,59 +217,36 @@ const ServiceDetail = () => {
                 </div>
                 {service.verification_status === 'verified' && (
                   <Badge className="bg-green-100 text-green-800">
-                    <CheckCircle className="w-3 h-3 mr-1" />
-                    Verified
+                    <CheckCircle className="w-3 h-3 mr-1" />Verified
                   </Badge>
                 )}
               </div>
-              
               <p className="text-muted-foreground mb-4">{service.description}</p>
-              
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <p className="font-medium">Base Price</p>
-                  <p className="text-muted-foreground">{formatPriceDisplay(service)}</p>
-                </div>
-                <div>
-                  <p className="font-medium">Experience</p>
-                  <p className="text-muted-foreground">{service.years_experience || 0} years</p>
-                </div>
-                <div>
-                  <p className="font-medium">Location</p>
-                  <p className="text-muted-foreground">{service.location}</p>
-                </div>
-                <div>
-                  <p className="font-medium">Availability</p>
-                  <p className="text-muted-foreground">{service.availability || 'available'}</p>
-                </div>
+                <div><p className="font-medium">Base Price</p><p className="text-muted-foreground">{formatPriceDisplay(service)}</p></div>
+                <div><p className="font-medium">Experience</p><p className="text-muted-foreground">{service.years_experience || 0} years</p></div>
+                <div><p className="font-medium">Location</p><p className="text-muted-foreground">{service.location}</p></div>
+                <div><p className="font-medium">Availability</p><p className="text-muted-foreground">{service.availability || 'available'}</p></div>
               </div>
             </div>
-            
             <div className="w-full md:w-80">
               <Card>
-                <CardHeader>
-                  <CardTitle>Service Packages</CardTitle>
-                </CardHeader>
+                <CardHeader><CardTitle>Service Packages</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
-                  {packages.length > 0 ? (
-                    packages.map((pkg, index) => (
-                      <div key={pkg.id || index} className="border rounded-lg p-4">
-                        <div className="flex justify-between items-center mb-2">
-                          <h4 className="font-medium">{pkg.name}</h4>
-                          <span className="font-bold text-primary">{formatPrice(pkg.price)}</span>
-                        </div>
-                        {pkg.description && <p className="text-muted-foreground mb-2">{pkg.description}</p>}
-                        <ul className="text-sm text-muted-foreground space-y-1">
-                          {pkg.features.map((feature, idx) => (
-                            <li key={idx} className="flex items-center gap-2">
-                              <CheckCircle className="w-3 h-3 text-green-500" />
-                              {feature}
-                            </li>
-                          ))}
-                        </ul>
+                  {packages.length > 0 ? packages.map((pkg, index) => (
+                    <div key={pkg.id || index} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-center mb-2">
+                        <h4 className="font-medium">{pkg.name}</h4>
+                        <span className="font-bold text-primary">{formatPrice(pkg.price)}</span>
                       </div>
-                    ))
-                  ) : (
+                      {pkg.description && <p className="text-muted-foreground mb-2">{pkg.description}</p>}
+                      <ul className="text-sm text-muted-foreground space-y-1">
+                        {pkg.features.map((feature, idx) => (
+                          <li key={idx} className="flex items-center gap-2"><CheckCircle className="w-3 h-3 text-green-500" />{feature}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )) : (
                     <p className="text-muted-foreground text-sm">No packages available yet.</p>
                   )}
                 </CardContent>
@@ -240,81 +256,158 @@ const ServiceDetail = () => {
         </CardContent>
       </Card>
 
-      {/* Availability Calendar */}
+      {/* Modern Dynamic Availability Calendar */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CalendarIcon className="w-5 h-5" />
             Availability Calendar
           </CardTitle>
-          <p className="text-sm text-muted-foreground mt-2">
-            Click on any available date to book this service provider. Booked dates and past dates cannot be selected.
+          <p className="text-sm text-muted-foreground mt-1">
+            Real-time availability based on actual event assignments. Hover on booked dates for details.
           </p>
         </CardHeader>
         <CardContent>
-          <div className="p-4 md:p-6">
-            <Calendar
-              mode="single"
-              className="w-full border-0"
-              classNames={{
-                months: "flex flex-col sm:flex-row space-y-4 sm:space-x-8 sm:space-y-0 w-full",
-                month: "space-y-4 w-full",
-                caption: "flex justify-center pt-1 relative items-center mb-4",
-                caption_label: "text-xl md:text-2xl font-bold",
-                nav: "space-x-1 flex items-center",
-                nav_button: "h-10 w-10 bg-transparent p-0 opacity-50 hover:opacity-100 hover:bg-accent rounded-md transition-colors flex items-center justify-center",
-                table: "w-full border-collapse",
-                head_row: "flex w-full mb-2",
-                head_cell: "text-muted-foreground flex-1 font-semibold text-sm md:text-base",
-                row: "flex w-full mt-1",
-                cell: "flex-1 h-14 md:h-16 text-center text-sm md:text-base p-0.5 relative",
-                day: "h-full w-full p-0 font-medium aria-selected:opacity-100 hover:bg-accent rounded transition-colors flex items-center justify-center",
-                day_selected: "bg-green-500 text-white hover:bg-green-600 focus:bg-green-600 font-bold",
-                day_today: "bg-accent text-accent-foreground font-bold ring-2 ring-offset-2 ring-primary",
-                day_outside: "text-muted-foreground/40 opacity-50",
-                day_disabled: "text-muted-foreground/30 opacity-30 cursor-not-allowed",
-              }}
-              modifiers={{
-                booked: bookedDates,
-              }}
-              modifiersClassNames={{
-                booked: "bg-red-500/20 text-red-700 dark:text-red-400 font-bold hover:bg-red-500/30 ring-2 ring-red-500/50 cursor-not-allowed",
-              }}
-              disabled={(date) => {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const isPast = date < today;
-                const isBooked = bookedDates.some(
-                  bookedDate => bookedDate.toDateString() === date.toDateString()
-                );
-                return isPast || isBooked;
-              }}
-            />
-          </div>
-          
-          <div className="border-t pt-6 space-y-4">
-            <div className="flex items-center gap-2 md:gap-6 justify-center text-[10px] md:text-sm">
-              <div className="flex items-center gap-1 md:gap-2 whitespace-nowrap">
-                <div className="w-5 h-5 md:w-7 md:h-7 rounded bg-red-500/20 border-2 border-red-500/50 flex-shrink-0"></div>
-                <span className="font-medium">Booked</span>
-              </div>
-              <div className="flex items-center gap-1 md:gap-2 whitespace-nowrap">
-                <div className="w-5 h-5 md:w-7 md:h-7 rounded bg-accent border-2 border-primary flex-shrink-0"></div>
-                <span className="font-medium">Today</span>
-              </div>
-              <div className="flex items-center gap-1 md:gap-2 whitespace-nowrap">
-                <div className="w-5 h-5 md:w-7 md:h-7 rounded bg-green-500 flex-shrink-0"></div>
-                <span className="font-medium">Selected</span>
-              </div>
+          {calendarLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-muted-foreground">Loading calendar...</span>
             </div>
-            
-            <div className="bg-muted/50 rounded-lg p-4 text-sm text-center">
-              <p className="text-muted-foreground">
-                💡 <span className="font-medium">Pro tip:</span> This provider typically books up 2-3 weeks in advance. 
-                Consider booking early to secure your preferred date!
-              </p>
-            </div>
-          </div>
+          ) : (
+            <TooltipProvider delayDuration={200}>
+              <div className="space-y-4">
+                {/* Month Navigation */}
+                <div className="flex items-center justify-between px-2">
+                  <Button variant="ghost" size="icon" onClick={prevMonth}>
+                    <ChevronLeft className="w-5 h-5" />
+                  </Button>
+                  <h3 className="text-lg md:text-xl font-bold">
+                    {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+                  </h3>
+                  <Button variant="ghost" size="icon" onClick={nextMonth}>
+                    <ChevronRight className="w-5 h-5" />
+                  </Button>
+                </div>
+
+                {/* Day Headers */}
+                <div className="grid grid-cols-7 gap-1">
+                  {DAYS.map(day => (
+                    <div key={day} className="text-center text-xs md:text-sm font-semibold text-muted-foreground py-2">
+                      {day}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Calendar Grid */}
+                <div className="grid grid-cols-7 gap-1">
+                  {calendarDays.map((cell, idx) => {
+                    if (cell.day === null) {
+                      return <div key={`empty-${idx}`} className="h-12 md:h-16" />;
+                    }
+
+                    const isBooked = !!cell.booking;
+                    const isPast = cell.isPast;
+
+                    const dayEl = (
+                      <div
+                        key={cell.date}
+                        className={`
+                          relative h-12 md:h-16 rounded-lg flex flex-col items-center justify-center text-sm md:text-base transition-all
+                          ${cell.isToday ? 'ring-2 ring-primary bg-primary/10 font-bold' : ''}
+                          ${isPast && !isBooked ? 'text-muted-foreground/30' : ''}
+                          ${isBooked ? `${getStatusColor(cell.booking!.status)} text-white font-semibold shadow-sm cursor-pointer` : ''}
+                          ${!isBooked && !isPast && !cell.isToday ? 'bg-green-50 dark:bg-green-950/20 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30' : ''}
+                        `}
+                      >
+                        <span>{cell.day}</span>
+                        {isBooked && (
+                          <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-white/80" />
+                          </div>
+                        )}
+                      </div>
+                    );
+
+                    if (isBooked) {
+                      return (
+                        <Tooltip key={cell.date}>
+                          <TooltipTrigger asChild>{dayEl}</TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-[250px]">
+                            <div className="space-y-1.5 p-1">
+                              <p className="font-semibold text-sm">{cell.booking!.event_name}</p>
+                              {cell.booking!.event_location && (
+                                <p className="text-xs flex items-center gap-1">
+                                  <MapPin className="w-3 h-3" />{cell.booking!.event_location}
+                                </p>
+                              )}
+                              <div className="flex items-center gap-2 text-xs">
+                                <Badge variant="outline" className="text-[10px] h-5">
+                                  {cell.booking!.status}
+                                </Badge>
+                                {cell.booking!.agreed_price && (
+                                  <span className="font-medium">{formatPrice(cell.booking!.agreed_price)}</span>
+                                )}
+                              </div>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    }
+
+                    return dayEl;
+                  })}
+                </div>
+
+                {/* Legend */}
+                <div className="border-t pt-4 mt-4">
+                  <div className="flex flex-wrap items-center gap-3 md:gap-6 justify-center text-xs md:text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 md:w-6 md:h-6 rounded bg-amber-500 flex-shrink-0" />
+                      <span>Pending</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 md:w-6 md:h-6 rounded bg-green-500 flex-shrink-0" />
+                      <span>Confirmed</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 md:w-6 md:h-6 rounded bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 flex-shrink-0" />
+                      <span>Available</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 md:w-6 md:h-6 rounded ring-2 ring-primary bg-primary/10 flex-shrink-0" />
+                      <span>Today</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Booked Events Summary */}
+                {bookedDates.length > 0 && (
+                  <div className="border-t pt-4 mt-2">
+                    <h4 className="text-sm font-semibold mb-3">Upcoming Assignments ({bookedDates.length})</h4>
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {bookedDates
+                        .filter(b => new Date(b.date) >= new Date(new Date().toDateString()))
+                        .sort((a, b) => a.date.localeCompare(b.date))
+                        .map((b, i) => (
+                          <div key={i} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/50 text-sm">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`w-2.5 h-2.5 rounded-full ${getStatusColor(b.status)} flex-shrink-0`} />
+                              <div className="min-w-0">
+                                <p className="font-medium truncate">{b.event_name}</p>
+                                <p className="text-xs text-muted-foreground">{new Date(b.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
+                              </div>
+                            </div>
+                            {b.agreed_price && (
+                              <span className="text-xs font-semibold text-primary flex-shrink-0 ml-2">{formatPrice(b.agreed_price)}</span>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </TooltipProvider>
+          )}
         </CardContent>
       </Card>
 
@@ -322,8 +415,7 @@ const ServiceDetail = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5" />
-            Completed Events ({service.completed_events || 0})
+            <CalendarIcon className="w-5 h-5" />Completed Events ({service.completed_events || 0})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -338,35 +430,28 @@ const ServiceDetail = () => {
       {/* Reviews */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Star className="w-5 h-5" />
-            Client Reviews
-          </CardTitle>
+          <CardTitle className="flex items-center gap-2"><Star className="w-5 h-5" />Client Reviews</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {reviews.length > 0 ? (
-            reviews.map((review) => (
-              <div key={review.id} className="border-b pb-4 last:border-b-0">
-                <div className="flex items-start gap-4">
-                  <Avatar>
-                    <AvatarFallback>{review.user_name.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <h4 className="font-medium">{review.user_name}</h4>
-                        <p className="text-sm text-muted-foreground">{review.event_type} • {review.created_at}</p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {renderStars(review.rating)}
-                      </div>
+          {reviews.length > 0 ? reviews.map((review) => (
+            <div key={review.id} className="border-b pb-4 last:border-b-0">
+              <div className="flex items-start gap-4">
+                <Avatar>
+                  <AvatarFallback>{review.user_name.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h4 className="font-medium">{review.user_name}</h4>
+                      <p className="text-sm text-muted-foreground">{review.event_type} • {review.created_at}</p>
                     </div>
-                    <p className="text-muted-foreground">{review.comment}</p>
+                    <div className="flex items-center gap-1">{renderStars(review.rating)}</div>
                   </div>
+                  <p className="text-muted-foreground">{review.comment}</p>
                 </div>
               </div>
-            ))
-          ) : (
+            </div>
+          )) : (
             <p className="text-muted-foreground">No reviews yet. Be the first to review this service!</p>
           )}
         </CardContent>

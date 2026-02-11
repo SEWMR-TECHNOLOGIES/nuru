@@ -165,6 +165,24 @@ export const servicesApi = {
     }>(`/services${buildQueryString(params)}`),
 
   /**
+   * Get recommended service types for an event type
+   */
+  getRecommendations: (eventTypeId: string) =>
+    get<Array<{
+      id: string;
+      service_type_id: string;
+      service_type_name: string | null;
+      category_name: string | null;
+      priority: string;
+      is_mandatory: boolean;
+      description: string | null;
+      min_price: string | null;
+      max_price: string | null;
+      estimated_cost: string;
+      available_providers: number;
+    }>>(`/recommendations/${eventTypeId}`),
+
+  /**
    * Get a single public service by ID
    */
   getById: (serviceId: string) => get<UserService>(`/services/${serviceId}`),
@@ -208,6 +226,12 @@ export const servicesApi = {
    */
   checkAvailability: (serviceId: string, data: { date: string }) => 
     get<{ available: boolean; next_available_date?: string; blocked_dates?: string[] }>(`/services/${serviceId}/availability?date=${data.date}`),
+
+  /**
+   * Get service calendar with dynamic event assignments
+   */
+  getCalendar: (serviceId: string) =>
+    get<{ service_id: string; booked_dates: Array<{ date: string; event_id: string; event_name: string; event_location?: string; status: string; agreed_price?: number }> }>(`/services/${serviceId}/calendar`),
 
   /**
    * Report service

@@ -11,36 +11,16 @@ interface RecommendedService {
   title: string;
   name?: string;
   short_description?: string;
-  provider?: {
-    id: string;
-    name: string;
-    avatar?: string;
-    verified?: boolean;
-  };
-  service_category?: {
-    id: string;
-    name: string;
-    icon?: string;
-  };
-  service_type?: {
-    id: string;
-    name: string;
-  };
+  provider?: { id: string; name: string; avatar?: string; verified?: boolean };
+  service_category?: { id: string; name: string; icon?: string };
+  service_type?: { id: string; name: string };
   min_price?: number;
   max_price?: number;
   currency?: string;
   price_display?: string;
   location?: string;
-  primary_image?: {
-    url: string;
-    thumbnail_url?: string;
-    alt?: string;
-  } | string;
-  images?: Array<{
-    url: string;
-    thumbnail_url?: string;
-    is_primary?: boolean;
-  }>;
+  primary_image?: { url: string; thumbnail_url?: string; alt?: string } | string;
+  images?: Array<{ url: string; thumbnail_url?: string; is_primary?: boolean }>;
   image_url?: string;
   cover_image?: string;
   rating?: number;
@@ -111,7 +91,6 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
 
   useEffect(() => {
     if (eventTypeId) {
-      // Reset fetched state when eventTypeId changes to allow re-fetch
       setFetched(false);
       fetchRecommendations();
     }
@@ -127,9 +106,7 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
       const img = primary || service.images[0];
       return img.thumbnail_url || img.url;
     }
-    if (service.image_url) return service.image_url;
-    if (service.cover_image) return service.cover_image;
-    return undefined;
+    return service.image_url || service.cover_image || undefined;
   };
 
   const isVerified = (service: RecommendedService) =>
@@ -139,26 +116,12 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base md:text-lg">
-            Service Providers
-          </CardTitle>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={fetchRecommendations}
-            disabled={loading || !eventTypeId}
-          >
+          <CardTitle className="text-base md:text-lg">Service Providers</CardTitle>
+          <Button type="button" variant="outline" size="sm" onClick={fetchRecommendations} disabled={loading || !eventTypeId}>
             {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Finding...
-              </>
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Finding...</>
             ) : (
-              <>
-                <RefreshCw className="w-4 h-4 mr-2" />
-                {fetched ? "Refresh" : "Find Providers"}
-              </>
+              <><RefreshCw className="w-4 h-4 mr-2" />{fetched ? "Refresh" : "Find Providers"}</>
             )}
           </Button>
         </div>
@@ -171,9 +134,7 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
       <CardContent>
         {!fetched && !loading && (
           <div className="text-center py-8 text-muted-foreground">
-            <p className="text-sm">
-              Click "Find Providers" to discover service providers for your event
-            </p>
+            <p className="text-sm">Click "Find Providers" to discover service providers for your event</p>
           </div>
         )}
 
@@ -188,9 +149,7 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
           <>
             {selectedServiceIds.length > 0 && (
               <div className="mb-3 flex items-center gap-2">
-                <Badge variant="secondary" className="text-xs">
-                  {selectedServiceIds.length} selected
-                </Badge>
+                <Badge variant="secondary" className="text-xs">{selectedServiceIds.length} selected</Badge>
               </div>
             )}
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -208,21 +167,12 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
                     }`}
                     onClick={() => onToggleService?.(service.id, service)}
                   >
-                    {/* Image */}
                     <div className="relative h-32 bg-muted">
                       {imgUrl ? (
-                        <img
-                          src={imgUrl}
-                          alt={service.title || service.name || "Service"}
-                          className="w-full h-full object-cover"
-                        />
+                        <img src={imgUrl} alt={service.title || service.name || "Service"} className="w-full h-full object-cover" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                          No image
-                        </div>
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">No image</div>
                       )}
-
-                      {/* Selection indicator */}
                       <div className={`absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center transition-all ${
                         selected
                           ? "bg-primary text-primary-foreground shadow-lg"
@@ -230,28 +180,19 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
                       }`}>
                         {selected ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                       </div>
-
-                      {/* Verified badge */}
                       {isVerified(service) && (
                         <div className="absolute top-2 left-2">
-                          <span className="inline-flex items-center gap-1 bg-emerald-500/90 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full backdrop-blur-sm">
-                            <Check className="w-3 h-3" />
-                            Verified
+                          <span className="inline-flex items-center gap-1 bg-green-500/90 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full backdrop-blur-sm">
+                            <Check className="w-3 h-3" />Verified
                           </span>
                         </div>
                       )}
                     </div>
-
-                    {/* Content */}
                     <div className="p-3 space-y-1.5">
-                      <h4 className="font-medium text-sm leading-tight line-clamp-2">
-                        {service.title || service.name}
-                      </h4>
-
+                      <h4 className="font-medium text-sm leading-tight line-clamp-2">{service.title || service.name}</h4>
                       {service.service_category?.name && (
                         <p className="text-xs text-muted-foreground">{service.service_category.name}</p>
                       )}
-
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         {service.rating != null && (
                           <span className="flex items-center gap-1">
@@ -269,11 +210,8 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
                           </span>
                         )}
                       </div>
-
                       {service.price_display && (
-                        <p className="text-sm font-semibold text-primary">
-                          {service.price_display}
-                        </p>
+                        <p className="text-sm font-semibold text-primary">{service.price_display}</p>
                       )}
                     </div>
                   </div>

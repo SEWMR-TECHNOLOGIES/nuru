@@ -31,6 +31,12 @@ interface MomentProps {
   };
 }
 
+const getInitials = (name: string) => {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  return name.charAt(0).toUpperCase();
+};
+
 const Moment = ({ post }: MomentProps) => {
   const [glowed, setGlowed] = useState(post.has_glowed || false);
   const [glowCount, setGlowCount] = useState(post.likes);
@@ -41,18 +47,13 @@ const Moment = ({ post }: MomentProps) => {
   const handleGlow = async () => {
     if (glowing) return;
     setGlowing(true);
-    // Optimistic update
     const wasGlowed = glowed;
     setGlowed(!wasGlowed);
     setGlowCount(prev => wasGlowed ? prev - 1 : prev + 1);
     try {
-      if (wasGlowed) {
-        await socialApi.unglowPost(post.id);
-      } else {
-        await socialApi.glowPost(post.id);
-      }
+      if (wasGlowed) await socialApi.unglowPost(post.id);
+      else await socialApi.glowPost(post.id);
     } catch {
-      // Revert on failure
       setGlowed(wasGlowed);
       setGlowCount(prev => wasGlowed ? prev + 1 : prev - 1);
       toast.error('Failed to update glow');
@@ -66,7 +67,8 @@ const Moment = ({ post }: MomentProps) => {
   const image = post.content?.image || undefined;
   const allImages = post.content?.images?.length ? post.content.images : (image ? [image] : []);
 
-  const shareUrl = `${window.location.origin}/post/${post.id}`;
+  // Use /shared/post/ URL for sharing
+  const shareUrl = `${window.location.origin}/shared/post/${post.id}`;
   const shareTitle = title || text?.slice(0, 50) || 'Check this out';
 
   const handleShare = (platform: string) => {
@@ -101,6 +103,9 @@ const Moment = ({ post }: MomentProps) => {
     navigate(`/post/${post.id}`);
   };
 
+  const authorAvatar = post.author.avatar;
+  const isPlaceholderAvatar = !authorAvatar || authorAvatar.includes('unsplash.com');
+
   return (
     <div
       className="bg-card rounded-lg shadow-sm border border-border overflow-hidden cursor-pointer"
@@ -109,11 +114,17 @@ const Moment = ({ post }: MomentProps) => {
       {/* Post Header */}
       <div className="p-3 md:p-4 flex items-center justify-between">
         <div className="flex items-center gap-2 md:gap-3">
-          <img
-            src={post.author.avatar}
-            alt={post.author.name}
-            className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover"
-          />
+          {!isPlaceholderAvatar ? (
+            <img
+              src={authorAvatar}
+              alt={post.author.name}
+              className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
+              {getInitials(post.author.name)}
+            </div>
+          )}
           <div>
             <h3 className="font-semibold text-sm md:text-base text-foreground">{post.author.name}</h3>
             <p className="text-xs md:text-sm text-muted-foreground">{post.author.timeAgo}</p>
@@ -150,7 +161,7 @@ const Moment = ({ post }: MomentProps) => {
       {/* Title and text */}
       <div className="px-3 md:px-4 py-3">
         {title && <h2 className="text-lg md:text-xl font-bold text-foreground mb-1">{title}</h2>}
-        {text && <p className="text-foreground text-sm md:text-base">{text}</p>}
+        {text && <p className="text-foreground text-sm md:text-base whitespace-pre-wrap break-words">{text}</p>}
       </div>
 
       {/* Action Buttons */}

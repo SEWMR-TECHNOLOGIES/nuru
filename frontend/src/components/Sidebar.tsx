@@ -53,19 +53,19 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
     `w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors text-left ${
       isActive
         ? 'bg-nuru-yellow/20 text-nuru-yellow'
-        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+        : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
   }`
 
   const renderIcon = (item: NavItem) => {
     if (item.customIcon) {
-      return <img src={item.customIcon} alt={item.label} className="w-5 h-5 dark:invert" />
+      return <img src={item.customIcon} alt={item.label} className="w-5 h-5" />
     }
     const IconComponent = item.lucideIcon!
     return <IconComponent className="w-5 h-5" />
   }
 
   return (
-    <aside className="w-64 bg-sidebar-bg md:border-r md:border-border h-full overflow-y-auto overscroll-y-contain p-4">
+    <aside className="w-64 bg-sidebar-background md:border-r md:border-sidebar-border h-full overflow-y-auto overscroll-y-contain p-4">
       {/* Navigation */}
       <nav className="space-y-2">
         {navItems.map(item => (
@@ -97,7 +97,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
       </nav>
 
       {/* Profile Section */}
-      <div className="mt-auto pt-4 border-t border-border">
+      <div className="mt-auto pt-4 border-t border-sidebar-border">
         <NavLink to="/profile" className={linkClass} onClick={onNavigate}>
           <User className="w-5 h-5" />
           Your Profile

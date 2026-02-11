@@ -142,7 +142,7 @@ const PostDetail = () => {
   };
 
   const handleShare = (platform: string) => {
-    const shareUrl = `${window.location.origin}/shared/post/${id}`;
+    const shareUrl = `${window.location.origin}/shared/post/${id}`;  // Use guest-friendly URL
     const shareTitle = post?.title || post?.content?.slice(0, 50) || 'Check this out';
     let url = '';
     switch (platform) {
@@ -283,11 +283,11 @@ const PostDetail = () => {
       <div className="bg-card rounded-lg shadow-sm border border-border overflow-hidden mb-4 md:mb-6">
         <div className="p-3 md:p-4 flex items-center justify-between">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
-            {authorAvatar ? (
+          {authorAvatar ? (
               <img src={authorAvatar} alt={authorName} className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover flex-shrink-0" />
             ) : (
               <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm flex-shrink-0">
-                {authorName.charAt(0)}
+                {(() => { const p = authorName.trim().split(/\s+/); return p.length >= 2 ? `${p[0][0]}${p[p.length-1][0]}`.toUpperCase() : authorName.charAt(0).toUpperCase(); })()}
               </div>
             )}
             <div className="min-w-0">
@@ -399,18 +399,20 @@ const PostDetail = () => {
             <img src={currentUser.avatar} alt="You" className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover flex-shrink-0" />
           ) : (
             <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm flex-shrink-0">
-              {currentUser?.first_name?.[0] || '?'}
+              {currentUser?.first_name && currentUser?.last_name ? `${currentUser.first_name[0]}${currentUser.last_name[0]}`.toUpperCase() : currentUser?.first_name?.[0] || '?'}
             </div>
           )}
-          <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 flex-1 border border-border rounded-lg px-3 py-2 min-w-0">
-              <input
-                type="text"
+          <div className="flex items-start gap-2 md:gap-3 flex-1 min-w-0">
+            <div className="flex-1 border border-border rounded-lg px-3 py-2 min-w-0">
+              <textarea
                 placeholder="Add an echo..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendComment(); } }}
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground min-w-0"
+                rows={1}
+                className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground resize-none overflow-hidden break-words"
+                style={{ minHeight: '1.5rem', maxHeight: '6rem' }}
+                onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 96) + 'px'; }}
               />
             </div>
             <Button
@@ -454,7 +456,7 @@ const PostDetail = () => {
                     <img src={cAvatar} alt={cName} className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover flex-shrink-0" />
                   ) : (
                     <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs flex-shrink-0">
-                      {cName.charAt(0)}
+                      {(() => { const p = cName.trim().split(/\s+/); return p.length >= 2 ? `${p[0][0]}${p[p.length-1][0]}`.toUpperCase() : cName.charAt(0).toUpperCase(); })()}
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
