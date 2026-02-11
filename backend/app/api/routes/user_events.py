@@ -2151,9 +2151,19 @@ def add_event_service(event_id: str, body: dict = Body(...), db: Session = Depen
         return err
 
     now = datetime.now(EAT)
+
+    # Resolve service_id from the provider's user service
+    service_id_val = None
+    if body.get("service_id"):
+        service_id_val = uuid.UUID(body["service_id"])
+    elif body.get("provider_service_id"):
+        provider_svc = db.query(UserService).filter(UserService.id == uuid.UUID(body["provider_service_id"])).first()
+        if provider_svc and provider_svc.service_type_id:
+            service_id_val = provider_svc.service_type_id
+
     es = EventService(
         id=uuid.uuid4(), event_id=eid,
-        service_id=uuid.UUID(body["service_id"]) if body.get("service_id") else None,
+        service_id=service_id_val,
         provider_user_service_id=uuid.UUID(body["provider_service_id"]) if body.get("provider_service_id") else None,
         provider_user_id=uuid.UUID(body["provider_user_id"]) if body.get("provider_user_id") else None,
         agreed_price=body.get("quoted_price"),

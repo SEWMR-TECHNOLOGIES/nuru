@@ -1,17 +1,19 @@
 # Communities Routes - /communities/...
 # Manages community groups
 
+import os
 import uuid
 from datetime import datetime
+from typing import List, Optional
 
+import httpx
 import pytz
-from fastapi import APIRouter, Depends, Body
+from fastapi import APIRouter, Depends, Body, File, Form, UploadFile
 from sqlalchemy.orm import Session
-from sqlalchemy import func as sa_func
 from sqlalchemy import func as sa_func
 
 from core.database import get_db
-from models import Community, CommunityMember, User, UserProfile, UserFeed, UserFeedImage
+from models import Community, CommunityMember, CommunityPost, CommunityPostImage, CommunityPostGlow, User, UserProfile, UserFeed, UserFeedImage
 from utils.auth import get_current_user
 from utils.helpers import standard_response, paginate
 
@@ -191,7 +193,7 @@ def get_community_members(community_id: str, page: int = 1, limit: int = 20, db:
                 "id": str(user.id),
                 "first_name": user.first_name,
                 "last_name": user.last_name,
-                "avatar": profile.profile_image_url if profile else None,
+                "avatar": profile.profile_picture_url if profile else None,
                 "role": m.role,
                 "joined_at": m.joined_at.isoformat() if m.joined_at else None,
             })
@@ -201,7 +203,7 @@ def get_community_members(community_id: str, page: int = 1, limit: int = 20, db:
 
 @router.get("/{community_id}/posts")
 def get_community_posts(community_id: str, page: int = 1, limit: int = 20, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Get posts from community members (the creator's posts for now)."""
+    """Get community posts created by the community creator."""
     try:
         cid = uuid.UUID(community_id)
     except ValueError:
@@ -211,47 +213,134 @@ def get_community_posts(community_id: str, page: int = 1, limit: int = 20, db: S
     if not c:
         return standard_response(False, "Community not found")
 
-    # Check membership
-    is_member = db.query(CommunityMember).filter(
-        CommunityMember.community_id == cid,
-        CommunityMember.user_id == current_user.id
-    ).first() is not None
-    is_creator = str(c.created_by) == str(current_user.id) if c.created_by else False
-
-    if not is_member and not is_creator and not c.is_public:
-        return standard_response(False, "You must join this community to view posts")
-
-    # Get all member user IDs
-    member_ids = [m.user_id for m in db.query(CommunityMember.user_id).filter(CommunityMember.community_id == cid).all()]
-    if c.created_by and c.created_by not in member_ids:
-        member_ids.append(c.created_by)
-
-    if not member_ids:
-        return standard_response(True, "Community posts retrieved", {"posts": []})
-
-    query = db.query(UserFeed).filter(
-        UserFeed.user_id.in_(member_ids),
-        UserFeed.is_active == True,
-    ).order_by(UserFeed.created_at.desc())
+    query = db.query(CommunityPost).filter(
+        CommunityPost.community_id == cid,
+        CommunityPost.is_active == True,
+    ).order_by(CommunityPost.created_at.desc())
 
     items, pagination_data = paginate(query, page, limit)
 
     posts = []
-    for post in items:
-        user = db.query(User).filter(User.id == post.user_id).first()
-        profile = db.query(UserProfile).filter(UserProfile.user_id == post.user_id).first() if user else None
-        images = db.query(UserFeedImage).filter(UserFeedImage.feed_id == post.id).all()
+    for cp in items:
+        user = db.query(User).filter(User.id == cp.user_id).first()
+        profile = db.query(UserProfile).filter(UserProfile.user_id == cp.user_id).first() if user else None
+        images = db.query(CommunityPostImage).filter(CommunityPostImage.community_post_id == cp.id).all()
+        glow_count = db.query(sa_func.count(CommunityPostGlow.id)).filter(CommunityPostGlow.community_post_id == cp.id).scalar() or 0
+        has_glowed = False
+        if current_user:
+            has_glowed = db.query(CommunityPostGlow).filter(
+                CommunityPostGlow.community_post_id == cp.id,
+                CommunityPostGlow.user_id == current_user.id
+            ).first() is not None
 
         posts.append({
-            "id": str(post.id),
+            "id": str(cp.id),
             "author": {
                 "id": str(user.id) if user else None,
                 "name": f"{user.first_name} {user.last_name}" if user else None,
                 "avatar": profile.profile_picture_url if profile else None,
             },
-            "content": post.content,
+            "content": cp.content,
             "images": [img.image_url for img in images],
-            "created_at": post.created_at.isoformat() if post.created_at else None,
+            "glow_count": glow_count,
+            "has_glowed": has_glowed,
+            "created_at": cp.created_at.isoformat() if cp.created_at else None,
         })
 
     return standard_response(True, "Community posts retrieved", {"posts": posts}, pagination=pagination_data)
+
+
+@router.post("/{community_id}/posts")
+async def create_community_post(
+    community_id: str,
+    content: Optional[str] = Form(None),
+    images: Optional[List[UploadFile]] = File(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Only the community creator can post content."""
+    try:
+        cid = uuid.UUID(community_id)
+    except ValueError:
+        return standard_response(False, "Invalid community ID")
+
+    c = db.query(Community).filter(Community.id == cid).first()
+    if not c:
+        return standard_response(False, "Community not found")
+
+    if str(c.created_by) != str(current_user.id):
+        return standard_response(False, "Only the community creator can post")
+
+    if not content and not images:
+        return standard_response(False, "Content or images are required")
+
+    now = datetime.now(EAT)
+    cp = CommunityPost(
+        id=uuid.uuid4(),
+        community_id=cid,
+        user_id=current_user.id,
+        content=content.strip() if content else None,
+        is_active=True,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(cp)
+    db.flush()
+
+    if images:
+        import os
+        import httpx
+        from core.config import UPLOAD_SERVICE_URL
+        for file in images:
+            if not file or not file.filename:
+                continue
+            file_content = await file.read()
+            _, ext = os.path.splitext(file.filename)
+            unique_name = f"{uuid.uuid4().hex}{ext}"
+            async with httpx.AsyncClient() as client:
+                try:
+                    resp = await client.post(UPLOAD_SERVICE_URL, data={"target_path": f"nuru/uploads/communities/{cid}/"}, files={"file": (unique_name, file_content, file.content_type)}, timeout=20)
+                    result = resp.json()
+                    if result.get("success"):
+                        db.add(CommunityPostImage(id=uuid.uuid4(), community_post_id=cp.id, image_url=result["data"]["url"], created_at=now))
+                except Exception:
+                    pass
+
+    db.commit()
+    return standard_response(True, "Post created", {"id": str(cp.id)})
+
+
+@router.post("/{community_id}/posts/{post_id}/glow")
+def glow_community_post(community_id: str, post_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        pid = uuid.UUID(post_id)
+    except ValueError:
+        return standard_response(False, "Invalid post ID")
+
+    existing = db.query(CommunityPostGlow).filter(
+        CommunityPostGlow.community_post_id == pid,
+        CommunityPostGlow.user_id == current_user.id
+    ).first()
+    if existing:
+        return standard_response(True, "Already glowed")
+
+    db.add(CommunityPostGlow(id=uuid.uuid4(), community_post_id=pid, user_id=current_user.id, created_at=datetime.now(EAT)))
+    db.commit()
+    return standard_response(True, "Post glowed")
+
+
+@router.delete("/{community_id}/posts/{post_id}/glow")
+def unglow_community_post(community_id: str, post_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        pid = uuid.UUID(post_id)
+    except ValueError:
+        return standard_response(False, "Invalid post ID")
+
+    g = db.query(CommunityPostGlow).filter(
+        CommunityPostGlow.community_post_id == pid,
+        CommunityPostGlow.user_id == current_user.id
+    ).first()
+    if g:
+        db.delete(g)
+        db.commit()
+    return standard_response(True, "Glow removed")

@@ -124,6 +124,22 @@ def get_user_posts(user_id: str, page: int = 1, limit: int = 20, db: Session = D
     return standard_response(True, "User posts retrieved", {"posts": [_post_dict(db, p, current_user.id) for p in items], "pagination": pagination})
 
 
+@router.get("/{post_id}/public")
+def get_post_public(post_id: str, db: Session = Depends(get_db)):
+    """Public endpoint - returns post data without auth for public posts only."""
+    try:
+        pid = uuid.UUID(post_id)
+    except ValueError:
+        return standard_response(False, "Invalid post ID")
+    post = db.query(UserFeed).filter(UserFeed.id == pid, UserFeed.is_active == True).first()
+    if not post:
+        return standard_response(False, "Post not found")
+    # Only allow public posts
+    if post.visibility and post.visibility != FeedVisibilityEnum.public:
+        return standard_response(False, "This post is private")
+    return standard_response(True, "Post retrieved", _post_dict(db, post))
+
+
 @router.get("/{post_id}")
 def get_post(post_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:

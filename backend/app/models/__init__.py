@@ -13,7 +13,7 @@ from models.users import (
     PasswordResetToken, Achievement, UserAchievement,
 )
 from models.nuru_cards import NuruCard, NuruCardOrder
-from models.communities import Community, CommunityMember
+from models.communities import Community, CommunityMember, CommunityPost, CommunityPostImage, CommunityPostGlow
 from models.feeds import (
     UserFeed, UserFeedImage, UserFeedGlow, UserFeedEcho,
     UserFeedSpark, UserFeedComment, UserFeedCommentGlow, UserFeedPinned,
