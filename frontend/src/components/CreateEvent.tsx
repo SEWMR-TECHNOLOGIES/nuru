@@ -74,6 +74,12 @@ const CreateEvent: React.FC = () => {
             });
             if (event.gallery_images && event.gallery_images.length > 0) {
               setPreviews(event.gallery_images);
+            } else if ((event as any).images && (event as any).images.length > 0) {
+              // Backend returns images as array of objects {image_url, ...}
+              const imageUrls = (event as any).images.map((img: any) =>
+                typeof img === 'string' ? img : (img.image_url || img.url)
+              ).filter(Boolean);
+              if (imageUrls.length > 0) setPreviews(imageUrls);
             }
           } else {
             showApiErrors(response, "Failed to load event");

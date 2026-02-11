@@ -24,6 +24,7 @@ import ServiceDetail from "@/components/ServiceDetail";
 import Circle from "@/components/Circle";
 import Communities from "@/components/Communities";
 import ProviderChat from "@/components/ProviderChat";
+import CommunityDetail from "@/components/CommunityDetail";
 import MyMoments from "@/components/MyMoments";
 import LiveChat from "@/components/LiveChat";
 import NuruCards from "@/components/NuruCards";
@@ -46,6 +47,7 @@ import NfcCards from "@/pages/features/NfcCards";
 import Payments from "@/pages/features/Payments";
 import VerifyEmail from "@/pages/VerifyEmail";
 import VerifyPhone from "@/pages/VerifyPhone";
+import ResetPassword from "@/pages/ResetPassword";
 
 export default function AppRoutes() {
   const { userIsLoggedIn, isLoading } = useCurrentUser();
@@ -95,6 +97,7 @@ export default function AppRoutes() {
           <Route path="/profile" element={<UserProfile />} />
           <Route path="/circle" element={<Circle />} />
           <Route path="/communities" element={<Communities />} />
+          <Route path="/communities/:id" element={<CommunityDetail />} />
           <Route path="/provider-chat" element={<ProviderChat />} />
           <Route path="/my-posts" element={<MyMoments />} />
           <Route path="/live-chat" element={<LiveChat />} />
@@ -110,6 +113,7 @@ export default function AppRoutes() {
         <Route path="/login" element={userIsLoggedIn ? <Navigate to="/" replace /> : <Login />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/verify-phone" element={<VerifyPhone />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/features/event-planning" element={<EventPlanning />} />

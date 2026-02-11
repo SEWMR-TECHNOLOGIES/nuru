@@ -8356,18 +8356,13 @@ Authorization: Bearer {token}
 Content-Type: multipart/form-data
 
 Form Fields:
-- content (optional): string, max 2000 characters (required if no media)
-- media (optional): files, max 10 files, each max 50MB
-  - Images: jpg, jpeg, png, webp, gif
-  - Videos: mp4, mov, avi, max 60 seconds
-- event_id (optional): UUID, link to an event
-- tagged_user_ids (optional): JSON array of user UUIDs, max 20
-- location_name (optional): string, max 200 characters
-- location_city (optional): string, max 100 characters
-- location_country (optional): string, max 100 characters
-- latitude (optional): number, -90 to 90
-- longitude (optional): number, -180 to 180
-- privacy (optional): string, one of "public", "followers", "private", default "public"
+- content (optional): string, max 2000 characters (required if no images)
+- images (optional): files, max 10 image files, each max 10MB
+  - Supported: jpg, jpeg, png, webp, gif
+- location (optional): string, location name (reverse geocoded)
+- visibility (optional): string, enum "public" | "circle", default "public"
+  - "public": Visible to everyone
+  - "circle": Visible only to the user's circle members
 
 Response 201:
 {
@@ -8375,41 +8370,26 @@ Response 201:
   "message": "Post created successfully",
   "data": {
     "id": "uuid-string",
-    "user": {
+    "author": {
       "id": "uuid-string",
-      "first_name": "John",
-      "last_name": "Doe",
+      "name": "John Doe",
       "username": "johndoe",
-      "avatar": "https://storage.example.com/avatars/uuid.jpg",
-      "is_verified": false,
-      "is_following": false
+      "avatar": "https://storage.example.com/avatars/uuid.jpg"
     },
     "content": "Just created my first post on Nuru! 🎉",
-    "media": [
-      {
-        "id": "uuid-string",
-        "type": "image",
-        "url": "https://storage.example.com/posts/uuid.jpg",
-        "thumbnail_url": "https://storage.example.com/posts/uuid-thumb.jpg",
-        "width": 1080,
-        "height": 1080,
-        "blurhash": "LGF5]+Yk^6#M@-5c,1J5@[or[Q6."
-      }
+    "images": [
+      "https://storage.example.com/posts/uuid.jpg"
     ],
-    "event": null,
-    "tagged_users": [],
-    "location": null,
+    "location": "Dar es Salaam",
+    "visibility": "public",
     "glow_count": 0,
     "echo_count": 0,
+    "spark_count": 0,
     "comment_count": 0,
-    "share_count": 0,
     "has_glowed": false,
     "has_echoed": false,
-    "has_saved": false,
     "is_pinned": false,
-    "privacy": "public",
-    "created_at": "2024-06-25T12:00:00Z",
-    "updated_at": "2024-06-25T12:00:00Z"
+    "created_at": "2025-02-10T12:00:00Z"
   }
 }
 
@@ -8437,11 +8417,13 @@ Path Parameters:
 
 Request Body:
 {
-  "content": "Updated post content here",
-  "privacy": "followers"
+  "content": "Updated post content here",   // optional
+  "visibility": "circle"                     // optional, "public" | "circle"
 }
 
 Note: Media cannot be updated. To change media, delete and recreate the post.
+Visibility "circle" restricts the post to users who have the author in their circle.
+Visibility "public" makes the post visible to everyone.
 
 Response 200:
 {
@@ -8450,23 +8432,17 @@ Response 200:
   "data": {
     "id": "uuid-string",
     "content": "Updated post content here",
-    "privacy": "followers",
-    "updated_at": "2024-06-25T14:00:00Z"
+    "visibility": "circle",
+    "glow_count": 5,
+    "echo_count": 2,
+    "...": "full post object"
   }
 }
 
-Response 403:
+Response 404:
 {
   "success": false,
-  "message": "You can only edit your own posts",
-  "data": null
-}
-
-Response 400:
-{
-  "success": false,
-  "message": "Posts can only be edited within 24 hours of creation",
-  "data": null
+  "message": "Post not found"
 }
 ```
 
@@ -12584,3 +12560,61 @@ Response 200:
 | 422 | Unprocessable Entity | Request understood but cannot be processed |
 | 429 | Too Many Requests | Rate limit exceeded |
 | 500 | Internal Server Error | Server-side error |
+
+---
+
+# 📋 CHANGELOG (2026-02-10)
+
+## Backend Changes
+
+### New Enum: `feed_visibility_enum`
+- Values: `public`, `circle`
+- Used by `user_feeds.visibility` column
+
+### New Column: `user_feeds.visibility`
+- Type: `feed_visibility_enum`, default `public`
+- Controls post audience: `public` (everyone) or `circle` (close friends only)
+- **SQL migration required:**
+```sql
+CREATE TYPE feed_visibility_enum AS ENUM ('public', 'circle');
+ALTER TABLE user_feeds ADD COLUMN visibility feed_visibility_enum DEFAULT 'public';
+```
+
+### SMS Notification Integration
+- `backend/utils/sms.py` — Fire-and-forget SMS helpers using `SewmrSmsClient`
+- Wired into guest additions, committee invites, contributions, target updates, thank-you messages, and provider bookings in `/user-events/` routes
+
+### Community Posts Endpoint
+- `GET /communities/{id}/posts` — Aggregates feed posts from community members
+
+### Password Reset
+- `POST /auth/forgot-password` — Sends reset email via API
+- `POST /auth/reset-password` — Accepts token + new password
+- Frontend `ResetPassword` page wired to these endpoints
+
+### Post Visibility
+- `POST /posts` now accepts `visibility` form field (`public` | `circle`)
+- `GET /posts/feed` and `GET /posts/{id}` return `visibility` in response
+
+### Default Currency
+- All service and event endpoints default to `TZS` instead of `KES`
+
+## Frontend Changes
+
+### Feed Image Fix
+- Fixed image extraction: handles both string URLs and `{image_url}` objects from backend
+- `Moment.tsx` now supports multi-image grid display
+
+### Event Edit Fixes
+- Service providers now re-fetch when event type changes on edit
+- Event images now load from `images[]` array (not just `gallery_images`)
+
+### OTP Input Consistency
+- VerifyEmail and VerifyPhone pages use `InputOTP` component with 6 box slots
+
+### Dark Mode
+- Theme toggle in Settings persists to `localStorage('nuru-ui-theme')`
+- Applied via `document.documentElement.classList.toggle('dark')`
+
+### Autocomplete Prevention
+- `autoComplete="off"` default on shared `Input` component

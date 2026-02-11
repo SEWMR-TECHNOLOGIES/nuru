@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
+import { getTimeAgo } from '@/utils/getTimeAgo';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Edit, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Edit, Trash2, Globe, Users } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -16,7 +18,15 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { useNavigate } from 'react-router-dom';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -33,6 +43,7 @@ const MyMoments = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<any>(null);
   const [editText, setEditText] = useState('');
+  const [editVisibility, setEditVisibility] = useState<string>('public');
 
   useWorkspaceMeta({
     title: "Your Moments",
@@ -63,16 +74,7 @@ const MyMoments = () => {
     fetchMyPosts();
   }, [fetchMyPosts]);
 
-  const getTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    if (diffInSeconds < 60) return 'Just now';
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
-    return date.toLocaleDateString();
-  };
+  // getTimeAgo imported from shared utility
 
   const handleDelete = async (postId: string) => {
     try {
@@ -91,13 +93,28 @@ const MyMoments = () => {
   const handleEdit = (post: any) => {
     setEditingPost(post);
     setEditText(post.content || '');
+    setEditVisibility(post.visibility || 'public');
     setEditDialogOpen(true);
+  };
+
+  const handleVisibilityChange = async (postId: string, newVisibility: string) => {
+    try {
+      const response = await socialApi.updatePost(postId, { visibility: newVisibility });
+      if (response.success) {
+        setPosts(posts.map(p => p.id === postId ? { ...p, visibility: newVisibility } : p));
+        toast.success(`Visibility changed to ${newVisibility === 'circle' ? 'My Circle' : 'Public'}`);
+      } else {
+        toast.error('Failed to change visibility');
+      }
+    } catch {
+      toast.error('Failed to change visibility');
+    }
   };
 
   const saveEdit = async () => {
     if (!editingPost) return;
     try {
-      const response = await socialApi.updatePost(editingPost.id, { content: editText });
+      const response = await socialApi.updatePost(editingPost.id, { content: editText, visibility: editVisibility });
       if (response.success) {
         toast.success('Moment updated');
         setEditDialogOpen(false);
@@ -179,9 +196,15 @@ const MyMoments = () => {
                 )}
                 <div>
                   <h3 className="font-semibold text-sm md:text-base text-foreground">{authorName}</h3>
-                  <p className="text-xs md:text-sm text-muted-foreground">
-                    {post.created_at ? getTimeAgo(post.created_at) : 'Recently'}
-                  </p>
+                  <div className="flex items-center gap-1.5 text-xs md:text-sm text-muted-foreground">
+                    <span>{post.created_at ? getTimeAgo(post.created_at) : 'Recently'}</span>
+                    <span>·</span>
+                    {(post.visibility || 'public') === 'circle' ? (
+                      <span className="flex items-center gap-0.5"><Users className="w-3 h-3" /> Circle</span>
+                    ) : (
+                      <span className="flex items-center gap-0.5"><Globe className="w-3 h-3" /> Public</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -196,9 +219,18 @@ const MyMoments = () => {
                     <Edit className="w-4 h-4 mr-2" />
                     Edit
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleVisibilityChange(post.id, post.visibility === 'circle' ? 'public' : 'circle')}>
+                    {post.visibility === 'circle' ? (
+                      <><Globe className="w-4 h-4 mr-2" /> Make Public</>
+                    ) : (
+                      <><Users className="w-4 h-4 mr-2" /> Circle Only</>
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => handleDelete(post.id)}
-                    className="text-red-600 focus:text-red-600"
+                    className="text-destructive focus:text-destructive"
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
                     Delete
@@ -254,6 +286,22 @@ const MyMoments = () => {
                 placeholder="What's on your mind?"
                 rows={4}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Visibility</Label>
+              <Select value={editVisibility} onValueChange={setEditVisibility}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">
+                    <span className="flex items-center gap-2"><Globe className="w-4 h-4" /> Public</span>
+                  </SelectItem>
+                  <SelectItem value="circle">
+                    <span className="flex items-center gap-2"><Users className="w-4 h-4" /> My Circle</span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

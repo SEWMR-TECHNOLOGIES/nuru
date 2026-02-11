@@ -17,10 +17,30 @@ from core.database import get_db
 from models import (
     UserFeed, UserFeedImage, UserFeedGlow, UserFeedEcho,
     UserFeedSpark, UserFeedComment, UserFeedCommentGlow,
-    UserFeedPinned, User, UserProfile,
+    UserFeedPinned, User, UserProfile, UserCircle, FeedVisibilityEnum,
 )
 from utils.auth import get_current_user
 from utils.helpers import standard_response, paginate
+
+
+def _visible_feed_query(db, current_user_id):
+    """Return a query for active posts visible to current_user.
+    Public posts: everyone sees them.
+    Circle posts: only the author OR users in the author's circle can see them.
+    """
+    from sqlalchemy import or_, and_
+    circle_member_ids = db.query(UserCircle.user_id).filter(
+        UserCircle.circle_member_id == current_user_id
+    ).subquery()
+    return db.query(UserFeed).filter(
+        UserFeed.is_active == True,
+        or_(
+            UserFeed.visibility == FeedVisibilityEnum.public,
+            UserFeed.visibility.is_(None),
+            UserFeed.user_id == current_user_id,
+            UserFeed.user_id.in_(circle_member_ids),
+        )
+    )
 
 EAT = pytz.timezone("Africa/Nairobi")
 router = APIRouter(prefix="/posts", tags=["Posts/Feed"])
@@ -50,7 +70,8 @@ def _post_dict(db, post, current_user_id=None):
             "avatar": profile.profile_picture_url if profile else None,
         },
         "content": post.content, "images": [img.image_url for img in images],
-        "location": post.location if hasattr(post, "location") else None,
+        "location": post.location,
+        "visibility": post.visibility.value if post.visibility else "public",
         "glow_count": glow_count, "echo_count": echo_count,
         "spark_count": spark_count, "comment_count": comment_count,
         "has_glowed": has_glowed, "has_echoed": has_echoed,
@@ -66,14 +87,14 @@ def get_saved_posts(db: Session = Depends(get_db), current_user: User = Depends(
 
 @router.get("/feed")
 def get_feed(page: int = 1, limit: int = 20, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    query = db.query(UserFeed).filter(UserFeed.is_active == True).order_by(UserFeed.created_at.desc())
+    query = _visible_feed_query(db, current_user.id).order_by(UserFeed.created_at.desc())
     items, pagination = paginate(query, page, limit)
     return standard_response(True, "Feed retrieved", {"posts": [_post_dict(db, p, current_user.id) for p in items], "pagination": pagination})
 
 
 @router.get("/explore")
 def get_explore(page: int = 1, limit: int = 20, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    query = db.query(UserFeed).filter(UserFeed.is_active == True).order_by(UserFeed.created_at.desc())
+    query = _visible_feed_query(db, current_user.id).order_by(UserFeed.created_at.desc())
     items, pagination = paginate(query, page, limit)
     return standard_response(True, "Explore posts retrieved", {"posts": [_post_dict(db, p, current_user.id) for p in items], "pagination": pagination})
 
@@ -104,6 +125,7 @@ def get_post(post_id: str, db: Session = Depends(get_db), current_user: User = D
 @router.post("/")
 async def create_post(
     content: Optional[str] = Form(None), location: Optional[str] = Form(None),
+    visibility: Optional[str] = Form("public"),
     images: Optional[List[UploadFile]] = File(None),
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
@@ -112,8 +134,12 @@ async def create_post(
 
     now = datetime.now(EAT)
     post = UserFeed(id=uuid.uuid4(), user_id=current_user.id, content=content.strip() if content else None, is_active=True, created_at=now, updated_at=now)
-    if hasattr(post, "location") and location:
+    if location:
         post.location = location.strip()
+    if visibility and visibility.strip() in ("public", "circle"):
+        post.visibility = FeedVisibilityEnum(visibility.strip())
+    else:
+        post.visibility = FeedVisibilityEnum.public
     db.add(post)
     db.flush()
 
@@ -146,10 +172,13 @@ def update_post(post_id: str, body: dict = Body(...), db: Session = Depends(get_
     post = db.query(UserFeed).filter(UserFeed.id == pid, UserFeed.user_id == current_user.id).first()
     if not post:
         return standard_response(False, "Post not found")
-    if "content" in body: post.content = body["content"]
+    if "content" in body:
+        post.content = body["content"]
+    if "visibility" in body and body["visibility"] in ("public", "circle"):
+        post.visibility = FeedVisibilityEnum(body["visibility"])
     post.updated_at = datetime.now(EAT)
     db.commit()
-    return standard_response(True, "Post updated successfully")
+    return standard_response(True, "Post updated successfully", _post_dict(db, post, current_user.id))
 
 
 @router.delete("/{post_id}")

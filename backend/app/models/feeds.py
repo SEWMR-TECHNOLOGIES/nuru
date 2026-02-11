@@ -1,6 +1,9 @@
-from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Integer, Text, UniqueConstraint
+from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Integer, Text, Enum, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from core.base import Base
+from models.enums import FeedVisibilityEnum
 from sqlalchemy.sql import func
 from core.base import Base
 
@@ -20,6 +23,7 @@ class UserFeed(Base):
     is_public = Column(Boolean, default=True)
     allow_echo = Column(Boolean, default=True)
     is_active = Column(Boolean, default=True)
+    visibility = Column(Enum(FeedVisibilityEnum, name="feed_visibility_enum"), default=FeedVisibilityEnum.public)
     glow_count = Column(Integer, default=0)
     echo_count = Column(Integer, default=0)
     spark_count = Column(Integer, default=0)

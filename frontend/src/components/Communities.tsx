@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Users, Search, LogOut, Crown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +14,7 @@ import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useCommunities } from '@/data/useSocial';
 
 const Communities = () => {
+  const navigate = useNavigate();
   useWorkspaceMeta({
     title: 'Communities',
     description: 'Join communities and connect with like-minded people for events, weddings, and celebrations.'
@@ -210,7 +212,7 @@ const Communities = () => {
           <h2 className="text-xl font-semibold text-foreground mb-4">My Communities</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {myFilteredCommunities.map((community) => (
-              <Card key={community.id} className="hover:shadow-md transition-shadow">
+              <Card key={community.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/communities/${community.id}`)}>
                 <div className="relative h-32 w-full overflow-hidden rounded-t-lg bg-muted flex items-center justify-center">
                   {community.image ? (
                     <img
@@ -264,7 +266,7 @@ const Communities = () => {
           <h2 className="text-xl font-semibold text-foreground mb-4">Discover Communities</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {otherCommunities.map((community) => (
-              <Card key={community.id} className="hover:shadow-md transition-shadow">
+              <Card key={community.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/communities/${community.id}`)}>
                 <div className="relative h-32 w-full overflow-hidden rounded-t-lg bg-muted flex items-center justify-center">
                   {community.image ? (
                     <img

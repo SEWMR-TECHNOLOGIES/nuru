@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Heart, MessageCircle, Share2, Send, MoreHorizontal, Loader2, Repeat2, Bookmark, Flag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -222,16 +223,7 @@ const PostDetail = () => {
     }
   };
 
-  const getTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
-    if (diff < 60) return 'Just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-    return date.toLocaleDateString();
-  };
+  // getTimeAgo imported from shared utility
 
   if (loading) {
     return (

@@ -1,15 +1,14 @@
 /**
- * Settings Data Hook - aligned with nuru-api-doc MODULE 19
- * Response format: { success, data: { notifications: {...}, privacy: {...}, ... } }
- * Update responses: { success, data: { notifications: {...}, updated_at } }
+ * Settings Data Hook - aligned with backend /settings endpoints
+ * Backend returns flat fields: { notifications: {email_notifications, push_notifications, ...}, privacy: {...}, ... }
+ * Update endpoints accept flat field objects and return success without nested data
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { settingsApi, AllSettings } from "@/lib/api/settings";
-import { throwApiError } from "@/lib/api/showApiErrors";
+import { settingsApi } from "@/lib/api/settings";
 
 export const useSettings = () => {
-  const [settings, setSettings] = useState<AllSettings | null>(null);
+  const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
@@ -35,81 +34,71 @@ export const useSettings = () => {
     fetchSettings();
   }, [fetchSettings]);
 
-  const updateNotifications = async (data: any) => {
+  const updateNotifications = async (data: Record<string, any>) => {
     setUpdating(true);
     try {
-      const response = await settingsApi.updateNotifications(data);
-      if (response.success && response.data) {
-        // API returns { notifications: {...}, updated_at } in data
-        const updatedNotifications = response.data.notifications;
-        if (updatedNotifications) {
-          setSettings(prev => prev ? { ...prev, notifications: updatedNotifications } : prev);
-        }
+      const response = await settingsApi.updateNotifications(data as any);
+      if (response.success) {
+        // Optimistically merge the update into local state
+        setSettings((prev: any) => prev ? {
+          ...prev,
+          notifications: { ...prev.notifications, ...data }
+        } : prev);
         return response.data;
       }
-      throwApiError(response);
+      throw new Error(response.message || 'Failed to update');
     } finally {
       setUpdating(false);
     }
   };
 
-  const updatePrivacy = async (data: any) => {
+  const updatePrivacy = async (data: Record<string, any>) => {
     setUpdating(true);
     try {
-      const response = await settingsApi.updatePrivacy(data);
-      if (response.success && response.data) {
-        // API returns { privacy: {...}, updated_at } in data
-        const updatedPrivacy = response.data.privacy;
-        if (updatedPrivacy) {
-          setSettings(prev => prev ? { ...prev, privacy: updatedPrivacy } : prev);
-        }
+      const response = await settingsApi.updatePrivacy(data as any);
+      if (response.success) {
+        setSettings((prev: any) => prev ? {
+          ...prev,
+          privacy: { ...prev.privacy, ...data }
+        } : prev);
         return response.data;
       }
-      throwApiError(response);
+      throw new Error(response.message || 'Failed to update');
     } finally {
       setUpdating(false);
     }
   };
 
-  const updatePreferences = async (data: any) => {
+  const updatePreferences = async (data: Record<string, any>) => {
     setUpdating(true);
     try {
-      const response = await settingsApi.updatePreferences(data);
-      if (response.success && response.data) {
-        // API returns { preferences: {...}, updated_at } in data
-        const updatedPreferences = response.data.preferences;
-        if (updatedPreferences) {
-          setSettings(prev => prev ? { ...prev, preferences: updatedPreferences } : prev);
-        }
+      const response = await settingsApi.updatePreferences(data as any);
+      if (response.success) {
+        setSettings((prev: any) => prev ? {
+          ...prev,
+          preferences: { ...prev.preferences, ...data }
+        } : prev);
         return response.data;
       }
-      throwApiError(response);
+      throw new Error(response.message || 'Failed to update');
     } finally {
       setUpdating(false);
     }
   };
 
   const enableTwoFactor = async () => {
-    try {
-      const response = await settingsApi.enableTwoFactor();
-      if (response.success) return response.data;
-      throwApiError(response);
-    } catch (err) {
-      throw err;
-    }
+    const response = await settingsApi.enableTwoFactor();
+    if (response.success) return response.data;
+    throw new Error(response.message || 'Failed');
   };
 
   const disableTwoFactor = async (code: string, password: string) => {
-    try {
-      const response = await settingsApi.disableTwoFactor({ code, password });
-      if (response.success) {
-        await fetchSettings();
-        return true;
-      }
-      throwApiError(response);
-    } catch (err) {
-      throw err;
+    const response = await settingsApi.disableTwoFactor({ code, password });
+    if (response.success) {
+      await fetchSettings();
+      return true;
     }
+    throw new Error(response.message || 'Failed');
   };
 
   return {

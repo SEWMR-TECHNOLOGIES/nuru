@@ -8,9 +8,10 @@ import pytz
 from fastapi import APIRouter, Depends, Body
 from sqlalchemy.orm import Session
 from sqlalchemy import func as sa_func
+from sqlalchemy import func as sa_func
 
 from core.database import get_db
-from models import Community, CommunityMember, User, UserProfile
+from models import Community, CommunityMember, User, UserProfile, UserFeed, UserFeedImage
 from utils.auth import get_current_user
 from utils.helpers import standard_response, paginate
 
@@ -196,3 +197,61 @@ def get_community_members(community_id: str, page: int = 1, limit: int = 20, db:
             })
 
     return standard_response(True, "Members retrieved", {"members": members}, pagination=pagination)
+
+
+@router.get("/{community_id}/posts")
+def get_community_posts(community_id: str, page: int = 1, limit: int = 20, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Get posts from community members (the creator's posts for now)."""
+    try:
+        cid = uuid.UUID(community_id)
+    except ValueError:
+        return standard_response(False, "Invalid community ID")
+
+    c = db.query(Community).filter(Community.id == cid).first()
+    if not c:
+        return standard_response(False, "Community not found")
+
+    # Check membership
+    is_member = db.query(CommunityMember).filter(
+        CommunityMember.community_id == cid,
+        CommunityMember.user_id == current_user.id
+    ).first() is not None
+    is_creator = str(c.created_by) == str(current_user.id) if c.created_by else False
+
+    if not is_member and not is_creator and not c.is_public:
+        return standard_response(False, "You must join this community to view posts")
+
+    # Get all member user IDs
+    member_ids = [m.user_id for m in db.query(CommunityMember.user_id).filter(CommunityMember.community_id == cid).all()]
+    if c.created_by and c.created_by not in member_ids:
+        member_ids.append(c.created_by)
+
+    if not member_ids:
+        return standard_response(True, "Community posts retrieved", {"posts": []})
+
+    query = db.query(UserFeed).filter(
+        UserFeed.user_id.in_(member_ids),
+        UserFeed.is_active == True,
+    ).order_by(UserFeed.created_at.desc())
+
+    items, pagination_data = paginate(query, page, limit)
+
+    posts = []
+    for post in items:
+        user = db.query(User).filter(User.id == post.user_id).first()
+        profile = db.query(UserProfile).filter(UserProfile.user_id == post.user_id).first() if user else None
+        images = db.query(UserFeedImage).filter(UserFeedImage.feed_id == post.id).all()
+
+        posts.append({
+            "id": str(post.id),
+            "author": {
+                "id": str(user.id) if user else None,
+                "name": f"{user.first_name} {user.last_name}" if user else None,
+                "avatar": profile.profile_picture_url if profile else None,
+            },
+            "content": post.content,
+            "images": [img.image_url for img in images],
+            "created_at": post.created_at.isoformat() if post.created_at else None,
+        })
+
+    return standard_response(True, "Community posts retrieved", {"posts": posts}, pagination=pagination_data)

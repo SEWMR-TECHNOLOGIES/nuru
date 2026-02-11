@@ -159,6 +159,11 @@ export const socialApi = {
   getCommunities: (params?: { page?: number; limit?: number }) =>
     get<any[]>(`/communities${buildQueryString(params)}`),
   getMyCommunities: () => get<any[]>("/communities/my"),
+  getCommunity: (communityId: string) => get<any>(`/communities/${communityId}`),
+  getCommunityMembers: (communityId: string, params?: { page?: number; limit?: number }) =>
+    get<{ members: any[] }>(`/communities/${communityId}/members${buildQueryString(params)}`),
+  getCommunityPosts: (communityId: string, params?: { page?: number; limit?: number }) =>
+    get<{ posts: FeedPost[] }>(`/communities/${communityId}/posts${buildQueryString(params)}`),
   createCommunity: (data: { name: string; description?: string; is_public?: boolean }) =>
     post<any>("/communities", data),
   joinCommunity: (communityId: string) =>

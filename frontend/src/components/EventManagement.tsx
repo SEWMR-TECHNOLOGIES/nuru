@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Calendar, MapPin, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X } from 'lucide-react';
+import { ChevronLeft, Calendar, MapPin, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import EventRSVP from './EventRSVP';
 import EventGuestList from './events/EventGuestList';
@@ -19,6 +20,7 @@ import { usePolling } from '@/hooks/usePolling';
 import { formatPrice } from '@/utils/formatPrice';
 import { EventManagementSkeleton } from '@/components/ui/EventManagementSkeleton';
 import { eventsApi, showCaughtError } from '@/lib/api';
+import { servicesApi } from '@/lib/api/services';
 import { toast } from 'sonner';
 
 const EventManagement = () => {
@@ -87,8 +89,47 @@ const EventManagement = () => {
     setDeleteServiceId(null);
   };
 
-  const filteredServices: any[] = [];
-  const handleAddService = (_s: any) => { setShowAddServiceDialog(false); setServiceSearch(''); };
+  // Service provider search
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [addingServiceId, setAddingServiceId] = useState<string | null>(null);
+
+  const handleServiceSearch = async (query: string) => {
+    setServiceSearch(query);
+    if (query.length < 2) { setSearchResults([]); return; }
+    setSearchLoading(true);
+    try {
+      const res = await servicesApi.search({ search: query, limit: 20 });
+      if (res.success) {
+        const data = res.data as any;
+        setSearchResults(data?.services || (Array.isArray(data) ? data : []));
+      }
+    } catch { /* silent */ }
+    finally { setSearchLoading(false); }
+  };
+
+  const handleAddService = async (service: any) => {
+    if (!id) return;
+    setAddingServiceId(service.id);
+    try {
+      const res = await eventsApi.addEventService(id, {
+        provider_service_id: service.id,
+        provider_user_id: service.provider?.id,
+        quoted_price: service.min_price,
+        notes: service.title,
+      });
+      if (res.success) {
+        toast.success(`${service.title} added to event`);
+        loadEventServices();
+        setShowAddServiceDialog(false);
+        setServiceSearch('');
+        setSearchResults([]);
+      } else {
+        showCaughtError(res);
+      }
+    } catch (err: any) { showCaughtError(err); }
+    finally { setAddingServiceId(null); }
+  };
 
   if (eventLoading) return <EventManagementSkeleton />;
   if (!event) return <div className="text-center py-8 text-muted-foreground">Event not found</div>;
@@ -259,18 +300,48 @@ const EventManagement = () => {
       {/* Add Service Dialog */}
       <Dialog open={showAddServiceDialog} onOpenChange={setShowAddServiceDialog}>
         <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader><DialogTitle>Add Service</DialogTitle><DialogDescription>Search and select a service to add to your event checklist</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>Add Service Provider</DialogTitle><DialogDescription>Search for a service provider to assign to your event</DialogDescription></DialogHeader>
           <div className="space-y-4">
-            <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input placeholder="Search services..." value={serviceSearch} onChange={(e) => setServiceSearch(e.target.value)} className="pl-9" /></div>
-            <ScrollArea className="h-[300px] pr-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search by name, category..." value={serviceSearch} onChange={(e) => handleServiceSearch(e.target.value)} className="pl-9" />
+            </div>
+            <ScrollArea className="h-[350px] pr-4">
               <div className="space-y-2">
-                {filteredServices.map((service) => (
-                  <button key={service.id} onClick={() => handleAddService(service)} className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted transition-colors">
-                    <div className="font-medium">{service.name}</div>
-                    <div className="text-sm text-muted-foreground">{service.category} • {service.estimatedCost}</div>
+                {searchLoading && (
+                  <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+                )}
+                {!searchLoading && searchResults.map((service: any) => (
+                  <button
+                    key={service.id}
+                    onClick={() => handleAddService(service)}
+                    disabled={addingServiceId === service.id}
+                    className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted transition-colors flex items-center gap-3"
+                  >
+                    <Avatar className="w-10 h-10 flex-shrink-0">
+                      <AvatarImage src={service.primary_image || service.images?.[0]?.url} />
+                      <AvatarFallback>{service.title?.[0]}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{service.title}</div>
+                      <div className="text-sm text-muted-foreground truncate">
+                        {service.category_name || service.category || service.service_type_name} 
+                        {service.provider?.name && <> • {service.provider.name}</>}
+                      </div>
+                      {service.min_price && (
+                        <div className="text-xs text-muted-foreground">From TZS {formatPrice(service.min_price)}</div>
+                      )}
+                    </div>
+                    {service.verified && <Badge variant="outline" className="text-xs flex-shrink-0">Verified</Badge>}
+                    {addingServiceId === service.id && <Loader2 className="w-4 h-4 animate-spin" />}
                   </button>
                 ))}
-                {filteredServices.length === 0 && <div className="text-center py-8 text-muted-foreground">No services found</div>}
+                {!searchLoading && serviceSearch.length >= 2 && searchResults.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">No service providers found</div>
+                )}
+                {!searchLoading && serviceSearch.length < 2 && (
+                  <div className="text-center py-8 text-muted-foreground">Type at least 2 characters to search</div>
+                )}
               </div>
             </ScrollArea>
           </div>

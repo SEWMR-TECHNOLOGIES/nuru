@@ -1,4 +1,4 @@
-import { X, Loader2, Navigation } from 'lucide-react';
+import { X, Loader2, Navigation, Globe, Users } from 'lucide-react';
 import { useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { socialApi } from '@/lib/api/social';
@@ -10,6 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import CameraIcon from '@/assets/icons/camera-icon.svg';
 import ImageIcon from '@/assets/icons/image-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
@@ -66,6 +73,7 @@ const CreatePostBox = () => {
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [showCameraDialog, setShowCameraDialog] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [visibility, setVisibility] = useState<'public' | 'circle'>('public');
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -261,6 +269,9 @@ const CreatePostBox = () => {
       const sanitizedContent = sanitizeText(text.trim());
       formData.append('content', sanitizedContent);
       
+      // Add visibility
+      formData.append('visibility', visibility);
+      
       // Add location if available
       if (location?.name) {
         formData.append('location', location.name);
@@ -285,6 +296,7 @@ const CreatePostBox = () => {
       setImages([]);
       setPreviews([]);
       setLocation(null);
+      setVisibility('public');
       
       toast.success('Moment shared successfully!');
     } catch (error) {
@@ -315,9 +327,27 @@ const CreatePostBox = () => {
           
           {/* Character counter */}
           <div className="flex items-center justify-between">
-            <span className={`text-xs ${isOverLimit ? 'text-destructive' : 'text-muted-foreground'}`}>
-              {characterCount}/2000
-            </span>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs ${isOverLimit ? 'text-destructive' : 'text-muted-foreground'}`}>
+                {characterCount}/2000
+              </span>
+              
+              {/* Visibility selector */}
+              <Select value={visibility} onValueChange={(v: 'public' | 'circle') => setVisibility(v)}>
+                <SelectTrigger className="h-7 w-auto gap-1 border-none shadow-none text-xs text-muted-foreground px-2">
+                  {visibility === 'public' ? <Globe className="w-3 h-3" /> : <Users className="w-3 h-3" />}
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">
+                    <span className="flex items-center gap-1.5"><Globe className="w-3 h-3" /> Public</span>
+                  </SelectItem>
+                  <SelectItem value="circle">
+                    <span className="flex items-center gap-1.5"><Users className="w-3 h-3" /> My Circle</span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             
             <div className="flex items-center gap-1 md:gap-2">
               {/* Camera button */}

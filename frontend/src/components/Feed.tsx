@@ -5,6 +5,7 @@ import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useFeed } from '@/data/useSocial';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { getTimeAgo } from '@/utils/getTimeAgo';
 
 const Feed = () => {
   const { items: apiPosts, loading, error, refetch } = useFeed();
@@ -30,16 +31,7 @@ const Feed = () => {
     }
   }, []);
 
-  const getTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    if (diffInSeconds < 60) return 'Just now';
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
-    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
-    return date.toLocaleDateString();
-  };
+  // getTimeAgo imported from shared utility
 
   const transformApiPost = (apiPost: any) => ({
     id: apiPost.id,
@@ -54,7 +46,16 @@ const Feed = () => {
     content: {
       title: apiPost.title || '',
       text: apiPost.content,
-      image: apiPost.images?.[0] || apiPost.media?.[0]?.url
+      image: (() => {
+        const imgs = apiPost.images || apiPost.media || [];
+        if (imgs.length === 0) return undefined;
+        const first = imgs[0];
+        // Handle both string URLs and object {image_url, url}
+        return typeof first === 'string' ? first : (first?.image_url || first?.url);
+      })(),
+      images: (apiPost.images || apiPost.media || []).map((img: any) =>
+        typeof img === 'string' ? img : (img?.image_url || img?.url)
+      ).filter(Boolean),
     },
     likes: apiPost.glow_count || 0,
     comments: apiPost.comment_count || 0,

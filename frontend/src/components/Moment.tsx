@@ -23,6 +23,7 @@ interface MomentProps {
       title?: string;
       text?: string;
       image?: string;
+      images?: string[];
     };
     likes: number;
     comments: number;
@@ -63,6 +64,7 @@ const Moment = ({ post }: MomentProps) => {
   const title = post.content?.title?.trim() || '';
   const text = post.content?.text?.trim() || '';
   const image = post.content?.image || undefined;
+  const allImages = post.content?.images?.length ? post.content.images : (image ? [image] : []);
 
   const shareUrl = `${window.location.origin}/post/${post.id}`;
   const shareTitle = title || text?.slice(0, 50) || 'Check this out';
@@ -123,14 +125,25 @@ const Moment = ({ post }: MomentProps) => {
         </Button>
       </div>
 
-      {/* Image */}
-      {image && (
-        <div className="px-3 md:px-4">
-          <img
-            src={image}
-            alt={title || 'Post image'}
-            className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30"
-          />
+      {/* Images */}
+      {allImages.length > 0 && (
+        <div className={`px-3 md:px-4 ${allImages.length > 1 ? 'flex gap-2 overflow-x-auto py-1' : ''}`}>
+          {allImages.length === 1 ? (
+            <img
+              src={allImages[0]}
+              alt={title || 'Post image'}
+              className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30"
+            />
+          ) : (
+            allImages.map((imgUrl, idx) => (
+              <img
+                key={idx}
+                src={imgUrl}
+                alt={`Post ${idx + 1}`}
+                className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg"
+              />
+            ))
+          )}
         </div>
       )}
 

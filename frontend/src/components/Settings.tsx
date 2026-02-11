@@ -8,7 +8,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useSettings } from '@/data/useSettings';
 import { toast } from 'sonner';
-import { useEffect } from 'react';
 
 const Settings = () => {
   useWorkspaceMeta({
@@ -18,19 +17,21 @@ const Settings = () => {
 
   const { settings, loading, updating, updateNotifications, updatePrivacy, updatePreferences } = useSettings();
 
-  const handleNotificationToggle = async (path: string, value: boolean) => {
+  // Backend uses flat fields: email_notifications, push_notifications, sms_notifications
+  const handleNotificationToggle = async (field: string, value: boolean) => {
     try {
-      const [section, key] = path.split('.');
-      await updateNotifications({ [section]: { [key]: value } });
+      await updateNotifications({ [field]: value });
       toast.success('Settings updated');
     } catch {
       toast.error('Failed to update settings');
     }
   };
 
-  const handlePrivacyToggle = async (key: string, value: boolean) => {
+  // Backend uses flat fields on privacy: show_online_status, show_last_seen, show_read_receipts
+  // and on settings: private_profile
+  const handlePrivacyToggle = async (field: string, value: boolean) => {
     try {
-      await updatePrivacy({ [key]: value });
+      await updatePrivacy({ [field]: value });
       toast.success('Settings updated');
     } catch {
       toast.error('Failed to update settings');
@@ -81,96 +82,24 @@ const Settings = () => {
     );
   }
 
-  const notif = settings?.notifications;
-  const privacy = settings?.privacy;
-  const prefs = settings?.preferences;
-  const security = settings?.security;
+  const notif = settings?.notifications as any;
+  const privacy = settings?.privacy as any;
+  const prefs = settings?.preferences as any;
+  const security = settings?.security as any;
 
   return (
     <div className="h-full overflow-y-auto p-4 md:p-6">
       <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6">Settings</h1>
       
       <div className="space-y-6 max-w-3xl">
-        {/* Push Notification Settings */}
+        {/* Notification Settings */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <Bell className="w-5 h-5" />
-              <CardTitle>Push Notifications</CardTitle>
+              <CardTitle>Notifications</CardTitle>
             </div>
-            <CardDescription>Choose what push notifications you receive</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Push Notifications</Label>
-                <p className="text-sm text-muted-foreground">Enable push notifications</p>
-              </div>
-              <Switch 
-                checked={notif?.push?.enabled ?? true}
-                onCheckedChange={(v) => handleNotificationToggle('push.enabled', v)}
-                disabled={updating}
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Glows & Echoes</Label>
-                <p className="text-sm text-muted-foreground">When someone glows or echoes your post</p>
-              </div>
-              <Switch 
-                checked={notif?.push?.glows_and_echoes ?? true}
-                onCheckedChange={(v) => handleNotificationToggle('push.glows_and_echoes', v)}
-                disabled={updating}
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Event Invitations</Label>
-                <p className="text-sm text-muted-foreground">When you're invited to an event</p>
-              </div>
-              <Switch 
-                checked={notif?.push?.event_invitations ?? true}
-                onCheckedChange={(v) => handleNotificationToggle('push.event_invitations', v)}
-                disabled={updating}
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>New Followers</Label>
-                <p className="text-sm text-muted-foreground">When someone starts following you</p>
-              </div>
-              <Switch 
-                checked={notif?.push?.new_followers ?? true}
-                onCheckedChange={(v) => handleNotificationToggle('push.new_followers', v)}
-                disabled={updating}
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Messages</Label>
-                <p className="text-sm text-muted-foreground">When you receive a new message</p>
-              </div>
-              <Switch 
-                checked={notif?.push?.messages ?? true}
-                onCheckedChange={(v) => handleNotificationToggle('push.messages', v)}
-                disabled={updating}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Email Notification Settings */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Bell className="w-5 h-5" />
-              <CardTitle>Email Notifications</CardTitle>
-            </div>
-            <CardDescription>Control email notification preferences</CardDescription>
+            <CardDescription>Choose what notifications you receive</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
@@ -179,32 +108,32 @@ const Settings = () => {
                 <p className="text-sm text-muted-foreground">Receive email about your account activity</p>
               </div>
               <Switch 
-                checked={notif?.email?.enabled ?? true}
-                onCheckedChange={(v) => handleNotificationToggle('email.enabled', v)}
+                checked={notif?.email_notifications ?? true}
+                onCheckedChange={(v) => handleNotificationToggle('email_notifications', v)}
                 disabled={updating}
               />
             </div>
             <Separator />
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Weekly Digest</Label>
-                <p className="text-sm text-muted-foreground">Weekly summary of activity</p>
+                <Label>Push Notifications</Label>
+                <p className="text-sm text-muted-foreground">Enable push notifications</p>
               </div>
               <Switch 
-                checked={notif?.email?.weekly_digest ?? true}
-                onCheckedChange={(v) => handleNotificationToggle('email.weekly_digest', v)}
+                checked={notif?.push_notifications ?? true}
+                onCheckedChange={(v) => handleNotificationToggle('push_notifications', v)}
                 disabled={updating}
               />
             </div>
             <Separator />
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Marketing</Label>
-                <p className="text-sm text-muted-foreground">Promotional emails and offers</p>
+                <Label>SMS Notifications</Label>
+                <p className="text-sm text-muted-foreground">Receive SMS for important updates</p>
               </div>
               <Switch 
-                checked={notif?.email?.marketing ?? false}
-                onCheckedChange={(v) => handleNotificationToggle('email.marketing', v)}
+                checked={notif?.sms_notifications ?? false}
+                onCheckedChange={(v) => handleNotificationToggle('sms_notifications', v)}
                 disabled={updating}
               />
             </div>
@@ -223,48 +152,36 @@ const Settings = () => {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Show Email</Label>
-                <p className="text-sm text-muted-foreground">Display email on your profile</p>
+                <Label>Private Profile</Label>
+                <p className="text-sm text-muted-foreground">Only approved followers can see your content</p>
               </div>
               <Switch 
-                checked={privacy?.show_email ?? false}
-                onCheckedChange={(v) => handlePrivacyToggle('show_email', v)}
+                checked={privacy?.private_profile ?? false}
+                onCheckedChange={(v) => handlePrivacyToggle('private_profile', v)}
                 disabled={updating}
               />
             </div>
             <Separator />
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Show Phone</Label>
-                <p className="text-sm text-muted-foreground">Display phone number on your profile</p>
-              </div>
-              <Switch 
-                checked={privacy?.show_phone ?? false}
-                onCheckedChange={(v) => handlePrivacyToggle('show_phone', v)}
-                disabled={updating}
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Show Location</Label>
-                <p className="text-sm text-muted-foreground">Display location on your profile</p>
-              </div>
-              <Switch 
-                checked={privacy?.show_location ?? true}
-                onCheckedChange={(v) => handlePrivacyToggle('show_location', v)}
-                disabled={updating}
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Activity Status</Label>
+                <Label>Show Online Status</Label>
                 <p className="text-sm text-muted-foreground">Show when you're online</p>
               </div>
               <Switch 
-                checked={privacy?.show_activity_status ?? true}
-                onCheckedChange={(v) => handlePrivacyToggle('show_activity_status', v)}
+                checked={privacy?.show_online_status ?? true}
+                onCheckedChange={(v) => handlePrivacyToggle('show_online_status', v)}
+                disabled={updating}
+              />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Show Last Seen</Label>
+                <p className="text-sm text-muted-foreground">Let others see when you were last active</p>
+              </div>
+              <Switch 
+                checked={privacy?.show_last_seen ?? true}
+                onCheckedChange={(v) => handlePrivacyToggle('show_last_seen', v)}
                 disabled={updating}
               />
             </div>
@@ -321,20 +238,8 @@ const Settings = () => {
                   const theme = v ? 'dark' : 'light';
                   localStorage.setItem('nuru-ui-theme', theme);
                   document.documentElement.classList.toggle('dark', v);
-                  handlePreferenceChange('theme', theme);
+                  handlePreferenceChange('dark_mode', v);
                 }}
-                disabled={updating}
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Compact Mode</Label>
-                <p className="text-sm text-muted-foreground">Use compact layout</p>
-              </div>
-              <Switch 
-                checked={prefs?.compact_mode ?? false}
-                onCheckedChange={(v) => handlePreferenceChange('compact_mode', v)}
                 disabled={updating}
               />
             </div>

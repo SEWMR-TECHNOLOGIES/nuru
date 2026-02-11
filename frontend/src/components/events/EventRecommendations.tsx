@@ -110,10 +110,12 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
   }, [eventTypeId, location, budget]);
 
   useEffect(() => {
-    if (eventTypeId && !fetched) {
+    if (eventTypeId) {
+      // Reset fetched state when eventTypeId changes to allow re-fetch
+      setFetched(false);
       fetchRecommendations();
     }
-  }, [eventTypeId, fetchRecommendations, fetched]);
+  }, [eventTypeId]);
 
   const getServiceImage = (service: RecommendedService): string | undefined => {
     if (service.primary_image) {

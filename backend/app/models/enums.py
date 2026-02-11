@@ -141,3 +141,8 @@ class ChatSessionStatusEnum(enum.Enum):
     active = "active"
     ended = "ended"
     abandoned = "abandoned"
+
+
+class FeedVisibilityEnum(enum.Enum):
+    public = "public"
+    circle = "circle"

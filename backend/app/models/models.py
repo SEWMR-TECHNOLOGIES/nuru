@@ -23,6 +23,7 @@ from models.enums import (
     CardOrderStatusEnum,
     CardTypeEnum,
     ChatSessionStatusEnum,
+    FeedVisibilityEnum,
 )
 
 
@@ -606,6 +607,8 @@ class UserFeed(Base):
     location = Column(Text)
     is_public = Column(Boolean, default=True)
     allow_echo = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True)
+    visibility = Column(Enum(FeedVisibilityEnum, name="feed_visibility_enum"), default=FeedVisibilityEnum.public)
     glow_count = Column(Integer, default=0)
     echo_count = Column(Integer, default=0)
     spark_count = Column(Integer, default=0)
