@@ -484,7 +484,7 @@ def record_payment(event_id: str, ec_id: str, body: dict = Body(...), db: Sessio
     if contributor and contributor.phone:
         try:
             from utils.sms import sms_contribution_recorded
-            total_paid = sum(float(c.amount or 0) for c in ec.contributions) + float(amount)
+            total_paid = sum(float(c.amount or 0) for c in ec.contributions)
             pledge = float(ec.pledge_amount or 0)
             currency = _currency_code(db, event)
             sms_contribution_recorded(

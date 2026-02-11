@@ -26,15 +26,17 @@ from utils.helpers import standard_response, paginate
 def _visible_feed_query(db, current_user_id):
     """Return a query for active posts visible to current_user.
     Public posts: everyone sees them.
-    Circle posts: only the author OR users in the author's circle can see them.
+    Circle posts: only the author OR users who are IN the author's circle can see them.
+    i.e. if author X set post to 'circle', current_user sees it only if X added current_user to X's circle.
     """
     from sqlalchemy import or_, and_
-    circle_member_ids = db.query(UserCircle.circle_member_id).filter(
-        UserCircle.user_id == current_user_id
+    # Find all users who have added current_user to THEIR circle
+    authors_who_include_me = db.query(UserCircle.user_id).filter(
+        UserCircle.circle_member_id == current_user_id
     )
-    circle_member_id_list = [r[0] for r in circle_member_ids.all()]
+    author_ids = [r[0] for r in authors_who_include_me.all()]
     query = db.query(UserFeed).filter(UserFeed.is_active == True)
-    if circle_member_id_list:
+    if author_ids:
         query = query.filter(
             or_(
                 UserFeed.visibility == FeedVisibilityEnum.public,
@@ -42,7 +44,7 @@ def _visible_feed_query(db, current_user_id):
                 UserFeed.user_id == current_user_id,
                 and_(
                     UserFeed.visibility == FeedVisibilityEnum.circle,
-                    UserFeed.user_id.in_(circle_member_id_list),
+                    UserFeed.user_id.in_(author_ids),
                 ),
             )
         )
@@ -119,7 +121,26 @@ def get_user_posts(user_id: str, page: int = 1, limit: int = 20, db: Session = D
         uid = uuid.UUID(user_id)
     except ValueError:
         return standard_response(False, "Invalid user ID")
-    query = db.query(UserFeed).filter(UserFeed.user_id == uid, UserFeed.is_active == True).order_by(UserFeed.created_at.desc())
+    from sqlalchemy import or_, and_
+    query = db.query(UserFeed).filter(UserFeed.user_id == uid, UserFeed.is_active == True)
+    # If viewing someone else's profile, filter out circle posts unless they added you to their circle
+    if str(uid) != str(current_user.id):
+        is_in_circle = db.query(UserCircle).filter(
+            UserCircle.user_id == uid,
+            UserCircle.circle_member_id == current_user.id,
+        ).first()
+        if is_in_circle:
+            # Can see public + circle posts
+            pass
+        else:
+            # Can only see public posts
+            query = query.filter(
+                or_(
+                    UserFeed.visibility == FeedVisibilityEnum.public,
+                    UserFeed.visibility.is_(None),
+                )
+            )
+    query = query.order_by(UserFeed.created_at.desc())
     items, pagination = paginate(query, page, limit)
     return standard_response(True, "User posts retrieved", {"posts": [_post_dict(db, p, current_user.id) for p in items], "pagination": pagination})
 
@@ -149,6 +170,14 @@ def get_post(post_id: str, db: Session = Depends(get_db), current_user: User = D
     post = db.query(UserFeed).filter(UserFeed.id == pid).first()
     if not post:
         return standard_response(False, "Post not found")
+    # Enforce circle visibility: only author or circle members can see circle posts
+    if post.visibility == FeedVisibilityEnum.circle and str(post.user_id) != str(current_user.id):
+        is_in_circle = db.query(UserCircle).filter(
+            UserCircle.user_id == post.user_id,
+            UserCircle.circle_member_id == current_user.id,
+        ).first()
+        if not is_in_circle:
+            return standard_response(False, "This post is private")
     return standard_response(True, "Post retrieved", _post_dict(db, post, current_user.id))
 
 

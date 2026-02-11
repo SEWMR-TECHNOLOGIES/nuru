@@ -1425,8 +1425,8 @@ def _member_dict(db: Session, cm) -> dict:
     return {
         "id": str(cm.id), "event_id": str(cm.event_id),
         "user_id": str(cm.user_id) if cm.user_id else None,
-        "name": f"{member_user.first_name} {member_user.last_name}" if member_user else None,
-        "email": member_user.email if member_user else None,
+        "name": f"{member_user.first_name} {member_user.last_name}" if member_user else "Invited Member",
+        "email": member_user.email if member_user else (cm.invited_email if hasattr(cm, 'invited_email') else None),
         "phone": member_user.phone if member_user else None,
         "avatar": profile.profile_picture_url if profile else None,
         "role": role.role_name if role else None,
@@ -1472,6 +1472,7 @@ def add_committee_member(event_id: str, body: dict = Body(...), db: Session = De
         return standard_response(False, "Role is required")
 
     email = body.get("email")
+    user_id_str = body.get("user_id")
     now = datetime.now(EAT)
 
     role = db.query(CommitteeRole).filter(CommitteeRole.role_name == role_name).first()
@@ -1479,9 +1480,28 @@ def add_committee_member(event_id: str, body: dict = Body(...), db: Session = De
         role = CommitteeRole(id=uuid.uuid4(), role_name=role_name, description=body.get("role_description", role_name), created_at=now, updated_at=now)
         db.add(role)
 
-    member_user = db.query(User).filter(User.email == email).first() if email else None
+    # Resolve user: prefer user_id, fallback to email lookup
+    member_user = None
+    if user_id_str:
+        try:
+            member_user = db.query(User).filter(User.id == uuid.UUID(user_id_str)).first()
+        except ValueError:
+            pass
+    if not member_user and email:
+        member_user = db.query(User).filter(sa_func.lower(User.email) == email.strip().lower()).first()
 
-    cm = EventCommitteeMember(id=uuid.uuid4(), event_id=eid, user_id=member_user.id if member_user else None, role_id=role.id, assigned_by=current_user.id, assigned_at=now, created_at=now, updated_at=now)
+    if not member_user:
+        return standard_response(False, "User not found. Please search and select a valid platform user.")
+
+    # Check duplicate
+    existing = db.query(EventCommitteeMember).filter(
+        EventCommitteeMember.event_id == eid,
+        EventCommitteeMember.user_id == member_user.id,
+    ).first()
+    if existing:
+        return standard_response(False, "This user is already a committee member for this event")
+
+    cm = EventCommitteeMember(id=uuid.uuid4(), event_id=eid, user_id=member_user.id, role_id=role.id, assigned_by=current_user.id, assigned_at=now, created_at=now, updated_at=now)
     db.add(cm)
     db.flush()
 
