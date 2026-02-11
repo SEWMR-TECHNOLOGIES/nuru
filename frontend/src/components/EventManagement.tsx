@@ -169,7 +169,7 @@ const EventManagement = () => {
           <span className="flex items-center gap-2"><Calendar className="w-4 h-4 flex-shrink-0" /><span className="truncate">{eventDate}</span></span>
           <span className="flex items-center gap-2"><MapPin className="w-4 h-4 flex-shrink-0" /><span className="truncate">{eventLocation}</span></span>
           <span className="flex items-center gap-2"><Users className="w-4 h-4 flex-shrink-0" /><span className="truncate">{expectedGuests} expected</span></span>
-          <span className="flex items-center gap-2"><UserCheck className="w-4 h-4 flex-shrink-0" /><span className="truncate">{eventGuestCount} confirmed</span></span>
+          <span className="flex items-center gap-2"><UserCheck className="w-4 h-4 flex-shrink-0" /><span className="truncate">{apiEvent?.confirmed_guest_count || 0} confirmed</span></span>
         </div>
       </div>
 
@@ -332,7 +332,7 @@ const EventManagement = () => {
                         <div className="text-xs text-muted-foreground">From TZS {formatPrice(service.min_price)}</div>
                       )}
                     </div>
-                    {service.verified && <Badge variant="outline" className="text-xs flex-shrink-0">Verified</Badge>}
+                    {service.verified && <Badge className="bg-green-100 text-green-800 text-xs flex-shrink-0"><CheckCircle2 className="w-3 h-3 mr-1" />Verified</Badge>}
                     {addingServiceId === service.id && <Loader2 className="w-4 h-4 animate-spin" />}
                   </button>
                 ))}

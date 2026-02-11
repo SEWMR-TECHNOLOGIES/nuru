@@ -48,6 +48,7 @@ import Payments from "@/pages/features/Payments";
 import VerifyEmail from "@/pages/VerifyEmail";
 import VerifyPhone from "@/pages/VerifyPhone";
 import ResetPassword from "@/pages/ResetPassword";
+import GuestPost from "@/pages/GuestPost";
 
 export default function AppRoutes() {
   const { userIsLoggedIn, isLoading } = useCurrentUser();
@@ -116,6 +117,7 @@ export default function AppRoutes() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<Terms />} />
+        <Route path="/shared/post/:id" element={<GuestPost />} />
         <Route path="/features/event-planning" element={<EventPlanning />} />
         <Route path="/features/service-providers" element={<ServiceProviders />} />
         <Route path="/features/invitations" element={<Invitations />} />

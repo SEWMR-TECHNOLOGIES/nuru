@@ -142,7 +142,7 @@ const PostDetail = () => {
   };
 
   const handleShare = (platform: string) => {
-    const shareUrl = `${window.location.origin}/post/${id}`;
+    const shareUrl = `${window.location.origin}/shared/post/${id}`;
     const shareTitle = post?.title || post?.content?.slice(0, 50) || 'Check this out';
     let url = '';
     switch (platform) {

@@ -12585,7 +12585,14 @@ ALTER TABLE user_feeds ADD COLUMN visibility feed_visibility_enum DEFAULT 'publi
 - Wired into guest additions, committee invites, contributions, target updates, thank-you messages, and provider bookings in `/user-events/` routes
 
 ### Community Posts Endpoint
-- `GET /communities/{id}/posts` — Aggregates feed posts from community members
+- `GET /communities/{id}/posts` — Returns community posts created by the community creator
+- `POST /communities/{id}/posts` — Creator-only: create a community post (multipart: `content`, `images[]`)
+- `POST /communities/{id}/posts/{post_id}/glow` — Glow a community post
+- `DELETE /communities/{id}/posts/{post_id}/glow` — Remove glow from a community post
+
+### Public Post Guest View
+- `GET /posts/{id}/public` — Public endpoint (no auth) returns post data for public posts only
+- Frontend route: `/shared/post/:id` — Guest view with sign-in prompt, interactions disabled
 
 ### Password Reset
 - `POST /auth/forgot-password` — Sends reset email via API

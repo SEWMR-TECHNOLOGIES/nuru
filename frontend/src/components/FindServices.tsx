@@ -195,16 +195,16 @@ const FindServices = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-6">
+        <div className="grid gap-4 sm:gap-6">
           {filteredProviders.map((provider) => (
             <Card 
               key={provider.id} 
               className="hover:shadow-md transition-shadow cursor-pointer"
               onClick={() => navigate(`/service/${provider.id}`)}
             >
-              <CardContent className="p-6">
-                <div className="flex flex-col md:flex-row gap-6">
-                  <div className="w-full md:w-32 h-32 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="w-full sm:w-28 h-32 sm:h-28 rounded-lg overflow-hidden bg-muted flex-shrink-0">
                     {((provider as any).primary_image || (provider.images && provider.images.length > 0)) ? (
                       <img
                         src={(provider as any).primary_image || (typeof provider.images?.[0] === 'string' ? provider.images[0] : provider.images?.[0]?.url)}
@@ -218,101 +218,89 @@ const FindServices = () => {
                     )}
                   </div>
                   
-                  <div className="flex-1">
-                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className="text-xl font-semibold">{provider.title}</h3>
-                          {provider.verification_status === 'verified' && (
-                            <Badge className="bg-green-100 text-green-800">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              Verified
-                            </Badge>
-                          )}
-                        </div>
-                        
-                        <div className="flex items-center gap-4 mb-3">
-                          <div className="flex items-center gap-1">
-                            {renderStars(provider.rating || 0)}
-                            <span className="ml-1 font-medium">{provider.rating || 0}</span>
-                            <span className="text-muted-foreground">({provider.review_count || 0} reviews)</span>
-                          </div>
-                          {provider.service_category?.name && (
-                            <Badge variant="secondary">{provider.service_category.name}</Badge>
-                          )}
-                        </div>
-                        
-                        <p className="text-muted-foreground mb-3 line-clamp-2">{provider.description}</p>
-                        
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
-                          {provider.location && (
-                            <span className="flex items-center gap-1">
-                              <MapPin className="w-4 h-4" />
-                              {provider.location}
-                            </span>
-                          )}
-                          <span className="font-medium text-primary">{formatPrice(provider)}</span>
-                        </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <h3 className="text-lg font-semibold truncate">{provider.title}</h3>
+                      {provider.verification_status === 'verified' && (
+                        <Badge className="bg-green-100 text-green-800">
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Verified
+                        </Badge>
+                      )}
+                    </div>
+                    
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <div className="flex items-center gap-1">
+                        {renderStars(provider.rating || 0)}
+                        <span className="ml-1 font-medium text-sm">{provider.rating || 0}</span>
+                        <span className="text-muted-foreground text-sm">({provider.review_count || 0})</span>
+                      </div>
+                      {provider.service_category?.name && (
+                        <Badge variant="secondary" className="text-xs">{provider.service_category.name}</Badge>
+                      )}
+                    </div>
+                    
+                    <p className="text-muted-foreground mb-2 line-clamp-2 text-sm">{provider.description}</p>
+                    
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mb-3">
+                      {provider.location && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate">{provider.location}</span>
+                        </span>
+                      )}
+                      <span className="font-medium text-primary">{formatPrice(provider)}</span>
+                    </div>
 
-                        <div className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                          Click card to view provider profile
-                        </div>
-                      </div>
-                      
-                      <div className="flex flex-col gap-2">
-                        {assignMode ? (
-                          <>
-                            <Button 
-                              size="sm" 
-                              className="w-full md:w-auto"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleAssignProvider(provider.title);
-                              }}
-                            >
-                              Assign Provider
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="w-full md:w-auto"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/provider-chat?providerId=${(provider as any).provider?.id || provider.user_id || provider.id}&providerName=${encodeURIComponent(provider.title)}&serviceId=${assignServiceId}&eventId=${assignEventId}`);
-                              }}
-                            >
-                              <MessageCircle className="w-4 h-4 mr-2" />
-                              Chat
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <Button 
-                              size="sm" 
-                              className="w-full md:w-auto"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/service/${provider.id}`);
-                              }}
-                            >
-                              <Eye className="w-4 h-4 mr-2" />
-                              View Profile
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="w-full md:w-auto"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/provider-chat?providerId=${(provider as any).provider?.id || provider.user_id || provider.id}&providerName=${encodeURIComponent(provider.title)}&serviceId=${provider.id}`);
-                              }}
-                            >
-                              <MessageCircle className="w-4 h-4 mr-2" />
-                              Chat
-                            </Button>
-                          </>
-                        )}
-                      </div>
+                    <div className="flex flex-wrap gap-2">
+                      {assignMode ? (
+                        <>
+                          <Button 
+                            size="sm" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAssignProvider(provider.title);
+                            }}
+                          >
+                            Assign Provider
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/provider-chat?providerId=${(provider as any).provider?.id || provider.user_id || provider.id}&providerName=${encodeURIComponent(provider.title)}&serviceId=${assignServiceId}&eventId=${assignEventId}`);
+                            }}
+                          >
+                            <MessageCircle className="w-4 h-4 mr-2" />
+                            Chat
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button 
+                            size="sm" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/service/${provider.id}`);
+                            }}
+                          >
+                            <Eye className="w-4 h-4 mr-2" />
+                            View Profile
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/provider-chat?providerId=${(provider as any).provider?.id || provider.user_id || provider.id}&providerName=${encodeURIComponent(provider.title)}&serviceId=${provider.id}`);
+                            }}
+                          >
+                            <MessageCircle className="w-4 h-4 mr-2" />
+                            Chat
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

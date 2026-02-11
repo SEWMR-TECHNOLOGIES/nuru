@@ -286,6 +286,33 @@ CREATE TABLE IF NOT EXISTS community_members (
 CREATE INDEX IF NOT EXISTS idx_community_members_community ON community_members(community_id);
 CREATE INDEX IF NOT EXISTS idx_community_members_user ON community_members(user_id);
 
+CREATE TABLE IF NOT EXISTS community_posts (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    community_id uuid NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+    author_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content text,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_community_posts_community ON community_posts(community_id);
+
+CREATE TABLE IF NOT EXISTS community_post_images (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id uuid NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+    image_url text NOT NULL,
+    created_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_community_post_images_post ON community_post_images(post_id);
+
+CREATE TABLE IF NOT EXISTS community_post_glows (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id uuid NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at timestamp DEFAULT now(),
+    UNIQUE(post_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_community_post_glows_post ON community_post_glows(post_id);
+
 CREATE TABLE IF NOT EXISTS user_sessions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid REFERENCES users(id) ON DELETE CASCADE,

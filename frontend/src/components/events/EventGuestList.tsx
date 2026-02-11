@@ -191,26 +191,26 @@ const EventGuestList = ({ eventId }: EventGuestListProps) => {
               <div className="p-6 text-center text-muted-foreground">No guests found</div>
             ) : (
               filteredGuests.map((guest) => (
-                <div key={guest.id} className="p-4 flex items-center justify-between hover:bg-muted/50">
-                  <div className="flex items-center gap-4">
-                    <Avatar>
+                <div key={guest.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-muted/50">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Avatar className="flex-shrink-0">
                       <AvatarImage src={guest.avatar || undefined} />
                       <AvatarFallback>{(guest.name || 'G').charAt(0)}</AvatarFallback>
                     </Avatar>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{guest.name || 'Unknown'}</p>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium truncate">{guest.name || 'Unknown'}</p>
                         {guest.plus_ones > 0 && <Badge variant="outline" className="text-xs">+{guest.plus_ones}</Badge>}
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        {guest.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{guest.email}</span>}
-                        {guest.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{guest.phone}</span>}
+                      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                        {guest.email && <span className="flex items-center gap-1 truncate"><Mail className="w-3 h-3 flex-shrink-0" /><span className="truncate max-w-[150px]">{guest.email}</span></span>}
+                        {guest.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3 flex-shrink-0" />{guest.phone}</span>}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-auto sm:ml-0">
                     {getStatusBadge(guest.rsvp_status)}
-                    {guest.checked_in && <Badge className="bg-blue-100 text-blue-800"><QrCode className="w-3 h-3 mr-1" />Checked In</Badge>}
+                    {guest.checked_in && <Badge className="bg-blue-100 text-blue-800 whitespace-nowrap"><QrCode className="w-3 h-3 mr-1" />Checked In</Badge>}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
