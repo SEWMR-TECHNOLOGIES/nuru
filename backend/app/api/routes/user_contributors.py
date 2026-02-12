@@ -559,6 +559,207 @@ def send_thank_you_sms(event_id: str, ec_id: str, body: dict = Body(default={}),
     return standard_response(True, "Thank you sent successfully", {"sent": True})
 
 
+# ══════════════════════════════════════════════
+# BULK CONTRIBUTORS
+# ══════════════════════════════════════════════
+
+@router.post("/events/{event_id}/contributors/bulk")
+def bulk_add_contributors(event_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """
+    Bulk add/update contributors to an event.
+    Body: { contributors: [{ name, phone, pledge_amount? }], send_sms?: bool, mode?: "targets" | "contributions", payment_method?: str }
+    - For each row: validate phone (Tanzanian), find existing contributor by phone, create if new.
+    - If contributor already linked to event: update pledge/record payment. If not: link them.
+    - send_sms: if false, skip all SMS notifications. Default false for bulk.
+    """
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID")
+
+    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
+    if not event:
+        return standard_response(False, "Event not found or access denied")
+
+    rows = body.get("contributors", [])
+    if not rows or not isinstance(rows, list):
+        return standard_response(False, "No contributors provided")
+
+    if len(rows) > 500:
+        return standard_response(False, "Maximum 500 contributors per upload")
+
+    send_sms = body.get("send_sms", False)
+    mode = body.get("mode", "targets")  # "targets" or "contributions"
+    payment_method_str = body.get("payment_method", "other")
+
+    now = datetime.now(EAT)
+    currency = _currency_code(db, event)
+    organizer = db.query(User).filter(User.id == event.organizer_id).first()
+    organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
+
+    results = []
+    errors_list = []
+
+    for idx, row in enumerate(rows):
+        row_num = idx + 1
+        name = (row.get("name") or "").strip()
+        phone_raw = (row.get("phone") or "").strip()
+        amount = float(row.get("amount") or 0)
+
+        if not name:
+            errors_list.append({"row": row_num, "message": "Name is required"})
+            continue
+
+        if not phone_raw:
+            errors_list.append({"row": row_num, "message": f"Phone is required for {name}"})
+            continue
+
+        # Validate & format phone
+        try:
+            phone = validate_tanzanian_phone(phone_raw)
+        except ValueError:
+            errors_list.append({"row": row_num, "message": f"Invalid phone for {name}: {phone_raw}"})
+            continue
+
+        # Find or create contributor by phone in user's address book
+        contributor = db.query(UserContributor).filter(
+            UserContributor.user_id == current_user.id,
+            UserContributor.phone == phone,
+        ).first()
+
+        if not contributor:
+            # Also check by name
+            contributor = db.query(UserContributor).filter(
+                UserContributor.user_id == current_user.id,
+                UserContributor.name == name,
+            ).first()
+
+        if not contributor:
+            contributor = UserContributor(
+                id=uuid.uuid4(),
+                user_id=current_user.id,
+                name=name,
+                phone=phone,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(contributor)
+            db.flush()
+        else:
+            # Update phone if different
+            if contributor.phone != phone:
+                contributor.phone = phone
+                contributor.updated_at = now
+
+        # Check if already linked to event
+        ec = db.query(EventContributor).filter(
+            EventContributor.event_id == eid,
+            EventContributor.contributor_id == contributor.id,
+        ).first()
+
+        if mode == "targets":
+            if ec:
+                old_pledge = float(ec.pledge_amount or 0)
+                ec.pledge_amount = amount
+                ec.updated_at = now
+                action = "updated"
+
+                if send_sms and amount > 0 and amount != old_pledge and contributor.phone:
+                    try:
+                        from utils.sms import sms_contribution_target_set
+                        total_paid = sum(float(c.amount or 0) for c in ec.contributions)
+                        sms_contribution_target_set(
+                            contributor.phone, contributor.name,
+                            event.name, amount, total_paid, currency,
+                            organizer_phone=organizer_phone
+                        )
+                    except Exception:
+                        pass
+            else:
+                ec = EventContributor(
+                    id=uuid.uuid4(),
+                    event_id=eid,
+                    contributor_id=contributor.id,
+                    pledge_amount=amount,
+                    created_at=now,
+                    updated_at=now,
+                )
+                db.add(ec)
+                db.flush()
+                action = "added"
+
+                if send_sms and amount > 0 and contributor.phone:
+                    try:
+                        from utils.sms import sms_contribution_target_set
+                        sms_contribution_target_set(
+                            contributor.phone, contributor.name,
+                            event.name, amount, 0, currency,
+                            organizer_phone=organizer_phone
+                        )
+                    except Exception:
+                        pass
+
+        else:  # mode == "contributions"
+            if not ec:
+                ec = EventContributor(
+                    id=uuid.uuid4(),
+                    event_id=eid,
+                    contributor_id=contributor.id,
+                    pledge_amount=0,
+                    created_at=now,
+                    updated_at=now,
+                )
+                db.add(ec)
+                db.flush()
+
+            if amount > 0:
+                payment_method = None
+                if payment_method_str:
+                    try:
+                        payment_method = PaymentMethodEnum(payment_method_str)
+                    except ValueError:
+                        pass
+
+                contribution = EventContribution(
+                    id=uuid.uuid4(),
+                    event_id=eid,
+                    event_contributor_id=ec.id,
+                    contributor_name=contributor.name,
+                    amount=amount,
+                    payment_method=payment_method,
+                    contributed_at=now,
+                    created_at=now,
+                    updated_at=now,
+                )
+                db.add(contribution)
+
+                if send_sms and contributor.phone:
+                    try:
+                        from utils.sms import sms_contribution_recorded
+                        total_paid_so_far = sum(float(c.amount or 0) for c in ec.contributions) + amount
+                        pledge = float(ec.pledge_amount or 0)
+                        sms_contribution_recorded(
+                            contributor.phone, contributor.name,
+                            event.name, amount, pledge, total_paid_so_far, currency,
+                            organizer_phone=organizer_phone
+                        )
+                    except Exception:
+                        pass
+
+            action = "recorded"
+
+        results.append({"row": row_num, "name": name, "action": action})
+
+    db.commit()
+
+    return standard_response(True, f"Bulk operation complete: {len(results)} processed, {len(errors_list)} errors", {
+        "processed": len(results),
+        "errors_count": len(errors_list),
+        "results": results,
+        "errors": errors_list,
+    })
+
+
 @router.get("/events/{event_id}/contributors/{ec_id}/payments")
 def get_payment_history(event_id: str, ec_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
