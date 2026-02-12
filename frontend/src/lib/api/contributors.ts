@@ -135,4 +135,18 @@ export const contributorsApi = {
   /** Send thank you SMS to an event contributor */
   sendThankYou: (eventId: string, eventContributorId: string, data: { custom_message?: string }) =>
     post<{ sent: boolean }>(`/user-contributors/events/${eventId}/contributors/${eventContributorId}/thank-you`, data),
+
+  /** Bulk add/update contributors to event */
+  bulkAddToEvent: (eventId: string, data: {
+    contributors: { name: string; phone: string; amount: number }[];
+    send_sms?: boolean;
+    mode?: "targets" | "contributions";
+    payment_method?: string;
+  }) =>
+    post<{
+      processed: number;
+      errors_count: number;
+      results: { row: number; name: string; action: string }[];
+      errors: { row: number; message: string }[];
+    }>(`/user-contributors/events/${eventId}/contributors/bulk`, data),
 };

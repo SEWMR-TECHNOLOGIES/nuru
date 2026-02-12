@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
+import readXlsxFile from 'read-excel-file';
 import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import { 
-  DollarSign, Plus, Search, Filter, MoreVertical, Edit, Trash, Send, Download, TrendingUp, Users, Clock, Loader2, Eye, ChevronLeft, ChevronRight, UserPlus
+  DollarSign, Plus, Search, Filter, MoreVertical, Edit, Trash, Send, Download, TrendingUp, Users, Clock, Loader2, Eye, ChevronLeft, ChevronRight, UserPlus, Upload, FileSpreadsheet, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useEventContributors } from '@/data/useContributors';
 import { useEventContributions } from '@/data/useEvents';
 import { useContributorSearch } from '@/hooks/useContributorSearch';
@@ -27,6 +29,7 @@ import ContributionsSkeletonLoader from './ContributionsSkeletonLoader';
 import ContributorDetailDialog from './ContributorDetailDialog';
 import { generateContributionReportHtml } from '@/utils/generatePdf';
 import ReportPreviewDialog from '@/components/ReportPreviewDialog';
+import { contributorsApi } from '@/lib/api/contributors';
 import type { EventContributorSummary } from '@/lib/api/contributors';
 
 interface EventContributionsProps {
@@ -97,6 +100,17 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
   // Report preview
   const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
   const [reportHtml, setReportHtml] = useState('');
+
+  // Bulk upload
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [bulkMode, setBulkMode] = useState<'targets' | 'contributions'>('targets');
+  const [bulkSendSms, setBulkSendSms] = useState(false);
+  const [bulkRows, setBulkRows] = useState<{ name: string; phone: string; amount: number }[]>([]);
+  const [bulkFileName, setBulkFileName] = useState('');
+  const [bulkErrors, setBulkErrors] = useState<string[]>([]);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{ processed: number; errors_count: number; errors: { row: number; message: string }[] } | null>(null);
+  const bulkFileRef = useRef<HTMLInputElement>(null);
 
   // Computed
   const summary = ecSummary || { total_pledged: 0, total_paid: 0, total_balance: 0, count: 0, currency: legacySummary?.currency || 'TZS' };
@@ -238,6 +252,150 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
     clearSearch();
   };
 
+  const resetBulkForm = () => {
+    setBulkRows([]);
+    setBulkFileName('');
+    setBulkErrors([]);
+    setBulkResult(null);
+    setBulkSendSms(false);
+    if (bulkFileRef.current) bulkFileRef.current.value = '';
+  };
+
+  const formatTanzanianPhone = (raw: string): string => {
+    let phone = raw.toString().replace(/[\s\-\+]/g, '');
+    if (phone.startsWith('0') && phone.length === 10) phone = phone.slice(1);
+    if (/^[67]/.test(phone)) phone = '255' + phone;
+    if (/^255[67]\d{8}$/.test(phone)) return phone;
+    throw new Error(`Invalid phone: ${raw}`);
+  };
+
+  const handleBulkFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBulkFileName(file.name);
+    setBulkErrors([]);
+    setBulkRows([]);
+    setBulkResult(null);
+
+    try {
+      const rows = await readXlsxFile(file);
+      // Expect header row: s/n, name, phone, amount
+      if (rows.length < 2) { setBulkErrors(['File must have a header row and at least one data row']); return; }
+      
+      const header = rows[0].map(h => String(h || '').toLowerCase().trim());
+      if (header.length < 3) { setBulkErrors(['File must have at least 3 columns: S/N, Name, Phone']); return; }
+
+      const parsed: { name: string; phone: string; amount: number }[] = [];
+      const parseErrors: string[] = [];
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const name = String(row[1] || '').trim();
+        const phoneRaw = String(row[2] || '').trim();
+        const amountRaw = row[3];
+
+        if (!name && !phoneRaw) continue; // skip empty rows
+
+        if (!name) { parseErrors.push(`Row ${i + 1}: Name is missing`); continue; }
+        if (!phoneRaw) { parseErrors.push(`Row ${i + 1}: Phone is missing for ${name}`); continue; }
+
+        let phone: string;
+        try {
+          phone = formatTanzanianPhone(phoneRaw);
+        } catch {
+          parseErrors.push(`Row ${i + 1}: Invalid phone "${phoneRaw}" for ${name}`);
+          continue;
+        }
+
+        const amount = amountRaw ? parseFloat(String(amountRaw).replace(/,/g, '')) : 0;
+        if (isNaN(amount) || amount < 0) { parseErrors.push(`Row ${i + 1}: Invalid amount for ${name}`); continue; }
+
+        parsed.push({ name, phone, amount });
+      }
+
+      setBulkRows(parsed);
+      if (parseErrors.length > 0) setBulkErrors(parseErrors);
+    } catch {
+      setBulkErrors(['Failed to parse file. Please ensure it is a valid .xlsx file.']);
+    }
+  };
+
+  const handleBulkUpload = async () => {
+    if (bulkRows.length === 0) return;
+    setBulkUploading(true);
+    setBulkResult(null);
+    try {
+      const res = await contributorsApi.bulkAddToEvent(eventId, {
+        contributors: bulkRows,
+        send_sms: bulkSendSms,
+        mode: bulkMode,
+      });
+      if (res.success) {
+        setBulkResult(res.data);
+        toast.success(`${res.data.processed} contributors processed`);
+        setBulkRows([]);
+        setBulkFileName('');
+        setBulkErrors([]);
+        if (bulkFileRef.current) bulkFileRef.current.value = '';
+        refetchEC();
+      } else {
+        toast.error(res.message || 'Bulk upload failed');
+      }
+    } catch (err: any) {
+      showCaughtError(err, 'Bulk upload failed');
+    } finally {
+      setBulkUploading(false);
+    }
+  };
+
+  const downloadSampleXlsx = async () => {
+    const writeXlsxFile = (await import('write-excel-file')).default;
+
+    const sampleData = [
+      { sn: 1, name: 'Amina Juma', phone: '255654321098', amount: 50000 },
+      { sn: 2, name: 'Baraka Mushi', phone: '255712345678', amount: 100000 },
+      { sn: 3, name: 'Catherine Lyimo', phone: '255687654321', amount: 75000 },
+      { sn: 4, name: 'David Mwakasege', phone: '255763219876', amount: 200000 },
+      { sn: 5, name: 'Esther Kimaro', phone: '255655432109', amount: 30000 },
+      { sn: 6, name: 'Fadhili Hassan', phone: '255714567890', amount: 150000 },
+      { sn: 7, name: 'Grace Shirima', phone: '255689012345', amount: 0 },
+      { sn: 8, name: 'Hussein Bakari', phone: '255768901234', amount: 80000 },
+      { sn: 9, name: 'Irene Massawe', phone: '255651234567', amount: 60000 },
+      { sn: 10, name: 'Joseph Mlay', phone: '255719876543', amount: 120000 },
+      { sn: 11, name: 'Khadija Omary', phone: '255682345678', amount: 45000 },
+      { sn: 12, name: 'Linus Mwanga', phone: '255767890123', amount: 90000 },
+      { sn: 13, name: 'Mariam Salum', phone: '255658765432', amount: 25000 },
+      { sn: 14, name: 'Noel Urassa', phone: '255710987654', amount: 110000 },
+      { sn: 15, name: 'Penina Mbwilo', phone: '255685678901', amount: 70000 },
+    ];
+
+    const HEADER_ROW = [
+      { value: 'S/N', fontWeight: 'bold' as const },
+      { value: 'Contributor Name', fontWeight: 'bold' as const },
+      { value: 'Phone', fontWeight: 'bold' as const },
+      { value: 'Target Amount', fontWeight: 'bold' as const },
+    ];
+
+    const dataRows = sampleData.map(d => [
+      { type: Number as any, value: d.sn },
+      { type: String as any, value: d.name },
+      { type: String as any, value: d.phone },
+      { type: Number as any, value: d.amount },
+    ]);
+
+    const data = [HEADER_ROW, ...dataRows];
+
+    await writeXlsxFile(data as any, {
+      fileName: 'contributors_template.xlsx',
+      columns: [
+        { width: 6 },
+        { width: 25 },
+        { width: 18 },
+        { width: 18 },
+      ],
+    });
+  };
+
   const loading = ecLoading || contribLoading;
   if (loading) return <ContributionsSkeletonLoader />;
   if (ecError) return <div className="p-6 text-center text-destructive">{ecError}</div>;
@@ -265,6 +423,9 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={handleDownloadReport}>
             <Download className="w-4 h-4 mr-2" />Report
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => { resetBulkForm(); setBulkDialogOpen(true); }}>
+            <Upload className="w-4 h-4 mr-2" />Bulk Upload
           </Button>
           <Button onClick={() => { resetAddForm(); setAddContributorDialogOpen(true); }}>
             <UserPlus className="w-4 h-4 mr-2" />Add Contributor
@@ -563,6 +724,133 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
             >
               {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</> : <><Send className="w-4 h-4 mr-2" />Send Thank You</>}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Upload Dialog */}
+      <Dialog open={bulkDialogOpen} onOpenChange={(open) => { setBulkDialogOpen(open); if (!open) resetBulkForm(); }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Bulk Upload Contributors</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Mode Selection */}
+            <div className="space-y-2">
+              <Label>Upload Mode</Label>
+              <Select value={bulkMode} onValueChange={(v) => setBulkMode(v as 'targets' | 'contributions')}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="targets">Set Pledge Targets</SelectItem>
+                  <SelectItem value="contributions">Record Contributions</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {bulkMode === 'targets' 
+                  ? 'Set or update pledge targets for multiple contributors at once.' 
+                  : 'Record actual payments/contributions for multiple contributors at once.'}
+              </p>
+            </div>
+
+            {/* Sample Download */}
+            <div className="flex items-center gap-3 p-3 rounded-lg border border-dashed bg-muted/30">
+              <FileSpreadsheet className="w-8 h-8 text-primary shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">Download Sample Template</p>
+                <p className="text-xs text-muted-foreground">Columns: S/N, Name, Phone (255 format), Amount</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={downloadSampleXlsx}>
+                <Download className="w-4 h-4 mr-1" />Template
+              </Button>
+            </div>
+
+            {/* File Input */}
+            <div className="space-y-2">
+              <Label>Upload File (.xlsx, .xls, .csv)</Label>
+              <input
+                ref={bulkFileRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={handleBulkFileChange}
+                className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
+              />
+            </div>
+
+            {/* Parse Results */}
+            {bulkFileName && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-600" />
+                  <span className="text-sm font-medium">{bulkFileName}</span>
+                  <Badge variant="secondary">{bulkRows.length} valid rows</Badge>
+                </div>
+                {bulkRows.length > 0 && (
+                  <div className="border rounded-lg overflow-hidden max-h-40 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead><tr className="bg-muted/50 border-b">
+                        <th className="p-2 text-left">#</th>
+                        <th className="p-2 text-left">Name</th>
+                        <th className="p-2 text-left">Phone</th>
+                        <th className="p-2 text-right">Amount</th>
+                      </tr></thead>
+                      <tbody className="divide-y">
+                        {bulkRows.slice(0, 20).map((r, i) => (
+                          <tr key={i}><td className="p-2">{i + 1}</td><td className="p-2">{r.name}</td><td className="p-2">{r.phone}</td><td className="p-2 text-right">{formatPrice(r.amount)}</td></tr>
+                        ))}
+                        {bulkRows.length > 20 && <tr><td colSpan={4} className="p-2 text-center text-muted-foreground">...and {bulkRows.length - 20} more</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Parse Errors */}
+            {bulkErrors.length > 0 && (
+              <div className="border border-destructive/30 rounded-lg p-3 bg-destructive/5 space-y-1 max-h-32 overflow-y-auto">
+                <div className="flex items-center gap-2 text-destructive text-sm font-medium"><AlertCircle className="w-4 h-4" />Parsing Issues</div>
+                {bulkErrors.map((err, i) => <p key={i} className="text-xs text-destructive/80">• {err}</p>)}
+              </div>
+            )}
+
+            {/* SMS Checkbox */}
+            <div className="flex items-start gap-3 p-3 rounded-lg border bg-muted/20">
+              <Checkbox
+                id="bulk-sms"
+                checked={bulkSendSms}
+                onCheckedChange={(v) => setBulkSendSms(v === true)}
+                className="mt-0.5"
+              />
+              <div>
+                <label htmlFor="bulk-sms" className="text-sm font-medium cursor-pointer">Send SMS notifications</label>
+                <p className="text-xs text-muted-foreground">
+                  {bulkSendSms 
+                    ? '⚠️ SMS will be sent to each contributor. This may take longer for large uploads.' 
+                    : 'No SMS will be sent. You can notify contributors later individually.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Upload Result */}
+            {bulkResult && (
+              <div className="border rounded-lg p-3 bg-green-50 space-y-1">
+                <div className="flex items-center gap-2 text-green-700 text-sm font-medium"><CheckCircle2 className="w-4 h-4" />Upload Complete</div>
+                <p className="text-xs text-green-600">{bulkResult.processed} contributors processed, {bulkResult.errors_count} errors</p>
+                {bulkResult.errors.length > 0 && (
+                  <div className="mt-2 space-y-1 max-h-24 overflow-y-auto">
+                    {bulkResult.errors.map((e, i) => <p key={i} className="text-xs text-destructive">Row {e.row}: {e.message}</p>)}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setBulkDialogOpen(false); resetBulkForm(); }}>
+              {bulkResult ? 'Close' : 'Cancel'}
+            </Button>
+            {!bulkResult && (
+              <Button onClick={handleBulkUpload} disabled={bulkUploading || bulkRows.length === 0}>
+                {bulkUploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Uploading...</> : <><Upload className="w-4 h-4 mr-2" />Upload {bulkRows.length} Contributors</>}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

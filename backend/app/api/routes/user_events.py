@@ -1598,6 +1598,8 @@ def remove_committee_member(event_id: str, member_id: str, db: Session = Depends
     if not cm:
         return standard_response(False, "Committee member not found")
 
+    # Delete associated permissions first to avoid NOT NULL violation
+    db.query(CommitteePermission).filter(CommitteePermission.committee_member_id == mid).delete()
     db.delete(cm)
     db.commit()
     return standard_response(True, "Committee member removed successfully")

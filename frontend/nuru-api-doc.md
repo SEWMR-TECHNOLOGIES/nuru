@@ -3451,6 +3451,50 @@ Event contributors link a `user_contributor` to a specific event with a pledge. 
 ## 6B.4 `DELETE /user-contributors/events/{eventId}/contributors/{ecId}` — Remove from event
 ## 6B.5 `POST /user-contributors/events/{eventId}/contributors/{ecId}/payments` — Record payment `{ amount, payment_method, payment_reference }`
 ## 6B.6 `GET /user-contributors/events/{eventId}/contributors/{ecId}/payments` — Payment history
+## 6B.7 `POST /user-contributors/events/{eventId}/contributors/{ecId}/thank-you` — Send thank you SMS `{ custom_message? }`
+## 6B.8 `POST /user-contributors/events/{eventId}/contributors/bulk` — Bulk add/update contributors
+
+### 6B.8 Bulk Contributors
+
+**Request Body:**
+```json
+{
+  "contributors": [
+    { "name": "John Doe", "phone": "0653750805", "amount": 50000 },
+    { "name": "Jane Smith", "phone": "255712345678", "amount": 100000 }
+  ],
+  "send_sms": false,
+  "mode": "targets",
+  "payment_method": "other"
+}
+```
+
+**Fields:**
+- `contributors` (required): Array of objects with `name`, `phone`, `amount`
+- `send_sms` (optional, default: false): Whether to send SMS notifications to each contributor
+- `mode` (optional, default: "targets"): `"targets"` to set/update pledge amounts, `"contributions"` to record actual payments
+- `payment_method` (optional, default: "other"): Payment method for contributions mode
+
+**Behavior:**
+- Phone numbers are validated and formatted to Tanzanian format (255...)
+- Existing contributors are matched by phone number first, then by name
+- New contributors are created automatically in the user's address book
+- If contributor already linked to event: pledge is updated (targets mode) or payment is recorded (contributions mode)
+- If not linked: contributor is added to event
+- Maximum 500 contributors per upload
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "processed": 10,
+    "errors_count": 2,
+    "results": [{ "row": 1, "name": "John Doe", "action": "added" }],
+    "errors": [{ "row": 3, "message": "Invalid phone for Ali: 123" }]
+  }
+}
+```
 
 ---
 

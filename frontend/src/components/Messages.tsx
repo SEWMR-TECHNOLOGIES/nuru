@@ -455,11 +455,13 @@ const Messages = () => {
                 const isServiceConv = selectedConversation.type === 'user_to_service' || !!selectedConversation.service;
                 const headerName = selectedConversation.participant?.name || 'Unknown';
                 const headerAvatar = selectedConversation.participant?.avatar || null;
+                const serviceTitle = selectedConversation.service?.title || null;
+
                 return (
                   <>
                     <Avatar className="w-8 h-8 md:w-9 md:h-9 flex-shrink-0">
                       {isValidAvatar(headerAvatar) ? (
-                        <AvatarImage src={headerAvatar!} alt="User" />
+                        <AvatarImage src={headerAvatar!} alt={headerName} />
                       ) : null}
                       <AvatarFallback className="bg-primary/10 text-primary font-semibold text-xs md:text-sm">
                         {getInitials(headerName)}
@@ -467,8 +469,15 @@ const Messages = () => {
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-sm truncate">{headerName}</h3>
-                      <p className="text-xs text-muted-foreground">{isServiceConv ? (selectedConversation.service?.title || 'Service') : 'Chat'}</p>
+                      <p className="text-xs text-muted-foreground">{isServiceConv ? 'Service Enquiry' : 'Chat'}</p>
                     </div>
+                    {isServiceConv && serviceTitle && (
+                      <div className="flex-shrink-0 ml-auto">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-accent text-accent-foreground text-[11px] font-medium max-w-[140px] truncate">
+                          🏷️ {serviceTitle}
+                        </span>
+                      </div>
+                    )}
                   </>
                 );
               })()}
