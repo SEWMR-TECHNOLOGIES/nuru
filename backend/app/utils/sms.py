@@ -35,7 +35,7 @@ def sms_committee_invite(phone: str, member_name: str, event_title: str, role: s
     _send(phone, msg)
 
 
-def sms_contribution_recorded(phone: str, contributor_name: str, event_title: str, amount: float, target: float, total_paid: float, currency: str = "TZS"):
+def sms_contribution_recorded(phone: str, contributor_name: str, event_title: str, amount: float, target: float, total_paid: float, currency: str = "TZS", organizer_phone: str = None):
     """Notify contributor that their payment has been recorded."""
     balance = max(0, target - total_paid)
     msg = (
@@ -44,10 +44,12 @@ def sms_contribution_recorded(phone: str, contributor_name: str, event_title: st
         f"Target: {currency} {target:,.0f}, Paid: {currency} {total_paid:,.0f}, "
         f"Balance: {currency} {balance:,.0f}."
     )
+    if organizer_phone:
+        msg += f" For inquiries, contact the organizer at {organizer_phone}."
     _send(phone, msg)
 
 
-def sms_contribution_target_set(phone: str, contributor_name: str, event_title: str, target: float, total_paid: float = 0, currency: str = "TZS"):
+def sms_contribution_target_set(phone: str, contributor_name: str, event_title: str, target: float, total_paid: float = 0, currency: str = "TZS", organizer_phone: str = None):
     """Notify contributors when a pledge target is set."""
     balance = max(0, target - total_paid)
     msg = (
@@ -55,14 +57,18 @@ def sms_contribution_target_set(phone: str, contributor_name: str, event_title: 
         f"has been set for {event_title}. "
         f"Your total paid: {currency} {total_paid:,.0f}, Balance: {currency} {balance:,.0f}."
     )
+    if organizer_phone:
+        msg += f" For inquiries, contact the organizer at {organizer_phone}."
     _send(phone, msg)
 
 
-def sms_thank_you(phone: str, contributor_name: str, event_title: str, custom_message: str = ""):
+def sms_thank_you(phone: str, contributor_name: str, event_title: str, custom_message: str = "", organizer_phone: str = None):
     """Send thank you SMS to contributor."""
     msg = f"Hello {contributor_name}, thank you for your contribution to {event_title}."
     if custom_message:
         msg += f" {custom_message}"
+    if organizer_phone:
+        msg += f" For inquiries, contact the organizer at {organizer_phone}."
     _send(phone, msg)
 
 

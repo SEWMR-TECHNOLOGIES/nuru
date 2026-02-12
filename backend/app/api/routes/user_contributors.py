@@ -18,7 +18,7 @@ from models import (
 )
 from models.enums import PaymentMethodEnum
 from utils.auth import get_current_user
-from utils.helpers import standard_response
+from utils.helpers import standard_response, format_phone_display
 from utils.validation_functions import validate_tanzanian_phone
 
 EAT = pytz.timezone("Africa/Nairobi")
@@ -397,9 +397,12 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
             from utils.sms import sms_contribution_target_set
             total_paid = sum(float(c.amount or 0) for c in ec.contributions)
             currency = _currency_code(db, event)
+            organizer = db.query(User).filter(User.id == event.organizer_id).first()
+            organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
             sms_contribution_target_set(
                 ec.contributor.phone, ec.contributor.name,
-                event.name, new_pledge, total_paid, currency
+                event.name, new_pledge, total_paid, currency,
+                organizer_phone=organizer_phone
             )
         except Exception:
             pass
@@ -487,9 +490,12 @@ def record_payment(event_id: str, ec_id: str, body: dict = Body(...), db: Sessio
             total_paid = sum(float(c.amount or 0) for c in ec.contributions)
             pledge = float(ec.pledge_amount or 0)
             currency = _currency_code(db, event)
+            organizer = db.query(User).filter(User.id == event.organizer_id).first()
+            organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
             sms_contribution_recorded(
                 contributor.phone, contributor.name,
-                event.name, float(amount), pledge, total_paid, currency
+                event.name, float(amount), pledge, total_paid, currency,
+                organizer_phone=organizer_phone
             )
         except Exception:
             pass

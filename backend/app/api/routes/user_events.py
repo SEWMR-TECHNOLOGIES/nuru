@@ -29,7 +29,7 @@ from models import (
     EventTypeService, ServicePackage,
 )
 from utils.auth import get_current_user
-from utils.helpers import format_price, standard_response
+from utils.helpers import format_price, standard_response, format_phone_display
 from utils.validation_functions import validate_tanzanian_phone
 from utils.sms import (
     sms_guest_added, sms_committee_invite, sms_contribution_recorded,
@@ -1768,7 +1768,8 @@ def record_contribution(event_id: str, body: dict = Body(...), db: Session = Dep
             ).scalar())
             ct = db.query(EventContributionTarget).filter(EventContributionTarget.event_id == eid).first()
             target = float(ct.target_amount) if ct else 0
-            sms_contribution_recorded(contributor_user.phone, f"{contributor_user.first_name}", event.name, float(amount), target, total_paid, currency)
+            organizer_phone = format_phone_display(current_user.phone) if current_user.phone else None
+            sms_contribution_recorded(contributor_user.phone, f"{contributor_user.first_name}", event.name, float(amount), target, total_paid, currency, organizer_phone=organizer_phone)
 
     return standard_response(True, "Contribution recorded successfully", _contribution_dict(db, c, event.currency_id))
 
@@ -1863,7 +1864,8 @@ def send_thank_you(event_id: str, contribution_id: str, body: dict = Body(defaul
     contributor_user = db.query(User).filter(User.id == c.contributor_user_id).first() if c.contributor_user_id else None
     if contributor_user and contributor_user.phone:
         event = db.query(Event).filter(Event.id == eid).first()
-        sms_thank_you(contributor_user.phone, f"{contributor_user.first_name}", event.name if event else "your event", msg)
+        organizer_phone = format_phone_display(current_user.phone) if current_user.phone else None
+        sms_thank_you(contributor_user.phone, f"{contributor_user.first_name}", event.name if event else "your event", msg, organizer_phone=organizer_phone)
 
     return standard_response(True, "Thank you sent successfully", {"contribution_id": str(cid), "thank_you_sent": True, "sent_at": now.isoformat()})
 
@@ -1910,7 +1912,8 @@ def update_contribution_target(event_id: str, body: dict = Body(...), db: Sessio
                     total_paid = float(db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(
                         EventContribution.event_id == eid, EventContribution.contributor_user_id == uid
                     ).scalar())
-                    sms_contribution_target_set(cuser.phone, f"{cuser.first_name}", event.name, target_val, total_paid, currency)
+                    organizer_phone = format_phone_display(current_user.phone) if current_user.phone else None
+                    sms_contribution_target_set(cuser.phone, f"{cuser.first_name}", event.name, target_val, total_paid, currency, organizer_phone=organizer_phone)
 
     return standard_response(True, "Contribution target updated successfully")
 
