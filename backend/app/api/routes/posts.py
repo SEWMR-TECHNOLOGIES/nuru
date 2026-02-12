@@ -62,6 +62,66 @@ EAT = pytz.timezone("Africa/Nairobi")
 router = APIRouter(prefix="/posts", tags=["Posts/Feed"])
 
 
+def _user_dict(db, user_id):
+    """Build a compact user dict for embedding in comments/replies."""
+    u = db.query(User).filter(User.id == user_id).first()
+    if not u:
+        return None
+    p = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+    return {
+        "id": str(u.id),
+        "name": f"{u.first_name} {u.last_name}",
+        "username": u.username,
+        "avatar": p.profile_picture_url if p else None,
+    }
+
+
+def _comment_dict(db, comment, current_user_id=None, include_replies_preview=True):
+    """Build a full comment dict with glow status and optional replies preview."""
+    author = _user_dict(db, comment.user_id)
+    glow_count = db.query(sa_func.count(UserFeedCommentGlow.id)).filter(
+        UserFeedCommentGlow.comment_id == comment.id
+    ).scalar() or 0
+    reply_count = db.query(sa_func.count(UserFeedComment.id)).filter(
+        UserFeedComment.parent_comment_id == comment.id,
+        UserFeedComment.is_active == True,
+    ).scalar() or 0
+
+    has_glowed = False
+    if current_user_id:
+        has_glowed = db.query(UserFeedCommentGlow).filter(
+            UserFeedCommentGlow.comment_id == comment.id,
+            UserFeedCommentGlow.user_id == current_user_id,
+        ).first() is not None
+
+    result = {
+        "id": str(comment.id),
+        "content": comment.content,
+        "author": author,
+        "glow_count": glow_count,
+        "reply_count": reply_count,
+        "has_glowed": has_glowed,
+        "is_edited": comment.is_edited or False,
+        "is_pinned": comment.is_pinned or False,
+        "parent_id": str(comment.parent_comment_id) if comment.parent_comment_id else None,
+        "created_at": comment.created_at.isoformat() if comment.created_at else None,
+        "updated_at": comment.updated_at.isoformat() if comment.updated_at else None,
+    }
+
+    # Include a preview of first 2 replies for top-level comments
+    if include_replies_preview and not comment.parent_comment_id:
+        replies = db.query(UserFeedComment).filter(
+            UserFeedComment.parent_comment_id == comment.id,
+            UserFeedComment.is_active == True,
+        ).order_by(UserFeedComment.created_at.asc()).limit(2).all()
+        result["replies_preview"] = [
+            _comment_dict(db, r, current_user_id, include_replies_preview=False)
+            for r in replies
+        ]
+
+    return result
+
+
 def _post_dict(db, post, current_user_id=None):
     user = db.query(User).filter(User.id == post.user_id).first()
     profile = db.query(UserProfile).filter(UserProfile.user_id == post.user_id).first() if user else None
@@ -69,7 +129,7 @@ def _post_dict(db, post, current_user_id=None):
     glow_count = db.query(sa_func.count(UserFeedGlow.id)).filter(UserFeedGlow.feed_id == post.id).scalar() or 0
     echo_count = db.query(sa_func.count(UserFeedEcho.id)).filter(UserFeedEcho.feed_id == post.id).scalar() or 0
     spark_count = db.query(sa_func.count(UserFeedSpark.id)).filter(UserFeedSpark.feed_id == post.id).scalar() or 0
-    comment_count = db.query(sa_func.count(UserFeedComment.id)).filter(UserFeedComment.feed_id == post.id).scalar() or 0
+    comment_count = db.query(sa_func.count(UserFeedComment.id)).filter(UserFeedComment.feed_id == post.id, UserFeedComment.is_active == True).scalar() or 0
 
     has_glowed = False
     has_echoed = False
@@ -322,21 +382,69 @@ def spark_post(post_id: str, body: dict = Body(default={}), db: Session = Depend
     return standard_response(True, "Post shared")
 
 
-# Comments
+# ──────────────────────────────────────────────
+# Comments (Echoes) - Threaded
+# ──────────────────────────────────────────────
+
 @router.get("/{post_id}/comments")
-def get_comments(post_id: str, page: int = 1, limit: int = 20, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_comments(
+    post_id: str, page: int = 1, limit: int = 20,
+    sort: str = "newest", parent_id: Optional[str] = None,
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+):
     try:
         pid = uuid.UUID(post_id)
     except ValueError:
         return standard_response(False, "Invalid post ID")
-    query = db.query(UserFeedComment).filter(UserFeedComment.feed_id == pid, UserFeedComment.is_active == True).order_by(UserFeedComment.created_at.asc())
+
+    query = db.query(UserFeedComment).filter(
+        UserFeedComment.feed_id == pid,
+        UserFeedComment.is_active == True,
+    )
+
+    # If parent_id is provided, get replies to that comment
+    if parent_id:
+        try:
+            parent_uuid = uuid.UUID(parent_id)
+        except ValueError:
+            return standard_response(False, "Invalid parent comment ID")
+        query = query.filter(UserFeedComment.parent_comment_id == parent_uuid)
+    else:
+        # Get only top-level comments (no parent)
+        query = query.filter(UserFeedComment.parent_comment_id.is_(None))
+
+    # Sorting
+    if sort == "oldest":
+        query = query.order_by(UserFeedComment.created_at.asc())
+    elif sort == "popular":
+        query = query.order_by(UserFeedComment.glow_count.desc(), UserFeedComment.created_at.desc())
+    else:  # newest
+        query = query.order_by(UserFeedComment.created_at.desc())
+
     items, pagination = paginate(query, page, limit)
-    data = []
-    for c in items:
-        u = db.query(User).filter(User.id == c.user_id).first()
-        p = db.query(UserProfile).filter(UserProfile.user_id == c.user_id).first() if u else None
-        data.append({"id": str(c.id), "content": c.content, "author": {"id": str(u.id), "name": f"{u.first_name} {u.last_name}", "avatar": p.profile_picture_url if p else None} if u else None, "glow_count": db.query(UserFeedCommentGlow).filter(UserFeedCommentGlow.comment_id == c.id).count(), "created_at": c.created_at.isoformat()})
+    data = [_comment_dict(db, c, current_user.id) for c in items]
     return standard_response(True, "Comments retrieved", {"comments": data, "pagination": pagination})
+
+
+@router.get("/{post_id}/comments/{comment_id}/replies")
+def get_comment_replies(
+    post_id: str, comment_id: str, page: int = 1, limit: int = 20,
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+):
+    """Get all replies to a specific comment."""
+    try:
+        cid = uuid.UUID(comment_id)
+    except ValueError:
+        return standard_response(False, "Invalid comment ID")
+
+    query = db.query(UserFeedComment).filter(
+        UserFeedComment.parent_comment_id == cid,
+        UserFeedComment.is_active == True,
+    ).order_by(UserFeedComment.created_at.asc())
+
+    items, pagination = paginate(query, page, limit)
+    data = [_comment_dict(db, c, current_user.id, include_replies_preview=False) for c in items]
+    return standard_response(True, "Replies retrieved", {"comments": data, "pagination": pagination})
 
 
 @router.post("/{post_id}/comments")
@@ -348,11 +456,33 @@ def create_comment(post_id: str, body: dict = Body(...), db: Session = Depends(g
     content = body.get("content", "").strip()
     if not content:
         return standard_response(False, "Comment content is required")
+
     now = datetime.now(EAT)
-    comment = UserFeedComment(id=uuid.uuid4(), feed_id=pid, user_id=current_user.id, content=content, is_active=True, created_at=now, updated_at=now)
+    comment = UserFeedComment(
+        id=uuid.uuid4(), feed_id=pid, user_id=current_user.id,
+        content=content, is_active=True, created_at=now, updated_at=now,
+    )
+
+    # Handle reply to another comment
+    parent_id = body.get("parent_id")
+    if parent_id:
+        try:
+            parent_uuid = uuid.UUID(parent_id)
+            # Verify parent comment exists
+            parent = db.query(UserFeedComment).filter(
+                UserFeedComment.id == parent_uuid,
+                UserFeedComment.is_active == True,
+            ).first()
+            if parent:
+                comment.parent_comment_id = parent_uuid
+                # Update parent reply count
+                parent.reply_count = (parent.reply_count or 0) + 1
+        except ValueError:
+            pass
+
     db.add(comment)
     db.commit()
-    return standard_response(True, "Comment posted", {"id": str(comment.id)})
+    return standard_response(True, "Comment posted", _comment_dict(db, comment, current_user.id, include_replies_preview=False))
 
 
 @router.put("/{post_id}/comments/{comment_id}")
@@ -364,10 +494,12 @@ def update_comment(post_id: str, comment_id: str, body: dict = Body(...), db: Se
     c = db.query(UserFeedComment).filter(UserFeedComment.id == cid, UserFeedComment.user_id == current_user.id).first()
     if not c:
         return standard_response(False, "Comment not found")
-    if "content" in body: c.content = body["content"]
+    if "content" in body:
+        c.content = body["content"]
+        c.is_edited = True
     c.updated_at = datetime.now(EAT)
     db.commit()
-    return standard_response(True, "Comment updated")
+    return standard_response(True, "Comment updated", _comment_dict(db, c, current_user.id, include_replies_preview=False))
 
 
 @router.delete("/{post_id}/comments/{comment_id}")
@@ -380,6 +512,11 @@ def delete_comment(post_id: str, comment_id: str, db: Session = Depends(get_db),
     if not c:
         return standard_response(False, "Comment not found")
     c.is_active = False
+    # Decrement parent reply count if this is a reply
+    if c.parent_comment_id:
+        parent = db.query(UserFeedComment).filter(UserFeedComment.id == c.parent_comment_id).first()
+        if parent and parent.reply_count and parent.reply_count > 0:
+            parent.reply_count -= 1
     db.commit()
     return standard_response(True, "Comment deleted")
 
@@ -393,6 +530,10 @@ def glow_comment(post_id: str, comment_id: str, db: Session = Depends(get_db), c
     existing = db.query(UserFeedCommentGlow).filter(UserFeedCommentGlow.comment_id == cid, UserFeedCommentGlow.user_id == current_user.id).first()
     if not existing:
         db.add(UserFeedCommentGlow(id=uuid.uuid4(), comment_id=cid, user_id=current_user.id, created_at=datetime.now(EAT)))
+        # Update cached glow count
+        comment = db.query(UserFeedComment).filter(UserFeedComment.id == cid).first()
+        if comment:
+            comment.glow_count = (comment.glow_count or 0) + 1
         db.commit()
     return standard_response(True, "Comment glowed")
 
@@ -406,6 +547,10 @@ def unglow_comment(post_id: str, comment_id: str, db: Session = Depends(get_db),
     g = db.query(UserFeedCommentGlow).filter(UserFeedCommentGlow.comment_id == cid, UserFeedCommentGlow.user_id == current_user.id).first()
     if g:
         db.delete(g)
+        # Update cached glow count
+        comment = db.query(UserFeedComment).filter(UserFeedComment.id == cid).first()
+        if comment and comment.glow_count and comment.glow_count > 0:
+            comment.glow_count -= 1
         db.commit()
     return standard_response(True, "Comment glow removed")
 
