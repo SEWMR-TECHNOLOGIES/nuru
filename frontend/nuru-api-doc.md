@@ -83,7 +83,8 @@ Authentication: None
   "username": "johndoe",
   "email": "john@example.com",
   "phone": "+254712345678",
-  "password": "SecurePass123!"
+  "password": "SecurePass123!",
+  "registered_by": "Jane Smith"
 }
 ```
 
@@ -95,6 +96,7 @@ Authentication: None
 | email | string | Yes | Valid email format, must be unique |
 | phone | string | Yes | Valid phone format with country code, must be unique |
 | password | string | Yes | Min 8 chars, must contain uppercase, lowercase, number |
+| registered_by | string | No | Name of the person registering this user. When provided, a welcome SMS is sent to the new user with the registerer's name, login password, and the Nuru link (https://nuru.tz). Used for inline registration from committee/guest search. |
 
 **Success Response (201 Created):**
 ```json

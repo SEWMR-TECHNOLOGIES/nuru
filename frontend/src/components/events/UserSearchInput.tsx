@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserSearch, type SearchedUser } from "@/hooks/useUserSearch";
 import { authApi } from "@/lib/api/auth";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { toast } from "sonner";
 
 interface UserSearchInputProps {
@@ -26,6 +27,7 @@ const UserSearchInput = ({ onSelect, placeholder = "Search by email or phone..."
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [registerData, setRegisterData] = useState({ first_name: "", last_name: "", username: "", email: "", phone: "" });
   const { results, loading, search, clear } = useUserSearch();
+  const { data: currentUser } = useCurrentUser();
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -58,13 +60,15 @@ const UserSearchInput = ({ onSelect, placeholder = "Search by email or phone..."
     }
     setRegistering(true);
     try {
+      const registeredByName = currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : "";
       const response = await authApi.signup({
         first_name: registerData.first_name,
         last_name: registerData.last_name,
         username: registerData.username,
         email: registerData.email,
         phone: registerData.phone,
-        password: "Nuru@2026"
+        password: "Nuru@2026",
+        registered_by: registeredByName,
       });
       if (response.success) {
         toast.success("User registered successfully");

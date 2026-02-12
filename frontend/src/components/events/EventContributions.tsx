@@ -125,7 +125,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
       ec.contributor?.email?.toLowerCase().includes(q) ||
       ec.contributor?.phone?.includes(q)
     );
-  });
+  }).sort((a, b) => (a.contributor?.name || '').localeCompare(b.contributor?.name || ''));
   const totalPages = Math.ceil(filteredContributors.length / ITEMS_PER_PAGE);
   const paginatedContributors = filteredContributors.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
@@ -404,10 +404,10 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
     <div className="space-y-6">
       <ConfirmDialog />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Total Raised</p><p className="text-2xl font-bold text-green-600">{formatPrice(summary.total_paid)}</p></div><div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center"><DollarSign className="w-5 h-5 text-green-600" /></div></div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Contributors</p><p className="text-2xl font-bold">{summary.count}</p></div><div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center"><Users className="w-5 h-5 text-blue-600" /></div></div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Total Pledged</p><p className="text-2xl font-bold text-yellow-600">{formatPrice(summary.total_pledged)}</p></div><div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center"><TrendingUp className="w-5 h-5 text-yellow-600" /></div></div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Outstanding</p><p className="text-2xl font-bold text-red-600">{formatPrice(summary.total_balance)}</p></div><div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center"><Clock className="w-5 h-5 text-red-600" /></div></div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Total Raised</p><p className="text-lg font-bold text-green-600">{formatPrice(summary.total_paid)}</p></div><div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center"><DollarSign className="w-4 h-4 text-green-600" /></div></div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Contributors</p><p className="text-lg font-bold">{summary.count}</p></div><div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-blue-600" /></div></div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Total Pledged</p><p className="text-lg font-bold text-yellow-600">{formatPrice(summary.total_pledged)}</p></div><div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center"><TrendingUp className="w-4 h-4 text-yellow-600" /></div></div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Outstanding</p><p className="text-lg font-bold text-red-600">{formatPrice(summary.total_balance)}</p></div><div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center"><Clock className="w-4 h-4 text-red-600" /></div></div></CardContent></Card>
       </div>
 
       {summary.total_pledged > 0 && (
@@ -483,9 +483,11 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
                           <DropdownMenuItem onClick={() => handleViewHistory(ec)}>
                             <Eye className="w-4 h-4 mr-2" />Payment History
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => { setThankYouTarget(ec); setThankYouMessage(''); setThankYouDialogOpen(true); }}>
-                            <Send className="w-4 h-4 mr-2" />Send Thank You
-                          </DropdownMenuItem>
+                          {ec.total_paid > 0 && (
+                            <DropdownMenuItem onClick={() => { setThankYouTarget(ec); setThankYouMessage(''); setThankYouDialogOpen(true); }}>
+                              <Send className="w-4 h-4 mr-2" />Send Thank You
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem className="text-destructive" onClick={() => handleRemove(ec.id)}>
                             <Trash className="w-4 h-4 mr-2" />Remove
                           </DropdownMenuItem>

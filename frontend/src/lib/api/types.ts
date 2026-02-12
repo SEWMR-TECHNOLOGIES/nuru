@@ -75,6 +75,7 @@ export interface SignupData {
   email: string;
   phone: string;
   password: string;
+  registered_by?: string;
 }
 
 export interface SigninData {
