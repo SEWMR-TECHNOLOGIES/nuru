@@ -2,6 +2,12 @@
   "rewrites": [
     {
       "source": "/shared/post/:id",
+      "missing": [
+        {
+          "type": "query",
+          "key": "r"
+        }
+      ],
       "destination": "https://lmfprculxhspqxppscbn.supabase.co/functions/v1/og-meta?id=:id"
     },
     { "source": "/(.*)", "destination": "/index.html" }

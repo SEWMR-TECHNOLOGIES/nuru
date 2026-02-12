@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Star, CheckCircle, ChevronRight, Loader2 } from 'lucide-react';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
@@ -6,7 +6,7 @@ import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useUserService } from '@/hooks/useUserService';
@@ -34,6 +34,7 @@ const ServiceDetail = () => {
   const { service, loading, error, refetch } = useUserService(id!);
   const [packages, setPackages] = useState<ServicePackage[]>([]);
   const [reviews, setReviews] = useState<ServiceReview[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
   const [bookedDates, setBookedDates] = useState<BookedDate[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(true);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -50,10 +51,24 @@ const ServiceDetail = () => {
     if ((service as any).packages && Array.isArray((service as any).packages)) {
       setPackages((service as any).packages);
     }
-    if ((service as any).reviews && Array.isArray((service as any).reviews)) {
-      setReviews((service as any).reviews);
-    }
   }, [service]);
+
+  // Load reviews from API
+  const loadReviews = useCallback(async () => {
+    if (!id) return;
+    setReviewsLoading(true);
+    try {
+      const res = await servicesApi.getReviews(id, { limit: 10 });
+      if (res.success && res.data) {
+        setReviews(res.data.reviews || []);
+      }
+    } catch { /* silent */ }
+    finally { setReviewsLoading(false); }
+  }, [id]);
+
+  useEffect(() => {
+    if (id) loadReviews();
+  }, [id, loadReviews]);
 
   // Load dynamic calendar data
   useEffect(() => {
@@ -124,10 +139,10 @@ const ServiceDetail = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'confirmed': case 'completed': return 'bg-green-500';
+      case 'confirmed': case 'completed': case 'accepted': return 'bg-green-500';
       case 'pending': return 'bg-amber-500';
       case 'cancelled': return 'bg-red-500';
-      default: return 'bg-primary';
+      default: return 'bg-green-500';
     }
   };
 
@@ -435,17 +450,28 @@ const ServiceDetail = () => {
           <CardTitle className="flex items-center gap-2"><Star className="w-5 h-5" />Client Reviews</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {reviews.length > 0 ? reviews.map((review) => (
+          {reviewsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : reviews.length > 0 ? reviews.map((review) => (
             <div key={review.id} className="border-b pb-4 last:border-b-0">
               <div className="flex items-start gap-4">
                 <Avatar>
-                  <AvatarFallback>{review.user_name.charAt(0)}</AvatarFallback>
+                  {(review as any).user_avatar && !((review as any).user_avatar?.includes('unsplash.com') || (review as any).user_avatar?.includes('placeholder') || (review as any).user_avatar?.includes('randomuser.me')) ? (
+                    <AvatarImage src={(review as any).user_avatar} alt={review.user_name} />
+                  ) : null}
+                  <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                    {(review.user_name || 'A').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <h4 className="font-medium">{review.user_name}</h4>
-                      <p className="text-sm text-muted-foreground">{review.event_type} • {review.created_at}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {review.created_at ? new Date(review.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : ''}
+                      </p>
                     </div>
                     <div className="flex items-center gap-1">{renderStars(review.rating)}</div>
                   </div>

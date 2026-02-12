@@ -385,7 +385,24 @@ const Messages = () => {
         <div className="p-2 space-y-1">
           {conversations.map((conversation) => {
             const isSelected = conversation.id === selectedConversationId;
-            const participantName = conversation.participant?.name || 'Unknown';
+            
+            // For service conversations, determine display info based on who the current user is
+            const isServiceConversation = !!conversation.service;
+            const isServiceOwner = isServiceConversation && conversation.service?.provider_id === currentUser?.id;
+            
+            // Service owner sees the customer info; customer sees the service info
+            let displayName: string;
+            let displayAvatar: string | null;
+            
+            if (isServiceConversation && !isServiceOwner) {
+              // Customer sees service name + image
+              displayName = conversation.service?.title || conversation.participant?.name || 'Unknown';
+              displayAvatar = conversation.service?.primary_image || conversation.service?.image || null;
+            } else {
+              // Service owner or regular chat sees the other participant
+              displayName = conversation.participant?.name || 'Unknown';
+              displayAvatar = conversation.participant?.avatar || null;
+            }
             
             return (
               <button
@@ -397,11 +414,11 @@ const Messages = () => {
               >
                 <div className="relative">
                   <Avatar className={`w-12 h-12 ${isSelected ? 'ring-2 ring-primary/40' : ''}`}>
-                    {isValidAvatar(conversation.participant?.avatar) ? (
-                      <AvatarImage src={conversation.participant.avatar} alt={participantName} />
+                    {isValidAvatar(displayAvatar) ? (
+                      <AvatarImage src={displayAvatar!} alt={displayName} />
                     ) : null}
                     <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
-                      {getInitials(participantName)}
+                      {getInitials(displayName)}
                     </AvatarFallback>
                   </Avatar>
                   {conversation.unread_count > 0 && (
@@ -418,7 +435,7 @@ const Messages = () => {
                         conversation.unread_count > 0 ? 'text-foreground font-semibold' : 'text-foreground/80'
                       }`}
                     >
-                      {participantName}
+                      {displayName}
                     </h3>
                     <span className="text-xs text-muted-foreground flex-shrink-0">
                       {conversation.last_message?.sent_at 
@@ -448,20 +465,35 @@ const Messages = () => {
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
               )}
-              <Avatar className="w-8 h-8 md:w-9 md:h-9 flex-shrink-0">
-                {isValidAvatar(selectedConversation.participant?.avatar) ? (
-                  <AvatarImage src={selectedConversation.participant.avatar} alt="User" />
-                ) : null}
-                <AvatarFallback className="bg-primary/10 text-primary font-semibold text-xs md:text-sm">
-                  {getInitials(selectedConversation.participant?.name)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-sm truncate">
-                  {selectedConversation.participant?.name || 'Unknown'}
-                </h3>
-                <p className="text-xs text-muted-foreground">Chat</p>
-              </div>
+              {(() => {
+                const isServiceConv = !!selectedConversation.service;
+                const isOwner = isServiceConv && selectedConversation.service?.provider_id === currentUser?.id;
+                let headerName: string;
+                let headerAvatar: string | null;
+                if (isServiceConv && !isOwner) {
+                  headerName = selectedConversation.service?.title || selectedConversation.participant?.name || 'Unknown';
+                  headerAvatar = selectedConversation.service?.primary_image || selectedConversation.service?.image || null;
+                } else {
+                  headerName = selectedConversation.participant?.name || 'Unknown';
+                  headerAvatar = selectedConversation.participant?.avatar || null;
+                }
+                return (
+                  <>
+                    <Avatar className="w-8 h-8 md:w-9 md:h-9 flex-shrink-0">
+                      {isValidAvatar(headerAvatar) ? (
+                        <AvatarImage src={headerAvatar!} alt="User" />
+                      ) : null}
+                      <AvatarFallback className="bg-primary/10 text-primary font-semibold text-xs md:text-sm">
+                        {getInitials(headerName)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-sm truncate">{headerName}</h3>
+                      <p className="text-xs text-muted-foreground">{isServiceConv ? (isOwner ? 'Customer inquiry' : selectedConversation.service?.title || 'Service') : 'Chat'}</p>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             {/* Messages area */}

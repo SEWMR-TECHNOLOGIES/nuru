@@ -254,27 +254,47 @@ const EventManagement = () => {
                 ) : eventServices.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">No services added yet. Click "Add Service" to get started.</div>
                 ) : (
-                  eventServices.map((service: any) => (
+                  eventServices.map((service: any) => {
+                    const serviceImage = service.service?.primary_image || service.service?.images?.[0]?.url || service.service?.images?.[0];
+                    const statusVariant = (s: string) => {
+                      switch (s) {
+                        case 'completed': return 'bg-green-100 text-green-800 border-green-200';
+                        case 'confirmed': case 'accepted': return 'bg-blue-100 text-blue-800 border-blue-200';
+                        case 'pending': return 'bg-amber-100 text-amber-800 border-amber-200';
+                        case 'cancelled': return 'bg-red-100 text-red-800 border-red-200';
+                        default: return 'bg-muted text-muted-foreground border-border';
+                      }
+                    };
+                    return (
                     <div key={service.id} className={`p-4 rounded-lg border transition-colors ${service.status === 'completed' ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800" : "bg-card border-border"}`}>
                       <div className="flex items-start gap-3">
                         <button onClick={() => toggleServiceComplete(service.id)} className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 ${service.status === 'completed' ? "bg-green-500 border-green-500 text-white" : "border-muted-foreground hover:border-primary"}`}>
                           {service.status === 'completed' && <CheckCircle2 className="w-3 h-3" />}
                         </button>
+                        <Avatar className="w-10 h-10 rounded-lg flex-shrink-0">
+                          <AvatarImage src={serviceImage} className="object-cover rounded-lg" />
+                          <AvatarFallback className="rounded-lg bg-primary/10 text-primary font-semibold text-sm">
+                            {(service.service?.title || 'S')[0]}
+                          </AvatarFallback>
+                        </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2 mb-1">
                             <h3 className="font-medium">{service.service?.title || 'Unnamed Service'}</h3>
                             <Button size="sm" variant="ghost" onClick={() => setDeleteServiceId(service.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
                           </div>
                           <p className="text-sm text-muted-foreground mb-1">
-                            {service.service?.category && <span>{service.service.category} • </span>}
-                            {service.service?.provider_name && <span>by {service.service.provider_name} • </span>}
-                            <Badge variant="outline" className="text-xs">{service.status}</Badge>
+                            {service.service?.category && <span>{service.service.category}</span>}
+                            {service.service?.provider_name && <span> • by {service.service.provider_name}</span>}
                           </p>
-                          {service.quoted_price && <p className="text-sm font-medium">{formatPrice(service.quoted_price)}</p>}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge className={`text-xs border ${statusVariant(service.status)}`}>{service.status}</Badge>
+                            {service.quoted_price && <span className="text-sm font-medium text-primary">{formatPrice(service.quoted_price)}</span>}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </CardContent>

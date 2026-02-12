@@ -6,7 +6,7 @@ import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useUserService } from '@/hooks/useUserService';
@@ -188,10 +188,10 @@ const PublicServiceDetail = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'confirmed': case 'completed': return 'bg-green-500';
+      case 'confirmed': case 'completed': case 'accepted': return 'bg-green-500';
       case 'pending': return 'bg-amber-500';
       case 'cancelled': return 'bg-red-500';
-      default: return 'bg-primary';
+      default: return 'bg-green-500';
     }
   };
 
@@ -489,7 +489,10 @@ const PublicServiceDetail = () => {
             <div key={review.id} className="border-b pb-4 last:border-b-0">
               <div className="flex items-start gap-4">
                 <Avatar>
-                  <AvatarFallback>
+                  {(review as any).user_avatar && !((review as any).user_avatar?.includes('unsplash.com') || (review as any).user_avatar?.includes('placeholder') || (review as any).user_avatar?.includes('randomuser.me')) ? (
+                    <AvatarImage src={(review as any).user_avatar} alt={review.user_name || 'Reviewer'} />
+                  ) : null}
+                  <AvatarFallback className="bg-primary/10 text-primary font-semibold">
                     {(review.user_name || 'A').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
