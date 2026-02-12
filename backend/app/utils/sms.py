@@ -4,13 +4,16 @@
 from services.SewmrSmsClient import SewmrSmsClient
 
 
+SMS_SIGNATURE = "\n— Nuru: Plan Smarter"
+
+
 def _send(phone: str, message: str):
-    """Fire-and-forget SMS. Logs errors but never raises."""
+    """Fire-and-forget SMS. Appends Nuru signature and logs errors but never raises."""
     if not phone:
         return
     try:
         client = SewmrSmsClient()
-        client.send_quick_sms(message=message, recipients=[phone])
+        client.send_quick_sms(message=message + SMS_SIGNATURE, recipients=[phone])
     except Exception as e:
         print(f"[SMS] Failed to send to {phone}: {e}")
 
@@ -80,5 +83,16 @@ def sms_booking_notification(phone: str, provider_name: str, event_title: str, c
     msg = (
         f"Hello {provider_name}, you have been booked for {event_title} "
         f"by {client_name}. Open Nuru app for details."
+    )
+    _send(phone, msg)
+
+
+def sms_welcome_registered(phone: str, new_user_name: str, registered_by_name: str, password: str):
+    """Send welcome SMS to a user registered by someone else (inline registration)."""
+    msg = (
+        f"Hello {new_user_name}, {registered_by_name} has registered you on Nuru - "
+        f"the event planning workspace. "
+        f"Your login password is: {password} . "
+        f"Download or visit Nuru at https://nuru.tz to get started."
     )
     _send(phone, msg)

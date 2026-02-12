@@ -11,6 +11,7 @@ from models.enums import OTPVerificationTypeEnum
 from utils.auth import get_current_user
 from utils.helpers import standard_response, generate_otp, get_expiry, mask_email, mask_phone
 from utils.notification_service import send_verification_email, send_verification_sms
+from utils.sms import sms_welcome_registered
 from utils.validation_functions import validate_email, validate_tanzanian_phone, validate_password_strength, validate_username
 from utils.user_payload import build_user_payload
 
@@ -107,6 +108,16 @@ async def signup(request: Request, db: Session = Depends(get_db)):
         "email": user.email,
         "phone": user.phone
     }
+
+    # If registered by another user (inline registration), send welcome SMS
+    registered_by = payload.get("registered_by", "").strip()
+    if registered_by:
+        sms_welcome_registered(
+            phone=formatted_phone,
+            new_user_name=first_name,
+            registered_by_name=registered_by,
+            password=password
+        )
 
     return standard_response(True, f"Hello, {first_name}! Your account has been successfully created. Please use the OTP sent to your email and phone to activate your account.", user_data)
 
