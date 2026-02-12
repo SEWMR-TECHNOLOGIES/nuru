@@ -68,8 +68,11 @@ export const socialApi = {
   unechoPost: (postId: string) => del<any>(`/posts/${postId}/echo`),
 
   // Comments - aligned with nuru-api-doc 14.11-14.16
-  getComments: (postId: string, params?: { page?: number; limit?: number; sort?: string }) => 
+  getComments: (postId: string, params?: { page?: number; limit?: number; sort?: string; parent_id?: string }) => 
     get<{ comments: any[]; pagination: any }>(`/posts/${postId}/comments${buildQueryString(params)}`),
+
+  getCommentReplies: (postId: string, commentId: string, params?: { page?: number; limit?: number }) =>
+    get<{ comments: any[]; pagination: any }>(`/posts/${postId}/comments/${commentId}/replies${buildQueryString(params)}`),
 
   addComment: (postId: string, data: { content: string; parent_id?: string }) => 
     post<any>(`/posts/${postId}/comments`, data),

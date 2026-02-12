@@ -12,7 +12,7 @@ import FindServices from "@/components/FindServices";
 import Notifications from "@/components/Notifications";
 import Help from "@/components/Help";
 import Settings from "@/components/Settings";
-import MomentDetail from "@/components/MomentDetail";
+import PostDetail from "@/components/PostDetail";
 import CreateEvent from "@/components/CreateEvent";
 import EventManagement from "@/components/EventManagement";
 import MyServices from "@/components/MyServices";
@@ -88,7 +88,7 @@ export default function AppRoutes() {
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/help" element={<Help />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="/post/:id" element={<MomentDetail />} />
+          <Route path="/post/:id" element={<PostDetail />} />
           <Route path="/create-event" element={<CreateEvent />} />
           <Route path="/event-management/:id" element={<EventManagement />} />
           <Route path="/my-services" element={<MyServices />} />

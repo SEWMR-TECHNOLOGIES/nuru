@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Heart, MessageCircle, Share2, Send, MoreHorizontal, Loader2, Repeat2, Bookmark, Flag } from 'lucide-react';
+import { ChevronLeft, Heart, MessageCircle, Share2, Send, MoreHorizontal, Loader2, Repeat2, Bookmark, Flag, ChevronDown, CornerDownRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { socialApi } from '@/lib/api/social';
@@ -19,6 +19,299 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from 'sonner';
 
+// ──────────────────────────────────────────────
+// Helper: get initials from a name string
+// ──────────────────────────────────────────────
+const getInitials = (name: string) => {
+  const p = name.trim().split(/\s+/);
+  return p.length >= 2 ? `${p[0][0]}${p[p.length - 1][0]}`.toUpperCase() : name.charAt(0).toUpperCase();
+};
+
+// ──────────────────────────────────────────────
+// Avatar component (reused for comments/replies)
+// ──────────────────────────────────────────────
+const UserAvatar = ({ src, name, size = 'md' }: { src?: string; name: string; size?: 'sm' | 'md' }) => {
+  const sizeClasses = size === 'sm' ? 'w-7 h-7 text-[10px]' : 'w-8 h-8 md:w-10 md:h-10 text-xs md:text-sm';
+  if (src) {
+    return <img src={src} alt={name} className={`${sizeClasses} rounded-full object-cover flex-shrink-0`} />;
+  }
+  return (
+    <div className={`${sizeClasses} rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold flex-shrink-0`}>
+      {getInitials(name)}
+    </div>
+  );
+};
+
+// ──────────────────────────────────────────────
+// Inline Reply Input
+// ──────────────────────────────────────────────
+const InlineReplyInput = ({
+  currentUser,
+  onSubmit,
+  placeholder = 'Write a reply...',
+  autoFocus = true,
+}: {
+  currentUser: any;
+  onSubmit: (content: string) => Promise<void>;
+  placeholder?: string;
+  autoFocus?: boolean;
+}) => {
+  const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!text.trim() || sending) return;
+    setSending(true);
+    try {
+      await onSubmit(text.trim());
+      setText('');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="flex gap-2 items-start mt-2">
+      <UserAvatar src={currentUser?.avatar} name={currentUser?.first_name || '?'} size="sm" />
+      <div className="flex-1 flex items-start gap-1.5">
+        <div className="flex-1 border border-border rounded-full px-3 py-1.5 bg-muted/30">
+          <input
+            type="text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSubmit(); } }}
+            placeholder={placeholder}
+            autoFocus={autoFocus}
+            className="w-full bg-transparent text-xs md:text-sm outline-none placeholder:text-muted-foreground"
+          />
+        </div>
+        <button
+          onClick={handleSubmit}
+          disabled={!text.trim() || sending}
+          className="p-1.5 text-primary hover:text-primary/80 disabled:opacity-40 transition-colors"
+        >
+          {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ──────────────────────────────────────────────
+// Single Echo (Comment) Component — Facebook-style
+// ──────────────────────────────────────────────
+const EchoItem = ({
+  comment,
+  postId,
+  currentUser,
+  depth = 0,
+  onDelete,
+  onReplyAdded,
+}: {
+  comment: any;
+  postId: string;
+  currentUser: any;
+  depth?: number;
+  onDelete: (commentId: string) => void;
+  onReplyAdded: () => void;
+}) => {
+  const [glowed, setGlowed] = useState(comment.has_glowed || false);
+  const [glowCount, setGlowCount] = useState(comment.glow_count || 0);
+  const [showReplyInput, setShowReplyInput] = useState(false);
+  const [showReplies, setShowReplies] = useState(false);
+  const [replies, setReplies] = useState<any[]>(comment.replies_preview || []);
+  const [repliesLoaded, setRepliesLoaded] = useState(false);
+  const [loadingReplies, setLoadingReplies] = useState(false);
+  const replyCount = comment.reply_count || 0;
+
+  const cUser = comment.user || comment.author || {};
+  const cName = cUser.first_name
+    ? `${cUser.first_name} ${cUser.last_name || ''}`.trim()
+    : cUser.name || cUser.username || 'User';
+  const cAvatar = cUser.avatar || '';
+  const isOwn = currentUser?.id === cUser.id;
+
+  const handleGlow = async () => {
+    const wasGlowed = glowed;
+    setGlowed(!wasGlowed);
+    setGlowCount(prev => wasGlowed ? prev - 1 : prev + 1);
+    try {
+      if (wasGlowed) await socialApi.unglowComment(postId, comment.id);
+      else await socialApi.glowComment(postId, comment.id);
+    } catch {
+      setGlowed(wasGlowed);
+      setGlowCount(prev => wasGlowed ? prev + 1 : prev - 1);
+      toast.error('Failed to glow echo');
+    }
+  };
+
+  const handleLoadReplies = async () => {
+    if (repliesLoaded) {
+      setShowReplies(true);
+      return;
+    }
+    setLoadingReplies(true);
+    try {
+      const res = await socialApi.getCommentReplies(postId, comment.id);
+      if (res.success) {
+        const data = res.data as any;
+        setReplies(data?.comments || []);
+        setRepliesLoaded(true);
+        setShowReplies(true);
+      }
+    } catch {
+      toast.error('Failed to load replies');
+    } finally {
+      setLoadingReplies(false);
+    }
+  };
+
+  const handleReplySubmit = async (content: string) => {
+    try {
+      const res = await socialApi.addComment(postId, { content, parent_id: comment.id });
+      if (res.success) {
+        const newReply = res.data;
+        setReplies(prev => [...prev, newReply]);
+        setShowReplies(true);
+        setRepliesLoaded(true);
+        setShowReplyInput(false);
+        onReplyAdded();
+        toast.success('Reply posted');
+      } else {
+        toast.error(res.message || 'Failed to post reply');
+      }
+    } catch {
+      toast.error('Failed to post reply');
+      throw new Error('failed');
+    }
+  };
+
+  const handleDeleteReply = (replyId: string) => {
+    setReplies(prev => prev.filter(r => r.id !== replyId));
+  };
+
+  // Max nesting depth for UI (like Facebook: 1 level of replies)
+  const maxDepth = 1;
+
+  return (
+    <div className={`${depth > 0 ? 'ml-8 md:ml-10' : ''}`}>
+      <div className="flex gap-2 md:gap-2.5">
+        <UserAvatar src={cAvatar} name={cName} size={depth > 0 ? 'sm' : 'md'} />
+        <div className="flex-1 min-w-0">
+          {/* Comment bubble */}
+          <div className="bg-muted/50 rounded-2xl px-3 py-2 inline-block max-w-full">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-xs md:text-sm">{cName}</span>
+            </div>
+            {comment.content && (
+              <p className="text-xs md:text-sm break-words whitespace-pre-wrap mt-0.5">{comment.content}</p>
+            )}
+          </div>
+
+          {/* Action row — Facebook style */}
+          <div className="flex items-center gap-3 mt-0.5 ml-2 text-xs">
+            <span className="text-muted-foreground">
+              {comment.created_at ? getTimeAgo(comment.created_at) : ''}
+            </span>
+            <button
+              onClick={handleGlow}
+              className={`font-semibold transition-colors ${
+                glowed ? 'text-red-500' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {glowed ? 'Glowed' : 'Glow'}
+            </button>
+            {depth < maxDepth && (
+              <button
+                onClick={() => setShowReplyInput(!showReplyInput)}
+                className="font-semibold text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Reply
+              </button>
+            )}
+            {isOwn && (
+              <button
+                onClick={() => onDelete(comment.id)}
+                className="font-semibold text-destructive hover:text-destructive/80 transition-colors"
+              >
+                Delete
+              </button>
+            )}
+            {glowCount > 0 && (
+              <span className="flex items-center gap-0.5 text-muted-foreground">
+                <Heart className="w-3 h-3 fill-red-500 text-red-500" />
+                {glowCount}
+              </span>
+            )}
+            {comment.is_edited && (
+              <span className="text-muted-foreground italic">Edited</span>
+            )}
+          </div>
+
+          {/* View / collapse replies button */}
+          {replyCount > 0 && depth === 0 && (
+            <button
+              onClick={() => {
+                if (showReplies) {
+                  setShowReplies(false);
+                } else {
+                  handleLoadReplies();
+                }
+              }}
+              disabled={loadingReplies}
+              className="flex items-center gap-1 mt-1.5 ml-2 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+            >
+              {loadingReplies ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : showReplies ? (
+                <ChevronDown className="w-3 h-3 rotate-180 transition-transform" />
+              ) : (
+                <CornerDownRight className="w-3 h-3" />
+              )}
+              {showReplies
+                ? 'Hide replies'
+                : replies.length > 0 && replies.length < replyCount
+                  ? `View ${replyCount - replies.length} more ${replyCount - replies.length === 1 ? 'reply' : 'replies'}`
+                  : `View ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}`
+              }
+            </button>
+          )}
+
+          {/* Render replies */}
+          {showReplies && replies.length > 0 && (
+            <div className="mt-2 space-y-2">
+              {replies.map((reply) => (
+                <EchoItem
+                  key={reply.id}
+                  comment={reply}
+                  postId={postId}
+                  currentUser={currentUser}
+                  depth={depth + 1}
+                  onDelete={handleDeleteReply}
+                  onReplyAdded={onReplyAdded}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Inline reply input */}
+          {showReplyInput && depth < maxDepth && (
+            <InlineReplyInput
+              currentUser={currentUser}
+              onSubmit={handleReplySubmit}
+              placeholder={`Reply to ${cName}...`}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+// ──────────────────────────────────────────────
+// Main PostDetail Component
+// ──────────────────────────────────────────────
 const PostDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -64,11 +357,11 @@ const PostDetail = () => {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Fetch comments
-  useEffect(() => {
+  // Fetch comments (top-level only)
+  const fetchComments = useCallback(() => {
     if (!id) return;
     setCommentsLoading(true);
-    socialApi.getComments(id)
+    socialApi.getComments(id, { sort: 'newest' })
       .then((res) => {
         if (res.success) {
           const data = res.data as any;
@@ -78,6 +371,8 @@ const PostDetail = () => {
       .catch(() => {})
       .finally(() => setCommentsLoading(false));
   }, [id]);
+
+  useEffect(() => { fetchComments(); }, [fetchComments]);
 
   const handleGlow = async () => {
     if (!id) return;
@@ -142,7 +437,7 @@ const PostDetail = () => {
   };
 
   const handleShare = (platform: string) => {
-    const shareUrl = `${window.location.origin}/shared/post/${id}`;  // Use guest-friendly URL
+    const shareUrl = `${window.location.origin}/shared/post/${id}`;
     const shareTitle = post?.title || post?.content?.slice(0, 50) || 'Check this out';
     let url = '';
     switch (platform) {
@@ -173,10 +468,12 @@ const PostDetail = () => {
     try {
       const res = await socialApi.addComment(id, { content: input.trim() });
       if (res.success) {
-        const commentsRes = await socialApi.getComments(id);
-        if (commentsRes.success) {
-          const data = commentsRes.data as any;
-          setComments(data?.comments || data?.items || (Array.isArray(data) ? data : []));
+        // Prepend new comment to list
+        const newComment = res.data;
+        if (newComment) {
+          setComments(prev => [newComment, ...prev]);
+        } else {
+          fetchComments();
         }
         setCommentCount(prev => prev + 1);
         setInput('');
@@ -204,33 +501,13 @@ const PostDetail = () => {
     }
   };
 
-  const handleGlowComment = async (commentId: string, hasGlowed: boolean) => {
-    if (!id) return;
-    try {
-      if (hasGlowed) {
-        await socialApi.unglowComment(id, commentId);
-      } else {
-        await socialApi.glowComment(id, commentId);
-      }
-      // Update local comment state
-      setComments(prev => prev.map(c =>
-        c.id === commentId
-          ? { ...c, has_glowed: !hasGlowed, glow_count: (c.glow_count || 0) + (hasGlowed ? -1 : 1) }
-          : c
-      ));
-    } catch {
-      toast.error('Failed to glow echo');
-    }
-  };
-
-  // getTimeAgo imported from shared utility
-
   if (loading) {
     return (
       <>
-        <div className="flex items-center mb-4">
-          <Button variant="ghost" onClick={handleBack} className="flex items-center gap-2 text-sm">
-            <ArrowLeft className="w-4 h-4" /> Back
+        <div className="flex items-center justify-between mb-3 md:mb-4">
+          <h1 className="text-2xl md:text-3xl font-bold">Moment</h1>
+          <Button variant="ghost" size="icon" onClick={handleBack}>
+            <ChevronLeft className="w-5 h-5" />
           </Button>
         </div>
         <div className="bg-card rounded-lg shadow-sm border border-border overflow-hidden mb-4">
@@ -260,7 +537,6 @@ const PostDetail = () => {
     );
   }
 
-  // Extract post fields flexibly from API
   const authorName = post.author?.name
     || (post.user?.first_name ? `${post.user.first_name} ${post.user.last_name || ''}`.trim() : null)
     || 'Anonymous';
@@ -273,23 +549,18 @@ const PostDetail = () => {
 
   return (
     <>
-      <div className="flex items-center mb-3 md:mb-4">
-        <Button variant="ghost" onClick={handleBack} className="flex items-center gap-2 text-sm md:text-base">
-          <ArrowLeft className="w-4 h-4" /> Back
-        </Button>
-      </div>
+        <div className="flex items-center justify-between mb-3 md:mb-4">
+          <h1 className="text-2xl md:text-3xl font-bold">Moment</h1>
+          <Button variant="ghost" size="icon" onClick={handleBack}>
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+        </div>
 
       {/* Post Content */}
       <div className="bg-card rounded-lg shadow-sm border border-border overflow-hidden mb-4 md:mb-6">
         <div className="p-3 md:p-4 flex items-center justify-between">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
-          {authorAvatar ? (
-              <img src={authorAvatar} alt={authorName} className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover flex-shrink-0" />
-            ) : (
-              <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm flex-shrink-0">
-                {(() => { const p = authorName.trim().split(/\s+/); return p.length >= 2 ? `${p[0][0]}${p[p.length-1][0]}`.toUpperCase() : authorName.charAt(0).toUpperCase(); })()}
-              </div>
-            )}
+            <UserAvatar src={authorAvatar} name={authorName} />
             <div className="min-w-0">
               <h3 className="font-semibold text-foreground text-sm md:text-base truncate">{authorName}</h3>
               <p className="text-xs md:text-sm text-muted-foreground">
@@ -307,28 +578,23 @@ const PostDetail = () => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => handleShare('whatsapp')}>
-                <Share2 className="w-4 h-4 mr-2" />
-                WhatsApp
+                <Share2 className="w-4 h-4 mr-2" /> WhatsApp
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleShare('facebook')}>
-                <Share2 className="w-4 h-4 mr-2" />
-                Facebook
+                <Share2 className="w-4 h-4 mr-2" /> Facebook
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleShare('twitter')}>
-                <Share2 className="w-4 h-4 mr-2" />
-                Twitter
+                <Share2 className="w-4 h-4 mr-2" /> Twitter
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleShare('copy')}>
-                <Share2 className="w-4 h-4 mr-2" />
-                Copy Link
+                <Share2 className="w-4 h-4 mr-2" /> Copy Link
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleSave}>
                 <Bookmark className={`w-4 h-4 mr-2 ${saved ? 'fill-current' : ''}`} />
                 {saved ? 'Unsave' : 'Save'}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleReport} className="text-destructive focus:text-destructive">
-                <Flag className="w-4 h-4 mr-2" />
-                Report
+                <Flag className="w-4 h-4 mr-2" /> Report
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -355,7 +621,6 @@ const PostDetail = () => {
         {/* Action Buttons */}
         <div className="px-3 md:px-4 py-2 md:py-3 border-t border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div className="flex gap-1.5 md:gap-2 flex-wrap">
-            {/* Glow */}
             <button
               onClick={handleGlow}
               className={`flex items-center gap-1.5 px-2 md:px-3 py-1 rounded-lg transition-colors text-xs md:text-sm ${
@@ -366,7 +631,6 @@ const PostDetail = () => {
               <span className="hidden sm:inline">{glowed ? 'Glowed' : 'Glow'}</span>
             </button>
 
-            {/* Echo (repost) */}
             <button
               onClick={handleEcho}
               disabled={echoLoading}
@@ -378,7 +642,6 @@ const PostDetail = () => {
               <span className="hidden sm:inline">{echoed ? 'Echoed' : 'Echo'}</span>
             </button>
 
-            {/* Spark (share) */}
             <Popover open={shareOpen} onOpenChange={setShareOpen}>
               <PopoverTrigger asChild>
                 <button className="flex items-center gap-1.5 px-2 md:px-3 py-1 rounded-lg bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors text-xs md:text-sm">
@@ -405,21 +668,15 @@ const PostDetail = () => {
         </div>
       </div>
 
-      {/* Echoes (Comments) */}
+      {/* Echoes (Comments) Section */}
       <div className="bg-card rounded-lg shadow-sm border border-border p-3 md:p-4">
         <h2 className="text-lg md:text-xl font-semibold mb-3 md:mb-4">{commentCount} {commentCount === 1 ? 'Echo' : 'Echoes'}</h2>
 
-        {/* Comment Input — no location field */}
-        <div className="flex gap-2 md:gap-3 mb-3 md:mb-4">
-          {currentUser?.avatar ? (
-            <img src={currentUser.avatar} alt="You" className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover flex-shrink-0" />
-          ) : (
-            <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm flex-shrink-0">
-              {currentUser?.first_name && currentUser?.last_name ? `${currentUser.first_name[0]}${currentUser.last_name[0]}`.toUpperCase() : currentUser?.first_name?.[0] || '?'}
-            </div>
-          )}
+        {/* Main Comment Input */}
+        <div className="flex gap-2 md:gap-3 mb-4 md:mb-5">
+          <UserAvatar src={currentUser?.avatar} name={currentUser?.first_name || '?'} />
           <div className="flex items-start gap-2 md:gap-3 flex-1 min-w-0">
-            <div className="flex-1 border border-border rounded-lg px-3 py-2 min-w-0">
+            <div className="flex-1 border border-border rounded-2xl px-3 md:px-4 py-2 bg-muted/20">
               <textarea
                 placeholder="Add an echo..."
                 value={input}
@@ -435,13 +692,14 @@ const PostDetail = () => {
               size="sm"
               onClick={handleSendComment}
               disabled={!input.trim() || sending}
+              className="rounded-full h-9 w-9 p-0"
             >
               {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </Button>
           </div>
         </div>
 
-        {/* Comments List */}
+        {/* Comments List — Threaded */}
         {commentsLoading ? (
           <div className="space-y-3">
             {[1, 2].map(i => (
@@ -449,73 +707,24 @@ const PostDetail = () => {
                 <Skeleton className="w-8 h-8 rounded-full" />
                 <div className="flex-1 space-y-2">
                   <Skeleton className="h-4 w-32" />
-                  <Skeleton className="h-12 w-full rounded-lg" />
+                  <Skeleton className="h-12 w-full rounded-2xl" />
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="space-y-2 md:space-y-3">
-            {comments.map((comment) => {
-              const cUser = comment.user || comment.author || {};
-              const cName = cUser.first_name
-                ? `${cUser.first_name} ${cUser.last_name || ''}`.trim()
-                : cUser.name || cUser.username || 'User';
-              const cAvatar = cUser.avatar || '';
-              const isOwn = currentUser?.id === cUser.id;
-              const commentGlowed = comment.has_glowed || false;
-              const commentGlowCount = comment.glow_count || 0;
-
-              return (
-                <div key={comment.id} className="flex gap-2 md:gap-3">
-                  {cAvatar ? (
-                    <img src={cAvatar} alt={cName} className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover flex-shrink-0" />
-                  ) : (
-                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs flex-shrink-0">
-                      {(() => { const p = cName.trim().split(/\s+/); return p.length >= 2 ? `${p[0][0]}${p[p.length-1][0]}`.toUpperCase() : cName.charAt(0).toUpperCase(); })()}
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="bg-muted/50 rounded-lg p-2 md:p-3">
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="font-semibold text-xs md:text-sm truncate">{cName}</span>
-                          <span className="text-xs text-muted-foreground flex-shrink-0">
-                            {comment.created_at ? getTimeAgo(comment.created_at) : ''}
-                          </span>
-                        </div>
-                        {isOwn && (
-                          <button onClick={() => handleDeleteComment(comment.id)} className="text-xs text-destructive hover:underline flex-shrink-0">
-                            Delete
-                          </button>
-                        )}
-                      </div>
-                      {comment.content && <p className="text-sm break-words">{comment.content}</p>}
-                      {comment.media && (
-                        <img src={comment.media.url || comment.media} alt="media" className="mt-2 w-full h-32 object-cover rounded-lg" />
-                      )}
-                    </div>
-                    {/* Comment actions */}
-                    <div className="flex items-center gap-3 mt-1 ml-2">
-                      <button
-                        onClick={() => handleGlowComment(comment.id, commentGlowed)}
-                        className={`flex items-center gap-1 text-xs transition-colors ${
-                          commentGlowed ? 'text-red-500' : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        <Heart className={`w-3 h-3 ${commentGlowed ? 'fill-current' : ''}`} />
-                        {commentGlowCount > 0 && <span>{commentGlowCount}</span>}
-                      </button>
-                      {comment.reply_count > 0 && (
-                        <button className="text-xs text-primary">
-                          {comment.reply_count} {comment.reply_count === 1 ? 'reply' : 'replies'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="space-y-3 md:space-y-4">
+            {comments.map((comment) => (
+              <EchoItem
+                key={comment.id}
+                comment={comment}
+                postId={id!}
+                currentUser={currentUser}
+                depth={0}
+                onDelete={handleDeleteComment}
+                onReplyAdded={() => setCommentCount(prev => prev + 1)}
+              />
+            ))}
 
             {comments.length === 0 && !commentsLoading && (
               <p className="text-center text-muted-foreground py-3 md:py-4 text-sm">No echoes yet. Be the first to add one!</p>

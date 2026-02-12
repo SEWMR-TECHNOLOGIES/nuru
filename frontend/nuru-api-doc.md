@@ -8681,31 +8681,36 @@ Response 200:
     "comments": [
       {
         "id": "uuid-string",
-        "user": {
+        "author": {
           "id": "uuid-string",
-          "first_name": "Alice",
-          "last_name": "Johnson",
+          "name": "Alice Johnson",
           "username": "alicejohnson",
-          "avatar": "https://storage.example.com/avatars/uuid.jpg",
-          "is_verified": false
+          "avatar": "https://storage.example.com/avatars/uuid.jpg"
         },
         "content": "This looks absolutely stunning! Where was this venue?",
-        "media": null,
         "glow_count": 12,
         "reply_count": 3,
         "has_glowed": false,
         "is_edited": false,
+        "is_pinned": false,
         "parent_id": null,
         "replies_preview": [
           {
             "id": "uuid-string",
-            "user": {
+            "author": {
               "id": "uuid-string",
+              "name": "Sarah Johnson",
               "username": "sarahjohnson",
               "avatar": "https://storage.example.com/avatars/uuid.jpg"
             },
             "content": "Thank you! It was at Kempinski Hotel 😊",
-            "created_at": "2024-06-24T21:00:00Z"
+            "glow_count": 2,
+            "reply_count": 0,
+            "has_glowed": true,
+            "is_edited": false,
+            "parent_id": "uuid-string",
+            "created_at": "2024-06-24T21:00:00Z",
+            "updated_at": "2024-06-24T21:00:00Z"
           }
         ],
         "created_at": "2024-06-24T20:45:00Z",
@@ -8722,6 +8727,13 @@ Response 200:
     }
   }
 }
+
+Notes:
+- Without `parent_id` query param, returns only top-level comments (where parent_comment_id IS NULL)
+- With `parent_id` query param, returns replies to that specific comment
+- `replies_preview` contains the first 2 replies for top-level comments
+- `has_glowed` indicates whether the current user has glowed this comment
+- Use 14.17 (Get Comment Replies) to load all replies for a comment
 ```
 
 ### 14.12 Create Comment
@@ -8849,7 +8861,62 @@ Response 200:
 }
 ```
 
-### 14.17 Save Post
+### 14.17 Get Comment Replies (Threaded Echoes)
+```
+GET /posts/:postId/comments/:commentId/replies
+Authorization: Bearer {token}
+
+Path Parameters:
+- postId (required): UUID of the post
+- commentId (required): UUID of the parent comment
+
+Query Parameters:
+- page (optional): integer, default 1
+- limit (optional): integer, default 20
+
+Response 200:
+{
+  "success": true,
+  "message": "Replies retrieved",
+  "data": {
+    "comments": [
+      {
+        "id": "uuid-string",
+        "content": "I agree, great venue!",
+        "author": {
+          "id": "uuid-string",
+          "name": "Sarah Johnson",
+          "username": "sarahjohnson",
+          "avatar": "https://storage.example.com/avatars/uuid.jpg"
+        },
+        "glow_count": 3,
+        "reply_count": 0,
+        "has_glowed": false,
+        "is_edited": false,
+        "parent_id": "uuid-string",
+        "created_at": "2024-06-25T15:00:00Z",
+        "updated_at": "2024-06-25T15:00:00Z"
+      }
+    ],
+    "pagination": {
+      "current_page": 1,
+      "per_page": 20,
+      "total_items": 5,
+      "total_pages": 1,
+      "has_next": false,
+      "has_previous": false
+    }
+  }
+}
+
+Notes:
+- Returns replies sorted by oldest first (chronological thread order)
+- Each reply includes the `parent_id` referencing the parent comment
+- Replies can also be glowed using the existing 14.15/14.16 endpoints
+- Creating a reply uses the existing 14.12 endpoint with `parent_id` in the body
+```
+
+### 14.18 Save Post
 ```
 POST /posts/:postId/save
 Authorization: Bearer {token}
