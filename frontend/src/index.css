@@ -391,7 +391,7 @@
 @media (min-width: 768px) and (max-width: 1366px) {
   /* Scale the entire UI down via root font size */
   html {
-    font-size: 14px !important;
+    font-size: 15px !important;
   }
 
   /* Tighter card and container padding */
@@ -436,28 +436,20 @@
 
   /* Scale down text sizes */
   h1, [class*="text-3xl"] {
-    font-size: 1.35rem !important;
-    line-height: 1.75rem !important;
+    font-size: 1.5rem !important;
+    line-height: 2rem !important;
   }
   h2, [class*="text-2xl"] {
-    font-size: 1.15rem !important;
-    line-height: 1.5rem !important;
+    font-size: 1.25rem !important;
+    line-height: 1.75rem !important;
   }
   [class*="text-xl"] {
-    font-size: 1rem !important;
-    line-height: 1.35rem !important;
+    font-size: 1.1rem !important;
+    line-height: 1.5rem !important;
   }
   [class*="text-lg"] {
-    font-size: 0.875rem !important;
-    line-height: 1.25rem !important;
-  }
-  [class*="text-base"] {
-    font-size: 0.8rem !important;
-    line-height: 1.15rem !important;
-  }
-  [class*="text-sm"] {
-    font-size: 0.7rem !important;
-    line-height: 1rem !important;
+    font-size: 0.95rem !important;
+    line-height: 1.35rem !important;
   }
 }
 
