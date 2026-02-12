@@ -53,14 +53,23 @@ def _conversation_dict(db, conv, current_user_id):
                 "provider_id": str(svc.user_id),
             }
 
-    # For service conversations, show service name/image instead of person
+    # Determine display: service owner sees customer; customer sees service branding
     participant_name = f"{other.first_name} {other.last_name}" if other else None
     participant_avatar = profile.profile_picture_url if profile else None
-    display_name = service_info["title"] if service_info else participant_name
-    display_avatar = service_info["image"] if service_info else participant_avatar
+
+    is_service_owner = service_info and str(service_info["provider_id"]) == str(current_user_id)
+    if service_info and not is_service_owner:
+        # Customer perspective → show service branding
+        display_name = service_info["title"]
+        display_avatar = service_info["image"]
+    else:
+        # Service owner or regular chat → show the other person
+        display_name = participant_name
+        display_avatar = participant_avatar
 
     return {
         "id": str(conv.id),
+        "type": conv.type.value if conv.type else "user_to_user",
         "participant": {
             "id": str(other.id) if other else None,
             "name": display_name,

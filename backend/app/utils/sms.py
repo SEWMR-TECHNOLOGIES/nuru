@@ -26,12 +26,15 @@ def sms_guest_added(phone: str, guest_name: str, event_title: str, event_date: s
     _send(phone, msg)
 
 
-def sms_committee_invite(phone: str, member_name: str, event_title: str, role: str, organizer_name: str = ""):
+def sms_committee_invite(phone: str, member_name: str, event_title: str, role: str, organizer_name: str = "", custom_message: str = ""):
     """Notify user they've been added to event committee."""
     msg = f"Hello {member_name}, you have been added as {role} for {event_title}"
     if organizer_name:
         msg += f" by {organizer_name}"
-    msg += ". Open Nuru app to view your responsibilities."
+    msg += "."
+    if custom_message:
+        msg += f" {custom_message}"
+    msg += " Open Nuru app to view your responsibilities."
     _send(phone, msg)
 
 

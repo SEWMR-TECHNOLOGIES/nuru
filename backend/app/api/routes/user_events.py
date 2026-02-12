@@ -1526,9 +1526,10 @@ def add_committee_member(event_id: str, body: dict = Body(...), db: Session = De
             db.commit()
         except Exception:
             pass
-        # SMS to committee member
+        # SMS to committee member (include custom message if provided)
         organizer_name = f"{current_user.first_name} {current_user.last_name}"
-        sms_committee_invite(member_user.phone, f"{member_user.first_name}", event.name, role_name, organizer_name)
+        custom_msg = (body.get("invitation_message") or "").strip()
+        sms_committee_invite(member_user.phone, f"{member_user.first_name}", event.name, role_name, organizer_name, custom_message=custom_msg)
 
     return standard_response(True, "Committee member added successfully", _member_dict(db, cm))
 

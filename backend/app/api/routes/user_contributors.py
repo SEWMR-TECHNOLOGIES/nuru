@@ -359,6 +359,22 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
         joinedload(EventContributor.contributions),
     ).filter(EventContributor.id == ec.id).first()
 
+    # Send SMS when contributor is added with a pledge amount
+    pledge_val = float(body.get("pledge_amount", 0))
+    if pledge_val > 0 and contributor.phone:
+        try:
+            from utils.sms import sms_contribution_target_set
+            currency = _currency_code(db, event)
+            organizer = db.query(User).filter(User.id == event.organizer_id).first()
+            organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
+            sms_contribution_target_set(
+                contributor.phone, contributor.name,
+                event.name, pledge_val, 0, currency,
+                organizer_phone=organizer_phone
+            )
+        except Exception:
+            pass
+
     return standard_response(True, "Contributor added to event", _event_contributor_dict(ec))
 
 
@@ -507,6 +523,40 @@ def record_payment(event_id: str, ec_id: str, body: dict = Body(...), db: Sessio
         "payment_reference": contribution.transaction_ref,
         "created_at": contribution.created_at.isoformat(),
     })
+
+
+@router.post("/events/{event_id}/contributors/{ec_id}/thank-you")
+def send_thank_you_sms(event_id: str, ec_id: str, body: dict = Body(default={}), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Send a thank you SMS to an event contributor."""
+    try:
+        eid = uuid.UUID(event_id)
+        ecid = uuid.UUID(ec_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+
+    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
+    if not event:
+        return standard_response(False, "Event not found or access denied")
+
+    ec = db.query(EventContributor).options(
+        joinedload(EventContributor.contributor),
+    ).filter(EventContributor.id == ecid, EventContributor.event_id == eid).first()
+    if not ec:
+        return standard_response(False, "Event contributor not found")
+
+    contributor = ec.contributor
+    if not contributor or not contributor.phone:
+        return standard_response(False, "Contributor has no phone number for SMS")
+
+    custom_message = (body.get("custom_message") or "").strip()
+    try:
+        from utils.sms import sms_thank_you
+        organizer_phone = format_phone_display(current_user.phone) if current_user.phone else None
+        sms_thank_you(contributor.phone, contributor.name, event.name, custom_message, organizer_phone=organizer_phone)
+    except Exception as e:
+        return standard_response(False, f"Failed to send SMS: {str(e)}")
+
+    return standard_response(True, "Thank you sent successfully", {"sent": True})
 
 
 @router.get("/events/{event_id}/contributors/{ec_id}/payments")
