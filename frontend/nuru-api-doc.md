@@ -6649,7 +6649,7 @@ Content-Type: application/json
 ---
 
 ## 11.1 Get Conversations
-Returns all conversations for the authenticated user.
+Returns all conversations for the authenticated user. Each conversation includes a `type` field (`user_to_user` or `user_to_service`). The `participant` display is **perspective-aware**: service owners see the customer's name/avatar, while customers see the service's branding (title and image). The `service` object (when present) always includes `provider_id` for reference.
 
 ```
 GET /messages/conversations
@@ -6672,6 +6672,7 @@ Authorization: Bearer {access_token}
     "conversations": [
       {
         "id": "conv-001-002",
+        "type": "user_to_service",
         "participant": {
           "id": "550e8400-e29b-41d4-a716-446655440000",
           "name": "David Mwangi",

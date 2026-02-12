@@ -25,7 +25,8 @@ import { formatPrice } from '@/utils/formatPrice';
 import { formatDateMedium } from '@/utils/formatDate';
 import ContributionsSkeletonLoader from './ContributionsSkeletonLoader';
 import ContributorDetailDialog from './ContributorDetailDialog';
-import { generateContributionReport } from '@/utils/generatePdf';
+import { generateContributionReportHtml } from '@/utils/generatePdf';
+import ReportPreviewDialog from '@/components/ReportPreviewDialog';
 import type { EventContributorSummary } from '@/lib/api/contributors';
 
 interface EventContributionsProps {
@@ -62,6 +63,9 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
   const [addContributorDialogOpen, setAddContributorDialogOpen] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [editPledgeDialogOpen, setEditPledgeDialogOpen] = useState(false);
+  const [thankYouDialogOpen, setThankYouDialogOpen] = useState(false);
+  const [thankYouTarget, setThankYouTarget] = useState<EventContributorSummary | null>(null);
+  const [thankYouMessage, setThankYouMessage] = useState('');
   const [detailContributor, setDetailContributor] = useState<EventContributorSummary | null>(null);
   const [paymentTarget, setPaymentTarget] = useState<EventContributorSummary | null>(null);
   const [editTarget, setEditTarget] = useState<EventContributorSummary | null>(null);
@@ -89,6 +93,10 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [historyData, setHistoryData] = useState<any>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Report preview
+  const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
+  const [reportHtml, setReportHtml] = useState('');
 
   // Computed
   const summary = ecSummary || { total_pledged: 0, total_paid: 0, total_balance: 0, count: 0, currency: legacySummary?.currency || 'TZS' };
@@ -151,7 +159,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
       toast.success('Payment recorded');
       setPaymentDialogOpen(false);
       setPaymentTarget(null);
-      setPayment({ amount: '', payment_method: 'mpesa', payment_reference: '' });
+      setPayment({ amount: '', payment_method: 'cash', payment_reference: '' });
     } catch (err: any) {
       showCaughtError(err, 'Failed to record payment');
     } finally {
@@ -205,9 +213,12 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
   };
 
   const handleDownloadReport = () => {
-    generateContributionReport(
+    const sortedContributors = [...filteredContributors].sort((a, b) => 
+      (a.contributor?.name || '').localeCompare(b.contributor?.name || '')
+    );
+    const html = generateContributionReportHtml(
       eventTitle || 'Event',
-      filteredContributors.map(ec => ({
+      sortedContributors.map(ec => ({
         name: ec.contributor?.name || 'Unknown',
         pledged: ec.pledge_amount,
         paid: ec.total_paid,
@@ -215,6 +226,8 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
       })),
       { total_amount: summary.total_paid, target_amount: summary.total_pledged, currency, budget: eventBudget }
     );
+    setReportHtml(html);
+    setReportPreviewOpen(true);
   };
 
   const resetAddForm = () => {
@@ -300,7 +313,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => { setPaymentTarget(ec); setPayment({ amount: '', payment_method: 'mpesa', payment_reference: '' }); setPaymentDialogOpen(true); }}>
+                          <DropdownMenuItem onClick={() => { setPaymentTarget(ec); setPayment({ amount: '', payment_method: 'cash', payment_reference: '' }); setPaymentDialogOpen(true); }}>
                             <DollarSign className="w-4 h-4 mr-2" />Record Payment
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => { setEditTarget(ec); setEditAmount(String(ec.pledge_amount)); setEditPledgeDialogOpen(true); }}>
@@ -308,6 +321,9 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleViewHistory(ec)}>
                             <Eye className="w-4 h-4 mr-2" />Payment History
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => { setThankYouTarget(ec); setThankYouMessage(''); setThankYouDialogOpen(true); }}>
+                            <Send className="w-4 h-4 mr-2" />Send Thank You
                           </DropdownMenuItem>
                           <DropdownMenuItem className="text-destructive" onClick={() => handleRemove(ec.id)}>
                             <Trash className="w-4 h-4 mr-2" />Remove
@@ -502,6 +518,62 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Send Thank You Dialog */}
+      <Dialog open={thankYouDialogOpen} onOpenChange={(open) => { setThankYouDialogOpen(open); if (!open) setThankYouTarget(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Send Thank You to {thankYouTarget?.contributor?.name}</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              A thank you SMS will be sent to {thankYouTarget?.contributor?.phone || 'the contributor'}.
+            </p>
+            <div className="space-y-2">
+              <Label>Custom Message (optional)</Label>
+              <Textarea
+                value={thankYouMessage}
+                onChange={(e) => setThankYouMessage(e.target.value)}
+                placeholder="Add a personal thank you message..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setThankYouDialogOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={async () => {
+                if (!thankYouTarget) return;
+                setIsSubmitting(true);
+                try {
+                  const { contributorsApi } = await import('@/lib/api/contributors');
+                  const res = await contributorsApi.sendThankYou(eventId, thankYouTarget.id, { custom_message: thankYouMessage || undefined });
+                  if (res.success) {
+                    toast.success('Thank you sent!');
+                    setThankYouDialogOpen(false);
+                    setThankYouTarget(null);
+                  } else {
+                    toast.error(res.message || 'Failed to send');
+                  }
+                } catch (err: any) {
+                  showCaughtError(err, 'Failed to send thank you');
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</> : <><Send className="w-4 h-4 mr-2" />Send Thank You</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Report Preview */}
+      <ReportPreviewDialog
+        open={reportPreviewOpen}
+        onOpenChange={setReportPreviewOpen}
+        title="Contribution Report"
+        html={reportHtml}
+      />
     </div>
   );
 };

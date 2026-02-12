@@ -34,24 +34,37 @@ const MyServices = () => {
   const [reviews, setReviews] = useState<ServiceReview[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
 
-  // Fetch reviews for first service when services load
+  // Fetch reviews across ALL services
   useEffect(() => {
-    const fetchReviews = async () => {
-      if (services.length > 0) {
-        setReviewsLoading(true);
-        try {
-          const response = await userServicesApi.getReviews(services[0].id, { limit: 5 });
-          if (response.success && response.data) {
-            setReviews(Array.isArray(response.data.reviews) ? response.data.reviews : []);
-          }
-        } catch {
-          // ignore
-        } finally {
-          setReviewsLoading(false);
-        }
+    const fetchAllReviews = async () => {
+      if (services.length === 0) return;
+      setReviewsLoading(true);
+      try {
+        const allReviews: ServiceReview[] = [];
+        await Promise.all(
+          services.map(async (service) => {
+            try {
+              const response = await userServicesApi.getReviews(service.id, { limit: 10 });
+              if (response.success && response.data?.reviews) {
+                const serviceReviews = response.data.reviews.map((r: any) => ({
+                  ...r,
+                  service_title: service.title,
+                }));
+                allReviews.push(...serviceReviews);
+              }
+            } catch { /* ignore individual failures */ }
+          })
+        );
+        // Sort by most recent first
+        allReviews.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+        setReviews(allReviews.slice(0, 10));
+      } catch {
+        // ignore
+      } finally {
+        setReviewsLoading(false);
       }
     };
-    fetchReviews();
+    fetchAllReviews();
   }, [services]);
   const [packageDialogOpen, setPackageDialogOpen] = useState(false);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
@@ -433,12 +446,14 @@ const MyServices = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {reviews.map((review) => (
+              {reviews.map((review: any) => (
                 <div key={review.id} className="flex gap-4 p-4 border rounded-lg">
                   <Avatar className="flex-shrink-0">
-                    <AvatarImage src={review.user_avatar} />
-                    <AvatarFallback>
-                      {review.user_name?.charAt(0) || 'U'}
+                    {review.user_avatar && !review.user_avatar.includes('unsplash') && !review.user_avatar.includes('placeholder') && !review.user_avatar.includes('randomuser') ? (
+                      <AvatarImage src={review.user_avatar} alt={review.user_name} />
+                    ) : null}
+                    <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                      {review.user_name ? review.user_name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() : 'U'}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
@@ -448,6 +463,11 @@ const MyServices = () => {
                         <div className="flex items-center">
                           {renderStars(review.rating)}
                         </div>
+                        {review.service_title && (
+                          <Badge variant="secondary" className="text-xs shrink-0">
+                            {review.service_title}
+                          </Badge>
+                        )}
                         {review.event_type && (
                           <Badge variant="outline" className="text-xs shrink-0">
                             {review.event_type}

@@ -14,7 +14,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { eventsApi } from '@/lib/api/events';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
-import { generateEventReport } from '@/utils/generateEventReport';
+import { generateEventReportHtml } from '@/utils/generateEventReport';
+import ReportPreviewDialog from '@/components/ReportPreviewDialog';
 import InvitedEvents from './InvitedEvents';
 import CommitteeEvents from './CommitteeEvents';
 
@@ -38,6 +39,8 @@ const MyEvents = () => {
   usePolling(refetch, 15000);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [localStatusOverrides, setLocalStatusOverrides] = useState<Record<string, string>>({});
+  const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
+  const [reportHtml, setReportHtml] = useState('');
   
   // Merge local overrides with fetched events
   const events = fetchedEvents.map((e: any) => localStatusOverrides[e.id] ? { ...e, status: localStatusOverrides[e.id] } : e);
@@ -183,7 +186,7 @@ const MyEvents = () => {
                       </button>
                       <button onClick={(e) => {
                         e.stopPropagation();
-                        generateEventReport({
+                        const html = generateEventReportHtml({
                           title: event.title, description: event.description, event_type: getEventType(event),
                           start_date: event.start_date, end_date: event.end_date, start_time: event.start_time, end_time: event.end_time,
                           location: event.location, venue: event.venue, status: eventStatus,
@@ -195,6 +198,8 @@ const MyEvents = () => {
                           contribution_count: event.contribution_count, contribution_target: event.contribution_target,
                           dress_code: event.dress_code, special_instructions: event.special_instructions,
                         });
+                        setReportHtml(html);
+                        setReportPreviewOpen(true);
                       }} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
                         <FileText className="w-4 h-4" /><span className="text-sm font-medium">Report</span>
                       </button>
@@ -248,6 +253,13 @@ const MyEvents = () => {
           <CommitteeEvents />
         </TabsContent>
       </Tabs>
+
+      <ReportPreviewDialog
+        open={reportPreviewOpen}
+        onOpenChange={setReportPreviewOpen}
+        title="Event Report"
+        html={reportHtml}
+      />
     </div>
   );
 };

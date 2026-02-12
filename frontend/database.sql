@@ -1401,5 +1401,3 @@ ALTER TABLE conversations DROP CONSTRAINT uq_user_to_user;
 CREATE UNIQUE INDEX uq_user_to_user ON conversations (user_one_id, user_two_id) WHERE service_id IS NULL;
 
 ALTER TABLE nuru_cards ALTER COLUMN card_number TYPE VARCHAR(20)
-
-ALTER TYPE payment_method ADD VALUE IF NOT EXISTS 'cash' BEFORE 'mobile';

@@ -131,4 +131,8 @@ export const contributorsApi = {
       total_paid: number;
       payments: ContributorPayment[];
     }>(`/user-contributors/events/${eventId}/contributors/${eventContributorId}/payments`),
+
+  /** Send thank you SMS to an event contributor */
+  sendThankYou: (eventId: string, eventContributorId: string, data: { custom_message?: string }) =>
+    post<{ sent: boolean }>(`/user-contributors/events/${eventId}/contributors/${eventContributorId}/thank-you`, data),
 };

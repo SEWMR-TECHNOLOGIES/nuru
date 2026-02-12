@@ -386,23 +386,9 @@ const Messages = () => {
           {conversations.map((conversation) => {
             const isSelected = conversation.id === selectedConversationId;
             
-            // For service conversations, determine display info based on who the current user is
-            const isServiceConversation = !!conversation.service;
-            const isServiceOwner = isServiceConversation && conversation.service?.provider_id === currentUser?.id;
-            
-            // Service owner sees the customer info; customer sees the service info
-            let displayName: string;
-            let displayAvatar: string | null;
-            
-            if (isServiceConversation && !isServiceOwner) {
-              // Customer sees service name + image
-              displayName = conversation.service?.title || conversation.participant?.name || 'Unknown';
-              displayAvatar = conversation.service?.primary_image || conversation.service?.image || null;
-            } else {
-              // Service owner or regular chat sees the other participant
-              displayName = conversation.participant?.name || 'Unknown';
-              displayAvatar = conversation.participant?.avatar || null;
-            }
+            // Backend now sends correct participant info based on perspective
+            const displayName = conversation.participant?.name || 'Unknown';
+            const displayAvatar = conversation.participant?.avatar || null;
             
             return (
               <button
@@ -466,17 +452,9 @@ const Messages = () => {
                 </Button>
               )}
               {(() => {
-                const isServiceConv = !!selectedConversation.service;
-                const isOwner = isServiceConv && selectedConversation.service?.provider_id === currentUser?.id;
-                let headerName: string;
-                let headerAvatar: string | null;
-                if (isServiceConv && !isOwner) {
-                  headerName = selectedConversation.service?.title || selectedConversation.participant?.name || 'Unknown';
-                  headerAvatar = selectedConversation.service?.primary_image || selectedConversation.service?.image || null;
-                } else {
-                  headerName = selectedConversation.participant?.name || 'Unknown';
-                  headerAvatar = selectedConversation.participant?.avatar || null;
-                }
+                const isServiceConv = selectedConversation.type === 'user_to_service' || !!selectedConversation.service;
+                const headerName = selectedConversation.participant?.name || 'Unknown';
+                const headerAvatar = selectedConversation.participant?.avatar || null;
                 return (
                   <>
                     <Avatar className="w-8 h-8 md:w-9 md:h-9 flex-shrink-0">
@@ -489,7 +467,7 @@ const Messages = () => {
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-sm truncate">{headerName}</h3>
-                      <p className="text-xs text-muted-foreground">{isServiceConv ? (isOwner ? 'Customer inquiry' : selectedConversation.service?.title || 'Service') : 'Chat'}</p>
+                      <p className="text-xs text-muted-foreground">{isServiceConv ? (selectedConversation.service?.title || 'Service') : 'Chat'}</p>
                     </div>
                   </>
                 );
