@@ -20,7 +20,7 @@ const Layout = ({ children }: LayoutProps) => {
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
 
   return (
-    <div className="h-screen w-screen bg-background font-inter overflow-hidden px-2 md:px-3 lg:px-16">
+    <div className="h-screen w-screen bg-background font-inter overflow-hidden px-2 md:px-0 lg:px-16">
       <div className="h-full bg-card rounded-lg overflow-hidden">
         <Header
           onMenuToggle={() => setLeftDrawerOpen(true)}
