@@ -50,6 +50,7 @@ def _conversation_dict(db, conv, current_user_id):
                 "id": str(svc.id),
                 "title": svc.title,
                 "image": svc_image,
+                "provider_id": str(svc.user_id),
             }
 
     # For service conversations, show service name/image instead of person
