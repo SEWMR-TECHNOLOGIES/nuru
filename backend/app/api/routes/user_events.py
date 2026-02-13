@@ -83,7 +83,7 @@ def _guest_counts(db: Session, event_id) -> dict:
 
 
 def _contribution_summary(db: Session, event_id) -> dict:
-    result = db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0), sa_func.count(EventContribution.id)).filter(EventContribution.event_id == event_id).first()
+    result = db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0), sa_func.count(EventContribution.id)).filter(EventContribution.event_id == event_id, EventContribution.confirmation_status == "confirmed").first()
     return {"contribution_total": float(result[0]), "contribution_count": result[1]}
 
 
@@ -342,7 +342,7 @@ def get_invited_events(
             "end_date": ev.end_date.isoformat() if ev.end_date else None,
             "location": ev.location,
             "venue": vc.venue_name if vc else None,
-            "cover_image": ev.cover_image_url,
+            "cover_image": _pick_cover_image(ev, _event_images(db, ev.id)),
             "theme_color": ev.theme_color,
             "organizer": {"name": f"{organizer.first_name} {organizer.last_name}"} if organizer else None,
             "status": "published" if (ev.status.value if hasattr(ev.status, "value") else ev.status) == "confirmed" else (ev.status.value if hasattr(ev.status, "value") else ev.status),
@@ -523,7 +523,12 @@ def get_event(event_id: str, db: Session = Depends(get_db), current_user: User =
         cm = db.query(EventCommitteeMember).filter(EventCommitteeMember.event_id == eid, EventCommitteeMember.user_id == current_user.id).first()
         is_committee = cm is not None
 
-    if not is_owner and not is_committee and not event.is_public:
+    is_invited = False
+    if not is_owner and not is_committee:
+        inv = db.query(EventInvitation).filter(EventInvitation.event_id == eid, EventInvitation.invited_user_id == current_user.id).first()
+        is_invited = inv is not None
+
+    if not is_owner and not is_committee and not is_invited and not event.is_public:
         return standard_response(False, "You do not have permission to view this event")
 
     data = _event_summary(db, event)
@@ -1588,6 +1593,15 @@ def add_committee_member(event_id: str, body: dict = Body(...), db: Session = De
         db_field = PERMISSION_MAP.get(perm_name)
         if db_field and hasattr(perms, db_field):
             setattr(perms, db_field, True)
+    # Auto-grant view when manage is granted
+    if perms.can_manage_contributions:
+        perms.can_view_contributions = True
+    if perms.can_manage_budget:
+        perms.can_view_budget = True
+    if perms.can_manage_guests:
+        perms.can_view_guests = True
+    if perms.can_manage_vendors:
+        perms.can_view_vendors = True
     db.add(perms)
 
     try:
@@ -1651,6 +1665,15 @@ def update_committee_member(event_id: str, member_id: str, body: dict = Body(...
             db_field = PERMISSION_MAP.get(perm_name)
             if db_field and hasattr(perms, db_field):
                 setattr(perms, db_field, True)
+        # Auto-grant view when manage is granted
+        if perms.can_manage_contributions:
+            perms.can_view_contributions = True
+        if perms.can_manage_budget:
+            perms.can_view_budget = True
+        if perms.can_manage_guests:
+            perms.can_view_guests = True
+        if perms.can_manage_vendors:
+            perms.can_view_vendors = True
         perms.updated_at = now
 
     cm.updated_at = now
@@ -1711,6 +1734,15 @@ def update_committee_permissions(event_id: str, member_id: str, body: dict = Bod
         db_field = PERMISSION_MAP.get(perm_name)
         if db_field and hasattr(perms, db_field):
             setattr(perms, db_field, True)
+    # Auto-grant view when manage is granted
+    if perms.can_manage_contributions:
+        perms.can_view_contributions = True
+    if perms.can_manage_budget:
+        perms.can_view_budget = True
+    if perms.can_manage_guests:
+        perms.can_view_guests = True
+    if perms.can_manage_vendors:
+        perms.can_view_vendors = True
     perms.updated_at = now
 
     db.commit()

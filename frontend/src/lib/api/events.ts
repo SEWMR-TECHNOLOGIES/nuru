@@ -3,6 +3,26 @@
  */
 
 import { get, post, put, del, postFormData, putFormData, buildQueryString } from "./helpers";
+
+export interface EventPermissions {
+  is_creator: boolean;
+  role: string | null;
+  can_view_guests: boolean;
+  can_manage_guests: boolean;
+  can_send_invitations: boolean;
+  can_check_in_guests: boolean;
+  can_view_budget: boolean;
+  can_manage_budget: boolean;
+  can_view_contributions: boolean;
+  can_manage_contributions: boolean;
+  can_view_vendors: boolean;
+  can_manage_vendors: boolean;
+  can_approve_bookings: boolean;
+  can_edit_event: boolean;
+  can_manage_committee: boolean;
+}
+
+
 import type { 
   Event, 
   EventGuest, 
@@ -64,6 +84,11 @@ export const eventsApi = {
 
   getInvitationCard: (eventId: string) =>
     get<{ event: any; guest: any; organizer: any; invitation_code: string; qr_code_data: string; rsvp_deadline?: string }>(`/user-events/${eventId}/invitation-card`),
+
+  /**
+   * Get current user's permissions for an event
+   */
+  getMyPermissions: (eventId: string) => get<EventPermissions>(`/user-events/${eventId}/my-permissions`),
 
   /**
    * Get a single event by ID

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
+import TrendingMoments from "@/components/TrendingMoments";
 
 const Index = () => {
   useMeta({
@@ -321,6 +322,9 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      {/* Trending Moments - only renders if public posts exist */}
+      <TrendingMoments />
 
       {/* Statement Section */}
       <section className="py-24 lg:py-32 px-6 lg:px-16 bg-foreground text-background">

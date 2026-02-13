@@ -3108,6 +3108,32 @@ Emily Davis,emily@example.com,+254712345680,Pending,0,,None,No
 
 # 👨‍👩‍👧‍👦 MODULE 5: EVENT COMMITTEE
 
+## Committee Permission Enforcement
+
+All event management endpoints enforce committee permissions. Committee members can **view all event details** (event info, guests, contributions, vendors, budget, schedule), but **write/action endpoints** require the specific permission:
+
+| Permission | Grants Access To |
+|---|---|
+| `can_view_guests` | View guest list, export guests |
+| `can_manage_guests` | Add, update, remove guests (single & bulk) |
+| `can_send_invitations` | Send invitations (single & bulk) |
+| `can_check_in_guests` | Check in guests (manual, QR, undo) |
+| `can_view_budget` | View budget items and summary |
+| `can_manage_budget` | Add, update, delete budget items |
+| `can_view_contributions` | View contributions list |
+| `can_manage_contributions` | Record payments (pending status), view recorded contributions |
+| `can_view_vendors` | View event service providers |
+| `can_manage_vendors` | Add, update, remove service providers |
+| `can_approve_bookings` | Record service payments |
+| `can_edit_event` | Edit event details, settings, images, schedule |
+| `can_manage_committee` | Add, update, remove committee members |
+
+**Important rules:**
+- Event **creator** always has full access to all operations
+- Bulk upload of contribution targets/contributions is **creator-only**
+- Contributions recorded by committee members start as **"pending"** and require creator confirmation
+- Committee members cannot see who recorded contributions (only creators see `recorded_by`)
+
 ---
 
 ## 5.1 Get Committee Members
@@ -3966,6 +3992,155 @@ Authorization: Bearer {access_token}
 Returns file download.
 
 Continuing with the complete API documentation for all remaining modules.
+
+---
+
+## 6.10 Get Pending Contributions (Creator Only)
+Retrieves all pending contributions awaiting creator confirmation. Contributions recorded by committee members are initially set to "pending" status.
+
+```
+GET /user-contributors/events/{eventId}/pending-contributions
+Authorization: Bearer {access_token}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Pending contributions fetched",
+  "data": {
+    "contributions": [
+      {
+        "id": "e50e8400-e29b-41d4-a716-446655440005",
+        "contributor_name": "Jane Smith",
+        "contributor_phone": "+254712345687",
+        "amount": 25000.00,
+        "payment_method": "mobile",
+        "transaction_ref": "TXN-2025-001",
+        "recorded_by": "David Johnson",
+        "created_at": "2025-02-05T15:30:00Z"
+      },
+      {
+        "id": "e50e8400-e29b-41d4-a716-446655440006",
+        "contributor_name": "James Brown",
+        "contributor_phone": "+254712345688",
+        "amount": 15000.00,
+        "payment_method": "cash",
+        "transaction_ref": null,
+        "recorded_by": "Sarah Wilson",
+        "created_at": "2025-02-05T14:20:00Z"
+      }
+    ],
+    "count": 2
+  }
+}
+```
+
+**Response Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| id | uuid | Contribution ID |
+| contributor_name | string | Name of the contributor |
+| contributor_phone | string | Contributor's phone number |
+| amount | number | Contribution amount |
+| payment_method | string | Payment method used |
+| transaction_ref | string | Payment reference or transaction ID |
+| recorded_by | string | Name of committee member who recorded it |
+| created_at | string | When the contribution was recorded (ISO 8601) |
+
+---
+
+## 6.11 Confirm Pending Contributions (Creator Only)
+Confirms one or more pending contributions, moving them from "pending" to "confirmed" status. Multiple contributions can be confirmed in a single request.
+
+```
+POST /user-contributors/events/{eventId}/confirm-contributions
+Authorization: Bearer {access_token}
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "contribution_ids": [
+    "e50e8400-e29b-41d4-a716-446655440005",
+    "e50e8400-e29b-41d4-a716-446655440006"
+  ]
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| contribution_ids | array | Yes | Array of contribution UUIDs to confirm |
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "2 contributions confirmed",
+  "data": {
+    "confirmed": 2
+  }
+}
+```
+
+---
+
+## 6.12 Get My Recorded Contributions (Committee Member Only)
+Retrieves all contributions recorded by the current committee member, including their confirmation status. Committee members can only use this if they have the "can_manage_contributions" permission.
+
+```
+GET /user-contributors/events/{eventId}/my-recorded-contributions
+Authorization: Bearer {access_token}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Your recorded contributions fetched",
+  "data": {
+    "contributions": [
+      {
+        "id": "e50e8400-e29b-41d4-a716-446655440005",
+        "contributor_name": "Jane Smith",
+        "contributor_phone": "+254712345687",
+        "amount": 25000.00,
+        "payment_method": "mobile",
+        "transaction_ref": "TXN-2025-001",
+        "confirmation_status": "pending",
+        "confirmed_at": null,
+        "created_at": "2025-02-05T15:30:00Z"
+      },
+      {
+        "id": "e50e8400-e29b-41d4-a716-446655440007",
+        "contributor_name": "Alice Green",
+        "contributor_phone": "+254712345689",
+        "amount": 35000.00,
+        "payment_method": "bank_transfer",
+        "transaction_ref": "BANK-2025-042",
+        "confirmation_status": "confirmed",
+        "confirmed_at": "2025-02-05T16:45:00Z",
+        "created_at": "2025-02-05T14:15:00Z"
+      }
+    ],
+    "count": 2
+  }
+}
+```
+
+**Response Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| id | uuid | Contribution ID |
+| contributor_name | string | Name of the contributor |
+| contributor_phone | string | Contributor's phone number |
+| amount | number | Contribution amount |
+| payment_method | string | Payment method used |
+| transaction_ref | string | Payment reference or transaction ID |
+| confirmation_status | string | Status: "pending" (awaiting creator confirmation) or "confirmed" |
+| confirmed_at | string | When the creator confirmed this contribution (ISO 8601, null if pending) |
+| created_at | string | When the contribution was recorded (ISO 8601) |
 
 ---
 

@@ -149,4 +149,41 @@ export const contributorsApi = {
       results: { row: number; name: string; action: string }[];
       errors: { row: number; message: string }[];
     }>(`/user-contributors/events/${eventId}/contributors/bulk`, data),
+
+  /** Get pending contributions awaiting creator confirmation */
+  getPendingContributions: (eventId: string) =>
+    get<{
+      contributions: {
+        id: string;
+        contributor_name: string;
+        contributor_phone?: string;
+        amount: number;
+        payment_method?: string;
+        transaction_ref?: string;
+        recorded_by?: string;
+        created_at?: string;
+      }[];
+      count: number;
+    }>(`/user-contributors/events/${eventId}/pending-contributions`),
+
+  /** Get contributions recorded by the current committee member */
+  getMyRecordedContributions: (eventId: string) =>
+    get<{
+      contributions: {
+        id: string;
+        contributor_name: string;
+        contributor_phone?: string;
+        amount: number;
+        payment_method?: string;
+        transaction_ref?: string;
+        confirmation_status: string;
+        confirmed_at?: string;
+        created_at?: string;
+      }[];
+      count: number;
+    }>(`/user-contributors/events/${eventId}/my-recorded-contributions`),
+
+  /** Confirm one or more pending contributions */
+  confirmContributions: (eventId: string, contributionIds: string[]) =>
+    post<{ confirmed: number }>(`/user-contributors/events/${eventId}/confirm-contributions`, { contribution_ids: contributionIds }),
 };

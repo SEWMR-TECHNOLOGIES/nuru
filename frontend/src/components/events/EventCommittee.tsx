@@ -48,9 +48,11 @@ import UserSearchInput from './UserSearchInput';
 import CommitteeSkeletonLoader from './CommitteeSkeletonLoader';
 import CommitteePermissionsBadge from './CommitteePermissionsBadge';
 import type { SearchedUser } from '@/hooks/useUserSearch';
+import type { EventPermissions } from '@/hooks/useEventPermissions';
 
 interface EventCommitteeProps {
   eventId: string;
+  permissions?: EventPermissions;
 }
 
 const AVAILABLE_ROLES = [
@@ -77,7 +79,8 @@ const AVAILABLE_PERMISSIONS = [
   { id: 'edit_event', label: 'Edit Event Details', description: 'Change event information' }
 ];
 
-const EventCommittee = ({ eventId }: EventCommitteeProps) => {
+const EventCommittee = ({ eventId, permissions }: EventCommitteeProps) => {
+  const canManageCommittee = permissions?.can_manage_committee || permissions?.is_creator;
   const { members, loading, error, addMember, updateMember, removeMember, refetch } = useEventCommittee(eventId);
   usePolling(refetch, 15000);
   const { confirm, ConfirmDialog } = useConfirmDialog();
@@ -260,10 +263,12 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
           <h2 className="text-xl font-semibold">Event Committee</h2>
           <p className="text-muted-foreground">Manage your event planning team</p>
         </div>
-        <Button onClick={() => setAddDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Member
-        </Button>
+        {canManageCommittee && (
+          <Button onClick={() => setAddDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Member
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -296,26 +301,28 @@ const EventCommittee = ({ eventId }: EventCommitteeProps) => {
                       <p className="text-sm text-primary">{member.role}</p>
                     </div>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleEditMember(member)}>
-                        <Edit className="w-4 h-4 mr-2" />Edit
-                      </DropdownMenuItem>
-                      {member.status === 'invited' && (
-                        <DropdownMenuItem onClick={() => handleResendInvite(member.id)}>
-                          <Send className="w-4 h-4 mr-2" />Resend Invite
+                  {canManageCommittee && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEditMember(member)}>
+                          <Edit className="w-4 h-4 mr-2" />Edit
                         </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem className="text-red-600" onClick={() => handleRemoveMember(member.id)}>
-                        <Trash className="w-4 h-4 mr-2" />Remove
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                        {member.status === 'invited' && (
+                          <DropdownMenuItem onClick={() => handleResendInvite(member.id)}>
+                            <Send className="w-4 h-4 mr-2" />Resend Invite
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem className="text-red-600" onClick={() => handleRemoveMember(member.id)}>
+                          <Trash className="w-4 h-4 mr-2" />Remove
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
                 <div className="space-y-2 text-sm">
                   {member.email && (

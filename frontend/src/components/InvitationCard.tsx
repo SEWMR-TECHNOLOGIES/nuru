@@ -45,13 +45,10 @@ const InvitationCard = ({ eventId, open, onClose }: InvitationCardProps) => {
     });
 
   const rsvpLabel = (status: string) => {
-    if (status === 'confirmed') return { label: 'CONFIRMED', color: '#34d399', border: '#059669' };
-    if (status === 'declined') return { label: 'DECLINED', color: '#f87171', border: '#dc2626' };
-    return { label: 'PENDING', color: '#fbbf24', border: '#d97706' };
+    if (status === 'confirmed') return { label: 'CONFIRMED', bg: '#ECFDF5', color: '#065F46', border: '#A7F3D0' };
+    if (status === 'declined') return { label: 'DECLINED', bg: '#FEF2F2', color: '#991B1B', border: '#FECACA' };
+    return { label: 'PENDING', bg: '#FFFBEB', color: '#92400E', border: '#FDE68A' };
   };
-
-  const accentGold = '#D4A574';
-  const accentLight = '#E8C9A0';
 
   const getQrDataUrl = useCallback((): string => {
     if (!qrCanvasRef.current) return '';
@@ -65,63 +62,63 @@ const InvitationCard = ({ eventId, open, onClose }: InvitationCardProps) => {
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Event Invitation</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f5f3ef; font-family: 'Segoe UI', system-ui, sans-serif; }
-  .card { width: 420px; background: linear-gradient(180deg, #0B0F1A 0%, #111827 50%, #0B0F1A 100%); border-radius: 12px; position: relative; overflow: hidden; text-align: center; }
-  .top-line, .bottom-line { height: 2px; margin: 0 15%; background: ${accentGold}; }
-  .content { padding: 44px 36px 0; position: relative; }
-  .invite-label { font-size: 9px; letter-spacing: 6px; color: ${accentGold}90; font-weight: 400; margin-bottom: 26px; text-transform: uppercase; }
-  .event-title { font-family: 'Playfair Display', Georgia, serif; font-size: 28px; font-weight: 700; color: #F9FAFB; line-height: 1.3; margin-bottom: 8px; }
-  .divider { width: 40px; height: 1.5px; background: ${accentGold}; margin: 16px auto; }
-  .event-type { font-size: 10px; letter-spacing: 3px; font-weight: 500; color: ${accentLight}; text-transform: uppercase; margin-top: 8px; }
-  .details { padding: 28px 36px 0; }
-  .detail-date { font-size: 14px; font-weight: 500; color: #D1D5DB; margin-bottom: 6px; }
-  .detail-sub { font-size: 13px; color: #9CA3AF; margin-bottom: 6px; }
-  .detail-dress { font-size: 11px; color: #6B7280; margin-top: 8px; }
+  body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #F8F7F4; font-family: 'Inter', system-ui, sans-serif; }
+  .card { width: 420px; background: #FFFFFF; border-radius: 16px; position: relative; overflow: hidden; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .top-accent { height: 4px; background: linear-gradient(90deg, #C9A96E 0%, #E8D5A3 50%, #C9A96E 100%); }
+  .ornament { width: 60px; height: 1px; background: #E5E0D8; margin: 0 auto; position: relative; }
+  .ornament::before { content: '✦'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 8px; color: #C9A96E; background: #fff; padding: 0 8px; }
+  .content { padding: 40px 40px 0; }
+  .invite-label { font-family: 'Inter', sans-serif; font-size: 10px; letter-spacing: 5px; color: #B8A88A; font-weight: 500; margin-bottom: 20px; text-transform: uppercase; }
+  .event-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 32px; font-weight: 700; color: #1A1A1A; line-height: 1.2; margin-bottom: 16px; }
+  .event-type { font-size: 10px; letter-spacing: 4px; font-weight: 500; color: #9A8C78; text-transform: uppercase; margin-bottom: 24px; }
+  .details { padding: 0 40px; }
+  .detail-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px; }
+  .detail-icon { font-size: 13px; color: #C9A96E; }
+  .detail-text { font-size: 13px; font-weight: 400; color: #4A4A4A; }
+  .detail-text.primary { font-weight: 500; color: #2A2A2A; font-size: 14px; }
+  .dress-code { display: inline-block; margin-top: 12px; padding: 6px 20px; border-radius: 100px; font-size: 10px; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; color: #7A6C5B; background: #F8F5F0; border: 1px solid #EDE8E0; }
   .qr-section { margin: 28px auto 0; }
-  .qr-border { display: inline-block; padding: 8px; border: 1px solid ${accentGold}20; border-radius: 8px; }
-  .qr-border img { width: 80px; height: 80px; }
-  .scan-label { font-size: 7px; color: rgba(255,255,255,0.25); margin-top: 10px; letter-spacing: 4px; text-transform: uppercase; }
-  .guest-section { margin: 26px 36px 0; }
-  .guest-line { width: 50px; height: 1px; background: ${accentGold}28; margin: 0 auto 14px; }
-  .guest-name { font-family: 'Playfair Display', Georgia, serif; font-size: 20px; font-weight: 600; color: #F9FAFB; }
-  .rsvp-pill { display: inline-block; margin-top: 12px; padding: 4px 18px; border-radius: 20px; font-size: 8px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; background: transparent; }
-  .footer { padding: 24px 36px 28px; }
-  .hosted-by { font-size: 10px; color: rgba(255,255,255,0.3); }
-  .hosted-name { font-weight: 500; color: rgba(255,255,255,0.5); }
-  .inv-code { font-size: 7px; color: rgba(255,255,255,0.12); margin-top: 10px; letter-spacing: 4px; font-family: 'Courier New', monospace; }
-  @media print { body { background: white; } .card { border-radius: 0; } }
+  .qr-wrap { display: inline-block; padding: 12px; background: #FAFAF8; border-radius: 12px; border: 1px solid #F0EDE8; }
+  .qr-wrap img { width: 80px; height: 80px; }
+  .scan-label { font-size: 8px; color: #C4B99B; margin-top: 10px; letter-spacing: 3px; text-transform: uppercase; font-weight: 500; }
+  .guest-section { margin: 28px 40px 0; padding-top: 24px; border-top: 1px solid #F0EDE8; }
+  .guest-name { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 22px; font-weight: 600; color: #1A1A1A; font-style: italic; }
+  .rsvp-pill { display: inline-block; margin-top: 12px; padding: 5px 20px; border-radius: 100px; font-size: 9px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; }
+  .footer { padding: 24px 40px 28px; }
+  .hosted-by { font-size: 11px; color: #ABABAB; font-weight: 300; }
+  .hosted-name { font-weight: 500; color: #8A8A8A; }
+  .inv-code { font-size: 8px; color: #D4D0CA; margin-top: 10px; letter-spacing: 4px; font-family: 'Courier New', monospace; }
+  @media print { body { background: white; } .card { box-shadow: none; border-radius: 0; } }
   @page { size: auto; margin: 10mm; }
 </style></head><body>
 <div class="card">
-  <div class="top-line"></div>
+  <div class="top-accent"></div>
   <div class="content">
-    <p class="invite-label">You are invited to</p>
+    <p class="invite-label">You are invited</p>
     <h2 class="event-title">${data?.event?.title || 'Event'}</h2>
-    <div class="divider"></div>
     ${data?.event?.event_type ? `<p class="event-type">${data.event.event_type}</p>` : ''}
+    <div class="ornament"></div>
   </div>
-  <div class="details">
-    ${data?.event?.start_date ? `<p class="detail-date">${formatDate(data.event.start_date)}</p>` : ''}
-    ${data?.event?.start_time ? `<p class="detail-sub">${data.event.start_time}</p>` : ''}
-    ${data?.event?.venue || data?.event?.location ? `<p class="detail-sub">${data.event.venue || data.event.location}</p>` : ''}
-    ${data?.event?.dress_code ? `<p class="detail-dress">Dress Code: ${data.event.dress_code}</p>` : ''}
+  <div class="details" style="margin-top:24px">
+    ${data?.event?.start_date ? `<div class="detail-row"><span class="detail-icon">◈</span><span class="detail-text primary">${formatDate(data.event.start_date)}</span></div>` : ''}
+    ${data?.event?.start_time ? `<div class="detail-row"><span class="detail-icon">◈</span><span class="detail-text">${data.event.start_time}</span></div>` : ''}
+    ${data?.event?.venue || data?.event?.location ? `<div class="detail-row"><span class="detail-icon">◈</span><span class="detail-text">${data.event.venue || data.event.location}</span></div>` : ''}
+    ${data?.event?.dress_code ? `<span class="dress-code">${data.event.dress_code}</span>` : ''}
   </div>
   <div class="qr-section">
-    ${qrImg ? `<div class="qr-border"><img src="${qrImg}" alt="QR Code" /></div>` : ''}
+    ${qrImg ? `<div class="qr-wrap"><img src="${qrImg}" alt="QR" /></div>` : ''}
     <p class="scan-label">Scan to check in</p>
   </div>
   <div class="guest-section">
-    <div class="guest-line"></div>
     <p class="guest-name">${data?.guest?.name || ''}</p>
-    ${rsvp ? `<span class="rsvp-pill" style="color:${rsvp.color};border:1.5px solid ${rsvp.border}">${rsvp.label}</span>` : ''}
+    ${rsvp ? `<span class="rsvp-pill" style="color:${rsvp.color};background:${rsvp.bg};border:1px solid ${rsvp.border}">${rsvp.label}</span>` : ''}
   </div>
   <div class="footer">
     ${data?.organizer?.name ? `<p class="hosted-by">Hosted by <span class="hosted-name">${data.organizer.name}</span></p>` : ''}
     ${data?.invitation_code ? `<p class="inv-code">${data.invitation_code}</p>` : ''}
   </div>
-  <div class="bottom-line"></div>
 </div>
 </body></html>`;
   }, [data, getQrDataUrl]);
@@ -144,6 +141,8 @@ const InvitationCard = ({ eventId, open, onClose }: InvitationCardProps) => {
     }
   };
 
+  const accentGold = '#C9A96E';
+
   const PreviewCard = () => {
     if (!data) return null;
 
@@ -151,129 +150,110 @@ const InvitationCard = ({ eventId, open, onClose }: InvitationCardProps) => {
       <div style={{
         width: 420,
         margin: '0 auto',
-        fontFamily: "'Segoe UI', system-ui, sans-serif",
-        background: 'linear-gradient(180deg, #0B0F1A 0%, #111827 50%, #0B0F1A 100%)',
+        fontFamily: "'Inter', system-ui, sans-serif",
+        background: '#FFFFFF',
         position: 'relative',
         overflow: 'hidden',
-        borderRadius: 12,
+        borderRadius: 16,
       }}>
-        {/* Subtle radial glow */}
-        <div style={{
-          position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
-          width: 400, height: 300, borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(212,165,116,0.06) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }} />
+        {/* Top gradient accent */}
+        <div style={{ height: 4, background: `linear-gradient(90deg, ${accentGold} 0%, #E8D5A3 50%, ${accentGold} 100%)` }} />
 
-        {/* Top accent line */}
-        <div style={{ height: 2, margin: '0 15%', background: accentGold }} />
-
-        {/* Corner accents */}
-        {[
-          { top: 16, left: 16 }, { top: 16, right: 16 },
-          { bottom: 16, left: 16 }, { bottom: 16, right: 16 },
-        ].map((pos, i) => (
-          <div key={i} style={{ position: 'absolute', ...pos, width: 24, height: 24, pointerEvents: 'none' }}>
-            <div style={{
-              position: 'absolute',
-              [i < 2 ? 'top' : 'bottom']: 0,
-              [i % 2 === 0 ? 'left' : 'right']: 0,
-              width: 24, height: 1,
-              background: `${accentGold}35`,
-            }} />
-            <div style={{
-              position: 'absolute',
-              [i < 2 ? 'top' : 'bottom']: 0,
-              [i % 2 === 0 ? 'left' : 'right']: 0,
-              width: 1, height: 24,
-              background: `${accentGold}35`,
-            }} />
-          </div>
-        ))}
-
-        <div style={{ textAlign: 'center', padding: '44px 36px 0', position: 'relative' }}>
-          {/* Spaced heading */}
+        <div style={{ textAlign: 'center', padding: '40px 40px 0' }}>
           <p style={{
-            fontSize: 9, letterSpacing: 6, color: `${accentGold}90`,
-            fontWeight: 400, marginBottom: 26, textTransform: 'uppercase',
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 10, letterSpacing: 5, color: '#B8A88A',
+            fontWeight: 500, marginBottom: 20, textTransform: 'uppercase',
           }}>
-            You are invited to
+            You are invited
           </p>
 
-          {/* Event title */}
           <h2 style={{
-            fontFamily: "'Playfair Display', Georgia, serif",
-            fontSize: 28, fontWeight: 700, color: '#F9FAFB',
-            lineHeight: 1.3, marginBottom: 8,
+            fontFamily: "'Cormorant Garamond', Georgia, serif",
+            fontSize: 32, fontWeight: 700, color: '#1A1A1A',
+            lineHeight: 1.2, marginBottom: 16,
           }}>
             {data.event?.title}
           </h2>
 
-          {/* Minimal gold divider */}
-          <div style={{
-            width: 40, height: 1.5, background: accentGold,
-            margin: '16px auto',
-          }} />
-
-          {/* Event type */}
           {data.event?.event_type && (
             <p style={{
-              fontSize: 10, letterSpacing: 3, fontWeight: 500,
-              color: accentLight, textTransform: 'uppercase', marginTop: 8,
+              fontSize: 10, letterSpacing: 4, fontWeight: 500,
+              color: '#9A8C78', textTransform: 'uppercase', marginBottom: 24,
             }}>
               {data.event.event_type}
             </p>
           )}
+
+          {/* Ornamental divider */}
+          <div style={{ position: 'relative', margin: '0 auto', width: 60, height: 1, background: '#E5E0D8' }}>
+            <span style={{
+              position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+              fontSize: 8, color: accentGold, background: '#fff', padding: '0 8px',
+            }}>✦</span>
+          </div>
         </div>
 
-        {/* Event details — clean typography, no cards or boxes */}
-        <div style={{ textAlign: 'center', padding: '28px 36px 0' }}>
+        {/* Details */}
+        <div style={{ textAlign: 'center', padding: '24px 40px 0' }}>
           {data.event?.start_date && (
-            <p style={{ fontSize: 14, fontWeight: 500, color: '#D1D5DB', marginBottom: 6 }}>
-              {formatDate(data.event.start_date)}
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: accentGold }}>◈</span>
+              <span style={{ fontSize: 14, fontWeight: 500, color: '#2A2A2A' }}>
+                {formatDate(data.event.start_date)}
+              </span>
+            </div>
           )}
           {data.event?.start_time && (
-            <p style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 6 }}>
-              {data.event.start_time}
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: accentGold }}>◈</span>
+              <span style={{ fontSize: 13, color: '#4A4A4A' }}>{data.event.start_time}</span>
+            </div>
           )}
           {(data.event?.venue || data.event?.location) && (
-            <p style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 6 }}>
-              {data.event.venue || data.event.location}
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: accentGold }}>◈</span>
+              <span style={{ fontSize: 13, color: '#4A4A4A' }}>{data.event.venue || data.event.location}</span>
+            </div>
           )}
           {data.event?.dress_code && (
-            <p style={{ fontSize: 11, color: '#6B7280', marginTop: 8 }}>
-              Dress Code: {data.event.dress_code}
-            </p>
+            <span style={{
+              display: 'inline-block', marginTop: 12,
+              padding: '6px 20px', borderRadius: 100,
+              fontSize: 10, fontWeight: 500, letterSpacing: 2,
+              textTransform: 'uppercase', color: '#7A6C5B',
+              background: '#F8F5F0', border: '1px solid #EDE8E0',
+            }}>
+              {data.event.dress_code}
+            </span>
           )}
         </div>
 
         {/* QR Code */}
         <div style={{ textAlign: 'center', margin: '28px auto 0' }}>
           <div style={{
-            display: 'inline-block', padding: 8,
-            border: `1px solid ${accentGold}20`, borderRadius: 8,
+            display: 'inline-block', padding: 12,
+            background: '#FAFAF8', borderRadius: 12,
+            border: '1px solid #F0EDE8',
           }}>
             <QRCodeCanvas
               value={buildQrValue()}
               size={80}
               level="H"
               includeMargin={false}
-              fgColor="#ffffff"
+              fgColor="#1A1A1A"
               bgColor="transparent"
             />
           </div>
           <p style={{
-            fontSize: 7, color: 'rgba(255,255,255,0.25)', marginTop: 10,
-            letterSpacing: 4, textTransform: 'uppercase',
+            fontSize: 8, color: '#C4B99B', marginTop: 10,
+            letterSpacing: 3, textTransform: 'uppercase', fontWeight: 500,
           }}>
             Scan to check in
           </p>
         </div>
 
-        {/* Hidden QR for PDF (dark on white for scanning) */}
+        {/* Hidden QR for PDF */}
         <div ref={qrCanvasRef} style={{ position: 'absolute', left: -9999, top: -9999 }}>
           <QRCodeCanvas
             value={buildQrValue()}
@@ -286,11 +266,10 @@ const InvitationCard = ({ eventId, open, onClose }: InvitationCardProps) => {
         </div>
 
         {/* Guest section */}
-        <div style={{ textAlign: 'center', margin: '26px 36px 0' }}>
-          <div style={{ width: 50, height: 1, background: `${accentGold}28`, margin: '0 auto 14px' }} />
+        <div style={{ textAlign: 'center', margin: '28px 40px 0', paddingTop: 24, borderTop: '1px solid #F0EDE8' }}>
           <p style={{
-            fontFamily: "'Playfair Display', Georgia, serif",
-            fontSize: 20, fontWeight: 600, color: '#F9FAFB',
+            fontFamily: "'Cormorant Garamond', Georgia, serif",
+            fontSize: 22, fontWeight: 600, color: '#1A1A1A', fontStyle: 'italic',
           }}>
             {data.guest?.name}
           </p>
@@ -300,11 +279,10 @@ const InvitationCard = ({ eventId, open, onClose }: InvitationCardProps) => {
             return (
               <span style={{
                 display: 'inline-block', marginTop: 12,
-                padding: '4px 18px', borderRadius: 20,
-                fontSize: 8, fontWeight: 600, letterSpacing: 2,
+                padding: '5px 20px', borderRadius: 100,
+                fontSize: 9, fontWeight: 600, letterSpacing: 2,
                 textTransform: 'uppercase',
-                color: r.color, border: `1.5px solid ${r.border}`,
-                background: 'transparent',
+                color: r.color, background: r.bg, border: `1px solid ${r.border}`,
               }}>
                 {r.label}
               </span>
@@ -313,27 +291,24 @@ const InvitationCard = ({ eventId, open, onClose }: InvitationCardProps) => {
         </div>
 
         {/* Footer */}
-        <div style={{ textAlign: 'center', padding: '24px 36px 28px' }}>
+        <div style={{ textAlign: 'center', padding: '24px 40px 28px' }}>
           {data.organizer?.name && (
-            <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>
+            <p style={{ fontSize: 11, color: '#ABABAB', fontWeight: 300 }}>
               Hosted by{' '}
-              <span style={{ fontWeight: 500, color: 'rgba(255,255,255,0.5)' }}>
+              <span style={{ fontWeight: 500, color: '#8A8A8A' }}>
                 {data.organizer.name}
               </span>
             </p>
           )}
           {data.invitation_code && (
             <p style={{
-              fontSize: 7, color: 'rgba(255,255,255,0.12)', marginTop: 10,
+              fontSize: 8, color: '#D4D0CA', marginTop: 10,
               letterSpacing: 4, fontFamily: "'Courier New', monospace",
             }}>
               {data.invitation_code}
             </p>
           )}
         </div>
-
-        {/* Bottom accent line */}
-        <div style={{ height: 2, margin: '0 15%', background: accentGold }} />
       </div>
     );
   };

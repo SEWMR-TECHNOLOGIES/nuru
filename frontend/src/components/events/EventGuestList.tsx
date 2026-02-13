@@ -28,12 +28,17 @@ import UserSearchInput from './UserSearchInput';
 import GuestListSkeletonLoader from './GuestListSkeletonLoader';
 import type { EventGuest } from '@/lib/api/types';
 import type { SearchedUser } from '@/hooks/useUserSearch';
+import type { EventPermissions } from '@/hooks/useEventPermissions';
 
 interface EventGuestListProps {
   eventId: string;
+  permissions?: EventPermissions;
 }
 
-const EventGuestList = ({ eventId }: EventGuestListProps) => {
+const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
+  const canManage = permissions?.can_manage_guests || permissions?.is_creator;
+  const canSendInvites = permissions?.can_send_invitations || permissions?.is_creator;
+  const canCheckin = permissions?.can_check_in_guests || permissions?.is_creator;
   const { guests, summary, loading, error, refetch, addGuest, deleteGuest, sendInvitation, checkinGuest } = useEventGuests(eventId);
   usePolling(refetch, 15000);
   const { confirm, ConfirmDialog } = useConfirmDialog();
@@ -179,9 +184,11 @@ const EventGuestList = ({ eventId }: EventGuestListProps) => {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={() => setAddDialogOpen(true)}>
-          <UserPlus className="w-4 h-4 mr-2" />Add Guest
-        </Button>
+        {canManage && (
+          <Button onClick={() => setAddDialogOpen(true)}>
+            <UserPlus className="w-4 h-4 mr-2" />Add Guest
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -214,18 +221,22 @@ const EventGuestList = ({ eventId }: EventGuestListProps) => {
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        {!guest.invitation_sent && (
+                        {canSendInvites && !guest.invitation_sent && (
                           <DropdownMenuItem onClick={() => { setSelectedGuest(guest); setInviteDialogOpen(true); }}>
                             <Send className="w-4 h-4 mr-2" />Send Invitation
                           </DropdownMenuItem>
                         )}
-                        {!guest.checked_in && guest.rsvp_status === 'confirmed' && (
+                        {canCheckin && !guest.checked_in && guest.rsvp_status === 'confirmed' && (
                           <DropdownMenuItem onClick={() => handleCheckin(guest.id)}><CheckCircle className="w-4 h-4 mr-2" />Check In</DropdownMenuItem>
                         )}
-                        <DropdownMenuItem><Edit className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteGuest(guest.id)}>
-                          <Trash className="w-4 h-4 mr-2" />Remove
-                        </DropdownMenuItem>
+                        {canManage && (
+                          <>
+                            <DropdownMenuItem><Edit className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteGuest(guest.id)}>
+                              <Trash className="w-4 h-4 mr-2" />Remove
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>

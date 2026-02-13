@@ -1,11 +1,15 @@
+import { useState, useEffect, useMemo } from 'react';
 import { Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+
 import { useEvents } from '@/data/useEvents';
 import { useServices } from '@/data/useUserServices';
 import { useFollowSuggestions } from '@/data/useSocial';
+import { eventsApi } from '@/lib/api/events';
 
 // Empty card placeholder for upcoming features
 const EmptyCard = ({ title, count = 3 }: { title: string; count?: number }) => (
@@ -46,33 +50,94 @@ const SidebarCardSkeleton = ({ title, count = 3 }: { title: string; count?: numb
   </div>
 );
 
+interface UpcomingEvent {
+  id: string;
+  title: string;
+  start_date?: string;
+  cover_image?: string;
+  role: 'creator' | 'committee' | 'guest';
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  creator: 'My Event',
+  committee: 'Committee',
+  guest: 'Invited',
+};
+
 const RightSidebar = () => {
+  const navigate = useNavigate();
   const { events, loading: eventsLoading } = useEvents();
   const { services, loading: servicesLoading } = useServices();
   const { suggestions, loading: suggestionsLoading } = useFollowSuggestions(3);
 
+  const [committeeEvents, setCommitteeEvents] = useState<any[]>([]);
+  const [invitedEvents, setInvitedEvents] = useState<any[]>([]);
+  const [extraLoading, setExtraLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchExtra = async () => {
+      try {
+        const [commRes, invRes] = await Promise.all([
+          eventsApi.getCommitteeEvents({ limit: 5 }),
+          eventsApi.getInvitedEvents({ limit: 5 }),
+        ]);
+        if (cancelled) return;
+        if (commRes.success) setCommitteeEvents(commRes.data.events || []);
+        if (invRes.success) setInvitedEvents(invRes.data.events || []);
+      } catch { /* silent */ }
+      finally { if (!cancelled) setExtraLoading(false); }
+    };
+    fetchExtra();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Merge & deduplicate events by ID, prioritizing creator > committee > guest
+  const upcomingEvents = useMemo<UpcomingEvent[]>(() => {
+    const map = new Map<string, UpcomingEvent>();
+
+    for (const ev of (events || [])) {
+      map.set(ev.id, { id: ev.id, title: ev.title, start_date: ev.start_date, cover_image: ev.cover_image, role: 'creator' });
+    }
+    for (const ev of committeeEvents) {
+      if (!map.has(ev.id)) {
+        map.set(ev.id, { id: ev.id, title: ev.title || ev.name, start_date: ev.start_date, cover_image: ev.cover_image || ev.cover_image_url, role: 'committee' });
+      }
+    }
+    for (const ev of invitedEvents) {
+      if (!map.has(ev.id)) {
+        map.set(ev.id, { id: ev.id, title: ev.title || ev.name, start_date: ev.start_date, cover_image: ev.cover_image || ev.cover_image_url, role: 'guest' });
+      }
+    }
+
+    return Array.from(map.values())
+      .sort((a, b) => {
+        if (!a.start_date) return 1;
+        if (!b.start_date) return -1;
+        return new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
+      })
+      .slice(0, 5);
+  }, [events, committeeEvents, invitedEvents]);
+
+  const allLoading = (eventsLoading || extraLoading) && upcomingEvents.length === 0;
+
   // Track if we've ever loaded data to avoid skeleton flicker on re-mount
-  const hasLoadedEvents = events.length > 0 || !eventsLoading;
   const hasLoadedServices = services.length > 0 || !servicesLoading;
   const hasLoadedSuggestions = suggestions.length > 0 || !suggestionsLoading;
-
-  // Get upcoming events (first 3)
-  const upcomingEvents = events?.slice(0, 3) || [];
-  
-  // Service providers (first 4)
-  const topServices = services?.slice(0, 4) || [];
 
   return (
     <div className="space-y-6">
       {/* Upcoming Events */}
-      {eventsLoading && !hasLoadedEvents ? (
+      {allLoading ? (
         <SidebarCardSkeleton title="Upcoming Events" count={3} />
       ) : upcomingEvents.length > 0 ? (
         <div className="bg-card rounded-lg p-4 border border-border">
           <h2 className="font-semibold text-foreground mb-4">Upcoming Events</h2>
           <div className="space-y-3">
             {upcomingEvents.map((event) => (
-              <div key={event.id} className="flex gap-3 cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors">
+              <div key={event.id} className="flex gap-3 cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors"
+                onClick={() => navigate(event.role === 'guest' ? `/event/${event.id}` : `/event-management/${event.id}`)}
+              >
                 <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
                   {event.cover_image ? (
                     <img
@@ -85,7 +150,18 @@ const RightSidebar = () => {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-sm text-foreground truncate">{event.title}</h3>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-medium text-sm text-foreground truncate">{event.title}</h3>
+                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 ${
+                      event.role === 'creator' 
+                        ? 'bg-primary/10 text-primary' 
+                        : event.role === 'committee' 
+                          ? 'bg-accent text-accent-foreground' 
+                          : 'bg-secondary text-secondary-foreground'
+                    }`}>
+                      {ROLE_LABELS[event.role]}
+                    </span>
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {event.start_date ? new Date(event.start_date).toLocaleDateString('en-US', { 
                       weekday: 'short', 

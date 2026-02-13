@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import readXlsxFile from 'read-excel-file';
 import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import { 
-  DollarSign, Plus, Search, Filter, MoreVertical, Edit, Trash, Send, Download, TrendingUp, Users, Clock, Loader2, Eye, ChevronLeft, ChevronRight, UserPlus, Upload, FileSpreadsheet, AlertCircle, CheckCircle2
+  DollarSign, Plus, Search, Filter, MoreVertical, Edit, Trash, Send, Download, TrendingUp, Users, Clock, Loader2, Eye, ChevronLeft, ChevronRight, UserPlus, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, ShieldCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,11 +31,14 @@ import { generateContributionReportHtml } from '@/utils/generatePdf';
 import ReportPreviewDialog from '@/components/ReportPreviewDialog';
 import { contributorsApi } from '@/lib/api/contributors';
 import type { EventContributorSummary } from '@/lib/api/contributors';
+import type { EventPermissions } from '@/hooks/useEventPermissions';
 
 interface EventContributionsProps {
   eventId: string;
   eventTitle?: string;
   eventBudget?: number;
+  isCreator?: boolean;
+  permissions?: EventPermissions;
 }
 
 // EventContributions needs eventBudget for display
@@ -51,7 +54,9 @@ const PAYMENT_METHODS = [
 
 const ITEMS_PER_PAGE = 10;
 
-const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContributionsProps) => {
+const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true, permissions }: EventContributionsProps) => {
+  const canManage = permissions?.can_manage_contributions || permissions?.is_creator;
+  const canView = permissions?.can_view_contributions || permissions?.is_creator;
   // New contributor-based hooks
   const { 
     eventContributors, summary: ecSummary, loading: ecLoading, error: ecError, 
@@ -113,6 +118,40 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
   const [bulkUploading, setBulkUploading] = useState(false);
   const [bulkResult, setBulkResult] = useState<{ processed: number; errors_count: number; errors: { row: number; message: string }[] } | null>(null);
   const bulkFileRef = useRef<HTMLInputElement>(null);
+
+  // Pending contributions (creator only)
+  const [pendingContributions, setPendingContributions] = useState<any[]>([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [selectedPending, setSelectedPending] = useState<string[]>([]);
+  const [confirmingPending, setConfirmingPending] = useState(false);
+
+  const fetchPending = async () => {
+    if (!isCreator) return;
+    setPendingLoading(true);
+    try {
+      const res = await contributorsApi.getPendingContributions(eventId);
+      if (res.success) setPendingContributions(res.data.contributions || []);
+    } catch { /* silent */ }
+    finally { setPendingLoading(false); }
+  };
+
+  // Fetch pending on mount for creator
+  useEffect(() => { if (isCreator) fetchPending(); }, [isCreator, eventId]);
+
+  const handleConfirmPending = async () => {
+    if (selectedPending.length === 0) return;
+    setConfirmingPending(true);
+    try {
+      const res = await contributorsApi.confirmContributions(eventId, selectedPending);
+      if (res.success) {
+        toast.success(`${res.data.confirmed} contributions confirmed`);
+        setSelectedPending([]);
+        fetchPending();
+        refetchEC();
+      }
+    } catch (err: any) { showCaughtError(err, 'Failed to confirm'); }
+    finally { setConfirmingPending(false); }
+  };
 
   // Computed
   const summary = ecSummary || { total_pledged: 0, total_paid: 0, total_balance: 0, count: 0, currency: legacySummary?.currency || 'TZS' };
@@ -429,14 +468,57 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
           <Button variant="outline" size="sm" onClick={handleDownloadReport}>
             <Download className="w-4 h-4 mr-2" />Report
           </Button>
-          <Button variant="outline" size="sm" onClick={() => { resetBulkForm(); setBulkDialogOpen(true); }}>
-            <Upload className="w-4 h-4 mr-2" />Bulk Upload
-          </Button>
-          <Button onClick={() => { resetAddForm(); setAddContributorDialogOpen(true); }}>
-            <UserPlus className="w-4 h-4 mr-2" />Add Contributor
-          </Button>
+          {isCreator && (
+            <Button variant="outline" size="sm" onClick={() => { resetBulkForm(); setBulkDialogOpen(true); }}>
+              <Upload className="w-4 h-4 mr-2" />Bulk Upload
+            </Button>
+          )}
+          {canManage && (
+            <Button onClick={() => { resetAddForm(); setAddContributorDialogOpen(true); }}>
+              <UserPlus className="w-4 h-4 mr-2" />Add Contributor
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Pending Contributions Tab (Creator only) */}
+      {isCreator && pendingContributions.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50/50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-amber-600" />
+                <h3 className="font-semibold text-amber-800">Awaiting Confirmation ({pendingContributions.length})</h3>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setSelectedPending(selectedPending.length === pendingContributions.length ? [] : pendingContributions.map(p => p.id))}>
+                  {selectedPending.length === pendingContributions.length ? 'Deselect All' : 'Select All'}
+                </Button>
+                <Button size="sm" onClick={handleConfirmPending} disabled={selectedPending.length === 0 || confirmingPending}>
+                  {confirmingPending ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Confirming...</> : <><CheckCircle2 className="w-4 h-4 mr-1" />Confirm ({selectedPending.length})</>}
+                </Button>
+              </div>
+            </div>
+            <div className="divide-y border rounded-lg bg-white">
+              {pendingContributions.map(pc => (
+                <div key={pc.id} className="p-3 flex items-center gap-3">
+                  <Checkbox checked={selectedPending.includes(pc.id)} onCheckedChange={(checked) => setSelectedPending(prev => checked ? [...prev, pc.id] : prev.filter(id => id !== pc.id))} />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm">{pc.contributor_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Recorded by {pc.recorded_by || 'Unknown'} {pc.created_at ? `on ${formatDateMedium(pc.created_at)}` : ''}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-amber-700">{formatPrice(pc.amount)}</p>
+                    {pc.payment_method && <p className="text-xs text-muted-foreground capitalize">{pc.payment_method}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Search */}
       <div className="flex gap-2">
@@ -456,12 +538,12 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
                 <th className="text-right p-4 text-sm font-medium">Pledged</th>
                 <th className="text-right p-4 text-sm font-medium">Paid</th>
                 <th className="text-right p-4 text-sm font-medium">Balance</th>
-                <th className="text-right p-4 text-sm font-medium">Actions</th>
+                {canManage && <th className="text-right p-4 text-sm font-medium">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y">
               {paginatedContributors.length === 0 ? (
-                <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">No contributors added yet. Click "Add Contributor" to get started.</td></tr>
+                <tr><td colSpan={canManage ? 5 : 4} className="p-6 text-center text-muted-foreground">No contributors added yet. Click "Add Contributor" to get started.</td></tr>
               ) : (
                 paginatedContributors.map((ec) => (
                   <tr key={ec.id} className="hover:bg-muted/50">
@@ -475,30 +557,32 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
                     <td className="p-4 text-right font-semibold">
                       <span className={ec.balance > 0 ? 'text-destructive' : 'text-green-600'}>{formatPrice(ec.balance)}</span>
                     </td>
-                    <td className="p-4 text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => { setPaymentTarget(ec); setPayment({ amount: '', payment_method: 'cash', payment_reference: '' }); setPaymentDialogOpen(true); }}>
-                            <DollarSign className="w-4 h-4 mr-2" />Record Payment
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => { setEditTarget(ec); setEditAmount(String(ec.pledge_amount)); setEditPledgeDialogOpen(true); }}>
-                            <Edit className="w-4 h-4 mr-2" />Update Pledge
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleViewHistory(ec)}>
-                            <Eye className="w-4 h-4 mr-2" />Payment History
-                          </DropdownMenuItem>
-                          {ec.total_paid > 0 && (
-                            <DropdownMenuItem onClick={() => { setThankYouTarget(ec); setThankYouMessage(''); setThankYouDialogOpen(true); }}>
-                              <Send className="w-4 h-4 mr-2" />Send Thank You
+                    {canManage && (
+                      <td className="p-4 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => { setPaymentTarget(ec); setPayment({ amount: '', payment_method: 'cash', payment_reference: '' }); setPaymentDialogOpen(true); }}>
+                              <DollarSign className="w-4 h-4 mr-2" />Record Payment
                             </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem className="text-destructive" onClick={() => handleRemove(ec.id)}>
-                            <Trash className="w-4 h-4 mr-2" />Remove
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
+                            <DropdownMenuItem onClick={() => { setEditTarget(ec); setEditAmount(String(ec.pledge_amount)); setEditPledgeDialogOpen(true); }}>
+                              <Edit className="w-4 h-4 mr-2" />Update Pledge
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleViewHistory(ec)}>
+                              <Eye className="w-4 h-4 mr-2" />Payment History
+                            </DropdownMenuItem>
+                            {ec.total_paid > 0 && (
+                              <DropdownMenuItem onClick={() => { setThankYouTarget(ec); setThankYouMessage(''); setThankYouDialogOpen(true); }}>
+                                <Send className="w-4 h-4 mr-2" />Send Thank You
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem className="text-destructive" onClick={() => handleRemove(ec.id)}>
+                              <Trash className="w-4 h-4 mr-2" />Remove
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}

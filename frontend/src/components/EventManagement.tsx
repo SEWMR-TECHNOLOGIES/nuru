@@ -18,21 +18,29 @@ import EventGuestList from './events/EventGuestList';
 import EventCommittee from './events/EventCommittee';
 import EventContributions from './events/EventContributions';
 import { useEvent } from '@/data/useEvents';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { usePolling } from '@/hooks/usePolling';
 import { formatPrice } from '@/utils/formatPrice';
 import { EventManagementSkeleton } from '@/components/ui/EventManagementSkeleton';
 import { eventsApi, showCaughtError } from '@/lib/api';
 import { servicesApi } from '@/lib/api/services';
 import { toast } from 'sonner';
+import { useEventPermissions } from '@/hooks/useEventPermissions';
 
 const EventManagement = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { data: currentUser } = useCurrentUser();
 
   const { event: apiEvent, loading: eventLoading, refetch: refetchEvent } = useEvent(id || null);
   usePolling(refetchEvent, 15000);
 
+  const { permissions, loading: permsLoading } = useEventPermissions(id || null);
+
   const event = apiEvent;
+
+  // Determine if current user is the event creator
+  const isCreator = permissions.is_creator;
 
   useWorkspaceMeta({
     title: event?.title || 'Event Management',
@@ -132,7 +140,7 @@ const EventManagement = () => {
     finally { setAddingServiceId(null); }
   };
 
-  if (eventLoading) return <EventManagementSkeleton />;
+  if (eventLoading || permsLoading) return <EventManagementSkeleton />;
   if (!event) return <div className="text-center py-8 text-muted-foreground">Event not found</div>;
 
   const eventImages: string[] = (() => {
@@ -245,7 +253,9 @@ const EventManagement = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Service Checklist</CardTitle>
-              <Button size="sm" variant="outline" onClick={() => setShowAddServiceDialog(true)}><Plus className="w-4 h-4 mr-2" />Add Service</Button>
+              {(permissions.can_manage_vendors || permissions.is_creator) && (
+                <Button size="sm" variant="outline" onClick={() => setShowAddServiceDialog(true)}><Plus className="w-4 h-4 mr-2" />Add Service</Button>
+              )}
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -289,9 +299,11 @@ const EventManagement = () => {
                     return (
                     <div key={service.id} className={`p-4 rounded-lg border transition-colors ${service.status === 'completed' ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800" : "bg-card border-border"}`}>
                       <div className="flex items-start gap-3">
-                        <button onClick={() => toggleServiceComplete(service.id)} className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 ${service.status === 'completed' ? "bg-green-500 border-green-500 text-white" : "border-muted-foreground hover:border-primary"}`}>
-                          {service.status === 'completed' && <CheckCircle2 className="w-3 h-3" />}
-                        </button>
+                        {(permissions.can_manage_vendors || permissions.is_creator) && (
+                          <button onClick={() => toggleServiceComplete(service.id)} className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 ${service.status === 'completed' ? "bg-green-500 border-green-500 text-white" : "border-muted-foreground hover:border-primary"}`}>
+                            {service.status === 'completed' && <CheckCircle2 className="w-3 h-3" />}
+                          </button>
+                        )}
                         <Avatar className="w-10 h-10 rounded-lg flex-shrink-0">
                           <AvatarImage src={serviceImage} className="object-cover rounded-lg" />
                           <AvatarFallback className="rounded-lg bg-primary/10 text-primary font-semibold text-sm">
@@ -301,7 +313,9 @@ const EventManagement = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2 mb-1">
                             <h3 className="font-medium">{service.service?.title || 'Unnamed Service'}</h3>
-                            <Button size="sm" variant="ghost" onClick={() => setDeleteServiceId(service.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
+                            {(permissions.can_manage_vendors || permissions.is_creator) && (
+                              <Button size="sm" variant="ghost" onClick={() => setDeleteServiceId(service.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
+                            )}
                           </div>
                           <p className="text-sm text-muted-foreground mb-1">
                             {service.service?.category && <span>{service.service.category}</span>}
@@ -323,15 +337,15 @@ const EventManagement = () => {
         </TabsContent>
 
         <TabsContent value="committee" className="space-y-6">
-          <EventCommittee eventId={id!} />
+          <EventCommittee eventId={id!} permissions={permissions} />
         </TabsContent>
 
         <TabsContent value="contributions" className="space-y-6">
-          <EventContributions eventId={id!} eventTitle={eventTitle} eventBudget={apiEvent?.budget ? parseFloat(String(apiEvent.budget).replace(/[^0-9]/g, '')) : undefined} />
+          <EventContributions eventId={id!} eventTitle={eventTitle} eventBudget={apiEvent?.budget ? parseFloat(String(apiEvent.budget).replace(/[^0-9]/g, '')) : undefined} isCreator={isCreator} permissions={permissions} />
         </TabsContent>
 
         <TabsContent value="guests" className="space-y-6">
-          <EventGuestList eventId={id!} />
+          <EventGuestList eventId={id!} permissions={permissions} />
         </TabsContent>
 
         <TabsContent value="rsvp" className="space-y-6">

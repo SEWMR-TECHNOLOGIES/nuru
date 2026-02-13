@@ -32,6 +32,7 @@ import LiveChat from "@/components/LiveChat";
 import NuruCards from "@/components/NuruCards";
 import BookingList from "@/components/bookings/BookingList";
 import BookingDetail from "@/components/bookings/BookingDetail";
+import EventView from "@/components/EventView";
 
 import Index from "@/pages/Index";
 import Contact from "@/pages/Contact";
@@ -109,6 +110,7 @@ export default function AppRoutes() {
           <Route path="/nuru-cards" element={<NuruCards />} />
           <Route path="/bookings" element={<BookingList />} />
           <Route path="/bookings/:id" element={<BookingDetail />} />
+          <Route path="/event/:id" element={<EventView />} />
         </Route>
 
         {/* Public Pages - always accessible */}
