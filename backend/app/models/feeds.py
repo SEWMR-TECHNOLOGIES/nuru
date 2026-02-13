@@ -4,8 +4,6 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from core.base import Base
 from models.enums import FeedVisibilityEnum
-from sqlalchemy.sql import func
-from core.base import Base
 
 
 # ──────────────────────────────────────────────
@@ -40,6 +38,7 @@ class UserFeed(Base):
     sparks = relationship("UserFeedSpark", back_populates="feed")
     comments = relationship("UserFeedComment", back_populates="feed")
     pinned_by = relationship("UserFeedPinned", back_populates="feed")
+    saved_by = relationship("UserFeedSaved", back_populates="feed")
 
 
 class UserFeedImage(Base):
@@ -156,3 +155,20 @@ class UserFeedPinned(Base):
     # Relationships
     user = relationship("User", back_populates="feed_pinned")
     feed = relationship("UserFeed", back_populates="pinned_by")
+
+
+class UserFeedSaved(Base):
+    __tablename__ = 'user_feed_saved'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    feed_id = Column(UUID(as_uuid=True), ForeignKey('user_feeds.id', ondelete='CASCADE'), nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'feed_id', name='uq_feed_saved'),
+    )
+
+    # Relationships
+    user = relationship("User", back_populates="feed_saved")
+    feed = relationship("UserFeed", back_populates="saved_by")

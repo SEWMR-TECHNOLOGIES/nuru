@@ -103,6 +103,26 @@ def get_my_services(db: Session = Depends(get_db), current_user: User = Depends(
     services = db.query(UserService).filter(UserService.user_id == current_user.id).all()
     service_list = [_service_dict(db, s) for s in services]
 
+    # Collect all recent reviews across all services
+    all_service_ids = [s.id for s in services]
+    recent_reviews = []
+    if all_service_ids:
+        reviews_query = db.query(UserServiceRating).filter(
+            UserServiceRating.user_service_id.in_(all_service_ids)
+        ).order_by(UserServiceRating.created_at.desc()).limit(5).all()
+        for r in reviews_query:
+            svc = db.query(UserService).filter(UserService.id == r.user_service_id).first()
+            recent_reviews.append({
+                "id": str(r.id),
+                "service_id": str(r.user_service_id),
+                "service_title": svc.title if svc else None,
+                "rating": r.rating,
+                "comment": r.review,
+                "user_name": f"{r.user.first_name} {r.user.last_name}" if r.user else "Anonymous",
+                "user_avatar": r.user.profile.profile_picture_url if r.user and r.user.profile else None,
+                "created_at": r.created_at.isoformat(),
+            })
+
     # Build summary per API doc
     summary = {
         "total_services": len(service_list),
@@ -113,7 +133,7 @@ def get_my_services(db: Session = Depends(get_db), current_user: User = Depends(
         "average_rating": round(sum(s["rating"] for s in service_list) / len(service_list), 1) if service_list else 0,
     }
 
-    return standard_response(True, "Services retrieved successfully", {"services": service_list, "summary": summary})
+    return standard_response(True, "Services retrieved successfully", {"services": service_list, "summary": summary, "recent_reviews": recent_reviews})
 
 
 # ──────────────────────────────────────────────
@@ -642,7 +662,7 @@ def get_service_reviews(service_id: str, db: Session = Depends(get_db), current_
         return standard_response(False, "Invalid service ID")
 
     reviews = db.query(UserServiceRating).filter(UserServiceRating.user_service_id == sid).order_by(UserServiceRating.created_at.desc()).all()
-    data = [{"id": str(r.id), "rating": r.rating, "comment": r.review, "user_name": f"{r.user.first_name} {r.user.last_name}" if r.user else "Anonymous", "created_at": r.created_at.isoformat()} for r in reviews]
+    data = [{"id": str(r.id), "rating": r.rating, "comment": r.review, "user_name": f"{r.user.first_name} {r.user.last_name}" if r.user else "Anonymous", "user_avatar": r.user.profile.profile_picture_url if r.user and r.user.profile else None, "created_at": r.created_at.isoformat()} for r in reviews]
 
     return standard_response(True, "Reviews retrieved successfully", data)
 

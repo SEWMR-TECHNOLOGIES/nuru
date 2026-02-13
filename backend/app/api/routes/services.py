@@ -183,6 +183,7 @@ def get_service_details(service_id: str, db: Session = Depends(get_db)):
         reviews_preview.append({
             "id": str(r.id),
             "user_name": f"{r.user.first_name} {r.user.last_name}" if r.user else "Anonymous",
+            "user_avatar": r.user.profile.profile_picture_url if r.user and r.user.profile else None,
             "rating": r.rating,
             "comment": r.review,
             "created_at": r.created_at.isoformat()

@@ -733,7 +733,7 @@ async def update_event(
         mapped = "confirmed" if status == "published" else status
         valid = {s.value for s in EventStatusEnum}
         if mapped in valid:
-            event.status = mapped
+            event.status = EventStatusEnum(mapped)
     if theme_color is not None:
         if HEX_COLOR_RE.match(theme_color):
             event.theme_color = theme_color
@@ -867,7 +867,7 @@ def update_event_status(event_id: str, body: dict = Body(...), db: Session = Dep
         return standard_response(False, f"Invalid status. Must be one of: {', '.join(valid)}")
 
     now = datetime.now(EAT)
-    event.status = mapped
+    event.status = EventStatusEnum(mapped)
     event.updated_at = now
 
     if mapped == "confirmed":
@@ -2141,15 +2141,30 @@ def delete_budget_item(event_id: str, item_id: str, db: Session = Depends(get_db
 # ──────────────────────────────────────────────
 
 def _service_booking_dict(db: Session, es: EventService, currency_id) -> dict:
+    from models import UserServiceImage
     svc_type = db.query(ServiceType).filter(ServiceType.id == es.service_id).first()
     provider_svc = db.query(UserService).filter(UserService.id == es.provider_user_service_id).first() if es.provider_user_service_id else None
     provider_user = db.query(User).filter(User.id == es.provider_user_id).first() if es.provider_user_id else None
+
+    # Get service image
+    service_image = None
+    if provider_svc:
+        featured_img = db.query(UserServiceImage).filter(
+            UserServiceImage.user_service_id == provider_svc.id,
+            UserServiceImage.is_featured == True,
+        ).first()
+        if featured_img:
+            service_image = featured_img.image_url
+        elif provider_svc.images:
+            service_image = provider_svc.images[0].image_url if provider_svc.images else None
+
     return {
         "id": str(es.id), "event_id": str(es.event_id), "service_id": str(es.service_id),
         "service": {
             "title": provider_svc.title if provider_svc else (svc_type.name if svc_type else None),
             "category": svc_type.category.name if svc_type and hasattr(svc_type, "category") and svc_type.category else None,
             "provider_name": f"{provider_user.first_name} {provider_user.last_name}" if provider_user else None,
+            "image": service_image,
         },
         "quoted_price": float(es.agreed_price) if es.agreed_price else None,
         "currency": _currency_code(db, currency_id),

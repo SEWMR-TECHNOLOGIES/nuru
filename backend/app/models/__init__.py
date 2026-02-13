@@ -17,6 +17,7 @@ from models.communities import Community, CommunityMember, CommunityPost, Commun
 from models.feeds import (
     UserFeed, UserFeedImage, UserFeedGlow, UserFeedEcho,
     UserFeedSpark, UserFeedComment, UserFeedCommentGlow, UserFeedPinned,
+    UserFeedSaved,
 )
 from models.moments import (
     UserMoment, UserMomentSticker, UserMomentViewer,

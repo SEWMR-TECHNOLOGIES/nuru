@@ -17,7 +17,7 @@ from core.database import get_db
 from models import (
     UserFeed, UserFeedImage, UserFeedGlow, UserFeedEcho,
     UserFeedSpark, UserFeedComment, UserFeedCommentGlow,
-    UserFeedPinned, User, UserProfile, UserCircle, FeedVisibilityEnum,
+    UserFeedPinned, UserFeedSaved, User, UserProfile, UserCircle, FeedVisibilityEnum,
 )
 from utils.auth import get_current_user
 from utils.helpers import standard_response, paginate
@@ -133,9 +133,11 @@ def _post_dict(db, post, current_user_id=None):
 
     has_glowed = False
     has_echoed = False
+    has_saved = False
     if current_user_id:
         has_glowed = db.query(UserFeedGlow).filter(UserFeedGlow.feed_id == post.id, UserFeedGlow.user_id == current_user_id).first() is not None
         has_echoed = db.query(UserFeedEcho).filter(UserFeedEcho.feed_id == post.id, UserFeedEcho.user_id == current_user_id).first() is not None
+        has_saved = db.query(UserFeedSaved).filter(UserFeedSaved.feed_id == post.id, UserFeedSaved.user_id == current_user_id).first() is not None
 
     return {
         "id": str(post.id),
@@ -150,15 +152,26 @@ def _post_dict(db, post, current_user_id=None):
         "visibility": post.visibility.value if post.visibility else "public",
         "glow_count": glow_count, "echo_count": echo_count,
         "spark_count": spark_count, "comment_count": comment_count,
-        "has_glowed": has_glowed, "has_echoed": has_echoed,
+        "has_glowed": has_glowed, "has_echoed": has_echoed, "has_saved": has_saved,
         "is_pinned": db.query(UserFeedPinned).filter(UserFeedPinned.feed_id == post.id).first() is not None,
         "created_at": post.created_at.isoformat() if post.created_at else None,
     }
 
 
 @router.get("/saved")
-def get_saved_posts(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return standard_response(True, "Saved posts retrieved", [])
+def get_saved_posts(page: int = 1, limit: int = 20, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    query = (
+        db.query(UserFeed)
+        .join(UserFeedSaved, UserFeedSaved.feed_id == UserFeed.id)
+        .filter(UserFeedSaved.user_id == current_user.id, UserFeed.is_active == True)
+        .order_by(UserFeedSaved.created_at.desc())
+    )
+    items, pagination = paginate(query, page, limit)
+    posts = [_post_dict(db, p, current_user.id) for p in items]
+    # Mark all as saved
+    for p in posts:
+        p["is_saved"] = True
+    return standard_response(True, "Saved posts retrieved", {"saved_posts": posts, "pagination": pagination})
 
 
 @router.get("/feed")
@@ -568,10 +581,26 @@ def unglow_comment(post_id: str, comment_id: str, db: Session = Depends(get_db),
 # Save/Pin/Report
 @router.post("/{post_id}/save")
 def save_post(post_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        pid = uuid.UUID(post_id)
+    except ValueError:
+        return standard_response(False, "Invalid post ID")
+    existing = db.query(UserFeedSaved).filter(UserFeedSaved.feed_id == pid, UserFeedSaved.user_id == current_user.id).first()
+    if not existing:
+        db.add(UserFeedSaved(id=uuid.uuid4(), feed_id=pid, user_id=current_user.id, created_at=datetime.now(EAT)))
+        db.commit()
     return standard_response(True, "Post saved")
 
 @router.delete("/{post_id}/save")
 def unsave_post(post_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        pid = uuid.UUID(post_id)
+    except ValueError:
+        return standard_response(False, "Invalid post ID")
+    s = db.query(UserFeedSaved).filter(UserFeedSaved.feed_id == pid, UserFeedSaved.user_id == current_user.id).first()
+    if s:
+        db.delete(s)
+        db.commit()
     return standard_response(True, "Post unsaved")
 
 @router.post("/{post_id}/pin")

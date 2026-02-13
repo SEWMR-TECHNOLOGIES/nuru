@@ -55,6 +55,7 @@ class User(Base):
     feed_comments = relationship("UserFeedComment", back_populates="user")
     feed_comment_glows = relationship("UserFeedCommentGlow", back_populates="user")
     feed_pinned = relationship("UserFeedPinned", back_populates="user")
+    feed_saved = relationship("UserFeedSaved", back_populates="user")
     moments = relationship("UserMoment", back_populates="user")
     moment_views = relationship("UserMomentViewer", back_populates="viewer")
     moment_highlights = relationship("UserMomentHighlight", back_populates="user")

@@ -20,7 +20,34 @@ router = APIRouter(prefix="/nuru-cards", tags=["Nuru Cards"])
 @router.get("/")
 def get_my_cards(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     cards = db.query(NuruCard).filter(NuruCard.user_id == current_user.id).all()
-    return standard_response(True, "Cards retrieved", [{"id": str(c.id), "card_number": c.card_number, "card_type": c.card_type, "status": c.status, "created_at": c.created_at.isoformat() if c.created_at else None} for c in cards])
+    return standard_response(True, "Cards retrieved", [{
+        "id": str(c.id),
+        "card_number": c.card_number,
+        "card_type": c.card_type.value if hasattr(c.card_type, 'value') else (c.card_type or "standard"),
+        "status": c.status or ("active" if c.is_active else "inactive"),
+        "holder_name": c.holder_name,
+        "nfc_enabled": c.nfc_enabled,
+        "template": c.template,
+        "valid_from": c.valid_from.isoformat() if c.valid_from else None,
+        "valid_until": c.valid_until.isoformat() if c.valid_until else None,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+    } for c in cards])
+
+
+@router.get("/my-orders")
+def get_my_orders(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Get all card orders for the current user."""
+    orders = db.query(NuruCardOrder).filter(NuruCardOrder.user_id == current_user.id).order_by(NuruCardOrder.created_at.desc()).all()
+    return standard_response(True, "Orders retrieved", [{
+        "id": str(o.id),
+        "card_type": o.card_type.value if hasattr(o.card_type, 'value') else o.card_type,
+        "status": o.status.value if hasattr(o.status, 'value') else o.status,
+        "amount": float(o.amount) if o.amount else 0,
+        "delivery_name": o.delivery_name,
+        "delivery_city": o.delivery_city,
+        "payment_ref": o.payment_ref,
+        "created_at": o.created_at.isoformat() if o.created_at else None,
+    } for o in orders])
 
 
 @router.get("/{card_id}")
@@ -32,7 +59,17 @@ def get_card_details(card_id: str, db: Session = Depends(get_db), current_user: 
     card = db.query(NuruCard).filter(NuruCard.id == cid, NuruCard.user_id == current_user.id).first()
     if not card:
         return standard_response(False, "Card not found")
-    return standard_response(True, "Card details retrieved", {"id": str(card.id), "card_number": card.card_number, "card_type": card.card_type, "status": card.status, "qr_code_url": card.qr_code_url if hasattr(card, "qr_code_url") else None})
+    return standard_response(True, "Card details retrieved", {
+        "id": str(card.id),
+        "card_number": card.card_number,
+        "card_type": card.card_type.value if hasattr(card.card_type, 'value') else (card.card_type or "standard"),
+        "status": card.status or ("active" if card.is_active else "inactive"),
+        "holder_name": card.holder_name,
+        "nfc_enabled": card.nfc_enabled,
+        "template": card.template,
+        "valid_from": card.valid_from.isoformat() if card.valid_from else None,
+        "valid_until": card.valid_until.isoformat() if card.valid_until else None,
+    })
 
 
 @router.post("/orders")
@@ -50,10 +87,19 @@ def order_card(body: dict = Body(...), db: Session = Depends(get_db), current_us
     import random, string
     now = datetime.now(EAT)
 
-    card_type = body.get("type", "regular")
+    card_type = body.get("type", "standard")
     holder_name = body.get("holder_name", "").strip()
     if not holder_name:
         return standard_response(False, "Holder name is required")
+
+    # Prevent duplicate pending orders of the same card type
+    existing_pending = db.query(NuruCardOrder).filter(
+        NuruCardOrder.user_id == current_user.id,
+        NuruCardOrder.card_type == card_type,
+        NuruCardOrder.status == "pending",
+    ).first()
+    if existing_pending:
+        return standard_response(False, f"You already have a pending {card_type} card order")
 
     # Generate card number
     seq = ''.join(random.choices(string.digits, k=6))
@@ -82,7 +128,7 @@ def order_card(body: dict = Body(...), db: Session = Depends(get_db), current_us
         delivery_postal_code=delivery.get("postal_code", ""),
         delivery_instructions=body.get("template", ""),
         status="pending",
-        amount=0 if card_type == "regular" else 50000,
+        amount=0 if card_type == "standard" else 50000,
         payment_ref=body.get("payment_method", "mpesa"),
         created_at=now,
         updated_at=now,
@@ -94,6 +140,11 @@ def order_card(body: dict = Body(...), db: Session = Depends(get_db), current_us
         id=uuid.uuid4(),
         user_id=current_user.id,
         card_number=card_number,
+        card_type=card_type,
+        status="active",
+        holder_name=holder_name,
+        nfc_enabled=body.get("nfc_enabled", False),
+        template=body.get("template", ""),
         is_active=True,
         issued_at=now,
         created_at=now,

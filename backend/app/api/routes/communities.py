@@ -66,18 +66,42 @@ def get_my_communities(db: Session = Depends(get_db), current_user: User = Depen
 
 
 @router.post("/")
-def create_community(body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    name = body.get("name", "").strip()
-    description = body.get("description", "").strip()
+async def create_community(
+    name: str = Form(...),
+    description: Optional[str] = Form(None),
+    is_public: Optional[bool] = Form(True),
+    cover_image: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    name = name.strip()
     if not name:
         return standard_response(False, "Community name is required")
 
     now = datetime.now(EAT)
+    cover_image_url = None
+
+    # Upload cover image if provided
+    if cover_image and cover_image.filename and cover_image.size and cover_image.size > 0:
+        from core.config import UPLOAD_SERVICE_URL
+        file_content = await cover_image.read()
+        _, ext = os.path.splitext(cover_image.filename)
+        unique_name = f"{uuid.uuid4().hex}{ext}"
+        async with httpx.AsyncClient() as client:
+            try:
+                resp = await client.post(UPLOAD_SERVICE_URL, data={"target_path": "nuru/uploads/communities/covers/"}, files={"file": (unique_name, file_content, cover_image.content_type)}, timeout=20)
+                result = resp.json()
+                if result.get("success"):
+                    cover_image_url = result["data"]["url"]
+            except Exception:
+                pass
+
     community = Community(
         id=uuid.uuid4(),
         name=name,
-        description=description or None,
-        is_public=body.get("is_public", True),
+        description=description.strip() if description else None,
+        cover_image_url=cover_image_url,
+        is_public=is_public if is_public is not None else True,
         member_count=1,
         created_by=current_user.id,
         created_at=now,
@@ -111,7 +135,52 @@ def get_community(community_id: str, db: Session = Depends(get_db), current_user
     if not c:
         return standard_response(False, "Community not found")
 
-    return standard_response(True, "Community retrieved", _community_dict(db, c, current_user.id))
+    return standard_response(True, "Community retrieved", {**_community_dict(db, c, current_user.id), "created_by": str(c.created_by) if c.created_by else None})
+
+
+@router.put("/{community_id}/cover")
+async def update_community_cover(
+    community_id: str,
+    cover_image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update community cover image (admin only)."""
+    try:
+        cid = uuid.UUID(community_id)
+    except ValueError:
+        return standard_response(False, "Invalid community ID")
+
+    c = db.query(Community).filter(Community.id == cid).first()
+    if not c:
+        return standard_response(False, "Community not found")
+
+    # Check admin
+    member = db.query(CommunityMember).filter(
+        CommunityMember.community_id == cid,
+        CommunityMember.user_id == current_user.id,
+        CommunityMember.role == "admin"
+    ).first()
+    if not member and str(c.created_by) != str(current_user.id):
+        return standard_response(False, "Only admins can update the cover image")
+
+    from core.config import UPLOAD_SERVICE_URL
+    file_content = await cover_image.read()
+    _, ext = os.path.splitext(cover_image.filename)
+    unique_name = f"{uuid.uuid4().hex}{ext}"
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(UPLOAD_SERVICE_URL, data={"target_path": "nuru/uploads/communities/covers/"}, files={"file": (unique_name, file_content, cover_image.content_type)}, timeout=20)
+            result = resp.json()
+            if result.get("success"):
+                c.cover_image_url = result["data"]["url"]
+                c.updated_at = datetime.now(EAT)
+                db.commit()
+                return standard_response(True, "Cover image updated", {"image": c.cover_image_url})
+        except Exception:
+            pass
+
+    return standard_response(False, "Failed to upload cover image")
 
 
 @router.post("/{community_id}/join")
