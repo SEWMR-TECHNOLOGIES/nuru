@@ -621,20 +621,14 @@ def bulk_add_contributors(event_id: str, body: dict = Body(...), db: Session = D
             errors_list.append({"row": row_num, "message": f"Invalid phone for {name}: {phone_raw}"})
             continue
 
-        # Find or create contributor by phone in user's address book
+        # Find existing contributor by phone ONLY in user's address book
         contributor = db.query(UserContributor).filter(
             UserContributor.user_id == current_user.id,
             UserContributor.phone == phone,
         ).first()
 
         if not contributor:
-            # Also check by name
-            contributor = db.query(UserContributor).filter(
-                UserContributor.user_id == current_user.id,
-                UserContributor.name == name,
-            ).first()
-
-        if not contributor:
+            # Create new contributor — does NOT remove any existing ones
             contributor = UserContributor(
                 id=uuid.uuid4(),
                 user_id=current_user.id,
@@ -646,9 +640,9 @@ def bulk_add_contributors(event_id: str, body: dict = Body(...), db: Session = D
             db.add(contributor)
             db.flush()
         else:
-            # Update phone if different
-            if contributor.phone != phone:
-                contributor.phone = phone
+            # Update name if provided and different
+            if name and contributor.name != name:
+                contributor.name = name
                 contributor.updated_at = now
 
         # Check if already linked to event

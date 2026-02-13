@@ -23,7 +23,7 @@ class UserContributor(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
-        UniqueConstraint('user_id', 'name', name='uq_user_contributor_name'),
+        UniqueConstraint('user_id', 'phone', name='uq_user_contributor_phone'),
     )
 
     # Relationships
