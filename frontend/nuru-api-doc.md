@@ -9010,6 +9010,22 @@ Response 200:
 }
 ```
 
+> **Database Note:** The saved posts feature uses the `user_feed_saved` table with columns:
+> - `id` (UUID, PK), `user_id` (UUID, FK → users.id), `feed_id` (UUID, FK → user_feeds.id), `created_at` (timestamp)
+> - Unique constraint on `(user_id, feed_id)` named `uq_feed_saved`
+> 
+> **CREATE TABLE SQL:**
+> ```sql
+> CREATE TABLE IF NOT EXISTS user_feed_saved (
+>   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+>   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+>   feed_id UUID NOT NULL REFERENCES user_feeds(id) ON DELETE CASCADE,
+>   created_at TIMESTAMPTZ DEFAULT now(),
+>   CONSTRAINT uq_feed_saved UNIQUE (user_id, feed_id)
+> );
+> ```
+
+
 ### 14.20 Report Post
 ```
 POST /posts/:postId/report
@@ -10630,74 +10646,50 @@ Authorization: Bearer {token}
 Response 200:
 {
   "success": true,
-  "message": "Nuru cards retrieved successfully",
-  "data": {
-    "cards": [
-      {
-        "id": "uuid-string",
-        "card_number": "NURU-2024-001234",
-        "type": "premium",
-        "status": "active",
-        "holder_name": "John Doe",
-        "qr_code_url": "https://storage.example.com/qr/uuid.png",
-        "nfc_enabled": true,
-        "nfc_tag_id": "04:A2:B3:C4:D5:E6:F7",
-        "design": {
-          "template": "gold_premium",
-          "background_color": "#FFD700",
-          "text_color": "#000000",
-          "custom_image": null
-        },
-        "benefits": {
-          "priority_entry": true,
-          "vip_lounge_access": true,
-          "discount_percentage": 15,
-          "free_drinks": 2,
-          "reserved_seating": true
-        },
-        "usage_stats": {
-          "total_check_ins": 45,
-          "events_attended": 12,
-          "last_used_at": "2024-06-20T22:30:00Z"
-        },
-        "valid_from": "2024-01-01T00:00:00Z",
-        "valid_until": "2024-12-31T23:59:59Z",
-        "created_at": "2024-01-01T10:00:00Z"
-      },
-      {
-        "id": "uuid-string",
-        "card_number": "NURU-2024-005678",
-        "type": "regular",
-        "status": "active",
-        "holder_name": "John Doe",
-        "qr_code_url": "https://storage.example.com/qr/uuid.png",
-        "nfc_enabled": false,
-        "nfc_tag_id": null,
-        "design": {
-          "template": "standard_blue",
-          "background_color": "#1E40AF",
-          "text_color": "#FFFFFF",
-          "custom_image": null
-        },
-        "benefits": {
-          "priority_entry": false,
-          "vip_lounge_access": false,
-          "discount_percentage": 5,
-          "free_drinks": 0,
-          "reserved_seating": false
-        },
-        "usage_stats": {
-          "total_check_ins": 8,
-          "events_attended": 3,
-          "last_used_at": "2024-06-15T19:00:00Z"
-        },
-        "valid_from": "2024-03-01T00:00:00Z",
-        "valid_until": "2025-02-28T23:59:59Z",
-        "created_at": "2024-03-01T14:00:00Z"
-      }
-    ]
-  }
+  "message": "Cards retrieved",
+  "data": [
+    {
+      "id": "uuid-string",
+      "card_number": "NURU-2025-001234",
+      "card_type": "standard",
+      "status": "active",
+      "holder_name": "John Doe",
+      "nfc_enabled": false,
+      "template": "standard_blue",
+      "valid_from": "2025-01-01T00:00:00+03:00",
+      "valid_until": "2025-12-31T23:59:59+03:00",
+      "created_at": "2025-01-01T10:00:00+03:00"
+    }
+  ]
 }
+
+Card Types (enum): "standard", "premium", "custom"
+```
+
+### 17.1b Get My Card Orders
+```
+GET /nuru-cards/my-orders
+Authorization: Bearer {token}
+
+Response 200:
+{
+  "success": true,
+  "message": "Orders retrieved",
+  "data": [
+    {
+      "id": "uuid-string",
+      "card_type": "standard",
+      "status": "pending",
+      "amount": 0,
+      "delivery_name": "John Doe",
+      "delivery_city": "Arusha",
+      "payment_ref": "cash",
+      "created_at": "2025-01-01T10:00:00+03:00"
+    }
+  ]
+}
+
+Order Statuses (enum): "pending", "processing", "shipped", "delivered", "cancelled"
 ```
 
 ### 17.2 Get Single Nuru Card
@@ -10782,9 +10774,11 @@ Request Body:
   "payment_method": "mpesa"
 }
 
-Card Types:
-- "regular": Basic card with standard benefits
-- "premium": Premium card with VIP benefits and NFC
+Card Types (enum):
+- "standard": Basic card with standard benefits (FREE)
+- "premium": Premium card with VIP benefits and NFC (TZS 50,000)
+
+Note: Duplicate pending orders of the same card type are rejected.
 
 Templates:
 - "standard_blue"

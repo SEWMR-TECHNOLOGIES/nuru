@@ -67,9 +67,17 @@ const MyEvents = () => {
     setLocalStatusOverrides(prev => ({ ...prev, [eventId]: newStatus }));
     setUpdatingStatus(eventId);
     try {
-      await eventsApi.updateStatus(eventId, newStatus as any);
-      toast.success(`Event status updated to ${newStatus}`);
-      refetch();
+      const res = await eventsApi.updateStatus(eventId, newStatus as any);
+      if (res.success) {
+        toast.success(`Event status updated to ${newStatus}`);
+        // Clear optimistic override so refetch data takes precedence
+        setLocalStatusOverrides(prev => { const next = { ...prev }; delete next[eventId]; return next; });
+        refetch();
+      } else {
+        // Rollback
+        setLocalStatusOverrides(prev => { const next = { ...prev }; delete next[eventId]; return next; });
+        toast.error(res.message || 'Failed to update status');
+      }
     } catch (err: any) {
       // Rollback
       setLocalStatusOverrides(prev => { const next = { ...prev }; delete next[eventId]; return next; });

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Users, Crown, Plus, Loader2, Heart, Send, X, Search, Trash2 } from 'lucide-react';
+import { ChevronLeft, Users, Crown, Plus, Loader2, Heart, Send, X, Search, Trash2, Camera } from 'lucide-react';
 import CustomImageIcon from '@/assets/icons/image-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,6 +46,8 @@ const CommunityDetail = () => {
   const [postPreviews, setPostPreviews] = useState<string[]>([]);
   const [posting, setPosting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const coverFileRef = useRef<HTMLInputElement>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
 
   // Add member dialog
   const [addMemberOpen, setAddMemberOpen] = useState(false);
@@ -235,11 +237,44 @@ const CommunityDetail = () => {
           </Button>
         </div>
         
-        <div className="relative h-40 w-full overflow-hidden rounded-lg bg-muted flex items-center justify-center">
+        <div className="relative h-40 w-full overflow-hidden rounded-lg bg-muted flex items-center justify-center group">
           {community.image ? (
             <img src={community.image} alt={community.name} className="w-full h-full object-cover" />
           ) : (
             <Users className="w-16 h-16 text-muted-foreground" />
+          )}
+          {isCreator && (
+            <>
+              <button
+                onClick={() => coverFileRef.current?.click()}
+                className="absolute bottom-2 right-2 bg-black/60 text-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
+                title="Change cover image"
+                disabled={uploadingCover}
+              >
+                {uploadingCover ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+              </button>
+              <input
+                ref={coverFileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file || !id) return;
+                  setUploadingCover(true);
+                  try {
+                    const res = await socialApi.updateCommunityCover(id, file);
+                    if (res.success) {
+                      setCommunity((prev: any) => prev ? { ...prev, image: res.data?.image || prev.image } : prev);
+                      toast.success('Cover image updated!');
+                    } else {
+                      toast.error(res.message || 'Failed to update cover');
+                    }
+                  } catch { toast.error('Failed to upload cover image'); }
+                  finally { setUploadingCover(false); }
+                }}
+              />
+            </>
           )}
         </div>
 

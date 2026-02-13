@@ -87,6 +87,7 @@ const Feed = () => {
       likes: apiPost.glow_count || 0,
       comments: apiPost.comment_count || 0,
       has_glowed: apiPost.has_glowed || false,
+      has_saved: apiPost.has_saved || false,
     };
   };
 

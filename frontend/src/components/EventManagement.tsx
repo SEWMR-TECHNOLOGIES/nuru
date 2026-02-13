@@ -259,9 +259,24 @@ const EventManagement = () => {
                       if (!Array.isArray(arr) || arr.length === 0) return '';
                       const first = arr[0];
                       if (typeof first === 'string') return first;
-                      return first?.url || first?.image_url || first?.file_url || '';
+                      return first?.url || first?.image_url || first?.file_url || first?.thumbnail_url || '';
                     };
-                    const serviceImage = service.service?.primary_image || service.service?.cover_image || service.service?.image_url || extractFirstImage(service.service?.images) || extractFirstImage(service.service?.gallery_images) || service.provider_service?.primary_image || service.provider_service?.cover_image || service.provider_service?.image_url || extractFirstImage(service.provider_service?.images) || extractFirstImage(service.provider_service?.gallery_images) || service.image || '';
+                    const serviceImage = service.service?.primary_image
+                      || service.service?.cover_image
+                      || service.service?.image_url
+                      || service.service?.image
+                      || extractFirstImage(service.service?.images)
+                      || extractFirstImage(service.service?.gallery_images)
+                      || service.provider_service?.primary_image
+                      || service.provider_service?.cover_image
+                      || service.provider_service?.image_url
+                      || service.provider_service?.image
+                      || extractFirstImage(service.provider_service?.images)
+                      || extractFirstImage(service.provider_service?.gallery_images)
+                      || service.image
+                      || service.image_url
+                      || service.cover_image
+                      || '';
                     const statusVariant = (s: string) => {
                       switch (s) {
                         case 'completed': return 'bg-green-100 text-green-800 border-green-200';

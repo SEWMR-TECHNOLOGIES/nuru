@@ -27,45 +27,23 @@ const MyServices = () => {
   });
 
   const navigate = useNavigate();
-  const { services, summary, loading, error, refetch } = useUserServices();
+  const { services, summary, recentReviews, loading, error, refetch } = useUserServices();
 
   
-  // Reviews state - fetched from API
-  const [reviews, setReviews] = useState<ServiceReview[]>([]);
-  const [reviewsLoading, setReviewsLoading] = useState(false);
-
-  // Fetch reviews across ALL services
-  useEffect(() => {
-    const fetchAllReviews = async () => {
-      if (services.length === 0) return;
-      setReviewsLoading(true);
-      try {
-        const allReviews: ServiceReview[] = [];
-        await Promise.all(
-          services.map(async (service) => {
-            try {
-              const response = await userServicesApi.getReviews(service.id, { limit: 10 });
-              if (response.success && response.data?.reviews) {
-                const serviceReviews = response.data.reviews.map((r: any) => ({
-                  ...r,
-                  service_title: service.title,
-                }));
-                allReviews.push(...serviceReviews);
-              }
-            } catch { /* ignore individual failures */ }
-          })
-        );
-        // Sort by most recent first
-        allReviews.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-        setReviews(allReviews.slice(0, 10));
-      } catch {
-        // ignore
-      } finally {
-        setReviewsLoading(false);
-      }
-    };
-    fetchAllReviews();
-  }, [services]);
+  // Use reviews from API list endpoint directly
+  const reviews = (recentReviews || []).map((r: any) => ({
+    id: r.id,
+    rating: r.rating,
+    comment: r.comment,
+    user_name: r.user_name,
+    user_avatar: r.user_avatar,
+    created_at: r.created_at,
+    service_title: r.service_title,
+    service_id: r.service_id || '',
+    user_id: '',
+    verified_booking: false,
+  })) as ServiceReview[];
+  const reviewsLoading = loading;
   const [packageDialogOpen, setPackageDialogOpen] = useState(false);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [packageForm, setPackageForm] = useState({
@@ -449,11 +427,12 @@ const MyServices = () => {
               {reviews.map((review: any) => (
                 <div key={review.id} className="flex gap-4 p-4 border rounded-lg">
                   <Avatar className="flex-shrink-0">
-                    {review.user_avatar && !review.user_avatar.includes('unsplash') && !review.user_avatar.includes('placeholder') && !review.user_avatar.includes('randomuser') ? (
-                      <AvatarImage src={review.user_avatar} alt={review.user_name} />
-                    ) : null}
+                    {(() => {
+                      const avatar = (review as any).user_avatar || (review as any).reviewer_avatar || (review as any).user?.avatar || (review as any).reviewer?.avatar;
+                      return avatar ? <AvatarImage src={avatar} alt={(review as any).user_name || 'Reviewer'} /> : null;
+                    })()}
                     <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                      {review.user_name ? review.user_name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() : 'U'}
+                      {(review as any).user_name ? (review as any).user_name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() : 'U'}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">

@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from 'react';
-import { CreditCard, Check, Sparkles, Zap, Shield, Gift, QrCode, Users, Clock, Star, Printer, Download, Loader2, Phone } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { CreditCard, Check, Sparkles, Zap, Shield, Gift, QrCode, Users, Clock, Star, Printer, Download, Loader2, Phone, Package } from 'lucide-react';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -30,7 +30,7 @@ const NuruCards = () => {
 
   // Order dialog state
   const [orderOpen, setOrderOpen] = useState(false);
-  const [orderType, setOrderType] = useState<'regular' | 'premium'>('regular');
+  const [orderType, setOrderType] = useState<'standard' | 'premium'>('standard');
   const [ordering, setOrdering] = useState(false);
   const [orderForm, setOrderForm] = useState({
     holder_name: '',
@@ -44,6 +44,22 @@ const NuruCards = () => {
     payment_method: 'cash',
   });
   const [exporting, setExporting] = useState(false);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+
+  // Fetch user's card orders
+  const fetchOrders = useCallback(async () => {
+    setOrdersLoading(true);
+    try {
+      const res = await nuruCardsApi.getMyOrders();
+      if (res.success) setOrders(res.data || []);
+    } catch { /* silent */ }
+    finally { setOrdersLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   const captureCardAsImage = async (): Promise<HTMLCanvasElement | null> => {
     if (!printRef.current) return null;
@@ -94,7 +110,7 @@ const NuruCards = () => {
     }
   }, [card]);
 
-  const openOrderDialog = (type: 'regular' | 'premium') => {
+  const openOrderDialog = (type: 'standard' | 'premium') => {
     setOrderType(type);
     setOrderForm(prev => ({ ...prev, template: type === 'premium' ? 'gold_premium' : 'standard_blue' }));
     setOrderOpen(true);
@@ -129,6 +145,7 @@ const NuruCards = () => {
         toast({ title: 'Card Ordered!', description: `Your ${orderType} Nuru Card order has been placed successfully.` });
         setOrderOpen(false);
         refetch();
+        fetchOrders();
       } else {
         toast({ title: 'Error', description: res.message || 'Failed to order card.', variant: 'destructive' });
       }
@@ -269,7 +286,7 @@ const NuruCards = () => {
                   </li>
                 ))}
               </ul>
-              <Button className="w-full mt-4" onClick={() => openOrderDialog('regular')}>
+              <Button className="w-full mt-4" onClick={() => openOrderDialog('standard')}>
                 Request Regular Card
               </Button>
             </CardContent>
@@ -330,6 +347,34 @@ const NuruCards = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* My Orders */}
+        {orders.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="w-5 h-5" /> My Card Orders
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {orders.map((order: any) => (
+                  <div key={order.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
+                    <div>
+                      <p className="font-medium capitalize">{order.card_type} Card</p>
+                      <p className="text-sm text-muted-foreground">{order.delivery_name} · {order.delivery_city}</p>
+                      <p className="text-xs text-muted-foreground">{order.created_at ? new Date(order.created_at).toLocaleDateString() : ''}</p>
+                    </div>
+                    <div className="text-right">
+                      <Badge variant={order.status === 'delivered' ? 'default' : 'outline'} className="capitalize">{order.status}</Badge>
+                      {order.amount > 0 && <p className="text-sm font-medium mt-1">TZS {Number(order.amount).toLocaleString()}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Order Dialog */}
         <OrderDialog
@@ -449,7 +494,7 @@ const NuruCards = () => {
 interface OrderDialogProps {
   open: boolean;
   onClose: () => void;
-  orderType: 'regular' | 'premium';
+  orderType: 'standard' | 'premium';
   form: any;
   setForm: React.Dispatch<React.SetStateAction<any>>;
   templates: { value: string; label: string }[];

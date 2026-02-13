@@ -581,8 +581,13 @@ export const useCommunities = () => {
     fetchCommunities();
   }, [fetchCommunities]);
 
-  const createCommunity = async (data: { name: string; description?: string; is_public?: boolean }) => {
-    const response = await socialApi.createCommunity(data);
+  const createCommunity = async (data: { name: string; description?: string; is_public?: boolean }, coverImage?: File) => {
+    const formData = new FormData();
+    formData.append('name', data.name);
+    if (data.description) formData.append('description', data.description);
+    formData.append('is_public', String(data.is_public ?? true));
+    if (coverImage) formData.append('cover_image', coverImage);
+    const response = await socialApi.createCommunity(formData);
     if (response.success) { await fetchCommunities(); return response.data; }
     throwApiError(response);
   };

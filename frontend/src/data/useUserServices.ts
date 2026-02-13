@@ -13,11 +13,13 @@ interface ServicesSummary {
 // Module-level cache for user services
 let _userServicesCache: UserService[] = [];
 let _userServicesSummaryCache: ServicesSummary | null = null;
+let _userServicesRecentReviewsCache: any[] = [];
 let _userServicesHasLoaded = false;
 
 export const useUserServices = () => {
   const [services, setServices] = useState<UserService[]>(_userServicesCache);
   const [summary, setSummary] = useState<ServicesSummary | null>(_userServicesSummaryCache);
+  const [recentReviews, setRecentReviews] = useState<any[]>(_userServicesRecentReviewsCache);
   const [loading, setLoading] = useState(!_userServicesHasLoaded);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,17 +33,21 @@ export const useUserServices = () => {
         const data = response.data as any;
         let items: UserService[] = [];
         let sum: ServicesSummary | null = null;
+        let reviews: any[] = [];
         if (data.services && Array.isArray(data.services)) {
           items = data.services;
           sum = data.summary || null;
+          reviews = data.recent_reviews || [];
         } else if (Array.isArray(data)) {
           items = data;
         }
         _userServicesCache = items;
         _userServicesSummaryCache = sum;
+        _userServicesRecentReviewsCache = reviews;
         _userServicesHasLoaded = true;
         setServices(items);
         setSummary(sum);
+        setRecentReviews(reviews);
       } else {
         setError(response.message || "Failed to fetch user services");
       }
@@ -56,7 +62,7 @@ export const useUserServices = () => {
     fetchServices();
   }, [fetchServices]);
 
-  return { services, summary, loading, error, refetch: fetchServices };
+  return { services, summary, recentReviews, loading, error, refetch: fetchServices };
 };
 
 // ============================================================================

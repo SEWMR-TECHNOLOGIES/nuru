@@ -3,7 +3,7 @@ import {
   HelpCircle, 
   Settings,
   Briefcase,
-  Bookmark,
+  
   User,
   Users,
   UsersRound,
@@ -44,7 +44,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
     { lucideIcon: Briefcase, label: 'My Services', path: '/my-services' },
     { lucideIcon: ClipboardList, label: 'Bookings', path: '/bookings' },
     { customIcon: CardIcon, label: 'Nuru Cards', path: '/nuru-cards' },
-    { lucideIcon: Bookmark, label: 'Saved Posts', path: '/saved-posts' },
+    
     { lucideIcon: Users, label: 'My Circle', path: '/circle' },
     { lucideIcon: UsersRound, label: 'Communities', path: '/communities' },
     { lucideIcon: HelpCircle, label: 'Help', path: '/help' },

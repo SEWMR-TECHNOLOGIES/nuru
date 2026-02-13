@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Heart, MessageCircle, Share2, Send, MoreHorizontal, Loader2, Bookmark, Flag, ChevronDown, CornerDownRight } from 'lucide-react';
+import { ChevronLeft, Heart, MessageCircle, Share2, Send, MoreHorizontal, Loader2, Bookmark, Flag, ChevronDown, CornerDownRight, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { socialApi } from '@/lib/api/social';
@@ -186,8 +186,17 @@ const EchoItem = ({
     }
   };
 
-  const handleDeleteReply = (replyId: string) => {
-    setReplies(prev => prev.filter(r => r.id !== replyId));
+  const handleDeleteReply = async (replyId: string) => {
+    try {
+      const res = await socialApi.deleteComment(postId, replyId);
+      if (res.success) {
+        setReplies(prev => prev.filter(r => r.id !== replyId));
+        onReplyAdded(); // triggers count update
+        toast.success('Reply deleted');
+      }
+    } catch {
+      toast.error('Failed to delete reply');
+    }
   };
 
   // Allow deeper threading (replies to replies)
@@ -249,7 +258,7 @@ const EchoItem = ({
           </div>
 
           {/* View / collapse replies button */}
-          {replyCount > 0 && depth === 0 && (
+          {replyCount > 0 && (
             <button
               onClick={() => {
                 if (showReplies) {
@@ -542,7 +551,7 @@ const PostDetail = () => {
               <h3 className="font-semibold text-foreground text-sm md:text-base truncate">{authorName}</h3>
               <p className="text-xs md:text-sm text-muted-foreground">
                 {postTimeAgo}
-                {postLocation && <span> · 📍 {postLocation}</span>}
+                {postLocation && <span className="inline-flex items-center gap-0.5"> · <MapPin className="w-3 h-3 inline" /> {postLocation}</span>}
               </p>
             </div>
           </div>

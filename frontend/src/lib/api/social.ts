@@ -2,7 +2,7 @@
  * Social API - Feed, posts, moments, followers, circles
  */
 
-import { get, post, put, del, postFormData, buildQueryString } from "./helpers";
+import { get, post, put, del, postFormData, putFormData, buildQueryString } from "./helpers";
 import type { 
   FeedPost, 
   Moment, 
@@ -175,8 +175,8 @@ export const socialApi = {
     post<any>(`/communities/${communityId}/posts/${postId}/glow`),
   unglowCommunityPost: (communityId: string, postId: string) =>
     del<any>(`/communities/${communityId}/posts/${postId}/glow`),
-  createCommunity: (data: { name: string; description?: string; is_public?: boolean }) =>
-    post<any>("/communities", data),
+  createCommunity: (formData: FormData) =>
+    postFormData<any>("/communities", formData),
   joinCommunity: (communityId: string) =>
     post<any>(`/communities/${communityId}/join`),
   leaveCommunity: (communityId: string) =>
@@ -185,6 +185,11 @@ export const socialApi = {
     post<any>(`/communities/${communityId}/members`, { user_id: userId }),
   removeCommunityMember: (communityId: string, userId: string) =>
     del<any>(`/communities/${communityId}/members/${userId}`),
+  updateCommunityCover: (communityId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('cover_image', file);
+    return putFormData<any>(`/communities/${communityId}/cover`, formData);
+  },
 
   // ============================================================================
   // NOTIFICATIONS

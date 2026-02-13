@@ -457,10 +457,11 @@ const ServiceDetail = () => {
           ) : reviews.length > 0 ? reviews.map((review) => (
             <div key={review.id} className="border-b pb-4 last:border-b-0">
               <div className="flex items-start gap-4">
-                <Avatar>
-                  {(review as any).user_avatar && !((review as any).user_avatar?.includes('unsplash.com') || (review as any).user_avatar?.includes('placeholder') || (review as any).user_avatar?.includes('randomuser.me')) ? (
-                    <AvatarImage src={(review as any).user_avatar} alt={review.user_name} />
-                  ) : null}
+              <Avatar>
+                  {(() => {
+                    const avatar = (review as any).user_avatar || (review as any).reviewer_avatar || (review as any).user?.avatar || (review as any).reviewer?.avatar;
+                    return avatar ? <AvatarImage src={avatar} alt={review.user_name || 'Reviewer'} /> : null;
+                  })()}
                   <AvatarFallback className="bg-primary/10 text-primary font-semibold">
                     {(review.user_name || 'A').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                   </AvatarFallback>

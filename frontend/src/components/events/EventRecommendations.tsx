@@ -95,7 +95,7 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
       setFetched(false);
       fetchRecommendations();
     }
-  }, [eventTypeId]);
+  }, [eventTypeId, fetchRecommendations]);
 
   const getServiceImage = (service: RecommendedService): string | undefined => {
     if (service.primary_image) {

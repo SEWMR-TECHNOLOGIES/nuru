@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Heart, MessageCircle, Share2, MoreHorizontal } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { socialApi } from '@/lib/api/social';
@@ -8,6 +8,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from 'sonner';
 
 interface MomentProps {
@@ -28,6 +34,7 @@ interface MomentProps {
     likes: number;
     comments: number;
     has_glowed?: boolean;
+    has_saved?: boolean;
   };
 }
 
@@ -42,7 +49,8 @@ const Moment = ({ post }: MomentProps) => {
   const [glowCount, setGlowCount] = useState(post.likes);
   const [glowing, setGlowing] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const navigate = useNavigate();
+  const [saved, setSaved] = useState(post.has_saved || false);
+  const [saving, setSaving] = useState(false);
 
   const handleGlow = async () => {
     if (glowing) return;
@@ -59,6 +67,26 @@ const Moment = ({ post }: MomentProps) => {
       toast.error('Failed to update glow');
     } finally {
       setGlowing(false);
+    }
+  };
+
+  const navigate = useNavigate();
+
+  const handleSave = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (saving) return;
+    setSaving(true);
+    const wasSaved = saved;
+    setSaved(!wasSaved);
+    try {
+      if (wasSaved) await socialApi.unsavePost(post.id);
+      else await socialApi.savePost(post.id);
+      toast.success(wasSaved ? 'Unsaved' : 'Saved!');
+    } catch {
+      setSaved(wasSaved);
+      toast.error('Failed to save');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -131,9 +159,12 @@ const Moment = ({ post }: MomentProps) => {
           </div>
         </div>
 
-        <Button variant="ghost" size="sm" className="text-muted-foreground">
-          <MoreHorizontal className="w-4 h-4" />
-        </Button>
+        <button
+          onClick={handleSave}
+          className="p-1.5 rounded-full text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <Bookmark className={`w-4 h-4 ${saved ? 'fill-current text-primary' : ''}`} />
+        </button>
       </div>
 
       {/* Images */}

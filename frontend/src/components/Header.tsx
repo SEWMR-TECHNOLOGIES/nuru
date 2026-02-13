@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, User, Settings, LogOut, Sparkles } from 'lucide-react';
+import { Search, User, Settings, LogOut, Sparkles, Bookmark } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -189,6 +189,17 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
               >
                 <img src={CardIcon} alt="Cards" className="w-4 h-4" />
                 Nuru Cards
+              </Button>
+              <Button
+                variant="ghost"
+                className="justify-start gap-2"
+                onClick={() => {
+                  setPopoverOpen(false);
+                  navigate('/saved-posts');
+                }}
+              >
+                <Bookmark className="w-4 h-4" />
+                Saved Posts
               </Button>
               <Separator className="my-1" />
               <Button

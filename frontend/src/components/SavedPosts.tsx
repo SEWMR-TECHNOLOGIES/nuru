@@ -18,7 +18,7 @@ const SavedPosts = () => {
       .then((res) => {
         if (res.success) {
           const data = res.data as any;
-          setPosts(data?.posts || data?.items || (Array.isArray(data) ? data : []));
+          setPosts(data?.saved_posts || data?.posts || data?.items || (Array.isArray(data) ? data : []));
         }
       })
       .catch(() => toast.error('Failed to load saved posts'))

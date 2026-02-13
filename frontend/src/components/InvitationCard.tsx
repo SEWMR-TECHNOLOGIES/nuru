@@ -4,7 +4,6 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { eventsApi } from '@/lib/api/events';
-import jsPDF from 'jspdf';
 
 interface InvitationCardProps {
   eventId: string;
@@ -16,7 +15,7 @@ const InvitationCard = ({ eventId, open, onClose }: InvitationCardProps) => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [exporting, setExporting] = useState(false);
+  const [exporting] = useState(false);
   const qrCanvasRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -54,234 +53,94 @@ const InvitationCard = ({ eventId, open, onClose }: InvitationCardProps) => {
   const accentGold = '#D4A574';
   const accentLight = '#E8C9A0';
 
-  const getQrImage = useCallback((): HTMLCanvasElement | null => {
-    if (!qrCanvasRef.current) return null;
-    return qrCanvasRef.current.querySelector('canvas') || null;
+  const getQrDataUrl = useCallback((): string => {
+    if (!qrCanvasRef.current) return '';
+    const canvas = qrCanvasRef.current.querySelector('canvas');
+    return canvas ? canvas.toDataURL('image/png') : '';
   }, []);
 
-  const drawCardToCanvas = useCallback((scale = 3): HTMLCanvasElement => {
-    const W = 420 * scale;
-    const H = 620 * scale;
-    const canvas = document.createElement('canvas');
-    canvas.width = W;
-    canvas.height = H;
-    const ctx = canvas.getContext('2d')!;
-    const s = scale;
+  const buildInvitationHtml = useCallback(() => {
+    const qrImg = getQrDataUrl();
+    const rsvp = data?.guest?.rsvp_status ? rsvpLabel(data.guest.rsvp_status) : null;
 
-    // Rich dark background
-    const bg = ctx.createLinearGradient(0, 0, W * 0.5, H);
-    bg.addColorStop(0, '#0B0F1A');
-    bg.addColorStop(0.5, '#111827');
-    bg.addColorStop(1, '#0B0F1A');
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, W, H);
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Event Invitation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f5f3ef; font-family: 'Segoe UI', system-ui, sans-serif; }
+  .card { width: 420px; background: linear-gradient(180deg, #0B0F1A 0%, #111827 50%, #0B0F1A 100%); border-radius: 12px; position: relative; overflow: hidden; text-align: center; }
+  .top-line, .bottom-line { height: 2px; margin: 0 15%; background: ${accentGold}; }
+  .content { padding: 44px 36px 0; position: relative; }
+  .invite-label { font-size: 9px; letter-spacing: 6px; color: ${accentGold}90; font-weight: 400; margin-bottom: 26px; text-transform: uppercase; }
+  .event-title { font-family: 'Playfair Display', Georgia, serif; font-size: 28px; font-weight: 700; color: #F9FAFB; line-height: 1.3; margin-bottom: 8px; }
+  .divider { width: 40px; height: 1.5px; background: ${accentGold}; margin: 16px auto; }
+  .event-type { font-size: 10px; letter-spacing: 3px; font-weight: 500; color: ${accentLight}; text-transform: uppercase; margin-top: 8px; }
+  .details { padding: 28px 36px 0; }
+  .detail-date { font-size: 14px; font-weight: 500; color: #D1D5DB; margin-bottom: 6px; }
+  .detail-sub { font-size: 13px; color: #9CA3AF; margin-bottom: 6px; }
+  .detail-dress { font-size: 11px; color: #6B7280; margin-top: 8px; }
+  .qr-section { margin: 28px auto 0; }
+  .qr-border { display: inline-block; padding: 8px; border: 1px solid ${accentGold}20; border-radius: 8px; }
+  .qr-border img { width: 80px; height: 80px; }
+  .scan-label { font-size: 7px; color: rgba(255,255,255,0.25); margin-top: 10px; letter-spacing: 4px; text-transform: uppercase; }
+  .guest-section { margin: 26px 36px 0; }
+  .guest-line { width: 50px; height: 1px; background: ${accentGold}28; margin: 0 auto 14px; }
+  .guest-name { font-family: 'Playfair Display', Georgia, serif; font-size: 20px; font-weight: 600; color: #F9FAFB; }
+  .rsvp-pill { display: inline-block; margin-top: 12px; padding: 4px 18px; border-radius: 20px; font-size: 8px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; background: transparent; }
+  .footer { padding: 24px 36px 28px; }
+  .hosted-by { font-size: 10px; color: rgba(255,255,255,0.3); }
+  .hosted-name { font-weight: 500; color: rgba(255,255,255,0.5); }
+  .inv-code { font-size: 7px; color: rgba(255,255,255,0.12); margin-top: 10px; letter-spacing: 4px; font-family: 'Courier New', monospace; }
+  @media print { body { background: white; } .card { border-radius: 0; } }
+  @page { size: auto; margin: 10mm; }
+</style></head><body>
+<div class="card">
+  <div class="top-line"></div>
+  <div class="content">
+    <p class="invite-label">You are invited to</p>
+    <h2 class="event-title">${data?.event?.title || 'Event'}</h2>
+    <div class="divider"></div>
+    ${data?.event?.event_type ? `<p class="event-type">${data.event.event_type}</p>` : ''}
+  </div>
+  <div class="details">
+    ${data?.event?.start_date ? `<p class="detail-date">${formatDate(data.event.start_date)}</p>` : ''}
+    ${data?.event?.start_time ? `<p class="detail-sub">${data.event.start_time}</p>` : ''}
+    ${data?.event?.venue || data?.event?.location ? `<p class="detail-sub">${data.event.venue || data.event.location}</p>` : ''}
+    ${data?.event?.dress_code ? `<p class="detail-dress">Dress Code: ${data.event.dress_code}</p>` : ''}
+  </div>
+  <div class="qr-section">
+    ${qrImg ? `<div class="qr-border"><img src="${qrImg}" alt="QR Code" /></div>` : ''}
+    <p class="scan-label">Scan to check in</p>
+  </div>
+  <div class="guest-section">
+    <div class="guest-line"></div>
+    <p class="guest-name">${data?.guest?.name || ''}</p>
+    ${rsvp ? `<span class="rsvp-pill" style="color:${rsvp.color};border:1.5px solid ${rsvp.border}">${rsvp.label}</span>` : ''}
+  </div>
+  <div class="footer">
+    ${data?.organizer?.name ? `<p class="hosted-by">Hosted by <span class="hosted-name">${data.organizer.name}</span></p>` : ''}
+    ${data?.invitation_code ? `<p class="inv-code">${data.invitation_code}</p>` : ''}
+  </div>
+  <div class="bottom-line"></div>
+</div>
+</body></html>`;
+  }, [data, getQrDataUrl]);
 
-    // Subtle radial glow at top center
-    const glow = ctx.createRadialGradient(W / 2, 80 * s, 0, W / 2, 80 * s, 200 * s);
-    glow.addColorStop(0, 'rgba(212, 165, 116, 0.08)');
-    glow.addColorStop(1, 'rgba(212, 165, 116, 0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, W, H);
-
-    // Thin top accent line
-    ctx.fillStyle = accentGold;
-    ctx.fillRect(W * 0.15, 0, W * 0.7, 2 * s);
-
-    // Corner accents (L-shaped)
-    const cornerLen = 30 * s;
-    const cornerThick = 1.5 * s;
-    const cornerMargin = 20 * s;
-    ctx.fillStyle = `${accentGold}40`;
-    // Top-left
-    ctx.fillRect(cornerMargin, cornerMargin, cornerLen, cornerThick);
-    ctx.fillRect(cornerMargin, cornerMargin, cornerThick, cornerLen);
-    // Top-right
-    ctx.fillRect(W - cornerMargin - cornerLen, cornerMargin, cornerLen, cornerThick);
-    ctx.fillRect(W - cornerMargin - cornerThick, cornerMargin, cornerThick, cornerLen);
-    // Bottom-left
-    ctx.fillRect(cornerMargin, H - cornerMargin - cornerThick, cornerLen, cornerThick);
-    ctx.fillRect(cornerMargin, H - cornerMargin - cornerLen, cornerThick, cornerLen);
-    // Bottom-right
-    ctx.fillRect(W - cornerMargin - cornerLen, H - cornerMargin - cornerThick, cornerLen, cornerThick);
-    ctx.fillRect(W - cornerMargin - cornerThick, H - cornerMargin - cornerLen, cornerThick, cornerLen);
-
-    let y = 56 * s;
-
-    // "YOU ARE INVITED TO"
-    ctx.textAlign = 'center';
-    ctx.fillStyle = `${accentGold}90`;
-    ctx.font = `400 ${8 * s}px 'Segoe UI', system-ui, sans-serif`;
-    ctx.letterSpacing = `${6 * s}px`;
-    ctx.fillText('Y O U   A R E   I N V I T E D   T O', W / 2, y);
-    y += 32 * s;
-
-    // Event title
-    ctx.fillStyle = '#F9FAFB';
-    ctx.font = `700 ${26 * s}px Georgia, 'Playfair Display', serif`;
-    const title = data?.event?.title || 'Event';
-    const maxTitleW = W - 80 * s;
-    const words = title.split(' ');
-    let line = '';
-    const titleLines: string[] = [];
-    for (const word of words) {
-      const test = line ? `${line} ${word}` : word;
-      if (ctx.measureText(test).width > maxTitleW) { titleLines.push(line); line = word; }
-      else line = test;
-    }
-    if (line) titleLines.push(line);
-    for (const tl of titleLines) { ctx.fillText(tl, W / 2, y); y += 32 * s; }
-
-    // Minimal divider
-    y += 4 * s;
-    const divW = 40 * s;
-    ctx.fillStyle = accentGold;
-    ctx.fillRect((W - divW) / 2, y, divW, 1.5 * s);
-    y += 24 * s;
-
-    // Event type
-    if (data?.event?.event_type) {
-      ctx.font = `500 ${9 * s}px 'Segoe UI', system-ui, sans-serif`;
-      ctx.fillStyle = accentLight;
-      ctx.fillText(data.event.event_type.toUpperCase(), W / 2, y);
-      y += 28 * s;
-    }
-
-    // Date & Time
-    if (data?.event?.start_date) {
-      ctx.font = `500 ${12 * s}px 'Segoe UI', system-ui, sans-serif`;
-      ctx.fillStyle = '#D1D5DB';
-      const dateStr = formatDate(data.event.start_date);
-      ctx.fillText(dateStr, W / 2, y);
-      y += 18 * s;
-      if (data.event.start_time) {
-        ctx.font = `400 ${11 * s}px 'Segoe UI', system-ui, sans-serif`;
-        ctx.fillStyle = '#9CA3AF';
-        ctx.fillText(data.event.start_time, W / 2, y);
-        y += 18 * s;
-      }
-    }
-
-    // Venue
-    if (data?.event?.venue || data?.event?.location) {
-      ctx.font = `400 ${11 * s}px 'Segoe UI', system-ui, sans-serif`;
-      ctx.fillStyle = '#9CA3AF';
-      ctx.fillText(data.event.venue || data.event.location, W / 2, y);
-      y += 18 * s;
-    }
-
-    // Dress code
-    if (data?.event?.dress_code) {
-      ctx.font = `400 ${10 * s}px 'Segoe UI', system-ui, sans-serif`;
-      ctx.fillStyle = '#6B7280';
-      ctx.fillText(`Dress Code: ${data.event.dress_code}`, W / 2, y);
-      y += 18 * s;
-    }
-
-    y += 12 * s;
-
-    // QR Code with subtle border
-    const qrSize = 80 * s;
-    const qrCanvas = getQrImage();
-    const qrX = (W - qrSize) / 2;
-    if (qrCanvas) {
-      // Subtle rounded border around QR
-      ctx.strokeStyle = `${accentGold}25`;
-      ctx.lineWidth = 1 * s;
-      ctx.beginPath();
-      ctx.roundRect(qrX - 8 * s, y - 8 * s, qrSize + 16 * s, qrSize + 16 * s, 8 * s);
-      ctx.stroke();
-      ctx.drawImage(qrCanvas, qrX, y, qrSize, qrSize);
-    }
-    y += qrSize + 14 * s;
-
-    ctx.font = `400 ${7 * s}px 'Segoe UI', system-ui, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    ctx.fillText('S C A N   T O   C H E C K   I N', W / 2, y);
-    y += 30 * s;
-
-    // Guest name with thin line above
-    const nameLineW = 60 * s;
-    ctx.fillStyle = `${accentGold}30`;
-    ctx.fillRect((W - nameLineW) / 2, y - 10 * s, nameLineW, 1 * s);
-
-    ctx.fillStyle = '#F9FAFB';
-    ctx.font = `600 ${20 * s}px Georgia, 'Playfair Display', serif`;
-    ctx.fillText(data?.guest?.name || '', W / 2, y + 8 * s);
-    y += 24 * s;
-
-    // RSVP status
-    if (data?.guest?.rsvp_status) {
-      y += 6 * s;
-      const r = rsvpLabel(data.guest.rsvp_status);
-      ctx.font = `600 ${8 * s}px 'Segoe UI', system-ui, sans-serif`;
-      const rw = ctx.measureText(r.label).width + 24 * s;
-      // Pill outline style
-      ctx.strokeStyle = r.border;
-      ctx.lineWidth = 1.5 * s;
-      ctx.beginPath();
-      ctx.roundRect((W - rw) / 2, y - 9 * s, rw, 18 * s, 9 * s);
-      ctx.stroke();
-      ctx.fillStyle = r.color;
-      ctx.fillText(r.label, W / 2, y + 3 * s);
-      y += 24 * s;
-    }
-
-    // Hosted by
-    if (data?.organizer?.name) {
-      y += 4 * s;
-      ctx.font = `400 ${9 * s}px 'Segoe UI', system-ui, sans-serif`;
-      ctx.fillStyle = 'rgba(255,255,255,0.3)';
-      ctx.fillText(`Hosted by ${data.organizer.name}`, W / 2, y);
-      y += 14 * s;
-    }
-
-    // Invitation code
-    if (data?.invitation_code) {
-      ctx.font = `400 ${7 * s}px 'Courier New', monospace`;
-      ctx.fillStyle = 'rgba(255,255,255,0.12)';
-      ctx.fillText(data.invitation_code, W / 2, y);
-    }
-
-    // Bottom accent line
-    ctx.fillStyle = accentGold;
-    ctx.fillRect(W * 0.15, H - 2 * s, W * 0.7, 2 * s);
-
-    return canvas;
-  }, [data, getQrImage]);
-
-  const handleDownloadPdf = async () => {
-    setExporting(true);
-    try {
-      await new Promise(r => setTimeout(r, 100));
-      const canvas = drawCardToCanvas(3);
-      const imgData = canvas.toDataURL('image/png');
-      const pdfW = canvas.width * 0.264583 / 3;
-      const pdfH = canvas.height * 0.264583 / 3;
-      const pdf = new jsPDF({ orientation: pdfW > pdfH ? 'l' : 'p', unit: 'mm', format: [pdfW, pdfH] });
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
-      pdf.save(`invitation-${data?.event?.title?.replace(/\s+/g, '-').toLowerCase() || 'card'}.pdf`);
-    } finally {
-      setExporting(false);
+  const handleDownloadPdf = () => {
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(buildInvitationHtml());
+      printWindow.document.close();
+      setTimeout(() => printWindow.print(), 500);
     }
   };
 
-  const handlePrint = async () => {
-    setExporting(true);
-    try {
-      await new Promise(r => setTimeout(r, 100));
-      const canvas = drawCardToCanvas(3);
-      const imgData = canvas.toDataURL('image/png');
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) return;
-      printWindow.document.write(`
-        <!DOCTYPE html><html><head><title>Event Invitation</title>
-        <style>* { margin: 0; padding: 0; } body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f5f3ef; } img { max-width: 420px; width: 100%; height: auto; } @media print { body { background: white; } }</style>
-        </head><body><img src="${imgData}" /></body></html>
-      `);
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(buildInvitationHtml());
       printWindow.document.close();
-      setTimeout(() => printWindow.print(), 300);
-    } finally {
-      setExporting(false);
+      setTimeout(() => printWindow.print(), 500);
     }
   };
 

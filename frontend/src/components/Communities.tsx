@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Users, Search, LogOut, Crown, Loader2 } from 'lucide-react';
+import { Plus, Users, Search, LogOut, Crown, Loader2, ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
@@ -37,6 +37,17 @@ const Communities = () => {
     name: '',
     description: ''
   });
+  const [coverImage, setCoverImage] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const coverFileRef = useRef<HTMLInputElement>(null);
+
+  const handleCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCoverImage(file);
+      setCoverPreview(URL.createObjectURL(file));
+    }
+  };
 
   const handleCreateCommunity = async () => {
     if (!newCommunity.name.trim() || !newCommunity.description.trim()) {
@@ -49,9 +60,11 @@ const Communities = () => {
       await createCommunity({
         name: newCommunity.name,
         description: newCommunity.description
-      });
+      }, coverImage || undefined);
       toast.success('Community created successfully!');
       setNewCommunity({ name: '', description: '' });
+      setCoverImage(null);
+      setCoverPreview(null);
       setIsCreateDialogOpen(false);
     } catch (err) {
       toast.error('Failed to create community');
@@ -141,7 +154,10 @@ const Communities = () => {
           </p>
         </div>
 
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+          setIsCreateDialogOpen(open);
+          if (!open) { setCoverImage(null); setCoverPreview(null); }
+        }}>
           <DialogTrigger asChild>
             <Button className="bg-nuru-yellow hover:bg-nuru-yellow/90 text-foreground w-full md:w-auto">
               <Plus className="w-4 h-4 mr-2" />
@@ -153,6 +169,31 @@ const Communities = () => {
               <DialogTitle>Create New Community</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 mt-4">
+              {/* Cover Image Upload */}
+              <div>
+                <Label>Cover Image</Label>
+                <div
+                  className="mt-1 relative h-32 w-full rounded-lg border-2 border-dashed border-border bg-muted/30 flex items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors overflow-hidden"
+                  onClick={() => coverFileRef.current?.click()}
+                >
+                  {coverPreview ? (
+                    <img src={coverPreview} alt="Cover preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="text-center">
+                      <ImageIcon className="w-8 h-8 mx-auto text-muted-foreground mb-1" />
+                      <p className="text-xs text-muted-foreground">Click to add cover image</p>
+                    </div>
+                  )}
+                </div>
+                <input
+                  ref={coverFileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleCoverSelect}
+                  disabled={isSubmitting}
+                />
+              </div>
               <div>
                 <Label htmlFor="name">Community Name</Label>
                 <Input
@@ -246,7 +287,7 @@ const Communities = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleLeaveCommunity(community.id)}
+                    onClick={(e) => { e.stopPropagation(); handleLeaveCommunity(community.id); }}
                     className="w-full"
                     disabled={community.is_creator}
                   >
@@ -292,7 +333,7 @@ const Communities = () => {
                     </span>
                   </div>
                   <Button
-                    onClick={() => handleJoinCommunity(community.id)}
+                    onClick={(e) => { e.stopPropagation(); handleJoinCommunity(community.id); }}
                     className="w-full bg-nuru-yellow hover:bg-nuru-yellow/90 text-foreground"
                   >
                     <Plus className="w-4 h-4 mr-2" />

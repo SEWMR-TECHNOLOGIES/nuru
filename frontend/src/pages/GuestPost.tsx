@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2 } from 'lucide-react';
+import { Heart, MessageCircle, Share2, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getTimeAgo } from '@/utils/getTimeAgo';
@@ -136,7 +136,7 @@ const GuestPost = () => {
               <h3 className="font-semibold text-foreground text-sm md:text-base">{authorName}</h3>
               <p className="text-xs text-muted-foreground">
                 {postTimeAgo}
-                {postLocation && <span> · 📍 {postLocation}</span>}
+                {postLocation && <span className="inline-flex items-center gap-0.5"> · <MapPin className="w-3 h-3 inline" /> {postLocation}</span>}
               </p>
             </div>
           </div>

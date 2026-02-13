@@ -9,7 +9,7 @@ export interface CardQueryParams {
   page?: number;
   limit?: number;
   status?: "active" | "inactive" | "suspended" | "all";
-  card_type?: "regular" | "premium" | "all";
+  card_type?: "standard" | "premium" | "all";
 }
 
 export const nuruCardsApi = {
@@ -29,7 +29,12 @@ export const nuruCardsApi = {
   /**
    * Get my cards
    */
-  getMyCards: () => get<NuruCard[]>("/nuru-cards/my"),
+  getMyCards: () => get<NuruCard[]>("/nuru-cards/"),
+
+  /**
+   * Get my card orders
+   */
+  getMyOrders: () => get<any[]>("/nuru-cards/my-orders"),
 
   /**
    * Get card details
@@ -46,7 +51,7 @@ export const nuruCardsApi = {
    * Order a new card (per API doc 17.3)
    */
   orderCard: (data: {
-    type: "regular" | "premium";
+    type: "standard" | "premium";
     holder_name: string;
     template?: string;
     nfc_enabled?: boolean;
