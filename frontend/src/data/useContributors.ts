@@ -23,8 +23,8 @@ export const useEventContributors = (eventId: string | null) => {
       let allContributors: EventContributorSummary[] = [];
       let currentPage = 1;
       const pageLimit = 100; // backend max limit
-      let lastSummary: any = null;
-      let lastPagination: any = null;
+      let firstSummary: any = null;
+      let firstPagination: any = null;
 
       // Auto-paginate through all pages
       while (true) {
@@ -36,11 +36,14 @@ export const useEventContributors = (eventId: string | null) => {
 
         if (response.success) {
           allContributors = [...allContributors, ...response.data.event_contributors];
-          lastSummary = response.data.summary;
-          lastPagination = response.data.pagination;
+          // Capture summary & pagination from the FIRST page (backend aggregates are only on page 1)
+          if (currentPage === 1) {
+            firstSummary = response.data.summary;
+            firstPagination = response.data.pagination;
+          }
 
           // Stop if we've fetched all pages
-          const totalPages = lastPagination?.total_pages || 1;
+          const totalPages = (currentPage === 1 ? firstPagination : response.data.pagination)?.total_pages || 1;
           if (currentPage >= totalPages) break;
           currentPage++;
         } else {
@@ -50,8 +53,8 @@ export const useEventContributors = (eventId: string | null) => {
       }
 
       setEventContributors(allContributors);
-      setSummary(lastSummary);
-      setPagination(lastPagination);
+      setSummary(firstSummary);
+      setPagination(firstPagination);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
