@@ -52,8 +52,17 @@ export const useEventContributors = (eventId: string | null) => {
         }
       }
 
+      // Compute summary client-side from ALL contributors (backend summary is per-page, not global)
+      const computedSummary = {
+        total_pledged: allContributors.reduce((sum, c) => sum + (c.pledge_amount || 0), 0),
+        total_paid: allContributors.reduce((sum, c) => sum + (c.total_paid || 0), 0),
+        total_balance: allContributors.reduce((sum, c) => sum + (c.balance || 0), 0),
+        count: allContributors.length,
+        currency: firstSummary?.currency || 'TZS',
+      };
+
       setEventContributors(allContributors);
-      setSummary(firstSummary);
+      setSummary(computedSummary);
       setPagination(firstPagination);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
