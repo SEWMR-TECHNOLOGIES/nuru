@@ -512,6 +512,16 @@ def delete_comment(post_id: str, comment_id: str, db: Session = Depends(get_db),
     if not c:
         return standard_response(False, "Comment not found")
     c.is_active = False
+    # Cascade soft-delete all child replies recursively
+    def soft_delete_children(parent_id):
+        children = db.query(UserFeedComment).filter(
+            UserFeedComment.parent_comment_id == parent_id,
+            UserFeedComment.is_active == True,
+        ).all()
+        for child in children:
+            child.is_active = False
+            soft_delete_children(child.id)
+    soft_delete_children(c.id)
     # Decrement parent reply count if this is a reply
     if c.parent_comment_id:
         parent = db.query(UserFeedComment).filter(UserFeedComment.id == c.parent_comment_id).first()
