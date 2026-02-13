@@ -15,8 +15,9 @@ from core.database import get_db
 from models import (
     UserContributor, EventContributor, EventContribution,
     Event, User, Currency,
+    EventCommitteeMember, CommitteePermission,
 )
-from models.enums import PaymentMethodEnum
+from models.enums import PaymentMethodEnum, ContributionStatusEnum
 from utils.auth import get_current_user
 from utils.helpers import standard_response, format_phone_display
 from utils.validation_functions import validate_tanzanian_phone
@@ -43,8 +44,8 @@ def _contributor_dict(c: UserContributor) -> dict:
     }
 
 
-def _event_contributor_dict(ec: EventContributor) -> dict:
-    total_paid = sum(float(c.amount or 0) for c in ec.contributions)
+def _event_contributor_dict(ec: EventContributor, show_recorder: bool = False) -> dict:
+    total_paid = sum(float(c.amount or 0) for c in ec.contributions if not hasattr(c, 'confirmation_status') or c.confirmation_status is None or c.confirmation_status == ContributionStatusEnum.confirmed)
     pledge = float(ec.pledge_amount or 0)
     return {
         "id": str(ec.id),
@@ -58,6 +59,26 @@ def _event_contributor_dict(ec: EventContributor) -> dict:
         "created_at": ec.created_at.isoformat() if ec.created_at else None,
         "updated_at": ec.updated_at.isoformat() if ec.updated_at else None,
     }
+
+
+def _get_event_access(db: Session, event_id, current_user) -> tuple:
+    """Returns (event, is_creator, committee_member_or_None, permissions_or_None)"""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        return None, False, None, None
+    is_creator = str(event.organizer_id) == str(current_user.id)
+    if is_creator:
+        return event, True, None, None
+    cm = db.query(EventCommitteeMember).filter(
+        EventCommitteeMember.event_id == event_id,
+        EventCommitteeMember.user_id == current_user.id,
+    ).first()
+    if not cm:
+        return event, False, None, None
+    perms = db.query(CommitteePermission).filter(
+        CommitteePermission.committee_member_id == cm.id
+    ).first()
+    return event, False, cm, perms
 
 
 def _currency_code(db: Session, event: Event) -> str:
@@ -235,9 +256,14 @@ def get_event_contributors(
     except ValueError:
         return standard_response(False, "Invalid event ID")
 
-    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
+    event, is_creator, cm, perms = _get_event_access(db, eid, current_user)
     if not event:
+        return standard_response(False, "Event not found")
+    if not is_creator and not cm:
         return standard_response(False, "Event not found or access denied")
+
+    # Use organizer's contributors for non-creators
+    owner_id = event.organizer_id
 
     q = db.query(EventContributor).options(
         joinedload(EventContributor.contributor),
@@ -286,9 +312,14 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
     except ValueError:
         return standard_response(False, "Invalid event ID")
 
-    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
+    event, is_creator, cm, perms = _get_event_access(db, eid, current_user)
     if not event:
+        return standard_response(False, "Event not found")
+    if not is_creator and not cm:
         return standard_response(False, "Event not found or access denied")
+
+    # Use organizer's user_id for contributor address book lookups
+    owner_id = event.organizer_id
 
     now = datetime.now(EAT)
     contributor_id = body.get("contributor_id")
@@ -300,9 +331,9 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
         except ValueError:
             return standard_response(False, "Invalid contributor ID")
 
-        contributor = db.query(UserContributor).filter(UserContributor.id == cid, UserContributor.user_id == current_user.id).first()
+        contributor = db.query(UserContributor).filter(UserContributor.id == cid, UserContributor.user_id == owner_id).first()
         if not contributor:
-            return standard_response(False, "Contributor not found in your address book")
+            return standard_response(False, "Contributor not found in address book")
     else:
         # Create new contributor inline
         name = (body.get("name") or "").strip()
@@ -310,7 +341,7 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
             return standard_response(False, "Name is required for new contributors")
 
         contributor = db.query(UserContributor).filter(
-            UserContributor.user_id == current_user.id,
+            UserContributor.user_id == owner_id,
             UserContributor.name == name,
         ).first()
 
@@ -323,7 +354,7 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
                     return standard_response(False, str(e))
             contributor = UserContributor(
                 id=uuid.uuid4(),
-                user_id=current_user.id,
+                user_id=owner_id,
                 name=name,
                 email=(body.get("email") or "").strip() or None,
                 phone=inline_phone,
@@ -386,8 +417,8 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
     except ValueError:
         return standard_response(False, "Invalid ID")
 
-    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
-    if not event:
+    event, is_creator, cm, perms = _get_event_access(db, eid, current_user)
+    if not event or (not is_creator and not cm):
         return standard_response(False, "Event not found or access denied")
 
     ec = db.query(EventContributor).options(
@@ -434,9 +465,9 @@ def remove_from_event(event_id: str, ec_id: str, db: Session = Depends(get_db), 
     except ValueError:
         return standard_response(False, "Invalid ID")
 
-    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
-    if not event:
-        return standard_response(False, "Event not found or access denied")
+    event, is_creator, cm_del, perms_del = _get_event_access(db, eid, current_user)
+    if not event or not is_creator:
+        return standard_response(False, "Only event creator can remove contributors")
 
     ec = db.query(EventContributor).filter(EventContributor.id == ecid, EventContributor.event_id == eid).first()
     if not ec:
@@ -460,9 +491,13 @@ def record_payment(event_id: str, ec_id: str, body: dict = Body(...), db: Sessio
     except ValueError:
         return standard_response(False, "Invalid ID")
 
-    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
+    event, is_creator, cm, perms = _get_event_access(db, eid, current_user)
     if not event:
-        return standard_response(False, "Event not found or access denied")
+        return standard_response(False, "Event not found")
+    # Must be creator or have manage_contributions permission
+    if not is_creator:
+        if not cm or not perms or not perms.can_manage_contributions:
+            return standard_response(False, "You do not have permission to record contributions")
 
     ec = db.query(EventContributor).options(
         joinedload(EventContributor.contributor),
@@ -483,6 +518,9 @@ def record_payment(event_id: str, ec_id: str, body: dict = Body(...), db: Sessio
             pass
 
     now = datetime.now(EAT)
+    # If recorded by committee member (not creator), status is pending
+    confirmation_status = ContributionStatusEnum.confirmed if is_creator else ContributionStatusEnum.pending
+    
     contribution = EventContribution(
         id=uuid.uuid4(),
         event_id=eid,
@@ -491,6 +529,9 @@ def record_payment(event_id: str, ec_id: str, body: dict = Body(...), db: Sessio
         amount=float(amount),
         payment_method=payment_method,
         transaction_ref=(body.get("payment_reference") or "").strip() or None,
+        recorded_by=current_user.id if not is_creator else None,
+        confirmation_status=confirmation_status,
+        confirmed_at=now if is_creator else None,
         contributed_at=now,
         created_at=now,
         updated_at=now,
@@ -498,7 +539,7 @@ def record_payment(event_id: str, ec_id: str, body: dict = Body(...), db: Sessio
     db.add(contribution)
     db.commit()
 
-    # Send SMS to contributor using their phone directly (contributors are NOT nuru users)
+    # Send SMS to contributor
     contributor = ec.contributor
     if contributor and contributor.phone:
         try:
@@ -508,10 +549,12 @@ def record_payment(event_id: str, ec_id: str, body: dict = Body(...), db: Sessio
             currency = _currency_code(db, event)
             organizer = db.query(User).filter(User.id == event.organizer_id).first()
             organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
+            recorder_name = f"{current_user.first_name} {current_user.last_name}" if not is_creator else None
             sms_contribution_recorded(
                 contributor.phone, contributor.name,
                 event.name, float(amount), pledge, total_paid, currency,
-                organizer_phone=organizer_phone
+                organizer_phone=organizer_phone,
+                recorder_name=recorder_name,
             )
         except Exception:
             pass
@@ -521,6 +564,7 @@ def record_payment(event_id: str, ec_id: str, body: dict = Body(...), db: Sessio
         "amount": float(contribution.amount),
         "payment_method": payment_method_str,
         "payment_reference": contribution.transaction_ref,
+        "confirmation_status": confirmation_status.value,
         "created_at": contribution.created_at.isoformat(),
     })
 
@@ -534,8 +578,8 @@ def send_thank_you_sms(event_id: str, ec_id: str, body: dict = Body(default={}),
     except ValueError:
         return standard_response(False, "Invalid ID")
 
-    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
-    if not event:
+    event, is_creator, cm_ty, perms_ty = _get_event_access(db, eid, current_user)
+    if not event or (not is_creator and not cm_ty):
         return standard_response(False, "Event not found or access denied")
 
     ec = db.query(EventContributor).options(
@@ -577,9 +621,10 @@ def bulk_add_contributors(event_id: str, body: dict = Body(...), db: Session = D
     except ValueError:
         return standard_response(False, "Invalid event ID")
 
+    # Bulk upload is CREATOR ONLY
     event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
     if not event:
-        return standard_response(False, "Event not found or access denied")
+        return standard_response(False, "Only event creator can perform bulk uploads")
 
     rows = body.get("contributors", [])
     if not rows or not isinstance(rows, list):
@@ -762,8 +807,8 @@ def get_payment_history(event_id: str, ec_id: str, db: Session = Depends(get_db)
     except ValueError:
         return standard_response(False, "Invalid ID")
 
-    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
-    if not event:
+    event, is_creator, cm_ph, perms_ph = _get_event_access(db, eid, current_user)
+    if not event or (not is_creator and not cm_ph):
         return standard_response(False, "Event not found or access denied")
 
     ec = db.query(EventContributor).options(
@@ -784,6 +829,131 @@ def get_payment_history(event_id: str, ec_id: str, db: Session = Depends(get_db)
             "amount": float(p.amount),
             "payment_method": p.payment_method.value if p.payment_method else None,
             "payment_reference": p.transaction_ref,
+            "confirmation_status": p.confirmation_status.value if p.confirmation_status else "confirmed",
+            "recorded_by_name": (
+                f"{p.recorder.first_name} {p.recorder.last_name}" if is_creator and p.recorded_by and hasattr(p, 'recorder') and p.recorder else None
+            ),
             "created_at": p.created_at.isoformat() if p.created_at else None,
         } for p in payments],
     })
+
+
+# ══════════════════════════════════════════════
+# CONTRIBUTION CONFIRMATION (Creator only)
+# ══════════════════════════════════════════════
+
+@router.get("/events/{event_id}/pending-contributions")
+def get_pending_contributions(event_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Get all pending contributions awaiting creator confirmation."""
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID")
+
+    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
+    if not event:
+        return standard_response(False, "Only event creator can view pending contributions")
+
+    pending = db.query(EventContribution).filter(
+        EventContribution.event_id == eid,
+        EventContribution.confirmation_status == ContributionStatusEnum.pending,
+    ).order_by(EventContribution.created_at.desc()).all()
+
+    items = []
+    for c in pending:
+        ec = db.query(EventContributor).options(
+            joinedload(EventContributor.contributor),
+        ).filter(EventContributor.id == c.event_contributor_id).first()
+        recorder = db.query(User).filter(User.id == c.recorded_by).first() if c.recorded_by else None
+        items.append({
+            "id": str(c.id),
+            "contributor_name": ec.contributor.name if ec and ec.contributor else c.contributor_name,
+            "contributor_phone": ec.contributor.phone if ec and ec.contributor else None,
+            "amount": float(c.amount),
+            "payment_method": c.payment_method.value if c.payment_method else None,
+            "transaction_ref": c.transaction_ref,
+            "recorded_by": f"{recorder.first_name} {recorder.last_name}" if recorder else None,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        })
+
+    return standard_response(True, "Pending contributions fetched", {"contributions": items, "count": len(items)})
+
+
+@router.get("/events/{event_id}/my-recorded-contributions")
+def get_my_recorded_contributions(event_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Get contributions recorded by the current committee member."""
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID")
+
+    event, is_creator, cm, perms = _get_event_access(db, eid, current_user)
+    if not event:
+        return standard_response(False, "Event not found")
+    if is_creator:
+        return standard_response(False, "Event creator cannot use this endpoint; use pending-contributions instead")
+    if not cm or not perms or not perms.can_manage_contributions:
+        return standard_response(False, "You do not have permission to record contributions")
+
+    # Get all contributions recorded by this committee member
+    contributions = db.query(EventContribution).filter(
+        EventContribution.event_id == eid,
+        EventContribution.recorded_by == current_user.id,
+    ).order_by(EventContribution.created_at.desc()).all()
+
+    items = []
+    for c in contributions:
+        ec = db.query(EventContributor).options(
+            joinedload(EventContributor.contributor),
+        ).filter(EventContributor.id == c.event_contributor_id).first()
+        items.append({
+            "id": str(c.id),
+            "contributor_name": ec.contributor.name if ec and ec.contributor else c.contributor_name,
+            "contributor_phone": ec.contributor.phone if ec and ec.contributor else None,
+            "amount": float(c.amount),
+            "payment_method": c.payment_method.value if c.payment_method else None,
+            "transaction_ref": c.transaction_ref,
+            "confirmation_status": c.confirmation_status.value if c.confirmation_status else "confirmed",
+            "confirmed_at": c.confirmed_at.isoformat() if c.confirmed_at else None,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        })
+
+    return standard_response(True, "Your recorded contributions fetched", {"contributions": items, "count": len(items)})
+
+
+@router.post("/events/{event_id}/confirm-contributions")
+def confirm_contributions(event_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Confirm one or more pending contributions. Body: { contribution_ids: [...] }"""
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID")
+
+    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
+    if not event:
+        return standard_response(False, "Only event creator can confirm contributions")
+
+    ids = body.get("contribution_ids", [])
+    if not ids:
+        return standard_response(False, "No contribution IDs provided")
+
+    now = datetime.now(EAT)
+    confirmed_count = 0
+    for cid_str in ids:
+        try:
+            cid = uuid.UUID(cid_str)
+        except ValueError:
+            continue
+        c = db.query(EventContribution).filter(
+            EventContribution.id == cid,
+            EventContribution.event_id == eid,
+            EventContribution.confirmation_status == ContributionStatusEnum.pending,
+        ).first()
+        if c:
+            c.confirmation_status = ContributionStatusEnum.confirmed
+            c.confirmed_at = now
+            c.updated_at = now
+            confirmed_count += 1
+
+    db.commit()
+    return standard_response(True, f"{confirmed_count} contributions confirmed", {"confirmed": confirmed_count})

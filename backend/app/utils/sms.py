@@ -41,15 +41,23 @@ def sms_committee_invite(phone: str, member_name: str, event_title: str, role: s
     _send(phone, msg)
 
 
-def sms_contribution_recorded(phone: str, contributor_name: str, event_title: str, amount: float, target: float, total_paid: float, currency: str = "TZS", organizer_phone: str = None):
+def sms_contribution_recorded(phone: str, contributor_name: str, event_title: str, amount: float, target: float, total_paid: float, currency: str = "TZS", organizer_phone: str = None, recorder_name: str = None):
     """Notify contributor that their payment has been recorded."""
     balance = max(0, target - total_paid)
-    msg = (
-        f"Hello {contributor_name}, your contribution of {currency} {amount:,.0f} "
-        f"to {event_title} has been recorded. "
-        f"Target: {currency} {target:,.0f}, Paid: {currency} {total_paid:,.0f}, "
-        f"Balance: {currency} {balance:,.0f}."
-    )
+    if recorder_name:
+        msg = (
+            f"Hello {contributor_name}, {recorder_name} has recorded your contribution of {currency} {amount:,.0f} "
+            f"for {event_title}. "
+            f"Target: {currency} {target:,.0f}, Paid: {currency} {total_paid:,.0f}, "
+            f"Balance: {currency} {balance:,.0f}."
+        )
+    else:
+        msg = (
+            f"Hello {contributor_name}, your contribution of {currency} {amount:,.0f} "
+            f"to {event_title} has been recorded. "
+            f"Target: {currency} {target:,.0f}, Paid: {currency} {total_paid:,.0f}, "
+            f"Balance: {currency} {balance:,.0f}."
+        )
     if organizer_phone:
         msg += f" For inquiries, contact the organizer at {organizer_phone}."
     _send(phone, msg)

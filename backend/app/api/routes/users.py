@@ -234,10 +234,9 @@ async def verify_otp(request: Request, db: Session = Depends(get_db)):
 
     otp_entry.is_used = True
 
+    # Delete ALL OTP records for this user and verification type to save space
     db.query(UserVerificationOTP).filter(
         UserVerificationOTP.user_id == user.id,
-        UserVerificationOTP.verification_type == OTPVerificationTypeEnum[verification_type],
-        UserVerificationOTP.is_used == False,
         UserVerificationOTP.id != otp_entry.id
     ).delete(synchronize_session=False)
 
@@ -245,6 +244,9 @@ async def verify_otp(request: Request, db: Session = Depends(get_db)):
         user.is_email_verified = True
     else:
         user.is_phone_verified = True
+
+    # Also delete the used OTP entry itself
+    db.delete(otp_entry)
 
     db.commit()
 

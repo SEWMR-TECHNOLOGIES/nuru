@@ -157,14 +157,37 @@ async def _upload_image(file: UploadFile, target_folder: str) -> dict:
     return {"success": True, "url": result["data"]["url"], "error": None}
 
 
-def _verify_event_access(db: Session, event_id, current_user):
+def _verify_event_access(db: Session, event_id, current_user, required_permission: str = None):
+    """
+    Verify event access with optional permission check.
+    If required_permission is None: any committee member or creator can access (view-only).
+    If required_permission is set: creator always passes; committee needs that permission.
+    Returns (event, error_response).
+    """
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         return None, standard_response(False, "Event not found")
-    if str(event.organizer_id) != str(current_user.id):
-        cm = db.query(EventCommitteeMember).filter(EventCommitteeMember.event_id == event_id, EventCommitteeMember.user_id == current_user.id).first()
-        if not cm:
-            return None, standard_response(False, "You do not have permission to access this event")
+
+    is_creator = str(event.organizer_id) == str(current_user.id)
+    if is_creator:
+        return event, None
+
+    cm = db.query(EventCommitteeMember).filter(
+        EventCommitteeMember.event_id == event_id,
+        EventCommitteeMember.user_id == current_user.id,
+    ).first()
+    if not cm:
+        return None, standard_response(False, "You do not have permission to access this event")
+
+    if not required_permission:
+        return event, None
+
+    perms = db.query(CommitteePermission).filter(
+        CommitteePermission.committee_member_id == cm.id
+    ).first()
+    if not perms or not getattr(perms, required_permission, False):
+        return None, standard_response(False, "You do not have permission to perform this action")
+
     return event, None
 
 
@@ -183,6 +206,56 @@ PERMISSION_MAP = {
     "approve_bookings": "can_approve_bookings", "edit_event": "can_edit_event",
     "manage_committee": "can_manage_committee",
 }
+
+
+# ──────────────────────────────────────────────
+# Get Current User's Permissions for an Event
+# ──────────────────────────────────────────────
+@router.get("/{event_id}/my-permissions")
+def get_my_permissions(
+    event_id: str,
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+):
+    """Returns the current user's role and permissions for a given event."""
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID format.")
+
+    event = db.query(Event).filter(Event.id == eid).first()
+    if not event:
+        return standard_response(False, "Event not found")
+
+    is_creator = str(event.organizer_id) == str(current_user.id)
+    if is_creator:
+        # Creator has all permissions
+        perms = {field: True for field in PERMISSION_FIELDS}
+        return standard_response(True, "Permissions retrieved", {
+            "is_creator": True, "role": "creator", **perms,
+        })
+
+    cm = db.query(EventCommitteeMember).filter(
+        EventCommitteeMember.event_id == eid,
+        EventCommitteeMember.user_id == current_user.id,
+    ).first()
+    if not cm:
+        perms = {field: False for field in PERMISSION_FIELDS}
+        return standard_response(True, "Permissions retrieved", {
+            "is_creator": False, "role": None, **perms,
+        })
+
+    role_obj = db.query(CommitteeRole).filter(CommitteeRole.id == cm.role_id).first() if cm.role_id else None
+    perm_row = db.query(CommitteePermission).filter(CommitteePermission.committee_member_id == cm.id).first()
+
+    perms = {}
+    for field in PERMISSION_FIELDS:
+        perms[field] = bool(getattr(perm_row, field, False)) if perm_row else False
+
+    return standard_response(True, "Permissions retrieved", {
+        "is_creator": False,
+        "role": role_obj.name if role_obj else (cm.custom_role or "member"),
+        **perms,
+    })
 
 
 # ──────────────────────────────────────────────
@@ -896,7 +969,7 @@ async def upload_event_images(event_id: str, images: List[UploadFile] = File(...
     except ValueError:
         return standard_response(False, "Invalid event ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_edit_event")
     if err:
         return err
 
@@ -926,7 +999,7 @@ def delete_event_image(event_id: str, image_id: str, db: Session = Depends(get_d
     except ValueError:
         return standard_response(False, "Invalid ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_edit_event")
     if err:
         return err
 
@@ -949,7 +1022,7 @@ def update_event_settings(event_id: str, body: dict = Body(...), db: Session = D
     except ValueError:
         return standard_response(False, "Invalid event ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_edit_event")
     if err:
         return err
 
@@ -1015,7 +1088,7 @@ def get_guests(event_id: str, page: int = 1, limit: int = 50, rsvp_status: str =
     except ValueError:
         return standard_response(False, "Invalid event ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_view_guests")
     if err:
         return err
 
@@ -1052,7 +1125,7 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
     except ValueError:
         return standard_response(False, "Invalid event ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_manage_guests")
     if err:
         return err
 
@@ -1117,7 +1190,7 @@ def add_guests_bulk(event_id: str, body: dict = Body(...), db: Session = Depends
     except ValueError:
         return standard_response(False, "Invalid event ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_manage_guests")
     if err:
         return err
 
@@ -1166,7 +1239,7 @@ def update_guest(event_id: str, guest_id: str, body: dict = Body(...), db: Sessi
     except ValueError:
         return standard_response(False, "Invalid ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_manage_guests")
     if err:
         return err
 
@@ -1198,7 +1271,7 @@ def remove_guest(event_id: str, guest_id: str, db: Session = Depends(get_db), cu
     except ValueError:
         return standard_response(False, "Invalid ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_manage_guests")
     if err:
         return err
 
@@ -1218,7 +1291,7 @@ def remove_guests_bulk(event_id: str, body: dict = Body(...), db: Session = Depe
     except ValueError:
         return standard_response(False, "Invalid event ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_manage_guests")
     if err:
         return err
 
@@ -1244,7 +1317,7 @@ def send_invitation(event_id: str, guest_id: str, body: dict = Body(default={}),
     except ValueError:
         return standard_response(False, "Invalid ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_send_invitations")
     if err:
         return err
 
@@ -1276,7 +1349,7 @@ def send_bulk_invitations(event_id: str, body: dict = Body(default={}), db: Sess
     except ValueError:
         return standard_response(False, "Invalid event ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_send_invitations")
     if err:
         return err
 
@@ -1309,7 +1382,7 @@ def checkin_guest(event_id: str, guest_id: str, body: dict = Body(default={}), d
     except ValueError:
         return standard_response(False, "Invalid ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_check_in_guests")
     if err:
         return err
 
@@ -1338,6 +1411,11 @@ def checkin_guest_qr(event_id: str, body: dict = Body(...), db: Session = Depend
         eid = uuid.UUID(event_id)
     except ValueError:
         return standard_response(False, "Invalid event ID format.")
+
+    # Permission check: must be creator or have can_check_in_guests
+    event, err = _verify_event_access(db, eid, current_user, "can_check_in_guests")
+    if err:
+        return err
 
     code = body.get("code", "").strip()
     if not code:
@@ -1373,7 +1451,7 @@ def undo_checkin(event_id: str, guest_id: str, db: Session = Depends(get_db), cu
     except ValueError:
         return standard_response(False, "Invalid ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_check_in_guests")
     if err:
         return err
 
@@ -1396,7 +1474,7 @@ def export_guests(event_id: str, db: Session = Depends(get_db), current_user: Us
     except ValueError:
         return standard_response(False, "Invalid event ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_view_guests")
     if err:
         return err
 
@@ -1880,7 +1958,7 @@ def update_contribution_target(event_id: str, body: dict = Body(...), db: Sessio
     except ValueError:
         return standard_response(False, "Invalid event ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_manage_contributions")
     if err:
         return err
 
@@ -1943,7 +2021,7 @@ def add_schedule_item(event_id: str, body: dict = Body(...), db: Session = Depen
     except ValueError:
         return standard_response(False, "Invalid event ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_edit_event")
     if err:
         return err
 
@@ -1977,7 +2055,7 @@ def update_schedule_item(event_id: str, item_id: str, body: dict = Body(...), db
     except ValueError:
         return standard_response(False, "Invalid ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_edit_event")
     if err:
         return err
 
@@ -2012,7 +2090,7 @@ def delete_schedule_item(event_id: str, item_id: str, db: Session = Depends(get_
     except ValueError:
         return standard_response(False, "Invalid ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_edit_event")
     if err:
         return err
 
@@ -2032,7 +2110,7 @@ def reorder_schedule(event_id: str, body: dict = Body(...), db: Session = Depend
     except ValueError:
         return standard_response(False, "Invalid event ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_edit_event")
     if err:
         return err
 
@@ -2060,6 +2138,10 @@ def get_budget(event_id: str, db: Session = Depends(get_db), current_user: User 
     except ValueError:
         return standard_response(False, "Invalid event ID format.")
 
+    event, err = _verify_event_access(db, eid, current_user, "can_view_budget")
+    if err:
+        return err
+
     items = db.query(EventBudgetItem).filter(EventBudgetItem.event_id == eid).all()
     total_estimated = sum(float(bi.estimated_cost) for bi in items if bi.estimated_cost)
     total_actual = sum(float(bi.actual_cost) for bi in items if bi.actual_cost)
@@ -2077,7 +2159,7 @@ def add_budget_item(event_id: str, body: dict = Body(...), db: Session = Depends
     except ValueError:
         return standard_response(False, "Invalid event ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_manage_budget")
     if err:
         return err
 
@@ -2097,7 +2179,7 @@ def update_budget_item(event_id: str, item_id: str, body: dict = Body(...), db: 
     except ValueError:
         return standard_response(False, "Invalid ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_manage_budget")
     if err:
         return err
 
@@ -2123,7 +2205,7 @@ def delete_budget_item(event_id: str, item_id: str, db: Session = Depends(get_db
     except ValueError:
         return standard_response(False, "Invalid ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_manage_budget")
     if err:
         return err
 
@@ -2181,7 +2263,7 @@ def get_event_services(event_id: str, db: Session = Depends(get_db), current_use
     except ValueError:
         return standard_response(False, "Invalid event ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_view_vendors")
     if err:
         return err
 
@@ -2196,7 +2278,7 @@ def add_event_service(event_id: str, body: dict = Body(...), db: Session = Depen
     except ValueError:
         return standard_response(False, "Invalid event ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_manage_vendors")
     if err:
         return err
 
@@ -2270,7 +2352,7 @@ def update_event_service(event_id: str, service_id: str, body: dict = Body(...),
     except ValueError:
         return standard_response(False, "Invalid ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_manage_vendors")
     if err:
         return err
 
@@ -2295,7 +2377,7 @@ def remove_event_service(event_id: str, service_id: str, db: Session = Depends(g
     except ValueError:
         return standard_response(False, "Invalid ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_manage_vendors")
     if err:
         return err
 
@@ -2316,7 +2398,7 @@ def record_service_payment(event_id: str, service_id: str, body: dict = Body(...
     except ValueError:
         return standard_response(False, "Invalid ID format.")
 
-    event, err = _verify_event_access(db, eid, current_user)
+    event, err = _verify_event_access(db, eid, current_user, "can_approve_bookings")
     if err:
         return err
 

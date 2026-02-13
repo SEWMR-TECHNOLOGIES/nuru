@@ -137,6 +137,12 @@ class CardTypeEnum(enum.Enum):
     custom = "custom"
 
 
+class ContributionStatusEnum(enum.Enum):
+    confirmed = "confirmed"
+    pending = "pending"
+    rejected = "rejected"
+
+
 class ChatSessionStatusEnum(enum.Enum):
     waiting = "waiting"
     active = "active"

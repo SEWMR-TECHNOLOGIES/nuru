@@ -25,6 +25,7 @@ CREATE TYPE sticker_type AS ENUM ('poll', 'question', 'countdown', 'mention', 'l
 CREATE TYPE card_order_status AS ENUM ('pending', 'processing', 'shipped', 'delivered', 'cancelled');
 CREATE TYPE card_type AS ENUM ('standard', 'premium', 'custom');
 CREATE TYPE chat_session_status AS ENUM ('waiting', 'active', 'ended', 'abandoned');
+CREATE TYPE contribution_status_enum AS ENUM ('confirmed', 'pending', 'rejected');
 
 CREATE TABLE IF NOT EXISTS currencies (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1401,3 +1402,8 @@ ALTER TABLE conversations DROP CONSTRAINT uq_user_to_user;
 CREATE UNIQUE INDEX uq_user_to_user ON conversations (user_one_id, user_two_id) WHERE service_id IS NULL;
 
 ALTER TABLE nuru_cards ALTER COLUMN card_number TYPE VARCHAR(20)
+
+ALTER TABLE event_contributions 
+  ADD COLUMN recorded_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  ADD COLUMN confirmation_status contribution_status_enum DEFAULT 'confirmed',
+  ADD COLUMN confirmed_at TIMESTAMP;

@@ -22,6 +22,7 @@ from models.enums import (
     StickerTypeEnum,
     CardOrderStatusEnum,
     CardTypeEnum,
+    ContributionStatusEnum,
     ChatSessionStatusEnum,
     FeedVisibilityEnum,
 )
@@ -1413,6 +1414,9 @@ class EventContribution(Base):
     amount = Column(Numeric, nullable=False)
     payment_method = Column(Enum(PaymentMethodEnum, name="payment_method_enum"))
     transaction_ref = Column(Text)
+    recorded_by = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    confirmation_status = Column(Enum(ContributionStatusEnum, name="contribution_status_enum"), default=ContributionStatusEnum.confirmed)
+    confirmed_at = Column(DateTime, nullable=True)
     contributed_at = Column(DateTime, server_default=func.now())
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
@@ -1420,6 +1424,7 @@ class EventContribution(Base):
     # Relationships
     event = relationship("Event", back_populates="contributions")
     event_contributor = relationship("EventContributor", back_populates="contributions")
+    recorder = relationship("User", foreign_keys=[recorded_by])
     thank_you_message = relationship("ContributionThankYouMessage", back_populates="contribution", uselist=False)
 
 

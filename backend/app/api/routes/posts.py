@@ -217,6 +217,46 @@ def get_user_posts(user_id: str, page: int = 1, limit: int = 20, db: Session = D
     items, pagination = paginate(query, page, limit)
     return standard_response(True, "User posts retrieved", {"posts": [_post_dict(db, p, current_user.id) for p in items], "pagination": pagination})
 
+@router.get("/public/trending")
+def get_public_trending_posts(limit: int = 12, db: Session = Depends(get_db)):
+    """Public endpoint - returns trending public posts with images, sorted by engagement."""
+    from sqlalchemy import or_, desc
+
+    # Only public, active posts that have at least one image
+    posts_with_images = (
+        db.query(UserFeed)
+        .filter(
+            UserFeed.is_active == True,
+            or_(
+                UserFeed.visibility == FeedVisibilityEnum.public,
+                UserFeed.visibility.is_(None),
+            ),
+        )
+        .join(UserFeedImage, UserFeedImage.feed_id == UserFeed.id)
+        .distinct()
+        .all()
+    )
+
+    if not posts_with_images:
+        return standard_response(True, "No public moments", [])
+
+    # Score by engagement (glows + echoes + comments)
+    scored = []
+    for post in posts_with_images:
+        glows = db.query(sa_func.count(UserFeedGlow.id)).filter(UserFeedGlow.feed_id == post.id).scalar() or 0
+        echoes = db.query(sa_func.count(UserFeedEcho.id)).filter(UserFeedEcho.feed_id == post.id).scalar() or 0
+        comments = db.query(sa_func.count(UserFeedComment.id)).filter(
+            UserFeedComment.feed_id == post.id, UserFeedComment.is_active == True
+        ).scalar() or 0
+        score = glows * 2 + echoes * 3 + comments
+        scored.append((post, score))
+
+    # Sort by score desc, then by newest
+    scored.sort(key=lambda x: (-x[1], x[0].created_at), reverse=False)
+    top = [p for p, _ in scored[:limit]]
+
+    return standard_response(True, "Trending moments", [_post_dict(db, p) for p in top])
+
 
 @router.get("/{post_id}/public")
 def get_post_public(post_id: str, db: Session = Depends(get_db)):
