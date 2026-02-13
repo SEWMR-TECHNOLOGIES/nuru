@@ -1,5 +1,6 @@
 /**
  * Data hooks for user contributors and event contributors
+ * FIXED: Auto-pagination to load all contributors (not just first 50)
  */
 import { useState, useEffect, useCallback } from "react";
 import { contributorsApi, UserContributor, EventContributorSummary, ContributorPayment } from "@/lib/api/contributors";
@@ -19,14 +20,38 @@ export const useEventContributors = (eventId: string | null) => {
   const fetchEventContributors = useCallback(async (params?: { page?: number; limit?: number; search?: string }) => {
     if (!eventId) return;
     try {
-      const response = await contributorsApi.getEventContributors(eventId, params);
-      if (response.success) {
-        setEventContributors(response.data.event_contributors);
-        setSummary(response.data.summary);
-        setPagination(response.data.pagination);
-      } else {
-        setError(response.message || "Failed to fetch event contributors");
+      let allContributors: EventContributorSummary[] = [];
+      let currentPage = 1;
+      const pageLimit = 100; // backend max limit
+      let lastSummary: any = null;
+      let lastPagination: any = null;
+
+      // Auto-paginate through all pages
+      while (true) {
+        const response = await contributorsApi.getEventContributors(eventId, {
+          ...params,
+          page: currentPage,
+          limit: pageLimit,
+        });
+
+        if (response.success) {
+          allContributors = [...allContributors, ...response.data.event_contributors];
+          lastSummary = response.data.summary;
+          lastPagination = response.data.pagination;
+
+          // Stop if we've fetched all pages
+          const totalPages = lastPagination?.total_pages || 1;
+          if (currentPage >= totalPages) break;
+          currentPage++;
+        } else {
+          setError(response.message || "Failed to fetch event contributors");
+          break;
+        }
       }
+
+      setEventContributors(allContributors);
+      setSummary(lastSummary);
+      setPagination(lastPagination);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
