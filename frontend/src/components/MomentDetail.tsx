@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Heart, MessageCircle, Share2, Send, X, Loader2 } from 'lucide-react';
+import { ChevronLeft, Heart, Share2, Send, X, Loader2 } from 'lucide-react';
 import CustomImageIcon from '@/assets/icons/image-icon.svg';
 import { Button } from '@/components/ui/button';
 import {
@@ -298,13 +298,6 @@ const MomentDetail = () => {
             >
               <Heart className={`w-4 h-4 flex-shrink-0 ${glowed ? 'fill-current' : ''}`} />
               <span className="hidden sm:inline whitespace-nowrap">{glowed ? 'Glowed' : 'Glow'}</span>
-            </button>
-
-            <button
-              className="flex items-center justify-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 rounded-lg bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors text-xs md:text-sm min-w-[60px] md:min-w-[80px]"
-            >
-              <MessageCircle className="w-4 h-4 flex-shrink-0" />
-              <span className="hidden sm:inline whitespace-nowrap">Echo</span>
             </button>
           </div>
 

@@ -75,10 +75,10 @@ export const generateContributionReportHtml = (
       </div>
       
       <div class="summary">
-        <div class="summary-card"><div class="label">Total Raised</div><div class="value" style="color:#16a34a">${fmt(totalPaid)}</div></div>
         ${summary.budget ? `<div class="summary-card"><div class="label">Event Budget</div><div class="value">${fmt(summary.budget)}</div></div>` : ''}
-        ${summary.target_amount ? `<div class="summary-card"><div class="label">Contribution Target</div><div class="value">${fmt(summary.target_amount)}</div></div>` : ''}
+        <div class="summary-card"><div class="label">Total Raised</div><div class="value" style="color:#16a34a">${fmt(totalPaid)}</div></div>
         <div class="summary-card"><div class="label">Total Pledged</div><div class="value" style="color:#ca8a04">${fmt(totalPledged)}</div></div>
+        <div class="summary-card"><div class="label">Pledge Shortfall</div><div class="value" style="color:#ea580c">${fmt(Math.max(0, totalPledged - totalPaid))}</div></div>
         <div class="summary-card"><div class="label">Outstanding</div><div class="value" style="color:#dc2626">${fmt(outstanding)}</div></div>
       </div>
 

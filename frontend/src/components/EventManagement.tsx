@@ -255,7 +255,13 @@ const EventManagement = () => {
                   <div className="text-center py-8 text-muted-foreground">No services added yet. Click "Add Service" to get started.</div>
                 ) : (
                   eventServices.map((service: any) => {
-                    const serviceImage = service.service?.primary_image || service.service?.cover_image || service.service?.image_url || (Array.isArray(service.service?.images) && service.service.images.length > 0 ? (service.service.images[0]?.url || service.service.images[0]?.image_url || service.service.images[0]?.file_url || (typeof service.service.images[0] === 'string' ? service.service.images[0] : '')) : '') || service.provider_service?.primary_image || service.image || '';
+                    const extractFirstImage = (arr: any) => {
+                      if (!Array.isArray(arr) || arr.length === 0) return '';
+                      const first = arr[0];
+                      if (typeof first === 'string') return first;
+                      return first?.url || first?.image_url || first?.file_url || '';
+                    };
+                    const serviceImage = service.service?.primary_image || service.service?.cover_image || service.service?.image_url || extractFirstImage(service.service?.images) || extractFirstImage(service.service?.gallery_images) || service.provider_service?.primary_image || service.provider_service?.cover_image || service.provider_service?.image_url || extractFirstImage(service.provider_service?.images) || extractFirstImage(service.provider_service?.gallery_images) || service.image || '';
                     const statusVariant = (s: string) => {
                       switch (s) {
                         case 'completed': return 'bg-green-100 text-green-800 border-green-200';

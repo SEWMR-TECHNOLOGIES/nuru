@@ -27,6 +27,7 @@ import Communities from "@/components/Communities";
 import ProviderChat from "@/components/ProviderChat";
 import CommunityDetail from "@/components/CommunityDetail";
 import MyMoments from "@/components/MyMoments";
+import SavedPosts from "@/components/SavedPosts";
 import LiveChat from "@/components/LiveChat";
 import NuruCards from "@/components/NuruCards";
 import BookingList from "@/components/bookings/BookingList";
@@ -103,6 +104,7 @@ export default function AppRoutes() {
           <Route path="/communities/:id" element={<CommunityDetail />} />
           <Route path="/provider-chat" element={<ProviderChat />} />
           <Route path="/my-posts" element={<MyMoments />} />
+          <Route path="/saved-posts" element={<SavedPosts />} />
           <Route path="/live-chat" element={<LiveChat />} />
           <Route path="/nuru-cards" element={<NuruCards />} />
           <Route path="/bookings" element={<BookingList />} />

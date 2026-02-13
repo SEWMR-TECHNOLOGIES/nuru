@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Heart, MessageCircle, Share2, Send, MoreHorizontal, Loader2, Repeat2, Bookmark, Flag, ChevronDown, CornerDownRight } from 'lucide-react';
+import { ChevronLeft, Heart, MessageCircle, Share2, Send, MoreHorizontal, Loader2, Bookmark, Flag, ChevronDown, CornerDownRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { socialApi } from '@/lib/api/social';
@@ -190,8 +190,8 @@ const EchoItem = ({
     setReplies(prev => prev.filter(r => r.id !== replyId));
   };
 
-  // Max nesting depth for UI (like Facebook: 1 level of replies)
-  const maxDepth = 1;
+  // Allow deeper threading (replies to replies)
+  const maxDepth = 5;
 
   return (
     <div className={`${depth > 0 ? 'ml-8 md:ml-10' : ''}`}>
@@ -327,8 +327,6 @@ const PostDetail = () => {
   const [glowed, setGlowed] = useState(false);
   const [glowCount, setGlowCount] = useState(0);
   const [commentCount, setCommentCount] = useState(0);
-  const [echoed, setEchoed] = useState(false);
-  const [echoLoading, setEchoLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -349,7 +347,6 @@ const PostDetail = () => {
           setGlowed(d.has_glowed || false);
           setGlowCount(d.glow_count || 0);
           setCommentCount(d.comment_count || 0);
-          setEchoed(d.has_echoed || false);
           setSaved(d.has_saved || false);
         }
       })
@@ -386,26 +383,6 @@ const PostDetail = () => {
       setGlowed(wasGlowed);
       setGlowCount(prev => wasGlowed ? prev + 1 : prev - 1);
       toast.error('Failed to update glow');
-    }
-  };
-
-  const handleEcho = async () => {
-    if (!id || echoLoading) return;
-    setEchoLoading(true);
-    try {
-      if (echoed) {
-        await socialApi.unechoPost(id);
-        setEchoed(false);
-        toast.success('Echo removed');
-      } else {
-        await socialApi.echoPost(id);
-        setEchoed(true);
-        toast.success('Echoed!');
-      }
-    } catch {
-      toast.error('Failed to echo');
-    } finally {
-      setEchoLoading(false);
     }
   };
 
@@ -631,16 +608,7 @@ const PostDetail = () => {
               <span className="hidden sm:inline">{glowed ? 'Glowed' : 'Glow'}</span>
             </button>
 
-            <button
-              onClick={handleEcho}
-              disabled={echoLoading}
-              className={`flex items-center gap-1.5 px-2 md:px-3 py-1 rounded-lg transition-colors text-xs md:text-sm ${
-                echoed ? 'bg-green-100 text-green-600' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
-            >
-              <Repeat2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
-              <span className="hidden sm:inline">{echoed ? 'Echoed' : 'Echo'}</span>
-            </button>
+
 
             <Popover open={shareOpen} onOpenChange={setShareOpen}>
               <PopoverTrigger asChild>

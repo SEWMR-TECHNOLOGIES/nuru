@@ -38,6 +38,8 @@ interface EventContributionsProps {
   eventBudget?: number;
 }
 
+// EventContributions needs eventBudget for display
+
 const PAYMENT_METHODS = [
   { id: 'cash', name: 'Cash' },
   { id: 'mobile', name: 'Mobile Money' },
@@ -403,10 +405,13 @@ const EventContributions = ({ eventId, eventTitle, eventBudget }: EventContribut
   return (
     <div className="space-y-6">
       <ConfirmDialog />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        {eventBudget ? (
+          <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Event Budget</p><p className="text-lg font-bold">{formatPrice(eventBudget)}</p></div><div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center"><DollarSign className="w-4 h-4 text-blue-600" /></div></div></CardContent></Card>
+        ) : null}
         <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Total Raised</p><p className="text-lg font-bold text-green-600">{formatPrice(summary.total_paid)}</p></div><div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center"><DollarSign className="w-4 h-4 text-green-600" /></div></div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Contributors</p><p className="text-lg font-bold">{summary.count}</p></div><div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-blue-600" /></div></div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Total Pledged</p><p className="text-lg font-bold text-yellow-600">{formatPrice(summary.total_pledged)}</p></div><div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center"><TrendingUp className="w-4 h-4 text-yellow-600" /></div></div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Pledge Shortfall</p><p className="text-lg font-bold text-orange-600">{formatPrice(Math.max(0, summary.total_pledged - summary.total_paid))}</p></div><div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center"><TrendingUp className="w-4 h-4 text-orange-600" /></div></div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Outstanding</p><p className="text-lg font-bold text-red-600">{formatPrice(summary.total_balance)}</p></div><div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center"><Clock className="w-4 h-4 text-red-600" /></div></div></CardContent></Card>
       </div>
 

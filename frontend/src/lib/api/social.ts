@@ -92,6 +92,8 @@ export const socialApi = {
   // Save/unsave
   savePost: (postId: string) => post<any>(`/posts/${postId}/save`),
   unsavePost: (postId: string) => del<any>(`/posts/${postId}/save`),
+  getSavedPosts: (params?: { page?: number; limit?: number }) =>
+    get<any>(`/posts/saved${buildQueryString(params)}`),
 
   // Pin/unpin
   pinPost: (postId: string) => post<any>(`/posts/${postId}/pin`),
