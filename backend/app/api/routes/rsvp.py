@@ -9,7 +9,7 @@ from typing import Optional, List
 from sqlalchemy import func as sql_func
 
 from core.database import SessionLocal
-from models.invitations import EventInvitation, EventAttendee
+from models.invitations import EventInvitation, EventAttendee, EventGuestPlusOne
 from models.events import Event, EventImage, EventSetting
 from models.users import User
 from models.enums import RSVPStatusEnum, GuestTypeEnum
