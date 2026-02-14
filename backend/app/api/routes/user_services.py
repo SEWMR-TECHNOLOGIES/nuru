@@ -19,8 +19,8 @@ from models import (
     ServicePackage, UserServiceRating,
     ServiceReviewHelpful, ServiceCategory, ServiceType,
     ServiceKYCMapping, KYCRequirement, ServiceBookingRequest, User,
+    VerificationStatusEnum,
 )
-from models.enums import VerificationStatusEnum
 from utils.auth import get_current_user
 from utils.helpers import format_price, standard_response
 

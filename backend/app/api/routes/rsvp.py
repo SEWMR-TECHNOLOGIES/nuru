@@ -9,10 +9,12 @@ from typing import Optional, List
 from sqlalchemy import func as sql_func
 
 from core.database import SessionLocal
-from models.invitations import EventInvitation, EventAttendee, EventGuestPlusOne
-from models.events import Event, EventImage, EventSetting
-from models.users import User
-from models.enums import RSVPStatusEnum, GuestTypeEnum
+from models import (
+    EventInvitation, EventAttendee, EventGuestPlusOne,
+    Event, EventImage, EventSetting,
+    User, UserContributor,
+    RSVPStatusEnum, GuestTypeEnum,
+)
 from utils.helpers import standard_response, format_phone_display
 
 router = APIRouter(prefix="/rsvp", tags=["RSVP"])
@@ -49,7 +51,6 @@ def _resolve_guest_name(inv: EventInvitation, db) -> str:
             parts = [user.first_name, user.last_name]
             return " ".join(p for p in parts if p) or "Guest"
     if inv.guest_type == GuestTypeEnum.contributor and inv.contributor_id:
-        from models.contributions import UserContributor
         c = db.query(UserContributor).filter(UserContributor.id == inv.contributor_id).first()
         if c:
             return c.name or "Guest"
@@ -147,9 +148,9 @@ def get_rsvp_details(code: str):
                 "name": event.name,
                 "description": event.description,
                 "start_date": event.start_date.isoformat() if event.start_date else None,
-                "start_time": event.start_time.isoformat() if event.start_time else None,
+                "start_time": event.start_time.strftime("%H:%M") if event.start_time else None,
                 "end_date": event.end_date.isoformat() if event.end_date else None,
-                "end_time": event.end_time.isoformat() if event.end_time else None,
+                "end_time": event.end_time.strftime("%H:%M") if event.end_time else None,
                 "location": event.location,
                 "dress_code": event.dress_code,
                 "special_instructions": event.special_instructions,

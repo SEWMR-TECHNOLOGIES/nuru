@@ -11,8 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from models import Conversation, Message, User, UserProfile, UserService, UserServiceImage
-from models.enums import ConversationTypeEnum
+from models import Conversation, Message, User, UserProfile, UserService, UserServiceImage, ConversationTypeEnum
 from utils.auth import get_current_user
 from utils.helpers import standard_response
 

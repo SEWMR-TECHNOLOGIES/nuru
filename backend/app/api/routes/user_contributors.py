@@ -16,8 +16,8 @@ from models import (
     UserContributor, EventContributor, EventContribution,
     Event, User, Currency,
     EventCommitteeMember, CommitteePermission,
+    PaymentMethodEnum, ContributionStatusEnum,
 )
-from models.enums import PaymentMethodEnum, ContributionStatusEnum
 from utils.auth import get_current_user
 from utils.helpers import standard_response, format_phone_display
 from utils.validation_functions import validate_tanzanian_phone

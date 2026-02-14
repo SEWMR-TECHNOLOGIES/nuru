@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { rsvpApi, RSVPData, RSVPResponseBody } from "@/lib/api/rsvp";
+import { formatDateLong } from "@/utils/formatDate";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,20 +12,23 @@ import { CalendarDays, MapPin, Clock, User, Shirt, Info, Check, XCircle, Loader2
 import { motion } from "framer-motion";
 import nuruLogo from "@/assets/nuru-logo.png";
 
-const formatDate = (dateStr?: string | null) => {
+const formatRsvpDate = (dateStr?: string | null) => {
   if (!dateStr) return null;
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  } catch { return dateStr; }
+  return formatDateLong(dateStr) || dateStr;
 };
 
-const formatTime = (timeStr?: string | null) => {
+const formatRsvpTime = (timeStr?: string | null) => {
   if (!timeStr) return null;
-  try {
-    const d = new Date(timeStr);
-    return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: true });
-  } catch { return timeStr; }
+  // Backend sends "HH:MM" format
+  const match = timeStr.match(/^(\d{1,2}):(\d{2})/);
+  if (match) {
+    const h = parseInt(match[1], 10);
+    const m = match[2];
+    const period = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 || 12;
+    return `${h12}:${m} ${period}`;
+  }
+  return timeStr;
 };
 
 export default function RSVPConfirmation() {
@@ -200,9 +204,9 @@ export default function RSVPConfirmation() {
                     <CalendarDays className="h-4 w-4 text-accent-foreground" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium">{formatDate(event.start_date)}</p>
+                    <p className="text-sm font-medium">{formatRsvpDate(event.start_date)}</p>
                     {event.end_date && event.end_date !== event.start_date && (
-                      <p className="text-xs text-muted-foreground">to {formatDate(event.end_date)}</p>
+                      <p className="text-xs text-muted-foreground">to {formatRsvpDate(event.end_date)}</p>
                     )}
                   </div>
                 </div>
@@ -214,9 +218,9 @@ export default function RSVPConfirmation() {
                     <Clock className="h-4 w-4 text-accent-foreground" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium">{formatTime(event.start_time)}</p>
+                    <p className="text-sm font-medium">{formatRsvpTime(event.start_time)}</p>
                     {event.end_time && (
-                      <p className="text-xs text-muted-foreground">until {formatTime(event.end_time)}</p>
+                      <p className="text-xs text-muted-foreground">until {formatRsvpTime(event.end_time)}</p>
                     )}
                   </div>
                 </div>

@@ -13,8 +13,7 @@ from sqlalchemy.orm import Session
 
 from core.config import UPLOAD_SERVICE_URL
 from core.database import get_db
-from models import User, UserProfile, UserIdentityVerification, IdentityDocumentRequirement
-from models.enums import VerificationStatusEnum
+from models import User, UserProfile, UserIdentityVerification, IdentityDocumentRequirement, VerificationStatusEnum
 from utils.auth import get_current_user
 from utils.helpers import standard_response
 from utils.user_payload import build_user_payload

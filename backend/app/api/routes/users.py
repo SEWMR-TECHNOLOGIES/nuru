@@ -6,8 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Request, Depends, HTTPException
 from sqlalchemy.orm import Session
 from core.database import get_db
-from models import User, UserVerificationOTP, UserProfile, UserSetting, UserFollower, UserCircle
-from models.enums import OTPVerificationTypeEnum
+from models import User, UserVerificationOTP, UserProfile, UserSetting, UserFollower, UserCircle, OTPVerificationTypeEnum
 from utils.auth import get_current_user
 from utils.helpers import standard_response, generate_otp, get_expiry, mask_email, mask_phone
 from utils.notification_service import send_verification_email, send_verification_sms
