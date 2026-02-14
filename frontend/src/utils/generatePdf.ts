@@ -25,7 +25,7 @@ export const generateContributionReportHtml = (
 
   const totalPledged = sorted.reduce((s, c) => s + c.pledged, 0);
   const totalPaid = sorted.reduce((s, c) => s + c.paid, 0);
-  const outstanding = summary.budget ? Math.max(0, summary.budget - totalPaid) : sorted.reduce((s, c) => s + c.balance, 0);
+  const totalBalance = sorted.reduce((s, c) => s + c.balance, 0);
 
   const logoAbsoluteUrl = new URL(nuruLogoUrl, window.location.origin).href;
 
@@ -79,7 +79,7 @@ export const generateContributionReportHtml = (
         <div class="summary-card"><div class="label">Total Raised</div><div class="value" style="color:#16a34a">${fmt(totalPaid)}</div></div>
         <div class="summary-card"><div class="label">Total Pledged</div><div class="value" style="color:#ca8a04">${fmt(totalPledged)}</div></div>
         <div class="summary-card"><div class="label">Pledge Shortfall</div><div class="value" style="color:#ea580c">${fmt(Math.max(0, totalPledged - totalPaid))}</div></div>
-        <div class="summary-card"><div class="label">Outstanding</div><div class="value" style="color:#dc2626">${fmt(outstanding)}</div></div>
+        <div class="summary-card"><div class="label">Outstanding Balance</div><div class="value" style="color:#dc2626">${fmt(totalBalance)}</div></div>
       </div>
 
       ${summary.budget ? `<p style="font-size:12px;color:#666;margin-bottom:16px">Budget coverage: <strong>${((totalPaid / summary.budget) * 100).toFixed(1)}%</strong> of event budget raised so far.</p>` : ''}
@@ -100,7 +100,7 @@ export const generateContributionReportHtml = (
             <td colspan="2">Total (${sorted.length} contributors)</td>
             <td style="text-align:right">${fmt(totalPledged)}</td>
             <td style="text-align:right">${fmt(totalPaid)}</td>
-            <td style="text-align:right">${fmt(outstanding)}</td>
+            <td style="text-align:right">${fmt(totalBalance)}</td>
           </tr>
         </tfoot>
       </table>

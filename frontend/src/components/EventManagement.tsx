@@ -17,6 +17,7 @@ import EventRSVP from './EventRSVP';
 import EventGuestList from './events/EventGuestList';
 import EventCommittee from './events/EventCommittee';
 import EventContributions from './events/EventContributions';
+import { useEventContributors } from '@/data/useContributors';
 import { useEvent } from '@/data/useEvents';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { usePolling } from '@/hooks/usePolling';
@@ -36,6 +37,7 @@ const EventManagement = () => {
   usePolling(refetchEvent, 15000);
 
   const { permissions, loading: permsLoading } = useEventPermissions(id || null);
+  const { summary: contributionSummary } = useEventContributors(id || null);
 
   const event = apiEvent;
 
@@ -241,10 +243,13 @@ const EventManagement = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 lg:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6">
             <Card><CardHeader className="pb-2 md:pb-3"><CardTitle className="text-base lg:text-lg">Event Progress</CardTitle></CardHeader><CardContent><div className="space-y-2"><div className="flex justify-between text-sm"><span>Services Completed</span><span>{completedServices}/{totalServices}</span></div><div className="w-full bg-muted rounded-full h-2"><div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${progress}%` }} /></div></div></CardContent></Card>
             <Card><CardHeader className="pb-2 md:pb-3"><CardTitle className="text-base lg:text-lg">Budget Status</CardTitle></CardHeader><CardContent><div className="space-y-2"><div className="text-lg lg:text-2xl font-bold">{eventBudget}</div><div className="text-xs lg:text-sm text-muted-foreground">Budget allocated</div></div></CardContent></Card>
             <Card><CardHeader className="pb-2 md:pb-3"><CardTitle className="text-base lg:text-lg">Guest Overview</CardTitle></CardHeader><CardContent><div className="space-y-2"><div className="text-lg lg:text-2xl font-bold">{eventGuestCount}</div><div className="text-xs lg:text-sm text-muted-foreground">of {expectedGuests} expected guests</div></div></CardContent></Card>
+            {apiEvent?.budget && contributionSummary && (
+              <Card><CardHeader className="pb-2 md:pb-3"><CardTitle className="text-base lg:text-lg">Budget Shortfall</CardTitle></CardHeader><CardContent><div className="space-y-2"><div className="text-lg lg:text-2xl font-bold text-destructive">{formatPrice(Math.max(0, (apiEvent.budget as number) - (contributionSummary.total_pledged || 0)))}</div><div className="text-xs lg:text-sm text-muted-foreground">Budget − Total Pledged</div></div></CardContent></Card>
+            )}
           </div>
           <Card><CardHeader><CardTitle>Event Description</CardTitle></CardHeader><CardContent><p className="text-muted-foreground">{eventDescription}</p></CardContent></Card>
         </TabsContent>
