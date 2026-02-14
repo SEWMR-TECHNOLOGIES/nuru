@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { 
   UserPlus, Send, Search, Filter, CheckCircle, Clock, X,
-  QrCode, Mail, Phone, MoreVertical, Edit, Trash, Loader2
+  QrCode, Mail, Phone, MoreVertical, Trash, Loader2, BookUser
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,15 +19,18 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEventGuests } from '@/data/useEvents';
 import { usePolling } from '@/hooks/usePolling';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
 import UserSearchInput from './UserSearchInput';
+import ContributorSearchInput from './ContributorSearchInput';
 import GuestListSkeletonLoader from './GuestListSkeletonLoader';
 import type { EventGuest } from '@/lib/api/types';
 import type { SearchedUser } from '@/hooks/useUserSearch';
+import type { UserContributor } from '@/lib/api/contributors';
 import type { EventPermissions } from '@/hooks/useEventPermissions';
 
 interface EventGuestListProps {
@@ -50,6 +53,8 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
   const [selectedGuest, setSelectedGuest] = useState<EventGuest | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedUser, setSelectedUser] = useState<SearchedUser | null>(null);
+  const [selectedContributor, setSelectedContributor] = useState<UserContributor | null>(null);
+  const [guestSourceTab, setGuestSourceTab] = useState<string>('user');
 
   const [newGuest, setNewGuest] = useState({
     plus_ones: 0,
@@ -57,7 +62,42 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
     notes: ''
   });
 
+  const resetDialog = () => {
+    setSelectedUser(null);
+    setSelectedContributor(null);
+    setNewGuest({ plus_ones: 0, dietary_requirements: '', notes: '' });
+  };
+
   const handleAddGuest = async () => {
+    if (guestSourceTab === 'contributor') {
+      if (!selectedContributor) {
+        toast.error('Please search and select a contributor');
+        return;
+      }
+
+      setIsSubmitting(true);
+      try {
+        await addGuest({
+          guest_type: 'contributor',
+          contributor_id: selectedContributor.id,
+          name: selectedContributor.name,
+          phone: selectedContributor.phone || undefined,
+          email: selectedContributor.email || undefined,
+          dietary_requirements: newGuest.dietary_requirements || undefined,
+          notes: newGuest.notes || undefined,
+          rsvp_status: 'pending'
+        });
+        toast.success('Contributor added as guest');
+        setAddDialogOpen(false);
+        resetDialog();
+      } catch (err: any) {
+        showCaughtError(err, 'Failed to add guest');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
     if (!selectedUser) {
       toast.error('Please search and select a user');
       return;
@@ -66,6 +106,7 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
     setIsSubmitting(true);
     try {
       await addGuest({
+        guest_type: 'user',
         user_id: selectedUser.id,
         name: `${selectedUser.first_name} ${selectedUser.last_name}`,
         email: selectedUser.email,
@@ -77,8 +118,7 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
       });
       toast.success('Guest added successfully');
       setAddDialogOpen(false);
-      setSelectedUser(null);
-      setNewGuest({ plus_ones: 0, dietary_requirements: '', notes: '' });
+      resetDialog();
     } catch (err: any) {
       showCaughtError(err, 'Failed to add guest');
     } finally {
@@ -150,6 +190,13 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
     }
   };
 
+  const getInitials = (name: string) => {
+    const parts = (name || '').trim().split(/\s+/);
+    return parts.length >= 2
+      ? `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase()
+      : (name || 'G').charAt(0).toUpperCase();
+  };
+
   if (loading) return <GuestListSkeletonLoader />;
   if (error) return <div className="p-6 text-center text-red-500">{error}</div>;
 
@@ -202,11 +249,12 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
                   <div className="flex items-center gap-3 min-w-0">
                     <Avatar className="flex-shrink-0">
                       <AvatarImage src={guest.avatar || undefined} />
-                      <AvatarFallback>{(guest.name || 'G').charAt(0)}</AvatarFallback>
+                      <AvatarFallback>{getInitials(guest.name)}</AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium truncate">{guest.name || 'Unknown'}</p>
+                        {guest.guest_type === 'contributor' && <Badge variant="outline" className="text-xs"><BookUser className="w-3 h-3 mr-1" />Contributor</Badge>}
                         {guest.plus_ones > 0 && <Badge variant="outline" className="text-xs">+{guest.plus_ones}</Badge>}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -230,12 +278,9 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
                           <DropdownMenuItem onClick={() => handleCheckin(guest.id)}><CheckCircle className="w-4 h-4 mr-2" />Check In</DropdownMenuItem>
                         )}
                         {canManage && (
-                          <>
-                            <DropdownMenuItem><Edit className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteGuest(guest.id)}>
-                              <Trash className="w-4 h-4 mr-2" />Remove
-                            </DropdownMenuItem>
-                          </>
+                          <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteGuest(guest.id)}>
+                            <Trash className="w-4 h-4 mr-2" />Remove
+                          </DropdownMenuItem>
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -248,32 +293,56 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
       </Card>
 
       {/* Add Guest Dialog */}
-      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+      <Dialog open={addDialogOpen} onOpenChange={(open) => { setAddDialogOpen(open); if (!open) resetDialog(); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Add Guest</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Search User *</Label>
-              {selectedUser ? (
-                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                  <Avatar className="w-8 h-8">
-                    <AvatarImage src={selectedUser.avatar || undefined} />
-                    <AvatarFallback>{selectedUser.first_name?.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{selectedUser.first_name} {selectedUser.last_name}</p>
-                    <p className="text-xs text-muted-foreground">{selectedUser.email}</p>
+            <Tabs value={guestSourceTab} onValueChange={(v) => { setGuestSourceTab(v); resetDialog(); }}>
+              <TabsList className="w-full">
+                <TabsTrigger value="user" className="flex-1"><UserPlus className="w-4 h-4 mr-1" />Nuru User</TabsTrigger>
+                <TabsTrigger value="contributor" className="flex-1"><BookUser className="w-4 h-4 mr-1" />Contributor</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {guestSourceTab === 'user' ? (
+              <div className="space-y-2">
+                <Label>Search User *</Label>
+                {selectedUser ? (
+                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                    <Avatar className="w-8 h-8">
+                      <AvatarImage src={selectedUser.avatar || undefined} />
+                      <AvatarFallback>{selectedUser.first_name?.charAt(0)}{selectedUser.last_name?.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{selectedUser.first_name} {selectedUser.last_name}</p>
+                      <p className="text-xs text-muted-foreground">{selectedUser.email}</p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedUser(null)}>Change</Button>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => setSelectedUser(null)}>Change</Button>
-                </div>
-              ) : (
-                <UserSearchInput onSelect={setSelectedUser} />
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Plus Ones</Label>
-              <Input type="number" min="0" max="10" value={newGuest.plus_ones} onChange={(e) => setNewGuest(prev => ({ ...prev, plus_ones: parseInt(e.target.value) || 0 }))} autoComplete="off" />
-            </div>
+                ) : (
+                  <UserSearchInput onSelect={setSelectedUser} />
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Search Contributor *</Label>
+                {selectedContributor ? (
+                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                    <Avatar className="w-8 h-8">
+                      <AvatarFallback className="text-xs">{getInitials(selectedContributor.name)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{selectedContributor.name}</p>
+                      <p className="text-xs text-muted-foreground">{selectedContributor.phone || selectedContributor.email || 'No contact'}</p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedContributor(null)}>Change</Button>
+                  </div>
+                ) : (
+                  <ContributorSearchInput onSelect={setSelectedContributor} />
+                )}
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Dietary Requirements</Label>
               <Input value={newGuest.dietary_requirements} onChange={(e) => setNewGuest(prev => ({ ...prev, dietary_requirements: e.target.value }))} placeholder="Vegetarian, halal, allergies..." />

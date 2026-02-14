@@ -15,7 +15,7 @@ from models import (
     Event, EventType, EventImage, EventAttendee, EventInvitation,
     EventGuestPlusOne, EventSetting, EventContribution,
     EventContributionTarget, EventVenueCoordinate, Currency, User,
-    EventCommitteeMember, RSVPStatusEnum,
+    EventCommitteeMember, RSVPStatusEnum, UserContributor, GuestTypeEnum,
 )
 from utils.helpers import standard_response
 
@@ -284,9 +284,21 @@ def get_rsvp_page(event_id: str, guest_id: str, token: str = "", db: Session = D
         return standard_response(False, "Invalid RSVP token")
 
     settings = db.query(EventSetting).filter(EventSetting.event_id == eid).first()
-    user = db.query(User).filter(User.id == att.attendee_id).first() if att.attendee_id else None
     organizer = db.query(User).filter(User.id == event.organizer_id).first()
     vc = db.query(EventVenueCoordinate).filter(EventVenueCoordinate.event_id == eid).first()
+
+    # Resolve guest name based on guest type
+    guest_type = att.guest_type.value if hasattr(att.guest_type, "value") else (att.guest_type or "user")
+    guest_name = None
+    if guest_type == "contributor":
+        if att.contributor_id:
+            contributor = db.query(UserContributor).filter(UserContributor.id == att.contributor_id).first()
+            guest_name = contributor.name if contributor else att.guest_name
+        else:
+            guest_name = att.guest_name
+    else:
+        user = db.query(User).filter(User.id == att.attendee_id).first() if att.attendee_id else None
+        guest_name = f"{user.first_name} {user.last_name}" if user else att.guest_name
 
     return standard_response(True, "RSVP page retrieved", {
         "event": {
@@ -305,7 +317,8 @@ def get_rsvp_page(event_id: str, guest_id: str, token: str = "", db: Session = D
         },
         "guest": {
             "id": str(att.id),
-            "name": f"{user.first_name} {user.last_name}" if user else None,
+            "name": guest_name,
+            "guest_type": guest_type,
             "rsvp_status": att.rsvp_status.value if hasattr(att.rsvp_status, "value") else att.rsvp_status,
         },
         "rsvp_settings": {

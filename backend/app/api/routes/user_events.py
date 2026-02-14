@@ -26,10 +26,11 @@ from models import (
     EventService, EventServicePayment, EventScheduleItem, EventBudgetItem,
     Currency, User, UserProfile, ServiceType, UserService,
     EventServiceStatusEnum, EventStatusEnum, PaymentMethodEnum, RSVPStatusEnum,
-    EventTypeService, ServicePackage,
+    GuestTypeEnum, EventTypeService, ServicePackage,
 )
 from utils.auth import get_current_user
 from utils.helpers import format_price, standard_response, format_phone_display
+from api.routes.rsvp import generate_rsvp_code
 from utils.validation_functions import validate_tanzanian_phone
 from utils.sms import (
     sms_guest_added, sms_committee_invite, sms_contribution_recorded,
@@ -1075,14 +1076,54 @@ def update_event_settings(event_id: str, body: dict = Body(...), db: Session = D
 # GUEST MANAGEMENT HELPERS
 # ──────────────────────────────────────────────
 
+def _resolve_guest_name(db: Session, att: EventAttendee) -> str | None:
+    """Resolve display name for an attendee regardless of guest type."""
+    guest_type = att.guest_type.value if hasattr(att.guest_type, "value") else (att.guest_type or "user")
+    if guest_type == "contributor":
+        if att.contributor_id:
+            contributor = db.query(UserContributor).filter(UserContributor.id == att.contributor_id).first()
+            if contributor:
+                return contributor.name
+        return att.guest_name
+    else:
+        if att.attendee_id:
+            user = db.query(User).filter(User.id == att.attendee_id).first()
+            if user:
+                return f"{user.first_name} {user.last_name}"
+        return att.guest_name
+
+
 def _attendee_dict(db: Session, att: EventAttendee) -> dict:
-    user = db.query(User).filter(User.id == att.attendee_id).first() if att.attendee_id else None
+    guest_type = att.guest_type.value if hasattr(att.guest_type, "value") else (att.guest_type or "user")
+
+    # Resolve guest info based on type
+    name = email = phone = None
+    if guest_type == "contributor":
+        contributor = db.query(UserContributor).filter(UserContributor.id == att.contributor_id).first() if att.contributor_id else None
+        if contributor:
+            name = contributor.name
+            email = contributor.email
+            phone = contributor.phone
+        else:
+            name = att.guest_name
+            email = att.guest_email
+            phone = att.guest_phone
+    else:
+        user = db.query(User).filter(User.id == att.attendee_id).first() if att.attendee_id else None
+        if user:
+            name = f"{user.first_name} {user.last_name}"
+            email = user.email
+            phone = user.phone
+        else:
+            name = att.guest_name
+
     invitation = db.query(EventInvitation).filter(EventInvitation.id == att.invitation_id).first() if att.invitation_id else None
     plus_ones = db.query(EventGuestPlusOne).filter(EventGuestPlusOne.attendee_id == att.id).all()
     return {
         "id": str(att.id), "event_id": str(att.event_id),
-        "name": f"{user.first_name} {user.last_name}" if user else None,
-        "email": user.email if user else None, "phone": user.phone if user else None,
+        "guest_type": guest_type,
+        "name": name,
+        "email": email, "phone": phone,
         "rsvp_status": att.rsvp_status.value if hasattr(att.rsvp_status, "value") else att.rsvp_status,
         "dietary_requirements": att.dietary_restrictions, "meal_preference": att.meal_preference,
         "special_requests": att.special_requests,
@@ -1149,70 +1190,162 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
     if not name:
         return standard_response(False, "Guest name is required.")
 
-    # Prefer user_id if provided (from user search), otherwise fallback to email/phone lookup
-    user_id = body.get("user_id")
-    attendee_user = None
-    if user_id:
-        try:
-            attendee_user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()
-        except ValueError:
-            pass
-    if not attendee_user:
-        email = body.get("email")
-        phone = body.get("phone")
-        if email:
-            attendee_user = db.query(User).filter(User.email == email).first()
-        if not attendee_user and phone:
-            attendee_user = db.query(User).filter(User.phone == phone).first()
-
-    # Pre-insertion duplicate check: prevent adding same user twice to the event
-    if attendee_user:
-        existing_attendee = db.query(EventAttendee).filter(
-            EventAttendee.event_id == eid,
-            EventAttendee.attendee_id == attendee_user.id,
-        ).first()
-        if existing_attendee:
-            return standard_response(False, f"{name} is already on the guest list for this event.")
-
-        existing_invitation = db.query(EventInvitation).filter(
-            EventInvitation.event_id == eid,
-            EventInvitation.invited_user_id == attendee_user.id,
-        ).first()
-        if existing_invitation:
-            return standard_response(False, f"{name} has already been invited to this event.")
-
+    guest_type_str = body.get("guest_type", "user")
     now = datetime.now(EAT)
 
-    invitation = EventInvitation(id=uuid.uuid4(), event_id=eid, invited_user_id=attendee_user.id if attendee_user else None, invited_by_user_id=current_user.id, invitation_code=uuid.uuid4().hex[:16], rsvp_status=RSVPStatusEnum.pending, notes=body.get("notes"), created_at=now, updated_at=now)
-    db.add(invitation)
-    db.flush()
-
-    att = EventAttendee(id=uuid.uuid4(), event_id=eid, attendee_id=attendee_user.id if attendee_user else None, invitation_id=invitation.id, rsvp_status=RSVPStatusEnum.pending, dietary_restrictions=body.get("dietary_requirements"), meal_preference=body.get("meal_preference"), special_requests=body.get("special_requests"), created_at=now, updated_at=now)
-    db.add(att)
-
-    for po_name in body.get("plus_one_names", []):
-        db.add(EventGuestPlusOne(id=uuid.uuid4(), attendee_id=att.id, name=po_name, created_at=now, updated_at=now))
-
-    try:
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        return standard_response(False, f"Failed to add guest: {str(e)}")
-
-    # Create notification + send SMS for the invited user
-    if attendee_user and attendee_user.id != current_user.id:
+    if guest_type_str == "contributor":
+        # ── Contributor guest ──
+        contributor_id = body.get("contributor_id")
+        if not contributor_id:
+            return standard_response(False, "contributor_id is required for contributor guests")
         try:
-            from utils.notify import notify_event_invitation
-            notify_event_invitation(db, attendee_user.id, current_user.id, eid, event.name)
-            db.commit()
-        except Exception:
-            pass
-        # SMS to guest
-        event_date = event.start_date.strftime("%d/%m/%Y") if event.start_date else ""
-        organizer_name = f"{current_user.first_name} {current_user.last_name}"
-        sms_guest_added(attendee_user.phone, f"{attendee_user.first_name}", event.name, event_date, organizer_name)
+            cid = uuid.UUID(contributor_id)
+        except ValueError:
+            return standard_response(False, "Invalid contributor_id format")
 
-    return standard_response(True, "Guest added successfully", _attendee_dict(db, att))
+        contributor = db.query(UserContributor).filter(UserContributor.id == cid).first()
+        if not contributor:
+            return standard_response(False, "Contributor not found in address book")
+
+        # Pre-insertion duplicate check
+        existing = db.query(EventAttendee).filter(
+            EventAttendee.event_id == eid,
+            EventAttendee.guest_type == GuestTypeEnum.contributor,
+            EventAttendee.contributor_id == cid,
+        ).first()
+        if existing:
+            return standard_response(False, f"{contributor.name} is already on the guest list for this event.")
+
+        invitation = EventInvitation(
+            id=uuid.uuid4(), event_id=eid,
+            guest_type=GuestTypeEnum.contributor,
+            contributor_id=cid,
+            guest_name=contributor.name,
+            invited_by_user_id=current_user.id,
+            invitation_code=generate_rsvp_code(),
+            rsvp_status=RSVPStatusEnum.pending,
+            notes=body.get("notes"),
+            created_at=now, updated_at=now,
+        )
+        db.add(invitation)
+        db.flush()
+
+        att = EventAttendee(
+            id=uuid.uuid4(), event_id=eid,
+            guest_type=GuestTypeEnum.contributor,
+            contributor_id=cid,
+            guest_name=contributor.name,
+            guest_phone=contributor.phone,
+            guest_email=contributor.email,
+            invitation_id=invitation.id,
+            rsvp_status=RSVPStatusEnum.pending,
+            dietary_restrictions=body.get("dietary_requirements"),
+            meal_preference=body.get("meal_preference"),
+            special_requests=body.get("special_requests"),
+            created_at=now, updated_at=now,
+        )
+        db.add(att)
+
+        for po_name in body.get("plus_one_names", []):
+            db.add(EventGuestPlusOne(id=uuid.uuid4(), attendee_id=att.id, name=po_name, created_at=now, updated_at=now))
+
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            return standard_response(False, f"Failed to add guest: {str(e)}")
+
+        # SMS to contributor if they have a phone
+        if contributor.phone:
+            event_date = event.start_date.strftime("%d/%m/%Y") if event.start_date else ""
+            organizer_name = f"{current_user.first_name} {current_user.last_name}"
+            sms_guest_added(contributor.phone, contributor.name.split(" ")[0], event.name, event_date, organizer_name, invitation.invitation_code)
+
+        return standard_response(True, "Guest added successfully", _attendee_dict(db, att))
+
+    else:
+        # ── User guest (existing behavior) ──
+        user_id = body.get("user_id")
+        attendee_user = None
+        if user_id:
+            try:
+                attendee_user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()
+            except ValueError:
+                pass
+        if not attendee_user:
+            email = body.get("email")
+            phone = body.get("phone")
+            if email:
+                attendee_user = db.query(User).filter(User.email == email).first()
+            if not attendee_user and phone:
+                attendee_user = db.query(User).filter(User.phone == phone).first()
+
+        # Pre-insertion duplicate check
+        if attendee_user:
+            existing_attendee = db.query(EventAttendee).filter(
+                EventAttendee.event_id == eid,
+                EventAttendee.attendee_id == attendee_user.id,
+            ).first()
+            if existing_attendee:
+                return standard_response(False, f"{name} is already on the guest list for this event.")
+
+            existing_invitation = db.query(EventInvitation).filter(
+                EventInvitation.event_id == eid,
+                EventInvitation.invited_user_id == attendee_user.id,
+            ).first()
+            if existing_invitation:
+                return standard_response(False, f"{name} has already been invited to this event.")
+
+        invitation = EventInvitation(
+            id=uuid.uuid4(), event_id=eid,
+            guest_type=GuestTypeEnum.user,
+            invited_user_id=attendee_user.id if attendee_user else None,
+            guest_name=name if not attendee_user else None,
+            invited_by_user_id=current_user.id,
+            invitation_code=generate_rsvp_code(),
+            rsvp_status=RSVPStatusEnum.pending,
+            notes=body.get("notes"),
+            created_at=now, updated_at=now,
+        )
+        db.add(invitation)
+        db.flush()
+
+        att = EventAttendee(
+            id=uuid.uuid4(), event_id=eid,
+            guest_type=GuestTypeEnum.user,
+            attendee_id=attendee_user.id if attendee_user else None,
+            guest_name=name if not attendee_user else None,
+            invitation_id=invitation.id,
+            rsvp_status=RSVPStatusEnum.pending,
+            dietary_restrictions=body.get("dietary_requirements"),
+            meal_preference=body.get("meal_preference"),
+            special_requests=body.get("special_requests"),
+            created_at=now, updated_at=now,
+        )
+        db.add(att)
+
+        for po_name in body.get("plus_one_names", []):
+            db.add(EventGuestPlusOne(id=uuid.uuid4(), attendee_id=att.id, name=po_name, created_at=now, updated_at=now))
+
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            return standard_response(False, f"Failed to add guest: {str(e)}")
+
+        # Create notification + send SMS for the invited user
+        if attendee_user and attendee_user.id != current_user.id:
+            try:
+                from utils.notify import notify_event_invitation
+                notify_event_invitation(db, attendee_user.id, current_user.id, eid, event.name)
+                db.commit()
+            except Exception:
+                pass
+            event_date = event.start_date.strftime("%d/%m/%Y") if event.start_date else ""
+            organizer_name = f"{current_user.first_name} {current_user.last_name}"
+            sms_guest_added(attendee_user.phone, f"{attendee_user.first_name}", event.name, event_date, organizer_name, invitation.invitation_code)
+
+        return standard_response(True, "Guest added successfully", _attendee_dict(db, att))
 
 
 @router.post("/{event_id}/guests/bulk")
@@ -1247,10 +1380,10 @@ def add_guests_bulk(event_id: str, body: dict = Body(...), db: Session = Depends
 
         attendee_user = db.query(User).filter(User.email == email).first() if email else None
 
-        invitation = EventInvitation(id=uuid.uuid4(), event_id=eid, invited_user_id=attendee_user.id if attendee_user else None, invited_by_user_id=current_user.id, invitation_code=uuid.uuid4().hex[:16], rsvp_status=RSVPStatusEnum.pending, created_at=now, updated_at=now)
+        invitation = EventInvitation(id=uuid.uuid4(), event_id=eid, guest_type=GuestTypeEnum.user, invited_user_id=attendee_user.id if attendee_user else None, guest_name=name if not attendee_user else None, invited_by_user_id=current_user.id, invitation_code=generate_rsvp_code(), rsvp_status=RSVPStatusEnum.pending, created_at=now, updated_at=now)
         db.add(invitation)
 
-        att = EventAttendee(id=uuid.uuid4(), event_id=eid, attendee_id=attendee_user.id if attendee_user else None, invitation_id=invitation.id, rsvp_status=RSVPStatusEnum.pending, created_at=now, updated_at=now)
+        att = EventAttendee(id=uuid.uuid4(), event_id=eid, guest_type=GuestTypeEnum.user, attendee_id=attendee_user.id if attendee_user else None, guest_name=name if not attendee_user else None, invitation_id=invitation.id, rsvp_status=RSVPStatusEnum.pending, created_at=now, updated_at=now)
         db.add(att)
         imported.append({"id": str(att.id), "name": name})
 
@@ -1432,8 +1565,8 @@ def checkin_guest(event_id: str, guest_id: str, body: dict = Body(default={}), d
     att.updated_at = now
     db.commit()
 
-    user = db.query(User).filter(User.id == att.attendee_id).first() if att.attendee_id else None
-    return standard_response(True, "Guest checked in successfully", {"guest_id": str(att.id), "name": f"{user.first_name} {user.last_name}" if user else None, "checked_in": True, "checked_in_at": now.isoformat()})
+    name = _resolve_guest_name(db, att)
+    return standard_response(True, "Guest checked in successfully", {"guest_id": str(att.id), "name": name, "checked_in": True, "checked_in_at": now.isoformat()})
 
 
 @router.post("/{event_id}/guests/checkin-qr")
@@ -1471,8 +1604,8 @@ def checkin_guest_qr(event_id: str, body: dict = Body(...), db: Session = Depend
     att.updated_at = now
     db.commit()
 
-    user = db.query(User).filter(User.id == att.attendee_id).first() if att.attendee_id else None
-    return standard_response(True, "Guest checked in successfully", {"guest_id": str(att.id), "name": f"{user.first_name} {user.last_name}" if user else None, "checked_in": True})
+    name = _resolve_guest_name(db, att)
+    return standard_response(True, "Guest checked in successfully", {"guest_id": str(att.id), "name": name, "checked_in": True})
 
 
 @router.post("/{event_id}/guests/{guest_id}/undo-checkin")

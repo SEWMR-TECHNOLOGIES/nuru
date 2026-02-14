@@ -58,6 +58,8 @@ export const useEventContributors = (eventId: string | null) => {
         total_paid: allContributors.reduce((sum, c) => sum + (c.total_paid || 0), 0),
         total_balance: allContributors.reduce((sum, c) => sum + (c.balance || 0), 0),
         count: allContributors.length,
+        pledged_count: allContributors.filter(c => (c.pledge_amount || 0) > 0).length,
+        paid_count: allContributors.filter(c => (c.total_paid || 0) > 0).length,
         currency: firstSummary?.currency || 'TZS',
       };
 

@@ -88,7 +88,7 @@ export const generateEventReportHtml = (event: EventReportData): string => {
         </div>
         <div class="header-right">
           <h1>Event Report</h1>
-          <h2>${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</h2>
+          <h2>${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</h2>
         </div>
       </div>
 

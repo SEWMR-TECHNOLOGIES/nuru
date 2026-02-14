@@ -70,7 +70,7 @@ export const generateContributionReportHtml = (
         </div>
         <div class="header-right">
           <h1>Contribution Report</h1>
-          <h2>${eventTitle} — ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</h2>
+          <h2>${eventTitle} — ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</h2>
         </div>
       </div>
       

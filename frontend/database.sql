@@ -3,7 +3,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ENUMS
 CREATE TYPE event_status AS ENUM ('draft', 'confirmed', 'completed', 'published', 'cancelled');
 CREATE TYPE payment_status AS ENUM ('pending', 'completed', 'refunded');
-CREATE TYPE payment_method AS ENUM ('cash', 'mobile', 'bank', 'card');
+CREATE TYPE payment_method AS ENUM ('mobile', 'bank', 'card');
 CREATE TYPE rsvp_status AS ENUM ('pending', 'confirmed', 'declined', 'checked_in');
 CREATE TYPE verification_status AS ENUM ('pending', 'verified', 'rejected');
 CREATE TYPE otp_verification_type AS ENUM ('phone', 'email');
@@ -25,6 +25,9 @@ CREATE TYPE sticker_type AS ENUM ('poll', 'question', 'countdown', 'mention', 'l
 CREATE TYPE card_order_status AS ENUM ('pending', 'processing', 'shipped', 'delivered', 'cancelled');
 CREATE TYPE card_type AS ENUM ('standard', 'premium', 'custom');
 CREATE TYPE chat_session_status AS ENUM ('waiting', 'active', 'ended', 'abandoned');
+CREATE TYPE card_type_enum AS ENUM ('standard', 'premium', 'vip');
+CREATE TYPE card_order_status_enum AS ENUM ('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled');
+
 
 CREATE TABLE IF NOT EXISTS currencies (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -889,10 +892,15 @@ CREATE TABLE IF NOT EXISTS contribution_thank_you_messages (
 CREATE INDEX IF NOT EXISTS idx_thank_you_event ON contribution_thank_you_messages(event_id);
 CREATE INDEX IF NOT EXISTS idx_thank_you_contribution ON contribution_thank_you_messages(contribution_id);
 
+CREATE TYPE guest_type AS ENUM ('user', 'contributor');
+
 CREATE TABLE IF NOT EXISTS event_invitations (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id uuid REFERENCES events(id) ON DELETE CASCADE,
-    invited_user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    guest_type guest_type DEFAULT 'user',
+    invited_user_id uuid,
+    contributor_id uuid REFERENCES user_contributors(id) ON DELETE SET NULL,
+    guest_name text,
     invited_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
     invitation_code text UNIQUE,
     rsvp_status rsvp_status DEFAULT 'pending',
@@ -907,11 +915,17 @@ CREATE TABLE IF NOT EXISTS event_invitations (
 );
 CREATE INDEX IF NOT EXISTS idx_event_invitations_event ON event_invitations(event_id);
 CREATE INDEX IF NOT EXISTS idx_event_invitations_user ON event_invitations(invited_user_id);
+CREATE INDEX IF NOT EXISTS idx_event_invitations_contributor ON event_invitations(contributor_id);
 
 CREATE TABLE IF NOT EXISTS event_attendees (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id uuid REFERENCES events(id) ON DELETE CASCADE,
-    attendee_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    guest_type guest_type DEFAULT 'user',
+    attendee_id uuid,
+    contributor_id uuid REFERENCES user_contributors(id) ON DELETE SET NULL,
+    guest_name text,
+    guest_phone text,
+    guest_email text,
     invitation_id uuid REFERENCES event_invitations(id) ON DELETE SET NULL,
     rsvp_status rsvp_status DEFAULT 'pending',
     checked_in boolean DEFAULT false,
@@ -925,6 +939,7 @@ CREATE TABLE IF NOT EXISTS event_attendees (
 );
 CREATE INDEX IF NOT EXISTS idx_event_attendees_event ON event_attendees(event_id);
 CREATE INDEX IF NOT EXISTS idx_event_attendees_user ON event_attendees(attendee_id);
+CREATE INDEX IF NOT EXISTS idx_event_attendees_contributor ON event_attendees(contributor_id);
 
 CREATE TABLE IF NOT EXISTS attendee_profiles (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1393,6 +1408,13 @@ VALUES
   ('Guest Relations', 'Manages invitations, RSVPs, and guest support'),
   ('Technical Support', 'Handles audiovisual equipment, livestreams, and lighting');
 
+CREATE TABLE IF NOT EXISTS user_feed_saved (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  feed_id UUID NOT NULL REFERENCES user_feeds(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT uq_feed_saved UNIQUE (user_id, feed_id)
+);
 
 CREATE TYPE feed_visibility_enum AS ENUM ('public', 'circle');
 ALTER TABLE user_feeds ADD COLUMN visibility feed_visibility_enum DEFAULT 'public';
@@ -1401,3 +1423,20 @@ ALTER TABLE conversations DROP CONSTRAINT uq_user_to_user;
 CREATE UNIQUE INDEX uq_user_to_user ON conversations (user_one_id, user_two_id) WHERE service_id IS NULL;
 
 ALTER TABLE nuru_cards ALTER COLUMN card_number TYPE VARCHAR(20)
+
+ALTER TYPE payment_method ADD VALUE IF NOT EXISTS 'cash' BEFORE 'mobile';
+
+ALTER TABLE user_contributors DROP CONSTRAINT IF EXISTS uq_user_contributor_name;
+ALTER TABLE user_contributors DROP CONSTRAINT IF EXISTS user_contributors_user_id_name_key;
+ALTER TABLE user_contributors ADD CONSTRAINT uq_user_contributor_phone UNIQUE (user_id, phone);
+
+ALTER TABLE nuru_cards ADD COLUMN IF NOT EXISTS card_type card_type_enum DEFAULT 'standard';
+ALTER TABLE nuru_cards ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+ALTER TABLE nuru_cards ADD COLUMN IF NOT EXISTS holder_name TEXT;
+ALTER TABLE nuru_cards ADD COLUMN IF NOT EXISTS nfc_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE nuru_cards ADD COLUMN IF NOT EXISTS template TEXT;
+ALTER TABLE nuru_cards ADD COLUMN IF NOT EXISTS valid_from TIMESTAMP;
+ALTER TABLE nuru_cards ADD COLUMN IF NOT EXISTS valid_until TIMESTAMP;
+
+UPDATE nuru_cards SET status = CASE WHEN is_active THEN 'active' ELSE 'inactive' END WHERE status IS NULL;
+UPDATE nuru_cards SET card_type = 'standard' WHERE card_type IS NULL;

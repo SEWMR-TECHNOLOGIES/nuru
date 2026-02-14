@@ -25,6 +25,7 @@ from models.enums import (
     ContributionStatusEnum,
     ChatSessionStatusEnum,
     FeedVisibilityEnum,
+    GuestTypeEnum,
 )
 
 
@@ -220,9 +221,9 @@ class User(Base):
     event_committee_assignments = relationship("EventCommitteeMember", back_populates="assigner", foreign_keys="[EventCommitteeMember.assigned_by]")
     event_services_as_provider = relationship("EventService", back_populates="provider_user")
     event_service_payments_received = relationship("EventServicePayment", back_populates="provider_user")
-    event_invitations_received = relationship("EventInvitation", back_populates="invited_user", foreign_keys="[EventInvitation.invited_user_id]")
+    event_invitations_received = relationship("EventInvitation", back_populates="invited_user", foreign_keys="[EventInvitation.invited_user_id]", primaryjoin="User.id == EventInvitation.invited_user_id")
     event_invitations_sent = relationship("EventInvitation", back_populates="invited_by_user", foreign_keys="[EventInvitation.invited_by_user_id]")
-    event_attendances = relationship("EventAttendee", back_populates="attendee")
+    event_attendances = relationship("EventAttendee", back_populates="attendee", foreign_keys="[EventAttendee.attendee_id]", primaryjoin="User.id == EventAttendee.attendee_id")
     conversations_as_one = relationship("Conversation", back_populates="user_one", foreign_keys="[Conversation.user_one_id]")
     conversations_as_two = relationship("Conversation", back_populates="user_two", foreign_keys="[Conversation.user_two_id]")
     sent_messages = relationship("Message", back_populates="sender")
@@ -1455,7 +1456,10 @@ class EventInvitation(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'))
-    invited_user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
+    guest_type = Column(Enum(GuestTypeEnum, name="guest_type_enum"), default=GuestTypeEnum.user)
+    invited_user_id = Column(UUID(as_uuid=True), nullable=True)
+    contributor_id = Column(UUID(as_uuid=True), ForeignKey('user_contributors.id', ondelete='SET NULL'), nullable=True)
+    guest_name = Column(Text, nullable=True)
     invited_by_user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'))
     invitation_code = Column(Text, unique=True)
     rsvp_status = Column(Enum(RSVPStatusEnum, name="rsvp_status_enum"), default=RSVPStatusEnum.pending)
@@ -1470,8 +1474,9 @@ class EventInvitation(Base):
 
     # Relationships
     event = relationship("Event", back_populates="invitations")
-    invited_user = relationship("User", back_populates="event_invitations_received", foreign_keys=[invited_user_id])
+    invited_user = relationship("User", back_populates="event_invitations_received", foreign_keys=[invited_user_id], primaryjoin="EventInvitation.invited_user_id == User.id")
     invited_by_user = relationship("User", back_populates="event_invitations_sent", foreign_keys=[invited_by_user_id])
+    contributor = relationship("UserContributor", foreign_keys=[contributor_id])
     attendees = relationship("EventAttendee", back_populates="invitation")
 
 
@@ -1480,7 +1485,12 @@ class EventAttendee(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'))
-    attendee_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
+    guest_type = Column(Enum(GuestTypeEnum, name="guest_type_enum"), default=GuestTypeEnum.user)
+    attendee_id = Column(UUID(as_uuid=True), nullable=True)
+    contributor_id = Column(UUID(as_uuid=True), ForeignKey('user_contributors.id', ondelete='SET NULL'), nullable=True)
+    guest_name = Column(Text, nullable=True)
+    guest_phone = Column(Text, nullable=True)
+    guest_email = Column(Text, nullable=True)
     invitation_id = Column(UUID(as_uuid=True), ForeignKey('event_invitations.id', ondelete='SET NULL'))
     rsvp_status = Column(Enum(RSVPStatusEnum, name="rsvp_status_enum"), default=RSVPStatusEnum.pending)
     checked_in = Column(Boolean, default=False)
@@ -1494,7 +1504,8 @@ class EventAttendee(Base):
 
     # Relationships
     event = relationship("Event", back_populates="attendees")
-    attendee = relationship("User", back_populates="event_attendances")
+    attendee = relationship("User", back_populates="event_attendances", foreign_keys=[attendee_id], primaryjoin="EventAttendee.attendee_id == User.id")
+    contributor = relationship("UserContributor", foreign_keys=[contributor_id])
     invitation = relationship("EventInvitation", back_populates="attendees")
     nuru_card = relationship("NuruCard", back_populates="event_attendees")
     plus_ones = relationship("EventGuestPlusOne", back_populates="attendee")

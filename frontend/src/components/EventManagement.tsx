@@ -246,12 +246,40 @@ const EventManagement = () => {
           {/* Row 1: Financial overview */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <Card className="w-full"><CardContent className="p-5"><div className="flex items-center justify-between"><div className="flex-1"><p className="text-xs text-muted-foreground">Budget Status</p><p className="text-base font-semibold mt-1">{eventBudget}</p><p className="text-xs text-muted-foreground mt-1">Budget allocated</p></div><div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-blue-600" /></div></div></CardContent></Card>
-            <Card className="w-full"><CardContent className="p-5"><div className="flex items-center justify-between"><div className="flex-1"><p className="text-xs text-muted-foreground">Total Pledged</p><p className="text-base font-semibold text-primary mt-1">{formatPrice(contributionSummary?.total_pledged || 0)}</p><p className="text-xs text-muted-foreground mt-1">{contributionSummary?.count || 0} contributor{(contributionSummary?.count || 0) !== 1 ? 's' : ''} pledged</p></div><div className="w-9 h-9 bg-purple-100 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-purple-600" /></div></div></CardContent></Card>
+            <Card className="w-full"><CardContent className="p-5"><div className="flex items-center justify-between"><div className="flex-1"><p className="text-xs text-muted-foreground">Total Pledged</p><p className="text-base font-semibold text-primary mt-1">{formatPrice(contributionSummary?.total_pledged || 0)}</p><p className="text-xs text-muted-foreground mt-1">{contributionSummary?.pledged_count || 0} contributor{(contributionSummary?.pledged_count || 0) !== 1 ? 's' : ''} pledged</p></div><div className="w-9 h-9 bg-purple-100 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-purple-600" /></div></div></CardContent></Card>
             {apiEvent?.budget && contributionSummary && (
               <Card className="w-full"><CardContent className="p-5"><div className="flex items-center justify-between"><div className="flex-1"><p className="text-xs text-muted-foreground">Budget Shortfall</p><p className="text-base font-semibold text-destructive mt-1">{formatPrice(Math.max(0, (apiEvent.budget as number) - (contributionSummary.total_pledged || 0)))}</p><p className="text-xs text-muted-foreground mt-1">Budget − Total Pledged</p></div><div className="w-9 h-9 bg-red-100 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-red-600" /></div></div></CardContent></Card>
             )}
           </div>
-          {/* Row 2: Event progress + Guest overview in one row */}
+          {/* Row 2: Cash in Hand */}
+          <Card className="w-full border-primary/20 bg-primary/5">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Cash in Hand</p>
+                  <p className="text-xl font-bold text-primary mt-1">{formatPrice(contributionSummary?.total_paid || 0)}</p>
+                </div>
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-primary" />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center p-2 rounded-md bg-background">
+                  <p className="text-base font-semibold">{contributionSummary?.paid_count || 0}</p>
+                  <p className="text-[10px] text-muted-foreground">Paid contributors</p>
+                </div>
+                <div className="text-center p-2 rounded-md bg-background">
+                  <p className="text-base font-semibold">{formatPrice(Math.max(0, (contributionSummary?.total_pledged || 0) - (contributionSummary?.total_paid || 0)))}</p>
+                  <p className="text-[10px] text-muted-foreground">Outstanding</p>
+                </div>
+                <div className="text-center p-2 rounded-md bg-background">
+                  <p className="text-base font-semibold">{contributionSummary?.total_pledged ? Math.round(((contributionSummary?.total_paid || 0) / contributionSummary.total_pledged) * 100) : 0}%</p>
+                  <p className="text-[10px] text-muted-foreground">Collection rate</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          {/* Row 3: Event progress + Guest overview */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Card className="w-full"><CardContent className="p-5"><div className="flex items-center justify-between"><div className="flex-1"><p className="text-xs text-muted-foreground">Event Progress</p><p className="text-base font-semibold mt-1">{completedServices}/{totalServices} Services</p><div className="w-full bg-muted rounded-full h-2 mt-2"><div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${progress}%` }} /></div></div></div></CardContent></Card>
             <Card className="w-full"><CardContent className="p-5"><div className="flex items-center justify-between"><div className="flex-1"><p className="text-xs text-muted-foreground">Guest Overview</p><p className="text-base font-semibold mt-1">{eventGuestCount}</p><p className="text-xs text-muted-foreground mt-1">of {expectedGuests} expected guests</p></div><div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-green-600" /></div></div></CardContent></Card>
@@ -348,7 +376,7 @@ const EventManagement = () => {
         </TabsContent>
 
         <TabsContent value="committee" className="space-y-6">
-          <EventCommittee eventId={id!} permissions={permissions} />
+          <EventCommittee eventId={id!} permissions={permissions} eventTitle={event?.title || 'Event'} />
         </TabsContent>
 
         <TabsContent value="contributions" className="space-y-6">
@@ -360,7 +388,7 @@ const EventManagement = () => {
         </TabsContent>
 
         <TabsContent value="rsvp" className="space-y-6">
-          <EventRSVP eventId={id || ''} permissions={permissions} />
+          <EventRSVP eventId={id || ''} eventTitle={eventTitle} permissions={permissions} />
         </TabsContent>
       </Tabs>
 

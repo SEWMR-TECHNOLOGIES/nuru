@@ -10,7 +10,8 @@ import {
   Edit,
   Trash,
   Send,
-  Loader2
+  Loader2,
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -47,12 +48,14 @@ import { showCaughtError } from '@/lib/api';
 import UserSearchInput from './UserSearchInput';
 import CommitteeSkeletonLoader from './CommitteeSkeletonLoader';
 import CommitteePermissionsBadge from './CommitteePermissionsBadge';
+import ReportPreviewDialog from '@/components/ReportPreviewDialog';
 import type { SearchedUser } from '@/hooks/useUserSearch';
 import type { EventPermissions } from '@/hooks/useEventPermissions';
 
 interface EventCommitteeProps {
   eventId: string;
   permissions?: EventPermissions;
+  eventTitle?: string;
 }
 
 const AVAILABLE_ROLES = [
@@ -79,7 +82,7 @@ const AVAILABLE_PERMISSIONS = [
   { id: 'edit_event', label: 'Edit Event Details', description: 'Change event information' }
 ];
 
-const EventCommittee = ({ eventId, permissions }: EventCommitteeProps) => {
+const EventCommittee = ({ eventId, permissions, eventTitle }: EventCommitteeProps) => {
   const canManageCommittee = permissions?.can_manage_committee || permissions?.is_creator;
   const { members, loading, error, addMember, updateMember, removeMember, refetch } = useEventCommittee(eventId);
   usePolling(refetch, 15000);
@@ -103,6 +106,73 @@ const EventCommittee = ({ eventId, permissions }: EventCommitteeProps) => {
   const [editRole, setEditRole] = useState('');
   const [editCustomRole, setEditCustomRole] = useState('');
   const [editPermissions, setEditPermissions] = useState<string[]>([]);
+  const [reportOpen, setReportOpen] = useState(false);
+
+  const formatPhoneDisplay = (phone?: string | null): string => {
+    if (!phone) return '';
+    const cleaned = phone.replace(/\s+/g, '').replace(/^\+/, '');
+    if (cleaned.startsWith('255') && cleaned.length >= 12) return '0' + cleaned.slice(3);
+    return cleaned;
+  };
+
+  const generateCommitteeReportHtml = (): string => {
+    const now = new Date();
+    const timestamp = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+      + ', ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+    const sortedMembers = [...members].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    const rows = sortedMembers.map((m, i) => `
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px 12px;text-align:center;">${i + 1}</td>
+        <td style="padding:8px 12px;">${m.name || '—'}</td>
+        <td style="padding:8px 12px;">${m.role || '—'}</td>
+        <td style="padding:8px 12px;">${formatPhoneDisplay(m.phone)}</td>
+        <td style="padding:8px 12px;">${m.email || '—'}</td>
+        <td style="padding:8px 12px;text-transform:capitalize;">${m.status || '—'}</td>
+      </tr>
+    `).join('');
+
+    const active = sortedMembers.filter(m => m.status === 'active').length;
+    const invited = sortedMembers.filter(m => m.status === 'invited').length;
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Committee Report</title>
+      <style>
+        body{font-family:'Inter',Arial,sans-serif;margin:0;padding:24px;color:#1a1a1a;}
+        table{width:100%;border-collapse:collapse;font-size:13px;}
+        th{background:#f5f5f5;text-align:left;padding:10px 12px;font-weight:600;border-bottom:2px solid #ddd;}
+        .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;border-bottom:3px solid #1a1a1a;padding-bottom:16px;}
+        .title{font-size:22px;font-weight:700;}
+        .subtitle{font-size:14px;color:#666;margin-top:4px;}
+        .summary{display:flex;gap:32px;margin-bottom:20px;}
+        .stat{text-align:center;}
+        .stat-value{font-size:20px;font-weight:700;}
+        .stat-label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.5px;}
+        .footer{margin-top:24px;text-align:center;font-size:10px;color:#999;border-top:1px solid #eee;padding-top:12px;}
+        @media print{body{padding:16px;}}
+      </style></head><body>
+      <div class="header">
+        <div>
+          <div class="title">${eventTitle || 'Event'}</div>
+          <div class="subtitle">Committee Report</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-weight:700;font-size:18px;">nuru</div>
+          <div style="font-size:10px;color:#888;">Generated: ${timestamp}</div>
+        </div>
+      </div>
+      <div class="summary">
+        <div class="stat"><div class="stat-value">${sortedMembers.length}</div><div class="stat-label">Total Members</div></div>
+        <div class="stat"><div class="stat-value">${active}</div><div class="stat-label">Active</div></div>
+        <div class="stat"><div class="stat-value">${invited}</div><div class="stat-label">Invited</div></div>
+      </div>
+      <table>
+        <thead><tr><th style="width:40px;">#</th><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Status</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="footer">© ${now.getFullYear()} Nuru | SEWMR TECHNOLOGIES</div>
+    </body></html>`;
+  };
 
   const handleAddMember = async () => {
     if (!selectedUser) {
@@ -263,12 +333,20 @@ const EventCommittee = ({ eventId, permissions }: EventCommitteeProps) => {
           <h2 className="text-xl font-semibold">Event Committee</h2>
           <p className="text-muted-foreground">Manage your event planning team</p>
         </div>
-        {canManageCommittee && (
-          <Button onClick={() => setAddDialogOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Member
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {members.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setReportOpen(true)}>
+              <FileText className="w-4 h-4 mr-1.5" />
+              Report
+            </Button>
+          )}
+          {canManageCommittee && (
+            <Button onClick={() => setAddDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Member
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -332,7 +410,7 @@ const EventCommittee = ({ eventId, permissions }: EventCommitteeProps) => {
                   )}
                   {member.phone && (
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <Phone className="w-3 h-3" /><span>{member.phone}</span>
+                      <Phone className="w-3 h-3" /><span>{formatPhoneDisplay(member.phone)}</span>
                     </div>
                   )}
                 </div>
@@ -491,6 +569,13 @@ const EventCommittee = ({ eventId, permissions }: EventCommitteeProps) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ReportPreviewDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        title="Committee Report"
+        html={generateCommitteeReportHtml()}
+      />
     </div>
   );
 };

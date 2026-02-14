@@ -211,7 +211,16 @@ def update_contributor(contributor_id: str, body: dict = Body(...), db: Session 
         return standard_response(False, "Contributor not found")
 
     if "name" in body and body["name"]:
-        c.name = body["name"].strip()
+        new_name = body["name"].strip()
+        if new_name != c.name:
+            existing_name = db.query(UserContributor).filter(
+                UserContributor.user_id == current_user.id,
+                UserContributor.name == new_name,
+                UserContributor.id != cid,
+            ).first()
+            if existing_name:
+                return standard_response(False, f"A contributor named '{new_name}' already exists")
+        c.name = new_name
     if "email" in body:
         c.email = (body["email"] or "").strip() or None
     if "phone" in body:
@@ -221,14 +230,14 @@ def update_contributor(contributor_id: str, body: dict = Body(...), db: Session 
                 phone_val = validate_tanzanian_phone(phone_val)
             except ValueError as e:
                 return standard_response(False, str(e))
-            # Check phone uniqueness (exclude current contributor)
-            existing_phone = db.query(UserContributor).filter(
-                UserContributor.user_id == current_user.id,
-                UserContributor.phone == phone_val,
-                UserContributor.id != cid,
-            ).first()
-            if existing_phone:
-                return standard_response(False, f"Phone number already used by contributor '{existing_phone.name}'")
+            if phone_val != c.phone:
+                existing_phone = db.query(UserContributor).filter(
+                    UserContributor.user_id == current_user.id,
+                    UserContributor.phone == phone_val,
+                    UserContributor.id != cid,
+                ).first()
+                if existing_phone:
+                    return standard_response(False, f"Phone number {format_phone_display(phone_val)} is already used by contributor '{existing_phone.name}'")
         c.phone = phone_val
     if "notes" in body:
         c.notes = (body["notes"] or "").strip() or None

@@ -2323,7 +2323,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 4.3 Add Guest
-Adds a new guest to an event.
+Adds a new guest to an event. Supports two guest types: `user` (registered Nuru user) and `contributor` (from user's address book).
 
 ```
 POST /user-events/{eventId}/guests
@@ -2331,49 +2331,47 @@ Authorization: Bearer {access_token}
 Content-Type: application/json
 ```
 
-**Request Body:**
+**Request Body (User Guest):**
 ```json
 {
   "name": "Robert Brown",
+  "guest_type": "user",
+  "user_id": "550e8400-e29b-41d4-a716-446655440020",
   "email": "robert@example.com",
   "phone": "+254712345690",
-  "table_number": "B2",
-  "seat_number": 5,
   "dietary_requirements": "Halal",
-  "allergies": null,
-  "plus_ones": 2,
-  "plus_one_names": ["Mary Brown", "Tom Brown"],
-  "plus_one_details": [
-    {
-      "name": "Mary Brown",
-      "dietary_requirements": "Halal",
-      "allergies": null
-    },
-    {
-      "name": "Tom Brown",
-      "dietary_requirements": "None",
-      "allergies": "Shellfish"
-    }
-  ],
-  "notes": "Colleague from work",
-  "tags": ["Work", "VIP"]
+  "meal_preference": "Vegetarian",
+  "special_requests": "Near the stage",
+  "plus_one_names": ["Mary Brown"],
+  "notes": "Colleague from work"
+}
+```
+
+**Request Body (Contributor Guest):**
+```json
+{
+  "name": "Jane Doe",
+  "guest_type": "contributor",
+  "contributor_id": "a50e8400-e29b-41d4-a716-446655440001",
+  "dietary_requirements": "None",
+  "meal_preference": "Regular",
+  "notes": "Family friend"
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | name | string | Yes | Guest full name (max 100 chars) |
-| email | string | No | Guest email address |
-| phone | string | No | Guest phone number with country code |
-| table_number | string | No | Assigned table number (max 20 chars) |
-| seat_number | integer | No | Assigned seat number |
-| dietary_requirements | string | No | Dietary requirements (max 200 chars) |
-| allergies | string | No | Food allergies (max 200 chars) |
-| plus_ones | integer | No | Number of plus ones (default: 0, max: 10) |
+| guest_type | string | No | `"user"` (default) or `"contributor"` |
+| user_id | uuid | No | For user guests: link to registered Nuru user |
+| contributor_id | uuid | Cond. | Required when `guest_type` is `"contributor"` |
+| email | string | No | Guest email (used for user lookup if no user_id) |
+| phone | string | No | Guest phone (used for user lookup if no user_id) |
+| dietary_requirements | string | No | Dietary requirements |
+| meal_preference | string | No | Meal preference |
+| special_requests | string | No | Special requests |
 | plus_one_names | array[string] | No | Names of plus ones |
-| plus_one_details | array[object] | No | Details of each plus one |
 | notes | string | No | Internal notes (max 500 chars) |
-| tags | array[string] | No | Guest tags for categorization |
 
 **Success Response (201 Created):**
 ```json
@@ -2383,28 +2381,32 @@ Content-Type: application/json
   "data": {
     "id": "c50e8400-e29b-41d4-a716-446655440010",
     "event_id": "b50e8400-e29b-41d4-a716-446655440001",
+    "guest_type": "user",
     "name": "Robert Brown",
     "email": "robert@example.com",
     "phone": "+254712345690",
     "rsvp_status": "pending",
-    "rsvp_responded_at": null,
-    "table_number": "B2",
-    "seat_number": 5,
     "dietary_requirements": "Halal",
-    "allergies": null,
-    "plus_ones": 2,
-    "plus_one_names": ["Mary Brown", "Tom Brown"],
+    "meal_preference": "Vegetarian",
+    "special_requests": "Near the stage",
+    "plus_ones": 1,
+    "plus_one_names": ["Mary Brown"],
     "notes": "Colleague from work",
-    "tags": ["Work", "VIP"],
     "invitation_sent": false,
     "invitation_sent_at": null,
     "invitation_method": null,
     "checked_in": false,
     "checked_in_at": null,
-    "qr_code": "https://storage.nuru.com/qr/c50e8400-010.png",
-    "created_at": "2025-02-05T16:00:00Z",
-    "updated_at": "2025-02-05T16:00:00Z"
+    "created_at": "2025-02-05T16:00:00Z"
   }
+}
+```
+
+**Duplicate Error (400):**
+```json
+{
+  "success": false,
+  "message": "Robert Brown is already on the guest list for this event."
 }
 ```
 

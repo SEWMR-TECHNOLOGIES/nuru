@@ -94,6 +94,8 @@ const RightSidebar = () => {
   }, []);
 
   // Merge & deduplicate events by ID, prioritizing creator > committee > guest
+  // Filter out: past events, declined/cancelled invitations
+  const now = new Date();
   const upcomingEvents = useMemo<UpcomingEvent[]>(() => {
     const map = new Map<string, UpcomingEvent>();
 
@@ -108,20 +110,32 @@ const RightSidebar = () => {
     }
     for (const ev of invitedEvents) {
       if (!map.has(ev.id)) {
+        const rsvpStatus = (ev.rsvp_status || ev.invitation_status || '').toLowerCase();
+        // Skip declined/rejected invitations
+        if (['declined', 'rejected', 'not_attending'].includes(rsvpStatus)) continue;
         map.set(ev.id, { id: ev.id, title: ev.title || ev.name, start_date: ev.start_date, cover_image: ev.cover_image || ev.cover_image_url, status: ev.status, role: 'guest' });
       }
     }
 
     return Array.from(map.values())
+      .filter((ev) => {
+        // Exclude past events
+        if (ev.start_date && new Date(ev.start_date) < now) return false;
+        // Exclude cancelled events
+        if (ev.status?.toLowerCase() === 'cancelled') return false;
+        return true;
+      })
       .sort((a, b) => {
         if (!a.start_date) return 1;
         if (!b.start_date) return -1;
         return new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
-      })
-      .slice(0, 5);
+      });
   }, [events, committeeEvents, invitedEvents]);
 
-  const allLoading = (eventsLoading || extraLoading) && upcomingEvents.length === 0;
+  const displayedEvents = upcomingEvents.slice(0, 6);
+  const hasMoreEvents = upcomingEvents.length > 6;
+
+  const allLoading = (eventsLoading || extraLoading) && displayedEvents.length === 0;
 
   // Track if we've ever loaded data to avoid skeleton flicker on re-mount
   const hasLoadedServices = services.length > 0 || !servicesLoading;
@@ -132,11 +146,11 @@ const RightSidebar = () => {
       {/* Upcoming Events */}
       {allLoading ? (
         <SidebarCardSkeleton title="Upcoming Events" count={3} />
-      ) : upcomingEvents.length > 0 ? (
+      ) : displayedEvents.length > 0 ? (
         <div className="bg-card rounded-lg p-4 border border-border">
           <h2 className="font-semibold text-foreground mb-4">Upcoming Events</h2>
           <div className="space-y-3">
-            {upcomingEvents.map((event) => {
+            {displayedEvents.map((event) => {
               const roleLabel = ROLE_LABELS[event.role];
               const roleBg = event.role === 'creator' ? 'bg-primary' : event.role === 'committee' ? 'bg-amber-500' : 'bg-blue-500';
               return (
@@ -149,7 +163,6 @@ const RightSidebar = () => {
                   ) : (
                     <img src={CalendarIcon} alt="Calendar" className="w-5 h-5" />
                   )}
-                  {/* Role label overlay on image */}
                   <span className={`absolute bottom-0 left-0 right-0 text-[7px] font-semibold text-white text-center py-0.5 ${roleBg}`}>
                     {roleLabel}
                   </span>
@@ -168,6 +181,16 @@ const RightSidebar = () => {
               );
             })}
           </div>
+          {hasMoreEvents && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full mt-3 text-xs text-primary hover:text-primary/80"
+              onClick={() => navigate('/my-events')}
+            >
+              View all events →
+            </Button>
+          )}
         </div>
       ) : (
         <EmptyCard title="Upcoming Events" count={3} />

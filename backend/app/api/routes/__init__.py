@@ -21,6 +21,7 @@ from .circles import router as circles_router
 from .communities import router as communities_router
 from .user_contributors import router as user_contributors_router
 from .profile import router as profile_router
+from .rsvp import router as rsvp_router
 
 # All routers to be included in main app
 all_routers = [
@@ -44,6 +45,7 @@ all_routers = [
     communities_router,   # /communities/...
     user_contributors_router,  # /user-contributors/...
     profile_router,            # /users/profile
+    rsvp_router,               # /rsvp/...
 ]
 
 __all__ = [
@@ -67,5 +69,6 @@ __all__ = [
     "communities_router",
     "user_contributors_router",
     "profile_router",
+    "rsvp_router",
     "all_routers",
 ]

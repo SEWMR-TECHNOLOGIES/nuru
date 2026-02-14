@@ -229,7 +229,9 @@ export interface Event {
 export interface EventGuest {
   id: string;
   event_id: string;
+  guest_type?: "user" | "contributor";
   user_id?: string;
+  contributor_id?: string;
   name: string;
   avatar?: string;
   email?: string;

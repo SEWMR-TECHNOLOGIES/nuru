@@ -18,14 +18,18 @@ def _send(phone: str, message: str):
         print(f"[SMS] Failed to send to {phone}: {e}")
 
 
-def sms_guest_added(phone: str, guest_name: str, event_title: str, event_date: str = "", organizer_name: str = ""):
+def sms_guest_added(phone: str, guest_name: str, event_title: str, event_date: str = "", organizer_name: str = "", invitation_code: str = ""):
     """Notify guest they've been added to an event."""
     msg = f"Hello {guest_name}, you have been invited to {event_title}"
     if event_date:
         msg += f" on {event_date}"
     if organizer_name:
         msg += f" by {organizer_name}"
-    msg += ". Open Nuru app for details."
+    msg += "."
+    if invitation_code:
+        msg += f" Confirm your attendance: https://nuru.tz/rsvp/{invitation_code}"
+    else:
+        msg += " Open Nuru app for details."
     _send(phone, msg)
 
 

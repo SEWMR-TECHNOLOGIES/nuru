@@ -123,3 +123,54 @@ The following items require backend endpoint changes or new endpoints that canno
 ```sql
 ALTER TYPE payment_method ADD VALUE IF NOT EXISTS 'cash' BEFORE 'mobile';
 ```
+
+## 14. Guest Type Enum – Contributors as Event Guests
+**Problem:** `event_invitations` and `event_attendees` tables had hard FK constraints on `users.id`, preventing non-registered address book contacts from being added as event guests.
+**Fix:**
+- Added `guest_type_enum` (`user`, `contributor`) to database and ORM
+- Removed FK constraints on `invited_user_id` (invitations) and `attendee_id` (attendees) — now plain UUID columns
+- Added `guest_type`, `contributor_id`, `guest_name` columns to `event_invitations`
+- Added `guest_type`, `contributor_id`, `guest_name`, `guest_phone`, `guest_email` columns to `event_attendees`
+- Updated all backend helpers (`_resolve_guest_name`, `_attendee_dict`) to resolve name/contact from either `User` (first_name + last_name) or `UserContributor` (full_name) based on `guest_type`
+- Updated public RSVP endpoints to use type-aware name resolution
+- Updated bulk import to tag guests as `guest_type='user'`
+- Frontend `EventGuestList` now supports tabbed "Add Guest" with both user search and address book contributor selection
+**Files changed:**
+- `database.sql` (enum + table DDL)
+- `backend/app/models/enums.py` (added `GuestTypeEnum`)
+- `backend/app/models/invitations.py` (updated `EventInvitation`, `EventAttendee`)
+- `backend/app/models/models.py` (synced `EventInvitation`, `EventAttendee`, added `GuestTypeEnum` import)
+- `backend/app/api/routes/user_events.py` (guest helpers, add/bulk endpoints)
+- `backend/app/api/routes/events.py` (public RSVP resolution)
+- `src/lib/api/types.ts` (added `guest_type`, `contributor_id`)
+- `src/components/events/EventGuestList.tsx` (contributor tab UI)
+- `nuru-api-doc.md` (updated §4.3 Add Guest)
+**ALTER statements needed on DB:**
+```sql
+-- 1. Create the guest_type enum
+CREATE TYPE guest_type_enum AS ENUM ('user', 'contributor');
+
+-- 2. Update event_invitations
+ALTER TABLE event_invitations
+  ADD COLUMN IF NOT EXISTS guest_type guest_type_enum DEFAULT 'user',
+  ADD COLUMN IF NOT EXISTS contributor_id uuid REFERENCES user_contributors(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS guest_name text;
+
+-- 3. Drop FK constraint on invited_user_id
+ALTER TABLE event_invitations DROP CONSTRAINT IF EXISTS event_invitations_invited_user_id_fkey;
+
+-- 4. Update event_attendees
+ALTER TABLE event_attendees
+  ADD COLUMN IF NOT EXISTS guest_type guest_type_enum DEFAULT 'user',
+  ADD COLUMN IF NOT EXISTS contributor_id uuid REFERENCES user_contributors(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS guest_name text,
+  ADD COLUMN IF NOT EXISTS guest_phone text,
+  ADD COLUMN IF NOT EXISTS guest_email text;
+
+-- 5. Drop FK constraint on attendee_id
+ALTER TABLE event_attendees DROP CONSTRAINT IF EXISTS event_attendees_attendee_id_fkey;
+
+-- 6. Add indexes
+CREATE INDEX IF NOT EXISTS idx_event_invitations_contributor ON event_invitations(contributor_id);
+CREATE INDEX IF NOT EXISTS idx_event_attendees_contributor ON event_attendees(contributor_id);
+```

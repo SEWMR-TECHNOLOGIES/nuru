@@ -8,6 +8,7 @@ import {
   Users,
   UsersRound,
   ClipboardList,
+  BookUser,
   LucideIcon
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -46,6 +47,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
     { customIcon: CardIcon, label: 'Nuru Cards', path: '/nuru-cards' },
     
     { lucideIcon: Users, label: 'My Circle', path: '/circle' },
+    { lucideIcon: BookUser, label: 'Contributors', path: '/my-contributors' },
     { lucideIcon: UsersRound, label: 'Communities', path: '/communities' },
     { lucideIcon: HelpCircle, label: 'Help', path: '/help' },
     { lucideIcon: Settings, label: 'Settings', path: '/settings' },

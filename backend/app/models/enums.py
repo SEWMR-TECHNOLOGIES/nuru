@@ -153,3 +153,8 @@ class ChatSessionStatusEnum(enum.Enum):
 class FeedVisibilityEnum(enum.Enum):
     public = "public"
     circle = "circle"
+
+
+class GuestTypeEnum(enum.Enum):
+    user = "user"
+    contributor = "contributor"

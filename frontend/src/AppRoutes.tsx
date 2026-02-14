@@ -27,6 +27,7 @@ import Communities from "@/components/Communities";
 import ProviderChat from "@/components/ProviderChat";
 import CommunityDetail from "@/components/CommunityDetail";
 import MyMoments from "@/components/MyMoments";
+import MyContributors from "@/components/MyContributors";
 import SavedPosts from "@/components/SavedPosts";
 import LiveChat from "@/components/LiveChat";
 import NuruCards from "@/components/NuruCards";
@@ -52,6 +53,7 @@ import VerifyEmail from "@/pages/VerifyEmail";
 import VerifyPhone from "@/pages/VerifyPhone";
 import ResetPassword from "@/pages/ResetPassword";
 import GuestPost from "@/pages/GuestPost";
+import RSVPConfirmation from "@/pages/RSVPConfirmation";
 
 export default function AppRoutes() {
   const { userIsLoggedIn, isLoading } = useCurrentUser();
@@ -111,6 +113,7 @@ export default function AppRoutes() {
           <Route path="/bookings" element={<BookingList />} />
           <Route path="/bookings/:id" element={<BookingDetail />} />
           <Route path="/event/:id" element={<EventView />} />
+          <Route path="/my-contributors" element={<MyContributors />} />
         </Route>
 
         {/* Public Pages - always accessible */}
@@ -124,6 +127,7 @@ export default function AppRoutes() {
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/shared/post/:id" element={<GuestPost />} />
+        <Route path="/rsvp/:code" element={<RSVPConfirmation />} />
         <Route path="/features/event-planning" element={<EventPlanning />} />
         <Route path="/features/service-providers" element={<ServiceProviders />} />
         <Route path="/features/invitations" element={<Invitations />} />
