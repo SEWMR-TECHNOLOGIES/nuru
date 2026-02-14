@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Heart, MessageCircle, Sparkles } from 'lucide-react';
+import { Heart, MessageCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { get } from '@/lib/api/helpers';
 
@@ -67,11 +67,10 @@ const TrendingMoments = () => {
           className="text-center mb-16"
         >
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 mb-6">
-            <Sparkles className="w-4 h-4 text-accent-foreground" />
             <span className="text-sm font-medium text-accent-foreground">Live on Nuru</span>
           </div>
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-foreground mb-4">
-            Moments worth celebrating
+            Shared by our community
           </h2>
           <p className="text-lg text-muted-foreground max-w-lg mx-auto">
             Real stories from real people, shared with the world.
@@ -166,7 +165,6 @@ const TrendingMoments = () => {
             className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full bg-foreground text-background font-medium hover:bg-foreground/90 transition-colors group"
           >
             Share your moments
-            <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform" />
           </Link>
         </motion.div>
       </div>
