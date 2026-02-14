@@ -251,9 +251,19 @@ def get_my_permissions(
     for field in PERMISSION_FIELDS:
         perms[field] = bool(getattr(perm_row, field, False)) if perm_row else False
 
+    # Auto-grant view when manage is granted (defensive, should already be set in DB)
+    if perms.get("can_manage_contributions"):
+        perms["can_view_contributions"] = True
+    if perms.get("can_manage_budget"):
+        perms["can_view_budget"] = True
+    if perms.get("can_manage_guests"):
+        perms["can_view_guests"] = True
+    if perms.get("can_manage_vendors"):
+        perms["can_view_vendors"] = True
+
     return standard_response(True, "Permissions retrieved", {
         "is_creator": False,
-        "role": role_obj.name if role_obj else (cm.custom_role or "member"),
+        "role": role_obj.role_name if role_obj else "member",
         **perms,
     })
 
