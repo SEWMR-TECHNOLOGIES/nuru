@@ -1396,6 +1396,111 @@ def add_guests_bulk(event_id: str, body: dict = Body(...), db: Session = Depends
     return standard_response(True, "Guests imported successfully", {"imported": len(imported), "skipped": skipped, "errors": errors_list})
 
 
+# ──────────────────────────────────────────────
+# Add Contributors as Guests (batch)
+# ──────────────────────────────────────────────
+@router.post("/{event_id}/guests/from-contributors")
+def add_contributors_as_guests(event_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Add one or more event contributors as guests. Expects { contributor_ids: [...], send_sms: bool }."""
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID format.")
+
+    event, err = _verify_event_access(db, eid, current_user, "can_manage_guests")
+    if err:
+        return err
+
+    contributor_ids_raw = body.get("contributor_ids", [])
+    send_sms = body.get("send_sms", False)
+    if not contributor_ids_raw:
+        return standard_response(False, "No contributor IDs provided.")
+
+    now = datetime.now(EAT)
+    added = 0
+    skipped = 0
+    errors_list = []
+
+    for raw_id in contributor_ids_raw:
+        try:
+            cid = uuid.UUID(raw_id)
+        except ValueError:
+            errors_list.append({"contributor_id": raw_id, "error": "Invalid ID format"})
+            continue
+
+        # Find the event-contributor link to get the underlying contributor
+        ec = db.query(EventContributor).filter(
+            EventContributor.id == cid,
+            EventContributor.event_id == eid,
+        ).first()
+        if not ec:
+            errors_list.append({"contributor_id": raw_id, "error": "Event contributor not found"})
+            continue
+
+        contributor = db.query(UserContributor).filter(UserContributor.id == ec.contributor_id).first()
+        if not contributor:
+            errors_list.append({"contributor_id": raw_id, "error": "Contributor record not found"})
+            continue
+
+        # Duplicate check
+        existing = db.query(EventAttendee).filter(
+            EventAttendee.event_id == eid,
+            EventAttendee.guest_type == GuestTypeEnum.contributor,
+            EventAttendee.contributor_id == contributor.id,
+        ).first()
+        if existing:
+            skipped += 1
+            continue
+
+        invitation = EventInvitation(
+            id=uuid.uuid4(), event_id=eid,
+            guest_type=GuestTypeEnum.contributor,
+            contributor_id=contributor.id,
+            guest_name=contributor.name,
+            invited_by_user_id=current_user.id,
+            invitation_code=generate_rsvp_code(),
+            rsvp_status=RSVPStatusEnum.pending,
+            created_at=now, updated_at=now,
+        )
+        db.add(invitation)
+        db.flush()
+
+        att = EventAttendee(
+            id=uuid.uuid4(), event_id=eid,
+            guest_type=GuestTypeEnum.contributor,
+            contributor_id=contributor.id,
+            guest_name=contributor.name,
+            guest_phone=contributor.phone,
+            guest_email=contributor.email,
+            invitation_id=invitation.id,
+            rsvp_status=RSVPStatusEnum.pending,
+            created_at=now, updated_at=now,
+        )
+        db.add(att)
+        added += 1
+
+        # Send SMS if opted in
+        if send_sms and contributor.phone:
+            event_date = event.start_date.strftime("%d/%m/%Y") if event.start_date else ""
+            organizer_name = f"{current_user.first_name} {current_user.last_name}"
+            try:
+                sms_guest_added(contributor.phone, contributor.name.split(" ")[0], event.name, event_date, organizer_name, invitation.invitation_code)
+            except Exception:
+                pass  # Don't fail the whole batch for one SMS error
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        return standard_response(False, f"Failed to add guests: {str(e)}")
+
+    return standard_response(True, f"{added} contributor(s) added as guests", {
+        "added": added,
+        "skipped": skipped,
+        "errors": errors_list,
+    })
+
+
 @router.put("/{event_id}/guests/{guest_id}")
 def update_guest(event_id: str, guest_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:

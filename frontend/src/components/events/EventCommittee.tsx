@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import nuruLogoUrl from '@/assets/nuru-logo.png';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { 
   Users, 
@@ -136,41 +137,48 @@ const EventCommittee = ({ eventId, permissions, eventTitle }: EventCommitteeProp
     const active = sortedMembers.filter(m => m.status === 'active').length;
     const invited = sortedMembers.filter(m => m.status === 'invited').length;
 
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Committee Report</title>
+    const logoAbsoluteUrl = new URL(nuruLogoUrl, window.location.origin).href;
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Committee Report - ${eventTitle || 'Event'}</title>
       <style>
-        body{font-family:'Inter',Arial,sans-serif;margin:0;padding:24px;color:#1a1a1a;}
-        table{width:100%;border-collapse:collapse;font-size:13px;}
-        th{background:#f5f5f5;text-align:left;padding:10px 12px;font-weight:600;border-bottom:2px solid #ddd;}
-        .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;border-bottom:3px solid #1a1a1a;padding-bottom:16px;}
-        .title{font-size:22px;font-weight:700;}
-        .subtitle{font-size:14px;color:#666;margin-top:4px;}
-        .summary{display:flex;gap:32px;margin-bottom:20px;}
-        .stat{text-align:center;}
-        .stat-value{font-size:20px;font-weight:700;}
-        .stat-label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.5px;}
-        .footer{margin-top:24px;text-align:center;font-size:10px;color:#999;border-top:1px solid #eee;padding-top:12px;}
-        @media print{body{padding:16px;}}
+        body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; border-bottom: 2px solid #e5e7eb; padding-bottom: 20px; }
+        .brand { display: flex; flex-direction: column; align-items: flex-start; }
+        .brand img { height: 40px; margin-bottom: 6px; }
+        .brand .slogan { font-size: 11px; color: #888; font-style: italic; }
+        .header-right { text-align: right; }
+        .header-right h1 { font-size: 20px; margin: 0 0 4px 0; }
+        .header-right h2 { font-size: 13px; color: #666; margin: 0; font-weight: normal; }
+        table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+        th { background: #f8f8f8; padding: 10px 8px; text-align: left; border-bottom: 2px solid #ddd; font-size: 13px; }
+        td { font-size: 13px; padding: 8px; border-bottom: 1px solid #eee; }
+        .summary { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+        .summary-card { background: #f9fafb; border-radius: 8px; padding: 14px 18px; flex: 1; min-width: 120px; }
+        .summary-card .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+        .summary-card .value { font-size: 17px; font-weight: bold; margin-top: 4px; }
+        .footer { margin-top: 32px; font-size: 11px; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 12px; }
+        @media print { body { padding: 20px; } }
       </style></head><body>
       <div class="header">
-        <div>
-          <div class="title">${eventTitle || 'Event'}</div>
-          <div class="subtitle">Committee Report</div>
+        <div class="brand">
+          <img src="${logoAbsoluteUrl}" alt="Nuru" />
+          <span class="slogan">Plan Smarter</span>
         </div>
-        <div style="text-align:right;">
-          <div style="font-weight:700;font-size:18px;">nuru</div>
-          <div style="font-size:10px;color:#888;">Generated: ${timestamp}</div>
+        <div class="header-right">
+          <h1>Committee Report</h1>
+          <h2>${eventTitle || 'Event'} — ${timestamp}</h2>
         </div>
       </div>
       <div class="summary">
-        <div class="stat"><div class="stat-value">${sortedMembers.length}</div><div class="stat-label">Total Members</div></div>
-        <div class="stat"><div class="stat-value">${active}</div><div class="stat-label">Active</div></div>
-        <div class="stat"><div class="stat-value">${invited}</div><div class="stat-label">Invited</div></div>
+        <div class="summary-card"><div class="label">Total Members</div><div class="value">${sortedMembers.length}</div></div>
+        <div class="summary-card"><div class="label">Active</div><div class="value" style="color:#16a34a">${active}</div></div>
+        <div class="summary-card"><div class="label">Invited</div><div class="value" style="color:#ca8a04">${invited}</div></div>
       </div>
       <table>
         <thead><tr><th style="width:40px;">#</th><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Status</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      <div class="footer">© ${now.getFullYear()} Nuru | SEWMR TECHNOLOGIES</div>
+      <div class="footer">Generated by Nuru Events Workspace · © ${now.getFullYear()} Nuru | SEWMR TECHNOLOGIES</div>
     </body></html>`;
   };
 

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import readXlsxFile from 'read-excel-file';
 import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import { 
-  DollarSign, Plus, Search, Filter, MoreVertical, Edit, Trash, Send, Download, TrendingUp, Users, Clock, Loader2, Eye, ChevronLeft, ChevronRight, UserPlus, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, ShieldCheck
+  DollarSign, Plus, Search, Filter, MoreVertical, Edit, Trash, Send, Download, TrendingUp, Users, Clock, Loader2, Eye, ChevronLeft, ChevronRight, UserPlus, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, ShieldCheck, UserCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,7 @@ import ContributorDetailDialog from './ContributorDetailDialog';
 import { generateContributionReportHtml } from '@/utils/generatePdf';
 import ReportPreviewDialog from '@/components/ReportPreviewDialog';
 import { contributorsApi } from '@/lib/api/contributors';
+import { eventsApi } from '@/lib/api/events';
 import type { EventContributorSummary } from '@/lib/api/contributors';
 import type { EventPermissions } from '@/hooks/useEventPermissions';
 
@@ -124,6 +125,12 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
   const [pendingLoading, setPendingLoading] = useState(false);
   const [selectedPending, setSelectedPending] = useState<string[]>([]);
   const [confirmingPending, setConfirmingPending] = useState(false);
+
+  // Batch add-as-guest
+  const [selectedForGuest, setSelectedForGuest] = useState<string[]>([]);
+  const [guestBatchSendSms, setGuestBatchSendSms] = useState(false);
+  const [addingAsGuests, setAddingAsGuests] = useState(false);
+  const [guestBatchDialogOpen, setGuestBatchDialogOpen] = useState(false);
 
   const fetchPending = async () => {
     if (!isCreator) return;
@@ -252,6 +259,39 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
     } catch (err: any) {
       showCaughtError(err, 'Failed to remove');
     }
+  };
+
+  const handleAddAsGuest = async (ecId: string) => {
+    setAddingAsGuests(true);
+    try {
+      const res = await eventsApi.addContributorsAsGuests(eventId, { contributor_ids: [ecId], send_sms: true });
+      if (res.success) {
+        if (res.data.skipped > 0) toast.info('Contributor is already on the guest list');
+        else toast.success('Contributor added as guest');
+      } else {
+        toast.error(res.message || 'Failed to add as guest');
+      }
+    } catch (err: any) { showCaughtError(err, 'Failed to add as guest'); }
+    finally { setAddingAsGuests(false); }
+  };
+
+  const handleBatchAddAsGuests = async () => {
+    if (selectedForGuest.length === 0) return;
+    setAddingAsGuests(true);
+    try {
+      const res = await eventsApi.addContributorsAsGuests(eventId, {
+        contributor_ids: selectedForGuest,
+        send_sms: guestBatchSendSms,
+      });
+      if (res.success) {
+        toast.success(`${res.data.added} contributor(s) added as guests${res.data.skipped > 0 ? `, ${res.data.skipped} already on list` : ''}`);
+        setSelectedForGuest([]);
+        setGuestBatchDialogOpen(false);
+      } else {
+        toast.error(res.message || 'Failed');
+      }
+    } catch (err: any) { showCaughtError(err, 'Batch add failed'); }
+    finally { setAddingAsGuests(false); }
   };
 
   const handleViewHistory = async (ec: EventContributorSummary) => {
@@ -639,12 +679,37 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
         </div>
       </div>
 
+      {/* Batch Add as Guest Bar */}
+      {canManage && selectedForGuest.length > 0 && (
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardContent className="p-3 flex items-center justify-between">
+            <p className="text-sm font-medium text-blue-800">
+              {selectedForGuest.length} contributor{selectedForGuest.length > 1 ? 's' : ''} selected
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setSelectedForGuest([])}>Clear</Button>
+              <Button size="sm" onClick={() => setGuestBatchDialogOpen(true)} disabled={addingAsGuests}>
+                <UserCheck className="w-4 h-4 mr-1" />Add as Guest{selectedForGuest.length > 1 ? 's' : ''}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Contributors Table */}
       <Card><CardContent className="p-0">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b bg-muted/50">
+                {canManage && (
+                  <th className="p-4 w-10">
+                    <Checkbox
+                      checked={selectedForGuest.length === paginatedContributors.length && paginatedContributors.length > 0}
+                      onCheckedChange={(checked) => setSelectedForGuest(checked ? paginatedContributors.map(ec => ec.id) : [])}
+                    />
+                  </th>
+                )}
                 <th className="text-left p-4 text-sm font-medium">Contributor</th>
                 <th className="text-right p-4 text-sm font-medium">Pledged</th>
                 <th className="text-right p-4 text-sm font-medium">Paid</th>
@@ -654,10 +719,18 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
             </thead>
             <tbody className="divide-y">
               {paginatedContributors.length === 0 ? (
-                <tr><td colSpan={canManage ? 5 : 4} className="p-6 text-center text-muted-foreground">No contributors added yet. Click "Add Contributor" to get started.</td></tr>
+                <tr><td colSpan={canManage ? 7 : 4} className="p-6 text-center text-muted-foreground">No contributors added yet. Click "Add Contributor" to get started.</td></tr>
               ) : (
                 paginatedContributors.map((ec) => (
-                  <tr key={ec.id} className="hover:bg-muted/50">
+                  <tr key={ec.id} className={`hover:bg-muted/50 ${selectedForGuest.includes(ec.id) ? 'bg-blue-50/50' : ''}`}>
+                    {canManage && (
+                      <td className="p-4 w-10">
+                        <Checkbox
+                          checked={selectedForGuest.includes(ec.id)}
+                          onCheckedChange={(checked) => setSelectedForGuest(prev => checked ? [...prev, ec.id] : prev.filter(id => id !== ec.id))}
+                        />
+                      </td>
+                    )}
                     <td className="p-4">
                       <p className="font-medium">{ec.contributor?.name || 'Unknown'}</p>
                       {ec.contributor?.email && <p className="text-xs text-muted-foreground">{ec.contributor.email}</p>}
@@ -687,6 +760,9 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
                                 <Send className="w-4 h-4 mr-2" />Send Thank You
                               </DropdownMenuItem>
                             )}
+                            <DropdownMenuItem onClick={() => handleAddAsGuest(ec.id)}>
+                              <UserCheck className="w-4 h-4 mr-2" />Add as Guest
+                            </DropdownMenuItem>
                             <DropdownMenuItem className="text-destructive" onClick={() => handleRemove(ec.id)}>
                               <Trash className="w-4 h-4 mr-2" />Remove
                             </DropdownMenuItem>
@@ -1053,6 +1129,52 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
                 {bulkUploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Uploading...</> : <><Upload className="w-4 h-4 mr-2" />Upload {bulkRows.length} Contributors</>}
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Batch Add as Guests Confirmation Dialog */}
+      <Dialog open={guestBatchDialogOpen} onOpenChange={setGuestBatchDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Contributors as Guests</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              You are about to add <span className="font-semibold text-foreground">{selectedForGuest.length}</span> contributor{selectedForGuest.length > 1 ? 's' : ''} to the guest list. Duplicate entries will be automatically skipped.
+            </p>
+
+            <div className="flex items-start gap-3 p-3 rounded-lg border bg-muted/20">
+              <Checkbox
+                id="guest-batch-sms"
+                checked={guestBatchSendSms}
+                onCheckedChange={(v) => setGuestBatchSendSms(v === true)}
+                className="mt-0.5"
+              />
+              <div>
+                <label htmlFor="guest-batch-sms" className="text-sm font-medium cursor-pointer">Send SMS notifications</label>
+                <p className="text-xs text-muted-foreground">
+                  {guestBatchSendSms 
+                    ? '⚠️ An invitation SMS will be sent to each contributor. This may take longer for large batches.' 
+                    : 'No SMS will be sent. Guests will be added silently.'}
+                </p>
+              </div>
+            </div>
+
+            {selectedForGuest.length > 10 && (
+              <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-200 bg-amber-50/50">
+                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-amber-700">
+                  You have selected a large number of contributors. Processing may take a moment{guestBatchSendSms ? ', especially with SMS notifications enabled' : ''}.
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGuestBatchDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleBatchAddAsGuests} disabled={addingAsGuests}>
+              {addingAsGuests ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Adding...</> : <><UserCheck className="w-4 h-4 mr-2" />Add {selectedForGuest.length} as Guest{selectedForGuest.length > 1 ? 's' : ''}</>}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

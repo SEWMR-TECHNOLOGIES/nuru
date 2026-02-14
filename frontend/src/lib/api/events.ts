@@ -159,6 +159,12 @@ export const eventsApi = {
     post<{ imported: number; skipped: number; errors: Array<{ row: number; name?: string; error: string }>; guests: EventGuest[] }>(`/user-events/${eventId}/guests/bulk`, data),
 
   /**
+   * Add contributors as guests (batch)
+   */
+  addContributorsAsGuests: (eventId: string, data: { contributor_ids: string[]; send_sms?: boolean }) =>
+    post<{ added: number; skipped: number; errors: Array<{ contributor_id: string; error: string }> }>(`/user-events/${eventId}/guests/from-contributors`, data),
+
+  /**
    * Import guests from CSV
    */
   importGuestsCSV: (eventId: string, formData: FormData) => 
