@@ -1165,6 +1165,22 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
         if not attendee_user and phone:
             attendee_user = db.query(User).filter(User.phone == phone).first()
 
+    # Pre-insertion duplicate check: prevent adding same user twice to the event
+    if attendee_user:
+        existing_attendee = db.query(EventAttendee).filter(
+            EventAttendee.event_id == eid,
+            EventAttendee.attendee_id == attendee_user.id,
+        ).first()
+        if existing_attendee:
+            return standard_response(False, f"{name} is already on the guest list for this event.")
+
+        existing_invitation = db.query(EventInvitation).filter(
+            EventInvitation.event_id == eid,
+            EventInvitation.invited_user_id == attendee_user.id,
+        ).first()
+        if existing_invitation:
+            return standard_response(False, f"{name} has already been invited to this event.")
+
     now = datetime.now(EAT)
 
     invitation = EventInvitation(id=uuid.uuid4(), event_id=eid, invited_user_id=attendee_user.id if attendee_user else None, invited_by_user_id=current_user.id, invitation_code=uuid.uuid4().hex[:16], rsvp_status=RSVPStatusEnum.pending, notes=body.get("notes"), created_at=now, updated_at=now)

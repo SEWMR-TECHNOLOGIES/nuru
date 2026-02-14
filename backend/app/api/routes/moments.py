@@ -248,6 +248,15 @@ def add_moment_to_highlight(highlight_id: str, body: dict = Body(...), db: Sessi
         mid = uuid.UUID(body.get("moment_id", ""))
     except ValueError:
         return standard_response(False, "Invalid ID")
+
+    # Pre-insertion duplicate check
+    existing = db.query(UserMomentHighlightItem).filter(
+        UserMomentHighlightItem.highlight_id == hid,
+        UserMomentHighlightItem.moment_id == mid,
+    ).first()
+    if existing:
+        return standard_response(False, "This moment is already in the highlight")
+
     db.add(UserMomentHighlightItem(id=uuid.uuid4(), highlight_id=hid, moment_id=mid, created_at=datetime.now(EAT)))
     db.commit()
     return standard_response(True, "Moment added to highlight")

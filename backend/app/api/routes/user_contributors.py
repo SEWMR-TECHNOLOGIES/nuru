@@ -158,13 +158,6 @@ def create_contributor(body: dict = Body(...), db: Session = Depends(get_db), cu
     if not name:
         return standard_response(False, "Name is required")
 
-    existing = db.query(UserContributor).filter(
-        UserContributor.user_id == current_user.id,
-        UserContributor.name == name,
-    ).first()
-    if existing:
-        return standard_response(False, "A contributor with this name already exists")
-
     now = datetime.now(EAT)
     phone = (body.get("phone") or "").strip() or None
     if phone:
@@ -172,6 +165,23 @@ def create_contributor(body: dict = Body(...), db: Session = Depends(get_db), cu
             phone = validate_tanzanian_phone(phone)
         except ValueError as e:
             return standard_response(False, str(e))
+
+    # Check phone uniqueness first (DB constraint: user_id + phone)
+    if phone:
+        existing_phone = db.query(UserContributor).filter(
+            UserContributor.user_id == current_user.id,
+            UserContributor.phone == phone,
+        ).first()
+        if existing_phone:
+            return standard_response(False, f"A contributor with phone number {format_phone_display(phone)} already exists ({existing_phone.name})")
+
+    # Check name uniqueness
+    existing_name = db.query(UserContributor).filter(
+        UserContributor.user_id == current_user.id,
+        UserContributor.name == name,
+    ).first()
+    if existing_name:
+        return standard_response(False, "A contributor with this name already exists")
 
     c = UserContributor(
         id=uuid.uuid4(),
@@ -211,6 +221,14 @@ def update_contributor(contributor_id: str, body: dict = Body(...), db: Session 
                 phone_val = validate_tanzanian_phone(phone_val)
             except ValueError as e:
                 return standard_response(False, str(e))
+            # Check phone uniqueness (exclude current contributor)
+            existing_phone = db.query(UserContributor).filter(
+                UserContributor.user_id == current_user.id,
+                UserContributor.phone == phone_val,
+                UserContributor.id != cid,
+            ).first()
+            if existing_phone:
+                return standard_response(False, f"Phone number already used by contributor '{existing_phone.name}'")
         c.phone = phone_val
     if "notes" in body:
         c.notes = (body["notes"] or "").strip() or None
@@ -340,18 +358,27 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
         if not name:
             return standard_response(False, "Name is required for new contributors")
 
-        contributor = db.query(UserContributor).filter(
-            UserContributor.user_id == owner_id,
-            UserContributor.name == name,
-        ).first()
+        inline_phone = (body.get("phone") or "").strip() or None
+        if inline_phone:
+            try:
+                inline_phone = validate_tanzanian_phone(inline_phone)
+            except ValueError as e:
+                return standard_response(False, str(e))
+
+        # Look up by phone first (unique constraint), then by name
+        contributor = None
+        if inline_phone:
+            contributor = db.query(UserContributor).filter(
+                UserContributor.user_id == owner_id,
+                UserContributor.phone == inline_phone,
+            ).first()
+        if not contributor:
+            contributor = db.query(UserContributor).filter(
+                UserContributor.user_id == owner_id,
+                UserContributor.name == name,
+            ).first()
 
         if not contributor:
-            inline_phone = (body.get("phone") or "").strip() or None
-            if inline_phone:
-                try:
-                    inline_phone = validate_tanzanian_phone(inline_phone)
-                except ValueError as e:
-                    return standard_response(False, str(e))
             contributor = UserContributor(
                 id=uuid.uuid4(),
                 user_id=owner_id,
@@ -363,6 +390,13 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
             )
             db.add(contributor)
             db.flush()
+        else:
+            # Update name/email if provided and contributor was matched by phone
+            if contributor.name != name:
+                contributor.name = name
+            if body.get("email"):
+                contributor.email = (body.get("email") or "").strip() or contributor.email
+            contributor.updated_at = now
 
     # Check if already linked
     existing = db.query(EventContributor).filter(
