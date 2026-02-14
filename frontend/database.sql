@@ -17,7 +17,7 @@ CREATE TYPE notification_type AS ENUM (
     'comment', 'mention', 'circle_add'
 );
 CREATE TYPE upload_file_type AS ENUM ('image', 'pdf', 'video', 'doc');
-CREATE TYPE priority_level AS ENUM ('high', 'medium', 'low');
+CREATE TYPE priority_level AS ENUM ('low', 'medium', 'high', 'critical');
 CREATE TYPE social_provider AS ENUM ('google', 'facebook', 'apple', 'twitter');
 CREATE TYPE moment_content_type AS ENUM ('image', 'video');
 CREATE TYPE moment_privacy AS ENUM ('everyone', 'circle_only', 'close_friends');
@@ -1440,3 +1440,303 @@ ALTER TABLE nuru_cards ADD COLUMN IF NOT EXISTS valid_until TIMESTAMP;
 
 UPDATE nuru_cards SET status = CASE WHEN is_active THEN 'active' ELSE 'inactive' END WHERE status IS NULL;
 UPDATE nuru_cards SET card_type = 'standard' WHERE card_type IS NULL;
+
+-- ──────────────────────────────────────────────
+-- Event Templates & Checklists (Phase 1 Feature)
+-- ──────────────────────────────────────────────
+-- Checklist item status enum
+CREATE TYPE checklist_item_status AS ENUM ('pending', 'in_progress', 'completed', 'skipped');
+
+CREATE TABLE IF NOT EXISTS event_templates (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_type_id uuid NOT NULL REFERENCES event_types(id) ON DELETE CASCADE,
+    name text NOT NULL,
+    description text,
+    estimated_budget_min integer,
+    estimated_budget_max integer,
+    estimated_timeline_days integer,
+    guest_range_min integer,
+    guest_range_max integer,
+    tips jsonb DEFAULT '[]'::jsonb,
+    is_active boolean DEFAULT true,
+    display_order integer DEFAULT 0,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_event_templates_type ON event_templates(event_type_id);
+
+CREATE TABLE IF NOT EXISTS event_template_tasks (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    template_id uuid NOT NULL REFERENCES event_templates(id) ON DELETE CASCADE,
+    title text NOT NULL,
+    description text,
+    category varchar(50),
+    priority priority_level DEFAULT 'medium',
+    days_before_event integer,
+    display_order integer DEFAULT 0,
+    is_active boolean DEFAULT true,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_template_tasks_template ON event_template_tasks(template_id);
+
+CREATE TABLE IF NOT EXISTS event_checklist_items (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    template_task_id uuid REFERENCES event_template_tasks(id) ON DELETE SET NULL,
+    title text NOT NULL,
+    description text,
+    category varchar(50),
+    priority priority_level DEFAULT 'medium',
+    status checklist_item_status DEFAULT 'pending',
+    due_date timestamp,
+    completed_at timestamp,
+    completed_by uuid,
+    assigned_to uuid,
+    assigned_name text,
+    notes text,
+    display_order integer DEFAULT 0,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_checklist_items_event ON event_checklist_items(event_id);
+CREATE INDEX IF NOT EXISTS idx_checklist_items_status ON event_checklist_items(status);
+
+
+-- ============================================================
+-- SEED: Event Templates & Tasks for ALL Nuru Event Types
+-- Run against your backend PostgreSQL database
+-- ============================================================
+
+-- 1. Wedding
+INSERT INTO event_templates (event_type_id, name, description, estimated_budget_min, estimated_budget_max, estimated_timeline_days, guest_range_min, guest_range_max, tips, display_order)
+VALUES (
+  (SELECT id FROM event_types WHERE name = 'Wedding' LIMIT 1),
+  'Complete Wedding Planner',
+  'Full wedding planning checklist covering venue, catering, attire, decorations, and logistics.',
+  5000000, 30000000, 180, 100, 500,
+  '["Book venue at least 6 months in advance","Finalize guest list before sending invitations","Budget 10-15% for unexpected expenses","Hire a day-of coordinator if possible"]'::jsonb, 1
+);
+INSERT INTO event_template_tasks (template_id, title, description, category, priority, days_before_event, display_order) VALUES
+((SELECT id FROM event_templates WHERE name = 'Complete Wedding Planner' LIMIT 1), 'Book wedding venue', 'Research and secure your ceremony and reception venue', 'Venue', 'high', 180, 1),
+((SELECT id FROM event_templates WHERE name = 'Complete Wedding Planner' LIMIT 1), 'Set total budget', 'Define budget categories and spending limits', 'Budget', 'high', 170, 2),
+((SELECT id FROM event_templates WHERE name = 'Complete Wedding Planner' LIMIT 1), 'Hire photographer & videographer', 'Compare portfolios and book early', 'Photography', 'high', 150, 3),
+((SELECT id FROM event_templates WHERE name = 'Complete Wedding Planner' LIMIT 1), 'Choose catering service', 'Arrange tastings and finalize menu', 'Catering', 'high', 120, 4),
+((SELECT id FROM event_templates WHERE name = 'Complete Wedding Planner' LIMIT 1), 'Send invitations', 'Print and distribute or send digital invitations', 'Invitations', 'high', 90, 5),
+((SELECT id FROM event_templates WHERE name = 'Complete Wedding Planner' LIMIT 1), 'Book music/DJ/band', 'Confirm entertainment and playlist preferences', 'Music & Entertainment', 'medium', 90, 6),
+((SELECT id FROM event_templates WHERE name = 'Complete Wedding Planner' LIMIT 1), 'Order wedding cake', 'Schedule tasting and confirm design', 'Catering', 'medium', 60, 7),
+((SELECT id FROM event_templates WHERE name = 'Complete Wedding Planner' LIMIT 1), 'Plan decorations & flowers', 'Choose theme, colors, and floral arrangements', 'Decorations', 'medium', 60, 8),
+((SELECT id FROM event_templates WHERE name = 'Complete Wedding Planner' LIMIT 1), 'Arrange transportation', 'Book cars for bridal party and guests', 'Transport', 'medium', 45, 9),
+((SELECT id FROM event_templates WHERE name = 'Complete Wedding Planner' LIMIT 1), 'Finalize attire', 'Confirm wedding dress, suits, and accessories', 'Attire', 'high', 45, 10),
+((SELECT id FROM event_templates WHERE name = 'Complete Wedding Planner' LIMIT 1), 'Confirm guest RSVPs', 'Follow up with pending responses', 'Coordination', 'high', 21, 11),
+((SELECT id FROM event_templates WHERE name = 'Complete Wedding Planner' LIMIT 1), 'Final venue walkthrough', 'Confirm layout, seating, and logistics with venue', 'Venue', 'high', 7, 12),
+((SELECT id FROM event_templates WHERE name = 'Complete Wedding Planner' LIMIT 1), 'Prepare day-of timeline', 'Create minute-by-minute schedule for the wedding day', 'Coordination', 'high', 3, 13);
+
+-- 2. Corporate
+INSERT INTO event_templates (event_type_id, name, description, estimated_budget_min, estimated_budget_max, estimated_timeline_days, guest_range_min, guest_range_max, tips, display_order)
+VALUES (
+  (SELECT id FROM event_types WHERE name = 'Corporate' LIMIT 1),
+  'Corporate Event Planner',
+  'Organize a professional corporate event, team building, or company party.',
+  3000000, 20000000, 60, 30, 300,
+  '["Confirm AV requirements early","Prepare name badges and materials in advance","Have a backup agenda item ready","Send calendar invites immediately after confirmation"]'::jsonb, 2
+);
+INSERT INTO event_template_tasks (template_id, title, description, category, priority, days_before_event, display_order) VALUES
+((SELECT id FROM event_templates WHERE name = 'Corporate Event Planner' LIMIT 1), 'Define event objectives', 'Clarify goals, target audience, and success metrics', 'Coordination', 'high', 60, 1),
+((SELECT id FROM event_templates WHERE name = 'Corporate Event Planner' LIMIT 1), 'Book venue & AV equipment', 'Secure conference room or hall with required tech', 'Venue', 'high', 45, 2),
+((SELECT id FROM event_templates WHERE name = 'Corporate Event Planner' LIMIT 1), 'Confirm speakers & agenda', 'Finalize speakers, panelists, and session schedule', 'Coordination', 'high', 30, 3),
+((SELECT id FROM event_templates WHERE name = 'Corporate Event Planner' LIMIT 1), 'Send corporate invitations', 'Distribute formal invitations to attendees', 'Invitations', 'high', 30, 4),
+((SELECT id FROM event_templates WHERE name = 'Corporate Event Planner' LIMIT 1), 'Arrange catering & refreshments', 'Book lunch, tea breaks, and dietary accommodations', 'Catering', 'medium', 21, 5),
+((SELECT id FROM event_templates WHERE name = 'Corporate Event Planner' LIMIT 1), 'Prepare materials & handouts', 'Print agendas, name badges, and presentation materials', 'Coordination', 'medium', 7, 6),
+((SELECT id FROM event_templates WHERE name = 'Corporate Event Planner' LIMIT 1), 'Confirm registrations', 'Verify final attendee list and seating', 'Coordination', 'high', 5, 7),
+((SELECT id FROM event_templates WHERE name = 'Corporate Event Planner' LIMIT 1), 'Tech rehearsal', 'Test projectors, microphones, and connectivity', 'Venue', 'high', 1, 8);
+
+-- 3. Birthday
+INSERT INTO event_templates (event_type_id, name, description, estimated_budget_min, estimated_budget_max, estimated_timeline_days, guest_range_min, guest_range_max, tips, display_order)
+VALUES (
+  (SELECT id FROM event_types WHERE name = 'Birthday' LIMIT 1),
+  'Birthday Celebration Planner',
+  'Organize a memorable birthday party from theme selection to day-of execution.',
+  500000, 5000000, 30, 20, 150,
+  '["Pick a theme early to guide all decisions","Order cake at least 1 week before","Prepare a backup plan for outdoor events"]'::jsonb, 3
+);
+INSERT INTO event_template_tasks (template_id, title, description, category, priority, days_before_event, display_order) VALUES
+((SELECT id FROM event_templates WHERE name = 'Birthday Celebration Planner' LIMIT 1), 'Choose party theme', 'Decide on a theme to guide decorations, cake, and dress code', 'Coordination', 'high', 30, 1),
+((SELECT id FROM event_templates WHERE name = 'Birthday Celebration Planner' LIMIT 1), 'Book venue or confirm location', 'Reserve restaurant, hall, or prepare home setup', 'Venue', 'high', 21, 2),
+((SELECT id FROM event_templates WHERE name = 'Birthday Celebration Planner' LIMIT 1), 'Create guest list & send invites', 'Finalize who to invite and send out invitations', 'Invitations', 'high', 21, 3),
+((SELECT id FROM event_templates WHERE name = 'Birthday Celebration Planner' LIMIT 1), 'Order birthday cake', 'Choose flavor, design, and confirm delivery', 'Catering', 'high', 7, 4),
+((SELECT id FROM event_templates WHERE name = 'Birthday Celebration Planner' LIMIT 1), 'Plan food & drinks menu', 'Arrange catering or plan homemade dishes', 'Catering', 'medium', 14, 5),
+((SELECT id FROM event_templates WHERE name = 'Birthday Celebration Planner' LIMIT 1), 'Buy decorations & supplies', 'Balloons, banners, tableware, party favors', 'Decorations', 'medium', 7, 6),
+((SELECT id FROM event_templates WHERE name = 'Birthday Celebration Planner' LIMIT 1), 'Arrange entertainment', 'Music playlist, games, or hire MC/DJ', 'Music & Entertainment', 'medium', 7, 7),
+((SELECT id FROM event_templates WHERE name = 'Birthday Celebration Planner' LIMIT 1), 'Confirm RSVPs', 'Follow up with guests who haven''t responded', 'Coordination', 'medium', 3, 8),
+((SELECT id FROM event_templates WHERE name = 'Birthday Celebration Planner' LIMIT 1), 'Set up venue', 'Decorate and arrange seating before guests arrive', 'Venue', 'high', 0, 9);
+
+-- 4. Burial
+INSERT INTO event_templates (event_type_id, name, description, estimated_budget_min, estimated_budget_max, estimated_timeline_days, guest_range_min, guest_range_max, tips, display_order)
+VALUES (
+  (SELECT id FROM event_types WHERE name = 'Burial' LIMIT 1),
+  'Burial & Memorial Planner',
+  'Plan a respectful funeral service and burial with all essential arrangements.',
+  2000000, 10000000, 14, 50, 300,
+  '["Coordinate with religious or cultural leaders early","Prepare a tribute slideshow or booklet","Assign family liaisons for logistics","Set up contribution channels immediately"]'::jsonb, 4
+);
+INSERT INTO event_template_tasks (template_id, title, description, category, priority, days_before_event, display_order) VALUES
+((SELECT id FROM event_templates WHERE name = 'Burial & Memorial Planner' LIMIT 1), 'Secure venue', 'Book church, mosque, hall, or memorial garden', 'Venue', 'high', 10, 1),
+((SELECT id FROM event_templates WHERE name = 'Burial & Memorial Planner' LIMIT 1), 'Notify family & friends', 'Send notifications and arrange transport for family', 'Invitations', 'high', 10, 2),
+((SELECT id FROM event_templates WHERE name = 'Burial & Memorial Planner' LIMIT 1), 'Coordinate with religious leader', 'Confirm officiant and ceremony program', 'Coordination', 'high', 7, 3),
+((SELECT id FROM event_templates WHERE name = 'Burial & Memorial Planner' LIMIT 1), 'Arrange catering', 'Plan post-service meal for attendees', 'Catering', 'medium', 5, 4),
+((SELECT id FROM event_templates WHERE name = 'Burial & Memorial Planner' LIMIT 1), 'Prepare tribute materials', 'Create photo display, program booklet, or video tribute', 'Coordination', 'medium', 3, 5),
+((SELECT id FROM event_templates WHERE name = 'Burial & Memorial Planner' LIMIT 1), 'Organize contributions', 'Set up contribution channels for family support', 'Budget', 'high', 3, 6),
+((SELECT id FROM event_templates WHERE name = 'Burial & Memorial Planner' LIMIT 1), 'Finalize logistics', 'Confirm seating, sound system, and parking', 'Venue', 'high', 1, 7);
+
+-- 5. Anniversary
+INSERT INTO event_templates (event_type_id, name, description, estimated_budget_min, estimated_budget_max, estimated_timeline_days, guest_range_min, guest_range_max, tips, display_order)
+VALUES (
+  (SELECT id FROM event_types WHERE name = 'Anniversary' LIMIT 1),
+  'Anniversary Celebration Planner',
+  'Plan a memorable anniversary event for personal or business milestones.',
+  1000000, 10000000, 45, 30, 200,
+  '["Include a highlight reel or photo timeline of the journey","Personalize decorations with milestone themes","Plan a surprise element for the honoree"]'::jsonb, 5
+);
+INSERT INTO event_template_tasks (template_id, title, description, category, priority, days_before_event, display_order) VALUES
+((SELECT id FROM event_templates WHERE name = 'Anniversary Celebration Planner' LIMIT 1), 'Choose theme & milestone focus', 'Decide on a theme reflecting the years celebrated', 'Coordination', 'high', 45, 1),
+((SELECT id FROM event_templates WHERE name = 'Anniversary Celebration Planner' LIMIT 1), 'Book venue', 'Reserve restaurant, hall, or garden', 'Venue', 'high', 30, 2),
+((SELECT id FROM event_templates WHERE name = 'Anniversary Celebration Planner' LIMIT 1), 'Send invitations', 'Create and distribute themed invitations', 'Invitations', 'high', 21, 3),
+((SELECT id FROM event_templates WHERE name = 'Anniversary Celebration Planner' LIMIT 1), 'Arrange catering', 'Plan menu with special cake or toast', 'Catering', 'high', 14, 4),
+((SELECT id FROM event_templates WHERE name = 'Anniversary Celebration Planner' LIMIT 1), 'Book photographer', 'Capture milestone moments', 'Photography', 'medium', 14, 5),
+((SELECT id FROM event_templates WHERE name = 'Anniversary Celebration Planner' LIMIT 1), 'Prepare tribute or slideshow', 'Compile photos and memories for presentation', 'Coordination', 'medium', 7, 6),
+((SELECT id FROM event_templates WHERE name = 'Anniversary Celebration Planner' LIMIT 1), 'Plan decorations', 'Theme-appropriate decorations and centerpieces', 'Decorations', 'medium', 7, 7),
+((SELECT id FROM event_templates WHERE name = 'Anniversary Celebration Planner' LIMIT 1), 'Confirm final arrangements', 'Verify headcount, seating, and program', 'Coordination', 'high', 3, 8);
+
+-- 6. Product Launch
+INSERT INTO event_templates (event_type_id, name, description, estimated_budget_min, estimated_budget_max, estimated_timeline_days, guest_range_min, guest_range_max, tips, display_order)
+VALUES (
+  (SELECT id FROM event_types WHERE name = 'Product Launch' LIMIT 1),
+  'Product Launch Planner',
+  'Plan a high-impact product or service launch event.',
+  5000000, 25000000, 60, 50, 500,
+  '["Create buzz on social media before the event","Prepare demo units and samples","Invite media and influencers early","Have a backup presentation plan"]'::jsonb, 6
+);
+INSERT INTO event_template_tasks (template_id, title, description, category, priority, days_before_event, display_order) VALUES
+((SELECT id FROM event_templates WHERE name = 'Product Launch Planner' LIMIT 1), 'Define launch messaging', 'Craft key messages, tagline, and value proposition', 'Coordination', 'high', 60, 1),
+((SELECT id FROM event_templates WHERE name = 'Product Launch Planner' LIMIT 1), 'Book venue with tech setup', 'Secure venue with stage, screens, and sound system', 'Venue', 'high', 45, 2),
+((SELECT id FROM event_templates WHERE name = 'Product Launch Planner' LIMIT 1), 'Invite media & influencers', 'Send press invitations and media kits', 'Invitations', 'high', 30, 3),
+((SELECT id FROM event_templates WHERE name = 'Product Launch Planner' LIMIT 1), 'Prepare product demos', 'Set up demo stations and sample units', 'Coordination', 'high', 14, 4),
+((SELECT id FROM event_templates WHERE name = 'Product Launch Planner' LIMIT 1), 'Design branded materials', 'Banners, brochures, swag bags, and signage', 'Decorations', 'medium', 14, 5),
+((SELECT id FROM event_templates WHERE name = 'Product Launch Planner' LIMIT 1), 'Arrange catering & cocktails', 'Plan refreshments for networking', 'Catering', 'medium', 10, 6),
+((SELECT id FROM event_templates WHERE name = 'Product Launch Planner' LIMIT 1), 'Social media campaign', 'Schedule teaser posts and live coverage plan', 'Coordination', 'high', 7, 7),
+((SELECT id FROM event_templates WHERE name = 'Product Launch Planner' LIMIT 1), 'Tech rehearsal & run-through', 'Test all presentations, demos, and AV', 'Venue', 'high', 1, 8);
+
+-- 7. Conference
+INSERT INTO event_templates (event_type_id, name, description, estimated_budget_min, estimated_budget_max, estimated_timeline_days, guest_range_min, guest_range_max, tips, display_order)
+VALUES (
+  (SELECT id FROM event_types WHERE name = 'Conference' LIMIT 1),
+  'Conference & Seminar Planner',
+  'Organize a professional conference, seminar, or workshop.',
+  5000000, 30000000, 90, 50, 1000,
+  '["Confirm speakers at least 2 months ahead","Offer early-bird registration","Plan networking breaks between sessions","Record sessions for post-event content"]'::jsonb, 7
+);
+INSERT INTO event_template_tasks (template_id, title, description, category, priority, days_before_event, display_order) VALUES
+((SELECT id FROM event_templates WHERE name = 'Conference & Seminar Planner' LIMIT 1), 'Define conference theme & tracks', 'Set overall theme and session categories', 'Coordination', 'high', 90, 1),
+((SELECT id FROM event_templates WHERE name = 'Conference & Seminar Planner' LIMIT 1), 'Book venue & negotiate rates', 'Secure conference center with breakout rooms', 'Venue', 'high', 75, 2),
+((SELECT id FROM event_templates WHERE name = 'Conference & Seminar Planner' LIMIT 1), 'Invite & confirm speakers', 'Reach out to keynote and panel speakers', 'Coordination', 'high', 60, 3),
+((SELECT id FROM event_templates WHERE name = 'Conference & Seminar Planner' LIMIT 1), 'Open registration', 'Set up registration page and payment', 'Coordination', 'high', 60, 4),
+((SELECT id FROM event_templates WHERE name = 'Conference & Seminar Planner' LIMIT 1), 'Sponsor outreach', 'Contact potential sponsors and partners', 'Budget', 'high', 45, 5),
+((SELECT id FROM event_templates WHERE name = 'Conference & Seminar Planner' LIMIT 1), 'Plan catering & breaks', 'Arrange meals, tea breaks, and dietary options', 'Catering', 'medium', 30, 6),
+((SELECT id FROM event_templates WHERE name = 'Conference & Seminar Planner' LIMIT 1), 'Prepare conference materials', 'Badges, programs, notebooks, and swag', 'Coordination', 'medium', 14, 7),
+((SELECT id FROM event_templates WHERE name = 'Conference & Seminar Planner' LIMIT 1), 'AV setup & rehearsal', 'Test all technical equipment and streaming', 'Venue', 'high', 2, 8);
+
+-- 8. Festival
+INSERT INTO event_templates (event_type_id, name, description, estimated_budget_min, estimated_budget_max, estimated_timeline_days, guest_range_min, guest_range_max, tips, display_order)
+VALUES (
+  (SELECT id FROM event_types WHERE name = 'Festival' LIMIT 1),
+  'Festival & Cultural Event Planner',
+  'Plan a public festival or cultural celebration with performances and activities.',
+  10000000, 50000000, 90, 200, 5000,
+  '["Secure permits and licenses early","Plan for weather contingencies","Set up multiple activity zones","Coordinate with local authorities for security"]'::jsonb, 8
+);
+INSERT INTO event_template_tasks (template_id, title, description, category, priority, days_before_event, display_order) VALUES
+((SELECT id FROM event_templates WHERE name = 'Festival & Cultural Event Planner' LIMIT 1), 'Secure venue & permits', 'Book grounds and obtain necessary permits/licenses', 'Venue', 'high', 90, 1),
+((SELECT id FROM event_templates WHERE name = 'Festival & Cultural Event Planner' LIMIT 1), 'Book performers & artists', 'Confirm musicians, dancers, and entertainers', 'Music & Entertainment', 'high', 60, 2),
+((SELECT id FROM event_templates WHERE name = 'Festival & Cultural Event Planner' LIMIT 1), 'Sponsor & vendor outreach', 'Recruit sponsors and food/merchandise vendors', 'Budget', 'high', 60, 3),
+((SELECT id FROM event_templates WHERE name = 'Festival & Cultural Event Planner' LIMIT 1), 'Plan stage & zones layout', 'Design main stage, food court, and activity areas', 'Venue', 'high', 45, 4),
+((SELECT id FROM event_templates WHERE name = 'Festival & Cultural Event Planner' LIMIT 1), 'Arrange security & medical', 'Hire security team and first aid station', 'Coordination', 'high', 30, 5),
+((SELECT id FROM event_templates WHERE name = 'Festival & Cultural Event Planner' LIMIT 1), 'Marketing & promotion', 'Launch social media, posters, and radio ads', 'Coordination', 'high', 30, 6),
+((SELECT id FROM event_templates WHERE name = 'Festival & Cultural Event Planner' LIMIT 1), 'Set up ticketing', 'Configure ticket sales (online and gate)', 'Budget', 'medium', 21, 7),
+((SELECT id FROM event_templates WHERE name = 'Festival & Cultural Event Planner' LIMIT 1), 'Final site inspection', 'Walk through venue, test power, and stage', 'Venue', 'high', 2, 8);
+
+-- 9. Graduation
+INSERT INTO event_templates (event_type_id, name, description, estimated_budget_min, estimated_budget_max, estimated_timeline_days, guest_range_min, guest_range_max, tips, display_order)
+VALUES (
+  (SELECT id FROM event_types WHERE name = 'Graduation' LIMIT 1),
+  'Graduation Party Planner',
+  'Plan a graduation celebration covering venue, catering, and memorable touches.',
+  1000000, 8000000, 45, 30, 200,
+  '["Coordinate with ceremony schedule to avoid conflicts","Include a speech or toast moment","Set up a photo corner with props"]'::jsonb, 9
+);
+INSERT INTO event_template_tasks (template_id, title, description, category, priority, days_before_event, display_order) VALUES
+((SELECT id FROM event_templates WHERE name = 'Graduation Party Planner' LIMIT 1), 'Set budget', 'Define total budget and category allocations', 'Budget', 'high', 45, 1),
+((SELECT id FROM event_templates WHERE name = 'Graduation Party Planner' LIMIT 1), 'Book venue', 'Reserve hall, restaurant, or outdoor space', 'Venue', 'high', 30, 2),
+((SELECT id FROM event_templates WHERE name = 'Graduation Party Planner' LIMIT 1), 'Send invitations', 'Create and distribute invitations', 'Invitations', 'high', 21, 3),
+((SELECT id FROM event_templates WHERE name = 'Graduation Party Planner' LIMIT 1), 'Arrange catering', 'Plan menu and book catering service', 'Catering', 'high', 14, 4),
+((SELECT id FROM event_templates WHERE name = 'Graduation Party Planner' LIMIT 1), 'Book photographer', 'Capture ceremony and celebration moments', 'Photography', 'medium', 14, 5),
+((SELECT id FROM event_templates WHERE name = 'Graduation Party Planner' LIMIT 1), 'Plan decorations', 'Theme-appropriate decorations and signage', 'Decorations', 'medium', 10, 6),
+((SELECT id FROM event_templates WHERE name = 'Graduation Party Planner' LIMIT 1), 'Prepare speeches & program', 'Coordinate speakers and create event program', 'Coordination', 'medium', 7, 7),
+((SELECT id FROM event_templates WHERE name = 'Graduation Party Planner' LIMIT 1), 'Confirm final headcount', 'Finalize RSVPs and catering numbers', 'Coordination', 'high', 3, 8);
+
+-- 10. Baby Shower
+INSERT INTO event_templates (event_type_id, name, description, estimated_budget_min, estimated_budget_max, estimated_timeline_days, guest_range_min, guest_range_max, tips, display_order)
+VALUES (
+  (SELECT id FROM event_types WHERE name = 'Baby Shower' LIMIT 1),
+  'Baby Shower Planner',
+  'Organize a joyful baby shower celebration for expecting parents.',
+  300000, 3000000, 30, 15, 60,
+  '["Coordinate with the parents on theme and preferences","Plan fun games and activities","Prepare a gift registry or contribution list","Consider dietary needs of the expectant mother"]'::jsonb, 10
+);
+INSERT INTO event_template_tasks (template_id, title, description, category, priority, days_before_event, display_order) VALUES
+((SELECT id FROM event_templates WHERE name = 'Baby Shower Planner' LIMIT 1), 'Choose theme & colors', 'Pick a theme (gender reveal, neutral, or specific)', 'Coordination', 'high', 30, 1),
+((SELECT id FROM event_templates WHERE name = 'Baby Shower Planner' LIMIT 1), 'Book venue or prepare home', 'Reserve space or decorate at home', 'Venue', 'high', 21, 2),
+((SELECT id FROM event_templates WHERE name = 'Baby Shower Planner' LIMIT 1), 'Send invitations', 'Share themed invitations with guests', 'Invitations', 'high', 21, 3),
+((SELECT id FROM event_templates WHERE name = 'Baby Shower Planner' LIMIT 1), 'Order cake & treats', 'Custom cake matching the theme', 'Catering', 'high', 7, 4),
+((SELECT id FROM event_templates WHERE name = 'Baby Shower Planner' LIMIT 1), 'Plan food & drinks', 'Finger foods, mocktails, and snacks', 'Catering', 'medium', 10, 5),
+((SELECT id FROM event_templates WHERE name = 'Baby Shower Planner' LIMIT 1), 'Buy decorations & supplies', 'Balloons, banners, table settings, and favors', 'Decorations', 'medium', 7, 6),
+((SELECT id FROM event_templates WHERE name = 'Baby Shower Planner' LIMIT 1), 'Plan games & activities', 'Baby bingo, name guessing, and gift opening', 'Music & Entertainment', 'medium', 5, 7),
+((SELECT id FROM event_templates WHERE name = 'Baby Shower Planner' LIMIT 1), 'Set up gift station', 'Prepare gift table and registry display', 'Coordination', 'low', 1, 8);
+
+-- 11. Exhibition
+INSERT INTO event_templates (event_type_id, name, description, estimated_budget_min, estimated_budget_max, estimated_timeline_days, guest_range_min, guest_range_max, tips, display_order)
+VALUES (
+  (SELECT id FROM event_types WHERE name = 'Exhibition' LIMIT 1),
+  'Exhibition & Expo Planner',
+  'Plan a trade show, art exhibition, or product expo.',
+  5000000, 30000000, 60, 100, 2000,
+  '["Design an eye-catching booth layout","Prepare digital and printed marketing materials","Plan live demonstrations","Collect visitor contacts for follow-up"]'::jsonb, 11
+);
+INSERT INTO event_template_tasks (template_id, title, description, category, priority, days_before_event, display_order) VALUES
+((SELECT id FROM event_templates WHERE name = 'Exhibition & Expo Planner' LIMIT 1), 'Book exhibition space', 'Reserve booth or hall space at venue', 'Venue', 'high', 60, 1),
+((SELECT id FROM event_templates WHERE name = 'Exhibition & Expo Planner' LIMIT 1), 'Design booth & layout', 'Plan booth design, signage, and product displays', 'Decorations', 'high', 30, 2),
+((SELECT id FROM event_templates WHERE name = 'Exhibition & Expo Planner' LIMIT 1), 'Invite exhibitors & vendors', 'Recruit participating exhibitors and sponsors', 'Invitations', 'high', 45, 3),
+((SELECT id FROM event_templates WHERE name = 'Exhibition & Expo Planner' LIMIT 1), 'Prepare marketing materials', 'Brochures, business cards, and giveaways', 'Coordination', 'medium', 14, 4),
+((SELECT id FROM event_templates WHERE name = 'Exhibition & Expo Planner' LIMIT 1), 'Plan demonstrations & talks', 'Schedule product demos and speaker sessions', 'Coordination', 'medium', 14, 5),
+((SELECT id FROM event_templates WHERE name = 'Exhibition & Expo Planner' LIMIT 1), 'Arrange logistics', 'Shipping, setup equipment, and power supply', 'Venue', 'high', 7, 6),
+((SELECT id FROM event_templates WHERE name = 'Exhibition & Expo Planner' LIMIT 1), 'Promote the event', 'Social media, email campaigns, and press releases', 'Coordination', 'high', 21, 7),
+((SELECT id FROM event_templates WHERE name = 'Exhibition & Expo Planner' LIMIT 1), 'Final setup & walkthrough', 'Install booth, test equipment, and brief staff', 'Venue', 'high', 1, 8);
+
+-- 12. Send Off
+INSERT INTO event_templates (event_type_id, name, description, estimated_budget_min, estimated_budget_max, estimated_timeline_days, guest_range_min, guest_range_max, tips, display_order)
+VALUES (
+  (SELECT id FROM event_types WHERE name = 'Send Off' LIMIT 1),
+  'Send Off & Farewell Planner',
+  'Plan a meaningful farewell event for departures, retirements, or goodbyes.',
+  500000, 5000000, 21, 20, 100,
+  '["Collect memories and messages from attendees beforehand","Prepare a personalized gift or keepsake","Include a speech or tribute moment","Create a memory wall or photo display"]'::jsonb, 12
+);
+INSERT INTO event_template_tasks (template_id, title, description, category, priority, days_before_event, display_order) VALUES
+((SELECT id FROM event_templates WHERE name = 'Send Off & Farewell Planner' LIMIT 1), 'Set theme & tone', 'Decide on formal, casual, or surprise farewell', 'Coordination', 'high', 21, 1),
+((SELECT id FROM event_templates WHERE name = 'Send Off & Farewell Planner' LIMIT 1), 'Book venue', 'Reserve restaurant, office space, or outdoor area', 'Venue', 'high', 14, 2),
+((SELECT id FROM event_templates WHERE name = 'Send Off & Farewell Planner' LIMIT 1), 'Send invitations', 'Invite colleagues, friends, and family', 'Invitations', 'high', 14, 3),
+((SELECT id FROM event_templates WHERE name = 'Send Off & Farewell Planner' LIMIT 1), 'Collect messages & memories', 'Gather written notes, photos, and video messages', 'Coordination', 'medium', 10, 4),
+((SELECT id FROM event_templates WHERE name = 'Send Off & Farewell Planner' LIMIT 1), 'Arrange food & drinks', 'Plan catering or potluck-style gathering', 'Catering', 'medium', 7, 5),
+((SELECT id FROM event_templates WHERE name = 'Send Off & Farewell Planner' LIMIT 1), 'Prepare gift or keepsake', 'Organize a group gift, scrapbook, or plaque', 'Coordination', 'medium', 5, 6),
+((SELECT id FROM event_templates WHERE name = 'Send Off & Farewell Planner' LIMIT 1), 'Plan program & speeches', 'Coordinate speakers, toasts, and tribute moments', 'Coordination', 'medium', 3, 7),
+((SELECT id FROM event_templates WHERE name = 'Send Off & Farewell Planner' LIMIT 1), 'Decorate & set up', 'Banners, photo displays, and seating arrangements', 'Decorations', 'medium', 0, 8);

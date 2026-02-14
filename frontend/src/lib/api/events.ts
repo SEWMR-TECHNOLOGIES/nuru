@@ -3,6 +3,7 @@
  */
 
 import { get, post, put, del, postFormData, putFormData, buildQueryString } from "./helpers";
+import type { ChecklistItem } from "./templates";
 
 export interface EventPermissions {
   is_creator: boolean;
@@ -428,4 +429,47 @@ export const eventsApi = {
    */
   recordServicePayment: (eventId: string, serviceId: string, data: { amount: number; method: string; transaction_ref?: string }) =>
     post<any>(`/user-events/${eventId}/services/${serviceId}/payment`, data),
+
+  // ============================================================================
+  // CHECKLIST
+  // ============================================================================
+
+  /**
+   * Get event checklist items
+   */
+  getChecklist: (eventId: string) =>
+    get<{
+      items: ChecklistItem[];
+      summary: { total: number; completed: number; in_progress: number; pending: number; progress_percentage: number };
+    }>(`/user-events/${eventId}/checklist`),
+
+  /**
+   * Add a custom checklist item
+   */
+  addChecklistItem: (eventId: string, data: Partial<ChecklistItem>) =>
+    post<ChecklistItem>(`/user-events/${eventId}/checklist`, data),
+
+  /**
+   * Update a checklist item
+   */
+  updateChecklistItem: (eventId: string, itemId: string, data: Partial<ChecklistItem>) =>
+    put<ChecklistItem>(`/user-events/${eventId}/checklist/${itemId}`, data),
+
+  /**
+   * Delete a checklist item
+   */
+  deleteChecklistItem: (eventId: string, itemId: string) =>
+    del(`/user-events/${eventId}/checklist/${itemId}`),
+
+  /**
+   * Apply a template to an event's checklist
+   */
+  applyTemplate: (eventId: string, data: { template_id: string; clear_existing?: boolean }) =>
+    post<{ added: number; template_name: string }>(`/user-events/${eventId}/checklist/from-template`, data),
+
+  /**
+   * Reorder checklist items
+   */
+  reorderChecklist: (eventId: string, data: { items: Array<{ id: string; display_order: number }> }) =>
+    put<void>(`/user-events/${eventId}/checklist/reorder`, data),
 };

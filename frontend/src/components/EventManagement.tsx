@@ -17,6 +17,7 @@ import EventRSVP from './EventRSVP';
 import EventGuestList from './events/EventGuestList';
 import EventCommittee from './events/EventCommittee';
 import EventContributions from './events/EventContributions';
+import EventChecklist from './events/EventChecklist';
 import { useEventContributors } from '@/data/useContributors';
 import { useEvent } from '@/data/useEvents';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -233,8 +234,9 @@ const EventManagement = () => {
       </AlertDialog>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 h-auto gap-1">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 h-auto gap-1">
           <TabsTrigger value="overview" className="text-xs sm:text-sm py-2">Overview</TabsTrigger>
+          <TabsTrigger value="checklist" className="text-xs sm:text-sm py-2">Checklist</TabsTrigger>
           <TabsTrigger value="services" className="text-xs sm:text-sm py-2">Services</TabsTrigger>
           <TabsTrigger value="committee" className="text-xs sm:text-sm py-2">Committee</TabsTrigger>
           <TabsTrigger value="contributions" className="text-xs sm:text-sm py-2">Contributions</TabsTrigger>
@@ -286,6 +288,10 @@ const EventManagement = () => {
             <Card className="w-full"><CardContent className="p-5"><div className="flex items-center justify-between"><div className="flex-1"><p className="text-xs text-muted-foreground">Confirmed Guests</p><p className="text-base font-semibold text-green-600 mt-1">{apiEvent?.confirmed_guest_count || 0}</p></div><div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center"><UserCheck className="w-4 h-4 text-green-600" /></div></div></CardContent></Card>
           </div>
           <Card><CardContent className="p-4"><p className="text-[10px] text-muted-foreground mb-1">Event Description</p><p className="text-sm text-muted-foreground">{eventDescription}</p></CardContent></Card>
+        </TabsContent>
+
+        <TabsContent value="checklist" className="space-y-6">
+          <EventChecklist eventId={id!} eventTypeId={apiEvent?.event_type_id} permissions={permissions} />
         </TabsContent>
 
         <TabsContent value="services" className="space-y-6">

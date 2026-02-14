@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from sqlalchemy import func as sql_func
 
-from core.database import get_db
+from core.database import SessionLocal
 from models.invitations import EventInvitation, EventAttendee
 from models.events import Event, EventImage, EventSetting
 from models.users import User
@@ -80,7 +80,7 @@ def get_rsvp_details(code: str):
     if not code or len(code) > 200:
         raise HTTPException(status_code=400, detail="Invalid invitation code")
 
-    db = get_db()
+    db = SessionLocal()
     try:
         inv = db.query(EventInvitation).filter(
             EventInvitation.invitation_code == code
@@ -187,7 +187,7 @@ def respond_to_rsvp(code: str, body: RSVPResponseInput):
     if not code or len(code) > 200:
         raise HTTPException(status_code=400, detail="Invalid invitation code")
 
-    db = get_db()
+    db = SessionLocal()
     try:
         inv = db.query(EventInvitation).filter(
             EventInvitation.invitation_code == code

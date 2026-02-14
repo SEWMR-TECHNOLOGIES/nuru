@@ -158,3 +158,10 @@ class FeedVisibilityEnum(enum.Enum):
 class GuestTypeEnum(enum.Enum):
     user = "user"
     contributor = "contributor"
+
+
+class ChecklistItemStatusEnum(enum.Enum):
+    pending = "pending"
+    in_progress = "in_progress"
+    completed = "completed"
+    skipped = "skipped"

@@ -1126,3 +1126,10 @@ export interface UploadedFile {
   };
   created_at: string;
 }
+
+// ============================================================================
+// ENUM TYPES
+// ============================================================================
+
+export type ChecklistItemStatus = "pending" | "in_progress" | "completed" | "skipped";
+export type PriorityLevel = "low" | "medium" | "high" | "critical";

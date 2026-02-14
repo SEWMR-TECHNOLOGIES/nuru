@@ -12987,3 +12987,196 @@ ALTER TABLE user_feeds ADD COLUMN visibility feed_visibility_enum DEFAULT 'publi
 }
 ```
 - **Error responses**: "You cannot review your own service", "You can only review services that were assigned to your events", "You have already reviewed this service", validation errors for rating/comment
+
+---
+
+# 📋 MODULE: EVENT TEMPLATES & CHECKLISTS
+
+## Overview
+Pre-built planning templates per event type with default tasks, timelines, and budget suggestions. Users can browse templates, apply them to events, and manage checklists with custom tasks.
+
+---
+
+## List Templates
+```
+GET /templates
+Authentication: None
+Query: ?event_type_id={uuid}
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "event_type_id": "uuid",
+      "name": "Classic Wedding",
+      "description": "Complete wedding planning template",
+      "estimated_budget_min": 5000000,
+      "estimated_budget_max": 20000000,
+      "estimated_timeline_days": 90,
+      "guest_range_min": 50,
+      "guest_range_max": 500,
+      "tips": ["Book venue 3 months ahead", "..."],
+      "task_count": 15,
+      "tasks": [
+        {
+          "id": "uuid",
+          "title": "Book venue",
+          "description": "Research and reserve event venue",
+          "category": "Venue",
+          "priority": "high",
+          "days_before_event": 90,
+          "display_order": 1
+        }
+      ],
+      "display_order": 1
+    }
+  ]
+}
+```
+
+---
+
+## Get Template Detail
+```
+GET /templates/{template_id}
+Authentication: None
+```
+
+---
+
+## Get Event Checklist
+```
+GET /user-events/{event_id}/checklist
+Authorization: Bearer {token}
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "uuid",
+        "event_id": "uuid",
+        "template_task_id": "uuid|null",
+        "title": "Book venue",
+        "description": "...",
+        "category": "Venue",
+        "priority": "high",
+        "status": "completed",
+        "due_date": "2026-03-01T00:00:00",
+        "completed_at": "2026-02-20T10:00:00",
+        "assigned_to": "John",
+        "notes": "Confirmed with deposit",
+        "display_order": 1,
+        "created_at": "...",
+        "updated_at": "..."
+      }
+    ],
+    "summary": {
+      "total": 15,
+      "completed": 5,
+      "in_progress": 3,
+      "pending": 7,
+      "progress_percentage": 33.3
+    }
+  }
+}
+```
+
+---
+
+## Add Checklist Item
+```
+POST /user-events/{event_id}/checklist
+Authorization: Bearer {token}
+```
+
+**Request Body:**
+```json
+{
+  "title": "Book photographer",
+  "description": "Find and book event photographer",
+  "category": "Photography",
+  "priority": "high",
+  "due_date": "2026-03-15",
+  "assigned_to": "Sarah",
+  "notes": "Check portfolio first"
+}
+```
+
+| Field | Type | Required |
+|-------|------|----------|
+| title | string | Yes |
+| description | string | No |
+| category | string | No |
+| priority | enum(high,medium,low) | No (default: medium) |
+| due_date | ISO date | No |
+| assigned_to | string | No |
+| notes | string | No |
+
+---
+
+## Update Checklist Item
+```
+PUT /user-events/{event_id}/checklist/{item_id}
+Authorization: Bearer {token}
+```
+
+**Request Body:** Any fields from Add (all optional) + `status` (pending|in_progress|completed|skipped)
+
+---
+
+## Delete Checklist Item
+```
+DELETE /user-events/{event_id}/checklist/{item_id}
+Authorization: Bearer {token}
+```
+
+---
+
+## Apply Template to Event
+```
+POST /user-events/{event_id}/checklist/from-template
+Authorization: Bearer {token}
+```
+
+**Request Body:**
+```json
+{
+  "template_id": "uuid",
+  "clear_existing": false
+}
+```
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "message": "Template applied — 15 tasks added to checklist",
+  "data": { "added": 15, "template_name": "Classic Wedding" }
+}
+```
+
+---
+
+## Reorder Checklist Items
+```
+PUT /user-events/{event_id}/checklist/reorder
+Authorization: Bearer {token}
+```
+
+**Request Body:**
+```json
+{
+  "items": [
+    { "id": "uuid", "display_order": 1 },
+    { "id": "uuid", "display_order": 2 }
+  ]
+}
+```

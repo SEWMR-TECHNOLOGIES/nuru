@@ -42,6 +42,7 @@ from models.invitations import (
     EventInvitation, EventAttendee, AttendeeProfile, EventGuestPlusOne,
 )
 from models.event_schedule import EventScheduleItem, EventBudgetItem
+from models.templates import EventTemplate, EventTemplateTask, EventChecklistItem
 from models.messaging import Conversation, Message
 from models.support import (
     SupportTicket, SupportMessage, FAQ, LiveChatSession, LiveChatMessage,

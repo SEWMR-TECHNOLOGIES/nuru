@@ -26,6 +26,7 @@ from models.enums import (
     ChatSessionStatusEnum,
     FeedVisibilityEnum,
     GuestTypeEnum,
+    ChecklistItemStatusEnum,
 )
 
 
@@ -1108,6 +1109,7 @@ class EventType(Base):
     # Relationships
     events = relationship("Event", back_populates="event_type")
     event_type_services = relationship("EventTypeService", back_populates="event_type")
+    templates = relationship("EventTemplate", back_populates="event_type")
 
 
 class Event(Base):
@@ -1155,6 +1157,7 @@ class Event(Base):
     budget_items = relationship("EventBudgetItem", back_populates="event")
     booking_requests = relationship("ServiceBookingRequest", back_populates="event")
     promoted_events = relationship("PromotedEvent", back_populates="event")
+    checklist_items = relationship("EventChecklistItem", back_populates="event")
 
 
 class EventTypeService(Base):
@@ -1831,3 +1834,74 @@ class FileUpload(Base):
 
     # Relationships
     user = relationship("User", back_populates="file_uploads")
+
+
+# ──────────────────────────────────────────────
+# Event Templates & Checklists
+# ──────────────────────────────────────────────
+
+class EventTemplate(Base):
+    __tablename__ = 'event_templates'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    event_type_id = Column(UUID(as_uuid=True), ForeignKey('event_types.id', ondelete='CASCADE'), nullable=False)
+    name = Column(Text, nullable=False)
+    description = Column(Text)
+    estimated_budget_min = Column(Numeric)
+    estimated_budget_max = Column(Numeric)
+    estimated_timeline_days = Column(Integer)
+    guest_range_min = Column(Integer)
+    guest_range_max = Column(Integer)
+    tips = Column(JSONB, server_default="'[]'::jsonb")
+    is_active = Column(Boolean, default=True)
+    display_order = Column(Integer, default=0)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    event_type = relationship("EventType", back_populates="templates")
+    tasks = relationship("EventTemplateTask", back_populates="template", cascade="all, delete-orphan")
+
+
+class EventTemplateTask(Base):
+    __tablename__ = 'event_template_tasks'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    template_id = Column(UUID(as_uuid=True), ForeignKey('event_templates.id', ondelete='CASCADE'), nullable=False)
+    title = Column(Text, nullable=False)
+    description = Column(Text)
+    category = Column(Text, default='general')
+    priority = Column(Enum(PriorityLevelEnum, name="priority_level_enum"), default=PriorityLevelEnum.medium)
+    days_before_event = Column(Integer)
+    display_order = Column(Integer, default=0)
+    created_at = Column(DateTime, server_default=func.now())
+
+    # Relationships
+    template = relationship("EventTemplate", back_populates="tasks")
+    checklist_items = relationship("EventChecklistItem", back_populates="template_task")
+
+
+class EventChecklistItem(Base):
+    __tablename__ = 'event_checklist_items'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
+    template_task_id = Column(UUID(as_uuid=True), ForeignKey('event_template_tasks.id', ondelete='SET NULL'), nullable=True)
+    title = Column(Text, nullable=False)
+    description = Column(Text)
+    category = Column(Text, default='general')
+    priority = Column(Enum(PriorityLevelEnum, name="priority_level_enum"), default=PriorityLevelEnum.medium)
+    status = Column(Enum(ChecklistItemStatusEnum, name="checklist_item_status_enum"), default=ChecklistItemStatusEnum.pending)
+    due_date = Column(DateTime)
+    assigned_to = Column(UUID(as_uuid=True), nullable=True)
+    assigned_name = Column(Text)
+    display_order = Column(Integer, default=0)
+    completed_at = Column(DateTime)
+    completed_by = Column(UUID(as_uuid=True), nullable=True)
+    notes = Column(Text)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    event = relationship("Event", back_populates="checklist_items")
+    template_task = relationship("EventTemplateTask", back_populates="checklist_items")

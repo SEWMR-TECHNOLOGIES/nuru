@@ -24,6 +24,7 @@ class EventType(Base):
     # Relationships
     events = relationship("Event", back_populates="event_type")
     event_type_services = relationship("EventTypeService", back_populates="event_type")
+    templates = relationship("EventTemplate", back_populates="event_type")
 
 
 class Event(Base):
@@ -71,6 +72,7 @@ class Event(Base):
     budget_items = relationship("EventBudgetItem", back_populates="event")
     booking_requests = relationship("ServiceBookingRequest", back_populates="event")
     promoted_events = relationship("PromotedEvent", back_populates="event")
+    checklist_items = relationship("EventChecklistItem", back_populates="event")
 
 
 class EventTypeService(Base):
