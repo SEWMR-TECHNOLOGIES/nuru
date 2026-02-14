@@ -121,8 +121,17 @@ const InvitedEvents = () => {
           return (
             <article
               key={event.id}
-              className="bg-card rounded-lg border border-border overflow-hidden transition-colors"
+              className="bg-card rounded-lg border border-border overflow-hidden transition-colors relative"
             >
+              {/* Diagonal status badge */}
+              <div className={`absolute top-0 right-0 z-10 ${rsvpStatus === 'confirmed' ? 'bg-green-500' : rsvpStatus === 'declined' ? 'bg-red-500' : rsvpStatus === 'maybe' ? 'bg-blue-500' : 'bg-amber-500'}`}
+                style={{
+                  width: '120px', textAlign: 'center', transform: 'rotate(45deg) translate(20px, -14px)',
+                  transformOrigin: 'center', padding: '2px 0', fontSize: '10px', fontWeight: 600, color: 'white', letterSpacing: '0.5px'
+                }}
+              >
+                {rsvpStatus.charAt(0).toUpperCase() + rsvpStatus.slice(1)}
+              </div>
               <div className="p-4">
                 <div className="flex flex-col sm:flex-row gap-4">
                   {event.cover_image && (
@@ -140,10 +149,6 @@ const InvitedEvents = () => {
                           </span>
                         )}
                       </div>
-                      <Badge className={rsvpStyles[rsvpStatus]}>
-                        <RsvpIcon className="w-3 h-3 mr-1" />
-                        {rsvpStatus.charAt(0).toUpperCase() + rsvpStatus.slice(1)}
-                      </Badge>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-3">

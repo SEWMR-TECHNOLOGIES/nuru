@@ -12,8 +12,15 @@ import { Loader2 } from 'lucide-react';
 import UserSearchInput from './events/UserSearchInput';
 import RSVPSkeletonLoader from './events/RSVPSkeletonLoader';
 import type { SearchedUser } from '@/hooks/useUserSearch';
+import type { EventPermissions } from '@/hooks/useEventPermissions';
 
-const EventRSVP = ({ eventId }: { eventId: string }) => {
+interface EventRSVPProps {
+  eventId: string;
+  permissions?: EventPermissions;
+}
+
+const EventRSVP = ({ eventId, permissions }: EventRSVPProps) => {
+  const canManageGuests = permissions?.can_manage_guests || permissions?.is_creator;
   const { toast } = useToast();
   const { guests, summary, loading, addGuest, sendInvitation, refetch } = useEventGuests(eventId || null);
   usePolling(refetch, 15000);
@@ -89,9 +96,11 @@ const EventRSVP = ({ eventId }: { eventId: string }) => {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Guest List</CardTitle>
-          <Button onClick={() => setShowAddGuest(!showAddGuest)} disabled={isSubmitting}>
-            {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Adding...</> : (showAddGuest ? 'Cancel' : 'Add Guest')}
-          </Button>
+          {canManageGuests && (
+            <Button onClick={() => setShowAddGuest(!showAddGuest)} disabled={isSubmitting}>
+              {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Adding...</> : (showAddGuest ? 'Cancel' : 'Add Guest')}
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {showAddGuest && (

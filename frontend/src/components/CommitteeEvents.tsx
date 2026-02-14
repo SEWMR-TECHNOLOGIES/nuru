@@ -97,16 +97,33 @@ const CommitteeEvents = () => {
         return (
           <article
             key={event.id}
-            className="bg-card rounded-lg border border-border overflow-hidden hover:bg-muted/10 transition-colors cursor-pointer"
+            className="bg-card rounded-lg border border-border overflow-hidden hover:bg-muted/10 transition-colors cursor-pointer relative"
             onClick={() => navigate(`/event-management/${event.id}`)}
           >
+            {/* Diagonal role badge */}
+            <div className="absolute top-0 right-0 z-10 bg-primary"
+              style={{
+                width: '130px', textAlign: 'center', transform: 'rotate(45deg) translate(22px, -14px)',
+                transformOrigin: 'center', padding: '2px 0', fontSize: '10px', fontWeight: 600, color: 'white', letterSpacing: '0.5px'
+              }}
+            >
+              {cm?.role || 'Committee'}
+            </div>
             <div className="p-4">
               <div className="flex flex-col sm:flex-row gap-4">
-                {event.cover_image && (
-                  <div className="w-full sm:w-32 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-muted/10">
-                    <img src={event.cover_image} alt={event.title} className="w-full h-full object-cover" />
-                  </div>
-                )}
+                {(() => {
+                  const coverImage = event.cover_image
+                    || (event.images?.length > 0 ? (event.images.find((img: any) => img.is_featured)?.image_url || event.images[0]?.image_url || event.images[0]) : null)
+                    || (event.gallery_images?.length > 0 ? event.gallery_images[0] : null)
+                    || event.cover_image_url;
+                  return coverImage ? (
+                    <div className="w-full sm:w-32 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-muted/10">
+                      <img src={coverImage} alt={event.title} className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="w-full sm:w-32 h-24 flex-shrink-0 rounded-lg bg-muted/10" />
+                  );
+                })()}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -117,10 +134,6 @@ const CommitteeEvents = () => {
                         </span>
                       )}
                     </div>
-                    <Badge className="bg-primary/10 text-primary">
-                      <Shield className="w-3 h-3 mr-1" />
-                      {cm?.role || 'Committee Member'}
-                    </Badge>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-3">

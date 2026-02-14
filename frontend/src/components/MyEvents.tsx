@@ -146,7 +146,16 @@ const MyEvents = () => {
           const guestCount = event.guest_count || 0;
           
           return (
-            <article key={event.id} onClick={() => navigate(`/event-management/${event.id}`)} className="bg-card rounded-lg border border-border overflow-hidden transition-colors hover:bg-muted/10 cursor-pointer" role="article">
+            <article key={event.id} onClick={() => navigate(`/event-management/${event.id}`)} className="bg-card rounded-lg border border-border overflow-hidden transition-colors hover:bg-muted/10 cursor-pointer relative" role="article">
+              {/* Diagonal status badge */}
+              <div className={`absolute top-0 right-0 z-10 ${eventStatus === 'published' || eventStatus === 'confirmed' ? 'bg-green-500' : eventStatus === 'cancelled' ? 'bg-red-500' : eventStatus === 'completed' ? 'bg-blue-500' : 'bg-amber-500'}`}
+                style={{
+                  width: '120px', textAlign: 'center', transform: 'rotate(45deg) translate(20px, -14px)',
+                  transformOrigin: 'center', padding: '2px 0', fontSize: '10px', fontWeight: 600, color: 'white', letterSpacing: '0.5px'
+                }}
+              >
+                {eventStatus === 'confirmed' ? 'Published' : eventStatus.charAt(0).toUpperCase() + eventStatus.slice(1)}
+              </div>
               <div className="p-4">
                 <div className="flex flex-col sm:flex-row gap-4">
                   {(() => {

@@ -78,7 +78,7 @@ const EventManagement = () => {
     if (id) loadEventServices();
   }, [id]);
 
-  const completedServices = eventServices.filter((s: any) => s.status === 'completed').length;
+  const completedServices = eventServices.filter((s: any) => ['completed', 'confirmed', 'assigned', 'accepted'].includes(s.status)).length;
   const totalServices = eventServices.length;
   const progress = totalServices > 0 ? Math.round((completedServices / totalServices) * 100) : 0;
 
@@ -242,16 +242,21 @@ const EventManagement = () => {
           <TabsTrigger value="rsvp" className="text-xs sm:text-sm py-2">RSVP</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6">
-            <Card><CardHeader className="pb-2 md:pb-3"><CardTitle className="text-base lg:text-lg">Event Progress</CardTitle></CardHeader><CardContent><div className="space-y-2"><div className="flex justify-between text-sm"><span>Services Completed</span><span>{completedServices}/{totalServices}</span></div><div className="w-full bg-muted rounded-full h-2"><div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${progress}%` }} /></div></div></CardContent></Card>
-            <Card><CardHeader className="pb-2 md:pb-3"><CardTitle className="text-base lg:text-lg">Budget Status</CardTitle></CardHeader><CardContent><div className="space-y-2"><div className="text-lg lg:text-2xl font-bold">{eventBudget}</div><div className="text-xs lg:text-sm text-muted-foreground">Budget allocated</div></div></CardContent></Card>
-            <Card><CardHeader className="pb-2 md:pb-3"><CardTitle className="text-base lg:text-lg">Guest Overview</CardTitle></CardHeader><CardContent><div className="space-y-2"><div className="text-lg lg:text-2xl font-bold">{eventGuestCount}</div><div className="text-xs lg:text-sm text-muted-foreground">of {expectedGuests} expected guests</div></div></CardContent></Card>
+        <TabsContent value="overview" className="space-y-4">
+          {/* Row 1: Event progress & financial */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <Card className="w-full"><CardContent className="p-5"><div className="flex items-center justify-between"><div className="flex-1"><p className="text-xs text-muted-foreground">Event Progress</p><p className="text-base font-semibold mt-1">{completedServices}/{totalServices} Services</p><div className="w-full bg-muted rounded-full h-2 mt-2"><div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${progress}%` }} /></div></div></div></CardContent></Card>
+            <Card className="w-full"><CardContent className="p-5"><div className="flex items-center justify-between"><div className="flex-1"><p className="text-xs text-muted-foreground">Budget Status</p><p className="text-base font-semibold mt-1">{eventBudget}</p><p className="text-xs text-muted-foreground mt-1">Budget allocated</p></div><div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-blue-600" /></div></div></CardContent></Card>
             {apiEvent?.budget && contributionSummary && (
-              <Card><CardHeader className="pb-2 md:pb-3"><CardTitle className="text-base lg:text-lg">Budget Shortfall</CardTitle></CardHeader><CardContent><div className="space-y-2"><div className="text-lg lg:text-2xl font-bold text-destructive">{formatPrice(Math.max(0, (apiEvent.budget as number) - (contributionSummary.total_pledged || 0)))}</div><div className="text-xs lg:text-sm text-muted-foreground">Budget − Total Pledged</div></div></CardContent></Card>
+              <Card className="w-full"><CardContent className="p-5"><div className="flex items-center justify-between"><div className="flex-1"><p className="text-xs text-muted-foreground">Budget Shortfall</p><p className="text-base font-semibold text-destructive mt-1">{formatPrice(Math.max(0, (apiEvent.budget as number) - (contributionSummary.total_pledged || 0)))}</p><p className="text-xs text-muted-foreground mt-1">Budget − Total Pledged</p></div><div className="w-9 h-9 bg-red-100 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-red-600" /></div></div></CardContent></Card>
             )}
           </div>
-          <Card><CardHeader><CardTitle>Event Description</CardTitle></CardHeader><CardContent><p className="text-muted-foreground">{eventDescription}</p></CardContent></Card>
+          {/* Row 2: Guest overview */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Card className="w-full"><CardContent className="p-5"><div className="flex items-center justify-between"><div className="flex-1"><p className="text-xs text-muted-foreground">Guest Overview</p><p className="text-base font-semibold mt-1">{eventGuestCount}</p><p className="text-xs text-muted-foreground mt-1">of {expectedGuests} expected guests</p></div><div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-green-600" /></div></div></CardContent></Card>
+            <Card className="w-full"><CardContent className="p-5"><div className="flex items-center justify-between"><div className="flex-1"><p className="text-xs text-muted-foreground">Confirmed Guests</p><p className="text-base font-semibold text-green-600 mt-1">{apiEvent?.confirmed_guest_count || 0}</p></div><div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center"><UserCheck className="w-4 h-4 text-green-600" /></div></div></CardContent></Card>
+          </div>
+          <Card><CardContent className="p-4"><p className="text-[10px] text-muted-foreground mb-1">Event Description</p><p className="text-sm text-muted-foreground">{eventDescription}</p></CardContent></Card>
         </TabsContent>
 
         <TabsContent value="services" className="space-y-6">
@@ -302,11 +307,11 @@ const EventManagement = () => {
                       }
                     };
                     return (
-                    <div key={service.id} className={`p-4 rounded-lg border transition-colors ${service.status === 'completed' ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800" : "bg-card border-border"}`}>
+                    <div key={service.id} className={`p-4 rounded-lg border transition-colors ${['completed', 'confirmed', 'assigned', 'accepted'].includes(service.status) ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800" : "bg-card border-border"}`}>
                       <div className="flex items-start gap-3">
                         {(permissions.can_manage_vendors || permissions.is_creator) && (
-                          <button onClick={() => toggleServiceComplete(service.id)} className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 ${service.status === 'completed' ? "bg-green-500 border-green-500 text-white" : "border-muted-foreground hover:border-primary"}`}>
-                            {service.status === 'completed' && <CheckCircle2 className="w-3 h-3" />}
+                          <button onClick={() => toggleServiceComplete(service.id)} className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 ${['completed', 'confirmed', 'assigned', 'accepted'].includes(service.status) ? "bg-green-500 border-green-500 text-white" : "border-muted-foreground hover:border-primary"}`}>
+                            {['completed', 'confirmed', 'assigned', 'accepted'].includes(service.status) && <CheckCircle2 className="w-3 h-3" />}
                           </button>
                         )}
                         <Avatar className="w-10 h-10 rounded-lg flex-shrink-0">
@@ -354,7 +359,7 @@ const EventManagement = () => {
         </TabsContent>
 
         <TabsContent value="rsvp" className="space-y-6">
-          <EventRSVP eventId={id || ''} />
+          <EventRSVP eventId={id || ''} permissions={permissions} />
         </TabsContent>
       </Tabs>
 
