@@ -47,10 +47,10 @@ const MyEvents = () => {
 
   const statusStyles: Record<string, string> = {
     draft: "bg-muted text-muted-foreground",
-    confirmed: "bg-blue-100 text-blue-800",
+    confirmed: "bg-green-100 text-green-800",
     published: "bg-primary/10 text-primary",
     cancelled: "bg-destructive/10 text-destructive",
-    completed: "bg-green-100 text-green-800",
+    completed: "bg-blue-100 text-blue-800",
   };
 
   const handleDelete = async (id: string) => {
@@ -146,15 +146,19 @@ const MyEvents = () => {
           const guestCount = event.guest_count || 0;
           
           return (
-            <article key={event.id} onClick={() => navigate(`/event-management/${event.id}`)} className="bg-card rounded-lg border border-border overflow-hidden transition-colors hover:bg-muted/10 cursor-pointer relative" role="article">
+            <article key={event.id} onClick={() => navigate(`/event-management/${event.id}`)} className="bg-card rounded-lg border border-border transition-colors hover:bg-muted/10 cursor-pointer relative" role="article">
               {/* Diagonal status badge */}
-              <div className={`absolute top-0 right-0 z-10 ${eventStatus === 'published' || eventStatus === 'confirmed' ? 'bg-green-500' : eventStatus === 'cancelled' ? 'bg-red-500' : eventStatus === 'completed' ? 'bg-blue-500' : 'bg-amber-500'}`}
-                style={{
-                  width: '120px', textAlign: 'center', transform: 'rotate(45deg) translate(20px, -14px)',
-                  transformOrigin: 'center', padding: '2px 0', fontSize: '10px', fontWeight: 600, color: 'white', letterSpacing: '0.5px'
-                }}
-              >
-                {eventStatus === 'confirmed' ? 'Published' : eventStatus.charAt(0).toUpperCase() + eventStatus.slice(1)}
+              <div className={`absolute top-0 right-0 z-10 overflow-hidden rounded-tr-lg`} style={{ width: '90px', height: '90px', pointerEvents: 'none' }}>
+                <div className={`absolute ${eventStatus === 'confirmed' || eventStatus === 'published' ? 'bg-green-500' : eventStatus === 'cancelled' ? 'bg-red-500' : eventStatus === 'completed' ? 'bg-blue-500' : 'bg-amber-500'}`}
+                  style={{
+                    width: '140px', textAlign: 'center', transform: 'rotate(45deg)',
+                    top: '16px', right: '-36px',
+                    padding: '3px 0', fontSize: '10px', fontWeight: 600, color: 'white', letterSpacing: '0.5px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                  }}
+                >
+                  {eventStatus.charAt(0).toUpperCase() + eventStatus.slice(1)}
+                </div>
               </div>
               <div className="p-4">
                 <div className="flex flex-col sm:flex-row gap-4">
@@ -171,7 +175,7 @@ const MyEvents = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <h3 className="font-semibold text-lg text-foreground">{event.title}</h3>
+                        <h3 className="font-semibold text-base text-foreground">{event.title}</h3>
                         <div className="flex flex-wrap items-center gap-2 mt-1.5">
                           {getEventType(event) && <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-medium">{getEventType(event)}</span>}
                         </div>

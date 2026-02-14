@@ -93,29 +93,35 @@ const CommitteeEvents = () => {
         const activePerms = cm?.permissions
           ? Object.entries(cm.permissions).filter(([_, v]) => v === true).map(([k]) => k)
           : [];
+        const eventStatus = event.status || 'draft';
 
         return (
           <article
             key={event.id}
-            className="bg-card rounded-lg border border-border overflow-hidden hover:bg-muted/10 transition-colors cursor-pointer relative"
+            className="bg-card rounded-lg border border-border hover:bg-muted/10 transition-colors cursor-pointer relative"
             onClick={() => navigate(`/event-management/${event.id}`)}
           >
-            {/* Diagonal role badge */}
-            <div className="absolute top-0 right-0 z-10 bg-primary"
-              style={{
-                width: '130px', textAlign: 'center', transform: 'rotate(45deg) translate(22px, -14px)',
-                transformOrigin: 'center', padding: '2px 0', fontSize: '10px', fontWeight: 600, color: 'white', letterSpacing: '0.5px'
-              }}
-            >
-              {cm?.role || 'Committee'}
+            {/* Diagonal STATUS badge (not role) */}
+            <div className="absolute top-0 right-0 z-10 overflow-hidden rounded-tr-lg" style={{ width: '90px', height: '90px', pointerEvents: 'none' }}>
+              <div className={`absolute ${eventStatus === 'confirmed' || eventStatus === 'published' ? 'bg-green-500' : eventStatus === 'cancelled' ? 'bg-red-500' : eventStatus === 'completed' ? 'bg-blue-500' : 'bg-amber-500'}`}
+                style={{
+                  width: '140px', textAlign: 'center', transform: 'rotate(45deg)',
+                  top: '16px', right: '-36px',
+                  padding: '3px 0', fontSize: '10px', fontWeight: 600, color: 'white', letterSpacing: '0.5px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                }}
+              >
+                {eventStatus.charAt(0).toUpperCase() + eventStatus.slice(1)}
+              </div>
             </div>
             <div className="p-4">
               <div className="flex flex-col sm:flex-row gap-4">
                 {(() => {
                   const coverImage = event.cover_image
-                    || (event.images?.length > 0 ? (event.images.find((img: any) => img.is_featured)?.image_url || event.images[0]?.image_url || event.images[0]) : null)
+                    || (event.images?.length > 0 ? (event.images.find((img: any) => img.is_featured)?.image_url || event.images[0]?.image_url || event.images[0]?.url || (typeof event.images[0] === 'string' ? event.images[0] : null)) : null)
                     || (event.gallery_images?.length > 0 ? event.gallery_images[0] : null)
-                    || event.cover_image_url;
+                    || event.cover_image_url
+                    || event.image_url;
                   return coverImage ? (
                     <div className="w-full sm:w-32 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-muted/10">
                       <img src={coverImage} alt={event.title} className="w-full h-full object-cover" />
@@ -127,12 +133,21 @@ const CommitteeEvents = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <h3 className="font-semibold text-lg text-foreground">{event.title}</h3>
-                      {event.event_type && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-medium mt-1">
-                          {event.event_type.name}
-                        </span>
-                      )}
+                      <h3 className="font-semibold text-base text-foreground">{event.title}</h3>
+                      <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                        {event.event_type && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-medium">
+                            {event.event_type.name}
+                          </span>
+                        )}
+                        {/* Role shown as inline badge on the card */}
+                        {cm?.role && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium">
+                            <Shield className="w-3 h-3" />
+                            {cm.role}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 

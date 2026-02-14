@@ -86,10 +86,10 @@ const EventRSVP = ({ eventId, permissions }: EventRSVPProps) => {
     <div className="space-y-6">
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-green-600">{stats.attending}</div><p className="text-sm text-muted-foreground">Confirmed</p></CardContent></Card>
-        <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-orange-600">{stats.pending}</div><p className="text-sm text-muted-foreground">Pending</p></CardContent></Card>
-        <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-red-600">{stats.declined}</div><p className="text-sm text-muted-foreground">Declined</p></CardContent></Card>
-        <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold">{stats.total}</div><p className="text-sm text-muted-foreground">Total Invited</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><div className="text-base font-semibold text-green-600">{stats.attending}</div><p className="text-xs text-muted-foreground">Confirmed</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><div className="text-base font-semibold text-orange-600">{stats.pending}</div><p className="text-xs text-muted-foreground">Pending</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><div className="text-base font-semibold text-red-600">{stats.declined}</div><p className="text-xs text-muted-foreground">Declined</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><div className="text-base font-semibold">{stats.total}</div><p className="text-xs text-muted-foreground">Total Invited</p></CardContent></Card>
       </div>
 
       {/* Guest List */}

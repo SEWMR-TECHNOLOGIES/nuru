@@ -121,16 +121,20 @@ const InvitedEvents = () => {
           return (
             <article
               key={event.id}
-              className="bg-card rounded-lg border border-border overflow-hidden transition-colors relative"
+              className="bg-card rounded-lg border border-border transition-colors relative"
             >
               {/* Diagonal status badge */}
-              <div className={`absolute top-0 right-0 z-10 ${rsvpStatus === 'confirmed' ? 'bg-green-500' : rsvpStatus === 'declined' ? 'bg-red-500' : rsvpStatus === 'maybe' ? 'bg-blue-500' : 'bg-amber-500'}`}
-                style={{
-                  width: '120px', textAlign: 'center', transform: 'rotate(45deg) translate(20px, -14px)',
-                  transformOrigin: 'center', padding: '2px 0', fontSize: '10px', fontWeight: 600, color: 'white', letterSpacing: '0.5px'
-                }}
-              >
-                {rsvpStatus.charAt(0).toUpperCase() + rsvpStatus.slice(1)}
+              <div className="absolute top-0 right-0 z-10 overflow-hidden rounded-tr-lg" style={{ width: '90px', height: '90px', pointerEvents: 'none' }}>
+                <div className={`absolute ${rsvpStatus === 'confirmed' ? 'bg-green-500' : rsvpStatus === 'declined' ? 'bg-red-500' : rsvpStatus === 'maybe' ? 'bg-blue-500' : 'bg-amber-500'}`}
+                  style={{
+                    width: '140px', textAlign: 'center', transform: 'rotate(45deg)',
+                    top: '16px', right: '-36px',
+                    padding: '3px 0', fontSize: '10px', fontWeight: 600, color: 'white', letterSpacing: '0.5px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                  }}
+                >
+                  {rsvpStatus.charAt(0).toUpperCase() + rsvpStatus.slice(1)}
+                </div>
               </div>
               <div className="p-4">
                 <div className="flex flex-col sm:flex-row gap-4">
@@ -142,7 +146,7 @@ const InvitedEvents = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <h3 className="font-semibold text-lg text-foreground">{event.title}</h3>
+                        <h3 className="font-semibold text-base text-foreground">{event.title}</h3>
                         {event.event_type && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-medium mt-1">
                             {event.event_type.name}

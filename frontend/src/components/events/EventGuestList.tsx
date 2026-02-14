@@ -159,11 +159,11 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
 
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <Card><CardContent className="p-4 text-center"><p className="text-2xl font-bold">{summary.total}</p><p className="text-sm text-muted-foreground">Total</p></CardContent></Card>
-          <Card><CardContent className="p-4 text-center"><p className="text-2xl font-bold text-green-600">{summary.confirmed}</p><p className="text-sm text-muted-foreground">Confirmed</p></CardContent></Card>
-          <Card><CardContent className="p-4 text-center"><p className="text-2xl font-bold text-yellow-600">{summary.pending}</p><p className="text-sm text-muted-foreground">Pending</p></CardContent></Card>
-          <Card><CardContent className="p-4 text-center"><p className="text-2xl font-bold text-red-600">{summary.declined}</p><p className="text-sm text-muted-foreground">Declined</p></CardContent></Card>
-          <Card><CardContent className="p-4 text-center"><p className="text-2xl font-bold text-blue-600">{summary.checked_in}</p><p className="text-sm text-muted-foreground">Checked In</p></CardContent></Card>
+          <Card><CardContent className="p-4 text-center"><p className="text-base font-semibold">{summary.total}</p><p className="text-xs text-muted-foreground">Total</p></CardContent></Card>
+          <Card><CardContent className="p-4 text-center"><p className="text-base font-semibold text-green-600">{summary.confirmed}</p><p className="text-xs text-muted-foreground">Confirmed</p></CardContent></Card>
+          <Card><CardContent className="p-4 text-center"><p className="text-base font-semibold text-yellow-600">{summary.pending}</p><p className="text-xs text-muted-foreground">Pending</p></CardContent></Card>
+          <Card><CardContent className="p-4 text-center"><p className="text-base font-semibold text-red-600">{summary.declined}</p><p className="text-xs text-muted-foreground">Declined</p></CardContent></Card>
+          <Card><CardContent className="p-4 text-center"><p className="text-base font-semibold text-blue-600">{summary.checked_in}</p><p className="text-xs text-muted-foreground">Checked In</p></CardContent></Card>
         </div>
       )}
 

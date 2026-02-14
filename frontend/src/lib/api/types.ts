@@ -203,7 +203,7 @@ export interface Event {
   gallery_images?: string[];
   theme_color?: string;
   is_public: boolean;
-  status: "draft" | "published" | "cancelled" | "completed";
+  status: "draft" | "confirmed" | "published" | "cancelled" | "completed";
   budget?: number;
   currency?: string;
   dress_code?: string;

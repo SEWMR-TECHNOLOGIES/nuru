@@ -38,7 +38,7 @@ from utils.sms import (
 
 EAT = pytz.timezone("Africa/Nairobi")
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
-VALID_STATUS_FILTERS = {"draft", "confirmed", "cancelled", "completed", "all"}
+VALID_STATUS_FILTERS = {"draft", "confirmed", "published", "cancelled", "completed", "all"}
 
 router = APIRouter(prefix="/user-events", tags=["User Events"])
 
@@ -119,7 +119,7 @@ def _event_summary(db: Session, event: Event) -> dict:
         "venue_coordinates": {"latitude": float(vc.latitude), "longitude": float(vc.longitude)} if vc and vc.latitude else None,
         "cover_image": _pick_cover_image(event, images), "images": images,
         "theme_color": event.theme_color, "is_public": event.is_public,
-        "status": "published" if (event.status.value if hasattr(event.status, "value") else event.status) == "confirmed" else (event.status.value if hasattr(event.status, "value") else event.status),
+        "status": event.status.value if hasattr(event.status, "value") else event.status,
         "budget": float(event.budget) if event.budget else None,
         "currency": _currency_code(db, event.currency_id),
         "dress_code": event.dress_code, "special_instructions": event.special_instructions,
@@ -284,7 +284,7 @@ def get_all_user_events(
     query = db.query(Event).filter(Event.organizer_id == current_user.id)
 
     if status != "all":
-        mapped = "confirmed" if status == "published" else status
+        mapped = status
         if hasattr(EventStatusEnum, mapped):
             query = query.filter(Event.status == getattr(EventStatusEnum, mapped))
 
@@ -355,7 +355,7 @@ def get_invited_events(
             "cover_image": _pick_cover_image(ev, _event_images(db, ev.id)),
             "theme_color": ev.theme_color,
             "organizer": {"name": f"{organizer.first_name} {organizer.last_name}"} if organizer else None,
-            "status": "published" if (ev.status.value if hasattr(ev.status, "value") else ev.status) == "confirmed" else (ev.status.value if hasattr(ev.status, "value") else ev.status),
+            "status": ev.status.value if hasattr(ev.status, "value") else ev.status,
             "invitation": {
                 "id": str(inv.id) if inv else None,
                 "rsvp_status": inv.rsvp_status.value if inv and hasattr(inv.rsvp_status, "value") else (inv.rsvp_status if inv else None),
@@ -424,10 +424,11 @@ def get_committee_events(
             "end_date": ev.end_date.isoformat() if ev.end_date else None,
             "location": ev.location,
             "venue": vc.venue_name if vc else None,
-            "cover_image": ev.cover_image_url,
+            "cover_image": _pick_cover_image(ev, _event_images(db, ev.id)),
+            "images": _event_images(db, ev.id),
             "theme_color": ev.theme_color,
             "organizer": {"name": f"{organizer.first_name} {organizer.last_name}"} if organizer else None,
-            "status": "published" if (ev.status.value if hasattr(ev.status, "value") else ev.status) == "confirmed" else (ev.status.value if hasattr(ev.status, "value") else ev.status),
+            "status": ev.status.value if hasattr(ev.status, "value") else ev.status,
             "committee_membership": {
                 "id": str(cm.id),
                 "role": role.role_name if role else None,
@@ -949,7 +950,7 @@ def update_event_status(event_id: str, body: dict = Body(...), db: Session = Dep
         return standard_response(False, "Only the event organizer can change the status")
 
     new_status = body.get("status", "").strip()
-    mapped = "confirmed" if new_status == "published" else new_status
+    mapped = new_status
     valid = {s.value for s in EventStatusEnum}
     if mapped not in valid:
         return standard_response(False, f"Invalid status. Must be one of: {', '.join(valid)}")
@@ -969,7 +970,7 @@ def update_event_status(event_id: str, body: dict = Body(...), db: Session = Dep
 
     return standard_response(True, "Event status updated successfully", {
         "id": str(event.id),
-        "status": "published" if mapped == "confirmed" else mapped,
+        "status": mapped,
         "updated_at": now.isoformat(),
     })
 

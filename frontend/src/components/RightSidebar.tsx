@@ -55,6 +55,7 @@ interface UpcomingEvent {
   title: string;
   start_date?: string;
   cover_image?: string;
+  status?: string;
   role: 'creator' | 'committee' | 'guest';
 }
 
@@ -97,16 +98,17 @@ const RightSidebar = () => {
     const map = new Map<string, UpcomingEvent>();
 
     for (const ev of (events || [])) {
-      map.set(ev.id, { id: ev.id, title: ev.title, start_date: ev.start_date, cover_image: ev.cover_image, role: 'creator' });
+      map.set(ev.id, { id: ev.id, title: ev.title, start_date: ev.start_date, cover_image: ev.cover_image, status: ev.status, role: 'creator' });
     }
     for (const ev of committeeEvents) {
       if (!map.has(ev.id)) {
-        map.set(ev.id, { id: ev.id, title: ev.title || ev.name, start_date: ev.start_date, cover_image: ev.cover_image || ev.cover_image_url, role: 'committee' });
+        const img = ev.cover_image || (ev.images?.length > 0 ? (ev.images.find((i: any) => i.is_featured)?.image_url || ev.images[0]?.image_url || ev.images[0]?.url) : null) || ev.cover_image_url;
+        map.set(ev.id, { id: ev.id, title: ev.title || ev.name, start_date: ev.start_date, cover_image: img, status: ev.status, role: 'committee' });
       }
     }
     for (const ev of invitedEvents) {
       if (!map.has(ev.id)) {
-        map.set(ev.id, { id: ev.id, title: ev.title || ev.name, start_date: ev.start_date, cover_image: ev.cover_image || ev.cover_image_url, role: 'guest' });
+        map.set(ev.id, { id: ev.id, title: ev.title || ev.name, start_date: ev.start_date, cover_image: ev.cover_image || ev.cover_image_url, status: ev.status, role: 'guest' });
       }
     }
 
@@ -134,34 +136,26 @@ const RightSidebar = () => {
         <div className="bg-card rounded-lg p-4 border border-border">
           <h2 className="font-semibold text-foreground mb-4">Upcoming Events</h2>
           <div className="space-y-3">
-            {upcomingEvents.map((event) => (
+            {upcomingEvents.map((event) => {
+              const roleLabel = ROLE_LABELS[event.role];
+              const roleBg = event.role === 'creator' ? 'bg-primary' : event.role === 'committee' ? 'bg-amber-500' : 'bg-blue-500';
+              return (
               <div key={event.id} className="flex gap-3 cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors"
                 onClick={() => navigate(event.role === 'guest' ? `/event/${event.id}` : `/event-management/${event.id}`)}
               >
-                <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
+                <div className="relative w-12 h-12 rounded-lg bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
                   {event.cover_image ? (
-                    <img
-                      src={event.cover_image}
-                      alt={event.title}
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={event.cover_image} alt={event.title} className="w-full h-full object-cover" />
                   ) : (
                     <img src={CalendarIcon} alt="Calendar" className="w-5 h-5" />
                   )}
+                  {/* Role label overlay on image */}
+                  <span className={`absolute bottom-0 left-0 right-0 text-[7px] font-semibold text-white text-center py-0.5 ${roleBg}`}>
+                    {roleLabel}
+                  </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="font-medium text-sm text-foreground truncate">{event.title}</h3>
-                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 ${
-                      event.role === 'creator' 
-                        ? 'bg-primary/10 text-primary' 
-                        : event.role === 'committee' 
-                          ? 'bg-accent text-accent-foreground' 
-                          : 'bg-secondary text-secondary-foreground'
-                    }`}>
-                      {ROLE_LABELS[event.role]}
-                    </span>
-                  </div>
+                  <h3 className="font-medium text-sm text-foreground truncate">{event.title}</h3>
                   <p className="text-xs text-muted-foreground">
                     {event.start_date ? new Date(event.start_date).toLocaleDateString('en-US', { 
                       weekday: 'short', 
@@ -171,7 +165,8 @@ const RightSidebar = () => {
                   </p>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ) : (

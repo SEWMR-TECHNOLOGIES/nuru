@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { Download, Printer, X } from 'lucide-react';
+import { useRef } from 'react';
+import { Download, Printer, FileSpreadsheet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,9 +13,10 @@ interface ReportPreviewDialogProps {
   onOpenChange: (open: boolean) => void;
   title: string;
   html: string;
+  onDownloadExcel?: () => void;
 }
 
-const ReportPreviewDialog = ({ open, onOpenChange, title, html }: ReportPreviewDialogProps) => {
+const ReportPreviewDialog = ({ open, onOpenChange, title, html, onDownloadExcel }: ReportPreviewDialogProps) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const handlePrint = () => {
@@ -28,10 +29,8 @@ const ReportPreviewDialog = ({ open, onOpenChange, title, html }: ReportPreviewD
   };
 
   const handleDownloadPdf = () => {
-    // Open in new window and trigger print (Save as PDF)
     const printWindow = window.open('', '_blank');
     if (printWindow) {
-      // Add a hint to save as PDF
       const pdfHtml = html.replace('</head>', `
         <style>
           @media print {
@@ -52,9 +51,15 @@ const ReportPreviewDialog = ({ open, onOpenChange, title, html }: ReportPreviewD
           <div className="flex items-center justify-between">
             <DialogTitle>{title}</DialogTitle>
             <div className="flex items-center gap-2">
+              {onDownloadExcel && (
+                <Button variant="outline" size="sm" onClick={onDownloadExcel}>
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  Excel
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={handleDownloadPdf}>
                 <Download className="w-4 h-4 mr-2" />
-                Download PDF
+                PDF
               </Button>
               <Button size="sm" onClick={handlePrint}>
                 <Printer className="w-4 h-4 mr-2" />
