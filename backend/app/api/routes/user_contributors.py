@@ -348,8 +348,20 @@ def get_event_contributors(
 
     ec_dicts = [_event_contributor_dict(ec) for ec in ecs]
 
-    total_pledged = sum(d["pledge_amount"] for d in ec_dicts)
-    total_paid = sum(d["total_paid"] for d in ec_dicts)
+    # Compute summary from ALL event contributors (not just current page)
+    all_ecs_for_summary = db.query(EventContributor).options(
+        joinedload(EventContributor.contributions),
+    ).filter(EventContributor.event_id == eid).all()
+    # Deduplicate
+    seen_summary = set()
+    unique_summary_ecs = []
+    for ec in all_ecs_for_summary:
+        if ec.id not in seen_summary:
+            seen_summary.add(ec.id)
+            unique_summary_ecs.append(ec)
+    all_dicts = [_event_contributor_dict(ec) for ec in unique_summary_ecs]
+    total_pledged = sum(d["pledge_amount"] for d in all_dicts)
+    total_paid = sum(d["total_paid"] for d in all_dicts)
     currency = _currency_code(db, event)
 
     return standard_response(True, "Event contributors fetched", {
