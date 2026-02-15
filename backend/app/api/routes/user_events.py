@@ -36,6 +36,7 @@ from utils.sms import (
     sms_guest_added, sms_committee_invite, sms_contribution_recorded,
     sms_contribution_target_set, sms_thank_you, sms_booking_notification,
 )
+from utils.whatsapp import wa_guest_invited
 
 EAT = pytz.timezone("Africa/Nairobi")
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
@@ -1255,11 +1256,12 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
             db.rollback()
             return standard_response(False, f"Failed to add guest: {str(e)}")
 
-        # SMS to contributor if they have a phone
+        # SMS + WhatsApp to contributor if they have a phone
         if contributor.phone:
             event_date = event.start_date.strftime("%d/%m/%Y") if event.start_date else ""
             organizer_name = f"{current_user.first_name} {current_user.last_name}"
             sms_guest_added(contributor.phone, contributor.name.split(" ")[0], event.name, event_date, organizer_name, invitation.invitation_code)
+            wa_guest_invited(contributor.phone, contributor.name.split(" ")[0], event.name, event_date, organizer_name, invitation.invitation_code)
 
         return standard_response(True, "Guest added successfully", _attendee_dict(db, att))
 
@@ -1344,6 +1346,7 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
             event_date = event.start_date.strftime("%d/%m/%Y") if event.start_date else ""
             organizer_name = f"{current_user.first_name} {current_user.last_name}"
             sms_guest_added(attendee_user.phone, f"{attendee_user.first_name}", event.name, event_date, organizer_name, invitation.invitation_code)
+            wa_guest_invited(attendee_user.phone, f"{attendee_user.first_name}", event.name, event_date, organizer_name, invitation.invitation_code)
 
         return standard_response(True, "Guest added successfully", _attendee_dict(db, att))
 
@@ -1485,8 +1488,9 @@ def add_contributors_as_guests(event_id: str, body: dict = Body(...), db: Sessio
             organizer_name = f"{current_user.first_name} {current_user.last_name}"
             try:
                 sms_guest_added(contributor.phone, contributor.name.split(" ")[0], event.name, event_date, organizer_name, invitation.invitation_code)
+                wa_guest_invited(contributor.phone, contributor.name.split(" ")[0], event.name, event_date, organizer_name, invitation.invitation_code)
             except Exception:
-                pass  # Don't fail the whole batch for one SMS error
+                pass  # Don't fail the whole batch for one SMS/WhatsApp error
 
     try:
         db.commit()

@@ -73,6 +73,47 @@ def _get_event_image(event: Event, db) -> Optional[str]:
     return None
 
 
+# ── GET /rsvp/lookup?phone= ──────────────────────────
+
+@router.get("/lookup")
+def lookup_by_phone(phone: str):
+    """Find the most recent pending invitation for a phone number (WhatsApp bot)."""
+    if not phone or len(phone) > 30:
+        return standard_response(False, "Invalid phone number")
+
+    # Normalize: strip leading + and spaces
+    normalized = phone.strip().lstrip("+").replace(" ", "")
+
+    db = SessionLocal()
+    try:
+        # Search contributors whose phone matches, then find their latest pending invitation
+        contributors = db.query(UserContributor).filter(
+            UserContributor.phone.ilike(f"%{normalized[-9:]}")  # match last 9 digits
+        ).all()
+
+        if not contributors:
+            return standard_response(False, "No invitation found for this phone number")
+
+        contributor_ids = [c.id for c in contributors]
+
+        # Find the most recent invitation for any of these contributors
+        inv = db.query(EventInvitation).filter(
+            EventInvitation.contributor_id.in_(contributor_ids),
+            EventInvitation.invitation_code.isnot(None),
+        ).order_by(EventInvitation.created_at.desc()).first()
+
+        if not inv:
+            return standard_response(False, "No invitation found for this phone number")
+
+        return standard_response(True, "Invitation found", data={
+            "code": inv.invitation_code,
+            "event_id": str(inv.event_id),
+            "guest_name": inv.guest_name or "",
+        })
+    finally:
+        db.close()
+
+
 # ── GET /rsvp/{code} ────────────────────────────────
 
 @router.get("/{code}")
