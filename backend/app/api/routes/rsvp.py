@@ -83,24 +83,43 @@ def lookup_by_phone(phone: str):
 
     # Normalize: strip leading + and spaces
     normalized = phone.strip().lstrip("+").replace(" ", "")
+    last9 = normalized[-9:]  # match last 9 digits for flexible lookup
 
     db = SessionLocal()
     try:
-        # Search contributors whose phone matches, then find their latest pending invitation
-        contributors = db.query(UserContributor).filter(
-            UserContributor.phone.ilike(f"%{normalized[-9:]}")  # match last 9 digits
+        inv = None
+
+        # 1. Search by registered user phone
+        users = db.query(User).filter(
+            User.phone.ilike(f"%{last9}")
         ).all()
 
-        if not contributors:
-            return standard_response(False, "No invitation found for this phone number")
+        if users:
+            user_ids = [u.id for u in users]
+            inv = db.query(EventInvitation).filter(
+                EventInvitation.invited_user_id.in_(user_ids),
+                EventInvitation.invitation_code.isnot(None),
+            ).order_by(EventInvitation.created_at.desc()).first()
 
-        contributor_ids = [c.id for c in contributors]
+        # 2. If not found, search by contributor phone
+        if not inv:
+            contributors = db.query(UserContributor).filter(
+                UserContributor.phone.ilike(f"%{last9}")
+            ).all()
 
-        # Find the most recent invitation for any of these contributors
-        inv = db.query(EventInvitation).filter(
-            EventInvitation.contributor_id.in_(contributor_ids),
-            EventInvitation.invitation_code.isnot(None),
-        ).order_by(EventInvitation.created_at.desc()).first()
+            if contributors:
+                contributor_ids = [c.id for c in contributors]
+                inv = db.query(EventInvitation).filter(
+                    EventInvitation.contributor_id.in_(contributor_ids),
+                    EventInvitation.invitation_code.isnot(None),
+                ).order_by(EventInvitation.created_at.desc()).first()
+
+        # 3. Fallback: search by guest_phone on the invitation itself
+        if not inv:
+            inv = db.query(EventInvitation).filter(
+                EventInvitation.guest_phone.ilike(f"%{last9}"),
+                EventInvitation.invitation_code.isnot(None),
+            ).order_by(EventInvitation.created_at.desc()).first()
 
         if not inv:
             return standard_response(False, "No invitation found for this phone number")

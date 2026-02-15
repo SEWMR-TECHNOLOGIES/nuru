@@ -1098,7 +1098,7 @@ def _attendee_dict(db: Session, att: EventAttendee) -> dict:
     guest_type = att.guest_type.value if hasattr(att.guest_type, "value") else (att.guest_type or "user")
 
     # Resolve guest info based on type
-    name = email = phone = None
+    name = email = phone = avatar = None
     if guest_type == "contributor":
         contributor = db.query(UserContributor).filter(UserContributor.id == att.contributor_id).first() if att.contributor_id else None
         if contributor:
@@ -1115,6 +1115,7 @@ def _attendee_dict(db: Session, att: EventAttendee) -> dict:
             name = f"{user.first_name} {user.last_name}"
             email = user.email
             phone = user.phone
+            avatar = user.avatar
         else:
             name = att.guest_name
 
@@ -1123,7 +1124,7 @@ def _attendee_dict(db: Session, att: EventAttendee) -> dict:
     return {
         "id": str(att.id), "event_id": str(att.event_id),
         "guest_type": guest_type,
-        "name": name,
+        "name": name, "avatar": avatar,
         "email": email, "phone": phone,
         "rsvp_status": att.rsvp_status.value if hasattr(att.rsvp_status, "value") else att.rsvp_status,
         "dietary_requirements": att.dietary_restrictions, "meal_preference": att.meal_preference,
@@ -1553,6 +1554,21 @@ def remove_guest(event_id: str, guest_id: str, db: Session = Depends(get_db), cu
     if not att:
         return standard_response(False, "Guest not found")
 
+    # Delete associated plus-ones
+    db.query(EventGuestPlusOne).filter(EventGuestPlusOne.attendee_id == att.id).delete()
+
+    # Delete associated invitation
+    if att.invitation_id:
+        db.query(EventInvitation).filter(EventInvitation.id == att.invitation_id).delete()
+    else:
+        # Also check by user/contributor match
+        inv_q = db.query(EventInvitation).filter(EventInvitation.event_id == eid)
+        if att.attendee_id:
+            inv_q = inv_q.filter(EventInvitation.invited_user_id == att.attendee_id)
+        elif att.contributor_id:
+            inv_q = inv_q.filter(EventInvitation.contributor_id == att.contributor_id)
+        inv_q.delete()
+
     db.delete(att)
     db.commit()
     return standard_response(True, "Guest removed successfully")
@@ -1574,6 +1590,9 @@ def remove_guests_bulk(event_id: str, body: dict = Body(...), db: Session = Depe
         try:
             att = db.query(EventAttendee).filter(EventAttendee.id == uuid.UUID(gid_str), EventAttendee.event_id == eid).first()
             if att:
+                db.query(EventGuestPlusOne).filter(EventGuestPlusOne.attendee_id == att.id).delete()
+                if att.invitation_id:
+                    db.query(EventInvitation).filter(EventInvitation.id == att.invitation_id).delete()
                 db.delete(att)
                 deleted += 1
         except ValueError:
