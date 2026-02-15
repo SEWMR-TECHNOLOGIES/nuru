@@ -124,10 +124,13 @@ def lookup_by_phone(phone: str):
         if not inv:
             return standard_response(False, "No invitation found for this phone number")
 
+        # Resolve the actual guest name (don't rely on raw guest_name which may be empty)
+        guest_name = _resolve_guest_name(inv, db)
+
         return standard_response(True, "Invitation found", data={
             "code": inv.invitation_code,
             "event_id": str(inv.event_id),
-            "guest_name": inv.guest_name or "",
+            "guest_name": guest_name,
         })
     finally:
         db.close()

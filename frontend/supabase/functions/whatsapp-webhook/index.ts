@@ -126,6 +126,8 @@ async function handleRSVP(
     }
 
     const code = lookupJson.data.code;
+    // Use the guest name from the invitation, not the WhatsApp profile name
+    const guestName = lookupJson.data.guest_name || name;
 
     // Submit RSVP
     const rsvpRes = await fetch(`${apiBase}/rsvp/${code}/respond`, {
@@ -137,8 +139,8 @@ async function handleRSVP(
 
     if (rsvpJson.success) {
       return status === "confirmed"
-        ? `🎉 Great news ${name}! Your attendance has been confirmed. We look forward to seeing you!`
-        : `Thank you ${name}. Your response has been recorded. We're sorry you won't be able to make it.`;
+        ? `🎉 Great news ${guestName}! Your attendance has been confirmed. We look forward to seeing you!`
+        : `Thank you ${guestName}. Your response has been recorded. We're sorry you won't be able to make it.`;
     }
 
     return rsvpJson.message || "Something went wrong processing your RSVP. Please try again.";
