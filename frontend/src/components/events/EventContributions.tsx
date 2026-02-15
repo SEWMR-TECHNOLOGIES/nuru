@@ -21,7 +21,6 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { useEventContributors } from '@/data/useContributors';
-import { useEventContributions } from '@/data/useEvents';
 import { useContributorSearch } from '@/hooks/useContributorSearch';
 import { usePolling } from '@/hooks/usePolling';
 import { toast } from 'sonner';
@@ -68,10 +67,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
     refetch: refetchEC, addToEvent, updateEventContributor, removeFromEvent, recordPayment, getPaymentHistory 
   } = useEventContributors(eventId);
 
-  // Legacy contributions hook for thank-you & backward compat
-  const { contributions, summary: legacySummary, loading: contribLoading, refetch: refetchContrib, sendThankYou } = useEventContributions(eventId);
-  
-  usePolling(() => { refetchEC(); refetchContrib(); }, 15000);
+  usePolling(() => { refetchEC(); }, 15000);
   const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -169,7 +165,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
   };
 
   // Computed
-  const summary = ecSummary || { total_pledged: 0, total_paid: 0, total_balance: 0, count: 0, currency: legacySummary?.currency || 'TZS' };
+  const summary = ecSummary || { total_pledged: 0, total_paid: 0, total_balance: 0, count: 0, currency: 'TZS' };
   const currency = summary.currency || 'TZS';
 
   // Filter event contributors
@@ -613,8 +609,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
     });
   };
 
-  const loading = ecLoading || contribLoading;
-  if (loading) return <ContributionsSkeletonLoader />;
+  if (ecLoading) return <ContributionsSkeletonLoader />;
   if (ecError) return <div className="p-6 text-center text-destructive">{ecError}</div>;
 
   return (
