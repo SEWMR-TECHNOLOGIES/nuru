@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { User, Lock, Globe, Moon, Loader2 } from 'lucide-react';
 import BellIcon from '@/assets/icons/bell-icon.svg';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +12,7 @@ import { useSettings } from '@/data/useSettings';
 import { toast } from 'sonner';
 
 const Settings = () => {
+  const navigate = useNavigate();
   useWorkspaceMeta({
     title: 'Settings',
     description: 'Manage your account settings, notifications, privacy, and preferences.'
@@ -211,7 +213,7 @@ const Settings = () => {
             <Separator />
             <div className="space-y-2">
               <Label>Change Password</Label>
-              <Button variant="outline" className="w-full" disabled={updating}>
+              <Button variant="outline" className="w-full" disabled={updating} onClick={() => navigate('/change-password')}>
                 Update Password
               </Button>
             </div>

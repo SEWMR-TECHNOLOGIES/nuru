@@ -52,4 +52,10 @@ export const authApi = {
    */
   resetPassword: (token: string, password: string, password_confirmation: string) => 
     post("/auth/reset-password", { token, password, password_confirmation }),
+
+  /**
+   * Change password (authenticated)
+   */
+  changePassword: (current_password: string, new_password: string, confirm_password: string) =>
+    post("/users/change-password", { current_password, new_password, confirm_password }),
 };

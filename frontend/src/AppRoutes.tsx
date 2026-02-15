@@ -55,6 +55,7 @@ import VerifyPhone from "@/pages/VerifyPhone";
 import ResetPassword from "@/pages/ResetPassword";
 import GuestPost from "@/pages/GuestPost";
 import RSVPConfirmation from "@/pages/RSVPConfirmation";
+import ChangePassword from "@/pages/ChangePassword";
 
 export default function AppRoutes() {
   const { userIsLoggedIn, isLoading } = useCurrentUser();
@@ -115,6 +116,7 @@ export default function AppRoutes() {
           <Route path="/bookings/:id" element={<BookingDetail />} />
           <Route path="/event/:id" element={<EventView />} />
           <Route path="/my-contributors" element={<MyContributors />} />
+          <Route path="/change-password" element={<ChangePassword />} />
           <Route path="/u/:username" element={<PublicProfile />} />
         </Route>
 

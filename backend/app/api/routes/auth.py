@@ -246,4 +246,12 @@ async def reset_password(request: Request, db: Session = Depends(get_db)):
 
     db.commit()
 
+    # Send in-app notification
+    try:
+        from utils.notify import create_notification
+        create_notification(db, str(user.id), None, "security", "Your password was reset successfully. If this wasn't you, contact support immediately.")
+        db.commit()
+    except Exception:
+        pass
+
     return standard_response(True, "Password reset successfully")
