@@ -187,6 +187,14 @@ export const contributorsApi = {
   confirmContributions: (eventId: string, contributionIds: string[]) =>
     post<{ confirmed: number }>(`/user-contributors/events/${eventId}/confirm-contributions`, { contribution_ids: contributionIds }),
 
+  /** Reject one or more pending contributions (deletes record + notifies contributor) */
+  rejectContributions: (eventId: string, contributionIds: string[]) =>
+    post<{ rejected: number }>(`/user-contributors/events/${eventId}/reject-contributions`, { contribution_ids: contributionIds }),
+
+  /** Delete a specific transaction from payment history */
+  deleteTransaction: (eventId: string, eventContributorId: string, paymentId: string) =>
+    del(`/user-contributors/events/${eventId}/contributors/${eventContributorId}/payments/${paymentId}`),
+
   /** Get date-filtered contribution report */
   getContributionReport: (eventId: string, params?: { date_from?: string; date_to?: string }) =>
     get<{

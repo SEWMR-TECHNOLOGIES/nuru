@@ -164,6 +164,28 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
     finally { setConfirmingPending(false); }
   };
 
+  const handleRejectPending = async () => {
+    if (selectedPending.length === 0) return;
+    const confirmed = await confirm({
+      title: 'Reject Contributions',
+      description: `Are you sure you want to reject ${selectedPending.length} pending contribution(s)? The contributor(s) will be notified via SMS that their payment record was removed because the amount could not be verified.`,
+      confirmLabel: 'Reject',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setConfirmingPending(true);
+    try {
+      const res = await contributorsApi.rejectContributions(eventId, selectedPending);
+      if (res.success) {
+        toast.success(`${res.data.rejected} contributions rejected`);
+        setSelectedPending([]);
+        fetchPending();
+        refetchEC();
+      }
+    } catch (err: any) { showCaughtError(err, 'Failed to reject'); }
+    finally { setConfirmingPending(false); }
+  };
+
   // Computed
   const summary = ecSummary || { total_pledged: 0, total_paid: 0, total_balance: 0, count: 0, currency: 'TZS' };
   const currency = summary.currency || 'TZS';
@@ -301,6 +323,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
   const handleViewHistory = async (ec: EventContributorSummary) => {
     setHistoryLoading(true);
     setHistoryDialogOpen(true);
+    setDetailContributor(ec);
     try {
       const data = await getPaymentHistory(ec.id);
       setHistoryData(data);
@@ -308,6 +331,31 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
       setHistoryData(null);
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  const handleDeleteTransaction = async (paymentId: string) => {
+    if (!detailContributor) return;
+    const confirmed = await confirm({
+      title: 'Delete Transaction',
+      description: 'Are you sure you want to delete this transaction? This action cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    try {
+      const res = await contributorsApi.deleteTransaction(eventId, detailContributor.id, paymentId);
+      if (res.success) {
+        toast.success('Transaction deleted');
+        // Refresh history
+        const data = await getPaymentHistory(detailContributor.id);
+        setHistoryData(data);
+        refetchEC();
+      } else {
+        toast.error(res.message || 'Failed to delete');
+      }
+    } catch (err: any) {
+      showCaughtError(err, 'Failed to delete transaction');
     }
   };
 
@@ -674,6 +722,9 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
                 <Button size="sm" variant="outline" onClick={() => setSelectedPending(selectedPending.length === pendingContributions.length ? [] : pendingContributions.map(p => p.id))}>
                   {selectedPending.length === pendingContributions.length ? 'Deselect All' : 'Select All'}
                 </Button>
+                <Button size="sm" variant="destructive" onClick={handleRejectPending} disabled={selectedPending.length === 0 || confirmingPending}>
+                  {confirmingPending ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />...</> : <><Trash className="w-4 h-4 mr-1" />Reject ({selectedPending.length})</>}
+                </Button>
                 <Button size="sm" onClick={handleConfirmPending} disabled={selectedPending.length === 0 || confirmingPending}>
                   {confirmingPending ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Confirming...</> : <><CheckCircle2 className="w-4 h-4 mr-1" />Confirm ({selectedPending.length})</>}
                 </Button>
@@ -971,11 +1022,24 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
                   historyData.payments?.map((p: any) => (
                     <div key={p.id} className="p-3 flex items-center justify-between">
                       <div>
-                        <Badge className="bg-green-100 text-green-800">Payment</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge className={p.confirmation_status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}>
+                            {p.confirmation_status === 'pending' ? 'Pending' : 'Payment'}
+                          </Badge>
+                          {p.payment_method && <span className="text-xs text-muted-foreground capitalize">{p.payment_method.replace('_', ' ')}</span>}
+                        </div>
                         <p className="text-xs text-muted-foreground mt-1">{formatDateMedium(p.created_at)}</p>
                         {p.payment_reference && <p className="text-xs text-muted-foreground">Ref: {p.payment_reference}</p>}
+                        {p.recorded_by_name && <p className="text-xs text-muted-foreground">By: {p.recorded_by_name}</p>}
                       </div>
-                      <p className="font-bold text-green-600">{formatPrice(p.amount)}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-green-600">{formatPrice(p.amount)}</p>
+                        {isCreator && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteTransaction(p.id)}>
+                            <Trash className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))
                 )}

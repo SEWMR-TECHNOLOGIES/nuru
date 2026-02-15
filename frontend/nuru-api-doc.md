@@ -13265,3 +13265,63 @@ Authorization: Bearer {token}
   ]
 }
 ```
+
+---
+
+# 💰 MODULE: CONTRIBUTION MANAGEMENT (Extended)
+
+---
+
+## Reject Pending Contributions
+Rejects one or more pending contributions. Deletes the records and sends SMS notification to each contributor informing them the payment record was removed because the amount could not be verified.
+
+```
+POST /user-contributors/events/{event_id}/reject-contributions
+Authorization: Bearer {token}
+```
+
+**Request Body:**
+```json
+{
+  "contribution_ids": ["uuid", "uuid"]
+}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "2 contributions rejected and removed",
+  "data": { "rejected": 2 }
+}
+```
+
+**Access:** Event creator only.
+
+**SMS Notification:** Each rejected contributor receives:
+> "Hello {name}, your contribution record of {currency} {amount} for {event} recorded by {recorder} has been removed by the event organizer because the amount could not be verified. If you believe this is an error, please contact the organizer directly."
+
+---
+
+## Delete a Specific Transaction
+Permanently deletes a specific payment/transaction from a contributor's history. Creator only.
+
+```
+DELETE /user-contributors/events/{event_id}/contributors/{ec_id}/payments/{payment_id}
+Authorization: Bearer {token}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Transaction deleted successfully"
+}
+```
+
+**Access:** Event creator only.
+
+---
+
+## Contribution Report — Date Filtering Behavior
+When a date range is specified (`date_from`, `date_to`), the report only includes contributors who have **paid > 0** within the selected period. Contributors with pledges but no payments in that range are excluded from the filtered report. All-time summary totals remain unchanged in `full_summary`.

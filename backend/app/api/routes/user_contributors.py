@@ -1067,6 +1067,108 @@ def confirm_contributions(event_id: str, body: dict = Body(...), db: Session = D
 
 
 # ══════════════════════════════════════════════
+# REJECT PENDING CONTRIBUTIONS (Creator only)
+# ══════════════════════════════════════════════
+
+@router.post("/events/{event_id}/reject-contributions")
+def reject_contributions(event_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Reject one or more pending contributions. Deletes the record and notifies the contributor."""
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID")
+
+    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
+    if not event:
+        return standard_response(False, "Only event creator can reject contributions")
+
+    ids = body.get("contribution_ids", [])
+    if not ids:
+        return standard_response(False, "No contribution IDs provided")
+
+    currency = _currency_code(db, event)
+    rejected_count = 0
+    for cid_str in ids:
+        try:
+            cid = uuid.UUID(cid_str)
+        except ValueError:
+            continue
+        c = db.query(EventContribution).filter(
+            EventContribution.id == cid,
+            EventContribution.event_id == eid,
+            EventContribution.confirmation_status == ContributionStatusEnum.pending,
+        ).first()
+        if c:
+            # Get contributor info for SMS
+            ec = db.query(EventContributor).options(
+                joinedload(EventContributor.contributor),
+            ).filter(EventContributor.id == c.event_contributor_id).first()
+            recorder = db.query(User).filter(User.id == c.recorded_by).first() if c.recorded_by else None
+            recorder_name = f"{recorder.first_name} {recorder.last_name}" if recorder else "a committee member"
+
+            # Send rejection SMS to contributor
+            if ec and ec.contributor and ec.contributor.phone:
+                try:
+                    from utils.sms import _send
+                    msg = (
+                        f"Hello {ec.contributor.name}, "
+                        f"your contribution record of {currency} {float(c.amount):,.0f} for {event.name} "
+                        f"recorded by {recorder_name} has been removed by the event organizer "
+                        f"because the amount could not be verified. "
+                        f"If you believe this is an error, please contact the organizer directly."
+                    )
+                    _send(ec.contributor.phone, msg)
+                except Exception:
+                    pass
+
+            # Delete associated thank you message if any
+            db.query(ContributionThankYouMessage).filter(
+                ContributionThankYouMessage.contribution_id == cid
+            ).delete()
+            db.delete(c)
+            rejected_count += 1
+
+    db.commit()
+    return standard_response(True, f"{rejected_count} contributions rejected and removed", {"rejected": rejected_count})
+
+
+# ══════════════════════════════════════════════
+# DELETE A SPECIFIC CONTRIBUTION/TRANSACTION
+# ══════════════════════════════════════════════
+
+@router.delete("/events/{event_id}/contributors/{ec_id}/payments/{payment_id}")
+def delete_contribution(event_id: str, ec_id: str, payment_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Delete a specific payment/transaction record. Creator only."""
+    try:
+        eid = uuid.UUID(event_id)
+        ecid = uuid.UUID(ec_id)
+        pid = uuid.UUID(payment_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+
+    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
+    if not event:
+        return standard_response(False, "Only event creator can delete transactions")
+
+    contribution = db.query(EventContribution).filter(
+        EventContribution.id == pid,
+        EventContribution.event_id == eid,
+        EventContribution.event_contributor_id == ecid,
+    ).first()
+    if not contribution:
+        return standard_response(False, "Transaction not found")
+
+    # Delete associated thank you message
+    db.query(ContributionThankYouMessage).filter(
+        ContributionThankYouMessage.contribution_id == pid
+    ).delete()
+    db.delete(contribution)
+    db.commit()
+
+    return standard_response(True, "Transaction deleted successfully")
+
+
+# ══════════════════════════════════════════════
 # CONTRIBUTION REPORT (date-filtered)
 # ══════════════════════════════════════════════
 
@@ -1157,14 +1259,25 @@ def get_contribution_report(
         else:
             paid_in_range = all_paid
 
-        if paid_in_range > 0 or pledge > 0:
-            results.append({
-                "name": ec.contributor.name if ec.contributor else "Unknown",
-                "phone": ec.contributor.phone if ec.contributor else None,
-                "pledged": pledge,
-                "paid": paid_in_range,
-                "balance": max(0, pledge - paid_in_range),
-            })
+        # When date-filtered, only include contributors with payments in range
+        if from_dt or to_dt:
+            if paid_in_range > 0:
+                results.append({
+                    "name": ec.contributor.name if ec.contributor else "Unknown",
+                    "phone": ec.contributor.phone if ec.contributor else None,
+                    "pledged": pledge,
+                    "paid": paid_in_range,
+                    "balance": max(0, pledge - paid_in_range),
+                })
+        else:
+            if paid_in_range > 0 or pledge > 0:
+                results.append({
+                    "name": ec.contributor.name if ec.contributor else "Unknown",
+                    "phone": ec.contributor.phone if ec.contributor else None,
+                    "pledged": pledge,
+                    "paid": paid_in_range,
+                    "balance": max(0, pledge - paid_in_range),
+                })
 
     # Sort alphabetically
     results.sort(key=lambda r: r["name"])
