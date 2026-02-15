@@ -20,60 +20,32 @@ export const useEventContributors = (eventId: string | null) => {
   const fetchEventContributors = useCallback(async (params?: { page?: number; limit?: number; search?: string }) => {
     if (!eventId) return;
     try {
-      let allContributors: EventContributorSummary[] = [];
-      let currentPage = 1;
-      const pageLimit = 100; // backend max limit
-      let firstSummary: any = null;
-      let firstPagination: any = null;
+      // Fetch ALL event contributors in a single request (limit=1000)
+      // This avoids multi-page pagination bugs caused by stateless serverless backends
+      const response = await contributorsApi.getEventContributors(eventId, {
+        ...params,
+        page: 1,
+        limit: 1000,
+      });
 
-      // Auto-paginate through all pages
-      const seenIds = new Set<string>();
-      while (true) {
-        const response = await contributorsApi.getEventContributors(eventId, {
-          ...params,
-          page: currentPage,
-          limit: pageLimit,
-        });
+      if (response.success) {
+        const contributors = response.data.event_contributors;
+        const backendSummary = response.data.summary || { total_pledged: 0, total_paid: 0, total_balance: 0, count: 0, currency: 'TZS' };
 
-        if (response.success) {
-          // Deduplicate by id
-          for (const ec of response.data.event_contributors) {
-            if (!seenIds.has(ec.id)) {
-              seenIds.add(ec.id);
-              allContributors.push(ec);
-            }
-          }
-          // Capture summary & pagination from the FIRST page
-          if (currentPage === 1) {
-            firstSummary = response.data.summary;
-            firstPagination = response.data.pagination;
-          }
+        const enrichedSummary = {
+          ...backendSummary,
+          total_balance: Math.max(0, (backendSummary.total_pledged || 0) - (backendSummary.total_paid || 0)),
+          count: contributors.length,
+          pledged_count: contributors.filter(c => (c.pledge_amount || 0) > 0).length,
+          paid_count: contributors.filter(c => (c.total_paid || 0) > 0).length,
+        };
 
-          // Stop if we've fetched all pages
-          const totalPages = (currentPage === 1 ? firstPagination : response.data.pagination)?.total_pages || 1;
-          console.log(`[Contributors] Page ${currentPage}/${totalPages}: got ${response.data.event_contributors.length} items, total unique so far: ${allContributors.length}, backend pagination:`, JSON.stringify(response.data.pagination), 'backend summary:', JSON.stringify(response.data.summary));
-          if (currentPage >= totalPages) break;
-          currentPage++;
-        } else {
-          setError(response.message || "Failed to fetch event contributors");
-          break;
-        }
+        setEventContributors(contributors);
+        setSummary(enrichedSummary);
+        setPagination(response.data.pagination);
+      } else {
+        setError(response.message || "Failed to fetch event contributors");
       }
-
-      // Use backend summary (computed from ALL records, not just paginated page)
-      // Enrich with client-side counts from all fetched contributors
-      const backendSummary = firstSummary || { total_pledged: 0, total_paid: 0, total_balance: 0, count: 0, currency: 'TZS' };
-      const enrichedSummary = {
-        ...backendSummary,
-        total_balance: Math.max(0, (backendSummary.total_pledged || 0) - (backendSummary.total_paid || 0)),
-        count: allContributors.length,
-        pledged_count: allContributors.filter(c => (c.pledge_amount || 0) > 0).length,
-        paid_count: allContributors.filter(c => (c.total_paid || 0) > 0).length,
-      };
-
-      setEventContributors(allContributors);
-      setSummary(enrichedSummary);
-      setPagination(firstPagination);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {

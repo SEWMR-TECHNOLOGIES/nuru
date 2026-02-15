@@ -292,7 +292,7 @@ def delete_contributor(contributor_id: str, db: Session = Depends(get_db), curre
 def get_event_contributors(
     event_id: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=1000),
     search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -321,9 +321,11 @@ def get_event_contributors(
 
     total = base_q.count()
 
-    # Paginate on IDs FIRST to avoid joinedload inflating rows and eating limit slots
+    # Paginate on IDs FIRST — use (created_at DESC, id DESC) for stable ordering
+    # Without the id tiebreaker, records with identical timestamps shift between pages
     id_rows = base_q.with_entities(EventContributor.id).order_by(
-        EventContributor.created_at.desc()
+        EventContributor.created_at.desc(),
+        EventContributor.id.desc(),
     ).offset((page - 1) * limit).limit(limit).all()
     ec_ids = [r[0] for r in id_rows]
 
@@ -340,7 +342,7 @@ def get_event_contributors(
             if ec.id not in seen:
                 seen.add(ec.id)
                 unique_ecs.append(ec)
-        # Restore original ordering (created_at desc)
+        # Restore original ordering (created_at desc, id desc)
         id_order = {eid: idx for idx, eid in enumerate(ec_ids)}
         ecs = sorted(unique_ecs, key=lambda ec: id_order.get(ec.id, 0))
     else:
@@ -1107,11 +1109,17 @@ def get_contribution_report(
         except ValueError:
             return standard_response(False, "Invalid date_to format, use YYYY-MM-DD")
 
-    # Get all event contributors
-    ecs = db.query(EventContributor).options(
+    # Get all event contributors (deduplicate joinedload inflation)
+    raw_ecs = db.query(EventContributor).options(
         joinedload(EventContributor.contributor),
         joinedload(EventContributor.contributions),
     ).filter(EventContributor.event_id == eid).all()
+    seen_ids = set()
+    ecs = []
+    for ec in raw_ecs:
+        if ec.id not in seen_ids:
+            seen_ids.add(ec.id)
+            ecs.append(ec)
 
     currency = _currency_code(db, event)
     results = []
@@ -1132,10 +1140,18 @@ def get_contribution_report(
 
         # Filter payments by date range (for table rows)
         if from_dt or to_dt:
+            def _make_aware(dt):
+                """Ensure datetime is timezone-aware for comparison."""
+                if dt is None:
+                    return None
+                if dt.tzinfo is None:
+                    return EAT.localize(dt)
+                return dt
+
             filtered_payments = [
                 c for c in all_confirmed
-                if (not from_dt or (c.contributed_at and c.contributed_at >= from_dt))
-                and (not to_dt or (c.contributed_at and c.contributed_at <= to_dt))
+                if (not from_dt or (c.contributed_at and _make_aware(c.contributed_at) >= from_dt))
+                and (not to_dt or (c.contributed_at and _make_aware(c.contributed_at) <= to_dt))
             ]
             paid_in_range = sum(float(c.amount or 0) for c in filtered_payments)
         else:
