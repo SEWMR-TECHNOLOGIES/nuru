@@ -1115,7 +1115,7 @@ def _attendee_dict(db: Session, att: EventAttendee) -> dict:
             name = f"{user.first_name} {user.last_name}"
             email = user.email
             phone = user.phone
-            avatar = user.avatar
+            avatar = user.profile.profile_picture_url if user.profile else None
         else:
             name = att.guest_name
 
