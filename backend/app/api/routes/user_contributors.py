@@ -1000,3 +1000,113 @@ def confirm_contributions(event_id: str, body: dict = Body(...), db: Session = D
 
     db.commit()
     return standard_response(True, f"{confirmed_count} contributions confirmed", {"confirmed": confirmed_count})
+
+
+# ══════════════════════════════════════════════
+# CONTRIBUTION REPORT (date-filtered)
+# ══════════════════════════════════════════════
+
+@router.get("/events/{event_id}/contribution-report")
+def get_contribution_report(
+    event_id: str,
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns contributor payment totals filtered by date range.
+    Only payments (EventContribution) within the date range are summed.
+    Pledges are shown as-is (not date-filtered) for context, but the
+    report header warns that balances may be partial.
+    """
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID")
+
+    event, is_creator, cm, perms = _get_event_access(db, eid, current_user)
+    if not event:
+        return standard_response(False, "Event not found")
+    if not is_creator and not cm:
+        return standard_response(False, "Access denied")
+
+    # Parse dates
+    from_dt = None
+    to_dt = None
+    if date_from:
+        try:
+            from_dt = datetime.strptime(date_from, "%Y-%m-%d").replace(hour=0, minute=0, second=0, tzinfo=EAT)
+        except ValueError:
+            return standard_response(False, "Invalid date_from format, use YYYY-MM-DD")
+    if date_to:
+        try:
+            to_dt = datetime.strptime(date_to, "%Y-%m-%d").replace(hour=23, minute=59, second=59, tzinfo=EAT)
+        except ValueError:
+            return standard_response(False, "Invalid date_to format, use YYYY-MM-DD")
+
+    # Get all event contributors
+    ecs = db.query(EventContributor).options(
+        joinedload(EventContributor.contributor),
+        joinedload(EventContributor.contributions),
+    ).filter(EventContributor.event_id == eid).all()
+
+    currency = _currency_code(db, event)
+    results = []
+    # Full (all-time) totals for summary cards
+    full_total_pledged = 0
+    full_total_paid = 0
+
+    for ec in ecs:
+        pledge = float(ec.pledge_amount or 0)
+        # All confirmed payments (for full summary)
+        all_confirmed = [
+            c for c in ec.contributions
+            if (not hasattr(c, 'confirmation_status') or c.confirmation_status is None or c.confirmation_status == ContributionStatusEnum.confirmed)
+        ]
+        all_paid = sum(float(c.amount or 0) for c in all_confirmed)
+        full_total_pledged += pledge
+        full_total_paid += all_paid
+
+        # Filter payments by date range (for table rows)
+        if from_dt or to_dt:
+            filtered_payments = [
+                c for c in all_confirmed
+                if (not from_dt or (c.contributed_at and c.contributed_at >= from_dt))
+                and (not to_dt or (c.contributed_at and c.contributed_at <= to_dt))
+            ]
+            paid_in_range = sum(float(c.amount or 0) for c in filtered_payments)
+        else:
+            paid_in_range = all_paid
+
+        if paid_in_range > 0 or pledge > 0:
+            results.append({
+                "name": ec.contributor.name if ec.contributor else "Unknown",
+                "phone": ec.contributor.phone if ec.contributor else None,
+                "pledged": pledge,
+                "paid": paid_in_range,
+                "balance": max(0, pledge - paid_in_range),
+            })
+
+    # Sort alphabetically
+    results.sort(key=lambda r: r["name"])
+
+    table_total_paid = sum(r["paid"] for r in results)
+
+    return standard_response(True, "Report data fetched", {
+        "contributors": results,
+        "full_summary": {
+            "total_pledged": full_total_pledged,
+            "total_paid": full_total_paid,
+            "total_balance": max(0, full_total_pledged - full_total_paid),
+            "count": len(ecs),
+            "currency": currency,
+        },
+        "filtered_summary": {
+            "total_paid": table_total_paid,
+            "contributor_count": len(results),
+        },
+        "date_from": date_from,
+        "date_to": date_to,
+        "is_filtered": bool(date_from or date_to),
+    })

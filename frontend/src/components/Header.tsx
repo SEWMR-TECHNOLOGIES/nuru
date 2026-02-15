@@ -73,7 +73,9 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
           <img src={MenuIcon} alt="Menu" className="w-5 h-5" />
         </Button>
         
-        <img src={nuruLogo} alt="Nuru" className="h-6 md:h-8 w-auto" />
+        <NavLink to="/">
+          <img src={nuruLogo} alt="Nuru" className="h-6 md:h-8 w-auto" />
+        </NavLink>
       </div>
 
       {/* Search Bar */}

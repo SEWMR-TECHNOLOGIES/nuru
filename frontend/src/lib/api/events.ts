@@ -435,6 +435,12 @@ export const eventsApi = {
   // ============================================================================
 
   /**
+   * Get assignable members (committee + creator) for checklist task assignment
+   */
+  getAssignableMembers: (eventId: string) =>
+    get<Array<{ id: string; first_name: string; last_name: string; full_name: string; avatar?: string; role: string }>>(`/user-events/${eventId}/assignable-members`),
+
+  /**
    * Get event checklist items
    */
   getChecklist: (eventId: string) =>

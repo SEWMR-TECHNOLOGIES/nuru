@@ -54,7 +54,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
   ]
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `w-full flex items-center gap-2 md:gap-3 px-2 md:px-3 py-2 md:py-2.5 rounded-lg font-medium transition-colors text-left text-sm md:text-base ${
+    `w-full flex items-center gap-3 px-3 py-3 md:py-2.5 rounded-lg font-medium transition-colors text-left text-base md:text-base ${
       isActive
         ? 'bg-nuru-yellow/20 text-nuru-yellow'
         : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
@@ -62,10 +62,10 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
 
   const renderIcon = (item: NavItem) => {
     if (item.customIcon) {
-      return <img src={item.customIcon} alt={item.label} className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" />
+      return <img src={item.customIcon} alt={item.label} className="w-5 h-5 flex-shrink-0" />
     }
     const IconComponent = item.lucideIcon!
-    return <IconComponent className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" />
+    return <IconComponent className="w-5 h-5 flex-shrink-0" />
   }
 
   return (

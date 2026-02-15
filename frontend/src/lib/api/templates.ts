@@ -42,6 +42,8 @@ export interface ChecklistItem {
   due_date?: string;
   completed_at?: string;
   assigned_to?: string;
+  assigned_name?: string;
+  assigned_avatar?: string;
   notes?: string;
   display_order: number;
   created_at?: string;

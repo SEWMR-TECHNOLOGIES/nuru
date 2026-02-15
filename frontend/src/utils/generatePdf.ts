@@ -15,7 +15,9 @@ interface ContributorRow {
 export const generateContributionReportHtml = (
   eventTitle: string,
   contributors: ContributorRow[],
-  summary: { total_amount: number; target_amount?: number; currency?: string; budget?: number }
+  summary: { total_amount: number; target_amount?: number; currency?: string; budget?: number },
+  dateRangeLabel?: string,
+  fullSummary?: { total_paid: number; total_pledged: number; total_balance: number }
 ): string => {
   const currency = summary.currency || 'TZS';
   const fmt = (n: number) => `${currency} ${n.toLocaleString()}`;
@@ -27,9 +29,22 @@ export const generateContributionReportHtml = (
   const totalPaid = sorted.reduce((s, c) => s + c.paid, 0);
   const totalBalance = sorted.reduce((s, c) => s + c.balance, 0);
 
+  // Use full summary for header cards if provided, otherwise fall back to table totals
+  const summaryPledged = fullSummary?.total_pledged ?? totalPledged;
+  const summaryPaid = fullSummary?.total_paid ?? totalPaid;
+  const summaryBalance = fullSummary?.total_balance ?? totalBalance;
+
   const logoAbsoluteUrl = new URL(nuruLogoUrl, window.location.origin).href;
 
-  const rows = sorted.map((c, i) => `
+  const isFiltered = !!dateRangeLabel;
+
+  const rows = sorted.map((c, i) => isFiltered ? `
+    <tr>
+      <td style="padding:8px;border-bottom:1px solid #eee">${i + 1}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee">${c.name}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${fmt(c.paid)}</td>
+    </tr>
+  ` : `
     <tr>
       <td style="padding:8px;border-bottom:1px solid #eee">${i + 1}</td>
       <td style="padding:8px;border-bottom:1px solid #eee">${c.name}</td>
@@ -71,36 +86,46 @@ export const generateContributionReportHtml = (
         <div class="header-right">
           <h1>Contribution Report</h1>
           <h2>${eventTitle} — ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</h2>
+          ${dateRangeLabel ? `<h2 style="color:#ca8a04;margin-top:4px">Period: ${dateRangeLabel}</h2>` : ''}
         </div>
       </div>
       
       <div class="summary">
         ${summary.budget ? `<div class="summary-card"><div class="label">Event Budget</div><div class="value">${fmt(summary.budget)}</div></div>` : ''}
-        <div class="summary-card"><div class="label">Total Raised</div><div class="value" style="color:#16a34a">${fmt(totalPaid)}</div></div>
-        <div class="summary-card"><div class="label">Total Pledged</div><div class="value" style="color:#ca8a04">${fmt(totalPledged)}</div></div>
-        <div class="summary-card"><div class="label">Pledge Shortfall</div><div class="value" style="color:#ea580c">${fmt(Math.max(0, totalPledged - totalPaid))}</div></div>
-        <div class="summary-card"><div class="label">Outstanding Balance</div><div class="value" style="color:#dc2626">${fmt(totalBalance)}</div></div>
+        <div class="summary-card"><div class="label">Total Raised</div><div class="value" style="color:#16a34a">${fmt(summaryPaid)}</div></div>
+        <div class="summary-card"><div class="label">Total Pledged</div><div class="value" style="color:#ca8a04">${fmt(summaryPledged)}</div></div>
+        <div class="summary-card"><div class="label">Pledge Shortfall</div><div class="value" style="color:#ea580c">${fmt(Math.max(0, summaryPledged - summaryPaid))}</div></div>
+        <div class="summary-card"><div class="label">Outstanding Balance</div><div class="value" style="color:#dc2626">${fmt(summaryBalance)}</div></div>
       </div>
 
-      ${summary.budget ? `<p style="font-size:12px;color:#666;margin-bottom:16px">Budget coverage: <strong>${((totalPaid / summary.budget) * 100).toFixed(1)}%</strong> of event budget raised so far.</p>` : ''}
+      ${summary.budget ? `<p style="font-size:12px;color:#666;margin-bottom:16px">Budget coverage: <strong>${((summaryPaid / summary.budget) * 100).toFixed(1)}%</strong> of event budget raised so far.</p>` : ''}
+      ${dateRangeLabel ? `<p style="font-size:11px;color:#ea580c;margin-bottom:16px;font-style:italic">⚠ The table below shows payments recorded within the selected period (${dateRangeLabel}). Summary cards above reflect all-time totals.</p>` : ''}
 
       <table>
         <thead>
           <tr>
             <th>#</th>
             <th>Contributor</th>
+            ${isFiltered ? `
+            <th style="text-align:right">Raised</th>
+            ` : `
             <th style="text-align:right">Pledged</th>
             <th style="text-align:right">Paid</th>
             <th style="text-align:right">Balance</th>
+            `}
           </tr>
         </thead>
         <tbody>${rows}</tbody>
         <tfoot>
           <tr>
             <td colspan="2">Total (${sorted.length} contributors)</td>
+            ${isFiltered ? `
+            <td style="text-align:right">${fmt(totalPaid)}</td>
+            ` : `
             <td style="text-align:right">${fmt(totalPledged)}</td>
             <td style="text-align:right">${fmt(totalPaid)}</td>
             <td style="text-align:right">${fmt(totalBalance)}</td>
+            `}
           </tr>
         </tfoot>
       </table>

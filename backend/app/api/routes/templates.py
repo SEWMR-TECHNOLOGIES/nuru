@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from models import (
     Event, EventType, EventTemplate, EventTemplateTask, EventChecklistItem,
-    EventCommitteeMember, CommitteePermission, User,
+    EventCommitteeMember, CommitteePermission, User, UserProfile,
     PriorityLevelEnum, ChecklistItemStatusEnum,
 )
 from utils.auth import get_current_user
@@ -80,7 +80,19 @@ def _template_task_dict(task: EventTemplateTask) -> dict:
     }
 
 
-def _checklist_item_dict(item: EventChecklistItem) -> dict:
+def _checklist_item_dict(item: EventChecklistItem, db: Session = None) -> dict:
+    assigned_name = getattr(item, 'assigned_name', None)
+    assigned_avatar = None
+    # If no stored name but we have a UUID, resolve it
+    if item.assigned_to and db:
+        assignee = db.query(User).filter(User.id == item.assigned_to).first()
+        if assignee:
+            if not assigned_name:
+                assigned_name = f"{assignee.first_name} {assignee.last_name}".strip()
+            profile = db.query(UserProfile).filter(UserProfile.user_id == assignee.id).first()
+            if profile and profile.profile_picture_url:
+                assigned_avatar = profile.profile_picture_url
+
     return {
         "id": str(item.id),
         "event_id": str(item.event_id),
@@ -92,7 +104,9 @@ def _checklist_item_dict(item: EventChecklistItem) -> dict:
         "status": item.status.value if hasattr(item.status, "value") else item.status,
         "due_date": item.due_date.isoformat() if item.due_date else None,
         "completed_at": item.completed_at.isoformat() if item.completed_at else None,
-        "assigned_to": item.assigned_to,
+        "assigned_to": str(item.assigned_to) if item.assigned_to else None,
+        "assigned_name": assigned_name,
+        "assigned_avatar": assigned_avatar,
         "notes": item.notes,
         "display_order": item.display_order,
         "created_at": item.created_at.isoformat() if item.created_at else None,
@@ -133,6 +147,68 @@ def get_template(template_id: str, db: Session = Depends(get_db)):
 
 
 # ──────────────────────────────────────────────
+# Assignable Members (committee + creator)
+# ──────────────────────────────────────────────
+@router.get("/user-events/{event_id}/assignable-members")
+def get_assignable_members(
+    event_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get list of users who can be assigned checklist tasks (committee members + event creator)."""
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID format")
+
+    event, err = _verify_event_access(db, eid, current_user)
+    if err:
+        return err
+
+    members = []
+    seen_ids = set()
+
+    def _get_avatar(user_id):
+        profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+        return profile.profile_picture_url if profile and profile.profile_picture_url else None
+
+    # Add event creator (organizer)
+    creator = db.query(User).filter(User.id == event.organizer_id).first()
+    if creator:
+        seen_ids.add(str(creator.id))
+        members.append({
+            "id": str(creator.id),
+            "first_name": creator.first_name,
+            "last_name": creator.last_name,
+            "full_name": f"{creator.first_name} {creator.last_name}".strip(),
+            "avatar": _get_avatar(creator.id),
+            "role": "Event Creator",
+        })
+
+    # Add committee members
+    committee = (
+        db.query(EventCommitteeMember)
+        .filter(EventCommitteeMember.event_id == eid)
+        .all()
+    )
+    for cm in committee:
+        if cm.user_id and str(cm.user_id) not in seen_ids:
+            seen_ids.add(str(cm.user_id))
+            user = db.query(User).filter(User.id == cm.user_id).first()
+            if user:
+                members.append({
+                    "id": str(user.id),
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "full_name": f"{user.first_name} {user.last_name}".strip(),
+                    "avatar": _get_avatar(user.id),
+                    "role": (cm.role.role_name if cm.role else None) or "Committee Member",
+                })
+
+    return standard_response(True, "Assignable members retrieved", members)
+
+
+# ──────────────────────────────────────────────
 # Event Checklist CRUD
 # ──────────────────────────────────────────────
 @router.get("/user-events/{event_id}/checklist")
@@ -163,7 +239,7 @@ def get_checklist(
     in_progress = sum(1 for i in items if (i.status.value if hasattr(i.status, "value") else i.status) == "in_progress")
 
     return standard_response(True, "Checklist retrieved successfully", {
-        "items": [_checklist_item_dict(i) for i in items],
+        "items": [_checklist_item_dict(i, db) for i in items],
         "summary": {
             "total": total,
             "completed": completed,
@@ -211,6 +287,19 @@ def add_checklist_item(
         except (ValueError, AttributeError):
             pass
 
+    # Resolve assigned_to UUID and name
+    assigned_to_uuid = None
+    assigned_name = None
+    raw_assigned = body.get("assigned_to")
+    if raw_assigned and str(raw_assigned).strip():
+        try:
+            assigned_to_uuid = uuid.UUID(str(raw_assigned))
+            assignee = db.query(User).filter(User.id == assigned_to_uuid).first()
+            if assignee:
+                assigned_name = f"{assignee.first_name} {assignee.last_name}".strip()
+        except (ValueError, AttributeError):
+            assigned_to_uuid = None
+
     item = EventChecklistItem(
         id=uuid.uuid4(),
         event_id=eid,
@@ -219,12 +308,17 @@ def add_checklist_item(
         category=body.get("category"),
         priority=priority,
         due_date=due_date,
-        assigned_to=body.get("assigned_to"),
-        notes=body.get("notes"),
+        assigned_to=assigned_to_uuid,
+        notes=body.get("notes") if body.get("notes") else None,
         display_order=max_order + 1,
         created_at=datetime.now(EAT),
         updated_at=datetime.now(EAT),
     )
+    # Set assigned_name if column exists
+    try:
+        item.assigned_name = assigned_name
+    except Exception:
+        pass
 
     db.add(item)
     try:
@@ -234,7 +328,7 @@ def add_checklist_item(
         db.rollback()
         return standard_response(False, f"Failed to add checklist item: {str(e)}")
 
-    return standard_response(True, "Checklist item added successfully", _checklist_item_dict(item))
+    return standard_response(True, "Checklist item added successfully", _checklist_item_dict(item, db))
 
 
 @router.put("/user-events/{event_id}/checklist/{item_id}")
@@ -292,7 +386,24 @@ def update_checklist_item(
         else:
             item.due_date = None
     if "assigned_to" in body:
-        item.assigned_to = body["assigned_to"]
+        raw_assigned = body["assigned_to"]
+        if raw_assigned and str(raw_assigned).strip():
+            try:
+                item.assigned_to = uuid.UUID(str(raw_assigned))
+                assignee = db.query(User).filter(User.id == item.assigned_to).first()
+                if assignee:
+                    try:
+                        item.assigned_name = f"{assignee.first_name} {assignee.last_name}".strip()
+                    except Exception:
+                        pass
+            except (ValueError, AttributeError):
+                pass
+        else:
+            item.assigned_to = None
+            try:
+                item.assigned_name = None
+            except Exception:
+                pass
     if "notes" in body:
         item.notes = body["notes"]
     if "display_order" in body:
@@ -307,7 +418,7 @@ def update_checklist_item(
         db.rollback()
         return standard_response(False, f"Failed to update checklist item: {str(e)}")
 
-    return standard_response(True, "Checklist item updated successfully", _checklist_item_dict(item))
+    return standard_response(True, "Checklist item updated successfully", _checklist_item_dict(item, db))
 
 
 @router.delete("/user-events/{event_id}/checklist/{item_id}")

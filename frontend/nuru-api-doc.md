@@ -4150,6 +4150,87 @@ Authorization: Bearer {access_token}
 
 ---
 
+## 6.13 Get Contribution Report (Date-Filtered)
+Returns contributor payment totals optionally filtered by date range. Only confirmed payments within the date range are summed. Pledges are shown as-is for context. When a date range is applied, the report focuses on showing collections within that period — overall balances reflect only the filtered payments and may differ from full event totals.
+
+```
+GET /user-contributors/events/{eventId}/contribution-report
+Authorization: Bearer {access_token}
+```
+
+**Query Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| date_from | string | No | Start date filter (YYYY-MM-DD). Payments on or after this date. |
+| date_to | string | No | End date filter (YYYY-MM-DD). Payments on or before this date. |
+
+**Example Request:**
+```
+GET /user-contributors/events/{eventId}/contribution-report?date_from=2026-02-01&date_to=2026-02-15
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Report data fetched",
+  "data": {
+    "contributors": [
+      {
+        "name": "Jane Smith",
+        "phone": "255712345687",
+        "pledged": 100000,
+        "paid": 50000,
+        "balance": 50000
+      }
+    ],
+    "full_summary": {
+      "total_pledged": 500000,
+      "total_paid": 350000,
+      "total_balance": 150000,
+      "count": 10,
+      "currency": "TZS"
+    },
+    "filtered_summary": {
+      "total_paid": 250000,
+      "contributor_count": 5
+    },
+    "date_from": "2026-02-01",
+    "date_to": "2026-02-15",
+    "is_filtered": true
+  }
+}
+```
+
+**Response Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| contributors | array | List of contributors with payment totals (filtered by date range if specified) |
+| contributors[].name | string | Contributor name |
+| contributors[].phone | string | Contributor phone number |
+| contributors[].pledged | number | Full pledge amount (not date-filtered) |
+| contributors[].paid | number | Total payments within the selected date range |
+| contributors[].balance | number | Remaining balance (pledge - paid within range) |
+| full_summary | object | All-time aggregated totals (always complete, never date-filtered) |
+| filtered_summary | object | Totals for only the date-filtered table rows |
+| filtered_summary.total_paid | number | Sum of payments within the selected period |
+| filtered_summary.contributor_count | number | Number of contributors with activity in the period |
+| date_from | string | Applied start date filter (null if not set) |
+| date_to | string | Applied end date filter (null if not set) |
+| is_filtered | boolean | Whether date filters were applied |
+
+**Notes:**
+- `full_summary` always reflects all-time totals regardless of date filters — use for report header cards
+- `contributors` table rows show payments filtered by date range when `is_filtered` is `true`
+- Pledges are always shown in full regardless of date filters
+- Contributors with zero payments in the range but non-zero pledges are still included
+
+---
+
+
+
+---
+
 # 🛠️ MODULE 7: USER SERVICES (Vendor Dashboard)
 
 ---

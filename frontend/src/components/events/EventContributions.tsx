@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import readXlsxFile from 'read-excel-file';
+import { format } from 'date-fns';
 import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import { 
-  DollarSign, Plus, Search, Filter, MoreVertical, Edit, Trash, Send, Download, TrendingUp, Users, Clock, Loader2, Eye, ChevronLeft, ChevronRight, UserPlus, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, ShieldCheck, UserCheck
+  DollarSign, Plus, Search, Filter, MoreVertical, Edit, Trash, Send, Download, TrendingUp, Users, Clock, Loader2, Eye, ChevronLeft, ChevronRight, UserPlus, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, ShieldCheck, UserCheck, CalendarIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +17,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 import { useEventContributors } from '@/data/useContributors';
 import { useEventContributions } from '@/data/useEvents';
 import { useContributorSearch } from '@/hooks/useContributorSearch';
@@ -108,6 +112,10 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
   // Report preview
   const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
   const [reportHtml, setReportHtml] = useState('');
+  const [reportDateDialogOpen, setReportDateDialogOpen] = useState(false);
+  const [reportDateFrom, setReportDateFrom] = useState<Date | undefined>(undefined);
+  const [reportDateTo, setReportDateTo] = useState<Date | undefined>(undefined);
+  const [reportLoading, setReportLoading] = useState(false);
 
   // Bulk upload
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
@@ -307,22 +315,48 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
     }
   };
 
-  const handleDownloadReport = () => {
-    const sortedContributors = [...filteredContributors].sort((a, b) => 
-      (a.contributor?.name || '').localeCompare(b.contributor?.name || '')
-    );
-    const html = generateContributionReportHtml(
-      eventTitle || 'Event',
-      sortedContributors.map(ec => ({
-        name: ec.contributor?.name || 'Unknown',
-        pledged: ec.pledge_amount,
-        paid: ec.total_paid,
-        balance: ec.balance,
-      })),
-      { total_amount: summary.total_paid, target_amount: summary.total_pledged, currency, budget: eventBudget }
-    );
-    setReportHtml(html);
-    setReportPreviewOpen(true);
+  const handleDownloadReport = async () => {
+    setReportLoading(true);
+    try {
+      const params: { date_from?: string; date_to?: string } = {};
+      if (reportDateFrom) params.date_from = format(reportDateFrom, 'yyyy-MM-dd');
+      if (reportDateTo) params.date_to = format(reportDateTo, 'yyyy-MM-dd');
+
+      const res = await contributorsApi.getContributionReport(eventId, params);
+      if (!res.success) { toast.error(res.message || 'Failed to fetch report'); return; }
+
+      const { contributors: reportContribs, full_summary: fullSummary } = res.data;
+      const isFiltered = res.data.is_filtered;
+
+      const dateRangeLabel = isFiltered
+        ? `${reportDateFrom ? format(reportDateFrom, 'dd MMM yyyy') : 'Start'} — ${reportDateTo ? format(reportDateTo, 'dd MMM yyyy') : 'Present'}`
+        : 'All Time';
+
+      const html = generateContributionReportHtml(
+        eventTitle || 'Event',
+        reportContribs.map(c => ({
+          name: c.name,
+          pledged: c.pledged,
+          paid: c.paid,
+          balance: c.balance,
+        })),
+        {
+          total_amount: fullSummary.total_paid,
+          target_amount: fullSummary.total_pledged,
+          currency: fullSummary.currency || currency,
+          budget: eventBudget,
+        },
+        isFiltered ? dateRangeLabel : undefined,
+        isFiltered ? { total_paid: fullSummary.total_paid, total_pledged: fullSummary.total_pledged, total_balance: fullSummary.total_balance } : undefined
+      );
+      setReportHtml(html);
+      setReportDateDialogOpen(false);
+      setReportPreviewOpen(true);
+    } catch (err: any) {
+      showCaughtError(err, 'Failed to generate report');
+    } finally {
+      setReportLoading(false);
+    }
   };
 
   const handleDownloadExcel = async () => {
@@ -616,7 +650,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
       {/* Actions Bar */}
       <div className="flex flex-col md:flex-row gap-4">
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={handleDownloadReport}>
+          <Button variant="outline" size="sm" onClick={() => { setReportDateFrom(undefined); setReportDateTo(undefined); setReportDateDialogOpen(true); }}>
             <Download className="w-4 h-4 mr-2" />Report
           </Button>
           {isCreator && (
@@ -1174,6 +1208,65 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
             <Button variant="outline" onClick={() => setGuestBatchDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleBatchAddAsGuests} disabled={addingAsGuests}>
               {addingAsGuests ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Adding...</> : <><UserCheck className="w-4 h-4 mr-2" />Add {selectedForGuest.length} as Guest{selectedForGuest.length > 1 ? 's' : ''}</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Date Range Picker Dialog */}
+      <Dialog open={reportDateDialogOpen} onOpenChange={setReportDateDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Select Report Period</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Choose a date range to filter payments. Leave empty for all-time data.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs">From</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !reportDateFrom && "text-muted-foreground")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {reportDateFrom ? format(reportDateFrom, 'dd MMM yyyy') : 'Start date'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={reportDateFrom} onSelect={setReportDateFrom} initialFocus className="p-3 pointer-events-auto" />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div>
+                <Label className="text-xs">To</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !reportDateTo && "text-muted-foreground")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {reportDateTo ? format(reportDateTo, 'dd MMM yyyy') : 'End date'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={reportDateTo} onSelect={setReportDateTo} initialFocus className="p-3 pointer-events-auto" />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+            {reportDateFrom && reportDateTo && reportDateFrom > reportDateTo && (
+              <p className="text-xs text-destructive">Start date must be before end date</p>
+            )}
+            <p className="text-[11px] text-muted-foreground italic">
+              ⚠ Filtered reports show only payments within the selected period. Overall balances may not match full event totals.
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setReportDateDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handleDownloadReport}
+              disabled={reportLoading || (reportDateFrom && reportDateTo && reportDateFrom > reportDateTo ? true : false)}
+            >
+              {reportLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</> : <><Download className="w-4 h-4 mr-2" />Generate Report</>}
             </Button>
           </DialogFooter>
         </DialogContent>

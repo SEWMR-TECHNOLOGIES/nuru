@@ -186,4 +186,15 @@ export const contributorsApi = {
   /** Confirm one or more pending contributions */
   confirmContributions: (eventId: string, contributionIds: string[]) =>
     post<{ confirmed: number }>(`/user-contributors/events/${eventId}/confirm-contributions`, { contribution_ids: contributionIds }),
+
+  /** Get date-filtered contribution report */
+  getContributionReport: (eventId: string, params?: { date_from?: string; date_to?: string }) =>
+    get<{
+      contributors: { name: string; phone?: string; pledged: number; paid: number; balance: number }[];
+      full_summary: { total_pledged: number; total_paid: number; total_balance: number; count: number; currency?: string };
+      filtered_summary: { total_paid: number; contributor_count: number };
+      date_from?: string;
+      date_to?: string;
+      is_filtered: boolean;
+    }>(`/user-contributors/events/${eventId}/contribution-report${buildQueryString(params)}`),
 };
