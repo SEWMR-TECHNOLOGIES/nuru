@@ -1,305 +1,218 @@
-// file: functions/nuru-chat/index.ts
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.74.0';
+import { chatTools } from "./tools.ts";
+import { executeTool } from "./search.ts";
 
-serve(async (req) => {
-  const allowedOrigins = [
-    "https://nuru.tz",
-    "https://www.nuru.tz",
-    "https://workspace.nuru.tz",
-    "http://localhost:8080",
-    "http://192.168.200.178:8080",
-  ];
+const ALLOWED_ORIGINS = [
+  "https://nuru.tz",
+  "https://www.nuru.tz",
+  "https://workspace.nuru.tz",
+  "http://localhost:8080",
+  "http://192.168.200.178:8080",
+];
 
-  const origin = (req.headers.get("origin") || "").trim();
-  const isAllowedOrigin =
-    allowedOrigins.includes(origin) ||
-    /^https:\/\/(www\.)?nuru\.tz$/.test(origin) ||
-    origin === "https://workspace.nuru.tz" ||
-    origin === "http://localhost:8080" ||
-    origin === "http://192.168.200.178:8080";
-
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": isAllowedOrigin ? origin : "https://nuru.tz",
+function getCorsHeaders(origin: string) {
+  const allowed =
+    ALLOWED_ORIGINS.includes(origin) ||
+    /^https:\/\/(www\.)?nuru\.tz$/.test(origin);
+  return {
+    "Access-Control-Allow-Origin": allowed ? origin : "https://nuru.tz",
     "Access-Control-Allow-Credentials": "true",
-    "Vary": "Origin",
+    Vary: "Origin",
     "Access-Control-Allow-Headers":
       "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Max-Age": "86400",
   };
-  // Helper function for JSON response
-  const jsonResponse = (data: unknown, status = 200) =>
-    new Response(JSON.stringify(data), {
-      status,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+}
+
+const jsonRes = (cors: Record<string, string>, data: unknown, status = 200) =>
+  new Response(JSON.stringify(data), {
+    status,
+    headers: { ...cors, "Content-Type": "application/json" },
+  });
+
+const SYSTEM_PROMPT = (firstName?: string) =>
+  `You are Nuru AI Assistant, a friendly, professional, and helpful guide for the Nuru event planning platform.${firstName ? ` You are chatting with ${firstName}.` : ""}
+
+Communication Style:
+- Be warm, conversational, and human-like
+- Use simple, everyday language that Tanzanian users can easily understand
+- Keep responses concise but informative
+- Only provide step-by-step instructions when asked "how to"
+- Encourage users and be supportive
+- When formatting data, use markdown tables for better readability
+- Never mention technical details like "checking the database" or "running a search query". Just present the results naturally.
+
+About Nuru:
+Nuru is an all-in-one event management platform designed for Tanzanian communities. It helps users plan, manage, and execute events like weddings, birthdays, graduations, memorials, and corporate gatherings.
+
+Key Features:
+1. Event Planning: Create budgets, guest lists, and timelines.
+2. Find Services: Connect with verified local providers (caterers, decorators, venues, photographers, etc.)
+3. Contributions & Pledges: Collect funds or items for events smoothly.
+4. Committee Management: Assign roles and responsibilities for large events.
+5. Invitations: Send digital invitations, track RSVPs.
+6. Social Feed: Share updates and photos.
+7. Messaging: Chat securely with providers and participants.
+8. Payments: Process payments safely in TZS.
+9. NFC Nuru Cards: Tap-to-check-in at events.
+
+IMPORTANT INSTRUCTIONS FOR TOOL USE:
+- You have access to search tools that return REAL data from the Nuru platform.
+- When users ask about service providers, pricing, or recommendations, ALWAYS use the search_services tool.
+- When users ask about events, use the search_events tool.
+- When users ask to find someone, use the search_people tool.
+- When users want to know available categories, use get_service_categories.
+- When users want to know event types, use get_event_types.
+- Present search results naturally and recommend the best options.
+- If no results are found, suggest alternatives or broader search terms.
+- Always encourage users to compare providers, check reviews, and book early.`;
+
+serve(async (req) => {
+  const origin = (req.headers.get("origin") || "").trim();
+  const cors = getCorsHeaders(origin);
+
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: cors });
+  }
+  if (req.method !== "POST") {
+    return jsonRes(cors, { error: "Method not allowed" }, 405);
+  }
 
   try {
-    console.log("Request method:", req.method, "Origin:", origin);
-
-    // --- Handle preflight OPTIONS requests first ---
-    if (req.method === "OPTIONS") {
-      console.log("⚡ Preflight OPTIONS request received, returning 204");
-      return new Response(null, { status: 204, headers: corsHeaders });
-    }
-
-    // --- Only allow POST ---
-    if (req.method !== "POST") {
-      console.log("❌ Invalid method:", req.method);
-      return jsonResponse({ error: "Method not allowed" }, 405);
-    }
-
-    // --- Parse incoming JSON ---
-    let body;
+    let body: any;
     try {
       body = await req.json();
-      console.log("✅ Body parsed successfully");
-    } catch (err) {
-      console.error("❌ Failed to parse JSON body:", err);
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
+    } catch {
+      return jsonRes(cors, { error: "Invalid JSON body" }, 400);
     }
 
     const { messages, firstName } = body;
     if (!messages || !Array.isArray(messages)) {
-      console.error("❌ Missing or invalid 'messages' array");
-      return jsonResponse({ error: "Missing or invalid 'messages' array" }, 400);
+      return jsonRes(cors, { error: "Missing or invalid 'messages' array" }, 400);
     }
 
-    console.log("✅ Received chat request with messages:", messages);
-    console.log("✅ User first name:", firstName);
-
-    // --- Load API key from environment ---
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
-      console.error("❌ LOVABLE_API_KEY is not configured");
-      return jsonResponse({ error: "LOVABLE_API_KEY is not configured" }, 500);
+      return jsonRes(cors, { error: "LOVABLE_API_KEY is not configured" }, 500);
     }
 
-    // Initialize Supabase client for database queries
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const aiHeaders = {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "Content-Type": "application/json",
+    };
+    const aiUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
+    // Build conversation with system prompt
+    const fullMessages = [
+      { role: "system", content: SYSTEM_PROMPT(firstName) },
+      ...messages,
+    ];
 
-    const systemPrompt = `You are Nuru AI Assistant, a friendly, professional, and helpful guide for the Nuru event planning platform.${firstName ? ` You are chatting with ${firstName}.` : ''}
-
-    Communication Style:
-    - Be warm, conversational, and human-like
-    - Use simple, everyday language that Tanzanian users can easily understand
-    - Keep responses concise but informative
-    - Only provide step-by-step instructions when asked "how to"
-    - Encourage users and be supportive
-    - Admit if unsure but offer guidance or resources
-    - When formatting data, use markdown tables for better readability
-
-    About Nuru:
-    Nuru is an all-in-one event management platform designed for Tanzanian communities. It helps users plan, manage, and execute events like weddings, birthdays, graduations, memorials, and corporate gatherings. Nuru simplifies every step, ensuring users save time, avoid mistakes, and find trusted service providers.
-
-    Key Features & Guidance:
-    1. Event Planning: Create budgets, guest lists, and timelines. Provide helpful tips for Tanzanian events.
-    2. Find Services: Connect with verified local providers like caterers, decorators, venues, photographers, etc.
-    3. Service Verification: Ensure credibility and reviews are clear to avoid scams.
-    4. My Services: Manage your listings, bookings, and service performance.
-    5. Contributions & Pledges: Collect funds or items for events smoothly.
-    6. Committee Management: Assign roles and responsibilities for large events like weddings or community programs.
-    7. Invitations: Send digital invitations, track RSVPs, and manage guest responses.
-    8. Social Feed: Share updates, photos, or important announcements with your event community.
-    9. Messaging: Chat securely with providers and participants directly from the platform.
-    10. Payments: Process payments safely in Tanzanian Shillings (TZS), supporting multiple payment methods.
-
-    Service Provider Recommendations:
-    IMPORTANT: You have access to a tool called "search_service_providers" that lets you search the actual Nuru database for real service providers.
-    
-    When users ask about service providers, pricing, or recommendations:
-    - Use the search_service_providers tool to look up actual providers based on category, location, or other criteria
-    - Present the real provider names, ratings, locations, and price ranges from the database
-    - Display results in a clear markdown table format
-    - Recommend the top-rated and verified providers first
-    - Suggest filtering by category (venues, catering, photography, videography, decorations, entertainment, etc.), location, and budget
-    - Recommend comparing multiple providers and reading reviews before booking
-    - Advise reaching out to providers directly through Nuru's messaging for quotes and availability
-    - Always encourage booking early for better availability and prices
-    - If no exact match is found, suggest similar categories or nearby locations
-
-    Tips for users:
-    - Always confirm service availability early.
-    - Use Nuru to track budgets and avoid overspending.
-    - Engage your committee for larger events for smooth coordination.
-    - Encourage guests to RSVP digitally to reduce confusion.
-    - Compare at least 3 service providers before making final decisions.
-    - Check provider ratings and reviews on Nuru before booking.
-
-    Be friendly, helpful, proactive, and provide clear instructions. If the user asks about Tanzanian customs or typical event practices, provide culturally relevant advice.`;
-
-
-
-    console.log("Calling Lovable AI Gateway...");
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // --- Step 1: Non-streaming call to detect tool calls ---
+    console.log("[nuru-chat] Step 1: checking for tool calls...");
+    const firstRes = await fetch(aiUrl, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      headers: aiHeaders,
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
-        messages: [{ role: "system", content: systemPrompt }, ...messages],
-        stream: true,
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "search_service_providers",
-              description: "Search for service providers in the Nuru database. Returns real providers with their ratings, locations, and price ranges.",
-              parameters: {
-                type: "object",
-                properties: {
-                  category: {
-                    type: "string",
-                    description: "Service category (e.g., Photography, Catering, Venue, Decoration, Audio/Visual, Entertainment, Transportation, Flowers)",
-                  },
-                  location: {
-                    type: "string",
-                    description: "Location/city (e.g., Dar es Salaam, Arusha, Mwanza, Dodoma)",
-                  },
-                  min_rating: {
-                    type: "number",
-                    description: "Minimum rating filter (0-5)",
-                  },
-                  verified_only: {
-                    type: "boolean",
-                    description: "Show only verified providers",
-                  },
-                },
-              },
-            },
-          },
-        ],
+        messages: fullMessages,
+        tools: chatTools,
+        stream: false,
       }),
     });
 
-    console.log("AI gateway status:", response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("❌ AI gateway error:", response.status, errorText);
-      let message = "Unknown error";
-      if (response.status === 429) message = "Rate limit exceeded. Please try again later.";
-      if (response.status === 402) message = "Payment required. Please contact support.";
-      return jsonResponse({ error: message }, response.status);
+    if (!firstRes.ok) {
+      const errText = await firstRes.text();
+      console.error("[nuru-chat] AI error:", firstRes.status, errText);
+      if (firstRes.status === 429) return jsonRes(cors, { error: "Rate limit exceeded. Please try again later." }, 429);
+      if (firstRes.status === 402) return jsonRes(cors, { error: "Payment required. Please contact support." }, 402);
+      return jsonRes(cors, { error: "AI service error" }, 500);
     }
 
-    // --- Handle streaming with tool calls ---
-    const reader = response.body!.getReader();
-    const decoder = new TextDecoder();
-    const encoder = new TextEncoder();
-    
-    const stream = new ReadableStream({
-      async start(controller) {
-        let buffer = '';
-        let toolCalls: any[] = [];
-        
+    const firstData = await firstRes.json();
+    const firstChoice = firstData.choices?.[0];
+    const assistantMsg = firstChoice?.message;
+
+    // --- Step 2: If tool calls, execute them and call AI again with results ---
+    if (assistantMsg?.tool_calls && assistantMsg.tool_calls.length > 0) {
+      console.log(`[nuru-chat] Step 2: executing ${assistantMsg.tool_calls.length} tool call(s)...`);
+
+      const toolResults: any[] = [];
+      for (const tc of assistantMsg.tool_calls) {
+        const fnName = tc.function?.name;
+        let fnArgs: any = {};
         try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-            
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6);
-                if (data === '[DONE]') continue;
-                
-                try {
-                  const parsed = JSON.parse(data);
-                  
-                  // Check for tool calls
-                  if (parsed.choices?.[0]?.delta?.tool_calls) {
-                    const calls = parsed.choices[0].delta.tool_calls;
-                    for (const call of calls) {
-                      if (call.function?.name === 'search_service_providers') {
-                        const args = JSON.parse(call.function.arguments || '{}');
-                        console.log('🔍 Searching service providers:', args);
-                        
-                        // Build query
-                        let query = supabase.from('service_providers').select('*');
-                        
-                        if (args.category) {
-                          query = query.ilike('category', `%${args.category}%`);
-                        }
-                        if (args.location) {
-                          query = query.ilike('location', `%${args.location}%`);
-                        }
-                        if (args.min_rating) {
-                          query = query.gte('rating', args.min_rating);
-                        }
-                        if (args.verified_only) {
-                          query = query.eq('verified', true);
-                        }
-                        
-                        query = query.order('rating', { ascending: false }).limit(10);
-                        
-                        const { data: providers, error } = await query;
-                        
-                        if (error) {
-                          console.error('❌ Database error:', error);
-                        } else {
-                          console.log(`✅ Found ${providers?.length || 0} providers`);
-                          
-                          // Format results as markdown table
-                          let result = '\n\nHere are the service providers I found:\n\n';
-                          result += '| Name | Category | Location | Rating | Reviews | Price Range | Verified |\n';
-                          result += '|------|----------|----------|--------|---------|-------------|----------|\n';
-                          
-                          for (const p of providers || []) {
-                            result += `| ${p.name} | ${p.category} | ${p.location} | ${p.rating} ⭐ | ${p.reviews_count} | ${p.price_range} | ${p.verified ? '✓' : '-'} |\n`;
-                          }
-                          
-                          result += '\n';
-                          
-                          // Send the result back as content
-                          const contentChunk = {
-                            choices: [{
-                              delta: { content: result },
-                              index: 0,
-                            }]
-                          };
-                          controller.enqueue(encoder.encode(`data: ${JSON.stringify(contentChunk)}\n\n`));
-                          continue;
-                        }
-                      }
-                    }
-                  }
-                  
-                  // Forward other data
-                  controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-                } catch (e) {
-                  // Invalid JSON, skip
-                }
-              }
-            }
-          }
-          
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-          controller.close();
-        } catch (err) {
-          console.error('Stream error:', err);
-          controller.error(err);
+          fnArgs = JSON.parse(tc.function?.arguments || "{}");
+        } catch {
+          fnArgs = {};
         }
-      },
+
+        console.log(`[nuru-chat] Executing tool: ${fnName}`, fnArgs);
+        const result = await executeTool(fnName, fnArgs);
+        console.log(`[nuru-chat] Tool result length: ${result.length} chars`);
+
+        toolResults.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: result,
+        });
+      }
+
+      // Build final messages: original + assistant tool call msg + tool results
+      const finalMessages = [
+        ...fullMessages,
+        assistantMsg,
+        ...toolResults,
+      ];
+
+      // --- Step 3: Stream the final response with tool results ---
+      console.log("[nuru-chat] Step 3: streaming final response with tool results...");
+      const streamRes = await fetch(aiUrl, {
+        method: "POST",
+        headers: aiHeaders,
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: finalMessages,
+          stream: true,
+        }),
+      });
+
+      if (!streamRes.ok) {
+        const errText = await streamRes.text();
+        console.error("[nuru-chat] Final stream error:", streamRes.status, errText);
+        return jsonRes(cors, { error: "AI service error" }, 500);
+      }
+
+      return new Response(streamRes.body, {
+        headers: { ...cors, "Content-Type": "text/event-stream" },
+      });
+    }
+
+    // --- No tool calls: stream directly ---
+    console.log("[nuru-chat] No tool calls, streaming direct response...");
+    const streamRes = await fetch(aiUrl, {
+      method: "POST",
+      headers: aiHeaders,
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: fullMessages,
+        tools: chatTools,
+        stream: true,
+      }),
     });
 
-    console.log("✅ Streaming response with tool support to client");
-    return new Response(stream, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-    });
+    if (!streamRes.ok) {
+      const errText = await streamRes.text();
+      console.error("[nuru-chat] Stream error:", streamRes.status, errText);
+      return jsonRes(cors, { error: "AI service error" }, 500);
+    }
 
+    return new Response(streamRes.body, {
+      headers: { ...cors, "Content-Type": "text/event-stream" },
+    });
   } catch (e) {
-    console.error("❌ Chat error:", e);
-    return jsonResponse({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
+    console.error("[nuru-chat] Error:", e);
+    return jsonRes(cors, { error: e instanceof Error ? e.message : "Unknown error" }, 500);
   }
 });
