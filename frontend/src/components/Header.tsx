@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Search, User, Settings, LogOut, Sparkles, Bookmark } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { User, Settings, LogOut, Bookmark, Search } from 'lucide-react';
+import CameraIcon from '@/assets/icons/camera-icon.svg';
+import GlobalSearchBar from './GlobalSearchBar';
 import { Button } from '@/components/ui/button';
 import { NavLink, useNavigate } from 'react-router-dom';
 import nuruLogo from '@/assets/nuru-logo.png';
@@ -27,6 +28,7 @@ interface HeaderProps {
 
 const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const navigate = useNavigate();
   const { logout } = useLogout();
   const { data: currentUser } = useCurrentUser();
@@ -78,17 +80,32 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
         </NavLink>
       </div>
 
-      {/* Search Bar */}
-      <div className="hidden lg:flex flex-1 max-w-3xl mx-8 relative">
-        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-        <Input
-          placeholder="Search for events, people, service providers..."
-          className="px-12 py-3 bg-slate-50/50 border-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 rounded-lg"
-        />
+      {/* Search Bar - Desktop */}
+      <div className="hidden lg:block flex-1 max-w-3xl mx-8">
+        <GlobalSearchBar />
       </div>
+
+      {/* Mobile Search Overlay */}
+      {mobileSearchOpen && (
+        <div className="fixed inset-0 z-50 bg-background flex flex-col lg:hidden">
+          <div className="flex items-center gap-2 px-3 py-3 border-b border-border">
+            <div className="flex-1 min-w-0">
+              <GlobalSearchBar autoFocus onNavigate={() => setMobileSearchOpen(false)} fullScreen />
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setMobileSearchOpen(false)} className="text-muted-foreground shrink-0">
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Right Actions */}
       <div className="flex items-center gap-2 md:gap-4">
+        {/* Mobile Search */}
+        <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileSearchOpen(true)}>
+          <Search className="w-5 h-5" />
+        </Button>
+
         {/* Messages */}
         <NavLink to="/messages">
           <Button variant="ghost" size="icon" className="relative">
@@ -178,7 +195,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
                   navigate('/my-posts');
                 }}
               >
-                <Sparkles className="w-4 h-4" />
+                <img src={CameraIcon} alt="Moments" className="w-4 h-4" />
                 Moments
               </Button>
               <Button

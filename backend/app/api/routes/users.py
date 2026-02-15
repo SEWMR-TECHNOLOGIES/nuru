@@ -5,8 +5,14 @@ from datetime import datetime
 from uuid import UUID
 from fastapi import APIRouter, Request, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import or_, and_, func as sa_func
+
 from core.database import get_db
 from models import User, UserVerificationOTP, UserProfile, UserSetting, UserFollower, UserCircle, OTPVerificationTypeEnum
+from models.services import UserService
+from models.events import Event
+from models.enums import EventStatusEnum
+from models.feeds import UserFeed
 from utils.auth import get_current_user
 from utils.helpers import standard_response, generate_otp, get_expiry, mask_email, mask_phone
 from utils.notification_service import send_verification_email, send_verification_sms
@@ -274,14 +280,16 @@ async def search_users(
     # Search by username, first_name, last_name, phone, email
     search_term = f"%{q}%"
     query = db.query(User).filter(
-        (User.id != current_user.id) &  # Exclude self
-        (User.is_active == True) &
-        (
-            User.username.ilike(search_term) |
-            User.first_name.ilike(search_term) |
-            User.last_name.ilike(search_term) |
-            User.email.ilike(search_term) |
-            User.phone.ilike(search_term)
+        and_(
+            User.id != current_user.id,
+            User.is_active == True,
+            or_(
+                User.username.ilike(search_term),
+                User.first_name.ilike(search_term),
+                User.last_name.ilike(search_term),
+                User.email.ilike(search_term),
+                User.phone.ilike(search_term),
+            )
         )
     )
 
@@ -308,5 +316,453 @@ async def search_users(
             "total_pages": (total + limit - 1) // limit,
             "has_next": (page * limit) < total,
             "has_previous": page > 1
+        }
+    })
+
+
+# ──────────────────────────────────────────────
+# Public User Profile
+# ──────────────────────────────────────────────
+@router.get("/{user_id}")
+def get_public_user_profile(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get a user's public profile by ID."""
+    try:
+        uid = UUID(user_id)
+    except (ValueError, TypeError):
+        return standard_response(False, "Invalid user ID format")
+
+    target = db.query(User).filter(User.id == uid, User.is_active == True).first()
+    if not target:
+        return standard_response(False, "User not found")
+
+    payload = build_user_payload(db, target)
+
+    # Add relationship info
+    is_following = db.query(UserFollower).filter(
+        UserFollower.follower_id == current_user.id,
+        UserFollower.following_id == uid
+    ).first() is not None
+
+    is_followed_by = db.query(UserFollower).filter(
+        UserFollower.follower_id == uid,
+        UserFollower.following_id == current_user.id
+    ).first() is not None
+
+    # Mutual followers count
+    my_following_ids = db.query(UserFollower.following_id).filter(UserFollower.follower_id == current_user.id).subquery()
+    mutual_count = db.query(sa_func.count(UserFollower.id)).filter(
+        UserFollower.follower_id == uid,
+        UserFollower.following_id.in_(my_following_ids)
+    ).scalar() or 0
+
+    # Post count (feeds)
+    post_count = db.query(sa_func.count(UserFeed.id)).filter(
+        UserFeed.user_id == uid,
+        UserFeed.is_public == True
+    ).scalar() or 0
+
+    payload["is_following"] = is_following
+    payload["is_followed_by"] = is_followed_by
+    payload["mutual_followers_count"] = mutual_count
+    payload["post_count"] = post_count
+
+    # Remove sensitive fields
+    payload.pop("email", None)
+    payload.pop("phone", None)
+
+    return standard_response(True, "User profile retrieved", payload)
+
+
+# ──────────────────────────────────────────────
+# Follow / Unfollow
+# ──────────────────────────────────────────────
+@router.post("/{user_id}/follow")
+def follow_user(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Follow a user."""
+    try:
+        uid = UUID(user_id)
+    except (ValueError, TypeError):
+        return standard_response(False, "Invalid user ID format")
+
+    if uid == current_user.id:
+        return standard_response(False, "You cannot follow yourself")
+
+    target = db.query(User).filter(User.id == uid, User.is_active == True).first()
+    if not target:
+        return standard_response(False, "User not found")
+
+    existing = db.query(UserFollower).filter(
+        UserFollower.follower_id == current_user.id,
+        UserFollower.following_id == uid
+    ).first()
+    if existing:
+        return standard_response(False, "You are already following this user")
+
+    import uuid as uuid_mod
+    follow = UserFollower(
+        id=uuid_mod.uuid4(),
+        follower_id=current_user.id,
+        following_id=uid,
+    )
+    db.add(follow)
+
+    # Send notification (notify_new_follower may not exist yet, so fallback to generic)
+    try:
+        from utils.notify import create_notification
+        sender_name = f"{current_user.first_name} {current_user.last_name}"
+        create_notification(db, uid, "follow", f"{sender_name} started following you", sender_id=current_user.id)
+    except Exception:
+        pass
+
+    db.commit()
+
+    return standard_response(True, "Successfully followed user", {
+        "following_id": str(uid),
+        "follower_id": str(current_user.id),
+        "created_at": str(follow.created_at),
+    })
+
+
+@router.delete("/{user_id}/follow")
+def unfollow_user(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Unfollow a user."""
+    try:
+        uid = UUID(user_id)
+    except (ValueError, TypeError):
+        return standard_response(False, "Invalid user ID format")
+
+    existing = db.query(UserFollower).filter(
+        UserFollower.follower_id == current_user.id,
+        UserFollower.following_id == uid
+    ).first()
+    if not existing:
+        return standard_response(False, "You are not following this user")
+
+    db.delete(existing)
+    db.commit()
+
+    return standard_response(True, "Successfully unfollowed user")
+
+
+# ──────────────────────────────────────────────
+# Public User Events
+# ──────────────────────────────────────────────
+@router.get("/{user_id}/events")
+def get_user_public_events(
+    user_id: str,
+    page: int = 1,
+    limit: int = 10,
+    status: str = "published",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get a user's public events."""
+    try:
+        uid = UUID(user_id)
+    except (ValueError, TypeError):
+        return standard_response(False, "Invalid user ID format")
+
+    page = max(1, page)
+    limit = max(1, min(limit, 50))
+    offset = (page - 1) * limit
+
+    query = db.query(Event).filter(
+        Event.organizer_id == uid,
+        Event.is_public == True,
+    )
+
+    if status and status != "all":
+        try:
+            status_enum = EventStatusEnum(status)
+            query = query.filter(Event.status == status_enum)
+        except (ValueError, KeyError):
+            pass
+
+    query = query.order_by(Event.start_date.desc())
+    total = query.count()
+    events = query.offset(offset).limit(limit).all()
+
+    event_list = []
+    for e in events:
+        cover = None
+        if hasattr(e, 'images') and e.images:
+            featured = next((img for img in e.images if img.is_featured), None)
+            cover = featured.image_url if featured else (e.images[0].image_url if e.images else None)
+
+        event_list.append({
+            "id": str(e.id),
+            "title": e.name,
+            "start_date": str(e.start_date) if e.start_date else None,
+            "end_date": str(e.end_date) if e.end_date else None,
+            "location": e.location,
+            "cover_image": cover or e.cover_image_url,
+            "status": e.status.value if hasattr(e.status, 'value') else e.status,
+            "event_type": {"name": e.event_type.name, "id": str(e.event_type.id)} if e.event_type else None,
+        })
+
+    return standard_response(True, "User events retrieved", {
+        "events": event_list,
+        "pagination": {
+            "page": page, "limit": limit, "total_items": total,
+            "total_pages": (total + limit - 1) // limit,
+            "has_next": (page * limit) < total, "has_previous": page > 1
+        }
+    })
+
+
+# ──────────────────────────────────────────────
+# Public User Services
+# ──────────────────────────────────────────────
+@router.get("/{user_id}/services")
+def get_user_public_services(
+    user_id: str,
+    page: int = 1,
+    limit: int = 10,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get a user's public services."""
+    try:
+        uid = UUID(user_id)
+    except (ValueError, TypeError):
+        return standard_response(False, "Invalid user ID format")
+
+    page = max(1, page)
+    limit = max(1, min(limit, 50))
+    offset = (page - 1) * limit
+
+    query = db.query(UserService).filter(
+        UserService.user_id == uid,
+        UserService.is_active == True
+    ).order_by(UserService.created_at.desc())
+
+    total = query.count()
+    services = query.offset(offset).limit(limit).all()
+
+    service_list = []
+    for s in services:
+        primary_img = None
+        images = []
+        if hasattr(s, 'images') and s.images:
+            for img in s.images:
+                img_dict = {"id": str(img.id), "url": img.image_url, "is_primary": getattr(img, 'is_featured', False)}
+                images.append(img_dict)
+                if getattr(img, 'is_featured', False):
+                    primary_img = img.image_url
+            if not primary_img and images:
+                primary_img = images[0]["url"]
+
+        # Compute rating from ratings relationship
+        ratings = [r.rating for r in s.ratings] if hasattr(s, 'ratings') and s.ratings else []
+        avg_rating = round(sum(ratings) / len(ratings), 1) if ratings else None
+
+        service_list.append({
+            "id": str(s.id),
+            "title": s.title,
+            "description": s.description,
+            "location": s.location,
+            "rating": avg_rating,
+            "review_count": len(ratings),
+            "primary_image": primary_img,
+            "images": images,
+            "verification_status": s.verification_status.value if s.verification_status else "unverified",
+            "service_category": {"name": s.category.name, "id": str(s.category.id)} if s.category else None,
+            "min_price": float(s.min_price) if s.min_price else None,
+            "max_price": float(s.max_price) if s.max_price else None,
+            "currency": "TZS",
+        })
+
+    return standard_response(True, "User services retrieved", {
+        "services": service_list,
+        "pagination": {
+            "page": page, "limit": limit, "total_items": total,
+            "total_pages": (total + limit - 1) // limit,
+            "has_next": (page * limit) < total, "has_previous": page > 1
+        }
+    })
+
+
+# ──────────────────────────────────────────────
+# Public User Posts (Feed Items)
+# ──────────────────────────────────────────────
+@router.get("/{user_id}/posts")
+def get_user_public_posts(
+    user_id: str,
+    page: int = 1,
+    limit: int = 10,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get a user's public posts/moments."""
+    try:
+        uid = UUID(user_id)
+    except (ValueError, TypeError):
+        return standard_response(False, "Invalid user ID format")
+
+    page = max(1, page)
+    limit = max(1, min(limit, 50))
+    offset = (page - 1) * limit
+
+    query = db.query(UserFeed).filter(
+        UserFeed.user_id == uid,
+        UserFeed.is_public == True
+    ).order_by(UserFeed.created_at.desc())
+
+    total = query.count()
+    posts = query.offset(offset).limit(limit).all()
+
+    from models.feeds import UserFeedImage, UserFeedGlow, UserFeedComment
+
+    post_list = []
+    for p in posts:
+        images = db.query(UserFeedImage).filter(UserFeedImage.feed_id == p.id).all()
+        like_count = db.query(sa_func.count(UserFeedGlow.id)).filter(UserFeedGlow.feed_id == p.id).scalar() or 0
+        comment_count = db.query(sa_func.count(UserFeedComment.id)).filter(UserFeedComment.feed_id == p.id).scalar() or 0
+
+        post_list.append({
+            "id": str(p.id),
+            "content": p.content,
+            "location": p.location,
+            "images": [{"url": img.image_url, "id": str(img.id)} for img in images],
+            "like_count": like_count,
+            "comment_count": comment_count,
+            "created_at": str(p.created_at) if p.created_at else None,
+        })
+
+    return standard_response(True, "User posts retrieved", {
+        "posts": post_list,
+        "pagination": {
+            "page": page, "limit": limit, "total_items": total,
+            "total_pages": (total + limit - 1) // limit,
+            "has_next": (page * limit) < total, "has_previous": page > 1
+        }
+    })
+
+
+# ──────────────────────────────────────────────
+# Get User Followers / Following
+# ──────────────────────────────────────────────
+@router.get("/{user_id}/followers")
+def get_user_followers(
+    user_id: str,
+    page: int = 1,
+    limit: int = 20,
+    search: str = "",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get a user's followers."""
+    try:
+        uid = UUID(user_id)
+    except (ValueError, TypeError):
+        return standard_response(False, "Invalid user ID format")
+
+    page = max(1, page)
+    limit = max(1, min(limit, 50))
+    offset = (page - 1) * limit
+
+    query = db.query(UserFollower).filter(UserFollower.following_id == uid)
+    if search:
+        s = f"%{search}%"
+        query = query.join(User, User.id == UserFollower.follower_id).filter(
+            or_(User.first_name.ilike(s), User.last_name.ilike(s), User.username.ilike(s))
+        )
+
+    total = query.count()
+    entries = query.order_by(UserFollower.created_at.desc()).offset(offset).limit(limit).all()
+
+    followers = []
+    for entry in entries:
+        u = db.query(User).filter(User.id == entry.follower_id).first()
+        if not u:
+            continue
+        profile = db.query(UserProfile).filter(UserProfile.user_id == u.id).first()
+        is_following_back = db.query(UserFollower).filter(
+            UserFollower.follower_id == current_user.id,
+            UserFollower.following_id == u.id
+        ).first() is not None
+
+        followers.append({
+            "id": str(u.id),
+            "first_name": u.first_name,
+            "last_name": u.last_name,
+            "username": u.username,
+            "avatar": profile.profile_picture_url if profile else None,
+            "is_verified": u.is_identity_verified,
+            "is_following": is_following_back,
+            "followed_at": str(entry.created_at) if entry.created_at else None,
+        })
+
+    return standard_response(True, "Followers retrieved", {
+        "followers": followers,
+        "pagination": {
+            "page": page, "limit": limit, "total_items": total,
+            "total_pages": (total + limit - 1) // limit,
+            "has_next": (page * limit) < total, "has_previous": page > 1
+        }
+    })
+
+
+@router.get("/{user_id}/following")
+def get_user_following(
+    user_id: str,
+    page: int = 1,
+    limit: int = 20,
+    search: str = "",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get users that a user is following."""
+    try:
+        uid = UUID(user_id)
+    except (ValueError, TypeError):
+        return standard_response(False, "Invalid user ID format")
+
+    page = max(1, page)
+    limit = max(1, min(limit, 50))
+    offset = (page - 1) * limit
+
+    query = db.query(UserFollower).filter(UserFollower.follower_id == uid)
+    if search:
+        s = f"%{search}%"
+        query = query.join(User, User.id == UserFollower.following_id).filter(
+            or_(User.first_name.ilike(s), User.last_name.ilike(s), User.username.ilike(s))
+        )
+
+    total = query.count()
+    entries = query.order_by(UserFollower.created_at.desc()).offset(offset).limit(limit).all()
+
+    following = []
+    for entry in entries:
+        u = db.query(User).filter(User.id == entry.following_id).first()
+        if not u:
+            continue
+        profile = db.query(UserProfile).filter(UserProfile.user_id == u.id).first()
+        is_following_back = db.query(UserFollower).filter(
+            UserFollower.follower_id == current_user.id,
+            UserFollower.following_id == u.id
+        ).first() is not None
+
+        following.append({
+            "id": str(u.id),
+            "first_name": u.first_name,
+            "last_name": u.last_name,
+            "username": u.username,
+            "avatar": profile.profile_picture_url if profile else None,
+            "is_verified": u.is_identity_verified,
+            "is_following": is_following_back,
+            "followed_at": str(entry.created_at) if entry.created_at else None,
+        })
+
+    return standard_response(True, "Following retrieved", {
+        "following": following,
+        "pagination": {
+            "page": page, "limit": limit, "total_items": total,
+            "total_pages": (total + limit - 1) // limit,
+            "has_next": (page * limit) < total, "has_previous": page > 1
         }
     })

@@ -6,7 +6,7 @@ from datetime import datetime
 
 import pytz
 from fastapi import APIRouter, Depends, Body
-from sqlalchemy import func as sa_func, or_
+from sqlalchemy import func as sa_func, or_, and_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -150,16 +150,16 @@ def start_conversation(body: dict = Body(...), db: Session = Depends(get_db), cu
     if sid:
         existing = db.query(Conversation).filter(
             or_(
-                (Conversation.user_one_id == current_user.id) & (Conversation.user_two_id == rid),
-                (Conversation.user_one_id == rid) & (Conversation.user_two_id == current_user.id),
+                and_(Conversation.user_one_id == current_user.id, Conversation.user_two_id == rid),
+                and_(Conversation.user_one_id == rid, Conversation.user_two_id == current_user.id),
             ),
             Conversation.service_id == sid,
         ).first()
     else:
         existing = db.query(Conversation).filter(
             or_(
-                (Conversation.user_one_id == current_user.id) & (Conversation.user_two_id == rid),
-                (Conversation.user_one_id == rid) & (Conversation.user_two_id == current_user.id),
+                and_(Conversation.user_one_id == current_user.id, Conversation.user_two_id == rid),
+                and_(Conversation.user_one_id == rid, Conversation.user_two_id == current_user.id),
             ),
             Conversation.service_id.is_(None),
         ).first()
@@ -189,8 +189,8 @@ def start_conversation(body: dict = Body(...), db: Session = Depends(get_db), cu
         # Unique constraint hit – find the existing conversation (check both user orderings)
         existing = db.query(Conversation).filter(
             or_(
-                (Conversation.user_one_id == current_user.id) & (Conversation.user_two_id == rid),
-                (Conversation.user_one_id == rid) & (Conversation.user_two_id == current_user.id),
+                and_(Conversation.user_one_id == current_user.id, Conversation.user_two_id == rid),
+                and_(Conversation.user_one_id == rid, Conversation.user_two_id == current_user.id),
             ),
         ).first()
         if existing:

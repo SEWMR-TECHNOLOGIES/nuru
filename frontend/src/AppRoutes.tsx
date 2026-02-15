@@ -34,6 +34,7 @@ import NuruCards from "@/components/NuruCards";
 import BookingList from "@/components/bookings/BookingList";
 import BookingDetail from "@/components/bookings/BookingDetail";
 import EventView from "@/components/EventView";
+import PublicProfile from "@/components/PublicProfile";
 
 import Index from "@/pages/Index";
 import Contact from "@/pages/Contact";
@@ -114,6 +115,7 @@ export default function AppRoutes() {
           <Route path="/bookings/:id" element={<BookingDetail />} />
           <Route path="/event/:id" element={<EventView />} />
           <Route path="/my-contributors" element={<MyContributors />} />
+          <Route path="/u/:username" element={<PublicProfile />} />
         </Route>
 
         {/* Public Pages - always accessible */}

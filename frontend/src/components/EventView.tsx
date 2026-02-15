@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Clock, MapPin, Users, Calendar, CheckCircle, XCircle, Loader2, Printer, Heart } from 'lucide-react';
+import { ChevronLeft, Clock, Users, CheckCircle, XCircle, Loader2, Printer, Heart } from 'lucide-react';
+import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import LocationIcon from '@/assets/icons/location-icon.svg';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +21,7 @@ const EventView = () => {
   const [respondingStatus, setRespondingStatus] = useState<string | null>(null);
   const [rsvpStatus, setRsvpStatus] = useState<string>('pending');
   const [showInvitationCard, setShowInvitationCard] = useState(false);
+  const [hasInvitation, setHasInvitation] = useState(false);
 
   const fetchEvent = useCallback(async () => {
     if (!id) return;
@@ -40,8 +43,11 @@ const EventView = () => {
     eventsApi.getInvitedEvents({ limit: 100 }).then(res => {
       if (res.success) {
         const inv = res.data?.events?.find((e: any) => e.id === id);
-        if (inv?.invitation?.rsvp_status) {
-          setRsvpStatus(inv.invitation.rsvp_status);
+        if (inv?.invitation) {
+          setHasInvitation(true);
+          if (inv.invitation.rsvp_status) {
+            setRsvpStatus(inv.invitation.rsvp_status);
+          }
         }
       }
     }).catch(() => {});
@@ -95,8 +101,8 @@ const EventView = () => {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center flex-row-reverse justify-between">
-        <h1 className="text-2xl md:text-3xl font-bold">Event</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl md:text-3xl font-bold">{event.title || 'Event Details'}</h1>
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ChevronLeft className="w-5 h-5" />
         </Button>
@@ -133,63 +139,65 @@ const EventView = () => {
         </motion.div>
       )}
 
-      {/* RSVP Status & Actions */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-      >
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="p-5">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground mb-1">Your RSVP Status</p>
-                <Badge className={
-                  rsvpStatus === 'confirmed' ? 'bg-green-100 text-green-800' :
-                  rsvpStatus === 'declined' ? 'bg-destructive/10 text-destructive' :
-                  'bg-amber-100 text-amber-800'
-                }>
-                  {rsvpStatus === 'confirmed' && <CheckCircle className="w-3 h-3 mr-1" />}
-                  {rsvpStatus === 'declined' && <XCircle className="w-3 h-3 mr-1" />}
-                  {rsvpStatus.charAt(0).toUpperCase() + rsvpStatus.slice(1)}
-                </Badge>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {rsvpStatus === 'pending' && (
-                  <>
-                    <Button size="sm" onClick={() => handleRSVP('confirmed')} disabled={!!respondingStatus} className="gap-1.5">
+      {/* RSVP Status & Actions - only show if user has an invitation */}
+      {hasInvitation && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <Card className="border-primary/20 bg-primary/5">
+            <CardContent className="p-5">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Your RSVP Status</p>
+                  <Badge className={
+                    rsvpStatus === 'confirmed' ? 'bg-green-100 text-green-800' :
+                    rsvpStatus === 'declined' ? 'bg-destructive/10 text-destructive' :
+                    'bg-amber-100 text-amber-800'
+                  }>
+                    {rsvpStatus === 'confirmed' && <CheckCircle className="w-3 h-3 mr-1" />}
+                    {rsvpStatus === 'declined' && <XCircle className="w-3 h-3 mr-1" />}
+                    {rsvpStatus.charAt(0).toUpperCase() + rsvpStatus.slice(1)}
+                  </Badge>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {rsvpStatus === 'pending' && (
+                    <>
+                      <Button size="sm" onClick={() => handleRSVP('confirmed')} disabled={!!respondingStatus} className="gap-1.5">
+                        {respondingStatus === 'confirmed' ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                        Accept
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleRSVP('declined')} disabled={!!respondingStatus} className="gap-1.5 text-destructive hover:text-destructive">
+                        {respondingStatus === 'declined' ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                        Decline
+                      </Button>
+                    </>
+                  )}
+                  {rsvpStatus === 'confirmed' && (
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => handleRSVP('declined')} disabled={!!respondingStatus} className="gap-1.5 text-destructive hover:text-destructive">
+                        {respondingStatus === 'declined' ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                        Cancel RSVP
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setShowInvitationCard(true)} className="gap-1.5">
+                        <Printer className="w-4 h-4" />
+                        Invitation Card
+                      </Button>
+                    </>
+                  )}
+                  {rsvpStatus === 'declined' && (
+                    <Button size="sm" variant="outline" onClick={() => handleRSVP('confirmed')} disabled={!!respondingStatus} className="gap-1.5">
                       {respondingStatus === 'confirmed' ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                      Accept
+                      Accept Instead
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleRSVP('declined')} disabled={!!respondingStatus} className="gap-1.5 text-destructive hover:text-destructive">
-                      {respondingStatus === 'declined' ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
-                      Decline
-                    </Button>
-                  </>
-                )}
-                {rsvpStatus === 'confirmed' && (
-                  <>
-                    <Button size="sm" variant="outline" onClick={() => handleRSVP('declined')} disabled={!!respondingStatus} className="gap-1.5 text-destructive hover:text-destructive">
-                      {respondingStatus === 'declined' ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
-                      Cancel RSVP
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setShowInvitationCard(true)} className="gap-1.5">
-                      <Printer className="w-4 h-4" />
-                      Invitation Card
-                    </Button>
-                  </>
-                )}
-                {rsvpStatus === 'declined' && (
-                  <Button size="sm" variant="outline" onClick={() => handleRSVP('confirmed')} disabled={!!respondingStatus} className="gap-1.5">
-                    {respondingStatus === 'confirmed' ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                    Accept Instead
-                  </Button>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       {/* Event Details */}
       <motion.div
@@ -202,7 +210,7 @@ const EventView = () => {
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-primary" />
+                <img src={CalendarIcon} alt="Date" className="w-5 h-5" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Date</p>
@@ -232,7 +240,7 @@ const EventView = () => {
           <Card className="sm:col-span-2">
             <CardContent className="p-4 flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <MapPin className="w-5 h-5 text-primary" />
+                <img src={LocationIcon} alt="Location" className="w-5 h-5" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Location</p>

@@ -9,7 +9,7 @@ from typing import List, Optional
 import pytz
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import func as sa_func
+from sqlalchemy import func as sa_func, or_
 
 from core.database import get_db
 from models import (
@@ -60,7 +60,7 @@ def search_services(
 
     if q:
         search = f"%{q}%"
-        query = query.filter(UserService.title.ilike(search) | UserService.description.ilike(search))
+        query = query.filter(or_(UserService.title.ilike(search), UserService.description.ilike(search)))
 
     if category_id:
         try:

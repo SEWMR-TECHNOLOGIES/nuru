@@ -8,12 +8,13 @@ from typing import Optional
 
 import pytz
 from fastapi import APIRouter, Depends, Body, Query
-from sqlalchemy import func as sa_func
+from sqlalchemy import func as sa_func, or_, and_
 from sqlalchemy.orm import Session, joinedload
 
 from core.database import get_db
 from models import (
     UserContributor, EventContributor, EventContribution,
+    ContributionThankYouMessage,
     Event, User, Currency,
     EventCommitteeMember, CommitteePermission,
     PaymentMethodEnum, ContributionStatusEnum,
@@ -45,7 +46,7 @@ def _contributor_dict(c: UserContributor) -> dict:
 
 
 def _event_contributor_dict(ec: EventContributor, show_recorder: bool = False) -> dict:
-    total_paid = sum(float(c.amount or 0) for c in ec.contributions if not hasattr(c, 'confirmation_status') or c.confirmation_status is None or c.confirmation_status == ContributionStatusEnum.confirmed)
+    total_paid = sum(float(c.amount or 0) for c in ec.contributions if c.confirmation_status is None or c.confirmation_status == ContributionStatusEnum.confirmed)
     pledge = float(ec.pledge_amount or 0)
     return {
         "id": str(ec.id),
@@ -107,11 +108,11 @@ def get_all_contributors(
 
     if search:
         like = f"%{search}%"
-        q = q.filter(
-            (UserContributor.name.ilike(like)) |
-            (UserContributor.email.ilike(like)) |
-            (UserContributor.phone.ilike(like))
-        )
+        q = q.filter(or_(
+            UserContributor.name.ilike(like),
+            UserContributor.email.ilike(like),
+            UserContributor.phone.ilike(like),
+        ))
 
     total = q.count()
 
@@ -259,6 +260,24 @@ def delete_contributor(contributor_id: str, db: Session = Depends(get_db), curre
     if not c:
         return standard_response(False, "Contributor not found")
 
+    # SAFETY: Check if this contributor has any recorded payments across any events.
+    # Deleting the UserContributor would CASCADE-delete EventContributors and their
+    # EventContributions, causing permanent data loss.
+    linked_ecs = db.query(EventContributor).filter(EventContributor.contributor_id == cid).all()
+    for ec in linked_ecs:
+        payment_count = db.query(EventContribution).filter(
+            EventContribution.event_contributor_id == ec.id
+        ).count()
+        if payment_count > 0:
+            event = db.query(Event).filter(Event.id == ec.event_id).first()
+            event_name = event.name if event else "an event"
+            return standard_response(
+                False,
+                f"Cannot delete '{c.name}' because they have {payment_count} recorded contribution(s) in '{event_name}'. "
+                f"Remove their contributions first, or remove them from the event."
+            )
+
+    # Safe to delete — no contributions exist, cascade will only remove empty event links
     db.delete(c)
     db.commit()
 
@@ -289,24 +308,33 @@ def get_event_contributors(
     if not is_creator and not cm:
         return standard_response(False, "Event not found or access denied")
 
-    # Use organizer's contributors for non-creators
-    owner_id = event.organizer_id
-
-    q = db.query(EventContributor).options(
-        joinedload(EventContributor.contributor),
-        joinedload(EventContributor.contributions),
-    ).filter(EventContributor.event_id == eid)
+    # Build count query FIRST (without joinedload to avoid inflated counts from JOINs)
+    count_q = db.query(EventContributor).filter(EventContributor.event_id == eid)
 
     if search:
         like = f"%{search}%"
-        q = q.join(UserContributor).filter(
-            (UserContributor.name.ilike(like)) |
-            (UserContributor.email.ilike(like)) |
-            (UserContributor.phone.ilike(like))
-        )
+        count_q = count_q.join(UserContributor).filter(or_(
+            UserContributor.name.ilike(like),
+            UserContributor.email.ilike(like),
+            UserContributor.phone.ilike(like),
+        ))
 
-    total = q.count()
+    total = count_q.count()
+
+    # Now build data query WITH eager loading
+    q = count_q.options(
+        joinedload(EventContributor.contributor),
+        joinedload(EventContributor.contributions),
+    )
     ecs = q.order_by(EventContributor.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
+    # Deduplicate (joinedload may produce duplicate parent rows)
+    seen = set()
+    unique_ecs = []
+    for ec in ecs:
+        if ec.id not in seen:
+            seen.add(ec.id)
+            unique_ecs.append(ec)
+    ecs = unique_ecs
 
     ec_dicts = [_event_contributor_dict(ec) for ec in ecs]
 
@@ -515,6 +543,16 @@ def remove_from_event(event_id: str, ec_id: str, db: Session = Depends(get_db), 
     ec = db.query(EventContributor).filter(EventContributor.id == ecid, EventContributor.event_id == eid).first()
     if not ec:
         return standard_response(False, "Event contributor not found")
+
+    # Manually cascade: delete thank-you messages → contributions → event contributor
+    contribution_ids = [c.id for c in db.query(EventContribution.id).filter(EventContribution.event_contributor_id == ecid).all()]
+    if contribution_ids:
+        db.query(ContributionThankYouMessage).filter(
+            ContributionThankYouMessage.contribution_id.in_(contribution_ids)
+        ).delete(synchronize_session=False)
+        db.query(EventContribution).filter(
+            EventContribution.event_contributor_id == ecid
+        ).delete(synchronize_session=False)
 
     db.delete(ec)
     db.commit()
@@ -809,6 +847,8 @@ def bulk_add_contributors(event_id: str, body: dict = Body(...), db: Session = D
                     contributor_name=contributor.name,
                     amount=amount,
                     payment_method=payment_method,
+                    confirmation_status=ContributionStatusEnum.confirmed,
+                    confirmed_at=now,
                     contributed_at=now,
                     created_at=now,
                     updated_at=now,

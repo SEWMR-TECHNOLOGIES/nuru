@@ -1,6 +1,10 @@
 import { useEffect, useRef } from 'react';
 import CreatePostBox from './CreatePostBox';
 import Moment from './Moment';
+import AdCard from './AdCard';
+import PromotedEvent from './PromotedEvent';
+import heroEvent from '@/assets/hero-event.jpg';
+import corporateEvent from '@/assets/corporate-event.jpg';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useFeed } from '@/data/useSocial';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -144,9 +148,33 @@ const Feed = () => {
         </div>
       )}
 
-      {posts.map((post) => (
+      {posts.map((post, index) => (
         <div key={post.id}>
           <Moment post={post} />
+
+          {/* Ad slot after every 3rd post */}
+          {(index + 1) % 3 === 0 && index < posts.length - 1 && (
+            index % 6 === 2 ? (
+              <div className="mt-4 md:mt-6">
+                <AdCard
+                  title="Plan your next event with Nuru"
+                  description="From weddings to corporate events — manage everything in one place with our powerful planning tools."
+                  image={heroEvent}
+                  cta="Get Started"
+                />
+              </div>
+            ) : (
+              <div className="mt-4 md:mt-6">
+                <PromotedEvent
+                  title="Annual Tech Summit 2026"
+                  date="March 20, 2026"
+                  location="Nairobi, Kenya"
+                  image={corporateEvent}
+                  attendees={342}
+                />
+              </div>
+            )
+          )}
         </div>
       ))}
     </div>

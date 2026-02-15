@@ -7,7 +7,7 @@ from datetime import datetime
 
 import pytz
 from fastapi import APIRouter, Depends, Body
-from sqlalchemy import func as sa_func
+from sqlalchemy import func as sa_func, or_
 from sqlalchemy.orm import Session
 
 from core.database import get_db
@@ -107,7 +107,7 @@ def search_events(
 
     if q:
         search = f"%{q}%"
-        query = query.filter(Event.name.ilike(search) | Event.description.ilike(search))
+        query = query.filter(or_(Event.name.ilike(search), Event.description.ilike(search)))
 
     if event_type_id:
         try:

@@ -2,6 +2,7 @@ import { ReactNode, useState } from "react";
 import { Outlet } from "react-router-dom";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
+import TopNav from "./TopNav";
 import RightSidebar from "./RightSidebar";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useAuthSync } from "@/hooks/useAuthSync";
@@ -26,8 +27,9 @@ const Layout = ({ children }: LayoutProps) => {
           onMenuToggle={() => setLeftDrawerOpen(true)}
           onRightPanelToggle={() => setRightDrawerOpen(true)}
         />
+        <TopNav />
 
-        <div className="flex flex-col md:flex-row h-[calc(100%-4rem)] w-full">
+        <div className="flex flex-col md:flex-row h-[calc(100%-6.5rem)] w-full">
           <div className="hidden md:block">
             <Sidebar />
           </div>

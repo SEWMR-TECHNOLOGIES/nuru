@@ -29,8 +29,11 @@ def build_user_payload(db, user):
         UserService.is_active == True
     ).scalar()
 
+    from models.enums import EventStatusEnum
     events_count = db.query(func.count(Event.id)).filter(
-        Event.organizer_id == user.id
+        Event.organizer_id == user.id,
+        Event.is_public == True,
+        Event.status == EventStatusEnum.published
     ).scalar()
 
     moments_count = db.query(func.count(UserMoment.id)).filter(

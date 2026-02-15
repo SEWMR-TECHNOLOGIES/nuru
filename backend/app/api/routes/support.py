@@ -6,6 +6,7 @@ from datetime import datetime
 import pytz
 from fastapi import APIRouter, Depends, Body
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
 from core.database import get_db
 from models import SupportTicket, SupportMessage, FAQ, LiveChatSession, LiveChatMessage, User
@@ -140,7 +141,7 @@ def get_faqs(category: str = None, q: str = None, db: Session = Depends(get_db))
         query = query.filter(FAQ.category == category)
     if q:
         search = f"%{q}%"
-        query = query.filter(FAQ.question.ilike(search) | FAQ.answer.ilike(search))
+        query = query.filter(or_(FAQ.question.ilike(search), FAQ.answer.ilike(search)))
     faqs = query.order_by(FAQ.display_order.asc()).all()
     return standard_response(True, "FAQs retrieved", [{"id": str(f.id), "question": f.question, "answer": f.answer, "category": f.category, "helpful_count": f.helpful_count if hasattr(f, "helpful_count") else 0} for f in faqs])
 

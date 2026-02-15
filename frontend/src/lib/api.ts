@@ -17,6 +17,7 @@ import { socialApi } from "./api/social";
 import { nuruCardsApi } from "./api/nuruCards";
 import { supportApi } from "./api/support";
 import { contributorsApi } from "./api/contributors";
+import { searchApi } from "./api/search";
 import { get, post, put, patch, del, postFormData, putFormData } from "./api/helpers";
 export { showApiErrors, showApiErrorsShadcn, showCaughtError, showCaughtErrorShadcn, throwApiError, ApiError } from "./api/showApiErrors";
 
@@ -37,7 +38,8 @@ export {
   socialApi,
   nuruCardsApi,
   supportApi,
-  contributorsApi
+  contributorsApi,
+  searchApi,
 };
 
 // Default API object for backward compatibility
@@ -55,6 +57,7 @@ export const api = {
   nuruCards: nuruCardsApi,
   support: supportApi,
   contributors: contributorsApi,
+  search: searchApi,
   
   // Helper methods
   get,

@@ -90,7 +90,7 @@ export const profileApi = {
   /**
    * Get user's public events
    */
-  getEvents: (userId: string, params?: { page?: number; limit?: number; status?: "upcoming" | "past" | "all" }) => 
+  getEvents: (userId: string, params?: { page?: number; limit?: number; status?: string }) => 
     get<{ events: Event[]; pagination: PaginatedResponse<Event>["pagination"] }>(`/users/${userId}/events${buildQueryString(params)}`),
 
   /**

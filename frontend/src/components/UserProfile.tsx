@@ -1,8 +1,8 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { 
   CheckCircle, Edit, Loader2, 
   Mail, Phone, User as UserIcon, Shield, ShieldCheck, ShieldAlert,
-  Upload, FileText, AlertCircle, Clock, ImagePlus
+  Upload, FileText, AlertCircle, Clock, ImagePlus, Users, X
 } from "lucide-react";
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
@@ -16,7 +16,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useNavigate } from "react-router-dom";
 import { useWorkspaceMeta } from "@/hooks/useWorkspaceMeta";
 import { profileApi } from "@/lib/api/profile";
 import { showCaughtError } from "@/lib/api";
@@ -28,6 +31,30 @@ import AvatarCropDialog from "@/components/AvatarCropDialog";
 const UserProfile = () => {
   const { data: currentUser, isLoading: userLoading } = useCurrentUser();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  // Followers/Following dialog state
+  const [socialDialog, setSocialDialog] = useState<{ open: boolean; type: "followers" | "following" }>({ open: false, type: "followers" });
+  const [socialList, setSocialList] = useState<any[]>([]);
+  const [socialLoading, setSocialLoading] = useState(false);
+
+  const openSocialDialog = useCallback(async (type: "followers" | "following") => {
+    if (!currentUser?.id) return;
+    setSocialDialog({ open: true, type });
+    setSocialLoading(true);
+    setSocialList([]);
+    try {
+      const res = type === "followers"
+        ? await profileApi.getFollowers(currentUser.id, { limit: 50 })
+        : await profileApi.getFollowing(currentUser.id, { limit: 50 });
+      if (res.success && res.data) {
+        const data = res.data as any;
+        setSocialList(data.followers || data.following || []);
+      }
+    } catch { /* silently fail */ } finally {
+      setSocialLoading(false);
+    }
+  }, [currentUser?.id]);
 
   useWorkspaceMeta({
     title: 'Profile',
@@ -366,10 +393,14 @@ const UserProfile = () => {
         {[
           { label: "Events", value: currentUser.event_count ?? 0 },
           { label: "Services", value: currentUser.service_count ?? 0 },
-          { label: "Followers", value: currentUser.follower_count ?? 0 },
-          { label: "Following", value: currentUser.following_count ?? 0 },
+          { label: "Followers", value: currentUser.follower_count ?? 0, action: () => openSocialDialog("followers") },
+          { label: "Following", value: currentUser.following_count ?? 0, action: () => openSocialDialog("following") },
         ].map(stat => (
-          <Card key={stat.label} className="border-0 shadow-sm hover:shadow-md transition-shadow">
+          <Card
+            key={stat.label}
+            className={`border-0 shadow-sm hover:shadow-md transition-shadow ${stat.action ? "cursor-pointer" : ""}`}
+            onClick={stat.action}
+          >
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-primary">{stat.value}</div>
               <div className="text-xs text-muted-foreground mt-1">{stat.label}</div>
@@ -377,6 +408,71 @@ const UserProfile = () => {
           </Card>
         ))}
       </div>
+
+      {/* Followers / Following Dialog */}
+      <Dialog open={socialDialog.open} onOpenChange={(open) => setSocialDialog(prev => ({ ...prev, open }))}>
+        <DialogContent className="max-w-md p-0">
+          <DialogHeader className="p-5 pb-0">
+            <DialogTitle className="text-lg font-semibold capitalize">{socialDialog.type}</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh] px-5 pb-5">
+            {socialLoading ? (
+              <div className="space-y-3 py-2">
+                {[1,2,3].map(i => (
+                  <div key={i} className="flex items-center gap-3">
+                    <Skeleton className="w-11 h-11 rounded-full" />
+                    <div className="flex-1 space-y-1.5">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : socialList.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <Users className="w-10 h-10 text-muted-foreground/40 mb-3" />
+                <p className="text-sm text-muted-foreground">
+                  {socialDialog.type === "followers" ? "No followers yet" : "Not following anyone yet"}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1 py-2">
+                {socialList.map((user: any) => {
+                  const name = user.full_name || `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.username || "User";
+                  const initials = `${(user.first_name || name || "U").charAt(0)}${(user.last_name || "").charAt(0)}`.toUpperCase();
+                  return (
+                    <button
+                      key={user.id}
+                      className="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-muted/60 transition-colors text-left"
+                      onClick={() => {
+                        setSocialDialog(prev => ({ ...prev, open: false }));
+                        navigate(user.username ? `/u/${user.username}` : `/u/${user.id}`);
+                      }}
+                    >
+                      <Avatar className="w-11 h-11 border border-border">
+                        <AvatarImage src={user.avatar || undefined} alt={name} />
+                        <AvatarFallback className="text-sm font-medium bg-primary/10 text-primary">{initials}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium text-sm truncate">{name}</span>
+                          {user.is_verified && <CheckCircle className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />}
+                        </div>
+                        {user.username && (
+                          <p className="text-xs text-muted-foreground truncate">@{user.username}</p>
+                        )}
+                      </div>
+                      {user.is_followed_by && socialDialog.type === "followers" && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 shrink-0">Follows you</Badge>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
 
       {/* Tabs */}
       <Tabs defaultValue="verification" className="space-y-4">
