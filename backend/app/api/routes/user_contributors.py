@@ -308,33 +308,43 @@ def get_event_contributors(
     if not is_creator and not cm:
         return standard_response(False, "Event not found or access denied")
 
-    # Build count query FIRST (without joinedload to avoid inflated counts from JOINs)
-    count_q = db.query(EventContributor).filter(EventContributor.event_id == eid)
+    # Build base query WITHOUT joinedload (to avoid row inflation from one-to-many JOINs)
+    base_q = db.query(EventContributor).filter(EventContributor.event_id == eid)
 
     if search:
         like = f"%{search}%"
-        count_q = count_q.join(UserContributor).filter(or_(
+        base_q = base_q.join(UserContributor).filter(or_(
             UserContributor.name.ilike(like),
             UserContributor.email.ilike(like),
             UserContributor.phone.ilike(like),
         ))
 
-    total = count_q.count()
+    total = base_q.count()
 
-    # Now build data query WITH eager loading
-    q = count_q.options(
-        joinedload(EventContributor.contributor),
-        joinedload(EventContributor.contributions),
-    )
-    ecs = q.order_by(EventContributor.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
-    # Deduplicate (joinedload may produce duplicate parent rows)
-    seen = set()
-    unique_ecs = []
-    for ec in ecs:
-        if ec.id not in seen:
-            seen.add(ec.id)
-            unique_ecs.append(ec)
-    ecs = unique_ecs
+    # Paginate on IDs FIRST to avoid joinedload inflating rows and eating limit slots
+    id_rows = base_q.with_entities(EventContributor.id).order_by(
+        EventContributor.created_at.desc()
+    ).offset((page - 1) * limit).limit(limit).all()
+    ec_ids = [r[0] for r in id_rows]
+
+    # Now load full objects with relationships for just those IDs
+    if ec_ids:
+        ecs = db.query(EventContributor).options(
+            joinedload(EventContributor.contributor),
+            joinedload(EventContributor.contributions),
+        ).filter(EventContributor.id.in_(ec_ids)).all()
+        # Deduplicate (joinedload may still produce duplicate parent rows)
+        seen = set()
+        unique_ecs = []
+        for ec in ecs:
+            if ec.id not in seen:
+                seen.add(ec.id)
+                unique_ecs.append(ec)
+        # Restore original ordering (created_at desc)
+        id_order = {eid: idx for idx, eid in enumerate(ec_ids)}
+        ecs = sorted(unique_ecs, key=lambda ec: id_order.get(ec.id, 0))
+    else:
+        ecs = []
 
     ec_dicts = [_event_contributor_dict(ec) for ec in ecs]
 
