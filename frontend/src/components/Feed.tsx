@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import CreatePostBox from './CreatePostBox';
 import Moment from './Moment';
 import { AdCardSkeleton, PromotedEventSkeleton } from './FeedAdSkeleton';
@@ -7,22 +7,23 @@ import { useFeed } from '@/data/useSocial';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { getTimeAgo } from '@/utils/getTimeAgo';
+import { Loader2 } from 'lucide-react';
 
 const SCROLL_KEY = 'feedScrollPosition';
 
 const getScrollContainer = () =>
   document.querySelector('.flex-1.overflow-y-auto') as HTMLElement | null;
 
-const getInitials = (name: string) => {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-  return name.charAt(0).toUpperCase();
-};
-
 const Feed = () => {
-  const { items: apiPosts, loading, error, refetch } = useFeed();
+  const { items: apiPosts, loading, error, refetch, loadMore, pagination } = useFeed({ limit: 15 });
   const hasLoadedOnce = useRef(false);
   const scrollRestoredRef = useRef(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const currentPage = pagination?.page || 1;
+  const totalPages = pagination?.pages || 1;
+  const hasMore = currentPage < totalPages;
 
   useEffect(() => {
     if (!loading && apiPosts.length >= 0) {
@@ -48,7 +49,6 @@ const Feed = () => {
     const savedPosition = sessionStorage.getItem(SCROLL_KEY);
     if (savedPosition) {
       scrollRestoredRef.current = true;
-      // Use rAF to ensure DOM has rendered with cached data
       requestAnimationFrame(() => {
         const container = getScrollContainer();
         if (container) {
@@ -57,6 +57,34 @@ const Feed = () => {
       });
     }
   }, [loading, apiPosts]);
+
+  // Infinite scroll via IntersectionObserver
+  const handleLoadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      await loadMore(currentPage + 1);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadMore, currentPage, hasMore, loadingMore]);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          handleLoadMore();
+        }
+      },
+      { rootMargin: '300px' }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [handleLoadMore, hasMore, loadingMore, loading]);
 
   const transformApiPost = (apiPost: any) => {
     const authorName = apiPost.author?.name || apiPost.user?.first_name
@@ -69,7 +97,7 @@ const Feed = () => {
       type: apiPost.post_type || 'moment',
       author: {
         name: authorName,
-        avatar: authorAvatar, // Pass raw avatar - Moment component handles fallback
+        avatar: authorAvatar,
         timeAgo: apiPost.created_at ? getTimeAgo(apiPost.created_at) : 'Recently'
       },
       content: {
@@ -163,6 +191,19 @@ const Feed = () => {
           )}
         </div>
       ))}
+
+      {/* Infinite scroll sentinel */}
+      <div ref={sentinelRef} className="h-1" />
+
+      {loadingMore && (
+        <div className="flex justify-center py-4">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {!hasMore && posts.length > 0 && (
+        <p className="text-center text-muted-foreground text-xs py-4">No more moments</p>
+      )}
     </div>
   );
 };
