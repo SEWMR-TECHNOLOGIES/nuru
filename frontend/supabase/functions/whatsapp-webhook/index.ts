@@ -46,49 +46,51 @@ serve(async (req) => {
     try {
       const body = await req.json();
 
-      // Meta sends a specific structure
       const entry = body?.entry?.[0];
       const changes = entry?.changes?.[0];
       const value = changes?.value;
       const message = value?.messages?.[0];
 
       if (!message) {
-        // Likely a status update, acknowledge it
         return new Response(JSON.stringify({ status: "ok" }), {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      const from = message.from; // sender phone number
+      const from = message.from;
       const text = message.text?.body?.trim().toUpperCase() || "";
-      const contactName = value?.contacts?.[0]?.profile?.name || "Guest";
+      const whatsAppName = value?.contacts?.[0]?.profile?.name || "Guest";
 
-      console.log(`Message from ${from} (${contactName}): ${text}`);
+      console.log(`Message from ${from} (${whatsAppName}): ${text}`);
+
+      // Single lookup to resolve guest identity from DB
+      const lookup = await lookupGuest(from, API_BASE);
+      const guestFullName = lookup?.guest_name || whatsAppName;
+      const firstName = extractFirstName(guestFullName);
+      const invitationCode = lookup?.code || null;
 
       let replyText = "";
 
-      // ── Keyword routing ───────────────────────────
       if (text === "YES" || text === "CONFIRM") {
-        replyText = await handleRSVP(from, "confirmed", contactName, API_BASE);
+        replyText = await handleRSVP(invitationCode, "confirmed", firstName, API_BASE);
       } else if (text === "NO" || text === "DECLINE") {
-        replyText = await handleRSVP(from, "declined", contactName, API_BASE);
+        replyText = await handleRSVP(invitationCode, "declined", firstName, API_BASE);
       } else if (text === "DETAILS" || text === "INFO") {
-        replyText = await handleDetails(from, API_BASE);
+        replyText = await handleDetails(invitationCode, firstName, API_BASE);
       } else if (text === "HELP") {
         replyText =
-          `👋 Hi ${contactName}! Here's how to use Nuru:\n\n` +
+          `👋 Hi ${firstName}! Here's how to use Nuru:\n\n` +
           `✅ *YES* or *CONFIRM* — Accept an invitation\n` +
           `❌ *NO* or *DECLINE* — Decline an invitation\n` +
           `ℹ️ *DETAILS* — Get event details\n` +
           `❓ *HELP* — Show this menu`;
       } else {
         replyText =
-          `Hi ${contactName}! I didn't understand that.\n\n` +
+          `Hi ${firstName}! I didn't understand that.\n\n` +
           `Reply *HELP* to see available commands.`;
       }
 
-      // ── Send reply ────────────────────────────────
       await sendWhatsAppMessage(from, replyText, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
 
       return new Response(JSON.stringify({ status: "ok" }), {
@@ -107,29 +109,63 @@ serve(async (req) => {
   return new Response("Method not allowed", { status: 405 });
 });
 
-// ── RSVP handler ──────────────────────────────────────
-async function handleRSVP(
+// ── Title-aware first name extraction ─────────────────
+// Preserves honorifics/titles as part of the first name.
+// e.g. "Dr. John Okelo" → "Dr. John", "Frank Mushi" → "Frank"
+const TITLE_PATTERN = /^((?:(?:Dr|Prof|Eng|Mr|Mrs|Ms|Miss|Mx|Hon|Rev|Pr|Sr|Jr|Capt|Col|Gen|Sgt|Cpl|Lt|Maj|Amb|Dkt|Mheshimiwa|Mwl|Sheikh|Imam|Bishop|Pastor|Father|Fr|Sister|Br|Brother|Dame|Sir|Lady|Lord|Chief|Justice|Judge|Adv|Advocate|Barrister|Solicitor|Atty|CPA|Arch|Comm|Comdr|Admiral|Cmdr|Brig|Pvt|Cdr|Gov|Pres|PM|VP|MP|Sen|Dip|Pharm|Nurse|Nrs|Doc|Dcn|Elder|Apostle|Prophet|Evangelist|Canon|Cardinal|Msgr|Monsignor|Abbess|Abbot|Prior|Prioress|Deacon|Vicar|Curate|Chaplain|Min|Mch)\.?\s+)+)(\S+)/i;
+
+function extractFirstName(fullName: string): string {
+  const trimmed = fullName.trim();
+  if (!trimmed) return "Guest";
+
+  const match = trimmed.match(TITLE_PATTERN);
+  if (match) {
+    const title = match[1]?.trim() || "";
+    const first = match[2] || "";
+    return title ? `${title} ${first}` : first;
+  }
+  // No title found — just take the first word
+  return trimmed.split(/\s+/)[0] || "Guest";
+}
+
+// ── Single lookup: resolve guest from DB ──────────────
+interface LookupResult {
+  code: string;
+  event_id: string;
+  guest_name: string;
+}
+
+async function lookupGuest(
   phone: string,
+  apiBase: string | undefined
+): Promise<LookupResult | null> {
+  if (!apiBase) return null;
+  try {
+    const res = await fetch(`${apiBase}/rsvp/lookup?phone=${encodeURIComponent(phone)}`);
+    const json = await res.json();
+    if (json.success && json.data) {
+      return json.data as LookupResult;
+    }
+  } catch (e) {
+    console.error("Lookup error:", e);
+  }
+  return null;
+}
+
+// ── RSVP handler (uses pre-resolved code & name) ──────
+async function handleRSVP(
+  code: string | null,
   status: "confirmed" | "declined",
   name: string,
   apiBase: string | undefined
 ): Promise<string> {
   if (!apiBase) return "Sorry, the service is temporarily unavailable.";
 
+  if (!code) {
+    return `Sorry ${name}, I couldn't find an invitation linked to your number. Please check with your event organizer.`;
+  }
+
   try {
-    // Look up invitation by phone number
-    const lookupRes = await fetch(`${apiBase}/rsvp/lookup?phone=${encodeURIComponent(phone)}`);
-    const lookupJson = await lookupRes.json();
-
-    if (!lookupJson.success || !lookupJson.data?.code) {
-      return `Sorry ${name}, I couldn't find an invitation linked to your number. Please check with your event organizer.`;
-    }
-
-    const code = lookupJson.data.code;
-    // Use the guest name from the invitation, not the WhatsApp profile name
-    const guestName = lookupJson.data.guest_name || name;
-
-    // Submit RSVP
     const rsvpRes = await fetch(`${apiBase}/rsvp/${code}/respond`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -139,8 +175,8 @@ async function handleRSVP(
 
     if (rsvpJson.success) {
       return status === "confirmed"
-        ? `🎉 Great news ${guestName}! Your attendance has been confirmed. We look forward to seeing you!`
-        : `Thank you ${guestName}. Your response has been recorded. We're sorry you won't be able to make it.`;
+        ? `🎉 Great news ${name}! Your attendance has been confirmed. We look forward to seeing you!`
+        : `Thank you ${name}. Your response has been recorded. We're sorry you won't be able to make it.`;
     }
 
     return rsvpJson.message || "Something went wrong processing your RSVP. Please try again.";
@@ -150,19 +186,19 @@ async function handleRSVP(
   }
 }
 
-// ── Details handler ───────────────────────────────────
-async function handleDetails(phone: string, apiBase: string | undefined): Promise<string> {
+// ── Details handler (uses pre-resolved code & name) ───
+async function handleDetails(
+  code: string | null,
+  name: string,
+  apiBase: string | undefined
+): Promise<string> {
   if (!apiBase) return "Sorry, the service is temporarily unavailable.";
 
+  if (!code) {
+    return `Sorry ${name}, I couldn't find an invitation linked to your number.`;
+  }
+
   try {
-    const lookupRes = await fetch(`${apiBase}/rsvp/lookup?phone=${encodeURIComponent(phone)}`);
-    const lookupJson = await lookupRes.json();
-
-    if (!lookupJson.success || !lookupJson.data?.code) {
-      return "I couldn't find an invitation linked to your number.";
-    }
-
-    const code = lookupJson.data.code;
     const detailRes = await fetch(`${apiBase}/rsvp/${code}`);
     const detailJson = await detailRes.json();
 

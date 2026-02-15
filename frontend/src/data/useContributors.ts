@@ -27,6 +27,7 @@ export const useEventContributors = (eventId: string | null) => {
       let firstPagination: any = null;
 
       // Auto-paginate through all pages
+      const seenIds = new Set<string>();
       while (true) {
         const response = await contributorsApi.getEventContributors(eventId, {
           ...params,
@@ -35,8 +36,14 @@ export const useEventContributors = (eventId: string | null) => {
         });
 
         if (response.success) {
-          allContributors = [...allContributors, ...response.data.event_contributors];
-          // Capture summary & pagination from the FIRST page (backend aggregates are only on page 1)
+          // Deduplicate by id
+          for (const ec of response.data.event_contributors) {
+            if (!seenIds.has(ec.id)) {
+              seenIds.add(ec.id);
+              allContributors.push(ec);
+            }
+          }
+          // Capture summary & pagination from the FIRST page
           if (currentPage === 1) {
             firstSummary = response.data.summary;
             firstPagination = response.data.pagination;
@@ -52,7 +59,7 @@ export const useEventContributors = (eventId: string | null) => {
         }
       }
 
-      // Compute summary client-side from ALL contributors (backend summary is per-page, not global)
+      // Compute summary client-side from ALL contributors
       const computedSummary = {
         total_pledged: allContributors.reduce((sum, c) => sum + (c.pledge_amount || 0), 0),
         total_paid: allContributors.reduce((sum, c) => sum + (c.total_paid || 0), 0),
