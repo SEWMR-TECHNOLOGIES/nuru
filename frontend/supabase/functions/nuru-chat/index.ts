@@ -13,7 +13,8 @@ const ALLOWED_ORIGINS = [
 function getCorsHeaders(origin: string) {
   const allowed =
     ALLOWED_ORIGINS.includes(origin) ||
-    /^https:\/\/(www\.)?nuru\.tz$/.test(origin);
+    /^https:\/\/(www\.)?nuru\.tz$/.test(origin) ||
+    origin.includes("lovable.app");
   return {
     "Access-Control-Allow-Origin": allowed ? origin : "https://nuru.tz",
     "Access-Control-Allow-Credentials": "true",
@@ -42,6 +43,7 @@ Communication Style:
 - Encourage users and be supportive
 - When formatting data, use markdown tables for better readability
 - Never mention technical details like "checking the database" or "running a search query". Just present the results naturally.
+- NEVER say things like "let me search" or "give me a moment" or "I'm looking". Just present results directly as if you already know.
 
 About Nuru:
 Nuru is an all-in-one event management platform designed for Tanzanian communities. It helps users plan, manage, and execute events like weddings, birthdays, graduations, memorials, and corporate gatherings.
@@ -109,106 +111,163 @@ serve(async (req) => {
       ...messages,
     ];
 
-    // --- Step 1: Non-streaming call to detect tool calls ---
-    console.log("[nuru-chat] Step 1: checking for tool calls...");
-    const firstRes = await fetch(aiUrl, {
-      method: "POST",
-      headers: aiHeaders,
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: fullMessages,
-        tools: chatTools,
-        stream: false,
-      }),
-    });
+    // Use a custom SSE stream that shows tool-call progress inline
+    const encoder = new TextEncoder();
 
-    if (!firstRes.ok) {
-      const errText = await firstRes.text();
-      console.error("[nuru-chat] AI error:", firstRes.status, errText);
-      if (firstRes.status === 429) return jsonRes(cors, { error: "Rate limit exceeded. Please try again later." }, 429);
-      if (firstRes.status === 402) return jsonRes(cors, { error: "Payment required. Please contact support." }, 402);
-      return jsonRes(cors, { error: "AI service error" }, 500);
-    }
+    const stream = new ReadableStream({
+      async start(controller) {
+        const sendSSE = (data: string) => {
+          controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+        };
 
-    const firstData = await firstRes.json();
-    const firstChoice = firstData.choices?.[0];
-    const assistantMsg = firstChoice?.message;
+        const sendDelta = (content: string) => {
+          sendSSE(JSON.stringify({
+            choices: [{ delta: { content } }],
+          }));
+        };
 
-    // --- Step 2: If tool calls, execute them and call AI again with results ---
-    if (assistantMsg?.tool_calls && assistantMsg.tool_calls.length > 0) {
-      console.log(`[nuru-chat] Step 2: executing ${assistantMsg.tool_calls.length} tool call(s)...`);
-
-      const toolResults: any[] = [];
-      for (const tc of assistantMsg.tool_calls) {
-        const fnName = tc.function?.name;
-        let fnArgs: any = {};
         try {
-          fnArgs = JSON.parse(tc.function?.arguments || "{}");
-        } catch {
-          fnArgs = {};
+          // --- Step 1: Non-streaming call to detect tool calls ---
+          console.log("[nuru-chat] Step 1: checking for tool calls...");
+          const firstRes = await fetch(aiUrl, {
+            method: "POST",
+            headers: aiHeaders,
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash",
+              messages: fullMessages,
+              tools: chatTools,
+              stream: false,
+            }),
+          });
+
+          if (!firstRes.ok) {
+            const errText = await firstRes.text();
+            console.error("[nuru-chat] AI error:", firstRes.status, errText);
+            sendDelta("I'm having trouble right now. Please try again in a moment.");
+            sendSSE("[DONE]");
+            controller.close();
+            return;
+          }
+
+          const firstData = await firstRes.json();
+          const firstChoice = firstData.choices?.[0];
+          const assistantMsg = firstChoice?.message;
+
+          // --- Step 2: If tool calls, show indicator, execute, then stream result ---
+          if (assistantMsg?.tool_calls && assistantMsg.tool_calls.length > 0) {
+            console.log(`[nuru-chat] Step 2: executing ${assistantMsg.tool_calls.length} tool call(s)...`);
+
+            // Send a searching indicator to the client
+            sendSSE(JSON.stringify({
+              choices: [{ delta: { content: "" } }],
+              tool_status: "searching",
+              tool_names: assistantMsg.tool_calls.map((tc: any) => tc.function?.name),
+            }));
+
+            const toolResults: any[] = [];
+            for (const tc of assistantMsg.tool_calls) {
+              const fnName = tc.function?.name;
+              let fnArgs: any = {};
+              try {
+                fnArgs = JSON.parse(tc.function?.arguments || "{}");
+              } catch {
+                fnArgs = {};
+              }
+
+              console.log(`[nuru-chat] Executing tool: ${fnName}`, fnArgs);
+              const result = await executeTool(fnName, fnArgs);
+              console.log(`[nuru-chat] Tool result length: ${result.length} chars`);
+
+              toolResults.push({
+                role: "tool",
+                tool_call_id: tc.id,
+                content: result,
+              });
+            }
+
+            // Signal that searching is complete
+            sendSSE(JSON.stringify({
+              choices: [{ delta: { content: "" } }],
+              tool_status: "complete",
+            }));
+
+            // Build final messages
+            const finalMessages = [
+              ...fullMessages,
+              assistantMsg,
+              ...toolResults,
+            ];
+
+            // Stream the final response
+            console.log("[nuru-chat] Step 3: streaming final response with tool results...");
+            const streamRes = await fetch(aiUrl, {
+              method: "POST",
+              headers: aiHeaders,
+              body: JSON.stringify({
+                model: "google/gemini-2.5-flash",
+                messages: finalMessages,
+                stream: true,
+              }),
+            });
+
+            if (!streamRes.ok) {
+              const errText = await streamRes.text();
+              console.error("[nuru-chat] Final stream error:", streamRes.status, errText);
+              sendDelta("Sorry, I encountered an error processing the results. Please try again.");
+              sendSSE("[DONE]");
+              controller.close();
+              return;
+            }
+
+            // Pipe the stream through
+            const reader = streamRes.body!.getReader();
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              controller.enqueue(value);
+            }
+          } else {
+            // --- No tool calls: stream directly ---
+            console.log("[nuru-chat] No tool calls, streaming direct response...");
+            const streamRes = await fetch(aiUrl, {
+              method: "POST",
+              headers: aiHeaders,
+              body: JSON.stringify({
+                model: "google/gemini-2.5-flash",
+                messages: fullMessages,
+                tools: chatTools,
+                stream: true,
+              }),
+            });
+
+            if (!streamRes.ok) {
+              const errText = await streamRes.text();
+              console.error("[nuru-chat] Stream error:", streamRes.status, errText);
+              sendDelta("Sorry, I'm having trouble right now. Please try again.");
+              sendSSE("[DONE]");
+              controller.close();
+              return;
+            }
+
+            // Pipe the stream through
+            const reader = streamRes.body!.getReader();
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              controller.enqueue(value);
+            }
+          }
+        } catch (e) {
+          console.error("[nuru-chat] Stream error:", e);
+          sendDelta("Something went wrong. Please try again.");
+          sendSSE("[DONE]");
         }
 
-        console.log(`[nuru-chat] Executing tool: ${fnName}`, fnArgs);
-        const result = await executeTool(fnName, fnArgs);
-        console.log(`[nuru-chat] Tool result length: ${result.length} chars`);
-
-        toolResults.push({
-          role: "tool",
-          tool_call_id: tc.id,
-          content: result,
-        });
-      }
-
-      // Build final messages: original + assistant tool call msg + tool results
-      const finalMessages = [
-        ...fullMessages,
-        assistantMsg,
-        ...toolResults,
-      ];
-
-      // --- Step 3: Stream the final response with tool results ---
-      console.log("[nuru-chat] Step 3: streaming final response with tool results...");
-      const streamRes = await fetch(aiUrl, {
-        method: "POST",
-        headers: aiHeaders,
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: finalMessages,
-          stream: true,
-        }),
-      });
-
-      if (!streamRes.ok) {
-        const errText = await streamRes.text();
-        console.error("[nuru-chat] Final stream error:", streamRes.status, errText);
-        return jsonRes(cors, { error: "AI service error" }, 500);
-      }
-
-      return new Response(streamRes.body, {
-        headers: { ...cors, "Content-Type": "text/event-stream" },
-      });
-    }
-
-    // --- No tool calls: stream directly ---
-    console.log("[nuru-chat] No tool calls, streaming direct response...");
-    const streamRes = await fetch(aiUrl, {
-      method: "POST",
-      headers: aiHeaders,
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: fullMessages,
-        tools: chatTools,
-        stream: true,
-      }),
+        controller.close();
+      },
     });
 
-    if (!streamRes.ok) {
-      const errText = await streamRes.text();
-      console.error("[nuru-chat] Stream error:", streamRes.status, errText);
-      return jsonRes(cors, { error: "AI service error" }, 500);
-    }
-
-    return new Response(streamRes.body, {
+    return new Response(stream, {
       headers: { ...cors, "Content-Type": "text/event-stream" },
     });
   } catch (e) {

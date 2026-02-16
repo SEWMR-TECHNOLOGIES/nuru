@@ -54,7 +54,16 @@ export async function searchServices(args: any): Promise<string> {
     const name = s.title || s.name || "Unnamed";
     const cat = s.category_name || s.service_category?.name || s.service_type_name || "-";
     const loc = s.location || "-";
-    const rating = s.rating != null ? `${s.rating} ⭐` : "-";
+
+    // Fix rating: use average_rating first, then rating, and format properly
+    let rating = "-";
+    const ratingValue = s.average_rating ?? s.avg_rating ?? s.rating;
+    if (ratingValue != null && ratingValue > 0) {
+      rating = `${Number(ratingValue).toFixed(1)} ⭐ (${s.reviews_count || s.total_reviews || 0} reviews)`;
+    } else {
+      rating = "No reviews yet";
+    }
+
     const price =
       s.min_price && s.max_price
         ? `${(s.currency || "TZS")} ${Number(s.min_price).toLocaleString()} - ${Number(s.max_price).toLocaleString()}`
@@ -67,7 +76,10 @@ export async function searchServices(args: any): Promise<string> {
 }
 
 export async function searchEvents(args: any): Promise<string> {
-  const params: Record<string, any> = { limit: args.limit || 10 };
+  const params: Record<string, any> = {
+    limit: args.limit || 10,
+    status: "published", // Only return published events
+  };
   if (args.q) params.q = args.q;
 
   const data = await apiFetch(`/events${buildQS(params)}`);
@@ -75,21 +87,20 @@ export async function searchEvents(args: any): Promise<string> {
 
   const events = data?.data?.events || data?.events || [];
   if (events.length === 0) {
-    return "No events found matching your search.";
+    return "No published events found matching your search.";
   }
 
-  let result = `Found ${events.length} event(s):\n\n`;
-  result += "| # | Event | Type | Date | Location | Status |\n";
-  result += "|---|-------|------|------|----------|--------|\n";
+  let result = `Found ${events.length} published event(s):\n\n`;
+  result += "| # | Event | Type | Date | Location |\n";
+  result += "|---|-------|------|------|----------|\n";
 
   for (let i = 0; i < events.length; i++) {
     const e = events[i];
     const name = e.title || "Untitled";
-    const type = e.event_type?.name || "-";
+    const type = e.event_type?.name || e.event_type_name || "-";
     const date = e.start_date ? new Date(e.start_date).toLocaleDateString("en-GB") : "-";
     const loc = e.location || "-";
-    const status = e.status || "-";
-    result += `| ${i + 1} | ${name} | ${type} | ${date} | ${loc} | ${status} |\n`;
+    result += `| ${i + 1} | ${name} | ${type} | ${date} | ${loc} |\n`;
   }
 
   return result;
