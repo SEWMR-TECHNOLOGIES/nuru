@@ -193,6 +193,77 @@ def end_chat(chat_id: str, db: Session = Depends(get_db), current_user: User = D
     return standard_response(True, "Chat session ended")
 
 
+@router.post("/chat/{chat_id}/message")
+def send_chat_message(chat_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        cid = uuid.UUID(chat_id)
+    except ValueError:
+        return standard_response(False, "Invalid chat ID")
+    session = db.query(LiveChatSession).filter(LiveChatSession.id == cid, LiveChatSession.user_id == current_user.id).first()
+    if not session:
+        return standard_response(False, "Chat session not found")
+    if session.status == "ended":
+        return standard_response(False, "Chat session has ended")
+    content = body.get("content", "").strip()
+    if not content:
+        return standard_response(False, "Message content is required")
+    now = datetime.now(EAT)
+    msg = LiveChatMessage(
+        id=uuid.uuid4(),
+        session_id=cid,
+        sender_id=current_user.id,
+        is_agent=False,
+        is_system=False,
+        message_text=content,
+        created_at=now,
+    )
+    db.add(msg)
+    db.commit()
+    return standard_response(True, "Message sent", {
+        "id": str(msg.id),
+        "content": msg.message_text,
+        "sender": "user",
+        "sent_at": msg.created_at.isoformat() if msg.created_at else None,
+    })
+
+
+@router.get("/chat/{chat_id}/messages")
+def get_chat_messages(chat_id: str, after: str = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        cid = uuid.UUID(chat_id)
+    except ValueError:
+        return standard_response(False, "Invalid chat ID")
+    session = db.query(LiveChatSession).filter(LiveChatSession.id == cid, LiveChatSession.user_id == current_user.id).first()
+    if not session:
+        return standard_response(False, "Chat session not found")
+    query = db.query(LiveChatMessage).filter(LiveChatMessage.session_id == cid)
+    if after:
+        try:
+            after_dt = datetime.fromisoformat(after)
+            query = query.filter(LiveChatMessage.created_at > after_dt)
+        except ValueError:
+            pass
+    messages = query.order_by(LiveChatMessage.created_at.asc()).all()
+    data = []
+    for m in messages:
+        sender_name = "You"
+        if m.is_agent:
+            sender_name = "Support Team"
+        elif m.is_system:
+            sender_name = "System"
+        data.append({
+            "id": str(m.id),
+            "content": m.message_text,
+            "sender": "agent" if m.is_agent else ("system" if m.is_system else "user"),
+            "sender_name": sender_name,
+            "sent_at": m.created_at.isoformat() if m.created_at else None,
+        })
+    return standard_response(True, "Messages retrieved", {
+        "messages": data,
+        "session_status": session.status.value if hasattr(session.status, 'value') else str(session.status),
+    })
+
+
 @router.get("/chat/{chat_id}/transcript")
 def get_chat_transcript(chat_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
@@ -200,5 +271,5 @@ def get_chat_transcript(chat_id: str, db: Session = Depends(get_db), current_use
     except ValueError:
         return standard_response(False, "Invalid chat ID")
     messages = db.query(LiveChatMessage).filter(LiveChatMessage.session_id == cid).order_by(LiveChatMessage.created_at.asc()).all()
-    data = [{"content": m.content, "sender": m.sender_type if hasattr(m, "sender_type") else "user", "sent_at": m.created_at.isoformat() if m.created_at else None} for m in messages]
+    data = [{"content": m.message_text, "sender": "agent" if m.is_agent else "user", "sent_at": m.created_at.isoformat() if m.created_at else None} for m in messages]
     return standard_response(True, "Transcript retrieved", data)
