@@ -256,7 +256,7 @@ const RightSidebar = () => {
         </div>
       )}
 
-      {/* Friend Suggestions / People You May Know */}
+      {/* Friend Suggestions / People You May Know — only shown when there are results */}
       {suggestionsLoading && !hasLoadedSuggestions ? (
         <SidebarCardSkeleton title="People You May Know" count={3} />
       ) : suggestions.length > 0 ? (
@@ -293,9 +293,7 @@ const RightSidebar = () => {
             ))}
           </div>
         </div>
-      ) : (
-        <EmptyCard title="People You May Know" count={3} />
-      )}
+      ) : null}
 
       {/* Promoted Events - Empty placeholder */}
       <div className="bg-card rounded-lg p-4 border border-border">

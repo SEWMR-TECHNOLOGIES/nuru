@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useQuery, useQueryClient, UseQueryResult } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, User } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -40,6 +40,7 @@ const normalizeUserPayload = (raw: any): User | null => {
 
 const fetchCurrentUser = async (): Promise<User | null> => {
   const token = localStorage.getItem("token");
+  // No token = definitely logged out, skip the network call entirely
   if (!token) return null;
 
   try {
@@ -56,14 +57,18 @@ const fetchCurrentUser = async (): Promise<User | null> => {
   }
 };
 
-export const useCurrentUser = (): UseQueryResult<User | null> & { userIsLoggedIn: boolean } => {
+export const useCurrentUser = () => {
   const queryClient = useQueryClient();
+
+  const hasToken = !!localStorage.getItem("token");
 
   const query = useQuery({
     queryKey: ["currentUser"],
     queryFn: fetchCurrentUser,
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: false,
+    // If there's no token, we already know the answer — skip the loader
+    enabled: hasToken,
   });
 
   // Listen for session-expired event from API helper
@@ -71,7 +76,6 @@ export const useCurrentUser = (): UseQueryResult<User | null> & { userIsLoggedIn
     const handleSessionExpired = () => {
       queryClient.setQueryData(["currentUser"], null);
       toast.error("Your session has expired. Please sign in again.");
-      // Navigate to login
       setTimeout(() => {
         window.location.href = "/login";
       }, 1500);
@@ -81,6 +85,8 @@ export const useCurrentUser = (): UseQueryResult<User | null> & { userIsLoggedIn
   }, [queryClient]);
 
   const userIsLoggedIn = !!query.data;
+  // Only block the UI when there IS a token and we're still resolving
+  const isLoading = hasToken && query.isPending;
 
-  return { ...query, userIsLoggedIn };
+  return { ...query, userIsLoggedIn, isLoading };
 };

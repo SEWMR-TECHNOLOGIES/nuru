@@ -266,10 +266,147 @@ async def search_users(
     q: str = "",
     page: int = 1,
     limit: int = 20,
+    suggested: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Search for other users to start a conversation with."""
+    """Search for users OR get 'People You May Know' suggestions with graph-based scoring."""
+
+    # ── PEOPLE YOU MAY KNOW ─────────────────────────────────────────────────
+    if suggested:
+        import uuid as uuid_mod
+        from collections import defaultdict
+
+        me = current_user.id
+        lim = max(1, min(limit or 10, 50))
+
+        # 1. Collect IDs the current user already knows about
+        my_following_ids = set(
+            row[0] for row in db.query(UserFollower.following_id)
+            .filter(UserFollower.follower_id == me).all()
+        )
+        my_follower_ids = set(
+            row[0] for row in db.query(UserFollower.follower_id)
+            .filter(UserFollower.following_id == me).all()
+        )
+        my_circle_ids = set(
+            row[0] for row in db.query(UserCircle.circle_member_id)
+            .filter(UserCircle.user_id == me).all()
+        )
+        known_ids = {me} | my_following_ids | my_follower_ids | my_circle_ids
+
+        # Score map: candidate_id -> weighted score
+        scores: defaultdict = defaultdict(float)
+
+        # ── SIGNAL 1: Friends-of-friends (my follows' follows) ─────────────
+        # BFS level-1: everyone my followings follow (weight 3.0)
+        if my_following_ids:
+            fof_rows = db.query(UserFollower.following_id).filter(
+                UserFollower.follower_id.in_(my_following_ids),
+                UserFollower.following_id.notin_(known_ids)
+            ).all()
+            for (uid,) in fof_rows:
+                scores[uid] += 3.0
+
+        # ── SIGNAL 2: Circle-of-circle (people my circle members know) ─────
+        # People in my circle members' circles (weight 2.5)
+        if my_circle_ids:
+            coc_rows = db.query(UserCircle.circle_member_id).filter(
+                UserCircle.user_id.in_(my_circle_ids),
+                UserCircle.circle_member_id.notin_(known_ids)
+            ).all()
+            for (uid,) in coc_rows:
+                scores[uid] += 2.5
+
+        # ── SIGNAL 3: Mutual followers (people who follow back my follows) ──
+        # i.e., both follow each other and aren't in my network yet (weight 2.0)
+        if my_following_ids:
+            mutual_rows = db.query(UserFollower.follower_id).filter(
+                UserFollower.follower_id.notin_(known_ids),
+                UserFollower.following_id.in_(my_following_ids)
+            ).all()
+            for (uid,) in mutual_rows:
+                scores[uid] += 2.0
+
+        # ── SIGNAL 4: Co-event attendees (shared events) ───────────────────
+        # People who attended same events as me (weight 1.5)
+        try:
+            from models.invitations import EventInvitation
+            my_event_ids = set(
+                row[0] for row in db.query(EventInvitation.event_id)
+                .filter(EventInvitation.invited_user_id == me).all()
+            )
+            if my_event_ids:
+                event_peers = db.query(EventInvitation.invited_user_id).filter(
+                    EventInvitation.event_id.in_(my_event_ids),
+                    EventInvitation.invited_user_id.notin_(known_ids)
+                ).all()
+                for (uid,) in event_peers:
+                    scores[uid] += 1.5
+        except Exception:
+            pass
+
+        # ── SIGNAL 5: Community co-members ────────────────────────────────
+        try:
+            from models.communities import CommunityMember
+            my_community_ids = set(
+                row[0] for row in db.query(CommunityMember.community_id)
+                .filter(CommunityMember.user_id == me).all()
+            )
+            if my_community_ids:
+                community_peers = db.query(CommunityMember.user_id).filter(
+                    CommunityMember.community_id.in_(my_community_ids),
+                    CommunityMember.user_id.notin_(known_ids)
+                ).all()
+                for (uid,) in community_peers:
+                    scores[uid] += 1.0
+        except Exception:
+            pass
+
+        # ── Sort by score descending, take top lim ─────────────────────────
+        if scores:
+            top_ids = sorted(scores, key=lambda uid: scores[uid], reverse=True)[:lim * 3]
+            # Fetch and filter active users only
+            users_q = db.query(User).filter(
+                User.id.in_(top_ids),
+                User.is_active == True
+            ).all()
+            # Re-sort by score after DB fetch
+            id_to_user = {u.id: u for u in users_q}
+            sorted_users = [id_to_user[uid] for uid in top_ids if uid in id_to_user][:lim]
+        else:
+            # Cold start: return recent active users not yet followed
+            sorted_users = db.query(User).filter(
+                User.id.notin_(known_ids),
+                User.is_active == True
+            ).order_by(User.created_at.desc()).limit(lim).all()
+
+        results = []
+        for u in sorted_users:
+            profile = db.query(UserProfile).filter(UserProfile.user_id == u.id).first()
+            score = scores.get(u.id, 0)
+            # Count mutual connections
+            mutual_count = sum([
+                1 for fid in my_following_ids
+                if db.query(UserFollower).filter(
+                    UserFollower.follower_id == u.id,
+                    UserFollower.following_id == fid
+                ).first() is not None
+            ]) if my_following_ids else 0
+            results.append({
+                "id": str(u.id),
+                "first_name": u.first_name,
+                "last_name": u.last_name,
+                "username": u.username,
+                "avatar": profile.profile_picture_url if profile else None,
+                "is_verified": u.is_identity_verified,
+                "mutual_count": mutual_count,
+                "score": round(score, 2),
+            })
+
+        return standard_response(True, "Suggestions retrieved", results)
+
+    # ── REGULAR SEARCH ───────────────────────────────────────────────────────
     if not q:
         return standard_response(True, "Please provide a search term", [])
 

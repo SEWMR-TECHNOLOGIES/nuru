@@ -52,7 +52,7 @@ const Layout = ({ children }: LayoutProps) => {
   return (
     <div className="h-screen w-screen bg-background font-inter overflow-hidden px-2 md:px-0 lg:px-16">
       <div className="h-full bg-card rounded-lg overflow-hidden flex flex-col relative">
-        {/* Header - fixed overlay on mobile, slides up/down without affecting layout */}
+        {/* Header */}
         <div
           className={`
             md:relative md:translate-y-0
@@ -67,12 +67,10 @@ const Layout = ({ children }: LayoutProps) => {
           />
         </div>
 
-        {/* Spacer for header on mobile - collapses when header is hidden */}
+        {/* Spacer for header on mobile only - collapses when header is hidden */}
         <div
           className={`md:hidden transition-[height] duration-300 ease-out ${headerHidden ? 'h-0' : 'h-16'}`}
         />
-        {/* Desktop: fixed height spacer (header never hides) */}
-        <div className="hidden md:block h-16" />
 
         {/* TopNav - always visible, never moves */}
         <TopNav />

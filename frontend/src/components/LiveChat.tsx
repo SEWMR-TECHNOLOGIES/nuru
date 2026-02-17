@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Send, ChevronLeft, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useNavigate } from 'react-router-dom';
 import { post, get } from '@/lib/api/helpers';
@@ -158,16 +159,32 @@ const LiveChat = () => {
 
   const formatTime = (iso: string) => {
     try {
-      return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      // Normalize UTC timestamps that lack timezone suffix
+      const normalized = iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z';
+      return new Date(normalized).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } catch { return ''; }
   };
 
   if (starting) {
     return (
-      <div className="h-[calc(100vh-8rem)] flex items-center justify-center bg-card">
-        <div className="text-center space-y-3">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
-          <p className="text-sm text-muted-foreground">Connecting to support...</p>
+      <div className="h-[calc(100vh-8rem)] flex flex-col bg-card">
+        <div className="p-4 border-b border-border flex items-center gap-3">
+          <Skeleton className="w-8 h-8 rounded-md" />
+          <Skeleton className="w-10 h-10 rounded-full" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+        </div>
+        <div className="flex-1 p-4 space-y-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
+              <Skeleton className={`h-12 rounded-lg ${i % 2 === 0 ? 'w-48' : 'w-40'}`} />
+            </div>
+          ))}
+        </div>
+        <div className="p-4 border-t border-border">
+          <Skeleton className="h-10 w-full rounded-lg" />
         </div>
       </div>
     );
@@ -197,23 +214,23 @@ const LiveChat = () => {
       </div>
 
       {/* Messages */}
-      <div ref={messagesRef} className="flex-1 p-4 overflow-y-auto space-y-4">
+      <div ref={messagesRef} className="flex-1 p-4 overflow-y-auto space-y-3">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[75%] md:max-w-md px-4 py-2 rounded-lg ${
+            <div className={`max-w-[75%] md:max-w-md px-4 py-2.5 rounded-2xl text-sm ${
               msg.sender === 'user'
-                ? 'bg-primary/10 text-foreground'
+                ? 'bg-primary text-primary-foreground rounded-br-sm'
                 : msg.sender === 'system'
-                  ? 'bg-muted/50 border border-border'
-                  : 'bg-muted'
+                  ? 'bg-muted/60 border border-border text-muted-foreground italic rounded-bl-sm'
+                  : 'bg-muted text-foreground rounded-bl-sm'
             }`}>
               {msg.sender !== 'user' && (
-                <p className="text-xs font-semibold text-primary mb-1">
+                <p className={`text-xs font-semibold mb-1 ${msg.sender === 'system' ? 'text-muted-foreground' : 'text-primary'}`}>
                   {msg.sender === 'system' ? 'System' : 'Support Team'}
                 </p>
               )}
-              <p className="text-sm break-words">{msg.content}</p>
-              <p className={`text-xs mt-1 ${msg.sender === 'user' ? 'text-foreground/70' : 'text-muted-foreground'}`}>
+              <p className="break-words">{msg.content}</p>
+              <p className={`text-xs mt-1 ${msg.sender === 'user' ? 'opacity-70' : 'text-muted-foreground'}`}>
                 {formatTime(msg.sent_at)}
               </p>
             </div>

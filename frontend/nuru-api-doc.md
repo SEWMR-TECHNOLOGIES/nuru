@@ -13559,3 +13559,857 @@ The following categories are used in the UI:
 - Marketing
 - Staffing
 - Miscellaneous
+
+---
+
+# 🛡️ MODULE 20: ADMIN PANEL
+
+All admin endpoints require authentication (Bearer token) from a user with `is_admin = true`.
+
+---
+
+## 20.1 Dashboard Stats
+
+```
+GET /admin/stats
+Authentication: Required (Admin)
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "total_users": 1240,
+    "total_events": 450,
+    "total_services": 180,
+    "pending_kyc": 12,
+    "open_tickets": 7,
+    "active_chats": 3,
+    "waiting_chats": 2
+  }
+}
+```
+
+---
+
+## 20.2 Extended Dashboard Stats
+
+```
+GET /admin/stats/extended
+Authentication: Required (Admin)
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "total_posts": 5200,
+    "total_moments": 3100,
+    "total_communities": 45,
+    "total_bookings": 320,
+    "pending_bookings": 18,
+    "pending_card_orders": 6
+  }
+}
+```
+
+---
+
+## 20.3 User Management
+
+### List Users
+```
+GET /admin/users
+Authentication: Required (Admin)
+Query Parameters:
+  - page (int, default 1)
+  - limit (int, default 20)
+  - q (string, search by name/email/username/phone)
+  - is_active (bool, filter by active status)
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "first_name": "Jane",
+      "last_name": "Doe",
+      "username": "janedoe",
+      "email": "jane@example.com",
+      "phone": "+254700000000",
+      "avatar": "https://...",
+      "is_active": true,
+      "is_email_verified": true,
+      "is_phone_verified": true,
+      "is_identity_verified": false,
+      "created_at": "2025-01-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+### Get User Detail
+```
+GET /admin/users/{user_id}
+Authentication: Required (Admin)
+```
+
+### Activate User
+```
+PUT /admin/users/{user_id}/activate
+Authentication: Required (Admin)
+```
+
+### Deactivate User
+```
+PUT /admin/users/{user_id}/deactivate
+Authentication: Required (Admin)
+```
+
+---
+
+## 20.4 KYC / Service Verification
+
+### List KYC Submissions
+```
+GET /admin/kyc
+Authentication: Required (Admin)
+Query Parameters:
+  - page, limit
+  - status (string: "pending" | "verified" | "rejected")
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "service_id": "uuid",
+      "service_name": "Elite Photography",
+      "status": "pending",
+      "notes": null,
+      "submitted_at": "2025-02-01T10:00:00Z",
+      "user": {
+        "id": "uuid",
+        "name": "John Doe",
+        "email": "john@example.com",
+        "avatar": "https://..."
+      }
+    }
+  ]
+}
+```
+
+### Get KYC Detail
+```
+GET /admin/kyc/{verification_id}
+Authentication: Required (Admin)
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "service_name": "Elite Photography",
+    "status": "pending",
+    "notes": null,
+    "submitted_at": "2025-02-01T10:00:00Z",
+    "files": [
+      {
+        "id": "uuid",
+        "file_url": "https://...",
+        "kyc_requirement_id": "uuid",
+        "uploaded_at": "2025-02-01T10:00:00Z"
+      }
+    ],
+    "user": { "id": "uuid", "name": "John Doe", "email": "john@example.com" }
+  }
+}
+```
+
+### Approve KYC
+```
+PUT /admin/kyc/{verification_id}/approve
+Authentication: Required (Admin)
+```
+
+**Request Body:**
+```json
+{ "notes": "All documents verified successfully." }
+```
+
+### Reject KYC
+```
+PUT /admin/kyc/{verification_id}/reject
+Authentication: Required (Admin)
+```
+
+**Request Body:**
+```json
+{ "notes": "Business registration document is expired." }
+```
+
+---
+
+## 20.5 Event Types Management
+
+### List Event Types
+```
+GET /admin/event-types
+Authentication: Required (Admin)
+```
+
+### Create Event Type
+```
+POST /admin/event-types
+Authentication: Required (Admin)
+```
+
+**Request Body:**
+```json
+{ "name": "Cultural Festival", "description": "...", "icon": "🎭" }
+```
+
+### Update Event Type
+```
+PUT /admin/event-types/{type_id}
+Authentication: Required (Admin)
+```
+
+### Delete Event Type
+```
+DELETE /admin/event-types/{type_id}
+Authentication: Required (Admin)
+```
+
+---
+
+## 20.6 Events (Read-Only)
+
+```
+GET /admin/events
+Authentication: Required (Admin)
+Query Parameters: page, limit, q (search), status
+```
+
+---
+
+## 20.7 Services (Read-Only)
+
+```
+GET /admin/services
+Authentication: Required (Admin)
+Query Parameters: page, limit, q (search), status
+```
+
+---
+
+## 20.8 Posts / Feed Moderation
+
+### List Posts
+```
+GET /admin/posts
+Authentication: Required (Admin)
+Query Parameters: page, limit, q (search content)
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "content": "Had an amazing time at...",
+      "is_active": true,
+      "glow_count": 24,
+      "echo_count": 5,
+      "location": "Nairobi",
+      "created_at": "2025-02-10T12:00:00Z",
+      "images": [{ "url": "https://..." }],
+      "user": { "id": "uuid", "name": "Jane Doe", "username": "janedoe", "avatar": "https://..." }
+    }
+  ]
+}
+```
+
+### Remove Post (Soft Delete)
+```
+DELETE /admin/posts/{post_id}
+Authentication: Required (Admin)
+```
+
+Sets `is_active = false` — does not permanently delete.
+
+---
+
+## 20.9 Moments Moderation
+
+### List Moments
+```
+GET /admin/moments
+Authentication: Required (Admin)
+Query Parameters: page, limit, q (search caption)
+```
+
+### Remove Moment (Soft Delete)
+```
+DELETE /admin/moments/{moment_id}
+Authentication: Required (Admin)
+```
+
+---
+
+## 20.10 Communities
+
+### List Communities
+```
+GET /admin/communities
+Authentication: Required (Admin)
+Query Parameters: page, limit, q (search name)
+```
+
+### Delete Community
+```
+DELETE /admin/communities/{community_id}
+Authentication: Required (Admin)
+```
+
+Permanently deletes the community and all associated members/posts (CASCADE).
+
+---
+
+## 20.11 Bookings (Read-Only)
+
+```
+GET /admin/bookings
+Authentication: Required (Admin)
+Query Parameters: page, limit, status (pending|accepted|rejected|completed)
+```
+
+---
+
+## 20.12 NuruCard Orders
+
+### List Orders
+```
+GET /admin/nuru-cards
+Authentication: Required (Admin)
+Query Parameters: page, limit, status (pending|processing|shipped|delivered|cancelled)
+```
+
+### Update Order Status
+```
+PUT /admin/nuru-cards/{order_id}/status
+Authentication: Required (Admin)
+```
+
+**Request Body:**
+```json
+{ "status": "shipped", "tracking_number": "KE123456789" }
+```
+
+---
+
+## 20.13 Live Chat (Admin)
+
+### List Chat Sessions
+```
+GET /admin/chats
+Authentication: Required (Admin)
+Query Parameters: page, limit, status (waiting|active|ended|abandoned)
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "status": "waiting",
+      "last_message": "Hi, I need help with my booking",
+      "last_message_at": "2025-02-10T14:00:00Z",
+      "created_at": "2025-02-10T13:55:00Z",
+      "user": { "id": "uuid", "name": "John Doe", "email": "john@example.com", "avatar": "https://..." }
+    }
+  ]
+}
+```
+
+### Get Chat Messages
+```
+GET /admin/chats/{chat_id}/messages
+Authentication: Required (Admin)
+Query Parameters:
+  - after (ISO timestamp, for polling only new messages)
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "session_status": "active",
+    "messages": [
+      {
+        "id": "uuid",
+        "content": "Hi, I need help",
+        "sender": "user",
+        "sender_name": "John Doe",
+        "sent_at": "2025-02-10T14:00:00Z"
+      },
+      {
+        "id": "uuid",
+        "content": "Sure, I can help with that.",
+        "sender": "agent",
+        "sender_name": "Support Team",
+        "sent_at": "2025-02-10T14:01:00Z"
+      }
+    ]
+  }
+}
+```
+
+### Reply to Chat
+```
+POST /admin/chats/{chat_id}/reply
+Authentication: Required (Admin)
+```
+
+**Request Body:**
+```json
+{ "content": "Sure, I can help with that." }
+```
+
+Automatically assigns the replying admin as the session agent and sets status to `active`.
+
+### Close Chat
+```
+PUT /admin/chats/{chat_id}/close
+Authentication: Required (Admin)
+```
+
+---
+
+## 20.14 Support Tickets (Admin)
+
+### List Tickets
+```
+GET /admin/tickets
+Authentication: Required (Admin)
+Query Parameters: page, limit, status (open|closed)
+```
+
+### Get Ticket Detail
+```
+GET /admin/tickets/{ticket_id}
+Authentication: Required (Admin)
+```
+
+### Reply to Ticket
+```
+POST /admin/tickets/{ticket_id}/reply
+Authentication: Required (Admin)
+```
+
+**Request Body:**
+```json
+{ "message": "We have resolved your issue. Please check again." }
+```
+
+### Close Ticket
+```
+PUT /admin/tickets/{ticket_id}/close
+Authentication: Required (Admin)
+```
+
+---
+
+## 20.15 FAQs Management
+
+### List FAQs
+```
+GET /admin/faqs
+Authentication: Required (Admin)
+```
+
+### Create FAQ
+```
+POST /admin/faqs
+Authentication: Required (Admin)
+```
+
+**Request Body:**
+```json
+{
+  "question": "How do I verify my service?",
+  "answer": "Go to My Services → Verify → Upload required documents.",
+  "category": "Services",
+  "display_order": 1,
+  "is_active": true
+}
+```
+
+### Update FAQ
+```
+PUT /admin/faqs/{faq_id}
+Authentication: Required (Admin)
+```
+
+### Delete FAQ
+```
+DELETE /admin/faqs/{faq_id}
+Authentication: Required (Admin)
+```
+
+---
+
+## 20.16 Service Categories Management
+
+### List Categories
+```
+GET /admin/service-categories
+Authentication: Required (Admin)
+```
+
+### Create Category
+```
+POST /admin/service-categories
+Authentication: Required (Admin)
+```
+
+**Request Body:**
+```json
+{ "name": "Photography", "description": "Photo and video services" }
+```
+
+### Update Category
+```
+PUT /admin/service-categories/{cat_id}
+Authentication: Required (Admin)
+```
+
+### Delete Category
+```
+DELETE /admin/service-categories/{cat_id}
+Authentication: Required (Admin)
+```
+
+---
+
+## 20.17 Broadcast Notifications
+
+```
+POST /admin/notifications/broadcast
+Authentication: Required (Admin)
+```
+
+**Request Body:**
+```json
+{
+  "title": "Platform Update",
+  "message": "We've added new features to Nuru. Check them out!"
+}
+```
+
+Sends a `system` type notification to **all active users**.
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "Notification sent to 1240 users"
+}
+```
+
+---
+
+## Admin Panel Routes (Frontend)
+
+| Path | Page |
+|---|---|
+| `/admin/login` | Admin login |
+| `/admin` | Dashboard |
+| `/admin/users` | User management |
+| `/admin/kyc` | KYC verification |
+| `/admin/services` | Services overview |
+| `/admin/service-categories` | Service categories CRUD |
+| `/admin/events` | Events overview |
+| `/admin/event-types` | Event types CRUD |
+| `/admin/posts` | Post/feed moderation |
+| `/admin/moments` | Moments moderation |
+| `/admin/communities` | Community moderation |
+| `/admin/bookings` | Bookings overview |
+| `/admin/nuru-cards` | NuruCard order management |
+| `/admin/chats` | Live chat sessions |
+| `/admin/chats/:chatId` | Chat detail + reply |
+| `/admin/tickets` | Support tickets |
+| `/admin/faqs` | FAQ management |
+| `/admin/notifications` | Broadcast notifications |
+
+---
+
+# 🔐 MODULE: ADMIN AUTHENTICATION
+
+Admin authentication is **completely separate** from Nuru user authentication. Admin users are stored in the `admin_users` table and have no relation to the regular `users` table.
+
+## Admin Users Table (`admin_users`)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | Primary key |
+| full_name | text | Admin's full name |
+| email | text | Unique email address |
+| username | text | Unique username |
+| password_hash | text | SHA-256 hashed password |
+| role | admin_role | One of: `admin`, `moderator`, `support` |
+| is_active | boolean | Whether account is active |
+| last_login_at | timestamp | Timestamp of last successful login |
+| created_at | timestamp | Account creation timestamp |
+| updated_at | timestamp | Last update timestamp |
+
+**Roles:** `admin` (full control), `moderator` (content moderation), `support` (tickets & chat)
+
+**Creating the first admin (SQL):**
+```sql
+INSERT INTO admin_users (full_name, email, username, password_hash, role)
+VALUES ('Admin Name', 'admin@nuru.tz', 'admin', encode(sha256('yourpassword'::bytea), 'hex'), 'admin');
+```
+
+---
+
+## Admin Login
+
+```
+POST /admin/auth/login
+Content-Type: application/json
+Authentication: None
+```
+
+**Request Body:**
+```json
+{
+  "username": "admin",
+  "password": "yourpassword"
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "Login successful",
+  "data": {
+    "access_token": "eyJ...",
+    "refresh_token": "eyJ...",
+    "token_type": "bearer",
+    "admin": {
+      "id": "uuid",
+      "full_name": "Admin Name",
+      "email": "admin@nuru.tz",
+      "username": "admin",
+      "role": "admin"
+    }
+  }
+}
+```
+
+**Frontend Storage:** Tokens stored in `localStorage` as `admin_token`, `admin_refresh_token`, `admin_user` (isolated from user session).
+
+---
+
+## Admin Token Refresh
+
+```
+POST /admin/auth/refresh
+Content-Type: application/json
+Authentication: None
+```
+
+**Request Body:**
+```json
+{ "refresh_token": "eyJ..." }
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "Token refreshed",
+  "data": { "access_token": "eyJ...", "token_type": "bearer" }
+}
+```
+
+---
+
+## Admin Authorization
+
+All admin-protected routes require `Authorization: Bearer {admin_token}`. Admin JWTs carry an `is_admin: true` claim. The `require_admin` dependency validates:
+1. JWT signature and expiry
+2. `is_admin` claim is `true`
+3. Admin exists and `is_active = true` in `admin_users`
+
+Regular Nuru user tokens are **rejected** by all `/admin/*` endpoints.
+
+---
+
+# 🛡️ MODULE: ADMIN PANEL ENDPOINTS
+
+All endpoints below require `Authorization: Bearer {admin_token}`.
+
+**Frontend client:** `src/lib/api/admin.ts` — `adminApi` object  
+**Backend guard:** `require_admin` dependency (AdminUser returned, NOT User)  
+**Pagination:** Backend returns `pagination` at root level alongside `data`:
+```json
+{ "success": true, "data": [...], "pagination": { "page": 1, "total_pages": 5, "total_items": 98 } }
+```
+
+---
+
+## Dashboard
+
+### GET /admin/stats
+Core counters: `total_users`, `total_events`, `total_services`, `pending_kyc`, `open_tickets`, `active_chats`, `waiting_chats`
+
+### GET /admin/stats/extended
+Extended counters: `total_posts`, `total_moments`, `total_communities`, `total_bookings`, `pending_bookings`, `pending_card_orders`
+
+---
+
+## User Management
+
+### GET /admin/users — Query: `page`, `limit`, `q` (name/email/phone), `is_active`
+### GET /admin/users/{user_id} — Full detail + `event_count`, `service_count`, `bio`, `location`
+### PUT /admin/users/{user_id}/activate — Sets `is_active = true`
+### PUT /admin/users/{user_id}/deactivate — Sets `is_active = false`
+
+---
+
+## KYC / Service Verification
+
+### GET /admin/kyc — Query: `page`, `limit`, `status` (`pending`|`verified`|`rejected`)
+### GET /admin/kyc/{verification_id} — Includes `files: [{ id, file_url, uploaded_at }]`
+### PUT /admin/kyc/{verification_id}/approve — Body: `{ "notes": "..." }` (optional)
+### PUT /admin/kyc/{verification_id}/reject — Body: `{ "notes": "..." }` (required)
+
+---
+
+## Event Types
+
+### GET /admin/event-types
+### POST /admin/event-types — Body: `{ name, description, icon }`
+### PUT /admin/event-types/{type_id} — Body: any of `{ name, description, icon, is_active }`
+### DELETE /admin/event-types/{type_id}
+
+---
+
+## Live Chats
+
+### GET /admin/chats — Query: `status` (`waiting`|`active`|`ended`)
+Response items include: `id`, `status`, `last_message`, `last_message_at`, `user`
+
+### GET /admin/chats/{chat_id}/messages?after={iso}
+Returns `{ messages: [...], session_status }`. Poll with `?after=` for real-time updates.
+Message shape: `{ id, content, sender: "agent"|"user"|"system", sender_name, sent_at }`
+
+### POST /admin/chats/{chat_id}/reply — Body: `{ "content": "..." }`
+Uses `admin.id` and `admin.full_name` for sender attribution.
+
+### PUT /admin/chats/{chat_id}/close — Sets session to `ended`
+
+---
+
+## Support Tickets
+
+### GET /admin/tickets — Query: `status` (`open`|`closed`)
+### GET /admin/tickets/{ticket_id} — Includes `messages: [{ id, content, is_agent, sender_name, created_at }]`
+### POST /admin/tickets/{ticket_id}/reply — Body: `{ "message": "..." }` — Uses `admin.id` as `sender_id`
+### PUT /admin/tickets/{ticket_id}/close — Sets `status = closed`
+
+---
+
+## FAQs
+
+### GET /admin/faqs — Sorted by `display_order asc`
+### POST /admin/faqs — Body: `{ question, answer, category, display_order, is_active }`
+### PUT /admin/faqs/{faq_id}
+### DELETE /admin/faqs/{faq_id}
+
+---
+
+## Events (Read-only)
+
+### GET /admin/events — Query: `q` (name search), `status`
+Response: `{ id, name, status, date, location, organizer: { id, name } }`
+
+---
+
+## Services (Read-only)
+
+### GET /admin/services — Query: `q`, `status` (verification_status)
+Response: `{ id, name, category, verification_status, is_active, user: { id, name, avatar } }`
+
+---
+
+## Notifications Broadcast
+
+### POST /admin/notifications/broadcast
+Body: `{ "title": "...", "message": "..." }` — Sends system notification to **all active users**
+
+---
+
+## Posts / Moments / Communities
+
+### GET /admin/posts — Query: `q` (content search) — Response includes `images[]`, `user`
+### DELETE /admin/posts/{post_id} — Soft-delete (`is_active = false`)
+### GET /admin/moments — Query: `q` (caption search)
+### DELETE /admin/moments/{moment_id} — Soft-delete (`is_active = false`)
+### GET /admin/communities — Query: `q`
+### DELETE /admin/communities/{community_id} — Hard-delete
+
+---
+
+## Bookings (Read-only)
+
+### GET /admin/bookings — Query: `status`
+Response: `{ id, status, proposed_price, quoted_price, message, service, requester }`
+
+---
+
+## NuruCard Orders
+
+### GET /admin/nuru-cards — Query: `status`
+Response: `{ id, card_type, quantity, status, payment_status, amount, delivery_city, tracking_number, user }`
+
+### PUT /admin/nuru-cards/{order_id}/status — Body: `{ "status": "shipped", "tracking_number": "TZ123" }`
+
+---
+
+## Service Categories
+
+### GET /admin/service-categories — Sorted by name
+### POST /admin/service-categories — Body: `{ name, description, icon }`
+### PUT /admin/service-categories/{cat_id}
+### DELETE /admin/service-categories/{cat_id}
+
+---
+
+## Frontend Admin Client Notes
+
+- **File:** `src/lib/api/admin.ts` — `adminApi` export
+- **Token:** Always reads `admin_token` from localStorage (never the regular user `token`)
+- **401 handling:** Clears admin session + redirects to `/admin/login`
+- **Pagination:** `(res as any).pagination` — preserved at root level by `adminRequest` helper
+- **Route guard:** `AdminLayout` checks `admin_token` on mount, redirects to `/admin/login` if absent
+- **Auth dependency changed:** All backend admin endpoints use `Depends(require_admin)` returning `AdminUser` — `get_current_user` is NOT used in admin routes
+

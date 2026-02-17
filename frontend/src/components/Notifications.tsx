@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Heart, MessageCircle, UserPlus, Loader2, Users, Briefcase, CheckCircle, Trash2 } from 'lucide-react';
+import { Heart, MessageCircle, UserPlus, Loader2, Briefcase, CheckCircle } from 'lucide-react';
 import BellIcon from '@/assets/icons/bell-icon.svg';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import NuruLogo from '@/assets/nuru-logo.png';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
@@ -35,6 +36,11 @@ const getIcon = (type: string) => {
     default:
       return <img src={BellIcon} alt="Notification" className="w-4 h-4" />;
   }
+};
+
+// Returns true for system/Nuru notifications (no actor or actor is the platform)
+const isSystemNotification = (notification: any) => {
+  return !notification.actor || notification.actor?.is_system === true;
 };
 
 const getInitials = (actor: any) => {
@@ -136,12 +142,18 @@ const Notifications = () => {
             >
               {/* Avatar */}
               <div className="relative flex-shrink-0">
-                <Avatar className="w-10 h-10">
-                  <AvatarImage src={notification.actor?.avatar} />
-                  <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                    {getInitials(notification.actor)}
-                  </AvatarFallback>
-                </Avatar>
+                {isSystemNotification(notification) ? (
+                  <div className="w-10 h-10 rounded-full bg-[hsl(var(--nuru-yellow)/0.15)] border border-[hsl(var(--nuru-yellow)/0.3)] flex items-center justify-center overflow-hidden">
+                    <img src={NuruLogo} alt="Nuru" className="w-7 h-7 object-contain" />
+                  </div>
+                ) : (
+                  <Avatar className="w-10 h-10">
+                    <AvatarImage src={notification.actor?.avatar} />
+                    <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                      {getInitials(notification.actor)}
+                    </AvatarFallback>
+                  </Avatar>
+                )}
                 {/* Icon badge */}
                 <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-card border border-border flex items-center justify-center">
                   {getIcon(notification.type)}
@@ -151,11 +163,13 @@ const Notifications = () => {
               {/* Content */}
               <div className="flex-1 min-w-0">
                 <p className="text-sm leading-relaxed">
-                  {notification.actor && (
+                  {isSystemNotification(notification) ? (
+                    <span className="font-semibold text-foreground">Nuru</span>
+                  ) : notification.actor ? (
                     <span className="font-semibold text-foreground">
                       {notification.actor.first_name} {notification.actor.last_name}
                     </span>
-                  )}{' '}
+                  ) : null}{' '}
                   <span className="text-muted-foreground">{notification.message}</span>
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">

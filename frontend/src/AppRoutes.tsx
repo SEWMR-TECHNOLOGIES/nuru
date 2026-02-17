@@ -1,6 +1,7 @@
 // AppRoutes.tsx
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useAuthSync } from "@/hooks/useAuthSync";
 import PrivateRoute from "@/components/PrivateRoute";
 import FullPageLoader from "@/components/FullPageLoader";
 
@@ -57,15 +58,45 @@ import GuestPost from "@/pages/GuestPost";
 import RSVPConfirmation from "@/pages/RSVPConfirmation";
 import ChangePassword from "@/pages/ChangePassword";
 
-export default function AppRoutes() {
-  const { userIsLoggedIn, isLoading } = useCurrentUser();
+// Admin
+import AdminLogin from "@/pages/admin/AdminLogin";
+import AdminLayout from "@/pages/admin/AdminLayout";
+import AdminDashboard from "@/pages/admin/AdminDashboard";
+import AdminUsers from "@/pages/admin/AdminUsers";
+import AdminKyc from "@/pages/admin/AdminKyc";
+import AdminServices from "@/pages/admin/AdminServices";
+import AdminEvents from "@/pages/admin/AdminEvents";
+import AdminEventDetail from "@/pages/admin/AdminEventDetail";
+import AdminEventTypes from "@/pages/admin/AdminEventTypes";
+import AdminChats from "@/pages/admin/AdminChats";
+import AdminChatDetail from "@/pages/admin/AdminChatDetail";
+import AdminTickets from "@/pages/admin/AdminTickets";
+import AdminFaqs from "@/pages/admin/AdminFaqs";
+import AdminNotifications from "@/pages/admin/AdminNotifications";
+import AdminPosts from "@/pages/admin/AdminPosts";
+import AdminPostDetail from "@/pages/admin/AdminPostDetail";
+import AdminMoments from "@/pages/admin/AdminMoments";
+import AdminMomentDetail from "@/pages/admin/AdminMomentDetail";
+import AdminCommunities from "@/pages/admin/AdminCommunities";
+import AdminCommunityDetail from "@/pages/admin/AdminCommunityDetail";
+import AdminBookings from "@/pages/admin/AdminBookings";
+import AdminNuruCards from "@/pages/admin/AdminNuruCards";
+import AdminServiceCategories from "@/pages/admin/AdminServiceCategories";
+import AdminAdmins from "@/pages/admin/AdminAdmins";
+import AdminUserVerifications from "@/pages/admin/AdminUserVerifications";
+import AdminKycDetail from "@/pages/admin/AdminKycDetail";
+import AdminServiceDetail from "@/pages/admin/AdminServiceDetail";
 
-  // Show loader while checking auth status - this is critical!
-  // Without this, the routes would render before we know if user is logged in
+// Inner component that uses router hooks (must be inside BrowserRouter)
+
+function InnerRoutes() {
+  const { userIsLoggedIn, isLoading } = useCurrentUser();
+  useAuthSync(); // safe here — inside BrowserRouter context
+
   if (isLoading) return <FullPageLoader />;
-  
+
   return (
-    <BrowserRouter>
+    <>
       <ScrollToTop />
       <Routes>
         {/* Root: marketing landing when logged out; app feed when logged in */}
@@ -80,7 +111,7 @@ export default function AppRoutes() {
           )}
         />
 
-        {/* Protected app pages (routes are ALWAYS defined to avoid NotFound on refresh) */}
+        {/* Protected app pages */}
         <Route
           element={
             <PrivateRoute userIsLoggedIn={userIsLoggedIn}>
@@ -120,7 +151,7 @@ export default function AppRoutes() {
           <Route path="/u/:username" element={<PublicProfile />} />
         </Route>
 
-        {/* Public Pages - always accessible */}
+        {/* Public Pages */}
         <Route path="/contact" element={<Contact />} />
         <Route path="/faqs" element={<FAQs />} />
         <Route path="/register" element={userIsLoggedIn ? <Navigate to="/" replace /> : <Register />} />
@@ -138,9 +169,48 @@ export default function AppRoutes() {
         <Route path="/features/nfc-cards" element={<NfcCards />} />
         <Route path="/features/payments" element={<Payments />} />
 
-        {/* 404 - catch all unmatched routes */}
+        {/* Admin Panel */}
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="kyc" element={<AdminKyc />} />
+          <Route path="services" element={<AdminServices />} />
+          <Route path="events" element={<AdminEvents />} />
+          <Route path="events/:id" element={<AdminEventDetail />} />
+          <Route path="event-types" element={<AdminEventTypes />} />
+          <Route path="chats" element={<AdminChats />} />
+          <Route path="chats/:chatId" element={<AdminChatDetail />} />
+          <Route path="tickets" element={<AdminTickets />} />
+          <Route path="faqs" element={<AdminFaqs />} />
+          <Route path="notifications" element={<AdminNotifications />} />
+          <Route path="posts" element={<AdminPosts />} />
+          <Route path="posts/:id" element={<AdminPostDetail />} />
+          <Route path="moments" element={<AdminMoments />} />
+          <Route path="moments/:id" element={<AdminMomentDetail />} />
+          <Route path="communities" element={<AdminCommunities />} />
+          <Route path="communities/:id" element={<AdminCommunityDetail />} />
+          <Route path="bookings" element={<AdminBookings />} />
+          <Route path="nuru-cards" element={<AdminNuruCards />} />
+          <Route path="service-categories" element={<AdminServiceCategories />} />
+          <Route path="admins" element={<AdminAdmins />} />
+          <Route path="user-verifications" element={<AdminUserVerifications />} />
+          <Route path="kyc/:id" element={<AdminKycDetail />} />
+          <Route path="services/:id" element={<AdminServiceDetail />} />
+        </Route>
+
+
+        {/* 404 */}
         <Route path="*" element={<NotFound />} />
       </Routes>
+    </>
+  );
+}
+
+export default function AppRoutes() {
+  return (
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <InnerRoutes />
     </BrowserRouter>
   );
 }

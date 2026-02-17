@@ -5,7 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 
 import AppRoutes from "./AppRoutes";
-import { useAuthSync } from "./hooks/useAuthSync";
 
 const queryClient = new QueryClient();
 

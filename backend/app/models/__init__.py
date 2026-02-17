@@ -1,4 +1,5 @@
 # models Models Package
+from models.admin import AdminUser, AdminRoleEnum
 # Import all models from their grouped modules
 
 from models.enums import *

@@ -24,6 +24,7 @@ from .profile import router as profile_router
 from .rsvp import router as rsvp_router
 from .templates import router as templates_router
 from .expenses import router as expenses_router
+from .admin import router as admin_router
 
 # All routers to be included in main app
 all_routers = [
@@ -50,6 +51,7 @@ all_routers = [
     rsvp_router,               # /rsvp/...
     templates_router,          # /templates/... + /user-events/.../checklist
     expenses_router,           # /user-events/.../expenses
+    admin_router,              # /admin/...
 ]
 
 __all__ = [

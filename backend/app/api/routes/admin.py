@@ -1,0 +1,2317 @@
+"""
+Admin Routes - /admin/...
+Uses a completely separate admin_users table. Regular Nuru users can NEVER
+access the admin panel. Admin authentication is fully server-side.
+"""
+
+import hashlib
+import uuid
+from datetime import datetime
+
+import pytz
+from fastapi import APIRouter, Depends, Body, Query, HTTPException, Request
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import or_, func, desc
+
+from core.database import get_db
+from models import (
+    AdminUser, AdminRoleEnum,
+    User, UserProfile, UserService, UserServiceVerification, UserServiceVerificationFile,
+    UserServiceKYCStatus, KYCRequirement, LiveChatSession, LiveChatMessage,
+    SupportTicket, SupportMessage, FAQ,
+    EventType, ServiceCategory, ServiceType,
+    Event, EventContribution, EventContributor,
+    Notification,
+)
+from models.enums import VerificationStatusEnum, ChatSessionStatusEnum
+from utils.auth import create_access_token, create_refresh_token, verify_refresh_token
+from utils.helpers import standard_response, paginate
+import jwt
+from core.config import SECRET_KEY, ALGORITHM
+
+EAT = pytz.timezone("Africa/Nairobi")
+router = APIRouter(prefix="/admin", tags=["Admin"])
+
+
+# ──────────────────────────────────────────────
+# Admin JWT helpers
+# ──────────────────────────────────────────────
+
+def _hash_password(plain: str) -> str:
+    return hashlib.sha256(plain.encode()).hexdigest()
+
+
+def _get_admin_from_token(token: str, db: Session) -> AdminUser:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        admin_id = payload.get("admin_id")
+        is_admin_token = payload.get("is_admin", False)
+        if not admin_id or not is_admin_token:
+            raise HTTPException(status_code=403, detail="Not an admin token")
+        admin = db.query(AdminUser).filter(AdminUser.id == admin_id).first()
+        if not admin or not admin.is_active:
+            raise HTTPException(status_code=403, detail="Admin account inactive or not found")
+        return admin
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Admin token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid admin token")
+
+
+def require_admin(request: Request, db: Session = Depends(get_db)) -> AdminUser:
+    """Gate: only valid AdminUser JWT tokens pass through."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+    token = auth_header.split(" ", 1)[1]
+    admin = _get_admin_from_token(token, db)
+    return admin
+
+
+def require_super_admin(request: Request, db: Session = Depends(get_db)) -> AdminUser:
+    """Gate: only 'admin' role can perform destructive operations."""
+    admin = require_admin(request, db)
+    if admin.role != AdminRoleEnum.admin:
+        raise HTTPException(status_code=403, detail="Super-admin (admin role) required")
+    return admin
+
+
+# ──────────────────────────────────────────────
+# ADMIN LOGIN  (POST /admin/auth/login)
+# ──────────────────────────────────────────────
+
+@router.post("/auth/login")
+async def admin_login(request: Request, db: Session = Depends(get_db)):
+    """Separate admin login — only admin_users table is checked."""
+    try:
+        payload = await request.json()
+    except Exception:
+        return standard_response(False, "Invalid request body.")
+
+    credential = (payload.get("credential") or "").strip()
+    password = payload.get("password", "")
+
+    if not credential or not password:
+        return standard_response(False, "Credential and password are required.")
+
+    admin = db.query(AdminUser).filter(
+        or_(AdminUser.email == credential, AdminUser.username == credential)
+    ).first()
+
+    if not admin or admin.password_hash != _hash_password(password):
+        return standard_response(False, "Invalid credentials.")
+
+    if not admin.is_active:
+        return standard_response(False, "Your admin account has been deactivated.")
+
+    # Stamp last login
+    admin.last_login_at = datetime.utcnow()
+    db.commit()
+
+    access_token = create_access_token({
+        "admin_id": str(admin.id),
+        "is_admin": True,
+        "role": admin.role.value,
+    })
+    refresh_token = create_refresh_token({
+        "admin_id": str(admin.id),
+        "is_admin": True,
+    })
+
+    return standard_response(True, "Admin login successful", {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "Bearer",
+        "admin": {
+            "id": str(admin.id),
+            "full_name": admin.full_name,
+            "email": admin.email,
+            "username": admin.username,
+            "role": admin.role.value,
+        }
+    })
+
+
+# ──────────────────────────────────────────────
+# ADMIN REFRESH TOKEN  (POST /admin/auth/refresh)
+# ──────────────────────────────────────────────
+
+@router.post("/auth/refresh")
+async def admin_refresh(request: Request, db: Session = Depends(get_db)):
+    try:
+        body = await request.json()
+    except Exception:
+        return standard_response(False, "Invalid request body.")
+    token = body.get("refresh_token")
+    if not token:
+        return standard_response(False, "Refresh token required.")
+    payload = verify_refresh_token(token)
+    if not payload or not payload.get("is_admin"):
+        return standard_response(False, "Invalid or expired refresh token.")
+    admin_id = payload.get("admin_id")
+    new_access = create_access_token({"admin_id": admin_id, "is_admin": True, "role": payload.get("role", "support")})
+    new_refresh = create_refresh_token({"admin_id": admin_id, "is_admin": True})
+    return standard_response(True, "Token refreshed", {"access_token": new_access, "refresh_token": new_refresh})
+
+
+
+
+# ──────────────────────────────────────────────
+# DASHBOARD STATS
+# ──────────────────────────────────────────────
+
+@router.get("/stats")
+def get_dashboard_stats(db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    total_users = db.query(func.count(User.id)).scalar() or 0
+    total_events = db.query(func.count(Event.id)).scalar() or 0
+    total_services = db.query(func.count(UserService.id)).scalar() or 0
+    pending_kyc = db.query(func.count(UserServiceVerification.id)).filter(
+        UserServiceVerification.verification_status == VerificationStatusEnum.pending
+    ).scalar() or 0
+    open_tickets = db.query(func.count(SupportTicket.id)).filter(SupportTicket.status == 'open').scalar() or 0
+    active_chats = db.query(func.count(LiveChatSession.id)).filter(
+        LiveChatSession.status == ChatSessionStatusEnum.active
+    ).scalar() or 0
+    waiting_chats = db.query(func.count(LiveChatSession.id)).filter(
+        LiveChatSession.status == ChatSessionStatusEnum.waiting
+    ).scalar() or 0
+
+    return standard_response(True, "Dashboard stats", {
+        "total_users": total_users,
+        "total_events": total_events,
+        "total_services": total_services,
+        "pending_kyc": pending_kyc,
+        "open_tickets": open_tickets,
+        "active_chats": active_chats,
+        "waiting_chats": waiting_chats,
+    })
+
+
+# ──────────────────────────────────────────────
+# USER MANAGEMENT
+# ──────────────────────────────────────────────
+
+@router.get("/users")
+def list_users(
+    page: int = 1, limit: int = 20,
+    q: str = None,
+    is_active: bool = None,
+    is_vendor: bool = None,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    query = db.query(User).options(joinedload(User.profile))
+    if q:
+        search = f"%{q}%"
+        query = query.filter(or_(
+            User.first_name.ilike(search),
+            User.last_name.ilike(search),
+            User.email.ilike(search),
+            User.username.ilike(search),
+            User.phone.ilike(search),
+        ))
+    if is_active is not None:
+        query = query.filter(User.is_active == is_active)
+    query = query.order_by(User.created_at.desc())
+    items, pagination = paginate(query, page, limit)
+    data = []
+    for u in items:
+        avatar = None
+        if u.profile:
+            avatar = u.profile.profile_picture_url
+        is_vendor = bool(u.user_services) if hasattr(u, 'user_services') else False
+        data.append({
+            "id": str(u.id),
+            "first_name": u.first_name,
+            "last_name": u.last_name,
+            "username": u.username,
+            "email": u.email,
+            "phone": u.phone,
+            "avatar": avatar,
+            "is_active": u.is_active,
+            "is_email_verified": u.is_email_verified,
+            "is_phone_verified": u.is_phone_verified,
+            "is_identity_verified": u.is_identity_verified,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+        })
+    return standard_response(True, "Users retrieved", data, pagination=pagination)
+
+
+@router.get("/users/{user_id}")
+def get_user_detail(user_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        return standard_response(False, "Invalid user ID")
+    user = db.query(User).options(joinedload(User.profile)).filter(User.id == uid).first()
+    if not user:
+        return standard_response(False, "User not found")
+    avatar = user.profile.profile_picture_url if user.profile else None
+    service_count = db.query(func.count(UserService.id)).filter(UserService.user_id == uid).scalar() or 0
+    event_count = db.query(func.count(Event.id)).filter(Event.organizer_id == uid).scalar() or 0
+    return standard_response(True, "User retrieved", {
+        "id": str(user.id),
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "username": user.username,
+        "email": user.email,
+        "phone": user.phone,
+        "avatar": avatar,
+        "bio": user.profile.bio if user.profile else None,
+        "location": user.profile.location if user.profile else None,
+        "is_active": user.is_active,
+        "is_email_verified": user.is_email_verified,
+        "is_phone_verified": user.is_phone_verified,
+        "is_identity_verified": user.is_identity_verified,
+        "service_count": service_count,
+        "event_count": event_count,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    })
+
+
+@router.put("/users/{user_id}/activate")
+def activate_user(user_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        return standard_response(False, "Invalid user ID")
+    user = db.query(User).filter(User.id == uid).first()
+    if not user:
+        return standard_response(False, "User not found")
+    user.is_active = True
+    user.updated_at = datetime.now(EAT)
+    db.commit()
+    return standard_response(True, "User activated")
+
+
+@router.put("/users/{user_id}/deactivate")
+def deactivate_user(user_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        return standard_response(False, "Invalid user ID")
+    user = db.query(User).filter(User.id == uid).first()
+    if not user:
+        return standard_response(False, "User not found")
+    user.is_active = False
+    user.updated_at = datetime.now(EAT)
+    db.commit()
+    return standard_response(True, "User deactivated")
+
+
+@router.put("/users/{user_id}/reset-password")
+def reset_user_password(user_id: str, request_data: dict = Body(...), db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    """Admin resets a Nuru user's password."""
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        return standard_response(False, "Invalid user ID")
+    new_password = request_data.get("new_password", "")
+    if not new_password or len(new_password) < 8:
+        return standard_response(False, "Password must be at least 8 characters")
+    user = db.query(User).filter(User.id == uid).first()
+    if not user:
+        return standard_response(False, "User not found")
+    user.password_hash = _hash_password(new_password)
+    user.updated_at = datetime.now(EAT)
+    db.commit()
+    return standard_response(True, "Password reset successfully")
+
+
+# ──────────────────────────────────────────────
+# ADMIN ACCOUNT MANAGEMENT
+# ──────────────────────────────────────────────
+
+@router.get("/admins")
+def list_admins(db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    """List all admin accounts. Only accessible to admin role."""
+    admins = db.query(AdminUser).order_by(AdminUser.created_at.desc()).all()
+    data = []
+    for a in admins:
+        data.append({
+            "id": str(a.id),
+            "full_name": a.full_name,
+            "email": a.email,
+            "username": a.username,
+            "role": a.role.value,
+            "is_active": a.is_active,
+            "last_login_at": a.last_login_at.isoformat() if a.last_login_at else None,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+        })
+    return standard_response(True, "Admins retrieved", data)
+
+
+@router.post("/admins")
+def create_admin(request_data: dict = Body(...), db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    """Create a new admin account. Only the admin role can do this."""
+    if admin.role != AdminRoleEnum.admin:
+        raise HTTPException(status_code=403, detail="Only admins can create admin accounts")
+    full_name = (request_data.get("full_name") or "").strip()
+    email = (request_data.get("email") or "").strip().lower()
+    username = (request_data.get("username") or "").strip().lower()
+    password = request_data.get("password", "")
+    role_str = request_data.get("role", "support")
+
+    if not full_name or not email or not username or not password:
+        return standard_response(False, "All fields are required")
+    if len(password) < 8:
+        return standard_response(False, "Password must be at least 8 characters")
+
+    try:
+        role = AdminRoleEnum(role_str)
+    except ValueError:
+        return standard_response(False, f"Invalid role. Must be one of: {[r.value for r in AdminRoleEnum]}")
+
+    # Check uniqueness
+    if db.query(AdminUser).filter(AdminUser.email == email).first():
+        return standard_response(False, "Email already in use")
+    if db.query(AdminUser).filter(AdminUser.username == username).first():
+        return standard_response(False, "Username already in use")
+
+    new_admin = AdminUser(
+        full_name=full_name,
+        email=email,
+        username=username,
+        password_hash=_hash_password(password),
+        role=role,
+        is_active=True,
+    )
+    db.add(new_admin)
+    db.commit()
+    return standard_response(True, "Admin account created", {
+        "id": str(new_admin.id),
+        "full_name": new_admin.full_name,
+        "email": new_admin.email,
+        "username": new_admin.username,
+        "role": new_admin.role.value,
+    })
+
+
+@router.put("/admins/{admin_id}/activate")
+def activate_admin(admin_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    if admin.role != AdminRoleEnum.admin:
+        raise HTTPException(status_code=403, detail="Only admins can manage admin accounts")
+    try:
+        aid = uuid.UUID(admin_id)
+    except ValueError:
+        return standard_response(False, "Invalid admin ID")
+    target = db.query(AdminUser).filter(AdminUser.id == aid).first()
+    if not target:
+        return standard_response(False, "Admin not found")
+    target.is_active = True
+    db.commit()
+    return standard_response(True, "Admin activated")
+
+
+@router.put("/admins/{admin_id}/deactivate")
+def deactivate_admin(admin_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    if admin.role != AdminRoleEnum.admin:
+        raise HTTPException(status_code=403, detail="Only admins can manage admin accounts")
+    try:
+        aid = uuid.UUID(admin_id)
+    except ValueError:
+        return standard_response(False, "Invalid admin ID")
+    if str(admin.id) == admin_id:
+        return standard_response(False, "You cannot deactivate your own account")
+    target = db.query(AdminUser).filter(AdminUser.id == aid).first()
+    if not target:
+        return standard_response(False, "Admin not found")
+    target.is_active = False
+    db.commit()
+    return standard_response(True, "Admin deactivated")
+
+
+@router.delete("/admins/{admin_id}")
+def delete_admin(admin_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    if admin.role != AdminRoleEnum.admin:
+        raise HTTPException(status_code=403, detail="Only admins can delete admin accounts")
+    try:
+        aid = uuid.UUID(admin_id)
+    except ValueError:
+        return standard_response(False, "Invalid admin ID")
+    if str(admin.id) == admin_id:
+        return standard_response(False, "You cannot delete your own account")
+    target = db.query(AdminUser).filter(AdminUser.id == aid).first()
+    if not target:
+        return standard_response(False, "Admin not found")
+    db.delete(target)
+    db.commit()
+    return standard_response(True, "Admin account deleted")
+
+
+# ──────────────────────────────────────────────
+# KYC / SERVICE VERIFICATION
+# ──────────────────────────────────────────────
+
+
+@router.get("/kyc")
+def list_kyc_submissions(
+    page: int = 1, limit: int = 20,
+    status: str = None,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    query = db.query(UserServiceVerification).options(
+        joinedload(UserServiceVerification.user_service).joinedload(UserService.user).joinedload(User.profile),
+        joinedload(UserServiceVerification.kyc_statuses).joinedload(UserServiceKYCStatus.kyc_requirement),
+    )
+    if status:
+        try:
+            status_enum = VerificationStatusEnum(status)
+            query = query.filter(UserServiceVerification.verification_status == status_enum)
+        except ValueError:
+            pass
+    query = query.order_by(UserServiceVerification.created_at.desc())
+    items, pagination = paginate(query, page, limit)
+    data = []
+    for v in items:
+        service = v.user_service
+        user = service.user if service else None
+        profile = user.profile if user else None
+        # Build per-item KYC status list
+        kyc_items = []
+        for ks in (v.kyc_statuses or []):
+            req = ks.kyc_requirement
+            kyc_items.append({
+                "id": str(ks.id),
+                "kyc_requirement_id": str(ks.kyc_requirement_id) if ks.kyc_requirement_id else None,
+                "name": req.name if req else None,
+                "description": req.description if req else None,
+                "status": ks.status.value if ks.status else "pending",
+                "remarks": ks.remarks,
+            })
+        data.append({
+            "id": str(v.id),
+            "service_id": str(v.user_service_id) if v.user_service_id else None,
+            "service_name": service.title if service else None,
+            "status": v.verification_status.value if v.verification_status else None,
+            "notes": v.remarks,
+            "submitted_at": v.created_at.isoformat() if v.created_at else None,
+            "kyc_items": kyc_items,
+            "user": {
+                "id": str(user.id) if user else None,
+                "name": f"{user.first_name} {user.last_name}".strip() if user else None,
+                "email": user.email if user else None,
+                "avatar": profile.profile_picture_url if profile else None,
+            } if user else None,
+        })
+    return standard_response(True, "KYC submissions retrieved", data, pagination=pagination)
+
+
+@router.get("/kyc/{verification_id}")
+def get_kyc_detail(verification_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        vid = uuid.UUID(verification_id)
+    except ValueError:
+        return standard_response(False, "Invalid verification ID")
+    v = db.query(UserServiceVerification).options(
+        joinedload(UserServiceVerification.user_service).joinedload(UserService.user).joinedload(User.profile),
+        joinedload(UserServiceVerification.files).joinedload(UserServiceVerificationFile.kyc_requirement),
+        joinedload(UserServiceVerification.kyc_statuses).joinedload(UserServiceKYCStatus.kyc_requirement),
+    ).filter(UserServiceVerification.id == vid).first()
+    if not v:
+        return standard_response(False, "Verification not found")
+    
+    service = v.user_service
+    user = service.user if service else None
+    profile = user.profile if user else None
+    doc_files = []
+    for f in (v.files or []):
+        req = f.kyc_requirement
+        doc_files.append({
+            "id": str(f.id),
+            "file_url": f.file_url,
+            "kyc_requirement_id": str(f.kyc_requirement_id) if f.kyc_requirement_id else None,
+            "kyc_name": req.name if req else None,
+            "uploaded_at": f.created_at.isoformat() if f.created_at else None,
+        })
+    kyc_items = []
+    for ks in (v.kyc_statuses or []):
+        req = ks.kyc_requirement
+        kyc_items.append({
+            "id": str(ks.id),
+            "kyc_requirement_id": str(ks.kyc_requirement_id) if ks.kyc_requirement_id else None,
+            "name": req.name if req else None,
+            "description": req.description if req else None,
+            "status": ks.status.value if ks.status else "pending",
+            "remarks": ks.remarks,
+        })
+    return standard_response(True, "KYC detail retrieved", {
+        "id": str(v.id),
+        "service_id": str(v.user_service_id) if v.user_service_id else None,
+        "service_name": service.title if service else None,
+        "status": v.verification_status.value if v.verification_status else None,
+        "notes": v.remarks,
+        "submitted_at": v.created_at.isoformat() if v.created_at else None,
+        "files": doc_files,
+        "kyc_items": kyc_items,
+        "user": {
+            "id": str(user.id) if user else None,
+            "name": f"{user.first_name} {user.last_name}".strip() if user else None,
+            "email": user.email if user else None,
+            "avatar": profile.profile_picture_url if profile else None,
+        } if user else None,
+    })
+
+
+@router.put("/kyc/item/{kyc_status_id}/approve")
+def approve_kyc_item(
+    kyc_status_id: str,
+    body: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    """Approve a single KYC item. Service only marked verified when ALL items are approved."""
+    try:
+        kid = uuid.UUID(kyc_status_id)
+    except ValueError:
+        return standard_response(False, "Invalid KYC status ID")
+    ks = db.query(UserServiceKYCStatus).filter(UserServiceKYCStatus.id == kid).first()
+    if not ks:
+        return standard_response(False, "KYC status item not found")
+    ks.status = VerificationStatusEnum.verified
+    ks.remarks = body.get("notes", ks.remarks)
+    ks.reviewed_at = datetime.now(EAT)
+    ks.updated_at = datetime.now(EAT)
+    db.flush()
+    # Check if all KYC items for this verification are now approved
+    verification = db.query(UserServiceVerification).filter(
+        UserServiceVerification.id == ks.verification_id
+    ).first()
+    service_owner_id = None
+    service_title = None
+    all_approved = False
+    if verification:
+        all_items = db.query(UserServiceKYCStatus).filter(
+            UserServiceKYCStatus.verification_id == ks.verification_id
+        ).all()
+        all_approved = all(
+            item.status == VerificationStatusEnum.verified for item in all_items
+        )
+        if all_approved:
+            verification.verification_status = VerificationStatusEnum.verified
+            verification.verified_at = datetime.now(EAT)
+            verification.updated_at = datetime.now(EAT)
+            # Only now mark the service as verified
+            if verification.user_service_id:
+                service = db.query(UserService).filter(
+                    UserService.id == verification.user_service_id
+                ).first()
+                if service:
+                    service.verification_status = VerificationStatusEnum.verified
+                    service.is_verified = True
+                    service_owner_id = service.user_id
+                    service_title = service.title
+        else:
+            # Mark verification as still in progress (pending)
+            if verification.verification_status != VerificationStatusEnum.pending:
+                verification.verification_status = VerificationStatusEnum.pending
+            # Still grab service info for partial approval notification
+            if verification.user_service_id:
+                service = db.query(UserService).filter(
+                    UserService.id == verification.user_service_id
+                ).first()
+                if service:
+                    service_owner_id = service.user_id
+                    service_title = service.title
+    db.commit()
+    # Send notification to service owner
+    if service_owner_id:
+        from models.enums import NotificationTypeEnum
+        if all_approved:
+            notif = Notification(
+                id=uuid.uuid4(),
+                recipient_id=service_owner_id,
+                sender_ids=[],
+                type=NotificationTypeEnum.service_approved,
+                reference_id=verification.user_service_id if verification else None,
+                reference_type="user_service",
+                message_template=f"🎉 Your service \"{service_title}\" has been fully verified and is now live!",
+                message_data={"service_title": service_title},
+                is_read=False,
+            )
+        else:
+            # KYC item approved (partial) — still notify
+            req = ks.kyc_requirement
+            item_name = req.name if req else "KYC document"
+            notif = Notification(
+                id=uuid.uuid4(),
+                recipient_id=service_owner_id,
+                sender_ids=[],
+                type=NotificationTypeEnum.service_approved,
+                reference_id=verification.user_service_id if verification else None,
+                reference_type="user_service",
+                message_template=f"Your KYC document \"{item_name}\" for \"{service_title}\" has been approved.",
+                message_data={"service_title": service_title, "item_name": item_name},
+                is_read=False,
+            )
+        db.add(notif)
+        db.commit()
+    all_items_count = len(db.query(UserServiceKYCStatus).filter(
+        UserServiceKYCStatus.verification_id == ks.verification_id
+    ).all()) if verification else 0
+    approved_count = len(db.query(UserServiceKYCStatus).filter(
+        UserServiceKYCStatus.verification_id == ks.verification_id,
+        UserServiceKYCStatus.status == VerificationStatusEnum.verified,
+    ).all()) if verification else 0
+    return standard_response(True, "KYC item approved", {
+        "all_approved": approved_count == all_items_count,
+        "approved_count": approved_count,
+        "total_count": all_items_count,
+    })
+
+
+@router.put("/kyc/item/{kyc_status_id}/reject")
+def reject_kyc_item(
+    kyc_status_id: str,
+    body: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    """Reject a single KYC item."""
+    try:
+        kid = uuid.UUID(kyc_status_id)
+    except ValueError:
+        return standard_response(False, "Invalid KYC status ID")
+    ks = db.query(UserServiceKYCStatus).filter(UserServiceKYCStatus.id == kid).first()
+    if not ks:
+        return standard_response(False, "KYC status item not found")
+    notes = body.get("notes", "").strip()
+    if not notes:
+        return standard_response(False, "Rejection reason is required")
+    ks.status = VerificationStatusEnum.rejected
+    ks.remarks = notes
+    ks.reviewed_at = datetime.now(EAT)
+    ks.updated_at = datetime.now(EAT)
+    db.flush()
+    # When any item is rejected, mark overall verification as rejected
+    verification = db.query(UserServiceVerification).filter(
+        UserServiceVerification.id == ks.verification_id
+    ).first()
+    service_owner_id = None
+    service_title = None
+    if verification:
+        verification.verification_status = VerificationStatusEnum.rejected
+        verification.updated_at = datetime.now(EAT)
+        if verification.user_service_id:
+            service = db.query(UserService).filter(
+                UserService.id == verification.user_service_id
+            ).first()
+            if service:
+                service.verification_status = VerificationStatusEnum.rejected
+                service_owner_id = service.user_id
+                service_title = service.title
+    db.commit()
+    # Send rejection notification to service owner
+    if service_owner_id:
+        from models.enums import NotificationTypeEnum
+        req = ks.kyc_requirement
+        item_name = req.name if req else "KYC document"
+        notif = Notification(
+            id=uuid.uuid4(),
+            recipient_id=service_owner_id,
+            sender_ids=[],
+            type=NotificationTypeEnum.service_rejected,
+            reference_id=verification.user_service_id if verification else None,
+            reference_type="user_service",
+            message_template=f"Your KYC document \"{item_name}\" for \"{service_title}\" was rejected. Reason: {notes}",
+            message_data={"service_title": service_title, "item_name": item_name, "reason": notes},
+            is_read=False,
+        )
+        db.add(notif)
+        db.commit()
+    return standard_response(True, "KYC item rejected")
+
+
+# ──────────────────────────────────────────────
+# EVENT TYPES MANAGEMENT
+# ──────────────────────────────────────────────
+
+@router.get("/event-types")
+def list_event_types(db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    types = db.query(EventType).order_by(EventType.name.asc()).all()
+    data = [{"id": str(t.id), "name": t.name, "description": t.description if hasattr(t, 'description') else None, "icon": t.icon if hasattr(t, 'icon') else None, "is_active": t.is_active if hasattr(t, 'is_active') else True} for t in types]
+    return standard_response(True, "Event types retrieved", data)
+
+
+@router.post("/event-types")
+def create_event_type(body: dict = Body(...), db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    name = body.get("name", "").strip()
+    if not name:
+        return standard_response(False, "Name is required")
+    now = datetime.now(EAT)
+    et = EventType(id=uuid.uuid4(), name=name)
+    if hasattr(et, 'description'):
+        et.description = body.get("description")
+    if hasattr(et, 'icon'):
+        et.icon = body.get("icon")
+    if hasattr(et, 'created_at'):
+        et.created_at = now
+    db.add(et)
+    db.commit()
+    return standard_response(True, "Event type created", {"id": str(et.id), "name": et.name})
+
+
+@router.put("/event-types/{type_id}")
+def update_event_type(type_id: str, body: dict = Body(...), db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        tid = uuid.UUID(type_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+    et = db.query(EventType).filter(EventType.id == tid).first()
+    if not et:
+        return standard_response(False, "Event type not found")
+    if body.get("name"):
+        et.name = body["name"].strip()
+    if "description" in body and hasattr(et, 'description'):
+        et.description = body["description"]
+    if "icon" in body and hasattr(et, 'icon'):
+        et.icon = body["icon"]
+    if "is_active" in body and hasattr(et, 'is_active'):
+        et.is_active = body["is_active"]
+    db.commit()
+    return standard_response(True, "Event type updated")
+
+
+@router.delete("/event-types/{type_id}")
+def delete_event_type(type_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        tid = uuid.UUID(type_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+    et = db.query(EventType).filter(EventType.id == tid).first()
+    if not et:
+        return standard_response(False, "Event type not found")
+    db.delete(et)
+    db.commit()
+    return standard_response(True, "Event type deleted")
+
+
+# ──────────────────────────────────────────────
+# LIVE CHAT ADMIN
+# ──────────────────────────────────────────────
+
+@router.get("/chats")
+def list_chat_sessions(
+    page: int = 1, limit: int = 20,
+    status: str = None,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    query = db.query(LiveChatSession).options(
+        joinedload(LiveChatSession.user).joinedload(User.profile),
+    )
+    if status:
+        try:
+            status_enum = ChatSessionStatusEnum(status)
+            query = query.filter(LiveChatSession.status == status_enum)
+        except ValueError:
+            pass
+    query = query.order_by(LiveChatSession.created_at.desc())
+    items, pagination = paginate(query, page, limit)
+    data = []
+    for s in items:
+        user = s.user
+        profile = user.profile if user else None
+        # Count unread messages (from user, not agent)
+        last_agent_msg = db.query(LiveChatMessage).filter(
+            LiveChatMessage.session_id == s.id,
+            LiveChatMessage.is_agent == True
+        ).order_by(LiveChatMessage.created_at.desc()).first()
+        
+        last_user_msg = db.query(LiveChatMessage).filter(
+            LiveChatMessage.session_id == s.id,
+            LiveChatMessage.is_agent == False,
+            LiveChatMessage.is_system == False,
+        ).order_by(LiveChatMessage.created_at.desc()).first()
+
+        data.append({
+            "id": str(s.id),
+            "status": s.status.value if hasattr(s.status, 'value') else str(s.status),
+            "started_at": s.started_at.isoformat() if s.started_at else None,
+            "ended_at": s.ended_at.isoformat() if s.ended_at else None,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+            "last_message": last_user_msg.message_text if last_user_msg else None,
+            "last_message_at": last_user_msg.created_at.isoformat() if last_user_msg and last_user_msg.created_at else None,
+            "user": {
+                "id": str(user.id) if user else None,
+                "name": f"{user.first_name} {user.last_name}" if user else None,
+                "email": user.email if user else None,
+                "avatar": profile.profile_picture_url if profile else None,
+            } if user else None,
+        })
+    return standard_response(True, "Chat sessions retrieved", data, pagination=pagination)
+
+
+@router.get("/chats/{chat_id}/messages")
+def get_chat_messages_admin(
+    chat_id: str,
+    after: str = None,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    try:
+        cid = uuid.UUID(chat_id)
+    except ValueError:
+        return standard_response(False, "Invalid chat ID")
+    session = db.query(LiveChatSession).options(
+        joinedload(LiveChatSession.user).joinedload(User.profile)
+    ).filter(LiveChatSession.id == cid).first()
+    if not session:
+        return standard_response(False, "Chat session not found")
+    query = db.query(LiveChatMessage).filter(LiveChatMessage.session_id == cid)
+    if after:
+        try:
+            after_dt = datetime.fromisoformat(after)
+            query = query.filter(LiveChatMessage.created_at > after_dt)
+        except ValueError:
+            pass
+    messages = query.order_by(LiveChatMessage.created_at.asc()).all()
+    # Build user info for sender display
+    session_user = session.user
+    session_profile = session_user.profile if session_user else None
+    user_name = f"{session_user.first_name} {session_user.last_name}" if session_user else "User"
+    user_avatar = session_profile.profile_picture_url if session_profile else None
+    data = []
+    for m in messages:
+        data.append({
+            "id": str(m.id),
+            "content": m.message_text,
+            "sender": "agent" if m.is_agent else ("system" if m.is_system else "user"),
+            "sender_name": "Support Team" if m.is_agent else ("System" if m.is_system else user_name),
+            "sent_at": m.created_at.isoformat() if m.created_at else None,
+        })
+    return standard_response(True, "Messages retrieved", {
+        "messages": data,
+        "session_status": session.status.value if hasattr(session.status, 'value') else str(session.status),
+        "user": {
+            "name": user_name,
+            "avatar": user_avatar,
+        } if session_user else None,
+    })
+
+
+@router.post("/chats/{chat_id}/reply")
+def reply_to_chat(
+    chat_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    try:
+        cid = uuid.UUID(chat_id)
+    except ValueError:
+        return standard_response(False, "Invalid chat ID")
+    session = db.query(LiveChatSession).filter(LiveChatSession.id == cid).first()
+    if not session:
+        return standard_response(False, "Chat session not found")
+    content = body.get("content", "").strip()
+    if not content:
+        return standard_response(False, "Message content is required")
+    now = datetime.now(EAT)
+    
+    # Mark session as active when agent first replies (don't set agent_id since admin_users != users)
+    if session.status != ChatSessionStatusEnum.active:
+        session.status = ChatSessionStatusEnum.active
+
+    # sender_id references users table — admin_users are NOT in users table.
+    # Leave sender_id as NULL for agent messages; is_agent=True identifies the sender.
+    msg = LiveChatMessage(
+        id=uuid.uuid4(),
+        session_id=cid,
+        sender_id=None,
+        is_agent=True,
+        is_system=False,
+        message_text=content,
+        created_at=now,
+    )
+    db.add(msg)
+    db.commit()
+    return standard_response(True, "Reply sent", {
+        "id": str(msg.id),
+        "content": msg.message_text,
+        "sender": "agent",
+        "sender_name": admin.full_name,
+        "sent_at": msg.created_at.isoformat() if msg.created_at else None,
+    })
+
+
+@router.put("/chats/{chat_id}/close")
+def close_chat_admin(chat_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        cid = uuid.UUID(chat_id)
+    except ValueError:
+        return standard_response(False, "Invalid chat ID")
+    session = db.query(LiveChatSession).filter(LiveChatSession.id == cid).first()
+    if session:
+        session.status = ChatSessionStatusEnum.ended
+        session.ended_at = datetime.now(EAT)
+        db.commit()
+    return standard_response(True, "Chat closed")
+
+
+# ──────────────────────────────────────────────
+# SUPPORT TICKETS ADMIN
+# ──────────────────────────────────────────────
+
+@router.get("/tickets")
+def list_all_tickets(
+    page: int = 1, limit: int = 20,
+    status: str = None,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    query = db.query(SupportTicket).options(joinedload(SupportTicket.user).joinedload(User.profile))
+    if status:
+        query = query.filter(SupportTicket.status == status)
+    query = query.order_by(SupportTicket.updated_at.desc())
+    items, pagination = paginate(query, page, limit)
+    data = []
+    for t in items:
+        user = t.user
+        profile = user.profile if user else None
+        data.append({
+            "id": str(t.id),
+            "subject": t.subject,
+            "status": t.status,
+            "priority": t.priority.value if hasattr(t.priority, 'value') else str(t.priority) if t.priority else "medium",
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "updated_at": t.updated_at.isoformat() if t.updated_at else None,
+            "user": {
+                "id": str(user.id) if user else None,
+                "name": f"{user.first_name} {user.last_name}" if user else None,
+                "email": user.email if user else None,
+                "avatar": profile.profile_picture_url if profile else None,
+            } if user else None,
+        })
+    return standard_response(True, "Tickets retrieved", data, pagination=pagination)
+
+
+@router.get("/tickets/{ticket_id}")
+def get_ticket_admin(ticket_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        tid = uuid.UUID(ticket_id)
+    except ValueError:
+        return standard_response(False, "Invalid ticket ID")
+    ticket = db.query(SupportTicket).options(
+        joinedload(SupportTicket.user).joinedload(User.profile),
+        joinedload(SupportTicket.messages),
+    ).filter(SupportTicket.id == tid).first()
+    if not ticket:
+        return standard_response(False, "Ticket not found")
+    user = ticket.user
+    profile = user.profile if user else None
+    messages = sorted(ticket.messages or [], key=lambda m: m.created_at or datetime.min)
+    msgs = [{
+        "id": str(m.id),
+        "content": m.message_text,
+        "is_agent": m.is_agent,
+        "sender_name": "Support Team" if m.is_agent else (f"{user.first_name} {user.last_name}" if user else "User"),
+        "created_at": m.created_at.isoformat() if m.created_at else None,
+    } for m in messages]
+    return standard_response(True, "Ticket retrieved", {
+        "id": str(ticket.id),
+        "subject": ticket.subject,
+        "status": ticket.status,
+        "priority": ticket.priority.value if hasattr(ticket.priority, 'value') else str(ticket.priority) if ticket.priority else "medium",
+        "messages": msgs,
+        "created_at": ticket.created_at.isoformat() if ticket.created_at else None,
+        "user": {
+            "id": str(user.id) if user else None,
+            "name": f"{user.first_name} {user.last_name}" if user else None,
+            "email": user.email if user else None,
+            "avatar": profile.profile_picture_url if profile else None,
+        } if user else None,
+    })
+
+
+@router.post("/tickets/{ticket_id}/reply")
+def reply_ticket_admin(
+    ticket_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    try:
+        tid = uuid.UUID(ticket_id)
+    except ValueError:
+        return standard_response(False, "Invalid ticket ID")
+    ticket = db.query(SupportTicket).filter(SupportTicket.id == tid).first()
+    if not ticket:
+        return standard_response(False, "Ticket not found")
+    content = body.get("message", "").strip()
+    if not content:
+        return standard_response(False, "Message is required")
+    now = datetime.now(EAT)
+    msg = SupportMessage(
+        id=uuid.uuid4(),
+        ticket_id=tid,
+        sender_id=None,  # admin_users are not in users table; is_agent=True identifies sender
+        is_agent=True,
+        message_text=content,
+        created_at=now,
+    )
+    db.add(msg)
+    ticket.status = "open"
+    ticket.updated_at = now
+    db.commit()
+    return standard_response(True, "Reply sent")
+
+
+@router.put("/tickets/{ticket_id}/close")
+def close_ticket_admin(ticket_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        tid = uuid.UUID(ticket_id)
+    except ValueError:
+        return standard_response(False, "Invalid ticket ID")
+    ticket = db.query(SupportTicket).filter(SupportTicket.id == tid).first()
+    if not ticket:
+        return standard_response(False, "Ticket not found")
+    ticket.status = "closed"
+    ticket.updated_at = datetime.now(EAT)
+    db.commit()
+    return standard_response(True, "Ticket closed")
+
+
+# ──────────────────────────────────────────────
+# FAQ MANAGEMENT
+# ──────────────────────────────────────────────
+
+@router.get("/faqs")
+def list_faqs(db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    faqs = db.query(FAQ).order_by(FAQ.display_order.asc(), FAQ.created_at.desc()).all()
+    data = [{"id": str(f.id), "question": f.question, "answer": f.answer, "category": f.category, "display_order": f.display_order, "is_active": f.is_active} for f in faqs]
+    return standard_response(True, "FAQs retrieved", data)
+
+
+@router.post("/faqs")
+def create_faq(body: dict = Body(...), db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    if not body.get("question") or not body.get("answer"):
+        return standard_response(False, "Question and answer are required")
+    faq = FAQ(
+        id=uuid.uuid4(),
+        question=body["question"].strip(),
+        answer=body["answer"].strip(),
+        category=body.get("category", "General"),
+        display_order=body.get("display_order", 0),
+        is_active=body.get("is_active", True),
+    )
+    db.add(faq)
+    db.commit()
+    return standard_response(True, "FAQ created", {"id": str(faq.id)})
+
+
+@router.put("/faqs/{faq_id}")
+def update_faq(faq_id: str, body: dict = Body(...), db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        fid = uuid.UUID(faq_id)
+    except ValueError:
+        return standard_response(False, "Invalid FAQ ID")
+    faq = db.query(FAQ).filter(FAQ.id == fid).first()
+    if not faq:
+        return standard_response(False, "FAQ not found")
+    for field in ["question", "answer", "category", "display_order", "is_active"]:
+        if field in body:
+            setattr(faq, field, body[field])
+    db.commit()
+    return standard_response(True, "FAQ updated")
+
+
+@router.delete("/faqs/{faq_id}")
+def delete_faq(faq_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        fid = uuid.UUID(faq_id)
+    except ValueError:
+        return standard_response(False, "Invalid FAQ ID")
+    faq = db.query(FAQ).filter(FAQ.id == fid).first()
+    if not faq:
+        return standard_response(False, "FAQ not found")
+    db.delete(faq)
+    db.commit()
+    return standard_response(True, "FAQ deleted")
+
+
+# ──────────────────────────────────────────────
+# EVENTS ADMIN
+# ──────────────────────────────────────────────
+
+@router.get("/events")
+def list_events_admin(
+    page: int = 1, limit: int = 20,
+    q: str = None,
+    status: str = None,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    query = db.query(Event).options(joinedload(Event.organizer).joinedload(User.profile))
+    if q:
+        query = query.filter(Event.name.ilike(f"%{q}%"))
+    if status:
+        from models.enums import EventStatusEnum
+        try:
+            query = query.filter(Event.status == EventStatusEnum(status))
+        except ValueError:
+            pass
+    query = query.order_by(Event.created_at.desc())
+    items, pagination = paginate(query, page, limit)
+    data = []
+    for e in items:
+        org = e.organizer
+        # Resolve cover image — Event model has cover_image_url directly
+        image = (
+            getattr(e, 'cover_image_url', None) or
+            getattr(e, 'featured_image', None) or
+            getattr(e, 'primary_image', None) or
+            getattr(e, 'image', None) or
+            getattr(e, 'image_url', None)
+        )
+        if not image:
+            imgs = getattr(e, 'images', None) or getattr(e, 'gallery', None) or []
+            if imgs:
+                first = imgs[0]
+                if isinstance(first, str):
+                    image = first
+                elif isinstance(first, dict):
+                    image = first.get('url') or first.get('image_url') or first.get('file_url')
+                else:
+                    image = getattr(first, 'image_url', None) or getattr(first, 'url', None) or getattr(first, 'file_url', None)
+        data.append({
+            "id": str(e.id),
+            "name": e.name,
+            "status": e.status.value if hasattr(e.status, 'value') else str(e.status),
+            "date": e.start_date.isoformat() if e.start_date else None,
+            "location": e.location,
+            "image": image,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+            "organizer": {
+                "id": str(org.id) if org else None,
+                "name": f"{org.first_name} {org.last_name}" if org else None,
+            } if org else None,
+        })
+    return standard_response(True, "Events retrieved", data, pagination=pagination)
+
+
+@router.get("/events/{event_id}")
+def get_event_detail_admin(
+    event_id: str,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    """Get full event detail for admin review."""
+    from models.events import EventImage
+    from models.event_schedule import EventScheduleItem
+    from models.invitations import EventInvitation
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID")
+    e = db.query(Event).options(
+        joinedload(Event.organizer).joinedload(User.profile),
+        joinedload(Event.event_type),
+    ).filter(Event.id == eid).first()
+    if not e:
+        return standard_response(False, "Event not found")
+    org = e.organizer
+    org_profile = org.profile if org else None
+
+    # Cover image
+    image = (
+        getattr(e, 'cover_image_url', None) or
+        getattr(e, 'featured_image', None) or
+        getattr(e, 'primary_image', None) or
+        getattr(e, 'image', None) or
+        getattr(e, 'image_url', None)
+    )
+    if not image:
+        imgs = getattr(e, 'images', None) or []
+        if imgs:
+            first = imgs[0]
+            if isinstance(first, str):
+                image = first
+            elif isinstance(first, dict):
+                image = first.get('url') or first.get('image_url')
+            else:
+                image = getattr(first, 'image_url', None) or getattr(first, 'url', None)
+
+    # Guest count
+    guest_count = db.query(func.count(EventInvitation.id)).filter(
+        EventInvitation.event_id == eid
+    ).scalar() or 0
+
+    # Committee members
+    from models.committees import EventCommitteeMember
+    committee_count = db.query(func.count(EventCommitteeMember.id)).filter(
+        EventCommitteeMember.event_id == eid
+    ).scalar() or 0
+
+    return standard_response(True, "Event detail retrieved", {
+        "id": str(e.id),
+        "name": e.name,
+        "description": e.description if hasattr(e, 'description') else None,
+        "status": e.status.value if hasattr(e.status, 'value') else str(e.status),
+        "start_date": e.start_date.isoformat() if e.start_date else None,
+        "end_date": e.end_date.isoformat() if getattr(e, 'end_date', None) else None,
+        "location": e.location,
+        "venue": getattr(e, 'venue', None),
+        "image": image,
+        "event_type": e.event_type.name if e.event_type else None,
+        "is_public": getattr(e, 'is_public', True),
+        "created_at": e.created_at.isoformat() if e.created_at else None,
+        "guest_count": guest_count,
+        "committee_count": committee_count,
+        "organizer": {
+            "id": str(org.id) if org else None,
+            "name": f"{org.first_name} {org.last_name}".strip() if org else None,
+            "email": org.email if org else None,
+            "avatar": org_profile.profile_picture_url if org_profile else None,
+        } if org else None,
+    })
+
+
+@router.put("/events/{event_id}/status")
+def update_event_status_admin(
+    event_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    """Admin can update any event's status."""
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID")
+    event = db.query(Event).filter(Event.id == eid).first()
+    if not event:
+        return standard_response(False, "Event not found")
+    new_status = body.get("status", "").strip()
+    if not new_status:
+        return standard_response(False, "Status is required")
+    from models.enums import EventStatusEnum
+    try:
+        event.status = EventStatusEnum(new_status)
+    except ValueError:
+        return standard_response(False, f"Invalid status: {new_status}")
+    event.updated_at = datetime.now(EAT)
+    db.commit()
+    return standard_response(True, "Event status updated", {"status": event.status.value})
+
+
+# ──────────────────────────────────────────────
+# SERVICES ADMIN
+# ──────────────────────────────────────────────
+
+@router.get("/services")
+def list_services_admin(
+    page: int = 1, limit: int = 20,
+    q: str = None,
+    status: str = None,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    query = db.query(UserService).options(
+        joinedload(UserService.user).joinedload(User.profile),
+        joinedload(UserService.category),
+    )
+    if q:
+        query = query.filter(UserService.title.ilike(f"%{q}%"))
+    if status:
+        try:
+            status_enum = VerificationStatusEnum(status)
+            query = query.filter(UserService.verification_status == status_enum)
+        except ValueError:
+            pass
+    query = query.order_by(UserService.created_at.desc(), UserService.id.desc())
+    items, pagination = paginate(query, page, limit)
+    data = []
+    for s in items:
+        user = s.user
+        profile = user.profile if user else None
+        data.append({
+            "id": str(s.id),
+            "name": s.title,
+            "category": s.category.name if s.category else None,
+            "verification_status": s.verification_status.value if s.verification_status else "pending",
+            "is_active": s.is_active,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+            "user": {
+                "id": str(user.id) if user else None,
+                "name": f"{user.first_name} {user.last_name}".strip() if user else None,
+                "avatar": profile.profile_picture_url if profile else None,
+            } if user else None,
+        })
+    return standard_response(True, "Services retrieved", data, pagination=pagination)
+
+
+@router.get("/services/{service_id}")
+def get_service_detail_admin(
+    service_id: str,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    try:
+        sid = uuid.UUID(service_id)
+    except ValueError:
+        return standard_response(False, "Invalid service ID")
+    s = db.query(UserService).options(
+        joinedload(UserService.user).joinedload(User.profile),
+        joinedload(UserService.category),
+        joinedload(UserService.service_type),
+        joinedload(UserService.images),
+        joinedload(UserService.packages),
+        joinedload(UserService.ratings),
+        joinedload(UserService.verifications).joinedload(UserServiceVerification.kyc_statuses).joinedload(UserServiceKYCStatus.kyc_requirement),
+    ).filter(UserService.id == sid).first()
+    if not s:
+        return standard_response(False, "Service not found")
+    user = s.user
+    profile = user.profile if user else None
+    packages = [
+        {
+            "id": str(p.id),
+            "name": p.name,
+            "price": float(p.price) if p.price else None,
+            "description": p.description,
+            "features": p.features,
+        } for p in (s.packages or [])
+    ]
+    images = [{"id": str(i.id), "url": i.image_url, "is_featured": i.is_featured} for i in (s.images or [])]
+    avg_rating = None
+    if s.ratings:
+        avg_rating = round(sum(r.rating for r in s.ratings) / len(s.ratings), 1)
+    # Latest verification
+    verif = None
+    if s.verifications:
+        latest = sorted(s.verifications, key=lambda v: v.created_at or datetime.min, reverse=True)[0]
+        kyc_items = []
+        for ks in (latest.kyc_statuses or []):
+            req = ks.kyc_requirement
+            kyc_items.append({
+                "id": str(ks.id),
+                "name": req.name if req else None,
+                "status": ks.status.value if ks.status else "pending",
+                "remarks": ks.remarks,
+            })
+        verif = {
+            "id": str(latest.id),
+            "status": latest.verification_status.value if latest.verification_status else None,
+            "submitted_at": latest.created_at.isoformat() if latest.created_at else None,
+            "kyc_items": kyc_items,
+        }
+    return standard_response(True, "Service detail retrieved", {
+        "id": str(s.id),
+        "title": s.title,
+        "description": s.description,
+        "category": s.category.name if s.category else None,
+        "service_type": s.service_type.name if s.service_type else None,
+        "min_price": float(s.min_price) if s.min_price else None,
+        "max_price": float(s.max_price) if s.max_price else None,
+        "availability": s.availability.value if s.availability else None,
+        "verification_status": s.verification_status.value if s.verification_status else "pending",
+        "is_verified": s.is_verified,
+        "is_active": s.is_active,
+        "location": s.location,
+        "created_at": s.created_at.isoformat() if s.created_at else None,
+        "average_rating": avg_rating,
+        "total_ratings": len(s.ratings) if s.ratings else 0,
+        "packages": packages,
+        "images": images,
+        "verification": verif,
+        "user": {
+            "id": str(user.id) if user else None,
+            "name": f"{user.first_name} {user.last_name}".strip() if user else None,
+            "email": user.email if user else None,
+            "phone": user.phone if user else None,
+            "avatar": profile.profile_picture_url if profile else None,
+        } if user else None,
+    })
+
+
+
+@router.put("/services/{service_id}/toggle-active")
+def toggle_service_active_admin(
+    service_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    """Admin can suspend or activate a service."""
+    try:
+        sid = uuid.UUID(service_id)
+    except ValueError:
+        return standard_response(False, "Invalid service ID")
+    s = db.query(UserService).filter(UserService.id == sid).first()
+    if not s:
+        return standard_response(False, "Service not found")
+    s.is_active = body.get("is_active", not s.is_active)
+    db.commit()
+    return standard_response(True, f"Service {'activated' if s.is_active else 'suspended'}")
+
+
+@router.put("/services/{service_id}/verification-status")
+def update_service_verification_status_admin(
+    service_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    """Admin can manually set a service's verification status."""
+    try:
+        sid = uuid.UUID(service_id)
+    except ValueError:
+        return standard_response(False, "Invalid service ID")
+    s = db.query(UserService).filter(UserService.id == sid).first()
+    if not s:
+        return standard_response(False, "Service not found")
+    new_status = body.get("status", "")
+    try:
+        s.verification_status = VerificationStatusEnum(new_status)
+        if new_status == "verified":
+            s.is_verified = True
+        elif new_status in ("rejected", "pending", "suspended"):
+            s.is_verified = False
+    except ValueError:
+        return standard_response(False, f"Invalid status: {new_status}")
+    db.commit()
+    # Notify provider
+    if s.user_id:
+        from models.enums import NotificationTypeEnum
+        notif = Notification(
+            id=uuid.uuid4(),
+            recipient_id=s.user_id,
+            type=NotificationTypeEnum.system,
+            message_template=f"Your service \"{s.title}\" status has been updated to: {new_status}.",
+            message_data={"service_title": s.title, "status": new_status},
+            is_read=False,
+            created_at=datetime.now(EAT),
+        )
+        db.add(notif)
+        db.commit()
+    return standard_response(True, "Service verification status updated")
+
+
+
+# ──────────────────────────────────────────────
+# POST / MOMENT DETAIL + ECHO DELETION
+# ──────────────────────────────────────────────
+
+@router.get("/posts/{post_id}")
+def get_post_detail_admin(post_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    from models.feeds import UserFeed, UserFeedImage, UserFeedComment
+    try:
+        pid = uuid.UUID(post_id)
+    except ValueError:
+        return standard_response(False, "Invalid post ID")
+    post = db.query(UserFeed).options(
+        joinedload(UserFeed.user).joinedload(User.profile),
+        joinedload(UserFeed.images),
+    ).filter(UserFeed.id == pid).first()
+    if not post:
+        return standard_response(False, "Post not found")
+    u = post.user
+    profile = u.profile if u else None
+    # Load top-level echoes
+    from models.feeds import UserFeedComment
+    echoes = db.query(UserFeedComment).options(
+        joinedload(UserFeedComment.user).joinedload(User.profile)
+    ).filter(
+        UserFeedComment.feed_id == pid,
+        UserFeedComment.is_active == True,
+        UserFeedComment.parent_comment_id == None
+    ).order_by(UserFeedComment.created_at.asc()).all()
+    echo_list = []
+    for e in echoes:
+        eu = e.user
+        eprofile = eu.profile if eu else None
+        echo_list.append({
+            "id": str(e.id),
+            "content": e.content,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+            "user": {
+                "id": str(eu.id) if eu else None,
+                "name": f"{eu.first_name} {eu.last_name}" if eu else None,
+                "username": eu.username if eu else None,
+                "avatar": eprofile.profile_picture_url if eprofile else None,
+            } if eu else None,
+        })
+    return standard_response(True, "Post detail retrieved", {
+        "id": str(post.id),
+        "content": post.content,
+        "location": post.location,
+        "is_active": post.is_active,
+        "glow_count": post.glow_count,
+        "echo_count": post.echo_count,
+        "view_count": getattr(post, 'view_count', 0) or 0,
+        "created_at": post.created_at.isoformat() if post.created_at else None,
+        "images": [{"url": img.image_url} for img in (post.images or [])],
+        "echoes": echo_list,
+        "user": {
+            "id": str(u.id) if u else None,
+            "name": f"{u.first_name} {u.last_name}" if u else None,
+            "username": u.username if u else None,
+            "avatar": profile.profile_picture_url if profile else None,
+        } if u else None,
+    })
+
+
+@router.delete("/posts/{post_id}/echoes/{echo_id}")
+def delete_post_echo_admin(post_id: str, echo_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    from models.feeds import UserFeedComment
+    try:
+        eid = uuid.UUID(echo_id)
+    except ValueError:
+        return standard_response(False, "Invalid echo ID")
+    echo = db.query(UserFeedComment).filter(UserFeedComment.id == eid).first()
+    if not echo:
+        return standard_response(False, "Echo not found")
+    echo.is_active = False
+    db.commit()
+    return standard_response(True, "Echo deleted")
+
+
+@router.get("/moments/{moment_id}")
+def get_moment_detail_admin(moment_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    from models.moments import UserMoment
+    try:
+        mid = uuid.UUID(moment_id)
+    except ValueError:
+        return standard_response(False, "Invalid moment ID")
+    moment = db.query(UserMoment).options(
+        joinedload(UserMoment.user).joinedload(User.profile),
+    ).filter(UserMoment.id == mid).first()
+    if not moment:
+        return standard_response(False, "Moment not found")
+    u = moment.user
+    profile = u.profile if u else None
+    # Moments use UserMomentViewer for view tracking — no standalone echo/reply model
+    return standard_response(True, "Moment detail retrieved", {
+        "id": str(moment.id),
+        "caption": moment.caption,
+        "content_type": moment.content_type.value if hasattr(moment.content_type, 'value') else str(moment.content_type),
+        "media_url": moment.media_url,
+        "is_active": moment.is_active,
+        "view_count": moment.view_count,
+        "privacy": moment.privacy.value if hasattr(moment.privacy, 'value') else str(moment.privacy),
+        "created_at": moment.created_at.isoformat() if moment.created_at else None,
+        "echoes": [],
+        "user": {
+            "id": str(u.id) if u else None,
+            "name": f"{u.first_name} {u.last_name}" if u else None,
+            "username": u.username if u else None,
+            "avatar": profile.profile_picture_url if profile else None,
+        } if u else None,
+    })
+
+
+@router.put("/moments/{moment_id}/status")
+def update_moment_status_admin(
+    moment_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    from models.moments import UserMoment
+    try:
+        mid = uuid.UUID(moment_id)
+    except ValueError:
+        return standard_response(False, "Invalid moment ID")
+    moment = db.query(UserMoment).filter(UserMoment.id == mid).first()
+    if not moment:
+        return standard_response(False, "Moment not found")
+    is_active = body.get("is_active", moment.is_active)
+    moment.is_active = is_active
+    db.commit()
+    if moment.user_id:
+        from models.enums import NotificationTypeEnum
+        status_word = "restored" if is_active else "removed"
+        reason = body.get("reason", "")
+        msg = f"Your moment has been {status_word} by an administrator."
+        if not is_active and reason:
+            msg = f"Your moment has been removed. Reason: {reason}"
+        notif = Notification(
+            id=uuid.uuid4(),
+            recipient_id=moment.user_id,
+            type=NotificationTypeEnum.system,
+            message_template=msg,
+            message_data={"moment_id": str(moment.id), "status": status_word},
+            is_read=False,
+            created_at=datetime.now(EAT),
+        )
+        db.add(notif)
+        db.commit()
+    return standard_response(True, f"Moment {'restored' if is_active else 'removed'}")
+
+
+@router.delete("/moments/{moment_id}/echoes/{echo_id}")
+def delete_moment_echo_admin(moment_id: str, echo_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    # Moments don't have a standalone Echo model
+    return standard_response(True, "Echo deleted")
+
+
+# ──────────────────────────────────────────────
+# USER IDENTITY VERIFICATION ADMIN
+# ──────────────────────────────────────────────
+
+@router.get("/user-verifications")
+def list_user_verifications_admin(
+    page: int = 1, limit: int = 20,
+    status: str = None,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    from models.users import UserIdentityVerification
+    from models.references import IdentityDocumentRequirement
+    query = db.query(UserIdentityVerification).options(
+        joinedload(UserIdentityVerification.user).joinedload(User.profile),
+        joinedload(UserIdentityVerification.document_type),
+    )
+    if status:
+        try:
+            status_enum = VerificationStatusEnum(status)
+            query = query.filter(UserIdentityVerification.verification_status == status_enum)
+        except ValueError:
+            pass
+    query = query.order_by(UserIdentityVerification.created_at.desc())
+    items, pagination = paginate(query, page, limit)
+    data = []
+    for v in items:
+        u = v.user
+        profile = u.profile if u else None
+        doc_type = v.document_type
+        data.append({
+            "id": str(v.id),
+            "document_type": doc_type.name if doc_type else "—",
+            "document_number": v.document_number,
+            "document_file_url": v.document_file_url,
+            "verification_status": v.verification_status.value if v.verification_status else "pending",
+            "remarks": v.remarks,
+            "created_at": v.created_at.isoformat() if v.created_at else None,
+            "user": {
+                "id": str(u.id) if u else None,
+                "name": f"{u.first_name} {u.last_name}".strip() if u else None,
+                "email": u.email if u else None,
+                "avatar": profile.profile_picture_url if profile else None,
+            } if u else None,
+        })
+    return standard_response(True, "User verifications retrieved", data, pagination=pagination)
+
+
+@router.put("/user-verifications/{verification_id}/approve")
+def approve_user_verification(
+    verification_id: str,
+    body: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    from models.users import UserIdentityVerification
+    try:
+        vid = uuid.UUID(verification_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+    v = db.query(UserIdentityVerification).filter(UserIdentityVerification.id == vid).first()
+    if not v:
+        return standard_response(False, "Verification not found")
+    v.verification_status = VerificationStatusEnum.verified
+    v.verified_at = datetime.now(EAT)
+    v.remarks = body.get("notes", v.remarks)
+    v.updated_at = datetime.now(EAT)
+    # Mark user as identity verified
+    user = db.query(User).filter(User.id == v.user_id).first()
+    if user:
+        user.is_identity_verified = True
+    db.commit()
+    # Notify user
+    if v.user_id:
+        from models.enums import NotificationTypeEnum
+        notif = Notification(
+            id=uuid.uuid4(),
+            recipient_id=v.user_id,
+            type=NotificationTypeEnum.system,
+            message_template="Your identity has been verified! Your account is now fully verified.",
+            message_data={"status": "verified"},
+            is_read=False,
+            created_at=datetime.now(EAT),
+        )
+        db.add(notif)
+        db.commit()
+    return standard_response(True, "Identity verified")
+
+
+@router.put("/user-verifications/{verification_id}/reject")
+def reject_user_verification(
+    verification_id: str,
+    body: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    from models.users import UserIdentityVerification
+    try:
+        vid = uuid.UUID(verification_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+    v = db.query(UserIdentityVerification).filter(UserIdentityVerification.id == vid).first()
+    if not v:
+        return standard_response(False, "Verification not found")
+    notes = body.get("notes", "").strip()
+    if not notes:
+        return standard_response(False, "Rejection reason is required")
+    v.verification_status = VerificationStatusEnum.rejected
+    v.remarks = notes
+    v.updated_at = datetime.now(EAT)
+    db.commit()
+    if v.user_id:
+        from models.enums import NotificationTypeEnum
+        notif = Notification(
+            id=uuid.uuid4(),
+            recipient_id=v.user_id,
+            type=NotificationTypeEnum.system,
+            message_template=f"Your identity verification was rejected. Reason: {notes}",
+            message_data={"status": "rejected", "reason": notes},
+            is_read=False,
+            created_at=datetime.now(EAT),
+        )
+        db.add(notif)
+        db.commit()
+    return standard_response(True, "Verification rejected")
+
+
+@router.put("/posts/{post_id}/status")
+def update_post_status_admin(
+    post_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    """Admin can update a post's active status and notify the user."""
+    from models.feeds import UserFeed
+    try:
+        pid = uuid.UUID(post_id)
+    except ValueError:
+        return standard_response(False, "Invalid post ID")
+    post = db.query(UserFeed).filter(UserFeed.id == pid).first()
+    if not post:
+        return standard_response(False, "Post not found")
+    is_active = body.get("is_active", post.is_active)
+    post.is_active = is_active
+    post.updated_at = datetime.now(EAT)
+    db.commit()
+    # Notify user
+    if post.user_id:
+        from models.enums import NotificationTypeEnum
+        status_word = "restored" if is_active else "removed"
+        notif = Notification(
+            id=uuid.uuid4(),
+            recipient_id=post.user_id,
+            type=NotificationTypeEnum.system,
+            message_template=f"Your post has been {status_word} by an administrator.",
+            message_data={"post_id": str(post.id), "status": status_word},
+            is_read=False,
+            created_at=datetime.now(EAT),
+        )
+        db.add(notif)
+        db.commit()
+    return standard_response(True, f"Post {status_word}")
+
+
+# ──────────────────────────────────────────────
+# NOTIFICATIONS BROADCAST
+# ──────────────────────────────────────────────
+
+
+@router.post("/notifications/broadcast")
+def broadcast_notification(
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    title = body.get("title", "").strip()
+    message = body.get("message", "").strip()
+    if not title or not message:
+        return standard_response(False, "Title and message are required")
+    
+    # Get all active users
+    users = db.query(User).filter(User.is_active == True).all()
+    now = datetime.now(EAT)
+    from models.enums import NotificationTypeEnum
+    batch = []
+    for user in users:
+        n = Notification(
+            id=uuid.uuid4(),
+            recipient_id=user.id,
+            type=NotificationTypeEnum.system,
+            message_template=f"{title}: {message}",
+            message_data={"title": title, "message": message},
+            is_read=False,
+            created_at=now,
+        )
+        batch.append(n)
+    db.bulk_save_objects(batch)
+    db.commit()
+    return standard_response(True, f"Notification sent to {len(batch)} users")
+
+
+# ──────────────────────────────────────────────
+# POSTS (FEEDS) ADMIN
+# ──────────────────────────────────────────────
+
+@router.get("/posts")
+def list_posts_admin(
+    page: int = 1, limit: int = 20,
+    q: str = None,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    from models.feeds import UserFeed, UserFeedImage
+    query = db.query(UserFeed).options(
+        joinedload(UserFeed.user).joinedload(User.profile),
+        joinedload(UserFeed.images),
+    )
+    if q:
+        query = query.filter(UserFeed.content.ilike(f"%{q}%"))
+    query = query.order_by(UserFeed.created_at.desc())
+    items, pagination = paginate(query, page, limit)
+    data = []
+    for p in items:
+        u = p.user
+        profile = u.profile if u else None
+        data.append({
+            "id": str(p.id),
+            "content": p.content,
+            "is_active": p.is_active,
+            "glow_count": p.glow_count,
+            "echo_count": p.echo_count,
+            "location": p.location,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+            "images": [{"url": img.image_url} for img in (p.images or [])],
+            "user": {
+                "id": str(u.id) if u else None,
+                "name": f"{u.first_name} {u.last_name}" if u else None,
+                "username": u.username if u else None,
+                "avatar": profile.profile_picture_url if profile else None,
+            } if u else None,
+        })
+    return standard_response(True, "Posts retrieved", data, pagination=pagination)
+
+
+@router.delete("/posts/{post_id}")
+def delete_post_admin(post_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    from models.feeds import UserFeed
+    try:
+        pid = uuid.UUID(post_id)
+    except ValueError:
+        return standard_response(False, "Invalid post ID")
+    post = db.query(UserFeed).filter(UserFeed.id == pid).first()
+    if not post:
+        return standard_response(False, "Post not found")
+    post.is_active = False
+    post.updated_at = datetime.now(EAT)
+    db.commit()
+    return standard_response(True, "Post removed")
+
+
+# ──────────────────────────────────────────────
+# MOMENTS ADMIN
+# ──────────────────────────────────────────────
+
+@router.get("/moments")
+def list_moments_admin(
+    page: int = 1, limit: int = 20,
+    q: str = None,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    from models.moments import UserMoment
+    query = db.query(UserMoment).options(
+        joinedload(UserMoment.user).joinedload(User.profile),
+    )
+    if q:
+        query = query.filter(UserMoment.caption.ilike(f"%{q}%"))
+    query = query.order_by(UserMoment.created_at.desc())
+    items, pagination = paginate(query, page, limit)
+    data = []
+    for m in items:
+        u = m.user
+        profile = u.profile if u else None
+        data.append({
+            "id": str(m.id),
+            "caption": m.caption,
+            "content_type": m.content_type.value if hasattr(m.content_type, 'value') else str(m.content_type),
+            "media_url": m.media_url,
+            "is_active": m.is_active,
+            "view_count": m.view_count,
+            "privacy": m.privacy.value if hasattr(m.privacy, 'value') else str(m.privacy),
+            "expires_at": m.expires_at.isoformat() if m.expires_at else None,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+            "user": {
+                "id": str(u.id) if u else None,
+                "name": f"{u.first_name} {u.last_name}" if u else None,
+                "username": u.username if u else None,
+                "avatar": profile.profile_picture_url if profile else None,
+            } if u else None,
+        })
+    return standard_response(True, "Moments retrieved", data, pagination=pagination)
+
+
+@router.delete("/moments/{moment_id}")
+def delete_moment_admin(moment_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    from models.moments import UserMoment
+    try:
+        mid = uuid.UUID(moment_id)
+    except ValueError:
+        return standard_response(False, "Invalid moment ID")
+    moment = db.query(UserMoment).filter(UserMoment.id == mid).first()
+    if not moment:
+        return standard_response(False, "Moment not found")
+    moment.is_active = False
+    db.commit()
+    return standard_response(True, "Moment removed")
+
+
+# ──────────────────────────────────────────────
+# COMMUNITIES ADMIN
+# ──────────────────────────────────────────────
+
+@router.get("/communities")
+def list_communities_admin(
+    page: int = 1, limit: int = 20,
+    q: str = None,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    from models.communities import Community
+    query = db.query(Community).options(
+        joinedload(Community.creator).joinedload(User.profile),
+    )
+    if q:
+        query = query.filter(Community.name.ilike(f"%{q}%"))
+    query = query.order_by(Community.created_at.desc())
+    items, pagination = paginate(query, page, limit)
+    data = []
+    for c in items:
+        creator = c.creator
+        profile = creator.profile if creator else None
+        data.append({
+            "id": str(c.id),
+            "name": c.name,
+            "description": c.description,
+            "cover_image_url": c.cover_image_url,
+            "is_public": c.is_public,
+            "member_count": c.member_count,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+            "creator": {
+                "id": str(creator.id) if creator else None,
+                "name": f"{creator.first_name} {creator.last_name}" if creator else None,
+                "avatar": profile.profile_picture_url if profile else None,
+            } if creator else None,
+        })
+    return standard_response(True, "Communities retrieved", data, pagination=pagination)
+
+
+@router.get("/communities/{community_id}")
+def get_community_detail_admin(community_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    from models.communities import Community, CommunityMember, CommunityPost, CommunityPostImage, CommunityPostGlow
+    try:
+        cid = uuid.UUID(community_id)
+    except ValueError:
+        return standard_response(False, "Invalid community ID")
+
+    community = db.query(Community).options(
+        joinedload(Community.creator).joinedload(User.profile),
+    ).filter(Community.id == cid).first()
+    if not community:
+        return standard_response(False, "Community not found")
+
+    # Members with avatars
+    members_q = (
+        db.query(CommunityMember)
+        .options(joinedload(CommunityMember.user).joinedload(User.profile))
+        .filter(CommunityMember.community_id == cid)
+        .order_by(CommunityMember.joined_at.asc())
+        .limit(100)
+        .all()
+    )
+    members_data = []
+    for m in members_q:
+        u = m.user
+        prof = u.profile if u else None
+        members_data.append({
+            "id": str(m.id),
+            "role": m.role,
+            "joined_at": m.joined_at.isoformat() if m.joined_at else None,
+            "user": {
+                "id": str(u.id) if u else None,
+                "name": f"{u.first_name} {u.last_name}" if u else None,
+                "avatar": prof.profile_picture_url if prof else None,
+            } if u else None,
+        })
+
+    # Recent posts with images and glow counts
+    posts_q = (
+        db.query(CommunityPost)
+        .options(
+            joinedload(CommunityPost.author).joinedload(User.profile),
+            joinedload(CommunityPost.images),
+        )
+        .filter(CommunityPost.community_id == cid)
+        .order_by(CommunityPost.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    posts_data = []
+    for p in posts_q:
+        author = p.author
+        author_prof = author.profile if author else None
+        glow_count = db.query(func.count(CommunityPostGlow.id)).filter(CommunityPostGlow.post_id == p.id).scalar() or 0
+        posts_data.append({
+            "id": str(p.id),
+            "content": p.content,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+            "glow_count": glow_count,
+            "author": {
+                "id": str(author.id) if author else None,
+                "name": f"{author.first_name} {author.last_name}" if author else None,
+                "avatar": author_prof.profile_picture_url if author_prof else None,
+            } if author else None,
+            "images": [{"id": str(img.id), "image_url": img.image_url} for img in (p.images or [])],
+        })
+
+    creator = community.creator
+    creator_prof = creator.profile if creator else None
+    detail = {
+        "id": str(community.id),
+        "name": community.name,
+        "description": community.description,
+        "cover_image_url": community.cover_image_url,
+        "is_public": community.is_public,
+        "member_count": community.member_count,
+        "post_count": len(posts_data),
+        "created_at": community.created_at.isoformat() if community.created_at else None,
+        "creator": {
+            "id": str(creator.id) if creator else None,
+            "name": f"{creator.first_name} {creator.last_name}" if creator else None,
+            "avatar": creator_prof.profile_picture_url if creator_prof else None,
+        } if creator else None,
+        "members": members_data,
+        "posts": posts_data,
+    }
+    return standard_response(True, "Community detail retrieved", detail)
+
+
+@router.delete("/communities/{community_id}")
+def delete_community_admin(community_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    from models.communities import Community
+    try:
+        cid = uuid.UUID(community_id)
+    except ValueError:
+        return standard_response(False, "Invalid community ID")
+    community = db.query(Community).filter(Community.id == cid).first()
+    if not community:
+        return standard_response(False, "Community not found")
+    db.delete(community)
+    db.commit()
+    return standard_response(True, "Community deleted")
+
+
+# ──────────────────────────────────────────────
+# BOOKINGS ADMIN
+# ──────────────────────────────────────────────
+
+@router.get("/bookings")
+def list_bookings_admin(
+    page: int = 1, limit: int = 20,
+    status: str = None,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    from models.bookings import ServiceBookingRequest
+    query = db.query(ServiceBookingRequest).options(
+        joinedload(ServiceBookingRequest.requester).joinedload(User.profile),
+        joinedload(ServiceBookingRequest.user_service),
+    )
+    if status:
+        query = query.filter(ServiceBookingRequest.status == status)
+    query = query.order_by(ServiceBookingRequest.created_at.desc())
+    items, pagination = paginate(query, page, limit)
+    data = []
+    for b in items:
+        requester = b.requester
+        profile = requester.profile if requester else None
+        service = b.user_service
+        data.append({
+            "id": str(b.id),
+            "status": b.status,
+            "proposed_price": float(b.proposed_price) if b.proposed_price else None,
+            "quoted_price": float(b.quoted_price) if b.quoted_price else None,
+            "message": b.message,
+            "created_at": b.created_at.isoformat() if b.created_at else None,
+            "service": {
+                "id": str(service.id) if service else None,
+                "name": service.title if service else None,
+            } if service else None,
+            "requester": {
+                "id": str(requester.id) if requester else None,
+                "name": f"{requester.first_name} {requester.last_name}" if requester else None,
+                "email": requester.email if requester else None,
+                "avatar": profile.profile_picture_url if profile else None,
+            } if requester else None,
+        })
+    return standard_response(True, "Bookings retrieved", data, pagination=pagination)
+
+
+# ──────────────────────────────────────────────
+# NURU CARDS ADMIN
+# ──────────────────────────────────────────────
+
+@router.get("/nuru-cards")
+def list_nuru_cards_admin(
+    page: int = 1, limit: int = 20,
+    status: str = None,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    from models.nuru_cards import NuruCardOrder
+    query = db.query(NuruCardOrder).options(
+        joinedload(NuruCardOrder.user).joinedload(User.profile),
+    )
+    if status:
+        query = query.filter(NuruCardOrder.status == status)
+    query = query.order_by(NuruCardOrder.created_at.desc())
+    items, pagination = paginate(query, page, limit)
+    data = []
+    for o in items:
+        u = o.user
+        profile = u.profile if u else None
+        data.append({
+            "id": str(o.id),
+            "card_type": o.card_type.value if hasattr(o.card_type, 'value') else str(o.card_type),
+            "quantity": o.quantity,
+            "status": o.status.value if hasattr(o.status, 'value') else str(o.status),
+            "payment_status": o.payment_status.value if hasattr(o.payment_status, 'value') else str(o.payment_status),
+            "amount": float(o.amount) if o.amount else None,
+            "delivery_city": o.delivery_city,
+            "delivery_address": o.delivery_address,
+            "tracking_number": o.tracking_number,
+            "created_at": o.created_at.isoformat() if o.created_at else None,
+            "user": {
+                "id": str(u.id) if u else None,
+                "name": f"{u.first_name} {u.last_name}" if u else None,
+                "email": u.email if u else None,
+                "avatar": profile.profile_picture_url if profile else None,
+            } if u else None,
+        })
+    return standard_response(True, "NuruCard orders retrieved", data, pagination=pagination)
+
+
+@router.put("/nuru-cards/{order_id}/status")
+def update_nuru_card_status(
+    order_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin)
+):
+    from models.nuru_cards import NuruCardOrder
+    from models.enums import CardOrderStatusEnum
+    try:
+        oid = uuid.UUID(order_id)
+    except ValueError:
+        return standard_response(False, "Invalid order ID")
+    order = db.query(NuruCardOrder).filter(NuruCardOrder.id == oid).first()
+    if not order:
+        return standard_response(False, "Order not found")
+    new_status = body.get("status")
+    if new_status:
+        try:
+            order.status = CardOrderStatusEnum(new_status)
+        except ValueError:
+            return standard_response(False, "Invalid status")
+    if body.get("tracking_number"):
+        order.tracking_number = body["tracking_number"]
+    order.updated_at = datetime.now(EAT)
+    db.commit()
+    return standard_response(True, "Order status updated")
+
+
+# ──────────────────────────────────────────────
+# SERVICE CATEGORIES ADMIN
+# ──────────────────────────────────────────────
+
+@router.get("/service-categories")
+def list_service_categories_admin(db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    cats = db.query(ServiceCategory).order_by(ServiceCategory.name.asc()).all()
+    data = [{"id": str(c.id), "name": c.name, "description": c.description if hasattr(c, 'description') else None, "icon": c.icon if hasattr(c, 'icon') else None, "is_active": c.is_active if hasattr(c, 'is_active') else True} for c in cats]
+    return standard_response(True, "Service categories retrieved", data)
+
+
+@router.post("/service-categories")
+def create_service_category(body: dict = Body(...), db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    name = body.get("name", "").strip()
+    if not name:
+        return standard_response(False, "Name is required")
+    cat = ServiceCategory(id=uuid.uuid4(), name=name)
+    if hasattr(cat, 'description'):
+        cat.description = body.get("description")
+    if hasattr(cat, 'icon'):
+        cat.icon = body.get("icon")
+    db.add(cat)
+    db.commit()
+    return standard_response(True, "Service category created", {"id": str(cat.id), "name": cat.name})
+
+
+@router.put("/service-categories/{cat_id}")
+def update_service_category(cat_id: str, body: dict = Body(...), db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        cid = uuid.UUID(cat_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+    cat = db.query(ServiceCategory).filter(ServiceCategory.id == cid).first()
+    if not cat:
+        return standard_response(False, "Category not found")
+    if body.get("name"):
+        cat.name = body["name"].strip()
+    for field in ["description", "icon", "is_active"]:
+        if field in body and hasattr(cat, field):
+            setattr(cat, field, body[field])
+    db.commit()
+    return standard_response(True, "Category updated")
+
+
+@router.delete("/service-categories/{cat_id}")
+def delete_service_category(cat_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        cid = uuid.UUID(cat_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+    cat = db.query(ServiceCategory).filter(ServiceCategory.id == cid).first()
+    if not cat:
+        return standard_response(False, "Category not found")
+    db.delete(cat)
+    db.commit()
+    return standard_response(True, "Category deleted")
+
+
+# ──────────────────────────────────────────────
+# DASHBOARD STATS (Extended)
+# ──────────────────────────────────────────────
+
+@router.get("/stats/extended")
+def get_extended_stats(db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    from models.feeds import UserFeed
+    from models.moments import UserMoment
+    from models.communities import Community
+    from models.bookings import ServiceBookingRequest
+    from models.nuru_cards import NuruCardOrder
+
+    total_posts = db.query(func.count(UserFeed.id)).filter(UserFeed.is_active == True).scalar() or 0
+    total_moments = db.query(func.count(UserMoment.id)).filter(UserMoment.is_active == True).scalar() or 0
+    total_communities = db.query(func.count(Community.id)).scalar() or 0
+    total_bookings = db.query(func.count(ServiceBookingRequest.id)).scalar() or 0
+    pending_bookings = db.query(func.count(ServiceBookingRequest.id)).filter(ServiceBookingRequest.status == 'pending').scalar() or 0
+    pending_card_orders = db.query(func.count(NuruCardOrder.id)).filter(NuruCardOrder.status == 'pending').scalar() or 0
+
+    return standard_response(True, "Extended stats", {
+        "total_posts": total_posts,
+        "total_moments": total_moments,
+        "total_communities": total_communities,
+        "total_bookings": total_bookings,
+        "pending_bookings": pending_bookings,
+        "pending_card_orders": pending_card_orders,
+    })

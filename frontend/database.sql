@@ -28,6 +28,46 @@ CREATE TYPE chat_session_status AS ENUM ('waiting', 'active', 'ended', 'abandone
 CREATE TYPE card_type_enum AS ENUM ('standard', 'premium', 'vip');
 CREATE TYPE card_order_status_enum AS ENUM ('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled');
 
+-- RBAC: app_role enum and user_roles table
+CREATE TYPE public.app_role AS ENUM ('admin', 'moderator', 'support');
+
+CREATE TABLE public.user_roles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    role public.app_role NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    UNIQUE (user_id, role)
+);
+
+ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own roles"
+ON public.user_roles
+FOR SELECT
+TO authenticated
+USING (auth.uid() = user_id);
+
+CREATE OR REPLACE FUNCTION public.has_role(_user_id UUID, _role public.app_role)
+RETURNS BOOLEAN
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.user_roles
+    WHERE user_id = _user_id
+      AND role = _role
+  )
+$$;
+
+CREATE POLICY "Admins can manage all roles"
+ON public.user_roles
+FOR ALL
+TO authenticated
+USING (public.has_role(auth.uid(), 'admin'));
+
 
 CREATE TABLE IF NOT EXISTS currencies (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -114,6 +154,25 @@ CREATE TABLE IF NOT EXISTS users (
     created_at timestamp DEFAULT now(),
     updated_at timestamp DEFAULT now()
 );
+
+-- Admin role enum and admin_users table (completely separate from Nuru users)
+CREATE TYPE admin_role AS ENUM ('admin', 'moderator', 'support');
+
+CREATE TABLE IF NOT EXISTS admin_users (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    full_name text NOT NULL,
+    email text NOT NULL UNIQUE,
+    username text NOT NULL UNIQUE,
+    password_hash text NOT NULL,
+    role admin_role NOT NULL DEFAULT 'support',
+    is_active boolean DEFAULT true,
+    last_login_at timestamp,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_users_email ON admin_users(email);
+CREATE INDEX IF NOT EXISTS idx_admin_users_username ON admin_users(username);
 
 CREATE TABLE IF NOT EXISTS user_profiles (
     user_id uuid PRIMARY KEY REFERENCES users(id),
@@ -1762,3 +1821,12 @@ INSERT INTO event_template_tasks (template_id, title, description, category, pri
 ((SELECT id FROM event_templates WHERE name = 'Send Off & Farewell Planner' LIMIT 1), 'Prepare gift or keepsake', 'Organize a group gift, scrapbook, or plaque', 'Coordination', 'medium', 5, 6),
 ((SELECT id FROM event_templates WHERE name = 'Send Off & Farewell Planner' LIMIT 1), 'Plan program & speeches', 'Coordinate speakers, toasts, and tribute moments', 'Coordination', 'medium', 3, 7),
 ((SELECT id FROM event_templates WHERE name = 'Send Off & Farewell Planner' LIMIT 1), 'Decorate & set up', 'Banners, photo displays, and seating arrangements', 'Decorations', 'medium', 0, 8);
+
+INSERT INTO admin_users (full_name, email, username, password_hash, role)
+VALUES (
+  'Your Name',
+  'admin@nuru.tz',
+  'admin',
+  encode(sha256('yourpassword'::bytea), 'hex'),
+  'admin'
+);

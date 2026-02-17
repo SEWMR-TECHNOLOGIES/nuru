@@ -41,7 +41,7 @@ interface EventExpensesProps {
 const DEFAULT_EXPENSE_CATEGORIES = [
   'Venue', 'Catering', 'Decorations', 'Entertainment', 'Photography',
   'Transport', 'Printing', 'Gifts & Favors', 'Equipment Rental',
-  'Marketing', 'Staffing', 'Miscellaneous'
+  'Marketing', 'Staffing', 'Fundraising', 'Miscellaneous'
 ];
 
 const PAYMENT_METHODS = [
@@ -67,6 +67,7 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [customCategory, setCustomCategory] = useState('');
+  const [customCategoryMode, setCustomCategoryMode] = useState(false);
 
   // Dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -116,6 +117,8 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
       payment_reference: '', vendor_name: '', expense_date: new Date(),
       notes: '', notify_committee: false,
     });
+    setCustomCategory('');
+    setCustomCategoryMode(false);
   };
 
   const handleAdd = async () => {
@@ -289,7 +292,7 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label>Category *</Label>
-          {form.category === '__custom__' ? (
+          {customCategoryMode ? (
             <div className="flex gap-2">
               <Input
                 value={customCategory}
@@ -297,32 +300,42 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
                 placeholder="Enter custom category"
                 className="flex-1"
                 autoFocus
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && customCategory.trim()) {
+                    setForm(f => ({ ...f, category: customCategory.trim() }));
+                    setCustomCategoryMode(false);
+                    setCustomCategory('');
+                  }
+                }}
               />
               <Button variant="outline" size="sm" onClick={() => {
                 if (customCategory.trim()) {
                   setForm(f => ({ ...f, category: customCategory.trim() }));
                 }
+                setCustomCategoryMode(false);
                 setCustomCategory('');
               }}>Set</Button>
               <Button variant="ghost" size="sm" onClick={() => {
-                setForm(f => ({ ...f, category: '' }));
+                setCustomCategoryMode(false);
                 setCustomCategory('');
               }}>✕</Button>
             </div>
           ) : (
             <Select value={form.category} onValueChange={v => {
               if (v === '__custom__') {
-                setForm(f => ({ ...f, category: '__custom__' }));
+                setCustomCategoryMode(true);
+                setCustomCategory('');
               } else {
                 setForm(f => ({ ...f, category: v }));
               }
             }}>
               <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
               <SelectContent>
-                {/* Show categories from existing expenses that aren't in defaults */}
                 {(() => {
                   const allCats = new Set(DEFAULT_EXPENSE_CATEGORIES);
                   expenses.forEach(e => { if (e.category) allCats.add(e.category); });
+                  // If current category is a custom one not in defaults, add it
+                  if (form.category && !allCats.has(form.category)) allCats.add(form.category);
                   return Array.from(allCats).sort().map(c => <SelectItem key={c} value={c}>{c}</SelectItem>);
                 })()}
                 <SelectItem value="__custom__">+ Add custom category</SelectItem>
