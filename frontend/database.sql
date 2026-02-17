@@ -14,7 +14,7 @@ CREATE TYPE notification_type AS ENUM (
     'glow', 'echo', 'spark', 'follow', 'event_invite', 'service_approved', 'service_rejected',
     'account_created', 'system', 'contribution_received', 'booking_request', 'booking_accepted',
     'booking_rejected', 'rsvp_received', 'committee_invite', 'moment_view', 'moment_reaction',
-    'comment', 'mention', 'circle_add'
+    'comment', 'mention', 'circle_add', 'expense_recorded'
 );
 CREATE TYPE upload_file_type AS ENUM ('image', 'pdf', 'video', 'doc');
 CREATE TYPE priority_level AS ENUM ('low', 'medium', 'high', 'critical');
@@ -791,11 +791,33 @@ CREATE TABLE IF NOT EXISTS committee_permissions (
     can_approve_bookings boolean DEFAULT false,
     can_edit_event boolean DEFAULT false,
     can_manage_committee boolean DEFAULT false,
+    can_view_expenses boolean DEFAULT false,
+    can_manage_expenses boolean DEFAULT false,
     created_at timestamp DEFAULT now(),
     updated_at timestamp DEFAULT now(),
     UNIQUE(committee_member_id)
 );
 CREATE INDEX IF NOT EXISTS idx_committee_perms_member ON committee_permissions(committee_member_id);
+
+-- Event Expenses Table
+CREATE TABLE IF NOT EXISTS event_expenses (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    recorded_by uuid REFERENCES users(id) ON DELETE SET NULL,
+    category text NOT NULL,
+    description text NOT NULL,
+    amount numeric NOT NULL,
+    payment_method text,
+    payment_reference text,
+    vendor_name text,
+    receipt_url text,
+    expense_date timestamp DEFAULT now(),
+    notes text,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_event_expenses_event ON event_expenses(event_id);
+CREATE INDEX IF NOT EXISTS idx_event_expenses_recorder ON event_expenses(recorded_by);
 
 CREATE TABLE IF NOT EXISTS event_services (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

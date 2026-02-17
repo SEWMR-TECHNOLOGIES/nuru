@@ -80,6 +80,7 @@ class NotificationTypeEnum(enum.Enum):
     comment = "comment"
     mention = "mention"
     circle_add = "circle_add"
+    expense_recorded = "expense_recorded"
 
 
 class UploadFileTypeEnum(enum.Enum):

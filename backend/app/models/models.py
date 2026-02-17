@@ -233,6 +233,7 @@ class User(Base):
     live_chat_sessions_as_agent = relationship("LiveChatSession", back_populates="agent", foreign_keys="[LiveChatSession.agent_id]")
     live_chat_messages = relationship("LiveChatMessage", back_populates="sender")
     service_review_helpfuls = relationship("ServiceReviewHelpful", back_populates="user")
+    recorded_expenses = relationship("EventExpense", back_populates="recorder", foreign_keys="[EventExpense.recorded_by]")
 
 
 class UserProfile(Base):
@@ -1158,6 +1159,7 @@ class Event(Base):
     booking_requests = relationship("ServiceBookingRequest", back_populates="event")
     promoted_events = relationship("PromotedEvent", back_populates="event")
     checklist_items = relationship("EventChecklistItem", back_populates="event")
+    expenses = relationship("EventExpense", back_populates="event")
 
 
 class EventTypeService(Base):

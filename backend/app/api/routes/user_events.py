@@ -197,6 +197,7 @@ PERMISSION_FIELDS = [
     "can_view_guests", "can_manage_guests", "can_send_invitations", "can_check_in_guests",
     "can_view_budget", "can_manage_budget", "can_view_contributions", "can_manage_contributions",
     "can_view_vendors", "can_manage_vendors", "can_approve_bookings", "can_edit_event", "can_manage_committee",
+    "can_view_expenses", "can_manage_expenses",
 ]
 
 PERMISSION_MAP = {
@@ -207,6 +208,7 @@ PERMISSION_MAP = {
     "view_vendors": "can_view_vendors", "manage_vendors": "can_manage_vendors",
     "approve_bookings": "can_approve_bookings", "edit_event": "can_edit_event",
     "manage_committee": "can_manage_committee",
+    "view_expenses": "can_view_expenses", "manage_expenses": "can_manage_expenses",
 }
 
 
@@ -262,6 +264,8 @@ def get_my_permissions(
         perms["can_view_guests"] = True
     if perms.get("can_manage_vendors"):
         perms["can_view_vendors"] = True
+    if perms.get("can_manage_expenses"):
+        perms["can_view_expenses"] = True
 
     return standard_response(True, "Permissions retrieved", {
         "is_creator": False,

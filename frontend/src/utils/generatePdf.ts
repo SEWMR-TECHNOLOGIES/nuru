@@ -135,6 +135,7 @@ export const generateContributionReportHtml = (
   `;
 };
 
+
 /** @deprecated Use generateContributionReportHtml + ReportPreviewDialog instead */
 export const generateContributionReport = (
   eventTitle: string,
@@ -148,4 +149,141 @@ export const generateContributionReport = (
     printWindow.document.close();
     setTimeout(() => printWindow.print(), 500);
   }
+};
+
+/**
+ * Expense Report HTML
+ */
+interface ExpenseRow {
+  category: string;
+  description: string;
+  amount: number;
+  vendor_name?: string;
+  expense_date: string;
+  recorded_by_name?: string;
+}
+
+export const generateExpenseReportHtml = (
+  eventTitle: string,
+  expenses: ExpenseRow[],
+  summary: { total_expenses: number; category_breakdown: Array<{ category: string; total: number; count: number }>; currency?: string; budget?: number; total_raised?: number },
+  dateRangeLabel?: string
+): string => {
+  const currency = summary.currency || 'TZS';
+  const fmt = (n: number) => `${currency} ${n.toLocaleString()}`;
+
+  const sorted = [...expenses].sort((a, b) => a.category.localeCompare(b.category) || new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime());
+
+  const totalExpenses = sorted.reduce((s, e) => s + e.amount, 0);
+
+  const logoAbsoluteUrl = new URL(nuruLogoUrl, window.location.origin).href;
+
+  const rows = sorted.map((e, i) => `
+    <tr>
+      <td style="padding:8px;border-bottom:1px solid #eee">${i + 1}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee">${e.category}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee">${e.description}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee">${e.vendor_name || '—'}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee">${e.expense_date ? new Date(e.expense_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${fmt(e.amount)}</td>
+    </tr>
+  `).join('');
+
+  const categoryRows = (summary.category_breakdown || []).map(c => `
+    <tr>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${c.category}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${c.count}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">${fmt(c.total)}</td>
+    </tr>
+  `).join('');
+
+  const remaining = (summary.total_raised || 0) - summary.total_expenses;
+
+  const budgetCard = summary.budget
+    ? `<div class="summary-card"><div class="label">Event Budget</div><div class="value">${fmt(summary.budget)}</div></div>`
+    : '';
+
+  const dateHeader = dateRangeLabel
+    ? `<h2 style="color:#ca8a04;margin-top:4px">Period: ${dateRangeLabel}</h2>`
+    : '';
+
+  const catSection = categoryRows
+    ? `<h3 style="font-size:14px;margin-bottom:8px">Category Summary</h3>
+      <table style="margin-bottom:24px">
+        <thead><tr><th>Category</th><th style="text-align:center">Items</th><th style="text-align:right">Total</th></tr></thead>
+        <tbody>${categoryRows}</tbody>
+      </table>`
+    : '';
+
+  const balColor = remaining >= 0 ? '#16a34a' : '#dc2626';
+
+  return `
+    <!DOCTYPE html>
+    <html><head><title>Expense Report - ${eventTitle}</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
+      .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; border-bottom: 2px solid #e5e7eb; padding-bottom: 20px; }
+      .brand { display: flex; flex-direction: column; align-items: flex-start; }
+      .brand img { height: 40px; margin-bottom: 6px; }
+      .brand .slogan { font-size: 11px; color: #888; font-style: italic; }
+      .header-right { text-align: right; }
+      .header-right h1 { font-size: 20px; margin: 0 0 4px 0; }
+      .header-right h2 { font-size: 13px; color: #666; margin: 0; font-weight: normal; }
+      table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+      th { background: #f8f8f8; padding: 10px 8px; text-align: left; border-bottom: 2px solid #ddd; font-size: 13px; }
+      td { font-size: 13px; }
+      .summary { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+      .summary-card { background: #f9fafb; border-radius: 8px; padding: 14px 18px; flex:1; min-width: 120px; }
+      .summary-card .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+      .summary-card .value { font-size: 17px; font-weight: bold; margin-top: 4px; }
+      tfoot td { font-weight: bold; border-top: 2px solid #333; padding: 10px 8px; }
+      .footer { margin-top: 32px; font-size: 11px; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 12px; }
+      @media print { body { padding: 20px; } }
+    </style></head>
+    <body>
+      <div class="header">
+        <div class="brand">
+          <img src="${logoAbsoluteUrl}" alt="Nuru" />
+          <span class="slogan">Plan Smarter</span>
+        </div>
+        <div class="header-right">
+          <h1>Expense Report</h1>
+          <h2>${eventTitle} — ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</h2>
+          ${dateHeader}
+        </div>
+      </div>
+      
+      <div class="summary">
+        ${budgetCard}
+        <div class="summary-card"><div class="label">Total Raised</div><div class="value" style="color:#16a34a">${fmt(summary.total_raised || 0)}</div></div>
+        <div class="summary-card"><div class="label">Total Expenses</div><div class="value" style="color:#dc2626">${fmt(summary.total_expenses)}</div></div>
+        <div class="summary-card"><div class="label">Remaining Balance</div><div class="value" style="color:${balColor}">${fmt(remaining)}</div></div>
+      </div>
+
+      ${catSection}
+
+      <h3 style="font-size:14px;margin-bottom:8px">Expense Details</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Category</th>
+            <th>Description</th>
+            <th>Vendor</th>
+            <th>Date</th>
+            <th style="text-align:right">Amount</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+        <tfoot>
+          <tr>
+            <td colspan="5">Total (${sorted.length} expenses)</td>
+            <td style="text-align:right">${fmt(totalExpenses)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      
+      <div class="footer">Generated by Nuru Events Workspace · © ${new Date().getFullYear()} Nuru | SEWMR TECHNOLOGIES</div>
+    </body></html>
+  `;
 };

@@ -3284,6 +3284,8 @@ Content-Type: application/json
 - `view_schedule` - View event schedule
 - `manage_schedule` - Edit event schedule
 - `checkin_guests` - Check in guests at event
+- `view_expenses` - View expense records and reports
+- `manage_expenses` - Record, edit, and delete expenses (auto-grants view_expenses)
 
 **Success Response (201 Created):**
 ```json
@@ -13325,3 +13327,235 @@ Authorization: Bearer {token}
 
 ## Contribution Report — Date Filtering Behavior
 When a date range is specified (`date_from`, `date_to`), the report only includes contributors who have **paid > 0** within the selected period. Contributors with pledges but no payments in that range are excluded from the filtered report. All-time summary totals remain unchanged in `full_summary`.
+
+---
+
+# 💰 MODULE: EVENT EXPENSES
+
+Event expense tracking allows organizers and authorized committee members to record, categorize, and manage event costs. Deductions are tracked against money raised via contributions.
+
+## Permissions
+
+- **`can_view_expenses`** — View expense records and reports
+- **`can_manage_expenses`** — Record, edit, delete expenses (auto-grants `can_view_expenses`)
+- **Event creator** — Full access to all expense operations
+
+When an expense is recorded with `notify_committee: true`, all committee members with `can_view_expenses` or `can_manage_expenses` permission (and the event creator) receive an `expense_recorded` notification.
+
+---
+
+## Get Event Expenses
+
+```
+GET /user-events/{eventId}/expenses
+Authorization: Bearer {access_token}
+```
+
+**Query Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| page | integer | 1 | Page number |
+| limit | integer | 100 | Items per page |
+| category | string | — | Filter by category |
+| search | string | — | Search description, vendor, or category |
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Expenses retrieved",
+  "data": {
+    "expenses": [
+      {
+        "id": "uuid",
+        "event_id": "uuid",
+        "category": "Catering",
+        "description": "Food for 200 guests",
+        "amount": 1500000,
+        "payment_method": "mobile",
+        "payment_reference": "MP-12345",
+        "vendor_name": "Mama Ntilie Catering",
+        "receipt_url": null,
+        "expense_date": "2025-06-01T00:00:00",
+        "notes": "Paid in full",
+        "recorded_by_id": "uuid",
+        "recorded_by_name": "John Doe",
+        "created_at": "2025-06-01T10:00:00",
+        "updated_at": "2025-06-01T10:00:00"
+      }
+    ],
+    "summary": {
+      "total_expenses": 3500000,
+      "count": 5,
+      "currency": "TZS",
+      "category_breakdown": [
+        { "category": "Catering", "total": 1500000, "count": 1 },
+        { "category": "Venue", "total": 2000000, "count": 4 }
+      ]
+    },
+    "pagination": { "page": 1, "limit": 100, "total_items": 5, "total_pages": 1, "has_next": false, "has_previous": false }
+  }
+}
+```
+
+**Access:** Event creator, or committee member with `can_view_expenses` or `can_manage_expenses`.
+
+---
+
+## Record an Expense
+
+```
+POST /user-events/{eventId}/expenses
+Authorization: Bearer {access_token}
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "category": "Catering",
+  "description": "Food for 200 guests",
+  "amount": 1500000,
+  "payment_method": "mobile",
+  "payment_reference": "MP-12345",
+  "vendor_name": "Mama Ntilie Catering",
+  "expense_date": "2025-06-01",
+  "notes": "Paid in full",
+  "notify_committee": true
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| category | string | Yes | Expense category (e.g., Venue, Catering, Decorations) |
+| description | string | Yes | What the expense was for |
+| amount | number | Yes | Amount spent |
+| payment_method | string | No | cash, mobile, bank_transfer, card, cheque, other |
+| payment_reference | string | No | Receipt or reference number |
+| vendor_name | string | No | Vendor or supplier name |
+| expense_date | string | No | Date of expense (YYYY-MM-DD), defaults to today |
+| notes | string | No | Additional notes |
+| notify_committee | boolean | No | Send notification to committee members with expense permissions (default: false) |
+
+**Success Response (201):**
+```json
+{
+  "success": true,
+  "message": "Expense recorded successfully",
+  "data": { "id": "uuid", "category": "Catering", "amount": 1500000, ... }
+}
+```
+
+**Access:** Event creator, or committee member with `can_manage_expenses`.
+
+**Notification:** When `notify_committee` is true, an `expense_recorded` notification is sent to all committee members with `can_view_expenses` or `can_manage_expenses`, and to the event creator (if not the recorder).
+
+---
+
+## Update an Expense
+
+```
+PUT /user-events/{eventId}/expenses/{expenseId}
+Authorization: Bearer {access_token}
+Content-Type: application/json
+```
+
+**Request Body:** (all fields optional)
+```json
+{
+  "category": "Venue",
+  "description": "Updated description",
+  "amount": 2000000,
+  "payment_method": "bank_transfer",
+  "vendor_name": "New Venue Ltd",
+  "expense_date": "2025-06-05",
+  "notes": "Updated notes"
+}
+```
+
+**Access:** Event creator, or committee member with `can_manage_expenses`.
+
+---
+
+## Delete an Expense
+
+```
+DELETE /user-events/{eventId}/expenses/{expenseId}
+Authorization: Bearer {access_token}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Expense deleted successfully"
+}
+```
+
+**Access:** Event creator, or committee member with `can_manage_expenses`.
+
+---
+
+## Get Expense Report
+
+Generates a detailed expense report with optional date range filtering. Summary always reflects all-time totals regardless of date filter.
+
+```
+GET /user-events/{eventId}/expenses/report
+Authorization: Bearer {access_token}
+```
+
+**Query Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| date_from | string | Start date (YYYY-MM-DD) |
+| date_to | string | End date (YYYY-MM-DD) |
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Expense report generated",
+  "data": {
+    "expenses": [
+      {
+        "category": "Catering",
+        "description": "Food for guests",
+        "amount": 1500000,
+        "vendor_name": "Mama Ntilie",
+        "expense_date": "2025-06-01T00:00:00",
+        "payment_method": "mobile",
+        "recorded_by_name": "John Doe"
+      }
+    ],
+    "summary": {
+      "total_expenses": 3500000,
+      "count": 5,
+      "currency": "TZS",
+      "category_breakdown": [
+        { "category": "Catering", "total": 1500000, "count": 1 }
+      ]
+    }
+  }
+}
+```
+
+**Access:** Event creator, or committee member with `can_view_expenses` or `can_manage_expenses`.
+
+---
+
+## Expense Categories (Frontend Standard)
+
+The following categories are used in the UI:
+- Venue
+- Catering
+- Decorations
+- Entertainment
+- Photography
+- Transport
+- Printing
+- Gifts & Favors
+- Equipment Rental
+- Marketing
+- Staffing
+- Miscellaneous

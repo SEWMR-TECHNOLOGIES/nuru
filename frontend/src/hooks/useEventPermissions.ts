@@ -17,6 +17,8 @@ const ALL_PERMISSIONS: EventPermissions = {
   can_approve_bookings: false,
   can_edit_event: false,
   can_manage_committee: false,
+  can_view_expenses: false,
+  can_manage_expenses: false,
 };
 
 const CREATOR_PERMISSIONS: EventPermissions = {
@@ -35,6 +37,8 @@ const CREATOR_PERMISSIONS: EventPermissions = {
   can_approve_bookings: true,
   can_edit_event: true,
   can_manage_committee: true,
+  can_view_expenses: true,
+  can_manage_expenses: true,
 };
 
 export const useEventPermissions = (eventId: string | null) => {

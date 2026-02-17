@@ -19,6 +19,8 @@ const PERMISSION_LABELS: Record<string, string> = {
   manage_schedule: "Manage Schedule",
   manage_vendors: "Manage Vendors",
   edit_event: "Edit Event Details",
+  view_expenses: "View Expenses",
+  manage_expenses: "Manage Expenses",
   // Backend-style boolean keys
   can_view_guests: "View Guests",
   can_manage_guests: "Manage Guests",
@@ -33,6 +35,8 @@ const PERMISSION_LABELS: Record<string, string> = {
   can_approve_bookings: "Approve Bookings",
   can_edit_event: "Edit Event",
   can_manage_committee: "Manage Committee",
+  can_view_expenses: "View Expenses",
+  can_manage_expenses: "Manage Expenses",
 };
 
 const CommitteePermissionsBadge = ({ permissions }: CommitteePermissionsBadgeProps) => {

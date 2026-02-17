@@ -80,7 +80,9 @@ const AVAILABLE_PERMISSIONS = [
   { id: 'manage_budget', label: 'Manage Budget', description: 'Edit budget items' },
   { id: 'manage_schedule', label: 'Manage Schedule', description: 'Edit event schedule' },
   { id: 'manage_vendors', label: 'Manage Vendors', description: 'Handle service bookings' },
-  { id: 'edit_event', label: 'Edit Event Details', description: 'Change event information' }
+  { id: 'edit_event', label: 'Edit Event Details', description: 'Change event information' },
+  { id: 'view_expenses', label: 'View Expenses', description: 'See expense reports' },
+  { id: 'manage_expenses', label: 'Manage Expenses', description: 'Record and edit expenses' },
 ];
 
 const EventCommittee = ({ eventId, permissions, eventTitle }: EventCommitteeProps) => {

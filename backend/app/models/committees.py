@@ -60,6 +60,8 @@ class CommitteePermission(Base):
     can_approve_bookings = Column(Boolean, default=False)
     can_edit_event = Column(Boolean, default=False)
     can_manage_committee = Column(Boolean, default=False)
+    can_view_expenses = Column(Boolean, default=False)
+    can_manage_expenses = Column(Boolean, default=False)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

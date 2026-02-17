@@ -73,6 +73,7 @@ class Event(Base):
     booking_requests = relationship("ServiceBookingRequest", back_populates="event")
     promoted_events = relationship("PromotedEvent", back_populates="event")
     checklist_items = relationship("EventChecklistItem", back_populates="event")
+    expenses = relationship("EventExpense", back_populates="event")
 
 
 class EventTypeService(Base):

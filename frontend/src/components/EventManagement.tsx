@@ -17,6 +17,7 @@ import EventRSVP from './EventRSVP';
 import EventGuestList from './events/EventGuestList';
 import EventCommittee from './events/EventCommittee';
 import EventContributions from './events/EventContributions';
+import EventExpenses from './events/EventExpenses';
 import EventChecklist from './events/EventChecklist';
 import { useEventContributors } from '@/data/useContributors';
 import { useEvent } from '@/data/useEvents';
@@ -234,12 +235,13 @@ const EventManagement = () => {
       </AlertDialog>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 h-auto gap-1">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 h-auto gap-1">
           <TabsTrigger value="overview" className="text-xs sm:text-sm py-2">Overview</TabsTrigger>
           <TabsTrigger value="checklist" className="text-xs sm:text-sm py-2">Checklist</TabsTrigger>
           <TabsTrigger value="services" className="text-xs sm:text-sm py-2">Services</TabsTrigger>
           <TabsTrigger value="committee" className="text-xs sm:text-sm py-2">Committee</TabsTrigger>
           <TabsTrigger value="contributions" className="text-xs sm:text-sm py-2">Contributions</TabsTrigger>
+          <TabsTrigger value="expenses" className="text-xs sm:text-sm py-2">Expenses</TabsTrigger>
           <TabsTrigger value="guests" className="text-xs sm:text-sm py-2">Guests</TabsTrigger>
           <TabsTrigger value="rsvp" className="text-xs sm:text-sm py-2">RSVP</TabsTrigger>
         </TabsList>
@@ -387,6 +389,16 @@ const EventManagement = () => {
 
         <TabsContent value="contributions" className="space-y-6">
           <EventContributions eventId={id!} eventTitle={eventTitle} eventBudget={apiEvent?.budget ? parseFloat(String(apiEvent.budget).replace(/[^0-9]/g, '')) : undefined} isCreator={isCreator} permissions={permissions} />
+        </TabsContent>
+
+        <TabsContent value="expenses" className="space-y-6">
+          <EventExpenses
+            eventId={id!}
+            eventTitle={eventTitle}
+            eventBudget={apiEvent?.budget ? parseFloat(String(apiEvent.budget).replace(/[^0-9]/g, '')) : undefined}
+            totalRaised={contributionSummary?.total_paid || 0}
+            permissions={permissions}
+          />
         </TabsContent>
 
         <TabsContent value="guests" className="space-y-6">

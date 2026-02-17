@@ -21,6 +21,8 @@ export interface EventPermissions {
   can_approve_bookings: boolean;
   can_edit_event: boolean;
   can_manage_committee: boolean;
+  can_view_expenses: boolean;
+  can_manage_expenses: boolean;
 }
 
 
@@ -434,48 +436,104 @@ export const eventsApi = {
   // CHECKLIST
   // ============================================================================
 
-  /**
-   * Get assignable members (committee + creator) for checklist task assignment
-   */
   getAssignableMembers: (eventId: string) =>
     get<Array<{ id: string; first_name: string; last_name: string; full_name: string; avatar?: string; role: string }>>(`/user-events/${eventId}/assignable-members`),
 
-  /**
-   * Get event checklist items
-   */
   getChecklist: (eventId: string) =>
     get<{
       items: ChecklistItem[];
       summary: { total: number; completed: number; in_progress: number; pending: number; progress_percentage: number };
     }>(`/user-events/${eventId}/checklist`),
 
-  /**
-   * Add a custom checklist item
-   */
   addChecklistItem: (eventId: string, data: Partial<ChecklistItem>) =>
     post<ChecklistItem>(`/user-events/${eventId}/checklist`, data),
 
-  /**
-   * Update a checklist item
-   */
   updateChecklistItem: (eventId: string, itemId: string, data: Partial<ChecklistItem>) =>
     put<ChecklistItem>(`/user-events/${eventId}/checklist/${itemId}`, data),
 
-  /**
-   * Delete a checklist item
-   */
   deleteChecklistItem: (eventId: string, itemId: string) =>
     del(`/user-events/${eventId}/checklist/${itemId}`),
 
-  /**
-   * Apply a template to an event's checklist
-   */
   applyTemplate: (eventId: string, data: { template_id: string; clear_existing?: boolean }) =>
     post<{ added: number; template_name: string }>(`/user-events/${eventId}/checklist/from-template`, data),
 
-  /**
-   * Reorder checklist items
-   */
   reorderChecklist: (eventId: string, data: { items: Array<{ id: string; display_order: number }> }) =>
     put<void>(`/user-events/${eventId}/checklist/reorder`, data),
+
+  // ============================================================================
+  // EXPENSES
+  // ============================================================================
+
+  /**
+   * Get event expenses
+   */
+  getExpenses: (eventId: string, params?: { page?: number; limit?: number; category?: string; search?: string }) =>
+    get<{
+      expenses: Array<{
+        id: string;
+        category: string;
+        description: string;
+        amount: number;
+        payment_method?: string;
+        payment_reference?: string;
+        vendor_name?: string;
+        receipt_url?: string;
+        expense_date: string;
+        notes?: string;
+        recorded_by_name?: string;
+        recorded_by_id?: string;
+        created_at: string;
+      }>;
+      summary: {
+        total_expenses: number;
+        category_breakdown: Array<{ category: string; total: number; count: number }>;
+        count: number;
+        currency: string;
+      };
+      pagination: PaginatedResponse<any>["pagination"];
+    }>(`/user-events/${eventId}/expenses${buildQueryString(params)}`),
+
+  /**
+   * Add an expense
+   */
+  addExpense: (eventId: string, data: {
+    category: string;
+    description: string;
+    amount: number;
+    payment_method?: string;
+    payment_reference?: string;
+    vendor_name?: string;
+    expense_date?: string;
+    notes?: string;
+    notify_committee?: boolean;
+  }) => post<any>(`/user-events/${eventId}/expenses`, data),
+
+  /**
+   * Update an expense
+   */
+  updateExpense: (eventId: string, expenseId: string, data: Partial<{
+    category: string;
+    description: string;
+    amount: number;
+    payment_method?: string;
+    payment_reference?: string;
+    vendor_name?: string;
+    expense_date?: string;
+    notes?: string;
+  }>) => put<any>(`/user-events/${eventId}/expenses/${expenseId}`, data),
+
+  /**
+   * Delete an expense
+   */
+  deleteExpense: (eventId: string, expenseId: string) =>
+    del(`/user-events/${eventId}/expenses/${expenseId}`),
+
+  /**
+   * Get expense report
+   */
+  getExpenseReport: (eventId: string, params?: { date_from?: string; date_to?: string }) =>
+    get<{
+      expenses: Array<{ category: string; description: string; amount: number; vendor_name?: string; expense_date: string; recorded_by_name?: string }>;
+      summary: { total_expenses: number; category_breakdown: Array<{ category: string; total: number; count: number }>; currency: string };
+    }>(`/user-events/${eventId}/expenses/report${buildQueryString(params)}`),
 };

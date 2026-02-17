@@ -33,6 +33,7 @@ from models.events import (
     EventVenueCoordinate, EventSetting,
 )
 from models.committees import CommitteeRole, EventCommitteeMember, CommitteePermission
+from models.expenses import EventExpense
 from models.event_services import EventService, EventServicePayment
 from models.contributions import (
     UserContributor, EventContributionTarget, EventContributor,
