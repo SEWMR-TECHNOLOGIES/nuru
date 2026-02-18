@@ -873,13 +873,22 @@ async def update_event(
 
     # Cover image
     if remove_cover_image:
+        old_cover = event.cover_image_url
         event.cover_image_url = None
+        if old_cover:
+            from utils.helpers import delete_storage_file_sync
+            delete_storage_file_sync(old_cover)
     elif cover_image and cover_image.filename:
+        old_cover = event.cover_image_url
         result = await _upload_image(cover_image, f"nuru/uploads/events/{eid}/cover/")
         if not result["success"]:
             db.rollback()
             return standard_response(False, result["error"])
         event.cover_image_url = result["url"]
+        # Unlink old cover if it was replaced
+        if old_cover:
+            from utils.helpers import delete_storage_file
+            await delete_storage_file(old_cover)
 
     # Gallery images (append)
     if images:
@@ -928,12 +937,25 @@ def delete_event(event_id: str, db: Session = Depends(get_db), current_user: Use
     if confirmed > 0:
         return standard_response(False, "Cannot delete event with confirmed bookings. Cancel bookings first.")
 
+    # Collect file URLs to unlink before deleting from DB
+    cover_url = event.cover_image_url
+    gallery_images = db.query(EventImage).filter(EventImage.event_id == eid).all()
+    gallery_urls = [img.image_url for img in gallery_images]
+
     db.delete(event)
     try:
         db.commit()
     except Exception as e:
         db.rollback()
         return standard_response(False, f"Failed to delete event: {str(e)}")
+
+    # Physically unlink all storage files (best-effort, synchronous)
+    from utils.helpers import delete_storage_file_sync
+    if cover_url:
+        delete_storage_file_sync(cover_url)
+    for url in gallery_urls:
+        if url:
+            delete_storage_file_sync(url)
 
     return standard_response(True, "Event deleted successfully")
 
@@ -1029,8 +1051,14 @@ def delete_event_image(event_id: str, image_id: str, db: Session = Depends(get_d
     if not img:
         return standard_response(False, "Image not found")
 
+    image_url = img.image_url  # capture before delete
     db.delete(img)
     db.commit()
+
+    # Physically remove file from storage (best-effort, synchronous)
+    from utils.helpers import delete_storage_file_sync
+    delete_storage_file_sync(image_url)
+
     return standard_response(True, "Image deleted successfully")
 
 

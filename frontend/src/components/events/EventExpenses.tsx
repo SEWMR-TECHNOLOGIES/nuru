@@ -425,12 +425,12 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Total Expenses</p>
-                <p className="text-base font-semibold text-destructive mt-1">{formatPrice(totalExpenses)}</p>
-                <p className="text-xs text-muted-foreground mt-1">{summary?.count || 0} expense{(summary?.count || 0) !== 1 ? 's' : ''} recorded</p>
+                <p className="text-xs text-muted-foreground">Money Raised</p>
+                <p className="text-base font-semibold text-primary mt-1">{formatPrice(totalRaised)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Total contributions</p>
               </div>
-              <div className="w-9 h-9 bg-destructive/10 rounded-lg flex items-center justify-center">
-                <Receipt className="w-4 h-4 text-destructive" />
+              <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center">
+                <Receipt className="w-4 h-4 text-primary" />
               </div>
             </div>
           </CardContent>
@@ -439,12 +439,12 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Money Raised</p>
-                <p className="text-base font-semibold text-primary mt-1">{formatPrice(totalRaised)}</p>
-                <p className="text-xs text-muted-foreground mt-1">Total contributions</p>
+                <p className="text-xs text-muted-foreground">Total Expenses</p>
+                <p className="text-base font-semibold text-destructive mt-1">{formatPrice(totalExpenses)}</p>
+                <p className="text-xs text-muted-foreground mt-1">{summary?.count || 0} expense{(summary?.count || 0) !== 1 ? 's' : ''} recorded</p>
               </div>
-              <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center">
-                <Receipt className="w-4 h-4 text-primary" />
+              <div className="w-9 h-9 bg-destructive/10 rounded-lg flex items-center justify-center">
+                <Receipt className="w-4 h-4 text-destructive" />
               </div>
             </div>
           </CardContent>

@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { formatPrice } from '@/utils/formatPrice';
-import { Star, CheckCircle, Users, Plus, Edit, Eye, Package, Loader2, Camera, MapPin, TrendingUp, Award, ChevronRight } from 'lucide-react';
+import { Star, CheckCircle, Users, Plus, Edit, Eye, Package, Loader2, Camera, MapPin, ChevronRight, BookOpen, Upload, Trash2, X, ImagePlus } from 'lucide-react';
 import CalendarSVG from '@/assets/icons/calendar-icon.svg';
 import PhotosSVG from '@/assets/icons/photos-icon.svg';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useUserServices } from '@/data/useUserServices';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ServiceLoadingSkeleton } from '@/components/ui/ServiceLoadingSkeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -54,10 +54,56 @@ const MyServices = () => {
   const [packageForm, setPackageForm] = useState({ name: '', description: '', features: '', price: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imageDialogService, setImageDialogService] = useState<any | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
+  const imageFileRef = useRef<HTMLInputElement>(null);
 
   const handleAddPackage = (serviceId: string) => {
     setSelectedServiceId(serviceId);
     setPackageDialogOpen(true);
+  };
+
+  const handleImageUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0 || !imageDialogService) return;
+    setImageUploading(true);
+    let success = 0;
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) { toast.error(`${file.name}: only images allowed`); continue; }
+      if (file.size > 512 * 1024) { toast.error(`${file.name}: max 0.5MB per file`); continue; }
+      try {
+        const form = new FormData();
+        form.append('images', file);
+        const res = await userServicesApi.addImages(imageDialogService.id, form);
+        if (!showApiErrors(res)) success++;
+      } catch (err) { showCaughtError(err); }
+    }
+    setImageUploading(false);
+    if (success > 0) {
+      toast.success(`${success} photo${success > 1 ? 's' : ''} added!`);
+      await refetch();
+      // Sync imageDialogService with refreshed data
+      setImageDialogService((prev: any) => {
+        const updated = services.find((s: any) => s.id === prev?.id);
+        return updated || prev;
+      });
+    }
+  };
+
+  const handleDeleteImage = async (imageId: string) => {
+    if (!imageDialogService) return;
+    setDeletingImageId(imageId);
+    try {
+      const res = await userServicesApi.deleteImage(imageDialogService.id, imageId);
+      if (!showApiErrors(res)) {
+        toast.success('Photo removed');
+        await refetch();
+        setImageDialogService((prev: any) => {
+          const updated = services.find((s: any) => s.id === prev?.id);
+          return updated || prev;
+        });
+      }
+    } catch (err) { showCaughtError(err); }
+    finally { setDeletingImageId(null); }
   };
 
   const handleSavePackage = async () => {
@@ -130,8 +176,8 @@ const MyServices = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'Services', value: services.length, icon: <Package className="w-5 h-5" />, color: 'text-primary', bg: 'bg-primary/10' },
-          { label: 'Avg Rating', value: services.length > 0 ? (services.reduce((s, x) => s + (x.rating || 0), 0) / services.length).toFixed(1) : '–', icon: <Star className="w-5 h-5" />, color: 'text-yellow-600', bg: 'bg-yellow-100 dark:bg-yellow-900/30' },
-          { label: 'Total Reviews', value: services.reduce((s, x) => s + (x.review_count || 0), 0), icon: <Users className="w-5 h-5" />, color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900/30' },
+          { label: 'Avg Rating', value: summary?.average_rating != null && summary.average_rating > 0 ? Number(summary.average_rating).toFixed(1) : '–', icon: <Star className="w-5 h-5" />, color: 'text-yellow-600', bg: 'bg-yellow-100 dark:bg-yellow-900/30' },
+          { label: 'Total Reviews', value: summary?.total_reviews ?? services.reduce((s, x) => s + (x.review_count || 0), 0), icon: <Users className="w-5 h-5" />, color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900/30' },
           { label: 'Completed Events', value: services.reduce((s, x) => s + (x.completed_events || 0), 0), icon: <CheckCircle className="w-5 h-5" />, color: 'text-green-600', bg: 'bg-green-100 dark:bg-green-900/30' },
         ].map((stat, i) => (
           <Card key={i} className="border-border/60">
@@ -232,6 +278,10 @@ const MyServices = () => {
                         <Package className="w-3.5 h-3.5 mr-1.5" /> Package
                       </Button>
                     )}
+                    <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white text-foreground shadow"
+                      onClick={() => setImageDialogService(service)}>
+                      <ImagePlus className="w-3.5 h-3.5 mr-1.5" /> Photos
+                    </Button>
                   </div>
                 </div>
               )}
@@ -319,6 +369,16 @@ const MyServices = () => {
 
                     {/* Quick Actions */}
                     <div className="flex flex-wrap gap-2 pt-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/bookings?service=${service.id}`)}
+                        className="gap-2"
+                      >
+                        <BookOpen className="w-4 h-4" />
+                        Bookings
+                      </Button>
+
                       <Button
                         variant="outline"
                         size="sm"
@@ -438,6 +498,96 @@ const MyServices = () => {
               {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               {isSubmitting ? 'Saving...' : 'Save Package'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── PHOTO MANAGEMENT DIALOG ─── */}
+      <Dialog open={!!imageDialogService} onOpenChange={(open) => { if (!open) setImageDialogService(null); }}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ImagePlus className="w-5 h-5 text-primary" />
+              Manage Photos
+              {imageDialogService && (
+                <span className="text-sm font-normal text-muted-foreground truncate">— {imageDialogService.title}</span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          {imageDialogService && (() => {
+            const imgs = getServiceImages(imageDialogService);
+            return (
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-5 pr-1">
+                {/* Upload zone */}
+                <div
+                  className="border-2 border-dashed border-border rounded-2xl p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all"
+                  onClick={() => imageFileRef.current?.click()}
+                >
+                  {imageUploading ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                      <p className="text-sm text-muted-foreground">Uploading photos…</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                        <Upload className="w-7 h-7 text-primary" />
+                      </div>
+                      <p className="font-semibold text-foreground mb-1">Click to upload photos</p>
+                      <p className="text-xs text-muted-foreground">PNG, JPG or WebP · Max 0.5MB per file</p>
+                    </>
+                  )}
+                  <input
+                    ref={imageFileRef}
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => handleImageUpload(e.target.files)}
+                  />
+                </div>
+
+                {/* Existing photos grid */}
+                {imgs.length > 0 ? (
+                  <>
+                    <p className="text-sm font-semibold text-foreground">{imgs.length} photo{imgs.length !== 1 ? 's' : ''}</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {imgs.map((img: any, idx: number) => {
+                        const url = getImageUrl(img);
+                        const imgId = img?.id || img?.image_id || String(idx);
+                        return (
+                          <div key={imgId} className="relative group rounded-xl overflow-hidden bg-muted aspect-square border border-border">
+                            <img src={url} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                              <button
+                                onClick={() => handleDeleteImage(imgId)}
+                                disabled={deletingImageId === imgId}
+                                className="p-2.5 bg-destructive/90 hover:bg-destructive rounded-full transition-colors shadow-lg"
+                              >
+                                {deletingImageId === imgId
+                                  ? <Loader2 className="w-4 h-4 text-white animate-spin" />
+                                  : <Trash2 className="w-4 h-4 text-white" />
+                                }
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <Camera className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">No photos yet. Upload your first photo above.</p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          <DialogFooter className="pt-4 border-t border-border mt-4">
+            <Button variant="outline" onClick={() => setImageDialogService(null)}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

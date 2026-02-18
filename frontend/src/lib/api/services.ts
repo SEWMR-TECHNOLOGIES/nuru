@@ -50,6 +50,18 @@ export const userServicesApi = {
   update: (serviceId: string, formData: FormData) => putFormData<UserService>(`/user-services/${serviceId}`, formData),
 
   /**
+   * Upload additional images to a service
+   */
+  addImages: (serviceId: string, formData: FormData) =>
+    postFormData<{ images: Array<{ id: string; url: string }> }>(`/user-services/${serviceId}/images`, formData),
+
+  /**
+   * Delete a service image
+   */
+  deleteImage: (serviceId: string, imageId: string) =>
+    del(`/user-services/${serviceId}/images/${imageId}`),
+
+  /**
    * Delete a service
    */
   delete: (serviceId: string) => del(`/user-services/${serviceId}`),

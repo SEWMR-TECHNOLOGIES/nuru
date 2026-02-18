@@ -109,7 +109,7 @@ def get_upload(upload_id: str, db: Session = Depends(get_db), current_user: User
 
 
 @router.delete("/{upload_id}")
-def delete_upload(upload_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def delete_upload(upload_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         uid = uuid.UUID(upload_id)
     except ValueError:
@@ -119,8 +119,14 @@ def delete_upload(upload_id: str, db: Session = Depends(get_db), current_user: U
     if not upload:
         return standard_response(False, "Upload not found")
 
+    file_url = upload.file_url  # capture before delete
     db.delete(upload)
     db.commit()
+
+    # Physically remove file from storage (best-effort)
+    from utils.helpers import delete_storage_file
+    await delete_storage_file(file_url)
+
     return standard_response(True, "Upload deleted")
 
 

@@ -130,7 +130,10 @@ def get_my_services(db: Session = Depends(get_db), current_user: User = Depends(
         "verified_services": sum(1 for s in service_list if s["verification_status"] == "verified"),
         "pending_verification": sum(1 for s in service_list if s["verification_status"] == "pending"),
         "total_reviews": sum(s["review_count"] for s in service_list),
-        "average_rating": round(sum(s["rating"] for s in service_list) / len(service_list), 1) if service_list else 0,
+        "average_rating": round(
+            sum(s["rating"] * s["review_count"] for s in service_list if s["review_count"] > 0) /
+            max(sum(s["review_count"] for s in service_list if s["review_count"] > 0), 1), 1
+        ) if any(s["review_count"] > 0 for s in service_list) else 0,
     }
 
     return standard_response(True, "Services retrieved successfully", {"services": service_list, "summary": summary, "recent_reviews": recent_reviews})
@@ -549,8 +552,14 @@ def delete_service_image(service_id: str, image_id: str, db: Session = Depends(g
     if not img:
         return standard_response(False, "Image not found")
 
+    image_url = img.image_url  # capture before delete
     db.delete(img)
     db.commit()
+
+    # Physically remove file from storage (best-effort)
+    from utils.helpers import delete_storage_file_sync
+    delete_storage_file_sync(image_url)
+
     return standard_response(True, "Image deleted successfully")
 
 

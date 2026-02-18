@@ -17,6 +17,7 @@ SEWMR_SMS_BASE_URL = os.getenv("SEWMR_SMS_BASE_URL", "https://api.sewmrsms.co.tz
 SEWMR_SMS_ACCESS_TOKEN = os.getenv("SEWMR_SMS_ACCESS_TOKEN", "")
 SEWMR_SMS_DEFAULT_SENDER_ID = os.getenv("SEWMR_SMS_DEFAULT_SENDER_ID", "")
 UPLOAD_SERVICE_URL = "https://data.sewmrtechnologies.com/handle-file-uploads"
+DELETE_SERVICE_URL = "https://data.sewmrtechnologies.com/delete-file.php"
 MAX_IMAGE_SIZE = 500 * 1024 # 0.5MB
 MAX_SERVICE_IMAGES = 4
 MAX_EVENT_IMAGES = 3

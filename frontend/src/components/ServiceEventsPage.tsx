@@ -97,24 +97,57 @@ const ServiceEventsPage = () => {
   };
 
   /* ─── EVENT CARD ─── */
-  const EventCard = ({ event }: { event: ServiceConfirmedEvent }) => (
+  const EventCard = ({ event }: { event: ServiceConfirmedEvent }) => {
+    // Priority: library photos → event cover_image_url → placeholder
+    const libPhotos = (event.photo_library?.photos || []) as any[];
+    const hasCover = !!event.cover_image_url;
+    // Use library photos for the masonry strip if available, else single cover
+    const stripPhotos = libPhotos.length > 0 ? libPhotos.slice(0, 5) : [];
+
+    return (
     <div className={`group rounded-2xl overflow-hidden border bg-card hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200
       ${event.timing === 'today' ? 'border-orange-300 dark:border-orange-700 shadow-md shadow-orange-100 dark:shadow-orange-950/20' : 'border-border'}`}>
 
-      {/* ── Cover image ── */}
+      {/* ── Cover: masonry strip like photo library ── */}
       <div className="relative h-44 bg-gradient-to-br from-primary/15 to-primary/5 overflow-hidden">
-        {event.cover_image_url ? (
-          <img
-            src={event.cover_image_url}
-            alt={event.event_name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          />
+        {stripPhotos.length >= 2 ? (
+          /* Masonry-style horizontal strip: first photo is wider, rest share remaining width */
+          <div className="absolute inset-0 flex gap-0.5">
+            {/* Main photo - takes 55% width */}
+            <div className="flex-none w-[55%] overflow-hidden">
+              <img src={stripPhotos[0].url} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+            </div>
+            {/* Secondary column - remaining 45%, split vertically */}
+            <div className="flex-1 flex flex-col gap-0.5">
+              {stripPhotos.slice(1, 3).map((p: any, i: number) => (
+                <div key={i} className="flex-1 overflow-hidden">
+                  <img src={p.url} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" style={{ transitionDelay: `${i * 50}ms` }} />
+                </div>
+              ))}
+              {/* Third column slot: 4th photo or subtle overlay with count */}
+              {stripPhotos.length > 3 && (
+                <div className="flex-1 relative overflow-hidden">
+                  <img src={stripPhotos[3].url} alt="" className="w-full h-full object-cover" />
+                  {stripPhotos.length > 4 && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <span className="text-white text-sm font-bold">+{stripPhotos.length - 3}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : stripPhotos.length === 1 ? (
+          <img src={stripPhotos[0].url} alt={event.event_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+        ) : hasCover ? (
+          <img src={event.cover_image_url!} alt={event.event_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
         ) : (
           <div className="flex items-center justify-center h-full">
             <img src={CalendarIcon} alt="" className="w-16 h-16 opacity-10 dark:invert" />
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+
 
         <div className="absolute top-3 left-3">
           <TimingBadge timing={event.timing} />
@@ -161,13 +194,25 @@ const ServiceEventsPage = () => {
         {event.has_library && event.photo_library ? (
           <button
             onClick={() => navigate(`/photo-library/${event.photo_library!.id}`)}
-            className="w-full flex items-center justify-between gap-2 rounded-xl border border-border bg-muted/40 hover:bg-muted transition-colors px-3.5 py-2.5 text-sm"
+            className="w-full flex items-center justify-between gap-2 rounded-xl border border-border bg-muted/40 hover:bg-muted transition-colors px-3.5 py-2.5 text-sm overflow-hidden"
           >
-            <div className="flex items-center gap-2">
-              <img src={PhotosIcon} alt="" className="w-4 h-4 dark:invert opacity-70" />
-              <span className="font-medium text-foreground">Open Photo Library</span>
-            </div>
-            <span className="text-xs text-muted-foreground bg-background px-2 py-0.5 rounded-full border border-border">
+            {/* Thumbnail strip from library photos */}
+            {event.photo_library.photos && event.photo_library.photos.length > 0 ? (
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex -space-x-1 shrink-0">
+                  {event.photo_library.photos.slice(0, 3).map((p: any, i: number) => (
+                    <img key={i} src={p.url} alt="" className="w-7 h-7 rounded-full object-cover border-2 border-card" />
+                  ))}
+                </div>
+                <span className="font-medium text-foreground truncate">Photo Library</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <img src={PhotosIcon} alt="" className="w-4 h-4 dark:invert opacity-70" />
+                <span className="font-medium text-foreground">Open Photo Library</span>
+              </div>
+            )}
+            <span className="text-xs text-muted-foreground bg-background px-2 py-0.5 rounded-full border border-border shrink-0">
               {event.photo_library.photo_count} photos
             </span>
           </button>
@@ -182,9 +227,10 @@ const ServiceEventsPage = () => {
         )}
       </div>
     </div>
-  );
+    );
+  };
 
-  /* ─── SECTION HEADER ─── */
+
   const SectionHeader = ({ icon, label, count, colorClass }: { icon: React.ReactNode; label: string; count: number; colorClass: string }) => (
     <div className="flex items-center gap-2.5 mb-5">
       <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${colorClass}`}>
@@ -220,46 +266,84 @@ const ServiceEventsPage = () => {
     );
   }
 
+  // Collect photo thumbnails: first from libraries, then from event cover images
+  const heroThumbs = (() => {
+    const thumbs: string[] = [];
+    // From library photos
+    for (const ev of events) {
+      if (ev.photo_library?.photos?.length) {
+        for (const p of ev.photo_library.photos) {
+          if (p.url) thumbs.push(p.url);
+          if (thumbs.length >= 6) break;
+        }
+      }
+      if (thumbs.length >= 6) break;
+    }
+    // Fill remaining from event cover images
+    if (thumbs.length < 6) {
+      for (const ev of events) {
+        if (ev.cover_image_url && !thumbs.includes(ev.cover_image_url)) {
+          thumbs.push(ev.cover_image_url);
+          if (thumbs.length >= 6) break;
+        }
+      }
+    }
+    return thumbs.slice(0, 6);
+  })();
+  const hasThumbs = heroThumbs.length > 0;
+
   return (
     <div className="max-w-5xl mx-auto pb-16">
 
       {/* ─── TOP BAR ─── */}
-      <div className="flex items-center justify-end py-4 px-1 mb-2">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors group"
-        >
-          Back
-          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform rotate-180" />
-        </button>
+      <div className="flex items-center justify-between py-4 px-1 mb-2">
+        <h2 className="text-base font-semibold text-foreground truncate">{serviceTitle || 'My Events'}</h2>
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Go back">
+          <ChevronLeft className="w-5 h-5" />
+        </Button>
       </div>
 
-      {/* ─── HERO HEADER ─── */}
-      <div className="relative rounded-2xl overflow-hidden mb-8 bg-gradient-to-br from-primary/20 via-primary/10 to-background border border-border h-36">
+      {/* ─── HERO HEADER — same style as PhotoLibraryDetail ─── */}
+      <div className="relative rounded-2xl overflow-hidden mb-8 bg-gradient-to-br from-primary/20 via-primary/10 to-background border border-border h-44">
         <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, hsl(var(--primary)) 1px, transparent 0)', backgroundSize: '28px 28px' }} />
-        <div className="absolute inset-0 flex flex-col justify-center px-6">
-          <h1 className="text-2xl font-bold text-foreground">My Events</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {serviceTitle && <span className="font-medium text-foreground">{serviceTitle}</span>}
-            {serviceTitle && ' · '}
-            {events.length} confirmed event{events.length !== 1 ? 's' : ''}
-          </p>
-          <div className="flex items-center gap-4 mt-3">
-            {todayEvents.length > 0 && (
-              <span className="text-xs font-semibold text-orange-600 bg-orange-100 dark:bg-orange-950/40 dark:text-orange-400 px-2.5 py-1 rounded-full">
-                {todayEvents.length} today
-              </span>
+        {hasThumbs && (
+          <div className="absolute inset-0">
+            {heroThumbs.length >= 3 ? (
+              <div className="grid grid-cols-3 h-full gap-0.5 opacity-30">
+                {heroThumbs.slice(0, 3).map((src, i) => (
+                  <img key={i} src={src} alt="" className="w-full h-full object-cover" />
+                ))}
+              </div>
+            ) : (
+              <img src={heroThumbs[0]} alt="" className="w-full h-full object-cover opacity-20" />
             )}
-            {upcomingEvents.length > 0 && (
-              <span className="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-full">
-                {upcomingEvents.length} upcoming
-              </span>
-            )}
-            {completedEvents.length > 0 && (
-              <span className="text-xs font-semibold text-emerald-600 bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400 px-2.5 py-1 rounded-full">
-                {completedEvents.length} completed
-              </span>
-            )}
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-background/40 to-transparent" />
+        <div className="absolute inset-0 flex flex-col justify-end p-6">
+          <div className="flex items-end gap-4">
+            <div className="w-12 h-12 rounded-xl bg-primary/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+              <img src={CalendarIcon} alt="" className="w-6 h-6 dark:invert opacity-80" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl font-bold text-foreground">My Events</h1>
+              <div className="flex items-center gap-3 mt-1 flex-wrap">
+                {serviceTitle && <span className="text-sm text-muted-foreground font-medium">{serviceTitle}</span>}
+                {serviceTitle && <span className="text-muted-foreground text-sm">·</span>}
+                <span className="text-sm text-muted-foreground">{events.length} confirmed event{events.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="flex items-center gap-2 mt-1.5">
+                {upcomingEvents.length > 0 && (
+                  <span className="text-xs font-semibold text-primary">{upcomingEvents.length} upcoming</span>
+                )}
+                {completedEvents.length > 0 && (
+                  <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">{completedEvents.length} completed</span>
+                )}
+                {todayEvents.length > 0 && (
+                  <span className="text-xs font-semibold text-orange-500">{todayEvents.length} today</span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

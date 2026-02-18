@@ -2125,8 +2125,26 @@ def delete_community_admin(community_id: str, db: Session = Depends(get_db), adm
     community = db.query(Community).filter(Community.id == cid).first()
     if not community:
         return standard_response(False, "Community not found")
+
+    # Collect file URLs before deletion
+    cover_url = community.cover_image_url
+    post_image_urls = []
+    posts = db.query(CommunityPost).filter(CommunityPost.community_id == cid).all()
+    from models import CommunityPostImage
+    for p in posts:
+        images = db.query(CommunityPostImage).filter(CommunityPostImage.post_id == p.id).all()
+        post_image_urls.extend([img.image_url for img in images if img.image_url])
+
     db.delete(community)
     db.commit()
+
+    # Physically unlink storage files (best-effort, synchronous)
+    from utils.helpers import delete_storage_file_sync
+    if cover_url:
+        delete_storage_file_sync(cover_url)
+    for url in post_image_urls:
+        delete_storage_file_sync(url)
+
     return standard_response(True, "Community deleted")
 
 

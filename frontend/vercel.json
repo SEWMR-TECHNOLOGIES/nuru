@@ -20,6 +20,16 @@
       ],
       "destination": "https://lmfprculxhspqxppscbn.supabase.co/functions/v1/og-meta?id=:code&type=rsvp"
     },
+    {
+      "source": "/shared/photo-library/:token",
+      "missing": [
+        {
+          "type": "query",
+          "key": "r"
+        }
+      ],
+      "destination": "https://lmfprculxhspqxppscbn.supabase.co/functions/v1/og-meta?id=:token&type=photo-library"
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

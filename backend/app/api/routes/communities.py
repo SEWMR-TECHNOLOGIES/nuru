@@ -165,6 +165,8 @@ async def update_community_cover(
         return standard_response(False, "Only admins can update the cover image")
 
     from core.config import UPLOAD_SERVICE_URL
+    from utils.helpers import delete_storage_file
+    old_cover_url = c.cover_image_url  # capture before replacement
     file_content = await cover_image.read()
     _, ext = os.path.splitext(cover_image.filename)
     unique_name = f"{uuid.uuid4().hex}{ext}"
@@ -176,6 +178,9 @@ async def update_community_cover(
                 c.cover_image_url = result["data"]["url"]
                 c.updated_at = datetime.now(EAT)
                 db.commit()
+                # Unlink old cover image (best-effort)
+                if old_cover_url:
+                    await delete_storage_file(old_cover_url)
                 return standard_response(True, "Cover image updated", {"image": c.cover_image_url})
         except Exception:
             pass

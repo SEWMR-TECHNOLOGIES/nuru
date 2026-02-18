@@ -55,34 +55,41 @@ const ServicePhotoLibraries = () => {
   const storagePct = (storageInfo.used_mb / storageInfo.limit_mb) * 100;
   const storageColor = storagePct > 90 ? 'text-destructive' : storagePct > 70 ? 'text-amber-600' : 'text-emerald-600';
 
+  // Collect a random sample of up to 6 images from all libraries for the header mosaic
+  const allPhotos = libraries.flatMap(lib => lib.photos || []);
+  // Shuffle deterministically using first photo ids
+  const mosaicPhotos = allPhotos.slice(0, 6);
+
   return (
     <div className="max-w-5xl mx-auto pb-16">
 
-      {/* ─── TOP BAR ─── */}
-      <div className="flex items-center justify-end py-4 px-1 mb-2">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors group"
-        >
-          Back
-          <ChevronLeft className="w-4 h-4 group-hover:translate-x-0.5 transition-transform rotate-180" />
-        </button>
-      </div>
-
-      {/* ─── NEW LIBRARY BUTTON MOVED TO INSIDE ─── */}
-      <div className="flex items-center justify-between mb-4">
-        <span />
+      {/* ─── TOP BAR: back on right, new library button inline ─── */}
+      <div className="flex items-center justify-between py-4 px-1 mb-2">
         <Button size="sm" onClick={() => navigate(`/services/events/${serviceId}`)}>
           <Plus className="w-4 h-4 mr-1.5" />
           New Library
         </Button>
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Go back">
+          <ChevronLeft className="w-5 h-5" />
+        </Button>
       </div>
 
-      {/* ─── HEADER ─── */}
-      <div className="relative rounded-2xl overflow-hidden mb-6 bg-gradient-to-br from-primary/20 via-primary/10 to-background border border-border h-44">
+      {/* ─── HEADER with mosaic ─── */}
+      <div className="relative rounded-2xl overflow-hidden mb-6 border border-border h-44 bg-gradient-to-br from-primary/20 via-primary/10 to-background">
         <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, hsl(var(--primary)) 1px, transparent 0)', backgroundSize: '28px 28px' }} />
+
+        {/* Mosaic of library photos in background */}
+        {mosaicPhotos.length > 0 && (
+          <div className={`absolute inset-0 grid gap-0.5 opacity-25 ${mosaicPhotos.length >= 4 ? 'grid-cols-3' : mosaicPhotos.length >= 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            {mosaicPhotos.slice(0, mosaicPhotos.length >= 4 ? 6 : mosaicPhotos.length).map((p, i) => (
+              <img key={i} src={p.url} alt="" className="w-full h-full object-cover" />
+            ))}
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-background/40 to-transparent" />
+
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-          <div className="w-16 h-16 rounded-2xl bg-primary/15 flex items-center justify-center">
+          <div className="w-16 h-16 rounded-2xl bg-primary/20 backdrop-blur-sm flex items-center justify-center">
             <img src={PhotosIcon} alt="Photos" className="w-8 h-8 dark:invert" />
           </div>
           <div className="text-center">
@@ -151,7 +158,6 @@ const ServicePhotoLibraries = () => {
               {/* Cover mosaic or placeholder */}
               <div className="relative h-48 bg-muted overflow-hidden">
                 {lib.photos && lib.photos.length > 0 ? (
-                  /* ── Full mosaic when photo thumbnails included in API response ── */
                   lib.photos.length === 1 ? (
                     <img src={lib.photos[0].url} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   ) : lib.photos.length === 2 ? (
@@ -170,22 +176,17 @@ const ServicePhotoLibraries = () => {
                       </div>
                     </div>
                   )
-                ) : lib.photo_count > 0 ? (
-                  /* ── Has photos but listing API omits thumbnails — use event cover + count ── */
-                  lib.event?.cover_image_url ? (
-                    <div className="relative w-full h-full">
-                      <img src={lib.event.cover_image_url} alt="" className="w-full h-full object-cover opacity-55 group-hover:scale-105 transition-transform duration-500" />
-                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/25">
-                        <img src={PhotosIcon} alt="" className="w-10 h-10 invert opacity-90" />
+                ) : lib.event?.cover_image_url ? (
+                  /* ── No API photos but has event cover ── */
+                  <div className="relative w-full h-full">
+                    <img src={lib.event.cover_image_url} alt="" className="w-full h-full object-cover opacity-55 group-hover:scale-105 transition-transform duration-500" />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/25">
+                      <img src={PhotosIcon} alt="" className="w-10 h-10 invert opacity-90" />
+                      {lib.photo_count > 0 && (
                         <span className="text-white text-sm font-semibold drop-shadow">{lib.photo_count} photo{lib.photo_count !== 1 ? 's' : ''}</span>
-                      </div>
+                      )}
                     </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full gap-2 bg-gradient-to-br from-primary/15 to-primary/5">
-                      <img src={PhotosIcon} alt="" className="w-12 h-12 opacity-40 dark:invert" />
-                      <span className="text-sm font-semibold text-foreground">{lib.photo_count} photo{lib.photo_count !== 1 ? 's' : ''}</span>
-                    </div>
-                  )
+                  </div>
                 ) : (
                   /* ── Truly empty library ── */
                   <div className="flex flex-col items-center justify-center h-full gap-2">

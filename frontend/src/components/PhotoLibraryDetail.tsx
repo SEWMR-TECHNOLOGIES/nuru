@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, Upload, Trash2, Globe, Lock,
   CheckCircle2, Clock, X, ZoomIn, Calendar, MapPin,
-  Share2, Check, AlertCircle, HardDrive
+  Share2, Check, AlertCircle, HardDrive, Download
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -172,6 +172,7 @@ const PhotoLibraryDetail = () => {
   }
 
   const photos = library.photos || [];
+  const isOwner = library.is_owner !== false; // false = viewer (event organizer), undefined/true = owner
   const storagePct = library.storage_used_percent;
   const storageColor = storagePct > 90 ? 'text-destructive' : storagePct > 70 ? 'text-amber-600' : 'text-emerald-600';
 
@@ -185,18 +186,22 @@ const PhotoLibraryDetail = () => {
             {copied ? <Check className="w-4 h-4 mr-1.5 text-emerald-500" /> : <Share2 className="w-4 h-4 mr-1.5" />}
             {copied ? 'Copied!' : 'Share'}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
-            {library.privacy === 'public' ? <Globe className="w-4 h-4 mr-1.5" /> : <Lock className="w-4 h-4 mr-1.5" />}
-            {library.privacy === 'public' ? 'Public' : 'Private'}
-          </Button>
+          {isOwner && (
+            <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
+              {library.privacy === 'public' ? <Globe className="w-4 h-4 mr-1.5" /> : <Lock className="w-4 h-4 mr-1.5" />}
+              {library.privacy === 'public' ? 'Public' : 'Private'}
+            </Button>
+          )}
+          {!isOwner && (
+            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground px-3 py-1.5 bg-muted rounded-md">
+              {library.privacy === 'public' ? <Globe className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+              {library.privacy === 'public' ? 'Public' : 'Private'}
+            </span>
+          )}
         </div>
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors group"
-        >
-          Back
-          <ChevronLeft className="w-4 h-4 group-hover:translate-x-0.5 transition-transform rotate-180" />
-        </button>
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Go back">
+          <ChevronLeft className="w-5 h-5" />
+        </Button>
       </div>
 
       {/* ─── HERO HEADER ─── */}
@@ -248,26 +253,28 @@ const PhotoLibraryDetail = () => {
         </div>
       </div>
 
-      {/* ─── STORAGE METER ─── */}
-      <div className="bg-card border border-border rounded-2xl p-5 mb-5">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <HardDrive className="w-4 h-4 text-primary" />
-            <span className="text-sm font-semibold text-foreground">Storage</span>
+      {/* ─── STORAGE METER (owner only) ─── */}
+      {isOwner && (
+        <div className="bg-card border border-border rounded-2xl p-5 mb-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <HardDrive className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold text-foreground">Storage</span>
+            </div>
+            <span className={`text-sm font-bold ${storageColor}`}>
+              {library.total_size_mb.toFixed(1)}MB / {STORAGE_LIMIT_MB}MB
+            </span>
           </div>
-          <span className={`text-sm font-bold ${storageColor}`}>
-            {library.total_size_mb.toFixed(1)}MB / {STORAGE_LIMIT_MB}MB
-          </span>
+          <Progress value={storagePct} className="h-2" />
+          <div className="flex justify-between text-xs text-muted-foreground mt-2">
+            <span>{photos.length} photo{photos.length !== 1 ? 's' : ''}</span>
+            <span>{(STORAGE_LIMIT_MB - library.total_size_mb).toFixed(1)}MB remaining</span>
+          </div>
         </div>
-        <Progress value={storagePct} className="h-2" />
-        <div className="flex justify-between text-xs text-muted-foreground mt-2">
-          <span>{photos.length} photo{photos.length !== 1 ? 's' : ''}</span>
-          <span>{(STORAGE_LIMIT_MB - library.total_size_mb).toFixed(1)}MB remaining</span>
-        </div>
-      </div>
+      )}
 
-      {/* ─── UPLOAD QUEUE ─── */}
-      {uploadQueue.length > 0 && (
+      {/* ─── UPLOAD QUEUE (owner only) ─── */}
+      {isOwner && uploadQueue.length > 0 && (
         <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 mb-5 space-y-2">
           <p className="text-sm font-semibold text-foreground mb-2">Uploading {uploadQueue.length} photos…</p>
           {uploadQueue.map((item, idx) => (
@@ -285,42 +292,62 @@ const PhotoLibraryDetail = () => {
         </div>
       )}
 
-      {/* ─── UPLOAD BUTTON ─── */}
-      <div className="mb-6">
-        <Button
-          className="w-full"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          size="lg"
-        >
-          {uploading
-            ? <><div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2" />Uploading…</>
-            : <><Upload className="w-5 h-5 mr-2" />Upload Photos</>
-          }
-        </Button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => handleFilesSelected(e.target.files)}
-        />
-      </div>
+      {/* ─── UPLOAD BUTTON (owner only) ─── */}
+      {isOwner && (
+        <div className="mb-6">
+          <Button
+            className="w-full"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            size="lg"
+          >
+            {uploading
+              ? <><div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2" />Uploading…</>
+              : <><Upload className="w-5 h-5 mr-2" />Upload Photos</>
+            }
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => handleFilesSelected(e.target.files)}
+          />
+        </div>
+      )}
+
+      {/* ─── PHOTO COUNT (viewer only) ─── */}
+      {!isOwner && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-5">
+          <img src={PhotosIcon} alt="" className="w-4 h-4 dark:invert opacity-60" />
+          <span>{photos.length} photo{photos.length !== 1 ? 's' : ''}</span>
+        </div>
+      )}
 
       {/* ─── PHOTO GRID ─── */}
       {photos.length === 0 ? (
-        <div
-          className="border-2 border-dashed border-border rounded-2xl p-16 text-center cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-all"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <img src={PhotosIcon} alt="Photos" className="w-8 h-8 opacity-60 dark:invert" />
+        isOwner ? (
+          <div
+            className="border-2 border-dashed border-border rounded-2xl p-16 text-center cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-all"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <img src={PhotosIcon} alt="Photos" className="w-8 h-8 opacity-60 dark:invert" />
+            </div>
+            <p className="text-lg font-semibold text-foreground mb-1">No photos yet</p>
+            <p className="text-sm text-muted-foreground">Click to upload your event photos</p>
+            <p className="text-xs text-muted-foreground mt-2">Max {MAX_IMAGE_MB}MB per image · Up to {STORAGE_LIMIT_MB}MB total storage</p>
           </div>
-          <p className="text-lg font-semibold text-foreground mb-1">No photos yet</p>
-          <p className="text-sm text-muted-foreground">Click to upload your event photos</p>
-          <p className="text-xs text-muted-foreground mt-2">Max {MAX_IMAGE_MB}MB per image · Up to {STORAGE_LIMIT_MB}MB total storage</p>
-        </div>
+        ) : (
+          <div className="border-2 border-dashed border-border rounded-2xl p-16 text-center">
+            <div className="w-16 h-16 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <img src={PhotosIcon} alt="Photos" className="w-8 h-8 opacity-40 dark:invert" />
+            </div>
+            <p className="text-lg font-semibold text-foreground mb-1">No photos yet</p>
+            <p className="text-sm text-muted-foreground">The photographer hasn't uploaded any photos yet</p>
+          </div>
+        )
       ) : (
         <div className="columns-2 md:columns-3 lg:columns-4 gap-3 space-y-3">
           {photos.map((photo, idx) => (
@@ -343,12 +370,25 @@ const PhotoLibraryDetail = () => {
                   >
                     <ZoomIn className="w-4 h-4 text-foreground" />
                   </button>
-                  <button
-                    onClick={() => setDeletePhotoId(photo.id)}
-                    className="p-2 bg-destructive/90 rounded-full hover:bg-destructive transition-colors shadow"
+                  <a
+                    href={photo.url}
+                    download
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors shadow"
+                    title="Download"
                   >
-                    <Trash2 className="w-4 h-4 text-white" />
-                  </button>
+                    <Download className="w-4 h-4 text-foreground" />
+                  </a>
+                  {isOwner && (
+                    <button
+                      onClick={() => setDeletePhotoId(photo.id)}
+                      className="p-2 bg-destructive/90 rounded-full hover:bg-destructive transition-colors shadow"
+                    >
+                      <Trash2 className="w-4 h-4 text-white" />
+                    </button>
+                  )}
                 </div>
               </div>
               {photo.caption && (
@@ -360,20 +400,33 @@ const PhotoLibraryDetail = () => {
           ))}
         </div>
       )}
-
       {/* ─── LIGHTBOX ─── */}
       {lightboxIdx !== null && photos.length > 0 && (
         <div
           className="fixed inset-0 z-50 bg-black/97 flex items-center justify-center p-4"
           onClick={() => setLightboxIdx(null)}
         >
-          <div className="relative max-w-[95vw] max-h-[95vh]" onClick={e => e.stopPropagation()}>
+          {/* Top controls */}
+          <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+            <a
+              href={photos[lightboxIdx]?.url}
+              download
+              target="_blank"
+              rel="noreferrer"
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+              onClick={e => e.stopPropagation()}
+              title="Download photo"
+            >
+              <Download className="w-5 h-5" />
+            </a>
             <button
               onClick={() => setLightboxIdx(null)}
-              className="absolute -top-4 -right-4 z-10 bg-white/10 hover:bg-white/20 text-white rounded-full p-2 transition-colors"
+              className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
+          </div>
+          <div className="relative max-w-[95vw] max-h-[95vh]" onClick={e => e.stopPropagation()}>
             <img
               src={photos[lightboxIdx]?.url}
               alt={photos[lightboxIdx]?.original_name || 'Photo'}

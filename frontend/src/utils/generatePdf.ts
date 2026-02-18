@@ -104,7 +104,7 @@ export const generateContributionReportHtml = (
       <table>
         <thead>
           <tr>
-            <th>#</th>
+            <th>S/N</th>
             <th>Contributor</th>
             ${isFiltered ? `
             <th style="text-align:right">Raised</th>
@@ -181,10 +181,10 @@ export const generateExpenseReportHtml = (
   const rows = sorted.map((e, i) => `
     <tr>
       <td style="padding:8px;border-bottom:1px solid #eee">${i + 1}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee">${e.expense_date ? new Date(e.expense_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee">${e.vendor_name || '—'}</td>
       <td style="padding:8px;border-bottom:1px solid #eee">${e.category}</td>
       <td style="padding:8px;border-bottom:1px solid #eee">${e.description}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee">${e.vendor_name || '—'}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee">${e.expense_date ? new Date(e.expense_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td>
       <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${fmt(e.amount)}</td>
     </tr>
   `).join('');
@@ -266,11 +266,11 @@ export const generateExpenseReportHtml = (
       <table>
         <thead>
           <tr>
-            <th>#</th>
+            <th>S/N</th>
+            <th>Date</th>
+            <th>Vendor</th>
             <th>Category</th>
             <th>Description</th>
-            <th>Vendor</th>
-            <th>Date</th>
             <th style="text-align:right">Amount</th>
           </tr>
         </thead>

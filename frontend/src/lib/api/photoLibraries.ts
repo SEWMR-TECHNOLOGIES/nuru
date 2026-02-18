@@ -18,6 +18,7 @@ export interface PhotoLibrary {
   total_size_mb: number;
   storage_limit_mb: number;
   storage_used_percent: number;
+  is_owner?: boolean; // true if current user is the service owner
   event?: {
     id: string;
     name: string;

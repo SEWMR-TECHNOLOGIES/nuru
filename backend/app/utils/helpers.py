@@ -2,8 +2,12 @@
 # Contains general helper functions used across the application
 
 import random
+import logging
 from datetime import datetime, timedelta
 from math import ceil
+import httpx
+
+logger = logging.getLogger(__name__)
 
 def api_response(success: bool, message: str, data=None) -> dict:
     return {"success": success, "message": message, "data": data}
@@ -125,3 +129,73 @@ def format_phone_display(phone: str) -> str:
     if phone.startswith("255"):
         return "0" + phone[3:]
     return phone
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Storage file deletion helper
+# Calls the PHP unlink endpoint to physically remove a file from storage.
+# This is a *best-effort* call — failures are logged but never raise exceptions
+# so that the database record is still cleaned up regardless.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def delete_storage_file_sync(file_url: str | None) -> bool:
+    """
+    Synchronous version for use inside sync FastAPI route handlers.
+    Physically delete a file from the remote PHP storage server.
+    """
+    if not file_url or not file_url.strip():
+        return True
+
+    from core.config import DELETE_SERVICE_URL
+
+    try:
+        with httpx.Client() as client:
+            resp = client.post(
+                DELETE_SERVICE_URL,
+                data={"file_url": file_url.strip()},
+                timeout=10,
+            )
+        result = resp.json()
+        if result.get("success"):
+            return True
+        else:
+            logger.warning("Storage delete failed for %s: %s", file_url, result.get("message"))
+            return False
+    except Exception as exc:
+        logger.warning("Storage delete error for %s: %s", file_url, exc)
+        return False
+
+
+async def delete_storage_file(file_url: str | None) -> bool:
+    """
+    Physically delete a file from the remote PHP storage server.
+
+    Args:
+        file_url: The full public URL of the file, e.g.
+                  https://data.sewmrtechnologies.com/storage/nuru/photo-libraries/…/photo.jpg
+
+    Returns:
+        True if the file was successfully deleted (or was already gone).
+        False on any error (the error is logged but not re-raised).
+    """
+    if not file_url or not file_url.strip():
+        return True  # Nothing to delete
+
+    from core.config import DELETE_SERVICE_URL
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                DELETE_SERVICE_URL,
+                data={"file_url": file_url.strip()},
+                timeout=10,
+            )
+        result = resp.json()
+        if result.get("success"):
+            return True
+        else:
+            logger.warning("Storage delete failed for %s: %s", file_url, result.get("message"))
+            return False
+    except Exception as exc:
+        logger.warning("Storage delete error for %s: %s", file_url, exc)
+        return False

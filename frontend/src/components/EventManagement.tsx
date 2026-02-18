@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2 } from 'lucide-react';
+import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2, Images } from 'lucide-react';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,7 @@ import { formatPrice } from '@/utils/formatPrice';
 import { EventManagementSkeleton } from '@/components/ui/EventManagementSkeleton';
 import { eventsApi, showCaughtError } from '@/lib/api';
 import { servicesApi } from '@/lib/api/services';
+import { photoLibrariesApi } from '@/lib/api/photoLibraries';
 import { toast } from 'sonner';
 import { useEventPermissions } from '@/hooks/useEventPermissions';
 
@@ -62,6 +63,8 @@ const EventManagement = () => {
   // Dynamic event services
   const [eventServices, setEventServices] = useState<any[]>([]);
   const [servicesLoading, setServicesLoading] = useState(false);
+  // Photo libraries created by service providers for this event
+  const [eventPhotoLibraries, setEventPhotoLibraries] = useState<any[]>([]);
 
   const loadEventServices = async () => {
     if (!id) return;
@@ -76,8 +79,21 @@ const EventManagement = () => {
     finally { setServicesLoading(false); }
   };
 
+  const loadEventPhotoLibraries = async () => {
+    if (!id) return;
+    try {
+      const res = await photoLibrariesApi.getEventLibraries(id);
+      if (res.success && res.data) {
+        setEventPhotoLibraries(res.data.libraries || []);
+      }
+    } catch { /* silent */ }
+  };
+
   useEffect(() => {
-    if (id) loadEventServices();
+    if (id) {
+      loadEventServices();
+      loadEventPhotoLibraries();
+    }
   }, [id]);
 
   const completedServices = eventServices.filter((s: any) => ['completed', 'confirmed', 'assigned', 'accepted'].includes(s.status)).length;
@@ -296,91 +312,198 @@ const EventManagement = () => {
           <EventChecklist eventId={id!} eventTypeId={apiEvent?.event_type_id} permissions={permissions} />
         </TabsContent>
 
-        <TabsContent value="services" className="space-y-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Service Checklist</CardTitle>
+        <TabsContent value="services" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold">Service Providers</h2>
+              <p className="text-xs text-muted-foreground">{eventServices.length} service{eventServices.length !== 1 ? 's' : ''} · {completedServices} confirmed</p>
+            </div>
+            {(permissions.can_manage_vendors || permissions.is_creator) && (
+              <Button size="sm" onClick={() => setShowAddServiceDialog(true)}>
+                <Plus className="w-4 h-4 mr-1.5" />Add Service
+              </Button>
+            )}
+          </div>
+
+          {servicesLoading ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="rounded-2xl border border-border bg-card overflow-hidden">
+                  <div className="h-32 bg-muted animate-pulse" />
+                  <div className="p-4 space-y-2">
+                    <div className="h-4 bg-muted rounded animate-pulse w-3/4" />
+                    <div className="h-3 bg-muted rounded animate-pulse w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : eventServices.length === 0 ? (
+            <div className="text-center py-16 border-2 border-dashed border-border rounded-2xl">
+              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Plus className="w-8 h-8 text-primary opacity-60" />
+              </div>
+              <h3 className="font-bold text-lg mb-1">No Services Yet</h3>
+              <p className="text-sm text-muted-foreground mb-4">Add service providers to make your event a success.</p>
               {(permissions.can_manage_vendors || permissions.is_creator) && (
-                <Button size="sm" variant="outline" onClick={() => setShowAddServiceDialog(true)}><Plus className="w-4 h-4 mr-2" />Add Service</Button>
+                <Button onClick={() => setShowAddServiceDialog(true)}>
+                  <Plus className="w-4 h-4 mr-1.5" />Add First Service
+                </Button>
               )}
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {servicesLoading ? (
-                  <div className="text-center py-8 text-muted-foreground">Loading services...</div>
-                ) : eventServices.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">No services added yet. Click "Add Service" to get started.</div>
-                ) : (
-                  eventServices.map((service: any) => {
-                    const extractFirstImage = (arr: any) => {
-                      if (!Array.isArray(arr) || arr.length === 0) return '';
-                      const first = arr[0];
-                      if (typeof first === 'string') return first;
-                      return first?.url || first?.image_url || first?.file_url || first?.thumbnail_url || '';
-                    };
-                    const serviceImage = service.service?.primary_image
-                      || service.service?.cover_image
-                      || service.service?.image_url
-                      || service.service?.image
-                      || extractFirstImage(service.service?.images)
-                      || extractFirstImage(service.service?.gallery_images)
-                      || service.provider_service?.primary_image
-                      || service.provider_service?.cover_image
-                      || service.provider_service?.image_url
-                      || service.provider_service?.image
-                      || extractFirstImage(service.provider_service?.images)
-                      || extractFirstImage(service.provider_service?.gallery_images)
-                      || service.image
-                      || service.image_url
-                      || service.cover_image
-                      || '';
-                    const statusVariant = (s: string) => {
-                      switch (s) {
-                        case 'completed': return 'bg-green-100 text-green-800 border-green-200';
-                        case 'confirmed': case 'accepted': return 'bg-blue-100 text-blue-800 border-blue-200';
-                        case 'pending': return 'bg-amber-100 text-amber-800 border-amber-200';
-                        case 'cancelled': return 'bg-red-100 text-red-800 border-red-200';
-                        default: return 'bg-muted text-muted-foreground border-border';
-                      }
-                    };
-                    return (
-                    <div key={service.id} className={`p-4 rounded-lg border transition-colors ${['completed', 'confirmed', 'assigned', 'accepted'].includes(service.status) ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800" : "bg-card border-border"}`}>
-                      <div className="flex items-start gap-3">
-                        {(permissions.can_manage_vendors || permissions.is_creator) && (
-                          <button onClick={() => toggleServiceComplete(service.id)} className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 ${['completed', 'confirmed', 'assigned', 'accepted'].includes(service.status) ? "bg-green-500 border-green-500 text-white" : "border-muted-foreground hover:border-primary"}`}>
-                            {['completed', 'confirmed', 'assigned', 'accepted'].includes(service.status) && <CheckCircle2 className="w-3 h-3" />}
-                          </button>
-                        )}
-                        <Avatar className="w-10 h-10 rounded-lg flex-shrink-0">
-                          <AvatarImage src={serviceImage} className="object-cover rounded-lg" />
-                          <AvatarFallback className="rounded-lg bg-primary/10 text-primary font-semibold text-sm">
-                            {(service.service?.title || 'S')[0]}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2 mb-1">
-                            <h3 className="font-medium">{service.service?.title || 'Unnamed Service'}</h3>
-                            {(permissions.can_manage_vendors || permissions.is_creator) && (
-                              <Button size="sm" variant="ghost" onClick={() => setDeleteServiceId(service.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-1">
-                            {service.service?.category && <span>{service.service.category}</span>}
-                            {service.service?.provider_name && <span> • by {service.service.provider_name}</span>}
-                          </p>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Badge className={`text-xs border ${statusVariant(service.status)}`}>{service.status}</Badge>
-                            {service.quoted_price && <span className="text-sm font-medium text-primary">{formatPrice(service.quoted_price)}</span>}
-                          </div>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {eventServices.map((service: any) => {
+                // Backend returns service.service.image (single string from _service_booking_dict)
+                const extractFirstImage = (arr: any) => {
+                  if (!Array.isArray(arr) || arr.length === 0) return '';
+                  const first = arr[0];
+                  if (typeof first === 'string') return first;
+                  return first?.url || first?.image_url || first?.file_url || first?.thumbnail_url || '';
+                };
+                const serviceImage = service.service?.image
+                  || service.service?.primary_image
+                  || service.service?.cover_image
+                  || service.service?.image_url
+                  || extractFirstImage(service.service?.images)
+                  || extractFirstImage(service.service?.gallery_images)
+                  || '';
+
+                const isConfirmed = ['completed', 'confirmed', 'assigned', 'accepted'].includes(service.status);
+                // provider_service_id is the UserService id that was added to the event
+                const providerServiceId = service.provider_service_id || service.service?.id;
+                const serviceCategory = (service.service?.category || service.service?.service_type_name || service.service?.title || '').toLowerCase();
+                const isPhotographyService = serviceCategory.includes('photo') || serviceCategory.includes('cinema') || serviceCategory.includes('video') || serviceCategory.includes('film');
+                const matchedLibrary = isPhotographyService && isConfirmed
+                  ? eventPhotoLibraries.find((lib: any) =>
+                      lib.user_service_id === providerServiceId ||
+                      lib.user_service_id === service.provider_service_id ||
+                      lib.user_service_id === service.service?.id ||
+                      (lib.service?.id && (lib.service.id === providerServiceId || lib.service.id === service.provider_service_id))
+                    ) ?? (eventPhotoLibraries.length > 0 ? eventPhotoLibraries[0] : null)
+                  : null;
+
+                const statusStyle: Record<string, string> = {
+                  completed: 'bg-emerald-500 text-white',
+                  confirmed: 'bg-blue-500 text-white',
+                  accepted: 'bg-blue-500 text-white',
+                  assigned: 'bg-blue-500 text-white',
+                  pending: 'bg-amber-500 text-white',
+                  cancelled: 'bg-destructive text-white',
+                };
+
+                return (
+                  <div
+                    key={service.id}
+                    className={`rounded-2xl border overflow-hidden bg-card transition-all hover:shadow-md
+                      ${isConfirmed ? 'border-emerald-200 dark:border-emerald-800/60' : 'border-border'}`}
+                  >
+                    {/* Image Header */}
+                    <div className="relative h-32 bg-gradient-to-br from-primary/10 to-muted overflow-hidden">
+                      {serviceImage ? (
+                        <img src={serviceImage} alt={service.service?.title} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <Users className="w-10 h-10 text-muted-foreground/20" />
                         </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
+                      {/* Status badge */}
+                      <div className="absolute top-3 left-3">
+                        <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${statusStyle[service.status] || 'bg-muted text-muted-foreground'}`}>
+                          {service.status}
+                        </span>
+                      </div>
+
+                      {/* Price */}
+                      {service.quoted_price && (
+                        <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full font-semibold">
+                          {formatPrice(service.quoted_price)}
+                        </div>
+                      )}
+
+                      {/* Service title on image */}
+                      <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between">
+                        <h3 className="text-white font-bold text-sm truncate">{service.service?.title || 'Unnamed Service'}</h3>
+                        {(permissions.can_manage_vendors || permissions.is_creator) && (
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <button
+                              onClick={() => toggleServiceComplete(service.id)}
+                              className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors
+                                ${isConfirmed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-white/70 bg-white/10 hover:border-white'}`}
+                            >
+                              {isConfirmed && <CheckCircle2 className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    );
-                  })
-                )}
-              </div>
-            </CardContent>
-          </Card>
+
+                    {/* Body */}
+                    <div className="p-4 space-y-3">
+                      {/* Provider info */}
+                      <div className="flex items-center gap-2">
+                        <Avatar className="w-7 h-7 flex-shrink-0">
+                          <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                            {(service.service?.provider_name || service.service?.title || 'S')[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          {service.service?.provider_name && (
+                            <p className="text-xs font-medium text-foreground truncate">{service.service.provider_name}</p>
+                          )}
+                          {service.service?.category && (
+                            <p className="text-[11px] text-muted-foreground truncate">{service.service.category}</p>
+                          )}
+                        </div>
+                        {(permissions.can_manage_vendors || permissions.is_creator) && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setDeleteServiceId(service.id)}
+                            className="ml-auto text-muted-foreground hover:text-destructive h-7 w-7 p-0 flex-shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Photo Library CTA for photography services */}
+                      {isPhotographyService && isConfirmed && (
+                        matchedLibrary ? (
+                          <button
+                            onClick={() => navigate(`/photo-library/${matchedLibrary.id}`)}
+                            className="w-full flex items-center justify-between gap-2 rounded-xl border border-border bg-muted/40 hover:bg-muted transition-colors px-3 py-2 text-sm"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              {matchedLibrary.photos && matchedLibrary.photos.length > 0 ? (
+                                <div className="flex -space-x-1 shrink-0">
+                                  {matchedLibrary.photos.slice(0, 3).map((p: any, i: number) => (
+                                    <img key={i} src={p.url} alt="" className="w-6 h-6 rounded-full object-cover border-2 border-card" />
+                                  ))}
+                                </div>
+                              ) : (
+                                <Images className="w-4 h-4 text-primary flex-shrink-0" />
+                              )}
+                              <span className="font-medium text-foreground text-xs truncate">Photo Library</span>
+                            </div>
+                            <span className="text-[11px] text-muted-foreground bg-background px-2 py-0.5 rounded-full border border-border shrink-0">
+                              {matchedLibrary.photo_count || 0} photos
+                            </span>
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-2 rounded-xl border border-dashed border-border bg-muted/20 px-3 py-2">
+                            <Images className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                            <span className="text-xs text-muted-foreground">No photo library shared yet</span>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="committee" className="space-y-6">

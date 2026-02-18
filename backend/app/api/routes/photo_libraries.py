@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from core.config import UPLOAD_SERVICE_URL
 from core.database import get_db
 from models import (
-    UserService, Event, EventService, ServicePhotoLibrary, ServicePhotoLibraryImage,
+    UserService, Event, EventImage, EventService, ServicePhotoLibrary, ServicePhotoLibraryImage,
     User, PhotoLibraryPrivacyEnum, EventServiceStatusEnum,
 )
 from utils.auth import get_current_user
@@ -164,7 +164,9 @@ def get_library(
     if not is_owner and not is_event_organizer and not is_public:
         return standard_response(False, "Access denied")
 
-    return standard_response(True, "Library retrieved", _library_dict(library, include_photos=True))
+    data = _library_dict(library, include_photos=True)
+    data["is_owner"] = is_owner
+    return standard_response(True, "Library retrieved", data)
 
 
 # ──────────────────────────────────────────────
@@ -189,7 +191,9 @@ def get_library_by_token(
     if library.privacy == PhotoLibraryPrivacyEnum.event_creator_only and not is_owner and not is_event_organizer:
         return standard_response(False, "This library is private")
 
-    return standard_response(True, "Library retrieved", _library_dict(library, include_photos=True))
+    data = _library_dict(library, include_photos=True)
+    data["is_owner"] = is_owner
+    return standard_response(True, "Library retrieved", data)
 
 
 # ──────────────────────────────────────────────
@@ -439,6 +443,8 @@ def delete_photo(
     if not photo:
         return standard_response(False, "Photo not found")
 
+    photo_url = photo.url  # capture before delete
+
     # Update library totals
     library.photo_count = max(0, (library.photo_count or 1) - 1)
     library.total_size_bytes = max(0, (library.total_size_bytes or 0) - (photo.file_size_bytes or 0))
@@ -446,6 +452,10 @@ def delete_photo(
 
     db.delete(photo)
     db.commit()
+
+    # Physically remove file from storage (best-effort, synchronous)
+    from utils.helpers import delete_storage_file_sync
+    delete_storage_file_sync(photo_url)
 
     return standard_response(True, "Photo deleted successfully")
 
@@ -539,6 +549,21 @@ def get_service_confirmed_events(
             ServicePhotoLibrary.is_active == True,
         ).first()
 
+        # Build photo_library dict with up to 6 thumbnails for mosaic display
+        photo_library_data = None
+        if library:
+            photo_library_data = _library_dict(library, include_photos=True, max_photos=6)
+
+        # Resolve the best cover image for this event:
+        # 1. event.cover_image_url, 2. featured EventImage, 3. first EventImage
+        cover_image_url = event.cover_image_url
+        if not cover_image_url:
+            event_imgs = db.query(EventImage).filter(
+                EventImage.event_id == event.id
+            ).order_by(EventImage.is_featured.desc(), EventImage.created_at.asc()).limit(1).first()
+            if event_imgs:
+                cover_image_url = event_imgs.image_url
+
         events_data.append({
             "event_service_id": str(es.id),
             "event_id": str(event.id),
@@ -546,14 +571,14 @@ def get_service_confirmed_events(
             "event_date": event.start_date.isoformat() if event.start_date else None,
             "event_date_display": event.start_date.strftime("%A, %d %B %Y") if event.start_date else None,
             "location": event.location,
-            "cover_image_url": event.cover_image_url,
+            "cover_image_url": cover_image_url,
             "status": es.service_status.value,
             "agreed_price": float(es.agreed_price) if es.agreed_price else None,
             "timing": timing,
             "organizer_id": str(event.organizer_id) if event.organizer_id else None,
             "organizer_name": f"{event.organizer.first_name} {event.organizer.last_name}" if event.organizer else None,
             "organizer_avatar": event.organizer.profile.profile_picture_url if event.organizer and event.organizer.profile else None,
-            "photo_library": _library_dict(library) if library else None,
+            "photo_library": photo_library_data,
             "has_library": library is not None,
         })
 

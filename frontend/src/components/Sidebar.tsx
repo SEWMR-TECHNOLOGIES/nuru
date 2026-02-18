@@ -6,7 +6,6 @@ import {
   User,
   Users,
   UsersRound,
-  ClipboardList,
   BookUser,
   AlertTriangle,
   LucideIcon
@@ -44,7 +43,6 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
   const secondaryItems: NavItem[] = [
     { lucideIcon: Search, label: 'Find Services', path: '/find-services' },
     { lucideIcon: Briefcase, label: 'My Services', path: '/my-services' },
-    { lucideIcon: ClipboardList, label: 'Bookings', path: '/bookings' },
     { customIcon: CardIcon, label: 'Nuru Cards', path: '/nuru-cards' },
     
     { lucideIcon: Users, label: 'My Circle', path: '/circle' },

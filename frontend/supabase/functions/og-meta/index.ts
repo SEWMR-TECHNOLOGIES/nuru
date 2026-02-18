@@ -81,21 +81,47 @@ async function handleRsvp(code: string, apiBase: string) {
   return buildHtmlPage(title, description, image, canonicalUrl);
 }
 
+// ── Photo Library OG handler ─────────────────────────────────
+async function handlePhotoLibrary(token: string, apiBase: string) {
+  let library: any = null;
+  try {
+    // Use the public shared endpoint (no auth required for public libraries)
+    const res = await fetch(`${apiBase}/photo-libraries/shared/${token}`);
+    const json = await res.json();
+    if (json.success && json.data) library = json.data;
+  } catch (e) {
+    console.error("Failed to fetch photo library:", e);
+  }
+
+  const libraryName = library?.name || "Photo Library";
+  const eventName = library?.event?.name || "";
+  const photoCount = library?.photo_count || 0;
+  const title = (eventName ? `${libraryName}` : libraryName).slice(0, 60);
+  const description = `View ${photoCount} photo${photoCount !== 1 ? "s" : ""} from ${eventName || "this event"} on Nuru – your all-in-one event planning platform.`;
+  // Use first photo or event cover as OG image
+  const image = library?.photos?.[0]?.url || library?.event?.cover_image_url || `${siteUrl}/logo.png`;
+  const canonicalUrl = `${siteUrl}/shared/photo-library/${token}`;
+
+  return buildHtmlPage(title, description, image, canonicalUrl);
+}
+
 // ── Main handler ────────────────────────────────────
 serve(async (req) => {
   const url = new URL(req.url);
   const userAgent = req.headers.get("user-agent") || "";
 
   // Determine resource type and ID
-  let resourceType: "post" | "rsvp" | null = null;
+  let resourceType: "post" | "rsvp" | "photo-library" | null = null;
   let resourceId: string | null = null;
 
   // Check query params first
   const idParam = url.searchParams.get("id");
-  const typeParam = url.searchParams.get("type"); // "rsvp" or default "post"
+  const typeParam = url.searchParams.get("type");
 
   if (idParam) {
-    resourceType = typeParam === "rsvp" ? "rsvp" : "post";
+    if (typeParam === "rsvp") resourceType = "rsvp";
+    else if (typeParam === "photo-library") resourceType = "photo-library";
+    else resourceType = "post";
     resourceId = idParam;
   }
 
@@ -111,6 +137,11 @@ serve(async (req) => {
       resourceType = "rsvp";
       resourceId = rsvpMatch[1];
     }
+    const photoLibraryMatch = url.pathname.match(/\/shared\/photo-library\/([A-Za-z0-9_-]+)/i);
+    if (photoLibraryMatch) {
+      resourceType = "photo-library";
+      resourceId = photoLibraryMatch[1];
+    }
   }
 
   if (!resourceType || !resourceId) {
@@ -119,9 +150,14 @@ serve(async (req) => {
 
   // For real browsers, redirect to the SPA with ?r=1
   if (!BOT_UA_REGEX.test(userAgent)) {
-    const redirectPath = resourceType === "rsvp"
-      ? `${siteUrl}/rsvp/${resourceId}?r=1`
-      : `${siteUrl}/shared/post/${resourceId}?r=1`;
+    let redirectPath: string;
+    if (resourceType === "rsvp") {
+      redirectPath = `${siteUrl}/rsvp/${resourceId}?r=1`;
+    } else if (resourceType === "photo-library") {
+      redirectPath = `${siteUrl}/shared/photo-library/${resourceId}?r=1`;
+    } else {
+      redirectPath = `${siteUrl}/shared/post/${resourceId}?r=1`;
+    }
     return new Response(null, {
       status: 302,
       headers: { "Location": redirectPath, "Cache-Control": "no-cache" },
@@ -133,9 +169,14 @@ serve(async (req) => {
     return new Response("API base URL not configured", { status: 500 });
   }
 
-  const html = resourceType === "rsvp"
-    ? await handleRsvp(resourceId, API_BASE)
-    : await handlePost(resourceId, API_BASE);
+  let html: string;
+  if (resourceType === "rsvp") {
+    html = await handleRsvp(resourceId, API_BASE);
+  } else if (resourceType === "photo-library") {
+    html = await handlePhotoLibrary(resourceId, API_BASE);
+  } else {
+    html = await handlePost(resourceId, API_BASE);
+  }
 
   return new Response(html, {
     status: 200,

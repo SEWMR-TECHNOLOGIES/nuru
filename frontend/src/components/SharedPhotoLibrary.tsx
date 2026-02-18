@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Globe, Lock, HardDrive, Calendar, X, ZoomIn } from 'lucide-react';
+import { Globe, Lock, X, ZoomIn, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -74,16 +74,7 @@ const SharedPhotoLibrary = () => {
   return (
     <div className="max-w-5xl mx-auto pb-16 px-4">
 
-      {/* ─── TOP BAR ─── */}
-      <div className="flex items-center justify-end py-4 mb-2">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors group"
-        >
-          Back
-          <ChevronLeft className="w-4 h-4 rotate-180 group-hover:translate-x-0.5 transition-transform" />
-        </button>
-      </div>
+      {/* no back button on shared/public view */}
 
       {/* ─── HERO HEADER ─── */}
       <div className="relative rounded-2xl overflow-hidden mb-6 bg-gradient-to-br from-primary/20 via-primary/10 to-background border border-border h-44">
@@ -127,12 +118,9 @@ const SharedPhotoLibrary = () => {
         </div>
       </div>
 
-      {/* ─── STORAGE INFO ─── */}
-      <div className="flex items-center gap-3 text-xs text-muted-foreground mb-6">
-        <HardDrive className="w-3.5 h-3.5" />
-        <span>{library.total_size_mb.toFixed(1)}MB used</span>
-        {library.description && <span className="text-foreground">· {library.description}</span>}
-      </div>
+      {library.description && (
+        <p className="text-sm text-muted-foreground mb-6">{library.description}</p>
+      )}
 
       {/* ─── PHOTO GRID ─── */}
       {photos.length === 0 ? (
@@ -168,24 +156,37 @@ const SharedPhotoLibrary = () => {
       {/* ─── LIGHTBOX ─── */}
       {lightboxIdx !== null && (
         <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center" onClick={() => setLightboxIdx(null)}>
-          <button className="absolute top-4 right-4 text-white/80 hover:text-white" onClick={() => setLightboxIdx(null)}>
-            <X className="w-8 h-8" />
-          </button>
+          <div className="absolute top-4 right-4 flex items-center gap-2">
+            <a
+              href={photos[lightboxIdx].url}
+              download
+              target="_blank"
+              rel="noreferrer"
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+              onClick={e => e.stopPropagation()}
+              title="Download photo"
+            >
+              <Download className="w-5 h-5" />
+            </a>
+            <button className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors" onClick={() => setLightboxIdx(null)}>
+              <X className="w-5 h-5" />
+            </button>
+          </div>
           <button
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white text-4xl font-thin"
+            className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
             onClick={(e) => { e.stopPropagation(); setLightboxIdx(i => i !== null ? Math.max(0, i - 1) : 0); }}
-          >‹</button>
+          ><ChevronLeft className="w-5 h-5" /></button>
           <button
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white text-4xl font-thin"
+            className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
             onClick={(e) => { e.stopPropagation(); setLightboxIdx(i => i !== null ? Math.min(photos.length - 1, i + 1) : 0); }}
-          >›</button>
+          ><ChevronRight className="w-5 h-5" /></button>
           <img
             src={photos[lightboxIdx].url}
             alt=""
             className="max-h-[90vh] max-w-[90vw] object-contain rounded-xl"
             onClick={(e) => e.stopPropagation()}
           />
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/60 text-sm">
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/60 text-sm bg-black/40 px-3 py-1 rounded-full">
             {lightboxIdx + 1} / {photos.length}
           </div>
         </div>
