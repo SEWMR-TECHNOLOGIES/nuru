@@ -1830,3 +1830,92 @@ VALUES (
   encode(sha256('yourpassword'::bytea), 'hex'),
   'admin'
 );
+
+-- ============================================================
+-- NEW: removal_reason and updated_at columns on user_feeds and user_moments
+-- ============================================================
+ALTER TABLE user_feeds ADD COLUMN IF NOT EXISTS removal_reason TEXT;
+ALTER TABLE user_moments ADD COLUMN IF NOT EXISTS removal_reason TEXT;
+ALTER TABLE user_moments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT now();
+
+-- ============================================================
+-- NEW: appeal_status and appeal_content_type ENUMs
+-- ============================================================
+DO $$ BEGIN
+  CREATE TYPE appeal_status_enum AS ENUM ('pending', 'approved', 'rejected');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE appeal_content_type_enum AS ENUM ('post', 'moment');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ============================================================
+-- NEW: content_appeals table
+-- Users can appeal removal of a post or moment by admin.
+-- One appeal per content item (unique constraint).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS content_appeals (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content_id uuid NOT NULL,
+    content_type appeal_content_type_enum NOT NULL,
+    appeal_reason text NOT NULL,
+    status appeal_status_enum NOT NULL DEFAULT 'pending',
+    admin_notes text,
+    reviewed_by uuid REFERENCES admin_users(id) ON DELETE SET NULL,
+    reviewed_at timestamp,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now(),
+    UNIQUE(user_id, content_id, content_type)
+);
+CREATE INDEX IF NOT EXISTS idx_content_appeals_user ON content_appeals(user_id);
+CREATE INDEX IF NOT EXISTS idx_content_appeals_content ON content_appeals(content_id);
+CREATE INDEX IF NOT EXISTS idx_content_appeals_status ON content_appeals(status);
+
+-- ──────────────────────────────────────────────
+-- PHOTO LIBRARIES (Photography service providers)
+-- ──────────────────────────────────────────────
+
+-- Photo library privacy enum
+DO $$ BEGIN
+  CREATE TYPE photo_library_privacy_enum AS ENUM ('public', 'event_creator_only');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Main library table (one per service+event pair)
+CREATE TABLE IF NOT EXISTS service_photo_libraries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_service_id UUID NOT NULL REFERENCES user_services(id) ON DELETE CASCADE,
+    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    privacy photo_library_privacy_enum NOT NULL DEFAULT 'event_creator_only',
+    share_token TEXT NOT NULL UNIQUE,
+    photo_count INTEGER DEFAULT 0,
+    total_size_bytes BIGINT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now(),
+    UNIQUE(user_service_id, event_id)
+);
+
+-- Photos within a library
+CREATE TABLE IF NOT EXISTS service_photo_library_images (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    library_id UUID NOT NULL REFERENCES service_photo_libraries(id) ON DELETE CASCADE,
+    image_url TEXT NOT NULL,
+    original_name TEXT,
+    file_size_bytes BIGINT DEFAULT 0,
+    width INTEGER,
+    height INTEGER,
+    caption TEXT,
+    display_order INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT now()
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_spl_service ON service_photo_libraries(user_service_id);
+CREATE INDEX IF NOT EXISTS idx_spl_event ON service_photo_libraries(event_id);
+CREATE INDEX IF NOT EXISTS idx_spl_token ON service_photo_libraries(share_token);
+CREATE INDEX IF NOT EXISTS idx_spli_library ON service_photo_library_images(library_id);
+
+

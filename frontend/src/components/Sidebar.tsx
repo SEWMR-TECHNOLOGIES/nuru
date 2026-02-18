@@ -3,14 +3,15 @@ import {
   HelpCircle, 
   Settings,
   Briefcase,
-  
   User,
   Users,
   UsersRound,
   ClipboardList,
   BookUser,
+  AlertTriangle,
   LucideIcon
 } from 'lucide-react'
+
 import { Button } from '@/components/ui/button'
 import { NavLink } from 'react-router-dom'
 import HomeIcon from '@/assets/icons/home-icon.svg'
@@ -49,6 +50,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
     { lucideIcon: Users, label: 'My Circle', path: '/circle' },
     { lucideIcon: BookUser, label: 'Contributors', path: '/my-contributors' },
     { lucideIcon: UsersRound, label: 'Communities', path: '/communities' },
+    { lucideIcon: AlertTriangle, label: 'Removed Content', path: '/removed-content' },
     { lucideIcon: HelpCircle, label: 'Help', path: '/help' },
     { lucideIcon: Settings, label: 'Settings', path: '/settings' },
   ]

@@ -257,4 +257,28 @@ export const adminApi = {
   createServiceCategory:   (data: any)             => aPost<any>("/admin/service-categories", data),
   updateServiceCategory:   (id: string, data: any) => aPut<any>(`/admin/service-categories/${id}`, data),
   deleteServiceCategory:   (id: string)            => aDel<any>(`/admin/service-categories/${id}`),
+
+  // Service Types within a category
+  getServiceTypes: (categoryId: string) => aGet<any>(`/admin/service-categories/${categoryId}/service-types`),
+
+  // KYC Requirements per service type (sub-category)
+  getKycRequirements: (serviceTypeId: string) => aGet<any>(`/admin/service-types/${serviceTypeId}/kyc-requirements`),
+  addKycRequirement: (serviceTypeId: string, data: { kyc_requirement_id: string; is_mandatory?: boolean }) =>
+    aPost<any>(`/admin/service-types/${serviceTypeId}/kyc-requirements`, data),
+  deleteKycRequirement: (serviceTypeId: string, mappingId: string) =>
+    aDel<any>(`/admin/service-types/${serviceTypeId}/kyc-requirements/${mappingId}`),
+
+  // All KYC requirement definitions (for dropdown when adding)
+  getAllKycDefinitions: () => aGet<any>("/admin/kyc-definitions"),
+
+  // Content Appeals
+  getAppeals: (params?: any) => {
+    const qs = new URLSearchParams();
+    if (params?.page)   qs.set("page",   params.page);
+    if (params?.limit)  qs.set("limit",  params.limit);
+    if (params?.status) qs.set("status", params.status);
+    return aGet<any>(`/admin/appeals${qs.toString() ? `?${qs}` : ""}`);
+  },
+  reviewAppeal: (appealId: string, decision: "approved" | "rejected", notes?: string) =>
+    aPut<any>(`/admin/appeals/${appealId}/review`, { decision, notes }),
 };

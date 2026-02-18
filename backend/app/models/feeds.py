@@ -21,6 +21,7 @@ class UserFeed(Base):
     is_public = Column(Boolean, default=True)
     allow_echo = Column(Boolean, default=True)
     is_active = Column(Boolean, default=True)
+    removal_reason = Column(Text)
     visibility = Column(Enum(FeedVisibilityEnum, name="feed_visibility_enum"), default=FeedVisibilityEnum.public)
     glow_count = Column(Integer, default=0)
     echo_count = Column(Integer, default=0)

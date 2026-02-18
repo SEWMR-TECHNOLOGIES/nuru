@@ -67,6 +67,7 @@ class User(Base):
     notifications = relationship("Notification", back_populates="recipient")
     booking_requests = relationship("ServiceBookingRequest", back_populates="requester")
     file_uploads = relationship("FileUpload", back_populates="user")
+    content_appeals = relationship("ContentAppeal", back_populates="user")
 
     # Self-referential / multi-FK relationships
     blocks_made = relationship("UserBlock", back_populates="blocker", foreign_keys="[UserBlock.blocker_id]")

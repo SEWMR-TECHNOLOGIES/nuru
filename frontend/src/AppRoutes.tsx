@@ -30,12 +30,17 @@ import CommunityDetail from "@/components/CommunityDetail";
 import MyMoments from "@/components/MyMoments";
 import MyContributors from "@/components/MyContributors";
 import SavedPosts from "@/components/SavedPosts";
+import RemovedContent from "@/components/RemovedContent";
 import LiveChat from "@/components/LiveChat";
 import NuruCards from "@/components/NuruCards";
 import BookingList from "@/components/bookings/BookingList";
 import BookingDetail from "@/components/bookings/BookingDetail";
 import EventView from "@/components/EventView";
 import PublicProfile from "@/components/PublicProfile";
+import ServiceEventsPage from "@/components/ServiceEventsPage";
+import ServicePhotoLibraries from "@/components/ServicePhotoLibraries";
+import PhotoLibraryDetail from "@/components/PhotoLibraryDetail";
+import SharedPhotoLibrary from "@/components/SharedPhotoLibrary";
 
 import Index from "@/pages/Index";
 import Contact from "@/pages/Contact";
@@ -86,6 +91,7 @@ import AdminAdmins from "@/pages/admin/AdminAdmins";
 import AdminUserVerifications from "@/pages/admin/AdminUserVerifications";
 import AdminKycDetail from "@/pages/admin/AdminKycDetail";
 import AdminServiceDetail from "@/pages/admin/AdminServiceDetail";
+import AdminAppeals from "@/pages/admin/AdminAppeals";
 
 // Inner component that uses router hooks (must be inside BrowserRouter)
 
@@ -148,7 +154,11 @@ function InnerRoutes() {
           <Route path="/event/:id" element={<EventView />} />
           <Route path="/my-contributors" element={<MyContributors />} />
           <Route path="/change-password" element={<ChangePassword />} />
+          <Route path="/removed-content" element={<RemovedContent />} />
           <Route path="/u/:username" element={<PublicProfile />} />
+          <Route path="/services/events/:serviceId" element={<ServiceEventsPage />} />
+          <Route path="/services/photo-libraries/:serviceId" element={<ServicePhotoLibraries />} />
+          <Route path="/photo-library/:libraryId" element={<PhotoLibraryDetail />} />
         </Route>
 
         {/* Public Pages */}
@@ -162,6 +172,7 @@ function InnerRoutes() {
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/shared/post/:id" element={<GuestPost />} />
+        <Route path="/shared/photo-library/:token" element={<SharedPhotoLibrary />} />
         <Route path="/rsvp/:code" element={<RSVPConfirmation />} />
         <Route path="/features/event-planning" element={<EventPlanning />} />
         <Route path="/features/service-providers" element={<ServiceProviders />} />
@@ -197,6 +208,7 @@ function InnerRoutes() {
           <Route path="user-verifications" element={<AdminUserVerifications />} />
           <Route path="kyc/:id" element={<AdminKycDetail />} />
           <Route path="services/:id" element={<AdminServiceDetail />} />
+          <Route path="appeals" element={<AdminAppeals />} />
         </Route>
 
 

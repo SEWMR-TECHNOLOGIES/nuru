@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Clock, Users, CheckCircle, XCircle, Loader2, Printer, Heart } from 'lucide-react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { ChevronLeft, Clock, Users, CheckCircle, XCircle, Loader2, Printer, Camera, Images } from 'lucide-react';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { motion } from 'framer-motion';
@@ -9,19 +9,24 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { eventsApi } from '@/lib/api/events';
+import { photoLibrariesApi } from '@/lib/api/photoLibraries';
+import type { PhotoLibrary } from '@/lib/api/photoLibraries';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
 import InvitationCard from './InvitationCard';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 const EventView = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { data: currentUser } = useCurrentUser();
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [respondingStatus, setRespondingStatus] = useState<string | null>(null);
   const [rsvpStatus, setRsvpStatus] = useState<string>('pending');
   const [showInvitationCard, setShowInvitationCard] = useState(false);
   const [hasInvitation, setHasInvitation] = useState(false);
+  const [photoLibraries, setPhotoLibraries] = useState<PhotoLibrary[]>([]);
 
   const fetchEvent = useCallback(async () => {
     if (!id) return;
@@ -54,6 +59,18 @@ const EventView = () => {
   }, [id]);
 
   useEffect(() => { fetchEvent(); }, [fetchEvent]);
+
+  // Fetch photo libraries when the event creator views the event
+  useEffect(() => {
+    if (!id || !event || !currentUser) return;
+    const isCreator = event.organizer_id === currentUser.id || event.organizer?.id === currentUser.id;
+    if (!isCreator) return;
+    photoLibrariesApi.getEventLibraries(id).then(res => {
+      if (res.success && res.data?.libraries?.length) {
+        setPhotoLibraries(res.data.libraries);
+      }
+    }).catch(() => {});
+  }, [id, event, currentUser]);
 
   const handleRSVP = async (status: 'confirmed' | 'declined') => {
     if (!id) return;
@@ -331,6 +348,61 @@ const EventView = () => {
                       {item.description && <p className="text-sm text-muted-foreground">{item.description}</p>}
                     </div>
                   </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* Photo Libraries — shown to event creator when photography provider has uploaded */}
+      {photoLibraries.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45 }}
+        >
+          <Card className="border-primary/20">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Camera className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-foreground">Event Photo Libraries</h2>
+                  <p className="text-xs text-muted-foreground">Uploaded by your photography service provider(s)</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {photoLibraries.map((lib) => (
+                  <Link
+                    key={lib.id}
+                    to={`/photo-library/${lib.id}`}
+                    className="flex items-center justify-between p-3 rounded-lg border border-border hover:border-primary/40 hover:bg-primary/5 transition-all group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-md bg-muted flex items-center justify-center">
+                        <Images className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground text-sm">{lib.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs text-muted-foreground">{lib.photo_count} photo{lib.photo_count !== 1 ? 's' : ''}</span>
+                          <span className="text-xs text-muted-foreground">·</span>
+                          <span className="text-xs text-muted-foreground">{lib.total_size_mb?.toFixed(1) ?? '0'} MB</span>
+                          <Badge
+                            variant="outline"
+                            className={`text-xs px-1.5 py-0 ${lib.privacy === 'public' ? 'border-green-500/40 text-green-600' : 'border-amber-500/40 text-amber-600'}`}
+                          >
+                            {lib.privacy === 'public' ? 'Public' : 'Private'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                      <ChevronLeft className="w-4 h-4 rotate-180" />
+                    </div>
+                  </Link>
                 ))}
               </div>
             </CardContent>

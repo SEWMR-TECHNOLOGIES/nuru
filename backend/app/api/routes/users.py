@@ -8,11 +8,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, func as sa_func
 
 from core.database import get_db
-from models import User, UserVerificationOTP, UserProfile, UserSetting, UserFollower, UserCircle, OTPVerificationTypeEnum
-from models.services import UserService
-from models.events import Event
-from models.enums import EventStatusEnum
-from models.feeds import UserFeed
+from models import (
+    User, UserVerificationOTP, UserProfile, UserSetting, UserFollower, UserCircle,
+    OTPVerificationTypeEnum, UserService, Event, UserFeed, UserFeedImage, UserFeedGlow,
+    UserFeedComment, EventInvitation, CommunityMember, EventStatusEnum,
+)
 from utils.auth import get_current_user
 from utils.helpers import standard_response, generate_otp, get_expiry, mask_email, mask_phone
 from utils.notification_service import send_verification_email, send_verification_sms
@@ -331,7 +331,6 @@ async def search_users(
         # ── SIGNAL 4: Co-event attendees (shared events) ───────────────────
         # People who attended same events as me (weight 1.5)
         try:
-            from models.invitations import EventInvitation
             my_event_ids = set(
                 row[0] for row in db.query(EventInvitation.event_id)
                 .filter(EventInvitation.invited_user_id == me).all()
@@ -348,7 +347,6 @@ async def search_users(
 
         # ── SIGNAL 5: Community co-members ────────────────────────────────
         try:
-            from models.communities import CommunityMember
             my_community_ids = set(
                 row[0] for row in db.query(CommunityMember.community_id)
                 .filter(CommunityMember.user_id == me).all()
@@ -751,8 +749,6 @@ def get_user_public_posts(
 
     total = query.count()
     posts = query.offset(offset).limit(limit).all()
-
-    from models.feeds import UserFeedImage, UserFeedGlow, UserFeedComment
 
     post_list = []
     for p in posts:

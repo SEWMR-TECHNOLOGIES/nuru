@@ -17,13 +17,24 @@ from core.database import get_db
 from models import (
     AdminUser, AdminRoleEnum,
     User, UserProfile, UserService, UserServiceVerification, UserServiceVerificationFile,
-    UserServiceKYCStatus, KYCRequirement, LiveChatSession, LiveChatMessage,
+    UserServiceKYCStatus, KYCRequirement, ServiceKYCMapping, LiveChatSession, LiveChatMessage,
     SupportTicket, SupportMessage, FAQ,
     EventType, ServiceCategory, ServiceType,
     Event, EventContribution, EventContributor,
     Notification,
+    UserFeed, UserFeedImage, UserFeedComment, UserFeedGlow, UserFeedEcho,
+    UserMoment,
+    Community, CommunityMember, CommunityPost,
+    EventCommitteeMember,
+    EventImage, EventScheduleItem,
+    EventInvitation,
+    UserIdentityVerification,
+    IdentityDocumentRequirement,
+    ServiceBookingRequest,
+    NuruCardOrder,
+    ContentAppeal,
 )
-from models.enums import VerificationStatusEnum, ChatSessionStatusEnum
+from models.enums import VerificationStatusEnum, ChatSessionStatusEnum, NotificationTypeEnum, EventStatusEnum, AppealStatusEnum, AppealContentTypeEnum, CardOrderStatusEnum
 from utils.auth import create_access_token, create_refresh_token, verify_refresh_token
 from utils.helpers import standard_response, paginate
 import jwt
@@ -617,7 +628,6 @@ def approve_kyc_item(
     db.commit()
     # Send notification to service owner
     if service_owner_id:
-        from models.enums import NotificationTypeEnum
         if all_approved:
             notif = Notification(
                 id=uuid.uuid4(),
@@ -704,7 +714,6 @@ def reject_kyc_item(
     db.commit()
     # Send rejection notification to service owner
     if service_owner_id:
-        from models.enums import NotificationTypeEnum
         req = ks.kyc_requirement
         item_name = req.name if req else "KYC document"
         notif = Notification(
@@ -1147,7 +1156,6 @@ def list_events_admin(
     if q:
         query = query.filter(Event.name.ilike(f"%{q}%"))
     if status:
-        from models.enums import EventStatusEnum
         try:
             query = query.filter(Event.status == EventStatusEnum(status))
         except ValueError:
@@ -1198,9 +1206,6 @@ def get_event_detail_admin(
     admin: AdminUser = Depends(require_admin)
 ):
     """Get full event detail for admin review."""
-    from models.events import EventImage
-    from models.event_schedule import EventScheduleItem
-    from models.invitations import EventInvitation
     try:
         eid = uuid.UUID(event_id)
     except ValueError:
@@ -1239,7 +1244,6 @@ def get_event_detail_admin(
     ).scalar() or 0
 
     # Committee members
-    from models.committees import EventCommitteeMember
     committee_count = db.query(func.count(EventCommitteeMember.id)).filter(
         EventCommitteeMember.event_id == eid
     ).scalar() or 0
@@ -1286,7 +1290,6 @@ def update_event_status_admin(
     new_status = body.get("status", "").strip()
     if not new_status:
         return standard_response(False, "Status is required")
-    from models.enums import EventStatusEnum
     try:
         event.status = EventStatusEnum(new_status)
     except ValueError:
@@ -1474,7 +1477,6 @@ def update_service_verification_status_admin(
     db.commit()
     # Notify provider
     if s.user_id:
-        from models.enums import NotificationTypeEnum
         notif = Notification(
             id=uuid.uuid4(),
             recipient_id=s.user_id,
@@ -1496,7 +1498,6 @@ def update_service_verification_status_admin(
 
 @router.get("/posts/{post_id}")
 def get_post_detail_admin(post_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
-    from models.feeds import UserFeed, UserFeedImage, UserFeedComment
     try:
         pid = uuid.UUID(post_id)
     except ValueError:
@@ -1509,41 +1510,62 @@ def get_post_detail_admin(post_id: str, db: Session = Depends(get_db), admin: Ad
         return standard_response(False, "Post not found")
     u = post.user
     profile = u.profile if u else None
-    # Load top-level echoes
-    from models.feeds import UserFeedComment
-    echoes = db.query(UserFeedComment).options(
+
+    # Live counts — never read stale denormalized columns
+    live_glows = db.query(func.count(UserFeedGlow.id)).filter(UserFeedGlow.feed_id == pid).scalar() or 0
+    live_echo_count = db.query(func.count(UserFeedComment.id)).filter(
+        UserFeedComment.feed_id == pid,
+        UserFeedComment.is_active == True,
+    ).scalar() or 0
+
+    # Load ALL active echoes (all levels) then build tree client-side
+    all_echoes = db.query(UserFeedComment).options(
         joinedload(UserFeedComment.user).joinedload(User.profile)
     ).filter(
         UserFeedComment.feed_id == pid,
         UserFeedComment.is_active == True,
-        UserFeedComment.parent_comment_id == None
     ).order_by(UserFeedComment.created_at.asc()).all()
-    echo_list = []
-    for e in echoes:
+
+    def build_echo(e):
         eu = e.user
         eprofile = eu.profile if eu else None
-        echo_list.append({
+        return {
             "id": str(e.id),
             "content": e.content,
             "created_at": e.created_at.isoformat() if e.created_at else None,
+            "parent_comment_id": str(e.parent_comment_id) if e.parent_comment_id else None,
             "user": {
                 "id": str(eu.id) if eu else None,
                 "name": f"{eu.first_name} {eu.last_name}" if eu else None,
                 "username": eu.username if eu else None,
                 "avatar": eprofile.profile_picture_url if eprofile else None,
             } if eu else None,
-        })
+            "replies": [],
+        }
+
+    # Build nested tree
+    echo_map = {str(e.id): build_echo(e) for e in all_echoes}
+    roots = []
+    for e in all_echoes:
+        node = echo_map[str(e.id)]
+        if e.parent_comment_id and str(e.parent_comment_id) in echo_map:
+            echo_map[str(e.parent_comment_id)]["replies"].append(node)
+        else:
+            roots.append(node)
+
     return standard_response(True, "Post detail retrieved", {
         "id": str(post.id),
         "content": post.content,
         "location": post.location,
         "is_active": post.is_active,
-        "glow_count": post.glow_count,
-        "echo_count": post.echo_count,
+        "removal_reason": post.removal_reason if hasattr(post, "removal_reason") else None,
+        "glow_count": live_glows,
+        "echo_count": live_echo_count,
+        "comment_count": live_echo_count,
         "view_count": getattr(post, 'view_count', 0) or 0,
         "created_at": post.created_at.isoformat() if post.created_at else None,
         "images": [{"url": img.image_url} for img in (post.images or [])],
-        "echoes": echo_list,
+        "echoes": roots,
         "user": {
             "id": str(u.id) if u else None,
             "name": f"{u.first_name} {u.last_name}" if u else None,
@@ -1555,7 +1577,6 @@ def get_post_detail_admin(post_id: str, db: Session = Depends(get_db), admin: Ad
 
 @router.delete("/posts/{post_id}/echoes/{echo_id}")
 def delete_post_echo_admin(post_id: str, echo_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
-    from models.feeds import UserFeedComment
     try:
         eid = uuid.UUID(echo_id)
     except ValueError:
@@ -1570,7 +1591,6 @@ def delete_post_echo_admin(post_id: str, echo_id: str, db: Session = Depends(get
 
 @router.get("/moments/{moment_id}")
 def get_moment_detail_admin(moment_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
-    from models.moments import UserMoment
     try:
         mid = uuid.UUID(moment_id)
     except ValueError:
@@ -1609,7 +1629,6 @@ def update_moment_status_admin(
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(require_admin)
 ):
-    from models.moments import UserMoment
     try:
         mid = uuid.UUID(moment_id)
     except ValueError:
@@ -1618,21 +1637,22 @@ def update_moment_status_admin(
     if not moment:
         return standard_response(False, "Moment not found")
     is_active = body.get("is_active", moment.is_active)
+    reason = (body.get("reason") or "").strip() or None
     moment.is_active = is_active
+    # Persist removal reason; clear on restore
+    if hasattr(moment, 'removal_reason'):
+        moment.removal_reason = None if is_active else reason
     db.commit()
+    # Notify user
     if moment.user_id:
-        from models.enums import NotificationTypeEnum
         status_word = "restored" if is_active else "removed"
-        reason = body.get("reason", "")
-        msg = f"Your moment has been {status_word} by an administrator."
-        if not is_active and reason:
-            msg = f"Your moment has been removed. Reason: {reason}"
+        reason_suffix = f" Reason: {reason}" if reason and not is_active else ""
         notif = Notification(
             id=uuid.uuid4(),
             recipient_id=moment.user_id,
             type=NotificationTypeEnum.system,
-            message_template=msg,
-            message_data={"moment_id": str(moment.id), "status": status_word},
+            message_template=f"Your moment has been {status_word} by an administrator.{reason_suffix}",
+            message_data={"moment_id": str(moment.id), "status": status_word, "reason": reason},
             is_read=False,
             created_at=datetime.now(EAT),
         )
@@ -1658,8 +1678,6 @@ def list_user_verifications_admin(
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(require_admin)
 ):
-    from models.users import UserIdentityVerification
-    from models.references import IdentityDocumentRequirement
     query = db.query(UserIdentityVerification).options(
         joinedload(UserIdentityVerification.user).joinedload(User.profile),
         joinedload(UserIdentityVerification.document_type),
@@ -1702,7 +1720,6 @@ def approve_user_verification(
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(require_admin)
 ):
-    from models.users import UserIdentityVerification
     try:
         vid = uuid.UUID(verification_id)
     except ValueError:
@@ -1721,7 +1738,6 @@ def approve_user_verification(
     db.commit()
     # Notify user
     if v.user_id:
-        from models.enums import NotificationTypeEnum
         notif = Notification(
             id=uuid.uuid4(),
             recipient_id=v.user_id,
@@ -1743,7 +1759,6 @@ def reject_user_verification(
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(require_admin)
 ):
-    from models.users import UserIdentityVerification
     try:
         vid = uuid.UUID(verification_id)
     except ValueError:
@@ -1759,7 +1774,6 @@ def reject_user_verification(
     v.updated_at = datetime.now(EAT)
     db.commit()
     if v.user_id:
-        from models.enums import NotificationTypeEnum
         notif = Notification(
             id=uuid.uuid4(),
             recipient_id=v.user_id,
@@ -1781,8 +1795,7 @@ def update_post_status_admin(
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(require_admin)
 ):
-    """Admin can update a post's active status and notify the user."""
-    from models.feeds import UserFeed
+    """Admin can update a post's active status, persist removal reason, and notify the user."""
     try:
         pid = uuid.UUID(post_id)
     except ValueError:
@@ -1791,19 +1804,23 @@ def update_post_status_admin(
     if not post:
         return standard_response(False, "Post not found")
     is_active = body.get("is_active", post.is_active)
+    reason = (body.get("reason") or "").strip() or None
     post.is_active = is_active
+    # Persist removal reason; clear it when restoring
+    if hasattr(post, 'removal_reason'):
+        post.removal_reason = None if is_active else reason
     post.updated_at = datetime.now(EAT)
     db.commit()
     # Notify user
     if post.user_id:
-        from models.enums import NotificationTypeEnum
         status_word = "restored" if is_active else "removed"
+        reason_suffix = f" Reason: {reason}" if reason and not is_active else ""
         notif = Notification(
             id=uuid.uuid4(),
             recipient_id=post.user_id,
             type=NotificationTypeEnum.system,
-            message_template=f"Your post has been {status_word} by an administrator.",
-            message_data={"post_id": str(post.id), "status": status_word},
+            message_template=f"Your post has been {status_word} by an administrator.{reason_suffix}",
+            message_data={"post_id": str(post.id), "status": status_word, "reason": reason},
             is_read=False,
             created_at=datetime.now(EAT),
         )
@@ -1831,7 +1848,6 @@ def broadcast_notification(
     # Get all active users
     users = db.query(User).filter(User.is_active == True).all()
     now = datetime.now(EAT)
-    from models.enums import NotificationTypeEnum
     batch = []
     for user in users:
         n = Notification(
@@ -1860,25 +1876,34 @@ def list_posts_admin(
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(require_admin)
 ):
-    from models.feeds import UserFeed, UserFeedImage
     query = db.query(UserFeed).options(
         joinedload(UserFeed.user).joinedload(User.profile),
         joinedload(UserFeed.images),
     )
     if q:
         query = query.filter(UserFeed.content.ilike(f"%{q}%"))
-    query = query.order_by(UserFeed.created_at.desc())
+    query = query.order_by(UserFeed.created_at.desc(), UserFeed.id.desc())
     items, pagination = paginate(query, page, limit)
     data = []
     for p in items:
         u = p.user
         profile = u.profile if u else None
+        # Live counts from junction tables — never stale denormalized columns
+        live_glows = db.query(func.count(UserFeedGlow.id)).filter(
+            UserFeedGlow.feed_id == p.id
+        ).scalar() or 0
+        live_comments = db.query(func.count(UserFeedComment.id)).filter(
+            UserFeedComment.feed_id == p.id,
+            UserFeedComment.is_active == True,
+        ).scalar() or 0
         data.append({
             "id": str(p.id),
             "content": p.content,
             "is_active": p.is_active,
-            "glow_count": p.glow_count,
-            "echo_count": p.echo_count,
+            "removal_reason": p.removal_reason if hasattr(p, 'removal_reason') else None,
+            "glow_count": live_glows,
+            "echo_count": live_comments,
+            "comment_count": live_comments,
             "location": p.location,
             "created_at": p.created_at.isoformat() if p.created_at else None,
             "images": [{"url": img.image_url} for img in (p.images or [])],
@@ -1894,7 +1919,6 @@ def list_posts_admin(
 
 @router.delete("/posts/{post_id}")
 def delete_post_admin(post_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
-    from models.feeds import UserFeed
     try:
         pid = uuid.UUID(post_id)
     except ValueError:
@@ -1919,7 +1943,6 @@ def list_moments_admin(
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(require_admin)
 ):
-    from models.moments import UserMoment
     query = db.query(UserMoment).options(
         joinedload(UserMoment.user).joinedload(User.profile),
     )
@@ -1953,7 +1976,6 @@ def list_moments_admin(
 
 @router.delete("/moments/{moment_id}")
 def delete_moment_admin(moment_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
-    from models.moments import UserMoment
     try:
         mid = uuid.UUID(moment_id)
     except ValueError:
@@ -1977,7 +1999,6 @@ def list_communities_admin(
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(require_admin)
 ):
-    from models.communities import Community
     query = db.query(Community).options(
         joinedload(Community.creator).joinedload(User.profile),
     )
@@ -2008,7 +2029,6 @@ def list_communities_admin(
 
 @router.get("/communities/{community_id}")
 def get_community_detail_admin(community_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
-    from models.communities import Community, CommunityMember, CommunityPost, CommunityPostImage, CommunityPostGlow
     try:
         cid = uuid.UUID(community_id)
     except ValueError:
@@ -2098,7 +2118,6 @@ def get_community_detail_admin(community_id: str, db: Session = Depends(get_db),
 
 @router.delete("/communities/{community_id}")
 def delete_community_admin(community_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
-    from models.communities import Community
     try:
         cid = uuid.UUID(community_id)
     except ValueError:
@@ -2122,7 +2141,6 @@ def list_bookings_admin(
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(require_admin)
 ):
-    from models.bookings import ServiceBookingRequest
     query = db.query(ServiceBookingRequest).options(
         joinedload(ServiceBookingRequest.requester).joinedload(User.profile),
         joinedload(ServiceBookingRequest.user_service),
@@ -2168,7 +2186,6 @@ def list_nuru_cards_admin(
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(require_admin)
 ):
-    from models.nuru_cards import NuruCardOrder
     query = db.query(NuruCardOrder).options(
         joinedload(NuruCardOrder.user).joinedload(User.profile),
     )
@@ -2208,8 +2225,6 @@ def update_nuru_card_status(
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(require_admin)
 ):
-    from models.nuru_cards import NuruCardOrder
-    from models.enums import CardOrderStatusEnum
     try:
         oid = uuid.UUID(order_id)
     except ValueError:
@@ -2289,17 +2304,136 @@ def delete_service_category(cat_id: str, db: Session = Depends(get_db), admin: A
 
 
 # ──────────────────────────────────────────────
+# SERVICE TYPES PER CATEGORY
+# ──────────────────────────────────────────────
+
+@router.get("/service-categories/{cat_id}/service-types")
+def list_service_types_by_category(cat_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        cid = uuid.UUID(cat_id)
+    except ValueError:
+        return standard_response(False, "Invalid category ID")
+    cat = db.query(ServiceCategory).filter(ServiceCategory.id == cid).first()
+    if not cat:
+        return standard_response(False, "Category not found")
+    types = db.query(ServiceType).filter(ServiceType.category_id == cid).order_by(ServiceType.name.asc()).all()
+    data = [
+        {
+            "id": str(t.id),
+            "name": t.name,
+            "description": t.description if hasattr(t, "description") else None,
+            "requires_kyc": t.requires_kyc if hasattr(t, "requires_kyc") else False,
+            "category_id": str(t.category_id) if t.category_id else None,
+        }
+        for t in types
+    ]
+    return standard_response(True, "Service types retrieved", data)
+
+
+# ──────────────────────────────────────────────
+# KYC DEFINITIONS (master list)
+# ──────────────────────────────────────────────
+
+@router.get("/kyc-definitions")
+def list_kyc_definitions(db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    reqs = db.query(KYCRequirement).order_by(KYCRequirement.name.asc()).all()
+    data = [
+        {
+            "id": str(r.id),
+            "name": r.name,
+            "description": r.description if hasattr(r, "description") else None,
+        }
+        for r in reqs
+    ]
+    return standard_response(True, "KYC definitions retrieved", data)
+
+
+# ──────────────────────────────────────────────
+# KYC REQUIREMENTS PER SERVICE TYPE
+# ──────────────────────────────────────────────
+
+@router.get("/service-types/{type_id}/kyc-requirements")
+def list_kyc_requirements_for_type(type_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        tid = uuid.UUID(type_id)
+    except ValueError:
+        return standard_response(False, "Invalid service type ID")
+    st = db.query(ServiceType).filter(ServiceType.id == tid).first()
+    if not st:
+        return standard_response(False, "Service type not found")
+    mappings = db.query(ServiceKYCMapping).options(
+        joinedload(ServiceKYCMapping.kyc_requirement)
+    ).filter(ServiceKYCMapping.service_type_id == tid).all()
+    data = [
+        {
+            "mapping_id": str(m.id),
+            "id": str(m.id),
+            "kyc_requirement_id": str(m.kyc_requirement_id),
+            "name": m.kyc_requirement.name if m.kyc_requirement else None,
+            "description": m.kyc_requirement.description if m.kyc_requirement else None,
+            "is_mandatory": m.is_mandatory,
+        }
+        for m in mappings
+    ]
+    return standard_response(True, "KYC requirements retrieved", data)
+
+
+@router.post("/service-types/{type_id}/kyc-requirements")
+def add_kyc_requirement_to_type(type_id: str, body: dict = Body(...), db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        tid = uuid.UUID(type_id)
+    except ValueError:
+        return standard_response(False, "Invalid service type ID")
+    kyc_req_id_str = body.get("kyc_requirement_id", "")
+    try:
+        krid = uuid.UUID(kyc_req_id_str)
+    except (ValueError, TypeError):
+        return standard_response(False, "Invalid kyc_requirement_id")
+    st = db.query(ServiceType).filter(ServiceType.id == tid).first()
+    if not st:
+        return standard_response(False, "Service type not found")
+    req = db.query(KYCRequirement).filter(KYCRequirement.id == krid).first()
+    if not req:
+        return standard_response(False, "KYC requirement not found")
+    # Prevent duplicates
+    existing = db.query(ServiceKYCMapping).filter(ServiceKYCMapping.service_type_id == tid, ServiceKYCMapping.kyc_requirement_id == krid).first()
+    if existing:
+        return standard_response(False, "This KYC requirement is already mapped to this service type")
+    mapping = ServiceKYCMapping(
+        id=uuid.uuid4(),
+        service_type_id=tid,
+        kyc_requirement_id=krid,
+        is_mandatory=body.get("is_mandatory", True),
+    )
+    db.add(mapping)
+    db.commit()
+    return standard_response(True, "KYC requirement added", {"mapping_id": str(mapping.id)})
+
+
+@router.delete("/service-types/{type_id}/kyc-requirements/{mapping_id}")
+def remove_kyc_requirement_from_type(type_id: str, mapping_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        tid = uuid.UUID(type_id)
+        mid = uuid.UUID(mapping_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+    mapping = db.query(ServiceKYCMapping).filter(
+        ServiceKYCMapping.id == mid,
+        ServiceKYCMapping.service_type_id == tid,
+    ).first()
+    if not mapping:
+        return standard_response(False, "Mapping not found")
+    db.delete(mapping)
+    db.commit()
+    return standard_response(True, "KYC requirement removed")
+
+
+# ──────────────────────────────────────────────
 # DASHBOARD STATS (Extended)
 # ──────────────────────────────────────────────
 
 @router.get("/stats/extended")
 def get_extended_stats(db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
-    from models.feeds import UserFeed
-    from models.moments import UserMoment
-    from models.communities import Community
-    from models.bookings import ServiceBookingRequest
-    from models.nuru_cards import NuruCardOrder
-
     total_posts = db.query(func.count(UserFeed.id)).filter(UserFeed.is_active == True).scalar() or 0
     total_moments = db.query(func.count(UserMoment.id)).filter(UserMoment.is_active == True).scalar() or 0
     total_communities = db.query(func.count(Community.id)).scalar() or 0
@@ -2315,3 +2449,253 @@ def get_extended_stats(db: Session = Depends(get_db), admin: AdminUser = Depends
         "pending_bookings": pending_bookings,
         "pending_card_orders": pending_card_orders,
     })
+
+
+# ──────────────────────────────────────────────
+# APPEALS ADMIN
+# ──────────────────────────────────────────────
+
+@router.get("/appeals")
+def list_appeals_admin(
+    page: int = 1,
+    limit: int = 20,
+    status: str = None,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """List all content appeals with user and content details."""
+    query = db.query(ContentAppeal).options(
+        joinedload(ContentAppeal.user).joinedload(User.profile),
+    )
+    if status:
+        try:
+            query = query.filter(ContentAppeal.status == AppealStatusEnum(status))
+        except ValueError:
+            pass
+    query = query.order_by(ContentAppeal.created_at.desc(), ContentAppeal.id.desc())
+    items, pagination = paginate(query, page, limit)
+
+    data = []
+    for a in items:
+        u = a.user
+        profile = u.profile if u else None
+        # Resolve content details
+        content_preview = None
+        content_is_active = None
+        media_url = None
+        caption = None
+        if a.content_type == AppealContentTypeEnum.post:
+            post = db.query(UserFeed).filter(UserFeed.id == a.content_id).first()
+            if post:
+                content_preview = (post.content or "")[:120]
+                content_is_active = post.is_active
+                caption = post.content
+                # Get first image
+                first_img = db.query(UserFeedImage).filter(UserFeedImage.feed_id == post.id).first()
+                media_url = first_img.image_url if first_img else None
+        elif a.content_type == AppealContentTypeEnum.moment:
+            moment = db.query(UserMoment).filter(UserMoment.id == a.content_id).first()
+            if moment:
+                content_preview = moment.caption or ""
+                content_is_active = moment.is_active
+                media_url = moment.media_url
+                caption = moment.caption
+
+        data.append({
+            "id": str(a.id),
+            "content_id": str(a.content_id),
+            "content_type": a.content_type.value,
+            "content_preview": content_preview,
+            "content_is_active": content_is_active,
+            "media_url": media_url,
+            "caption": caption,
+            "appeal_reason": a.appeal_reason,
+            "status": a.status.value,
+            "admin_notes": a.admin_notes,
+            "reviewed_at": a.reviewed_at.isoformat() if a.reviewed_at else None,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+            "user": {
+                "id": str(u.id) if u else None,
+                "name": f"{u.first_name} {u.last_name}" if u else None,
+                "username": u.username if u else None,
+                "avatar": profile.profile_picture_url if profile else None,
+            } if u else None,
+        })
+    return standard_response(True, "Appeals retrieved", data, pagination=pagination)
+
+
+
+@router.put("/appeals/{appeal_id}/approve")
+def approve_appeal(
+    appeal_id: str,
+    body: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """Approve an appeal — restores the content and notifies the user."""
+    try:
+        aid = uuid.UUID(appeal_id)
+    except ValueError:
+        return standard_response(False, "Invalid appeal ID")
+
+    appeal = db.query(ContentAppeal).filter(ContentAppeal.id == aid).first()
+    if not appeal:
+        return standard_response(False, "Appeal not found")
+    if appeal.status != AppealStatusEnum.pending:
+        return standard_response(False, "This appeal has already been reviewed")
+
+    admin_notes = (body.get("notes") or "").strip()
+    appeal.status = AppealStatusEnum.approved
+    appeal.admin_notes = admin_notes or "Your appeal has been reviewed and approved."
+    appeal.reviewed_by = admin.id
+    appeal.reviewed_at = datetime.now(EAT)
+    appeal.updated_at = datetime.now(EAT)
+
+    # Restore the content
+    if appeal.content_type == AppealContentTypeEnum.post:
+        post = db.query(UserFeed).filter(UserFeed.id == appeal.content_id).first()
+        if post:
+            post.is_active = True
+            if hasattr(post, 'removal_reason'):
+                post.removal_reason = None
+    elif appeal.content_type == AppealContentTypeEnum.moment:
+        moment = db.query(UserMoment).filter(UserMoment.id == appeal.content_id).first()
+        if moment:
+            moment.is_active = True
+            if hasattr(moment, 'removal_reason'):
+                moment.removal_reason = None
+
+    db.commit()
+
+    # Notify user
+    notif = Notification(
+        id=uuid.uuid4(),
+        recipient_id=appeal.user_id,
+        type=NotificationTypeEnum.system,
+        message_template=f"Great news! Your appeal was approved and your {appeal.content_type.value} has been restored.",
+        message_data={"appeal_id": str(appeal.id), "content_type": appeal.content_type.value},
+        is_read=False,
+        created_at=datetime.now(EAT),
+    )
+    db.add(notif)
+    db.commit()
+    return standard_response(True, "Appeal approved and content restored")
+
+
+@router.put("/appeals/{appeal_id}/reject")
+def reject_appeal(
+    appeal_id: str,
+    body: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """Reject an appeal — content stays removed, user is notified."""
+    try:
+        aid = uuid.UUID(appeal_id)
+    except ValueError:
+        return standard_response(False, "Invalid appeal ID")
+
+    appeal = db.query(ContentAppeal).filter(ContentAppeal.id == aid).first()
+    if not appeal:
+        return standard_response(False, "Appeal not found")
+    if appeal.status != AppealStatusEnum.pending:
+        return standard_response(False, "This appeal has already been reviewed")
+
+    admin_notes = (body.get("notes") or "").strip()
+    if not admin_notes:
+        return standard_response(False, "Rejection reason is required")
+
+    appeal.status = AppealStatusEnum.rejected
+    appeal.admin_notes = admin_notes
+    appeal.reviewed_by = admin.id
+    appeal.reviewed_at = datetime.now(EAT)
+    appeal.updated_at = datetime.now(EAT)
+    db.commit()
+
+    # Notify user
+    notif = Notification(
+        id=uuid.uuid4(),
+        recipient_id=appeal.user_id,
+        type=NotificationTypeEnum.system,
+        message_template=f"Your appeal has been reviewed and unfortunately rejected. Reason: {admin_notes}",
+        message_data={"appeal_id": str(appeal.id), "reason": admin_notes},
+        is_read=False,
+        created_at=datetime.now(EAT),
+    )
+    db.add(notif)
+    db.commit()
+    return standard_response(True, "Appeal rejected")
+
+
+# ──────────────────────────────────────────────
+# UNIFIED REVIEW ENDPOINT (approve OR reject via single call)
+# Frontend calls PUT /admin/appeals/{id}/review with { decision, notes }
+# ──────────────────────────────────────────────
+
+@router.put("/appeals/{appeal_id}/review")
+def review_appeal(
+    appeal_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """Unified endpoint: { decision: 'approved'|'rejected', notes: '...' }"""
+    decision = (body.get("decision") or "").strip().lower()
+    if decision not in ("approved", "rejected"):
+        return standard_response(False, "decision must be 'approved' or 'rejected'")
+
+    try:
+        aid = uuid.UUID(appeal_id)
+    except ValueError:
+        return standard_response(False, "Invalid appeal ID")
+
+    appeal = db.query(ContentAppeal).filter(ContentAppeal.id == aid).first()
+    if not appeal:
+        return standard_response(False, "Appeal not found")
+    if appeal.status != AppealStatusEnum.pending:
+        return standard_response(False, "This appeal has already been reviewed")
+
+    admin_notes = (body.get("notes") or "").strip()
+    if decision == "rejected" and not admin_notes:
+        return standard_response(False, "Rejection reason is required")
+
+    appeal.status = AppealStatusEnum.approved if decision == "approved" else AppealStatusEnum.rejected
+    appeal.admin_notes = admin_notes or ("Your appeal has been reviewed and approved." if decision == "approved" else admin_notes)
+    appeal.reviewed_by = admin.id
+    appeal.reviewed_at = datetime.now(EAT)
+    appeal.updated_at = datetime.now(EAT)
+
+    if decision == "approved":
+        if appeal.content_type == AppealContentTypeEnum.post:
+            post = db.query(UserFeed).filter(UserFeed.id == appeal.content_id).first()
+            if post:
+                post.is_active = True
+                if hasattr(post, 'removal_reason'):
+                    post.removal_reason = None
+        elif appeal.content_type == AppealContentTypeEnum.moment:
+            moment = db.query(UserMoment).filter(UserMoment.id == appeal.content_id).first()
+            if moment:
+                moment.is_active = True
+                if hasattr(moment, 'removal_reason'):
+                    moment.removal_reason = None
+
+    db.commit()
+
+    msg = (
+        f"Great news! Your appeal was approved and your {appeal.content_type.value} has been restored."
+        if decision == "approved"
+        else f"Your appeal was reviewed and unfortunately rejected. Reason: {admin_notes}"
+    )
+    notif = Notification(
+        id=uuid.uuid4(),
+        recipient_id=appeal.user_id,
+        type=NotificationTypeEnum.system,
+        message_template=msg,
+        message_data={"appeal_id": str(appeal.id), "decision": decision, "content_type": appeal.content_type.value},
+        is_read=False,
+        created_at=datetime.now(EAT),
+    )
+    db.add(notif)
+    db.commit()
+    return standard_response(True, f"Appeal {decision}")
+

@@ -1,8 +1,5 @@
 /**
  * Centralized API Service
- * 
- * This file exports all API modules.
- * The implementation has been split into multiple files in src/lib/api/ for better maintainability.
  */
 
 import { authApi } from "./api/auth";
@@ -18,11 +15,13 @@ import { nuruCardsApi } from "./api/nuruCards";
 import { supportApi } from "./api/support";
 import { contributorsApi } from "./api/contributors";
 import { searchApi } from "./api/search";
+import { photoLibrariesApi } from "./api/photoLibraries";
 import { get, post, put, patch, del, postFormData, putFormData } from "./api/helpers";
 export { showApiErrors, showApiErrorsShadcn, showCaughtError, showCaughtErrorShadcn, throwApiError, ApiError } from "./api/showApiErrors";
 
 // Re-export types
 export * from "./api/types";
+export * from "./api/photoLibraries";
 
 // Export API modules
 export {
@@ -40,6 +39,7 @@ export {
   supportApi,
   contributorsApi,
   searchApi,
+  photoLibrariesApi,
 };
 
 // Default API object for backward compatibility
@@ -58,7 +58,8 @@ export const api = {
   support: supportApi,
   contributors: contributorsApi,
   search: searchApi,
-  
+  photoLibraries: photoLibrariesApi,
+
   // Helper methods
   get,
   post,

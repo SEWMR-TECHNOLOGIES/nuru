@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ChevronLeft, CalendarDays, MapPin, Users, User, Clock, RefreshCw } from "lucide-react";
+import { ChevronLeft, CalendarDays, MapPin, Users, Clock, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { adminApi } from "@/lib/api/admin";
@@ -35,7 +35,7 @@ export default function AdminEventDetail() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl space-y-6">
+      <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-64 w-full rounded-xl" />
         <div className="grid grid-cols-2 gap-4">
@@ -55,11 +55,22 @@ export default function AdminEventDetail() {
     );
   }
 
-  const heroImage = event.featured_image || event.primary_image || event.image || event.image_url
-    || (event.images?.[0] ? (event.images[0].url || event.images[0].image_url || event.images[0].file_url || event.images[0]) : null);
+  // Backend returns start_date; resolve hero image using standard fallback chain
+  const heroImage = event.image || event.featured_image || event.primary_image || event.image_url || event.cover_image_url
+    || (event.images?.length > 0 ? (event.images[0].url || event.images[0].image_url || event.images[0].file_url || event.images[0]) : null);
+
+  // Parse date/time from start_date (ISO string)
+  let displayDate = "—";
+  let displayTime = "—";
+  const dateRaw = event.start_date || event.date;
+  if (dateRaw) {
+    const d = new Date(dateRaw);
+    displayDate = d.toLocaleDateString("en-TZ", { weekday: "short", year: "numeric", month: "long", day: "numeric" });
+    displayTime = d.toLocaleTimeString("en-TZ", { hour: "2-digit", minute: "2-digit" });
+  }
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate("/admin/events")}>
           <ChevronLeft className="w-4 h-4 mr-1" /> Events
@@ -88,15 +99,15 @@ export default function AdminEventDetail() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-card border border-border rounded-xl p-4">
           <p className="text-xs text-muted-foreground flex items-center gap-1.5 mb-1"><CalendarDays className="w-3.5 h-3.5" /> Date</p>
-          <p className="font-semibold text-foreground text-sm">{event.date ? new Date(event.date).toLocaleDateString("en-TZ", { weekday: "short", year: "numeric", month: "long", day: "numeric" }) : "—"}</p>
+          <p className="font-semibold text-foreground text-sm">{displayDate}</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-4">
           <p className="text-xs text-muted-foreground flex items-center gap-1.5 mb-1"><Clock className="w-3.5 h-3.5" /> Time</p>
-          <p className="font-semibold text-foreground text-sm">{event.time || "—"}</p>
+          <p className="font-semibold text-foreground text-sm">{event.time || displayTime}</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-4">
           <p className="text-xs text-muted-foreground flex items-center gap-1.5 mb-1"><MapPin className="w-3.5 h-3.5" /> Location</p>
-          <p className="font-semibold text-foreground text-sm">{event.location || "—"}</p>
+          <p className="font-semibold text-foreground text-sm">{event.location || event.venue || "—"}</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-4">
           <p className="text-xs text-muted-foreground flex items-center gap-1.5 mb-1"><Users className="w-3.5 h-3.5" /> Guests</p>
@@ -125,8 +136,8 @@ export default function AdminEventDetail() {
       )}
 
       {/* Event type & category */}
-      {(event.event_type || event.category) && (
-        <div className="bg-card border border-border rounded-xl p-4 flex gap-4">
+      {(event.event_type || event.category || event.budget || event.committee_count !== undefined) && (
+        <div className="bg-card border border-border rounded-xl p-4 flex flex-wrap gap-6">
           {event.event_type && (
             <div>
               <p className="text-xs text-muted-foreground">Event Type</p>
@@ -145,11 +156,23 @@ export default function AdminEventDetail() {
               <p className="font-medium text-foreground text-sm">{Number(event.budget).toLocaleString()}</p>
             </div>
           )}
+          {event.committee_count !== undefined && (
+            <div>
+              <p className="text-xs text-muted-foreground">Committee Members</p>
+              <p className="font-medium text-foreground text-sm">{event.committee_count}</p>
+            </div>
+          )}
+          {event.is_public !== undefined && (
+            <div>
+              <p className="text-xs text-muted-foreground">Visibility</p>
+              <p className="font-medium text-foreground text-sm">{event.is_public ? "Public" : "Private"}</p>
+            </div>
+          )}
         </div>
       )}
 
       {/* Images */}
-      {event.images?.length > 1 && (
+      {event.images?.length > 0 && (
         <div>
           <p className="text-sm font-semibold text-foreground mb-3">Event Images ({event.images.length})</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -164,3 +187,4 @@ export default function AdminEventDetail() {
     </div>
   );
 }
+

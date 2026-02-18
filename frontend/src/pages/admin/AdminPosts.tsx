@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Newspaper, Search, ChevronLeft, ChevronRight, Heart, MessageCircle, MapPin, Eye, RotateCcw, ChevronLeft as Back } from "lucide-react";
+import { Newspaper, Search, ChevronLeft, ChevronRight, Heart, MessageCircle, MapPin, Eye, RotateCcw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { getTimeAgo } from "@/utils/getTimeAgo";
 import { useNavigate } from "react-router-dom";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 function PostSkeleton() {
   return (
@@ -39,6 +41,9 @@ export default function AdminPosts() {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<any>(adminCaches.pagination["posts"] ?? null);
   const { confirm, ConfirmDialog } = useConfirmDialog();
+  const [removeTarget, setRemoveTarget] = useState<any | null>(null);
+  const [removeReason, setRemoveReason] = useState("");
+  const [removing, setRemoving] = useState(false);
 
   const load = useCallback(async () => {
     if (initialLoad.current) setLoading(true);
@@ -61,12 +66,13 @@ export default function AdminPosts() {
   }, [load, q, page]);
   usePolling(load);
 
-  const handleRemove = async (id: string, preview: string) => {
-    const reason = window.prompt(`Reason for removing "${preview}"? (This will be sent to the user)`);
-    if (reason === null) return; // cancelled
-    const res = await adminApi.updatePostStatus(id, false, reason || "Policy violation");
-    if (res.success) { toast.success("Post removed"); load(); }
+  const handleRemoveConfirm = async () => {
+    if (!removeTarget) return;
+    setRemoving(true);
+    const res = await adminApi.updatePostStatus(removeTarget.id, false, removeReason.trim() || "Policy violation");
+    if (res.success) { toast.success("Post removed"); setRemoveTarget(null); setRemoveReason(""); load(); }
     else toast.error(res.message || "Failed");
+    setRemoving(false);
   };
 
   const handleRestore = async (id: string) => {
@@ -80,6 +86,21 @@ export default function AdminPosts() {
   return (
     <div className="space-y-6">
       <ConfirmDialog />
+      <Dialog open={!!removeTarget} onOpenChange={v => { if (!v) setRemoveTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Post</DialogTitle>
+            <DialogDescription>Provide a reason — this will be sent to the user as a notification.</DialogDescription>
+          </DialogHeader>
+          <Textarea placeholder="Reason for removal..." value={removeReason} onChange={e => setRemoveReason(e.target.value)} rows={3} autoComplete="off" />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoveTarget(null)} disabled={removing}>Cancel</Button>
+            <Button variant="destructive" onClick={handleRemoveConfirm} disabled={removing}>
+              {removing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null} Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold text-foreground">Posts / Feed</h2>
@@ -145,7 +166,7 @@ export default function AdminPosts() {
                   </Button>
                   {post.is_active ? (
                     <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10"
-                      onClick={() => handleRemove(post.id, post.content?.slice(0, 40) || "this post")}>
+                      onClick={() => { setRemoveTarget(post); setRemoveReason(""); }}>
                       Remove
                     </Button>
                   ) : (

@@ -16,6 +16,7 @@ from core.database import get_db
 from models import (
     UserMoment, UserMomentSticker, UserMomentViewer,
     UserMomentHighlight, UserMomentHighlightItem, User, UserProfile,
+    ContentAppeal, AppealStatusEnum, AppealContentTypeEnum,
 )
 from utils.auth import get_current_user
 from utils.helpers import standard_response
@@ -43,6 +44,58 @@ def _moment_dict(db, m, current_user_id=None):
         "expires_at": m.expires_at.isoformat() if m.expires_at else None,
         "created_at": m.created_at.isoformat() if m.created_at else None,
     }
+
+
+
+# ──────────────────────────────────────────────
+# MY REMOVED MOMENTS — must be before /{moment_id} wildcard
+# ──────────────────────────────────────────────
+
+@router.get("/my-removed")
+def get_my_removed_moments(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Returns moments removed by an admin so the user can view removal reason and appeal."""
+    moments = db.query(UserMoment).filter(
+        UserMoment.user_id == current_user.id,
+        UserMoment.is_active == False,
+    ).order_by(UserMoment.created_at.desc()).all()
+
+    data = []
+    for m in moments:
+        appeal = db.query(ContentAppeal).filter(
+            ContentAppeal.user_id == current_user.id,
+            ContentAppeal.content_id == m.id,
+            ContentAppeal.content_type == AppealContentTypeEnum.moment,
+        ).first()
+        user = db.query(User).filter(User.id == m.user_id).first()
+        profile = db.query(UserProfile).filter(UserProfile.user_id == m.user_id).first() if user else None
+        viewer_count = db.query(UserMomentViewer).filter(UserMomentViewer.moment_id == m.id).count()
+        data.append({
+            "id": str(m.id),
+            "caption": m.caption,
+            "media_url": m.media_url,
+            "content_type": m.content_type.value if hasattr(m.content_type, "value") else str(m.content_type),
+            "location": m.location if hasattr(m, "location") else None,
+            "viewer_count": viewer_count,
+            "removal_reason": m.removal_reason if hasattr(m, "removal_reason") else None,
+            "removed_at": m.updated_at.isoformat() if hasattr(m, "updated_at") and m.updated_at else m.created_at.isoformat() if m.created_at else None,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+            "author": {
+                "id": str(user.id) if user else None,
+                "name": f"{user.first_name} {user.last_name}" if user else None,
+                "username": user.username if user else None,
+                "avatar": profile.profile_picture_url if profile else None,
+            },
+            "appeal": {
+                "id": str(appeal.id),
+                "status": appeal.status.value,
+                "admin_notes": appeal.admin_notes,
+                "created_at": appeal.created_at.isoformat() if appeal.created_at else None,
+            } if appeal else None,
+        })
+    return standard_response(True, "Removed moments retrieved", data)
 
 
 @router.get("/")
@@ -274,3 +327,58 @@ def remove_moment_from_highlight(highlight_id: str, moment_id: str, db: Session 
         db.delete(item)
         db.commit()
     return standard_response(True, "Moment removed from highlight")
+
+
+# ──────────────────────────────────────────────
+# CONTENT APPEALS
+# ──────────────────────────────────────────────
+
+@router.post("/{moment_id}/appeal")
+def submit_moment_appeal(
+    moment_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """User appeals the removal of their own moment."""
+    try:
+        mid = uuid.UUID(moment_id)
+    except ValueError:
+        return standard_response(False, "Invalid moment ID")
+
+    moment = db.query(UserMoment).filter(UserMoment.id == mid, UserMoment.user_id == current_user.id).first()
+    if not moment:
+        return standard_response(False, "Moment not found or not yours")
+    if moment.is_active:
+        return standard_response(False, "Moment is not removed — no appeal needed")
+
+    reason = (body.get("reason") or "").strip()
+    if not reason or len(reason) < 10:
+        return standard_response(False, "Please provide a reason (at least 10 characters)")
+
+    existing = db.query(ContentAppeal).filter(
+        ContentAppeal.user_id == current_user.id,
+        ContentAppeal.content_id == mid,
+        ContentAppeal.content_type == AppealContentTypeEnum.moment,
+    ).first()
+    if existing:
+        return standard_response(False, "You have already submitted an appeal for this moment")
+
+    appeal = ContentAppeal(
+        id=uuid.uuid4(),
+        user_id=current_user.id,
+        content_id=mid,
+        content_type=AppealContentTypeEnum.moment,
+        appeal_reason=reason,
+        status=AppealStatusEnum.pending,
+        created_at=datetime.now(EAT),
+        updated_at=datetime.now(EAT),
+    )
+    db.add(appeal)
+    db.commit()
+    return standard_response(True, "Appeal submitted successfully", {
+        "id": str(appeal.id),
+        "status": appeal.status.value,
+    })
+
+

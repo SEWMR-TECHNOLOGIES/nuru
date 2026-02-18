@@ -1,14 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Users } from 'lucide-react';
+import { Users, Loader2, UserCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'sonner';
 
 import { useEvents } from '@/data/useEvents';
 import { useServices } from '@/data/useUserServices';
-import { useFollowSuggestions } from '@/data/useSocial';
+import { useFollowSuggestions, useCircles } from '@/data/useSocial';
 import { eventsApi } from '@/lib/api/events';
 
 // Empty card placeholder for upcoming features
@@ -70,10 +71,33 @@ const RightSidebar = () => {
   const { events, loading: eventsLoading } = useEvents();
   const { services, loading: servicesLoading } = useServices();
   const { suggestions, loading: suggestionsLoading } = useFollowSuggestions(3);
+  const { circles, addMember, createCircle } = useCircles();
+  const [addingUserId, setAddingUserId] = useState<string | null>(null);
+  const [addedUserIds, setAddedUserIds] = useState<Set<string>>(new Set());
 
   const [committeeEvents, setCommitteeEvents] = useState<any[]>([]);
   const [invitedEvents, setInvitedEvents] = useState<any[]>([]);
   const [extraLoading, setExtraLoading] = useState(true);
+
+  const handleAddToCircle = async (user: any) => {
+    if (addingUserId) return;
+    setAddingUserId(user.id);
+    try {
+      let circleId = circles[0]?.id;
+      if (!circleId) {
+        const newCircle = await createCircle({ name: 'My Circle', description: 'My close friends' });
+        circleId = newCircle?.id;
+      }
+      if (!circleId) throw new Error('No circle');
+      await addMember(circleId, user.id);
+      setAddedUserIds(prev => new Set([...prev, user.id]));
+      toast.success(`${user.first_name} added to your circle`);
+    } catch {
+      toast.error('Failed to add to circle');
+    } finally {
+      setAddingUserId(null);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -286,8 +310,20 @@ const RightSidebar = () => {
                     {(user as any).mutual_count || 0} mutual friends
                   </p>
                 </div>
-                <Button size="sm" variant="outline" className="text-xs">
-                  Add
+                <Button
+                  size="sm"
+                  variant={addedUserIds.has(user.id) ? "default" : "outline"}
+                  className="text-xs shrink-0"
+                  onClick={() => handleAddToCircle(user)}
+                  disabled={!!addingUserId || addedUserIds.has(user.id)}
+                >
+                  {addingUserId === user.id ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : addedUserIds.has(user.id) ? (
+                    "Added ✓"
+                  ) : (
+                    "Add"
+                  )}
                 </Button>
               </div>
             ))}

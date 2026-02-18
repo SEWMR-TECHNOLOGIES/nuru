@@ -5,7 +5,7 @@ import {
   MessageSquare, HeadphonesIcon, HelpCircle, Bell,
   LogOut, Menu,
   Package, Briefcase, Newspaper, Sparkles, Users2,
-  BookOpen, CreditCard, Tag, UserCog, BadgeCheck,
+  BookOpen, CreditCard, Tag, UserCog, BadgeCheck, AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -22,6 +22,7 @@ const navItems = [
   { label: "Event Types", icon: Package, to: "/admin/event-types" },
   { label: "Posts / Feed", icon: Newspaper, to: "/admin/posts" },
   { label: "Moments", icon: Sparkles, to: "/admin/moments" },
+  { label: "Content Appeals", icon: AlertTriangle, to: "/admin/appeals" },
   { label: "Communities", icon: Users2, to: "/admin/communities" },
   { label: "Bookings", icon: BookOpen, to: "/admin/bookings" },
   { label: "NuruCard Orders", icon: CreditCard, to: "/admin/nuru-cards" },
@@ -71,25 +72,22 @@ export default function AdminLayout() {
     setMobileSidebarOpen((prev) => !prev);
   };
 
-  // Persist sidebar scroll position across navigation — same pattern as workspace
+  // Persist sidebar scroll position — identical approach to workspace Sidebar.tsx
+  // The workspace sidebar is a plain <aside> with overflow-y-auto; the browser keeps
+  // scroll position automatically because the element is never unmounted.
+  // We replicate that here: the <nav> element is also never unmounted, so we only
+  // need to save/restore when the user explicitly scrolls, NOT on every route change.
   const sidebarScrollRef = useRef<HTMLElement>(null);
   const mobileSidebarScrollRef = useRef<HTMLElement>(null);
   const SCROLL_KEY = "admin_sidebar_scroll";
 
-  // Restore scroll on every route change (not just mount)
+  // On mount: restore saved scroll position immediately (no rAF = no flicker)
   useEffect(() => {
     const saved = sessionStorage.getItem(SCROLL_KEY);
-    if (!saved) return;
-    const scrollTo = parseInt(saved, 10);
-    // Use two rAF to ensure layout is complete before restoring
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (sidebarScrollRef.current) {
-          sidebarScrollRef.current.scrollTop = scrollTo;
-        }
-      });
-    });
-  }, [location.pathname]);
+    if (saved && sidebarScrollRef.current) {
+      sidebarScrollRef.current.scrollTop = parseInt(saved, 10);
+    }
+  }, []); // run once on mount only
 
   const handleNavScroll = (e: React.UIEvent<HTMLElement>) => {
     sessionStorage.setItem(SCROLL_KEY, String(e.currentTarget.scrollTop));

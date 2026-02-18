@@ -25,31 +25,34 @@ const TOOL_LABELS: Record<string, string> = {
   get_event_types: 'Loading event types',
 };
 
-// Extracts numbered/bulleted options from the AI message content for quick replies
+// Extracts quick reply options only when the AI is genuinely asking the user
+// to pick one of a short list of options/topics — NOT when it is listing procedure steps.
 function extractQuickReplies(content: string): string[] {
+  // If the message ends with a question mark (AI is asking the user to choose), extract options
+  const trimmed = content.trim();
+  const endsWithQuestion = trimmed.endsWith('?') || /\?\s*$/.test(trimmed);
+  if (!endsWithQuestion) return [];
+
   const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
   const options: string[] = [];
 
   for (const line of lines) {
-    // Match numbered items: "1. Something?" or "1) Something"
-    // Match bulleted items: "- Something" or "* Something"  
-    // Match emoji-prefixed items: "🎂 Something"
-    const match = line.match(/^(?:\d+[\.\)]\s*|[-*•]\s*|[^\w\s]\s+)(.+)/);
+    // Match numbered items: "1. Something" or "1) Something"
+    // Match bulleted items: "- Something" or "* Something"
+    const match = line.match(/^(?:\d+[\.\)]\s*|[-*•]\s*)(.+)/);
     if (match) {
       let option = match[1].trim();
-      // Remove trailing question marks and clean up
-      option = option.replace(/\?+$/, '').trim();
-      // Remove bold markdown
-      option = option.replace(/\*\*/g, '').trim();
-      // Only include if it looks like a short option (not a paragraph)
-      if (option.length > 2 && option.length < 80 && !option.includes('\n')) {
+      // Remove trailing question marks and bold markdown
+      option = option.replace(/\?+$/, '').replace(/\*\*/g, '').trim();
+      // Only short options that look like topics/choices (no verbs at start = not instructions)
+      if (option.length > 2 && option.length < 60 && !option.includes('\n')) {
         options.push(option);
       }
     }
   }
 
-  // Only return if we found 2-6 options (looks like a choice list)
-  return options.length >= 2 && options.length <= 6 ? options : [];
+  // Only return if we found 2-5 options (a reasonable choice list)
+  return options.length >= 2 && options.length <= 5 ? options : [];
 }
 
 

@@ -1,15 +1,15 @@
 import { useNavigate } from 'react-router-dom';
 import { formatPrice } from '@/utils/formatPrice';
-import { Star, CheckCircle, Users, Plus, Edit, Eye, Package, Loader2 } from 'lucide-react';
-import CalendarIcon from '@/assets/icons/calendar-icon.svg';
-import LocationIcon from '@/assets/icons/location-icon.svg';
+import { Star, CheckCircle, Users, Plus, Edit, Eye, Package, Loader2, Camera, MapPin, TrendingUp, Award, ChevronRight } from 'lucide-react';
+import CalendarSVG from '@/assets/icons/calendar-icon.svg';
+import PhotosSVG from '@/assets/icons/photos-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useUserServices } from '@/data/useUserServices';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ServiceLoadingSkeleton } from '@/components/ui/ServiceLoadingSkeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -20,6 +20,12 @@ import { showApiErrors, showCaughtError } from '@/lib/api';
 import { userServicesApi } from '@/lib/api';
 import type { ServiceReview } from '@/lib/api/types';
 
+// Detect if a service is photography type
+const isPhotographyService = (service: any): boolean => {
+  const name = (service.service_type_name || service.service_type?.name || service.category || '').toLowerCase();
+  return name.includes('photo') || name.includes('cinema') || name.includes('video') || name.includes('film');
+};
+
 const MyServices = () => {
   useWorkspaceMeta({
     title: 'My Services',
@@ -29,8 +35,6 @@ const MyServices = () => {
   const navigate = useNavigate();
   const { services, summary, recentReviews, loading, error, refetch } = useUserServices();
 
-  
-  // Use reviews from API list endpoint directly
   const reviews = (recentReviews || []).map((r: any) => ({
     id: r.id,
     rating: r.rating,
@@ -43,16 +47,13 @@ const MyServices = () => {
     user_id: '',
     verified_booking: false,
   })) as ServiceReview[];
+
   const reviewsLoading = loading;
   const [packageDialogOpen, setPackageDialogOpen] = useState(false);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
-  const [packageForm, setPackageForm] = useState({
-    name: '',
-    description: '',
-    features: '',
-    price: ''
-  });
+  const [packageForm, setPackageForm] = useState({ name: '', description: '', features: '', price: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imageDialogService, setImageDialogService] = useState<any | null>(null);
 
   const handleAddPackage = (serviceId: string) => {
     setSelectedServiceId(serviceId);
@@ -61,343 +62,87 @@ const MyServices = () => {
 
   const handleSavePackage = async () => {
     if (!selectedServiceId) return;
-
-    if (!packageForm.name.trim()) {
-      toast.error('Please provide a package name.');
-      return;
-    }
-    if (!packageForm.description.trim()) {
-      toast.error('Please include a brief description of this package.');
-      return;
-    }
-    if (!packageForm.price || Number(packageForm.price) <= 0) {
-      toast.error('Please enter a valid package price greater than zero.');
-      return;
-    }
-    if (!packageForm.features.trim()) {
-      toast.error('Please list at least one feature for this package.');
-      return;
-    }
+    if (!packageForm.name.trim()) { toast.error('Please provide a package name.'); return; }
+    if (!packageForm.description.trim()) { toast.error('Please include a brief description.'); return; }
+    if (!packageForm.price || Number(packageForm.price) <= 0) { toast.error('Please enter a valid price.'); return; }
+    if (!packageForm.features.trim()) { toast.error('Please list at least one feature.'); return; }
 
     setIsSubmitting(true);
     try {
-      const packageData = {
+      const result = await userServicesApi.addPackage(selectedServiceId, {
         name: packageForm.name.trim(),
         description: packageForm.description.trim(),
         price: Number(packageForm.price),
         features: packageForm.features.split(',').map(f => f.trim()).filter(Boolean),
-      };
-
-      const result = await userServicesApi.addPackage(selectedServiceId, packageData);
-
-      if (showApiErrors(result, 'Failed to add package.')) {
-        return;
-      }
-
+      });
+      if (showApiErrors(result, 'Failed to add package.')) return;
       toast.success(result.message || 'Package added successfully.');
       setPackageDialogOpen(false);
       setPackageForm({ name: '', description: '', features: '', price: '' });
       setSelectedServiceId(null);
-    } catch (err: any) {
-      showCaughtError(err);
-    } finally {
-      setIsSubmitting(false);
-    }
+    } catch (err: any) { showCaughtError(err); }
+    finally { setIsSubmitting(false); }
   };
 
-  const renderStars = (rating: number) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <Star
-        key={i}
-        className={`w-4 h-4 ${
-          i < Math.floor(rating)
-            ? 'text-yellow-400 fill-current'
-            : i < rating
-            ? 'text-yellow-400 fill-current opacity-50'
-            : 'text-gray-300'
-        }`}
-      />
-    ));
-  };
+  const renderStars = (rating: number) => Array.from({ length: 5 }, (_, i) => (
+    <Star key={i} className={`w-3.5 h-3.5 ${i < Math.floor(rating) ? 'text-yellow-400 fill-current' : i < rating ? 'text-yellow-400 fill-current opacity-50' : 'text-muted-foreground/30'}`} />
+  ));
 
-  // Helper function to get image URL from service image object (per API doc: {id, url, is_primary, ...})
   const getImageUrl = (img: any): string => {
     if (typeof img === 'string') return img;
-    if (img && typeof img === 'object') {
-      return img.url || img.image_url || img.file_url || img.thumbnail_url || '';
-    }
+    if (img && typeof img === 'object') return img.url || img.image_url || img.file_url || '';
     return '';
   };
 
-  // Get images array safely from service
   const getServiceImages = (service: any): any[] => {
     if (Array.isArray(service.images) && service.images.length > 0) return service.images;
     if (service.primary_image) return [{ url: service.primary_image }];
     return [];
   };
 
-  // Helper function to format price display using centralized formatPrice
   const formatPriceDisplay = (service: any): string => {
-    if (service.min_price && service.max_price) {
-      return `${formatPrice(service.min_price)} - ${formatPrice(service.max_price)}`;
-    }
-    if (service.min_price) {
-      return `From ${formatPrice(service.min_price)}`;
-    }
+    if (service.min_price && service.max_price) return `${formatPrice(service.min_price)} – ${formatPrice(service.max_price)}`;
+    if (service.min_price) return `From ${formatPrice(service.min_price)}`;
     return 'Price on request';
   };
 
-  // Helper to get category name (API returns category as string)
-  const getCategoryName = (service: any): string => {
-    if (service.category) return service.category;
-    if (service.service_category?.name) return service.service_category.name;
-    return 'Uncategorized';
-  };
-
-  // Helper to get service type name (API returns service_type_name as string)
-  const getServiceTypeName = (service: any): string => {
-    if (service.service_type_name) return service.service_type_name;
-    if (service.service_type?.name) return service.service_type.name;
-    return '';
-  };
+  const getCategoryName = (service: any): string => service.category || service.service_category?.name || 'Uncategorized';
+  const getServiceTypeName = (service: any): string => service.service_type_name || service.service_type?.name || '';
 
   if (loading) return <ServiceLoadingSkeleton />;
-  if (error) return <p className="text-red-500">{error}</p>;
+  if (error) return <p className="text-destructive">{error}</p>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">My Services</h1>
-          <p className="text-muted-foreground mt-1">Manage your service offerings and track performance</p>
+          <h1 className="text-3xl font-bold tracking-tight">My Services</h1>
+          <p className="text-muted-foreground mt-1">Your professional portfolio on Nuru</p>
         </div>
-        <Button onClick={() => navigate('/services/new')}>
+        <Button size="lg" className="shadow-md" onClick={() => navigate('/services/new')}>
           <Plus className="w-4 h-4 mr-2" />
           Add New Service
         </Button>
       </div>
 
-      {/* Stats Section */}
+      {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Active Services</p>
-                <p className="text-2xl font-bold">{services.length}</p>
-              </div>
-              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                <img src={CalendarIcon} alt="Calendar" className="w-5 h-5" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Events</p>
-                <p className="text-2xl font-bold">
-                  {summary?.total_reviews ?? services.reduce((sum, service) => sum + (service.review_count || 0), 0)}
-                </p>
-              </div>
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                <Users className="w-5 h-5 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Avg Rating</p>
-                <p className="text-2xl font-bold">
-                  {services.length > 0 && services.some(s => (s.rating || 0) > 0)
-                    ? (services.reduce((sum, service) => sum + (service.rating || 0), 0) / services.length).toFixed(1)
-                    : '0.0'}
-                </p>
-              </div>
-              <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
-                <Star className="w-5 h-5 text-yellow-600 fill-current" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Reviews</p>
-                <p className="text-2xl font-bold">
-                  {services.reduce((sum, service) => sum + (service.review_count || 0), 0)}
-                </p>
-              </div>
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <CheckCircle className="w-5 h-5 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Services List */}
-      <div className="space-y-6">
-        {services.map((service) => (
-          <Card key={service.id}>
-            <CardContent className="p-6">
-              <div className="flex flex-col md:flex-row gap-6">
-                {/* Images */}
-                <div className="w-full md:w-48 flex-shrink-0">
-                  <div className="grid grid-cols-2 gap-2">
-                    {getServiceImages(service).slice(0, 4).map((image, index) => (
-                      <img
-                        key={index}
-                        src={getImageUrl(image)}
-                        alt={service.title}
-                        className="w-full h-20 object-cover rounded-lg"
-                      />
-                    ))}
-                  </div>
+        {[
+          { label: 'Services', value: services.length, icon: <Package className="w-5 h-5" />, color: 'text-primary', bg: 'bg-primary/10' },
+          { label: 'Avg Rating', value: services.length > 0 ? (services.reduce((s, x) => s + (x.rating || 0), 0) / services.length).toFixed(1) : '–', icon: <Star className="w-5 h-5" />, color: 'text-yellow-600', bg: 'bg-yellow-100 dark:bg-yellow-900/30' },
+          { label: 'Total Reviews', value: services.reduce((s, x) => s + (x.review_count || 0), 0), icon: <Users className="w-5 h-5" />, color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900/30' },
+          { label: 'Completed Events', value: services.reduce((s, x) => s + (x.completed_events || 0), 0), icon: <CheckCircle className="w-5 h-5" />, color: 'text-green-600', bg: 'bg-green-100 dark:bg-green-900/30' },
+        ].map((stat, i) => (
+          <Card key={i} className="border-border/60">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{stat.label}</p>
+                  <p className="text-2xl font-bold mt-1">{stat.value}</p>
                 </div>
-
-                {/* Details */}
-                <div className="flex-1">
-                  <div className="flex items-start justify-between gap-4 mb-3">
-                    <h3 className="text-xl font-semibold">{service.title}</h3>
-                    <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
-                      {service.verification_status === 'verified' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleAddPackage(service.id)}
-                        >
-                          <Package className="w-4 h-4 mr-2" />
-                          Add Package
-                        </Button>
-                      )}
-                      {service.verification_status !== 'verified' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(`/services/edit/${service.id}`)}
-                        >
-                          <Edit className="w-4 h-4 mr-2" />
-                          Edit
-                        </Button>
-                      )}
-                      <Button size="sm" onClick={() => navigate(`/service/${service.id}`)}>
-                        <Eye className="w-4 h-4 mr-2" />
-                        View
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-wrap mb-4">
-                    {service.verification_status === 'verified' && (
-                      <Badge className="bg-green-600 hover:bg-green-700 text-white gap-1.5 px-3 py-1 flex-shrink-0">
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        Verified
-                      </Badge>
-                    )}
-                    {service.verification_status === 'pending' && (
-                      <Badge variant="outline" className="border-orange-500 text-orange-700 bg-orange-50 gap-1.5 px-3 py-1 flex-shrink-0">
-                        <img src={CalendarIcon} alt="Calendar" className="w-3.5 h-3.5" />
-                        Pending Verification
-                      </Badge>
-                    )}
-                    {service.verification_status === 'rejected' && (
-                      <Badge variant="outline" className="border-red-500 text-red-700 bg-red-50 px-3 py-1 flex-shrink-0">
-                        Verification Rejected
-                      </Badge>
-                    )}
-                    <Badge variant="secondary" className="px-3 py-1 flex-shrink-0">{getCategoryName(service)}</Badge>
-                    {getServiceTypeName(service) && (
-                      <Badge variant="outline" className="border-primary/30 text-primary bg-primary/5 px-3 py-1 flex-shrink-0">
-                        {getServiceTypeName(service)}
-                      </Badge>
-                    )}
-                  </div>
-
-                  {/* Verification Progress - only show if not verified */}
-                  {service.verification_status !== 'verified' && (
-                    <div className="mb-4 p-3 bg-secondary/30 rounded-lg w-full">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium">Verification Progress</span>
-                        <span className="text-xs text-muted-foreground">
-                          {service.verification_progress || 0}%
-                        </span>
-                      </div>
-                      <div className="w-full bg-secondary rounded-full h-1.5 mb-2">
-                        <div
-                          className="bg-primary h-1.5 rounded-full transition-all"
-                          style={{ width: `${service.verification_progress || 0}%` }}
-                        />
-                      </div>
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="h-auto p-0 text-xs"
-                        onClick={() => {
-                          const typeId = service.service_type_id || service.service_type?.id || 'default';
-                          navigate(`/services/verify/${service.id}/${typeId}`);
-                        }}
-                      >
-                        {service.verification_progress && service.verification_progress > 0
-                          ? 'Continue Verification'
-                          : 'Start Verification'}
-                      </Button>
-                    </div>
-                  )}
-
-                  <p className="text-muted-foreground mb-4">{service.description}</p>
-
-                  <div className="grid md:grid-cols-2 gap-6 mb-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">Price Range:</span>
-                        <span className="text-muted-foreground">{formatPriceDisplay(service)}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">Location:</span>
-                        <span className="text-muted-foreground flex items-center gap-1">
-                          <img src={LocationIcon} alt="Location" className="w-4 h-4" />
-                          {service.location}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">Availability:</span>
-                        <Badge
-                          className={
-                            service.availability === 'available'
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-orange-100 text-orange-800'
-                          }
-                        >
-                          {service.availability || 'available'}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">Rating:</span>
-                        <div className="flex items-center gap-1">
-                          {renderStars(service.rating || 0)}
-                          <span className="text-muted-foreground ml-1">
-                            {service.rating || 0} ({service.review_count || 0} reviews)
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">Completed Events:</span>
-                        <span className="text-muted-foreground">{service.completed_events || 0}</span>
-                      </div>
-                    </div>
-                  </div>
+                <div className={`w-11 h-11 ${stat.bg} rounded-xl flex items-center justify-center ${stat.color}`}>
+                  {stat.icon}
                 </div>
               </div>
             </CardContent>
@@ -405,66 +150,263 @@ const MyServices = () => {
         ))}
       </div>
 
-      {/* Recent Reviews */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Reviews</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {reviewsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : reviews.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">No reviews yet</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Reviews will appear here once clients leave feedback
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {reviews.map((review: any) => (
-                <div key={review.id} className="flex gap-4 p-4 border rounded-lg">
-                  <Avatar className="flex-shrink-0">
-                    {(() => {
-                      const avatar = (review as any).user_avatar || (review as any).reviewer_avatar || (review as any).user?.avatar || (review as any).reviewer?.avatar;
-                      return avatar ? <AvatarImage src={avatar} alt={(review as any).user_name || 'Reviewer'} /> : null;
-                    })()}
-                    <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                      {(review as any).user_name ? (review as any).user_name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() : 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
-                      <h4 className="font-medium">{review.user_name}</h4>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div className="flex items-center">
-                          {renderStars(review.rating)}
-                        </div>
-                        {review.service_title && (
-                          <Badge variant="secondary" className="text-xs shrink-0">
-                            {review.service_title}
-                          </Badge>
-                        )}
-                        {review.event_type && (
-                          <Badge variant="outline" className="text-xs shrink-0">
-                            {review.event_type}
-                          </Badge>
-                        )}
-                      </div>
+      {/* Services Portfolio */}
+      <div className="space-y-6">
+        {services.map((service) => {
+          const images = getServiceImages(service);
+          const isPhoto = isPhotographyService(service);
+          const isVerified = service.verification_status === 'verified';
+
+          return (
+            <Card key={service.id} className="overflow-hidden border-border/60 shadow-sm hover:shadow-md transition-all">
+              {/* Portfolio Image Strip */}
+              {images.length > 0 && (
+                <div className="relative h-52 bg-muted overflow-hidden group">
+                  {images.length === 1 ? (
+                    <img src={getImageUrl(images[0])} alt={service.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  ) : images.length === 2 ? (
+                    <div className="grid grid-cols-2 h-full gap-0.5">
+                      {images.slice(0, 2).map((img, idx) => (
+                        <img key={idx} src={getImageUrl(img)} alt={service.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      ))}
                     </div>
-                    <p className="text-muted-foreground">{review.comment}</p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {review.created_at ? new Date(review.created_at).toLocaleDateString() : ''}
-                    </p>
+                  ) : images.length === 3 ? (
+                    <div className="grid grid-cols-3 h-full gap-0.5">
+                      {images.slice(0, 3).map((img, idx) => (
+                        <img key={idx} src={getImageUrl(img)} alt={service.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-4 h-full gap-0.5">
+                      <div className="col-span-2 row-span-2">
+                        <img src={getImageUrl(images[0])} alt={service.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      </div>
+                      {images.slice(1, 4).map((img, idx) => (
+                        <img key={idx} src={getImageUrl(img)} alt={service.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Gradient overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+
+                  {/* Verification badge */}
+                  <div className="absolute top-3 left-3 flex gap-2">
+                    {isVerified && (
+                      <Badge className="bg-green-500 text-white border-0 shadow">
+                        <CheckCircle className="w-3 h-3 mr-1" /> Verified
+                      </Badge>
+                    )}
+                    {!isVerified && service.verification_status === 'pending' && (
+                      <Badge className="bg-amber-500/90 text-white border-0 shadow">Pending Verification</Badge>
+                    )}
+                    {isPhoto && (
+                      <Badge className="bg-purple-600 text-white border-0 shadow">
+                        <Camera className="w-3 h-3 mr-1" /> Photography
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Image count */}
+                  {images.length > 4 && (
+                    <div className="absolute bottom-3 right-3 bg-black/60 text-white text-xs px-2 py-1 rounded-full">
+                      +{images.length - 4} more
+                    </div>
+                  )}
+
+                  {/* Action buttons overlay */}
+                  <div className="absolute bottom-3 left-3 flex gap-2">
+                    <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white text-foreground shadow"
+                      onClick={() => navigate(`/service/${service.id}`)}>
+                      <Eye className="w-3.5 h-3.5 mr-1.5" /> View
+                    </Button>
+                    {service.verification_status !== 'verified' && (
+                      <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white text-foreground shadow"
+                        onClick={() => navigate(`/services/edit/${service.id}`)}>
+                        <Edit className="w-3.5 h-3.5 mr-1.5" /> Edit
+                      </Button>
+                    )}
+                    {isVerified && (
+                      <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white text-foreground shadow"
+                        onClick={() => handleAddPackage(service.id)}>
+                        <Package className="w-3.5 h-3.5 mr-1.5" /> Package
+                      </Button>
+                    )}
                   </div>
                 </div>
-              ))}
+              )}
+
+              <CardContent className="p-6">
+                <div className="flex flex-col md:flex-row gap-6">
+                  {/* No images fallback actions */}
+                  {images.length === 0 && (
+                    <div className="flex gap-2 flex-wrap mb-2">
+                      <Button size="sm" variant="outline" onClick={() => navigate(`/service/${service.id}`)}>
+                        <Eye className="w-3.5 h-3.5 mr-1.5" /> View
+                      </Button>
+                      {service.verification_status !== 'verified' && (
+                        <Button size="sm" variant="outline" onClick={() => navigate(`/services/edit/${service.id}`)}>
+                          <Edit className="w-3.5 h-3.5 mr-1.5" /> Edit
+                        </Button>
+                      )}
+                      {isVerified && (
+                        <Button size="sm" variant="outline" onClick={() => handleAddPackage(service.id)}>
+                          <Package className="w-3.5 h-3.5 mr-1.5" /> Add Package
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex-1 space-y-4">
+                    {/* Title + badges */}
+                    <div>
+                      <div className="flex items-start gap-3 flex-wrap">
+                        <h3 className="text-xl font-bold">{service.title}</h3>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap mt-2">
+                        <Badge variant="secondary">{getCategoryName(service)}</Badge>
+                        {getServiceTypeName(service) && (
+                          <Badge variant="outline" className="border-primary/30 text-primary bg-primary/5">
+                            {getServiceTypeName(service)}
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className={service.availability === 'available' ? 'border-green-300 text-green-700 bg-green-50 dark:bg-green-900/20' : 'border-orange-300 text-orange-700'}>
+                          {service.availability || 'available'}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Stats row */}
+                    <div className="flex items-center gap-4 text-sm flex-wrap">
+                      <div className="flex items-center gap-1">
+                        {renderStars(service.rating || 0)}
+                        <span className="ml-1 font-semibold">{(service.rating || 0).toFixed(1)}</span>
+                        <span className="text-muted-foreground">({service.review_count || 0})</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                        <span>{service.completed_events || 0} events completed</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <MapPin className="w-4 h-4" />
+                        <span>{service.location || 'Location not set'}</span>
+                      </div>
+                    </div>
+
+                    <p className="text-muted-foreground text-sm leading-relaxed line-clamp-2">{service.description}</p>
+
+                    {/* Price */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-bold text-primary">{formatPriceDisplay(service)}</span>
+                    </div>
+
+                    {/* Verification Progress */}
+                    {!isVerified && (
+                      <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold text-amber-800 dark:text-amber-200">Verification Progress</span>
+                          <span className="text-xs font-bold text-amber-700">{service.verification_progress || 0}%</span>
+                        </div>
+                        <div className="w-full bg-amber-100 dark:bg-amber-900/40 rounded-full h-2 mb-2">
+                          <div className="bg-amber-500 h-2 rounded-full transition-all" style={{ width: `${service.verification_progress || 0}%` }} />
+                        </div>
+                        <Button variant="link" size="sm" className="h-auto p-0 text-xs text-amber-700 dark:text-amber-300"
+                          onClick={() => navigate(`/services/verify/${service.id}/${service.service_type_id || 'default'}`)}>
+                          {(service.verification_progress || 0) > 0 ? 'Continue Verification →' : 'Start Verification →'}
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Quick Actions */}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/services/events/${service.id}`)}
+                        className="gap-2"
+                      >
+                        <img src={CalendarSVG} alt="" className="w-4 h-4 dark:invert" />
+                        My Events
+                      </Button>
+
+                      {isPhoto && isVerified && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/services/photo-libraries/${service.id}`)}
+                          className="gap-2 border-purple-300 text-purple-700 hover:bg-purple-50 dark:text-purple-300 dark:border-purple-700"
+                        >
+                          <img src={PhotosSVG} alt="" className="w-4 h-4 dark:invert" />
+                          Photo Libraries
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+
+        {services.length === 0 && (
+          <div className="text-center py-20 border-2 border-dashed border-muted-foreground/20 rounded-2xl">
+            <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Package className="w-10 h-10 text-primary" />
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <h3 className="text-xl font-bold mb-2">No Services Yet</h3>
+            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+              Create your first service to start connecting with event organizers and growing your business on Nuru.
+            </p>
+            <Button size="lg" onClick={() => navigate('/services/new')}>
+              <Plus className="w-5 h-5 mr-2" />
+              Create Your First Service
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Recent Reviews */}
+      {reviews.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Star className="w-5 h-5 text-yellow-500 fill-current" />
+              Recent Reviews
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {reviewsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {reviews.map((review: any) => (
+                  <div key={review.id} className="flex gap-4 p-4 border rounded-xl hover:bg-muted/30 transition-colors">
+                    <Avatar className="flex-shrink-0">
+                      <AvatarImage src={review.user_avatar} alt={review.user_name} />
+                      <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                        {review.user_name ? review.user_name.slice(0, 2).toUpperCase() : 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h4 className="font-semibold text-sm">{review.user_name}</h4>
+                        <div className="flex items-center gap-0.5">{renderStars(review.rating)}</div>
+                        {review.service_title && <Badge variant="secondary" className="text-xs">{review.service_title}</Badge>}
+                      </div>
+                      <p className="text-muted-foreground text-sm">{review.comment}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {review.created_at ? new Date(review.created_at).toLocaleDateString() : ''}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Add Package Dialog */}
       <Dialog open={packageDialogOpen} onOpenChange={setPackageDialogOpen}>
@@ -474,51 +416,26 @@ const MyServices = () => {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="pkg-name">Package Name</Label>
-              <Input
-                id="pkg-name"
-                value={packageForm.name}
-                onChange={(e) => setPackageForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. Basic, Premium, Gold"
-              />
+              <Label>Package Name</Label>
+              <Input value={packageForm.name} onChange={(e) => setPackageForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Basic, Premium, Gold" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pkg-description">Description</Label>
-              <Textarea
-                id="pkg-description"
-                value={packageForm.description}
-                onChange={(e) => setPackageForm((f) => ({ ...f, description: e.target.value }))}
-                placeholder="A brief description of this package..."
-                rows={2}
-              />
+              <Label>Description</Label>
+              <Textarea value={packageForm.description} onChange={(e) => setPackageForm(f => ({ ...f, description: e.target.value }))} placeholder="Brief description..." rows={2} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pkg-price">Price</Label>
-              <Input
-                id="pkg-price"
-                type="number"
-                min="0"
-                value={packageForm.price}
-                onChange={(e) => setPackageForm((f) => ({ ...f, price: e.target.value }))}
-                placeholder="e.g. 150000"
-              />
+              <Label>Price (TZS)</Label>
+              <Input type="number" min="0" value={packageForm.price} onChange={(e) => setPackageForm(f => ({ ...f, price: e.target.value }))} placeholder="e.g. 150000" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pkg-features">Features (comma-separated)</Label>
-              <Textarea
-                id="pkg-features"
-                value={packageForm.features}
-                onChange={(e) => setPackageForm((f) => ({ ...f, features: e.target.value }))}
-                placeholder="e.g. 5 hours coverage, 200 edited photos, Online gallery"
-                rows={2}
-              />
+              <Label>Features (comma-separated)</Label>
+              <Textarea value={packageForm.features} onChange={(e) => setPackageForm(f => ({ ...f, features: e.target.value }))} placeholder="e.g. 5 hours coverage, 200 edited photos, Online gallery" rows={2} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPackageDialogOpen(false)}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => setPackageDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSavePackage} disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               {isSubmitting ? 'Saving...' : 'Save Package'}
             </Button>
           </DialogFooter>

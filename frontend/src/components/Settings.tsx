@@ -52,9 +52,9 @@ const Settings = () => {
 
   if (loading) {
     return (
-      <div className="h-full overflow-y-auto p-4 md:p-6">
-        <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6">Settings</h1>
-        <div className="space-y-6 max-w-3xl">
+      <div className="space-y-6 max-w-3xl">
+        <h1 className="text-xl md:text-2xl font-semibold">Settings</h1>
+        <div className="space-y-6">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
               <CardHeader>
@@ -91,10 +91,10 @@ const Settings = () => {
   const security = settings?.security as any;
 
   return (
-    <div className="h-full overflow-y-auto p-4 md:p-6">
-      <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6">Settings</h1>
+    <div className="space-y-6 max-w-3xl">
+      <h1 className="text-xl md:text-2xl font-semibold">Settings</h1>
       
-      <div className="space-y-6 max-w-3xl">
+      <div className="space-y-6">
         {/* Notification Settings */}
         <Card>
           <CardHeader>

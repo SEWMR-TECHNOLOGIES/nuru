@@ -166,3 +166,19 @@ class ChecklistItemStatusEnum(enum.Enum):
     in_progress = "in_progress"
     completed = "completed"
     skipped = "skipped"
+
+
+class AppealStatusEnum(enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
+
+class AppealContentTypeEnum(enum.Enum):
+    post = "post"
+    moment = "moment"
+
+
+class PhotoLibraryPrivacyEnum(enum.Enum):
+    public = "public"                      # anyone with link who is a Nuru user
+    event_creator_only = "event_creator_only"  # only event organizer

@@ -27,6 +27,9 @@ from models.enums import (
     FeedVisibilityEnum,
     GuestTypeEnum,
     ChecklistItemStatusEnum,
+    AppealStatusEnum,
+    AppealContentTypeEnum,
+    PhotoLibraryPrivacyEnum,
 )
 
 
@@ -660,6 +663,7 @@ class UserFeed(Base):
     is_public = Column(Boolean, default=True)
     allow_echo = Column(Boolean, default=True)
     is_active = Column(Boolean, default=True)
+    removal_reason = Column(Text)
     visibility = Column(Enum(FeedVisibilityEnum, name="feed_visibility_enum"), default=FeedVisibilityEnum.public)
     glow_count = Column(Integer, default=0)
     echo_count = Column(Integer, default=0)
@@ -830,6 +834,7 @@ class UserMoment(Base):
     view_count = Column(Integer, default=0)
     reply_count = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)
+    removal_reason = Column(Text)
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, server_default=func.now())
 
@@ -1907,3 +1912,90 @@ class EventChecklistItem(Base):
     # Relationships
     event = relationship("Event", back_populates="checklist_items")
     template_task = relationship("EventTemplateTask", back_populates="checklist_items")
+
+
+# ──────────────────────────────────────────────
+# Content Appeals
+# ──────────────────────────────────────────────
+
+class ContentAppeal(Base):
+    """
+    Allows users to appeal the removal of their posts or moments by an admin.
+    One appeal per content item — duplicate appeals are blocked by the unique constraint.
+    """
+    __tablename__ = 'content_appeals'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    content_id = Column(UUID(as_uuid=True), nullable=False)
+    content_type = Column(Enum(AppealContentTypeEnum, name="appeal_content_type_enum"), nullable=False)
+    appeal_reason = Column(Text, nullable=False)
+    status = Column(Enum(AppealStatusEnum, name="appeal_status_enum"), default=AppealStatusEnum.pending, nullable=False)
+    admin_notes = Column(Text)
+    reviewed_by = Column(UUID(as_uuid=True), ForeignKey('admin_users.id', ondelete='SET NULL'))
+    reviewed_at = Column(DateTime)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'content_id', 'content_type', name='uq_content_appeal'),
+    )
+
+    # Relationships
+    user = relationship("User", back_populates="content_appeals")
+
+
+# ──────────────────────────────────────────────
+# Photo Libraries (Photography service providers)
+# ──────────────────────────────────────────────
+
+class ServicePhotoLibrary(Base):
+    """
+    A photo library created by a photography service provider for a specific event.
+    One library per service per event. Storage capped at 200MB per service.
+    """
+    __tablename__ = 'service_photo_libraries'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    user_service_id = Column(UUID(as_uuid=True), ForeignKey('user_services.id', ondelete='CASCADE'), nullable=False)
+    event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
+    name = Column(Text, nullable=False)              # auto-generated from event name
+    description = Column(Text)
+    privacy = Column(Enum(PhotoLibraryPrivacyEnum, name="photo_library_privacy_enum"), nullable=False, default=PhotoLibraryPrivacyEnum.event_creator_only)
+    share_token = Column(Text, unique=True, nullable=False)  # used for public share links
+    photo_count = Column(Integer, default=0)
+    total_size_bytes = Column(Integer, default=0)    # tracked cumulatively (BigInteger stored as Integer for compat)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('user_service_id', 'event_id', name='uq_service_event_library'),
+    )
+
+    # Relationships
+    user_service = relationship("UserService", back_populates="photo_libraries")
+    event = relationship("Event", back_populates="photo_libraries")
+    photos = relationship("ServicePhotoLibraryImage", back_populates="library", cascade="all, delete-orphan")
+
+
+class ServicePhotoLibraryImage(Base):
+    """
+    A single image inside a ServicePhotoLibrary.
+    Max 10MB per image enforced at the API layer.
+    """
+    __tablename__ = 'service_photo_library_images'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    library_id = Column(UUID(as_uuid=True), ForeignKey('service_photo_libraries.id', ondelete='CASCADE'), nullable=False)
+    image_url = Column(Text, nullable=False)
+    original_name = Column(Text)
+    file_size_bytes = Column(Integer, default=0)
+    width = Column(Integer)
+    height = Column(Integer)
+    caption = Column(Text)
+    display_order = Column(Integer, default=0)
+    created_at = Column(DateTime, server_default=func.now())
+
+    # Relationships
+    library = relationship("ServicePhotoLibrary", back_populates="photos")

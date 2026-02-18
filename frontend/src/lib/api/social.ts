@@ -213,4 +213,22 @@ export const socialApi = {
     post<any>(`/messages/${conversationId}`, data),
   createConversation: (data: { recipient_id: string; message?: string }) => 
     post<any>("/messages/start", data),
+
+  // ============================================================================
+  // APPEALS & REMOVED CONTENT
+  // ============================================================================
+
+  /** Get user's own removed posts (for appeal) */
+  getMyRemovedPosts: () => get<any[]>("/posts/my-removed"),
+
+  /** Get user's own removed moments (for appeal) */
+  getMyRemovedMoments: () => get<any[]>("/moments/my-removed"),
+
+  /** Submit an appeal for a removed post */
+  submitPostAppeal: (postId: string, reason: string) =>
+    post<any>(`/posts/${postId}/appeal`, { reason }),
+
+  /** Submit an appeal for a removed moment */
+  submitMomentAppeal: (momentId: string, reason: string) =>
+    post<any>(`/moments/${momentId}/appeal`, { reason }),
 };

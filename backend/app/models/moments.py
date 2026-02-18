@@ -24,8 +24,10 @@ class UserMoment(Base):
     view_count = Column(Integer, default=0)
     reply_count = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)
+    removal_reason = Column(Text)
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     # Relationships
     user = relationship("User", back_populates="moments")

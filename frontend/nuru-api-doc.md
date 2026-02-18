@@ -14395,12 +14395,121 @@ Response: `{ id, card_type, quantity, status, payment_status, amount, delivery_c
 
 ---
 
-## Service Categories
+## Service Categories & KYC Management
 
 ### GET /admin/service-categories — Sorted by name
 ### POST /admin/service-categories — Body: `{ name, description, icon }`
 ### PUT /admin/service-categories/{cat_id}
 ### DELETE /admin/service-categories/{cat_id}
+
+### GET /admin/service-categories/{cat_id}/service-types
+Returns service types (sub-categories) within a category.
+Response: `[ { id, name, description, requires_kyc } ]`
+
+> **KYC is managed at the service type level, not the category level.**
+> The `service_kyc_mapping` table links `service_type_id → kyc_requirement_id`.
+
+### GET /admin/service-types/{type_id}/kyc-requirements
+Returns KYC requirements mapped to a specific service type.
+Response: `[ { mapping_id, id, name, description, is_mandatory } ]`
+
+### POST /admin/service-types/{type_id}/kyc-requirements
+Body: `{ "kyc_requirement_id": "<uuid>", "is_mandatory": true }`
+Inserts a row into `service_kyc_mapping`.
+
+### DELETE /admin/service-types/{type_id}/kyc-requirements/{mapping_id}
+Removes the mapping from `service_kyc_mapping` by the mapping row id.
+
+### GET /admin/kyc-definitions
+Returns all available KYC requirement definitions from `kyc_requirements` table.
+Used to populate the dropdown when adding KYC to a service type.
+Response: `[ { id, name, description } ]`
+
+---
+
+## Content Appeals
+
+### POST /posts/{post_id}/appeal
+Submit an appeal for a removed post.
+- Auth: Bearer token (post owner only)
+- Body: `{ "reason": "string (min 10 chars)" }`
+- Returns: `{ id, status: "pending" }`
+- Errors: 400 if post is still active, already appealed, or reason is too short
+
+### GET /admin/appeals
+List all content appeals (admin only).
+- Auth: Admin token
+- Query: `page`, `limit`, `status` (pending|approved|rejected)
+- Returns: paginated list with `content_preview`, `content_type`, `user`, `appeal_reason`, `admin_notes`, `reviewed_at`
+
+### PUT /admin/appeals/{appeal_id}/approve
+Approve an appeal — restores the post/moment and notifies the user.
+- Auth: Admin token
+- Body: `{ "notes": "optional admin note" }`
+
+### PUT /admin/appeals/{appeal_id}/reject
+Reject an appeal — content stays removed, user is notified with reason.
+- Auth: Admin token
+- Body: `{ "notes": "reason for rejection (required)" }`
+
+---
+
+## Admin Posts (Updated)
+
+### GET /admin/posts
+Returns live glow and echo counts queried directly from `user_feed_glows` and `user_feed_comments` tables (not stale denormalized columns). Also returns `removal_reason` for removed posts.
+
+### PUT /admin/posts/{post_id}/status
+Update post active status and persist removal reason.
+- Body: `{ "is_active": bool, "reason": "string (optional, used when removing)" }`
+- Removal reason is saved to `user_feeds.removal_reason` and included in user notification.
+- Restoring a post clears `removal_reason`.
+
+---
+
+## Seed Data Reference
+
+The following seed data must be applied to a fresh database:
+
+### Service Categories (10)
+Entertainment, Catering, Logistics, Photography and Videography, Decor and Setup, Planning, Rentals, Audio Visual, Security, Cleaning
+
+### KYC Requirements (5)
+- Government-issued ID
+- Business License
+- Tax Compliance Certificate
+- Professional Certification
+- Portfolio/Work Samples
+
+### Service Types (28 sub-types across all categories)
+See `database.sql` SEED DATA section for full INSERT statements with `ON CONFLICT DO NOTHING` for idempotent re-runs.
+
+
+### GET /admin/appeals — Query: `page`, `limit`, `status` (pending|approved|rejected)
+Response: `[ { id, content_id, content_type, appeal_reason, status, admin_notes, created_at, user } ]`
+
+### PUT /admin/appeals/{appeal_id}/review
+Body: `{ "decision": "approved" | "rejected", "notes": "..." }`
+- `approved` → restores the content (`is_active = true`, `removal_reason = null`) and notifies the user
+- `rejected` → keeps content removed; notifies user with admin notes
+
+---
+
+## User Appeals (Workspace)
+
+### POST /appeals
+Body: `{ "content_id": "<uuid>", "content_type": "post" | "moment", "appeal_reason": "..." }`
+- One appeal per content item (409 if already submitted)
+
+---
+
+## Content Removal Fields
+
+### user_feeds — added columns:
+- `removal_reason TEXT` — set when admin removes a post; included in notification `message_data`
+
+### user_moments — added columns:
+- `removal_reason TEXT` — set when admin removes a moment; included in notification `message_data`
 
 ---
 
@@ -14412,4 +14521,5 @@ Response: `{ id, card_type, quantity, status, payment_status, amount, delivery_c
 - **Pagination:** `(res as any).pagination` — preserved at root level by `adminRequest` helper
 - **Route guard:** `AdminLayout` checks `admin_token` on mount, redirects to `/admin/login` if absent
 - **Auth dependency changed:** All backend admin endpoints use `Depends(require_admin)` returning `AdminUser` — `get_current_user` is NOT used in admin routes
+
 

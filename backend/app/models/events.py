@@ -74,6 +74,7 @@ class Event(Base):
     promoted_events = relationship("PromotedEvent", back_populates="event")
     checklist_items = relationship("EventChecklistItem", back_populates="event")
     expenses = relationship("EventExpense", back_populates="event")
+    photo_libraries = relationship("ServicePhotoLibrary", back_populates="event")
 
 
 class EventTypeService(Base):

@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, ChevronRight, ChevronLeft, Check } from "lucide-react";
+import { Eye, EyeOff, ChevronRight, ChevronLeft, Check, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -11,6 +11,14 @@ import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
 import { api, showApiErrorsShadcn } from "@/lib/api";
 import nuruLogo from "@/assets/nuru-logo.png";
+
+const PASSWORD_RULES = [
+  { label: "At least 8 characters", test: (p: string) => p.length >= 8 },
+  { label: "One uppercase letter", test: (p: string) => /[A-Z]/.test(p) },
+  { label: "One lowercase letter", test: (p: string) => /[a-z]/.test(p) },
+  { label: "One number", test: (p: string) => /\d/.test(p) },
+  { label: "One special character", test: (p: string) => /[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\/~`]/.test(p) },
+];
 
 const Register = () => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -36,6 +44,12 @@ const Register = () => {
   const totalSteps = 3;
   const progress = (currentStep / totalSteps) * 100;
 
+  const passwordChecks = useMemo(
+    () => PASSWORD_RULES.map(r => ({ ...r, passed: r.test(formData.password) })),
+    [formData.password]
+  );
+  const allPasswordPassed = passwordChecks.every(c => c.passed);
+
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -50,12 +64,12 @@ const Register = () => {
       toast({ title: "Please fill in all fields", description: "All fields are required.", variant: "destructive" });
       return false;
     }
-    if (password !== confirmPassword) {
-      toast({ title: "Passwords don't match", description: "Please make sure your passwords match.", variant: "destructive" });
+    if (!allPasswordPassed) {
+      toast({ title: "Weak password", description: "Please meet all password requirements.", variant: "destructive" });
       return false;
     }
-    if (password.length < 8) {
-      toast({ title: "Password too short", description: "Password must be at least 8 characters long.", variant: "destructive" });
+    if (password !== confirmPassword) {
+      toast({ title: "Passwords don't match", description: "Please make sure your passwords match.", variant: "destructive" });
       return false;
     }
     return true;
@@ -280,6 +294,23 @@ const Register = () => {
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
+
+                  {/* Password strength checklist — shown as soon as user starts typing */}
+                  {formData.password.length > 0 && (
+                    <ul className="mt-3 space-y-1.5">
+                      {passwordChecks.map(c => (
+                        <li
+                          key={c.label}
+                          className={`flex items-center gap-2 text-xs transition-colors ${c.passed ? "text-green-600" : "text-muted-foreground"}`}
+                        >
+                          <CheckCircle2
+                            className={`w-3.5 h-3.5 shrink-0 transition-colors ${c.passed ? "text-green-600" : "text-muted-foreground/30"}`}
+                          />
+                          {c.label}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
 
                 <div>
@@ -291,6 +322,14 @@ const Register = () => {
                     onChange={e => handleInputChange("confirmPassword", e.target.value)}
                     className="h-12 rounded-xl"
                   />
+                  {formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword && (
+                    <p className="text-xs text-destructive mt-1.5">Passwords do not match</p>
+                  )}
+                  {formData.confirmPassword.length > 0 && formData.password === formData.confirmPassword && allPasswordPassed && (
+                    <p className="text-xs text-green-600 mt-1.5 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Passwords match
+                    </p>
+                  )}
                 </div>
               </motion.div>
             )}

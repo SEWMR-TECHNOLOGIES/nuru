@@ -18,6 +18,7 @@ from models import (
     UserFeed, UserFeedImage, UserFeedGlow, UserFeedEcho,
     UserFeedSpark, UserFeedComment, UserFeedCommentGlow,
     UserFeedPinned, UserFeedSaved, User, UserProfile, UserCircle, FeedVisibilityEnum,
+    ContentAppeal, AppealStatusEnum, AppealContentTypeEnum,
 )
 from utils.auth import get_current_user
 from utils.helpers import standard_response, paginate
@@ -156,6 +157,65 @@ def _post_dict(db, post, current_user_id=None):
         "is_pinned": db.query(UserFeedPinned).filter(UserFeedPinned.feed_id == post.id).first() is not None,
         "created_at": post.created_at.isoformat() if post.created_at else None,
     }
+
+
+
+# ──────────────────────────────────────────────
+# MY REMOVED POSTS — must be before /{post_id} wildcard
+# ──────────────────────────────────────────────
+
+@router.get("/my-removed")
+def get_my_removed_posts(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Returns posts removed by an admin so the user can view removal reason and appeal."""
+    posts = db.query(UserFeed).filter(
+        UserFeed.user_id == current_user.id,
+        UserFeed.is_active == False,
+    ).order_by(UserFeed.updated_at.desc()).all()
+
+    data = []
+    for p in posts:
+        appeal = db.query(ContentAppeal).filter(
+            ContentAppeal.user_id == current_user.id,
+            ContentAppeal.content_id == p.id,
+            ContentAppeal.content_type == AppealContentTypeEnum.post,
+        ).first()
+        images = db.query(UserFeedImage).filter(UserFeedImage.feed_id == p.id).all()
+        glow_count = db.query(sa_func.count(UserFeedGlow.id)).filter(UserFeedGlow.feed_id == p.id).scalar() or 0
+        echo_count = db.query(sa_func.count(UserFeedEcho.id)).filter(UserFeedEcho.feed_id == p.id).scalar() or 0
+        comment_count = db.query(sa_func.count(UserFeedComment.id)).filter(
+            UserFeedComment.feed_id == p.id, UserFeedComment.is_active == True
+        ).scalar() or 0
+        user = db.query(User).filter(User.id == p.user_id).first()
+        profile = db.query(UserProfile).filter(UserProfile.user_id == p.user_id).first() if user else None
+        data.append({
+            "id": str(p.id),
+            "content": p.content,
+            "images": [img.image_url for img in images],
+            "location": p.location,
+            "visibility": p.visibility.value if p.visibility else "public",
+            "glow_count": glow_count,
+            "echo_count": echo_count,
+            "comment_count": comment_count,
+            "removal_reason": p.removal_reason if hasattr(p, "removal_reason") else None,
+            "removed_at": p.updated_at.isoformat() if p.updated_at else None,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+            "author": {
+                "id": str(user.id) if user else None,
+                "name": f"{user.first_name} {user.last_name}" if user else None,
+                "username": user.username if user else None,
+                "avatar": profile.profile_picture_url if profile else None,
+            },
+            "appeal": {
+                "id": str(appeal.id),
+                "status": appeal.status.value,
+                "admin_notes": appeal.admin_notes,
+                "created_at": appeal.created_at.isoformat() if appeal.created_at else None,
+            } if appeal else None,
+        })
+    return standard_response(True, "Removed posts retrieved", data)
 
 
 @router.get("/saved")
@@ -670,3 +730,59 @@ def unpin_post(post_id: str, db: Session = Depends(get_db), current_user: User =
 @router.post("/{post_id}/report")
 def report_post(post_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return standard_response(True, "Post reported. Our team will review it shortly.")
+
+
+# ──────────────────────────────────────────────
+# CONTENT APPEALS
+# ──────────────────────────────────────────────
+
+@router.post("/{post_id}/appeal")
+def submit_post_appeal(
+    post_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """User appeals the removal of their own post."""
+    try:
+        pid = uuid.UUID(post_id)
+    except ValueError:
+        return standard_response(False, "Invalid post ID")
+
+    post = db.query(UserFeed).filter(UserFeed.id == pid, UserFeed.user_id == current_user.id).first()
+    if not post:
+        return standard_response(False, "Post not found or not yours")
+    if post.is_active:
+        return standard_response(False, "Post is not removed — no appeal needed")
+
+    reason = (body.get("reason") or "").strip()
+    if not reason or len(reason) < 10:
+        return standard_response(False, "Please provide a reason (at least 10 characters)")
+
+    # Check for existing appeal
+    existing = db.query(ContentAppeal).filter(
+        ContentAppeal.user_id == current_user.id,
+        ContentAppeal.content_id == pid,
+        ContentAppeal.content_type == AppealContentTypeEnum.post,
+    ).first()
+    if existing:
+        return standard_response(False, "You have already submitted an appeal for this post")
+
+    appeal = ContentAppeal(
+        id=uuid.uuid4(),
+        user_id=current_user.id,
+        content_id=pid,
+        content_type=AppealContentTypeEnum.post,
+        appeal_reason=reason,
+        status=AppealStatusEnum.pending,
+        created_at=datetime.now(EAT),
+        updated_at=datetime.now(EAT),
+    )
+    db.add(appeal)
+    db.commit()
+    return standard_response(True, "Appeal submitted successfully", {
+        "id": str(appeal.id),
+        "status": appeal.status.value,
+    })
+
+

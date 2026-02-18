@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Sparkles, Search, Video, Image, ChevronLeft, ChevronRight, Eye, RotateCcw } from "lucide-react";
+import { Sparkles, Search, Video, Image, ChevronLeft, ChevronRight, Eye, RotateCcw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AdminTableSkeleton } from "@/components/ui/AdminTableSkeleton";
@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { useNavigate } from "react-router-dom";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 
 export default function AdminMoments() {
@@ -24,6 +26,9 @@ export default function AdminMoments() {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<any>(adminCaches.pagination["moments"] ?? null);
   const { confirm, ConfirmDialog } = useConfirmDialog();
+  const [removeTarget, setRemoveTarget] = useState<any | null>(null);
+  const [removeReason, setRemoveReason] = useState("");
+  const [removing, setRemoving] = useState(false);
 
   const load = useCallback(async () => {
     if (initialLoad.current) setLoading(true);
@@ -46,12 +51,13 @@ export default function AdminMoments() {
   }, [load, q, page]);
   usePolling(load);
 
-  const handleRemove = async (id: string) => {
-    const reason = window.prompt("Reason for removing this moment? (This will be sent to the user)");
-    if (reason === null) return;
-    const res = await adminApi.updateMomentStatus(id, false, reason || "Policy violation");
-    if (res.success) { toast.success("Moment removed"); load(); }
+  const handleRemoveConfirm = async () => {
+    if (!removeTarget) return;
+    setRemoving(true);
+    const res = await adminApi.updateMomentStatus(removeTarget.id, false, removeReason.trim() || "Policy violation");
+    if (res.success) { toast.success("Moment removed"); setRemoveTarget(null); setRemoveReason(""); load(); }
     else toast.error(res.message || "Failed");
+    setRemoving(false);
   };
 
   const handleRestore = async (id: string) => {
@@ -62,9 +68,40 @@ export default function AdminMoments() {
     else toast.error(res.message || "Failed");
   };
 
+
   return (
     <div className="space-y-6">
       <ConfirmDialog />
+
+      {/* Remove Reason Dialog */}
+      <Dialog open={!!removeTarget} onOpenChange={(open) => { if (!open) { setRemoveTarget(null); setRemoveReason(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Moment</DialogTitle>
+            <DialogDescription>
+              This moment will be hidden from users. A notification with your reason will be sent to{" "}
+              <strong>{removeTarget?.user?.name || "the user"}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Reason for removal</label>
+            <Textarea
+              value={removeReason}
+              onChange={e => setRemoveReason(e.target.value)}
+              placeholder="e.g. Contains inappropriate content..."
+              rows={3}
+            />
+            <p className="text-xs text-muted-foreground">Leave blank to use "Policy violation" as default.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRemoveTarget(null); setRemoveReason(""); }}>Cancel</Button>
+            <Button variant="destructive" onClick={handleRemoveConfirm} disabled={removing}>
+              {removing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+              Remove Moment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold text-foreground">Moments</h2>
@@ -134,7 +171,7 @@ export default function AdminMoments() {
                         <Eye className="w-3.5 h-3.5" />
                       </Button>
                       {m.is_active ? (
-                        <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10 text-xs" onClick={() => handleRemove(m.id)}>
+                        <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10 text-xs" onClick={() => setRemoveTarget(m)}>
                           Remove
                         </Button>
                       ) : (

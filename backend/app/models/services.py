@@ -46,6 +46,7 @@ class UserService(Base):
     event_services = relationship("EventService", back_populates="provider_user_service")
     conversations = relationship("Conversation", back_populates="service")
     booking_requests = relationship("ServiceBookingRequest", back_populates="user_service")
+    photo_libraries = relationship("ServicePhotoLibrary", back_populates="user_service")
 
 
 class UserServiceImage(Base):

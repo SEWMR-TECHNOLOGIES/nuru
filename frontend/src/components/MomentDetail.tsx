@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Heart, Share2, Send, X, Loader2, CornerDownRight, ChevronDown, MapPin } from 'lucide-react';
+import { ChevronLeft, Heart, Share2, Send, X, Loader2, CornerDownRight, ChevronDown, MapPin, AlertTriangle } from 'lucide-react';
 import CustomImageIcon from '@/assets/icons/image-icon.svg';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,6 +9,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { socialApi } from '@/lib/api/social';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -321,6 +323,10 @@ const MomentDetail = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const inputFileRef = useRef<HTMLInputElement | null>(null);
+  const [appealOpen, setAppealOpen] = useState(false);
+  const [appealReason, setAppealReason] = useState("");
+  const [submittingAppeal, setSubmittingAppeal] = useState(false);
+  const [appealSubmitted, setAppealSubmitted] = useState(false);
 
   const shareUrl = `${window.location.origin}/shared/post/${id}`;
   const shareTitle = post?.title || post?.content?.slice(0, 50) || 'Check out this moment on Nuru';
@@ -457,6 +463,17 @@ const MomentDetail = () => {
     }
   };
 
+  const handleSubmitAppeal = async () => {
+    if (!id || !appealReason.trim()) return;
+    setSubmittingAppeal(true);
+    try {
+      const res = await socialApi.submitMomentAppeal(id, appealReason.trim());
+      if (res.success) { setAppealSubmitted(true); toast.success("Appeal submitted"); setAppealOpen(false); }
+      else toast.error(res.message || "Failed to submit appeal");
+    } catch { toast.error("Failed to submit appeal"); }
+    setSubmittingAppeal(false);
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -511,15 +528,54 @@ const MomentDetail = () => {
   const postImage = post.event?.image || post.content?.image || postImages[0] || '';
   const postTimeAgo = post.created_at ? getTimeAgo(post.created_at) : 'Recently';
   const postLocation = post.location || '';
+  const isOwner = currentUser && (post.user?.id === currentUser.id || post.author?.id === currentUser.id);
+  const isRemoved = post.is_active === false;
 
   return (
     <>
+      {/* Appeal Dialog */}
+      <Dialog open={appealOpen} onOpenChange={open => { if (!open) { setAppealOpen(false); setAppealReason(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Appeal Content Removal</DialogTitle>
+            <DialogDescription>Explain why you believe this moment should be restored. Our team will review your appeal.</DialogDescription>
+          </DialogHeader>
+          <Textarea rows={4} placeholder="Describe why this removal was unjustified..." value={appealReason} onChange={e => setAppealReason(e.target.value)} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAppealOpen(false)}>Cancel</Button>
+            <Button onClick={handleSubmitAppeal} disabled={submittingAppeal || !appealReason.trim()}>
+              {submittingAppeal ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null} Submit Appeal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex items-center justify-between mb-3 md:mb-4">
         <h1 className="text-2xl md:text-3xl font-bold">Moment</h1>
         <Button variant="ghost" size="icon" onClick={handleBack}>
           <ChevronLeft className="w-5 h-5" />
         </Button>
       </div>
+
+      {/* Removed content banner */}
+      {isRemoved && (
+        <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 mb-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-destructive">This moment has been removed by an administrator.</p>
+            {post.removal_reason && (
+              <p className="text-xs text-muted-foreground mt-0.5">Reason: {post.removal_reason}</p>
+            )}
+            {isOwner && !appealSubmitted && (
+              <Button size="sm" variant="outline" className="mt-2 h-7 text-xs" onClick={() => setAppealOpen(true)}>
+                Appeal Removal
+              </Button>
+            )}
+            {appealSubmitted && <p className="text-xs text-muted-foreground mt-1">✓ Appeal submitted — we'll review it shortly.</p>}
+            <p className="text-xs text-muted-foreground mt-1 opacity-70">Note: Removed content is permanently deleted after 7 days if no appeal is submitted.</p>
+          </div>
+        </div>
+      )}
 
       {/* Moment Content */}
       <div className="bg-card rounded-lg shadow-sm border border-border overflow-hidden mb-4 md:mb-6">
