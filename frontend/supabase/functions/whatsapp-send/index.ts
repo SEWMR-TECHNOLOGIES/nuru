@@ -38,13 +38,16 @@ serve(async (req) => {
 
     switch (action) {
       case "invite":
-        result = await sendInvitation(phone, params, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        result = await sendTemplate(phone, "event_invitation", buildInviteComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
         break;
       case "event_update":
-        result = await sendEventUpdate(phone, params, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        result = await sendTemplate(phone, "event_update", buildEventUpdateComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
         break;
       case "reminder":
-        result = await sendReminder(phone, params, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        result = await sendTemplate(phone, "event_reminder", buildReminderComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        break;
+      case "expense_recorded":
+        result = await sendTemplate(phone, "expense_recorded", buildExpenseComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
         break;
       case "text":
         result = await sendTextMessage(phone, params?.message || "", WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
@@ -70,69 +73,77 @@ serve(async (req) => {
   }
 });
 
-// ── Send RSVP Invitation ──────────────────────────────
-async function sendInvitation(
+// ── Template component builders ───────────────────────
+
+function buildInviteComponents(params: {
+  guest_name?: string; event_name?: string; event_date?: string;
+  organizer_name?: string; rsvp_code?: string;
+}) {
+  return [{
+    type: "body",
+    parameters: [
+      { type: "text", text: params.guest_name || "Guest" },
+      { type: "text", text: params.event_name || "an event" },
+      { type: "text", text: params.event_date || "TBA" },
+      { type: "text", text: params.organizer_name || "the organizer" },
+      { type: "text", text: params.rsvp_code ? `https://nuru.tz/rsvp/${params.rsvp_code}` : "https://nuru.tz" },
+    ],
+  }];
+}
+
+function buildEventUpdateComponents(params: {
+  guest_name?: string; event_name?: string; changes?: string;
+}) {
+  return [{
+    type: "body",
+    parameters: [
+      { type: "text", text: params.guest_name || "Guest" },
+      { type: "text", text: params.event_name || "an event" },
+      { type: "text", text: params.changes || "Details updated" },
+    ],
+  }];
+}
+
+function buildReminderComponents(params: {
+  guest_name?: string; event_name?: string; event_date?: string;
+  event_time?: string; location?: string;
+}) {
+  return [{
+    type: "body",
+    parameters: [
+      { type: "text", text: params.guest_name || "Guest" },
+      { type: "text", text: params.event_name || "an event" },
+      { type: "text", text: params.event_date || "TBA" },
+      { type: "text", text: params.event_time || "TBA" },
+      { type: "text", text: params.location || "TBA" },
+    ],
+  }];
+}
+
+function buildExpenseComponents(params: {
+  recipient_name?: string; recorder_name?: string; amount?: string;
+  category?: string; event_name?: string;
+}) {
+  return [{
+    type: "body",
+    parameters: [
+      { type: "text", text: params.recipient_name || "Member" },
+      { type: "text", text: params.recorder_name || "A member" },
+      { type: "text", text: params.amount || "an amount" },
+      { type: "text", text: params.category || "General" },
+      { type: "text", text: params.event_name || "an event" },
+    ],
+  }];
+}
+
+// ── Send approved template ────────────────────────────
+async function sendTemplate(
   phone: string,
-  params: { guest_name: string; event_name: string; event_date?: string; organizer_name?: string; rsvp_code?: string },
-  token: string,
-  phoneId: string
+  templateName: string,
+  components: Array<{ type: string; parameters: Array<{ type: string; text: string }> }>,
+  accessToken: string,
+  phoneNumberId: string
 ) {
-  let message = `🎉 *You're Invited!*\n\nHello ${params.guest_name}, you have been invited to *${params.event_name}*`;
-  if (params.event_date) message += ` on ${params.event_date}`;
-  if (params.organizer_name) message += ` by ${params.organizer_name}`;
-  message += ".\n\n";
-
-  if (params.rsvp_code) {
-    message += `✅ Confirm: Reply *YES*\n❌ Decline: Reply *NO*\nℹ️ Details: Reply *DETAILS*\n\n`;
-    message += `Or RSVP online: https://nuru.tz/rsvp/${params.rsvp_code}`;
-  } else {
-    message += "Open the Nuru app for details.";
-  }
-
-  message += "\n\n— Nuru: Plan Smarter";
-
-  return await sendWhatsApp(phone, message, token, phoneId);
-}
-
-// ── Send Event Update ─────────────────────────────────
-async function sendEventUpdate(
-  phone: string,
-  params: { guest_name: string; event_name: string; changes: string },
-  token: string,
-  phoneId: string
-) {
-  let message = `📢 *Event Update*\n\nHello ${params.guest_name}, there's been an update to *${params.event_name}*:\n\n`;
-  message += params.changes;
-  message += "\n\nReply *DETAILS* for full event info.";
-  message += "\n\n— Nuru: Plan Smarter";
-
-  return await sendWhatsApp(phone, message, token, phoneId);
-}
-
-// ── Send Reminder ─────────────────────────────────────
-async function sendReminder(
-  phone: string,
-  params: { guest_name: string; event_name: string; event_date?: string; event_time?: string; location?: string },
-  token: string,
-  phoneId: string
-) {
-  let message = `⏰ *Event Reminder*\n\nHello ${params.guest_name}, just a reminder about *${params.event_name}*`;
-  if (params.event_date) message += `\n📅 ${params.event_date}`;
-  if (params.event_time) message += ` at ${params.event_time}`;
-  if (params.location) message += `\n📍 ${params.location}`;
-  message += "\n\nWe look forward to seeing you!";
-  message += "\n\n— Nuru: Plan Smarter";
-
-  return await sendWhatsApp(phone, message, token, phoneId);
-}
-
-// ── Send plain text ───────────────────────────────────
-async function sendTextMessage(phone: string, text: string, token: string, phoneId: string) {
-  return await sendWhatsApp(phone, text, token, phoneId);
-}
-
-// ── Core WhatsApp sender ──────────────────────────────
-async function sendWhatsApp(to: string, text: string, accessToken: string, phoneNumberId: string) {
   const url = `${GRAPH_API}/${phoneNumberId}/messages`;
 
   const res = await fetch(url, {
@@ -143,7 +154,39 @@ async function sendWhatsApp(to: string, text: string, accessToken: string, phone
     },
     body: JSON.stringify({
       messaging_product: "whatsapp",
-      to,
+      to: phone,
+      type: "template",
+      template: {
+        name: templateName,
+        language: { code: "en" },
+        components,
+      },
+    }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    console.error(`WhatsApp template API error [${res.status}]:`, JSON.stringify(data));
+    throw new Error(`WhatsApp template API failed [${res.status}]: ${JSON.stringify(data)}`);
+  }
+
+  return { message_id: data.messages?.[0]?.id };
+}
+
+// ── Send plain text (fallback) ────────────────────────
+async function sendTextMessage(phone: string, text: string, token: string, phoneId: string) {
+  const url = `${GRAPH_API}/${phoneId}/messages`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to: phone,
       type: "text",
       text: { body: text },
     }),

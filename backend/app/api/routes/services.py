@@ -9,11 +9,11 @@ from typing import List, Optional
 import pytz
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import func as sa_func, or_
+from sqlalchemy import func as sa_func, or_, case, literal
 
 from core.database import get_db
 from models import (
-    EventTypeService, EventService, Event,
+    EventTypeService, EventService, Event, EventInvitation, EventCommitteeMember,
     ServiceType, UserService, ServicePackage, UserServiceRating
 )
 from utils.auth import get_current_user
@@ -33,10 +33,79 @@ router = APIRouter(prefix="/services", tags=["Public Services"])
 
 
 # =============================================================================
-# 9.1 Search Services
+# Helper: Personalized ranking score
+# =============================================================================
+def _compute_relevance_score(service, user_event_type_ids=None, user_lat=None, user_lng=None):
+    """
+    Multi-factor scoring algorithm for service ranking:
+    Score = W1(Rating) + W2(Reviews) + W3(EventMatch) + W4(Proximity) + W5(Verified) + W6(Completeness)
+    """
+    score = 0.0
+
+    # W1: Rating quality (0-25 pts)
+    avg_rating = 0
+    if service.ratings:
+        avg_rating = sum(r.rating for r in service.ratings) / len(service.ratings)
+    score += (avg_rating / 5.0) * 25
+
+    # W2: Social proof - review volume (0-20 pts, log scale)
+    review_count = len(service.ratings) if service.ratings else 0
+    if review_count > 0:
+        score += min(math.log(review_count + 1, 10) * 10, 20)
+
+    # W3: Event type match - boost services matching user's event types (0-20 pts)
+    if user_event_type_ids and service.service_type_id:
+        # Check if this service type is recommended for user's event types
+        # We pass pre-computed matching service_type_ids
+        if str(service.service_type_id) in user_event_type_ids:
+            score += 20
+
+    # W4: Location proximity (0-15 pts)
+    if user_lat and user_lng and service.latitude and service.longitude:
+        dist = _haversine(user_lat, user_lng, float(service.latitude), float(service.longitude))
+        if dist <= 10:
+            score += 15
+        elif dist <= 25:
+            score += 12
+        elif dist <= 50:
+            score += 8
+        elif dist <= 100:
+            score += 4
+
+    # W5: Verification trust (0-10 pts)
+    if service.is_verified and service.verification_status == "verified":
+        score += 10
+
+    # W6: Profile completeness (0-10 pts)
+    completeness = 0
+    if service.description and len(service.description) > 50:
+        completeness += 2
+    if service.images and len(service.images) > 0:
+        completeness += 3
+    if service.min_price:
+        completeness += 2
+    if service.packages and len(service.packages) > 0:
+        completeness += 3
+    score += completeness
+
+    return score
+
+
+def _haversine(lat1, lon1, lat2, lon2):
+    """Calculate distance in km between two lat/lng points."""
+    R = 6371
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+# =============================================================================
+# 9.1 Search Services (Smart Ranking)
 # =============================================================================
 @router.get("/")
 def search_services(
+    request: Request,
     q: str = None,
     category_id: str = None,
     service_type_id: str = None,
@@ -45,13 +114,20 @@ def search_services(
     min_price: float = None,
     max_price: float = None,
     available: bool = False,
-    sort_by: str = "rating",
+    sort_by: str = "relevance",
+    lat: float = None,
+    lng: float = None,
+    radius_km: float = 100,
     page: int = 1,
     limit: int = 20,
     db: Session = Depends(get_db)
 ):
-    """Searches and filters public service listings."""
-    
+    """
+    Searches, filters, and ranks public service listings.
+    Uses a multi-factor relevance algorithm when sort_by=relevance.
+    Supports geo-proximity when lat/lng provided.
+    """
+
     query = db.query(UserService).filter(
         UserService.is_active == True,
         UserService.is_verified == True,
@@ -75,7 +151,7 @@ def search_services(
             query = query.filter(UserService.service_type_id == stid)
         except ValueError:
             pass
-            
+
     # Event type logic - find recommended service types
     if event_type_id:
         try:
@@ -100,28 +176,116 @@ def search_services(
     if available:
         query = query.filter(UserService.availability == "available")
 
-    # Sort
-    if sort_by == "rating":
-        # Approximate rating sort since it's computed? Or join with ratings table?
-        # For simplicity in this example, we assume we might store avg_rating on UserService or sort in python
-        # Ideally, add a column `average_rating` to UserService and update it via triggers
+    # ── Determine user context for personalized ranking ──
+    user_event_type_service_ids = set()
+    current_user = None
+    try:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            from utils.auth import decode_token
+            token = auth_header.split(" ")[1]
+            payload = decode_token(token)
+            if payload:
+                from models import User
+                current_user = db.query(User).filter(User.id == payload.get("user_id")).first()
+    except Exception:
         pass
-    elif sort_by == "newest":
-        query = query.order_by(UserService.created_at.desc())
-    elif sort_by == "price_asc":
-        query = query.order_by(UserService.min_price.asc())
-    elif sort_by == "price_desc":
-        query = query.order_by(UserService.min_price.desc())
 
-    # Pagination
-    items, pagination = paginate(query, page, limit)
+    if current_user and sort_by == "relevance":
+        # Get event types from user's events, invitations, and committee memberships
+        user_event_type_ids_raw = set()
+
+        # User's own events
+        own_events = db.query(Event.event_type_id).filter(Event.organizer_id == current_user.id).distinct().all()
+        for e in own_events:
+            if e[0]:
+                user_event_type_ids_raw.add(str(e[0]))
+
+        # Events user is invited to
+        invited = db.query(Event.event_type_id).join(
+            EventInvitation, EventInvitation.event_id == Event.id
+        ).filter(EventInvitation.user_id == current_user.id).distinct().all()
+        for e in invited:
+            if e[0]:
+                user_event_type_ids_raw.add(str(e[0]))
+
+        # Events user is committee member of
+        committee = db.query(Event.event_type_id).join(
+            EventCommitteeMember, EventCommitteeMember.event_id == Event.id
+        ).filter(EventCommitteeMember.user_id == current_user.id).distinct().all()
+        for e in committee:
+            if e[0]:
+                user_event_type_ids_raw.add(str(e[0]))
+
+        # Map event types -> recommended service type IDs
+        if user_event_type_ids_raw:
+            recommended = db.query(EventTypeService.service_type_id).filter(
+                EventTypeService.event_type_id.in_([uuid.UUID(x) for x in user_event_type_ids_raw])
+            ).all()
+            user_event_type_service_ids = {str(r[0]) for r in recommended}
+
+    # ── Fetch all matching services for ranking ──
+    # For relevance sorting, we fetch a larger pool and rank in-memory
+    if sort_by == "relevance":
+        all_services = query.all()
+
+        # Score each service
+        scored = []
+        for s in all_services:
+            score = _compute_relevance_score(
+                s,
+                user_event_type_ids=user_event_type_service_ids if user_event_type_service_ids else None,
+                user_lat=lat,
+                user_lng=lng
+            )
+            scored.append((s, score))
+
+        # Sort by score descending, then by created_at for stability
+        scored.sort(key=lambda x: (-x[1], x[0].created_at))
+
+        total = len(scored)
+        start = (page - 1) * limit
+        end = start + limit
+        page_items = [s for s, _ in scored[start:end]]
+
+        total_pages = math.ceil(total / limit) if limit > 0 else 1
+        pagination = {
+            "page": page,
+            "limit": limit,
+            "total_items": total,
+            "total_pages": total_pages,
+            "has_next": page < total_pages,
+            "has_previous": page > 1
+        }
+        items = page_items
+    else:
+        # Standard sorting
+        if sort_by == "newest":
+            query = query.order_by(UserService.created_at.desc())
+        elif sort_by == "price_low":
+            query = query.order_by(UserService.min_price.asc().nullslast())
+        elif sort_by == "price_high":
+            query = query.order_by(UserService.min_price.desc().nullslast())
+        elif sort_by == "rating":
+            query = query.order_by(UserService.created_at.desc())  # fallback, rating computed
+        elif sort_by == "reviews":
+            query = query.order_by(UserService.created_at.desc())  # fallback
+        else:
+            query = query.order_by(UserService.created_at.desc())
+
+        items, pagination = paginate(query, page, limit)
+
+    # ── Build response ──
+    # Collect location & price stats for filters
+    all_locations = {}
+    global_min_price = None
+    global_max_price = None
 
     result = []
     for s in items:
-        # Calculate rating
         ratings = s.ratings
         avg = sum(r.rating for r in ratings) / len(ratings) if ratings else 0
-        
+
         primary_image = None
         for img in s.images:
             if img.is_featured:
@@ -130,30 +294,69 @@ def search_services(
         if not primary_image and s.images:
             primary_image = s.images[0].image_url
 
+        loc = s.location or "Unknown"
+        all_locations[loc] = all_locations.get(loc, 0) + 1
+
+        if s.min_price:
+            mp = float(s.min_price)
+            if global_min_price is None or mp < global_min_price:
+                global_min_price = mp
+        if s.max_price:
+            xp = float(s.max_price)
+            if global_max_price is None or xp > global_max_price:
+                global_max_price = xp
+
         result.append({
             "id": str(s.id),
             "title": s.title,
-            "description": s.description[:100] + "...",
+            "short_description": (s.description[:100] + "...") if s.description and len(s.description) > 100 else s.description,
+            "description": s.description,
             "provider": {
                 "id": str(s.user.id),
                 "name": f"{s.user.first_name} {s.user.last_name}",
                 "avatar": s.user.profile.profile_picture_url if s.user.profile else None,
                 "verified": s.user.is_identity_verified
             },
-            "category_name": s.category.name if s.category else None,
-            "service_type_name": s.service_type.name if s.service_type else None,
+            "service_category": {
+                "id": str(s.category.id) if s.category else None,
+                "name": s.category.name if s.category else None,
+            },
+            "service_type": {
+                "id": str(s.service_type.id) if s.service_type else None,
+                "name": s.service_type.name if s.service_type else None,
+            },
             "min_price": float(s.min_price) if s.min_price else None,
             "max_price": float(s.max_price) if s.max_price else None,
-            "currency": "TZS", # Default
+            "currency": "TZS",
             "location": s.location,
             "primary_image": primary_image,
+            "images": [{"id": str(img.id), "url": img.image_url, "is_primary": img.is_featured} for img in (s.images or [])],
             "rating": round(avg, 1),
             "review_count": len(ratings),
+            "verification_status": s.verification_status if hasattr(s, "verification_status") else "unverified",
             "verified": s.is_verified,
+            "availability": s.availability.value if hasattr(s.availability, "value") else s.availability,
+            "years_experience": getattr(s, "years_experience", None),
+            "completed_events": getattr(s, "completed_events", None),
             "created_at": s.created_at.isoformat()
         })
 
-    return standard_response(True, "Services retrieved successfully", {"services": result, "pagination": pagination})
+    # Build dynamic filter data
+    filters = {
+        "categories": [],  # Already handled by frontend via references API
+        "locations": [{"name": k, "count": v} for k, v in sorted(all_locations.items())],
+        "price_range": {
+            "min": global_min_price or 0,
+            "max": global_max_price or 10000000,
+            "currency": "TZS"
+        }
+    }
+
+    return standard_response(True, "Services retrieved successfully", {
+        "services": result,
+        "filters": filters,
+        "pagination": pagination
+    })
 
 
 # =============================================================================
@@ -173,10 +376,10 @@ def get_service_details(service_id: str, db: Session = Depends(get_db)):
 
     ratings = service.ratings
     avg_rating = round(sum(r.rating for r in ratings) / len(ratings), 1) if ratings else 0
-    
+
     images = [{"url": img.image_url, "is_featured": img.is_featured} for img in service.images]
     packages = [{"id": str(p.id), "name": p.name, "price": float(p.price), "features": p.features} for p in service.packages]
-    
+
     # Reviews preview (top 3)
     reviews_preview = []
     for r in ratings[:3]:
@@ -264,7 +467,6 @@ def get_event_recommendations(event_type_id: str, db: Session = Depends(get_db))
     Fetch recommended services for a given event type.
     """
     try:
-        # Validate UUID
         try:
             _eid = uuid.UUID(event_type_id)
         except ValueError:
@@ -339,10 +541,7 @@ def get_service_calendar(
     end_date: str = None,
     db: Session = Depends(get_db)
 ):
-    """Returns booked dates for a service provider based on actual event assignments.
-    Public endpoint - hides event_name, event_location, agreed_price for non-owners.
-    Owner info is only shown when ?owner=true and authenticated as the owner.
-    """
+    """Returns booked dates for a service provider based on actual event assignments."""
     try:
         sid = uuid.UUID(service_id)
     except ValueError:
@@ -352,7 +551,6 @@ def get_service_calendar(
     if not service:
         return standard_response(False, "Service not found")
 
-    # Find all EventService entries for this provider's service
     query = db.query(EventService).filter(
         EventService.provider_user_service_id == sid
     )
@@ -373,7 +571,6 @@ def get_service_calendar(
 
         status = es.service_status.value if hasattr(es.service_status, "value") else str(es.service_status)
 
-        # Only show agreed_price for confirmed/completed (not pending min_price)
         show_price = float(es.agreed_price) if es.agreed_price and status in ("confirmed", "completed", "accepted") else None
 
         booked_dates.append({
@@ -406,22 +603,18 @@ async def submit_service_review(
     provider can leave a review, and only once per service.
     """
 
-    # Validate UUID
     try:
         sid = uuid.UUID(service_id)
     except ValueError:
         return standard_response(False, "Invalid service ID")
 
-    # Check service exists
     service = db.query(UserService).filter(UserService.id == sid).first()
     if not service:
         return standard_response(False, "Service not found")
 
-    # Cannot review own service
     if str(service.user_id) == str(current_user.id):
         return standard_response(False, "You cannot review your own service")
 
-    # Check eligibility
     eligible = (
         db.query(EventService)
         .join(Event, Event.id == EventService.event_id)
@@ -439,7 +632,6 @@ async def submit_service_review(
             "You can only review services that were assigned to your events",
         )
 
-    # Check if already reviewed
     existing = db.query(UserServiceRating).filter(
         UserServiceRating.user_service_id == sid,
         UserServiceRating.user_id == current_user.id,
@@ -448,7 +640,6 @@ async def submit_service_review(
     if existing:
         return standard_response(False, "You have already reviewed this service")
 
-    # Parse request body properly
     try:
         body = await request.json()
     except Exception:
@@ -457,7 +648,6 @@ async def submit_service_review(
     rating = body.get("rating")
     comment = body.get("comment", "").strip()
 
-    # Validate rating
     if rating is None:
         return standard_response(False, "Rating is required")
 
@@ -466,41 +656,23 @@ async def submit_service_review(
     except (ValueError, TypeError):
         return standard_response(False, "Rating must be a number between 1 and 5")
 
-    if rating < 1 or rating > 5:
+    if not (1 <= rating <= 5):
         return standard_response(False, "Rating must be between 1 and 5")
 
-    # Validate comment
-    if not comment:
-        return standard_response(False, "Review comment is required")
-
-    if len(comment) < 10:
-        return standard_response(False, "Review must be at least 10 characters long")
-
-    if len(comment) > 2000:
-        return standard_response(False, "Review must be at most 2000 characters long")
-
-    # Create review
-    new_review = UserServiceRating(
+    review = UserServiceRating(
+        id=uuid.uuid4(),
         user_service_id=sid,
         user_id=current_user.id,
         rating=rating,
         review=comment,
+        created_at=datetime.now(EAT),
     )
-
-    db.add(new_review)
+    db.add(review)
     db.commit()
-    db.refresh(new_review)
 
-    return standard_response(
-        True,
-        "Review submitted successfully",
-        {
-            "id": str(new_review.id),
-            "user_name": f"{current_user.first_name} {current_user.last_name}",
-            "rating": new_review.rating,
-            "comment": new_review.review,
-            "created_at": new_review.created_at.isoformat()
-            if new_review.created_at
-            else None,
-        },
-    )
+    return standard_response(True, "Review submitted successfully", {
+        "id": str(review.id),
+        "rating": review.rating,
+        "comment": review.review,
+        "created_at": review.created_at.isoformat()
+    })

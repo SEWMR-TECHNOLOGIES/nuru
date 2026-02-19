@@ -439,7 +439,7 @@ def get_expense_report(
         except ValueError:
             pass
 
-    expenses = query.order_by(EventExpense.category, EventExpense.expense_date).all()
+    expenses = query.order_by(EventExpense.expense_date.asc(), EventExpense.id.asc()).all()
 
     expense_list = []
     for e in expenses:

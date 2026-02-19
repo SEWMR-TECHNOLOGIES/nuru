@@ -12,9 +12,11 @@ CREATE TYPE event_service_status AS ENUM ('pending', 'assigned', 'in_progress', 
 CREATE TYPE service_availability AS ENUM ('available', 'limited', 'unavailable');
 CREATE TYPE notification_type AS ENUM (
     'glow', 'echo', 'spark', 'follow', 'event_invite', 'service_approved', 'service_rejected',
-    'account_created', 'system', 'contribution_received', 'booking_request', 'booking_accepted',
-    'booking_rejected', 'rsvp_received', 'committee_invite', 'moment_view', 'moment_reaction',
-    'comment', 'mention', 'circle_add', 'expense_recorded'
+    'account_created', 'system', 'general', 'broadcast', 'contribution_received', 'booking_request',
+    'booking_accepted', 'booking_rejected', 'rsvp_received', 'committee_invite', 'moment_view',
+    'moment_reaction', 'comment', 'mention', 'circle_add', 'expense_recorded',
+    'content_removed', 'post_removed', 'moment_removed', 'identity_verified', 'kyc_approved',
+    'password_changed', 'password_reset'
 );
 CREATE TYPE upload_file_type AS ENUM ('image', 'pdf', 'video', 'doc');
 CREATE TYPE priority_level AS ENUM ('low', 'medium', 'high', 'critical');

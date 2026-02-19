@@ -61,33 +61,86 @@ const getInitials = (actor: any) => {
   return (f + l) || 'N';
 };
 
-/** Returns a clickable path for the notification, or null if not navigable */
+/** Returns a clickable path for the notification, or null if not navigable.
+ *  Uses reference_id + reference_type from the backend API response. */
 const getNavigationTarget = (notification: any): string | null => {
-  const meta = notification.meta || {};
+  const refId = notification.reference_id;
+  const refType = notification.reference_type;
+  const data = notification.data || {};
+  const actorId = notification.actor?.id;
+
   switch (notification.type) {
+    // ── Event-related ──
     case 'event_invite':
     case 'committee_invite':
     case 'rsvp_received':
-      if (meta.event_id) return `/events/${meta.event_id}`;
+    case 'contribution_received':
+    case 'expense_recorded':
+      if (refId && refType === 'event') return `/event/${refId}`;
       break;
+
+    // ── Booking-related ──
     case 'booking_request':
     case 'booking_accepted':
     case 'booking_rejected':
-      if (meta.booking_id) return `/bookings/${meta.booking_id}`;
+      if (refId && refType === 'booking') return `/bookings/${refId}`;
+      // Fallback: if reference is event, go to event
+      if (refId && refType === 'event') return `/event/${refId}`;
       break;
+
+    // ── Social / Post-related ──
     case 'glow':
     case 'comment':
     case 'echo':
-      if (meta.post_id) return `/posts/${meta.post_id}`;
+    case 'mention':
+      if (refId && refType === 'post') return `/post/${refId}`;
       break;
+
+    // ── Follow / Circle ──
     case 'follow':
-    case 'circle_add':
-      if (meta.user_id) return `/profile/${meta.user_id}`;
+      if (actorId) return `/u/${notification.actor?.username || actorId}`;
       break;
+    case 'circle_add':
+      if (actorId) return `/u/${notification.actor?.username || actorId}`;
+      break;
+
+    // ── Content removal ──
+    case 'content_removed':
+    case 'post_removed':
+    case 'moment_removed':
+      return '/removed-content';
+
+    // ── Service / KYC ──
+    case 'service_approved':
+    case 'service_rejected':
+    case 'kyc_approved':
+      if (refId && refType === 'service') return `/service/${refId}`;
+      return '/my-services';
+
+    // ── Identity ──
+    case 'identity_verified':
+      return '/profile';
+
+    // ── Security ──
     case 'password_changed':
     case 'password_reset':
       return '/settings';
+
+    // ── Moment stories ──
+    case 'moment_view':
+    case 'moment_reaction':
+      if (actorId) return `/u/${notification.actor?.username || actorId}`;
+      break;
+
     default:
+      // Generic fallback: use reference_type to determine route
+      if (refId) {
+        if (refType === 'event') return `/event/${refId}`;
+        if (refType === 'post') return `/post/${refId}`;
+        if (refType === 'booking') return `/bookings/${refId}`;
+        if (refType === 'service') return `/service/${refId}`;
+        if (refType === 'user' && actorId) return `/u/${notification.actor?.username || actorId}`;
+      }
       break;
   }
   return null;

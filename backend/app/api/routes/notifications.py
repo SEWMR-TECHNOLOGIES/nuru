@@ -36,6 +36,7 @@ def get_notifications(page: int = 1, limit: int = 20, db: Session = Depends(get_
                         "id": str(sender.id),
                         "first_name": sender.first_name,
                         "last_name": sender.last_name,
+                        "username": sender.username if hasattr(sender, 'username') else None,
                         "avatar": profile.profile_picture_url if profile else None,
                     }
             except (ValueError, IndexError):

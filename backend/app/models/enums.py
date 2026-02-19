@@ -69,6 +69,8 @@ class NotificationTypeEnum(enum.Enum):
     service_rejected = "service_rejected"
     account_created = "account_created"
     system = "system"
+    general = "general"
+    broadcast = "broadcast"
     contribution_received = "contribution_received"
     booking_request = "booking_request"
     booking_accepted = "booking_accepted"
@@ -81,6 +83,13 @@ class NotificationTypeEnum(enum.Enum):
     mention = "mention"
     circle_add = "circle_add"
     expense_recorded = "expense_recorded"
+    content_removed = "content_removed"
+    post_removed = "post_removed"
+    moment_removed = "moment_removed"
+    identity_verified = "identity_verified"
+    kyc_approved = "kyc_approved"
+    password_changed = "password_changed"
+    password_reset = "password_reset"
 
 
 class UploadFileTypeEnum(enum.Enum):

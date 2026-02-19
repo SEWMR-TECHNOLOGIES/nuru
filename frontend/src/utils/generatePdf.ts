@@ -203,7 +203,7 @@ export const generateExpenseReportHtml = (
   const currency = summary.currency || 'TZS';
   const fmt = (n: number) => `${currency} ${n.toLocaleString()}`;
 
-  const sorted = [...expenses].sort((a, b) => a.category.localeCompare(b.category) || new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime());
+  const sorted = [...expenses].sort((a, b) => new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime());
 
   const totalExpenses = sorted.reduce((s, e) => s + e.amount, 0);
 

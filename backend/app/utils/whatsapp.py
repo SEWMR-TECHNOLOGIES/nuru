@@ -81,3 +81,14 @@ def wa_event_reminder(phone: str, guest_name: str, event_name: str, event_date: 
         "event_time": event_time,
         "location": location,
     })
+
+
+def wa_expense_recorded(phone: str, recipient_name: str, recorder_name: str, amount: str, category: str, event_name: str):
+    """Notify committee member about a recorded expense via WhatsApp."""
+    _send_whatsapp("expense_recorded", phone, {
+        "recipient_name": recipient_name,
+        "recorder_name": recorder_name,
+        "amount": amount,
+        "category": category,
+        "event_name": event_name,
+    })

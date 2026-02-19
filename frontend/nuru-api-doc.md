@@ -7565,6 +7565,41 @@ Authorization: Bearer {access_token}
 }
 ```
 
+### 12.1.1 Referential Navigation Scheme
+
+Notifications in Nuru are **referential** — clicking a notification navigates the user to the relevant entity's detail page. The frontend resolves navigation targets using `reference_id`, `reference_type`, and `type` fields from the API response.
+
+**Navigation Mapping:**
+
+| Notification Type | reference_type | Navigates To |
+|---|---|---|
+| `event_invite`, `committee_invite`, `rsvp_received`, `contribution_received`, `expense_recorded` | `event` | `/event/{reference_id}` |
+| `booking_request`, `booking_accepted`, `booking_rejected` | `booking` | `/bookings/{reference_id}` |
+| `glow`, `comment`, `echo`, `mention` | `post` | `/post/{reference_id}` |
+| `follow`, `circle_add` | `user` | `/u/{actor.username}` |
+| `content_removed`, `post_removed`, `moment_removed` | — | `/removed-content` |
+| `service_approved`, `service_rejected`, `kyc_approved` | `service` | `/service/{reference_id}` |
+| `identity_verified` | — | `/profile` |
+| `password_changed`, `password_reset` | — | `/settings` |
+| `moment_view`, `moment_reaction` | — | `/u/{actor.username}` |
+| `broadcast`, `system`, `general` | — | Non-navigable |
+
+**Actor Object (returned in each notification):**
+```json
+{
+  "id": "uuid",
+  "first_name": "John",
+  "last_name": "Doe",
+  "username": "johndoe",
+  "avatar": "https://..."
+}
+```
+
+System notifications (broadcast, system) use the Nuru logo avatar and "Nuru" as actor name.
+
+**Notification Type Enum Values:**
+`glow`, `echo`, `spark`, `follow`, `event_invite`, `service_approved`, `service_rejected`, `account_created`, `system`, `general`, `broadcast`, `contribution_received`, `booking_request`, `booking_accepted`, `booking_rejected`, `rsvp_received`, `committee_invite`, `moment_view`, `moment_reaction`, `comment`, `mention`, `circle_add`, `expense_recorded`, `content_removed`, `post_removed`, `moment_removed`, `identity_verified`, `kyc_approved`, `password_changed`, `password_reset`
+
 ---
 
 ## 12.2 Mark Notification as Read
@@ -14979,5 +15014,62 @@ CREATE INDEX idx_impression_user_session ON feed_impressions(user_id, session_id
 CREATE INDEX idx_impression_post ON feed_impressions(post_id);
 CREATE INDEX idx_impression_created ON feed_impressions(created_at);
 ```
+
+---
+
+### Smart Service Discovery & Ranking (2026-02-19)
+
+**Frontend Changes:**
+- `FindServices.tsx` completely redesigned with infinite scroll (IntersectionObserver, 20 items per page)
+- Removed AI chatbot icon (Sparkles) from the page
+- Added **price range filter** with dual-handle slider (min/max TZS)
+- Added **location-based ranking** toggle button - uses browser Geolocation API to send `lat`/`lng` to backend
+- All filters (category pills, location dropdown, sort select) are fully dynamic and functional
+- Categories loaded from `useServiceCategories` hook (API-driven)
+- Locations populated dynamically from search response `filters.locations`
+- Price range bounds populated from search response `filters.price_range`
+- End-of-results indicator shown when all services loaded
+
+**Backend Changes (`services.py` - `GET /services`):**
+- New query parameters: `lat`, `lng`, `radius_km` for geo-proximity ranking
+- Smart multi-factor relevance algorithm when `sort_by=relevance`:
+  - **W1: Rating Quality (0-25 pts)** — normalized average rating
+  - **W2: Social Proof (0-20 pts)** — log-scale review count
+  - **W3: Event Type Match (0-20 pts)** — boosts services whose type matches event types from user's own events, invitations, or committee memberships
+  - **W4: Location Proximity (0-15 pts)** — tiered distance scoring (10km=15, 25km=12, 50km=8, 100km=4)
+  - **W5: Verification Trust (0-10 pts)** — verified providers boosted
+  - **W6: Profile Completeness (0-10 pts)** — description length, images, pricing, packages
+- Authentication is optional — if Bearer token provided, personalization kicks in
+- Response now includes `filters` object with dynamic `locations` array and `price_range` object
+- Response includes `short_description` field (first 100 chars of description)
+- Pagination includes `has_next`/`has_previous` for infinite scroll support
+
+**No database schema changes required** — ranking uses existing tables (events, event_invitations, event_committees, event_type_services, user_services).
+
+---
+
+### WhatsApp Template Integration & UI Updates (2026-02-19)
+
+**WhatsApp Templates (whatsapp-send edge function):**
+All outbound WhatsApp messages now use **approved Meta templates** instead of plain text, ensuring production readiness without sandbox restrictions.
+
+| Template Name | Action Key | Parameters ({{1}}-{{N}}) |
+|---|---|---|
+| `event_invitation` | `invite` | guest_name, event_name, event_date, organizer_name, rsvp_url |
+| `event_update` | `event_update` | guest_name, event_name, changes |
+| `event_reminder` | `reminder` | guest_name, event_name, event_date, event_time, location |
+| `expense_recorded` | `expense_recorded` | recipient_name, recorder_name, amount, category, event_name |
+
+- The `text` action remains as a fallback for ad-hoc messages (still sends plain text).
+- All templates use language code `en` and utility category.
+- Backend helper `wa_expense_recorded()` added to `backend/app/utils/whatsapp.py`.
+
+**Service Verification Badge:**
+- Removed the "Verified" text overlay badge from service cards in `FindServices.tsx`.
+- Verification is now shown as a ✓ icon inline before the service name (CheckCircle icon in primary color).
+
+**Expense Report Ordering:**
+- Backend `GET /user-events/{event_id}/expenses/report` now orders expenses by `expense_date ASC` (chronological) instead of category-first.
+- Frontend `generateExpenseReportHtml` sorts expenses by date ascending for consistent report output.
 
 ---
