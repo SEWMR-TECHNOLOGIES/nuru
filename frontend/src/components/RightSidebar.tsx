@@ -244,7 +244,7 @@ const RightSidebar = () => {
               const title = service.title || service.name || service.service_category?.name || 'Service';
               const initials = title.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
               return (
-                <div key={service.id} className="text-center cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors">
+                <div key={service.id} className="text-center cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors" onClick={() => navigate(`/services/view/${service.id}`)}>
                   <div className="w-16 h-16 rounded-lg bg-muted mx-auto mb-2 overflow-hidden flex items-center justify-center">
                     {imgUrl ? (
                       <img

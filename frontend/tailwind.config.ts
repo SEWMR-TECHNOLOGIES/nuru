@@ -20,8 +20,11 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Inter", "sans-serif"], // Default font for entire app
+        sans: ["Inter", "sans-serif"], // Default font for public pages
         inter: ["Inter", "sans-serif"],
+        literata: ["Literata", "serif"],
+        nunito: ["Nunito", "sans-serif"],
+        mono: ["Space Mono", "monospace"],
       },
       colors: {
         // Common shared colors

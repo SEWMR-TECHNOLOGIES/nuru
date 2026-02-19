@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ChevronLeft, Star, CheckCircle, ChevronRight, Send,
   Award, Briefcase, X, MessageSquare,
-  ArrowUpRight, Shield, Users
+  ArrowUpRight, Shield, Users, Loader2
 } from 'lucide-react';
 import calendarIcon from '@/assets/icons/calendar-icon.svg';
 import locationIcon from '@/assets/icons/location-icon.svg';
@@ -20,6 +20,7 @@ import { formatPrice } from '@/utils/formatPrice';
 import { ServiceDetailLoadingSkeleton } from '@/components/ui/ServiceLoadingSkeleton';
 import { UserService, ServicePackage, ServiceReview } from '@/lib/api/types';
 import { showApiErrors } from '@/lib/api';
+import { messagesApi } from '@/lib/api/messages';
 import { toast } from 'sonner';
 
 interface BookedDate {
@@ -50,6 +51,7 @@ const PublicServiceDetail = () => {
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewsPagination, setReviewsPagination] = useState<any>(null);
+  const [bookingLoading, setBookingLoading] = useState(false);
 
   useWorkspaceMeta({
     title: service?.title || 'Service Details',
@@ -111,6 +113,29 @@ const PublicServiceDetail = () => {
       } else { showApiErrors(res); }
     } catch { toast.error('Failed to submit review'); }
     finally { setSubmittingReview(false); }
+  };
+  const handleBookService = async () => {
+    if (!id || !service) return;
+    const providerId = (service as any).provider?.id || (service as any).user_id;
+    if (!providerId) { toast.error('Unable to contact provider'); return; }
+    setBookingLoading(true);
+    try {
+      const res = await messagesApi.startConversation({
+        recipient_id: providerId,
+        service_id: id,
+        message: `Hi, I'm interested in your service "${service.title}". I'd like to discuss booking details.`,
+      });
+      if (res.success && res.data) {
+        const conversationId = res.data.id || res.data.conversation_id;
+        navigate(`/messages?conversation=${conversationId}`);
+      } else {
+        showApiErrors(res);
+      }
+    } catch {
+      toast.error('Failed to start conversation');
+    } finally {
+      setBookingLoading(false);
+    }
   };
 
   const getImageUrl = (img: any): string => {
@@ -174,13 +199,9 @@ const PublicServiceDetail = () => {
 
       {/* ─── BACK NAV ─── */}
       <div className="flex items-center justify-end py-4 px-1">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors group"
-        >
-          Back
-          <ChevronLeft className="w-4 h-4 group-hover:translate-x-0.5 transition-transform rotate-180" />
-        </button>
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Go back">
+          <ChevronLeft className="w-5 h-5" />
+        </Button>
       </div>
 
       {/* ─── HERO GALLERY ─── */}
@@ -517,10 +538,8 @@ const PublicServiceDetail = () => {
             <div className="bg-primary text-primary-foreground rounded-2xl p-5">
               <p className="text-primary-foreground/70 text-sm mb-1">Starting from</p>
               <p className="text-2xl font-bold mb-4">{formatPriceDisplay(service)}</p>
-              <Button variant="secondary" className="w-full font-semibold" asChild>
-                <Link to={`/services/view/${id}`}>
-                  Book This Service <ArrowUpRight className="w-4 h-4 ml-1" />
-                </Link>
+              <Button variant="secondary" className="w-full font-semibold" onClick={handleBookService} disabled={bookingLoading}>
+                {bookingLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Starting Chat…</> : <>Book This Service <ArrowUpRight className="w-4 h-4 ml-1" /></>}
               </Button>
               <p className="text-primary-foreground/60 text-xs text-center mt-2">No payment until confirmed</p>
             </div>

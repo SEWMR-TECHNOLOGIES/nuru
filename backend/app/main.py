@@ -136,7 +136,34 @@ def _auto_delete_removed_content():
         time.sleep(INTERVAL_SECONDS)
 
 
+# ------------------------------------------------------------------
+# Background: Recompute post quality scores every 30 minutes
+# ------------------------------------------------------------------
+def _recompute_quality_scores():
+    """
+    Periodically recomputes PostQualityScore for recent posts.
+    Runs every 30 minutes to keep ranking features fresh.
+    """
+    INTERVAL_SECONDS = 30 * 60  # 30 minutes
+
+    while True:
+        try:
+            from core.database import SessionLocal
+            db = SessionLocal()
+            try:
+                from services.feed_ranking import recompute_quality_scores
+                recompute_quality_scores(db, max_posts=500)
+            finally:
+                db.close()
+        except Exception:
+            pass  # Never crash the background thread
+
+        time.sleep(INTERVAL_SECONDS)
+
+
 @app.on_event("startup")
 def start_background_tasks():
-    t = threading.Thread(target=_auto_delete_removed_content, daemon=True)
-    t.start()
+    t1 = threading.Thread(target=_auto_delete_removed_content, daemon=True)
+    t1.start()
+    t2 = threading.Thread(target=_recompute_quality_scores, daemon=True)
+    t2.start()

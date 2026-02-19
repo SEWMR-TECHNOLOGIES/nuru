@@ -67,3 +67,7 @@ from models.promotions import Promotion, PromotedEvent
 from models.uploads import FileUpload
 from models.appeals import ContentAppeal
 from models.photo_libraries import ServicePhotoLibrary, ServicePhotoLibraryImage
+from models.feed_ranking import (
+    UserInteractionLog, UserInterestProfile, AuthorAffinityScore,
+    PostQualityScore, FeedImpression,
+)

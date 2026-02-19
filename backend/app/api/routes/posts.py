@@ -235,10 +235,71 @@ def get_saved_posts(page: int = 1, limit: int = 20, db: Session = Depends(get_db
 
 
 @router.get("/feed")
-def get_feed(page: int = 1, limit: int = 20, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    query = _visible_feed_query(db, current_user.id).order_by(UserFeed.created_at.desc())
-    items, pagination = paginate(query, page, limit)
-    return standard_response(True, "Feed retrieved", {"posts": [_post_dict(db, p, current_user.id) for p in items], "pagination": pagination})
+def get_feed(
+    page: int = 1,
+    limit: int = 20,
+    mode: str = "ranked",  # "ranked" or "chronological"
+    session_id: str = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Intelligent ranked feed. Uses multi-factor scoring algorithm:
+    FinalScore = W1×EngagementPrediction + W2×RelationshipStrength
+               + W3×InterestMatch + W4×RecencyDecay + W5×ContentQuality
+               + W6×DiversityPenalty + W7×ExplorationBoost
+
+    Query params:
+      - mode: "ranked" (default, intelligent) or "chronological" (legacy)
+      - session_id: optional client session ID for impression deduplication
+    """
+    if mode == "chronological":
+        # Legacy fallback
+        query = _visible_feed_query(db, current_user.id).order_by(UserFeed.created_at.desc())
+        items, pagination = paginate(query, page, limit)
+        return standard_response(True, "Feed retrieved", {
+            "posts": [_post_dict(db, p, current_user.id) for p in items],
+            "pagination": pagination,
+            "feed_mode": "chronological",
+        })
+
+    # ── Ranked Feed ──
+    try:
+        from services.feed_ranking import (
+            generate_ranked_feed, get_cold_start_feed,
+            UserInteractionLog,
+        )
+
+        # Check if user has enough interaction history for personalization
+        interaction_count = db.query(sa_func.count(UserInteractionLog.id)).filter(
+            UserInteractionLog.user_id == current_user.id
+        ).scalar() or 0
+
+        if interaction_count < 10:
+            # Cold start: use engagement-based ranking
+            posts, pagination = get_cold_start_feed(db, current_user.id, page, limit)
+        else:
+            posts, pagination = generate_ranked_feed(
+                db, current_user.id, page, limit, session_id
+            )
+
+        return standard_response(True, "Feed retrieved", {
+            "posts": [_post_dict(db, p, current_user.id) for p in posts],
+            "pagination": pagination,
+            "feed_mode": "ranked" if interaction_count >= 10 else "cold_start",
+        })
+
+    except Exception as e:
+        # Graceful fallback to chronological on any ranking error
+        import traceback
+        traceback.print_exc()
+        query = _visible_feed_query(db, current_user.id).order_by(UserFeed.created_at.desc())
+        items, pagination = paginate(query, page, limit)
+        return standard_response(True, "Feed retrieved", {
+            "posts": [_post_dict(db, p, current_user.id) for p in items],
+            "pagination": pagination,
+            "feed_mode": "chronological_fallback",
+        })
 
 
 @router.get("/explore")
@@ -785,4 +846,114 @@ def submit_post_appeal(
         "status": appeal.status.value,
     })
 
+
+
+# ──────────────────────────────────────────────
+# FEED INTERACTION TRACKING
+# ──────────────────────────────────────────────
+
+@router.post("/feed/interactions")
+def log_feed_interaction(
+    data: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Log user interactions with feed content for ranking improvement.
+
+    Request body:
+    {
+        "post_id": "uuid",
+        "interaction_type": "view|dwell|glow|comment|echo|spark|save|click_image|click_profile|hide|report|expand",
+        "dwell_time_ms": 5000,          // optional, for dwell events
+        "session_id": "abc123",         // optional, groups interactions per session
+        "device_type": "mobile"         // optional: mobile|desktop|tablet
+    }
+
+    Batch variant:
+    {
+        "interactions": [
+            {"post_id": "uuid", "interaction_type": "view", "dwell_time_ms": 1200},
+            {"post_id": "uuid", "interaction_type": "glow"}
+        ],
+        "session_id": "abc123",
+        "device_type": "mobile"
+    }
+    """
+    try:
+        from services.feed_ranking import log_interaction
+
+        # Support batch interactions
+        interactions = data.get("interactions")
+        if interactions and isinstance(interactions, list):
+            session_id = data.get("session_id")
+            device_type = data.get("device_type")
+            logged = 0
+            for item in interactions[:50]:  # Max 50 per batch
+                try:
+                    post_id = uuid.UUID(item.get("post_id", ""))
+                except (ValueError, TypeError):
+                    continue
+                success = log_interaction(
+                    db, current_user.id, post_id,
+                    item.get("interaction_type", "view"),
+                    item.get("dwell_time_ms"),
+                    session_id, device_type,
+                )
+                if success:
+                    logged += 1
+            return standard_response(True, f"{logged} interactions logged")
+
+        # Single interaction
+        try:
+            post_id = uuid.UUID(data.get("post_id", ""))
+        except (ValueError, TypeError):
+            return standard_response(False, "Invalid post_id")
+
+        success = log_interaction(
+            db, current_user.id, post_id,
+            data.get("interaction_type", "view"),
+            data.get("dwell_time_ms"),
+            data.get("session_id"),
+            data.get("device_type"),
+        )
+
+        if success:
+            return standard_response(True, "Interaction logged")
+        return standard_response(False, "Invalid interaction type")
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return standard_response(False, "Failed to log interaction")
+
+
+@router.get("/feed/interests")
+def get_user_interests(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns the current user's computed interest profile.
+    Useful for transparency/debugging feed personalization.
+    """
+    from models.feed_ranking import UserInterestProfile
+    profile = db.query(UserInterestProfile).filter(
+        UserInterestProfile.user_id == current_user.id
+    ).first()
+
+    if not profile:
+        from services.feed_ranking import DEFAULT_INTEREST_VECTOR
+        return standard_response(True, "Default interests (no history)", {
+            "interest_vector": DEFAULT_INTEREST_VECTOR,
+            "engagement_stats": {},
+            "is_default": True,
+        })
+
+    return standard_response(True, "Interest profile retrieved", {
+        "interest_vector": profile.interest_vector,
+        "engagement_stats": profile.engagement_stats,
+        "last_computed_at": profile.last_computed_at.isoformat() if profile.last_computed_at else None,
+        "is_default": False,
+    })
 

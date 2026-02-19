@@ -171,10 +171,9 @@ const ServiceDetail = () => {
             <Link to={`/services/edit/${id}`}><Edit className="w-4 h-4 mr-1.5" />Edit</Link>
           </Button>
         </div>
-        <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors group">
-          Back
-          <ChevronLeft className="w-4 h-4 group-hover:translate-x-0.5 transition-transform rotate-180" />
-        </button>
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Go back">
+          <ChevronLeft className="w-5 h-5" />
+        </Button>
       </div>
 
       {/* ─── HERO GALLERY ─── */}
@@ -312,7 +311,7 @@ const ServiceDetail = () => {
             {/* Meta grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: 'Category', value: (service as any).service_category?.name || (service as any).category?.name || service.service_type?.name || (service as any).service_type_name || '—', icon: Briefcase },
+                { label: 'Category', value: (typeof (service as any).category === 'string' ? (service as any).category : null) || (service as any).service_category?.name || (service as any).category?.name || service.service_type?.name || (service as any).service_type_name || '—', icon: Briefcase },
                 { label: 'Experience', value: `${service.years_experience || 0} yrs`, icon: Award },
                 { label: 'Location', value: service.location || '—', icon: Briefcase, svgIcon: locationIcon },
                 { label: 'Availability', value: service.availability || 'available', icon: Briefcase, svgIcon: calendarIcon },

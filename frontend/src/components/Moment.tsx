@@ -3,6 +3,7 @@ import { Heart, MessageCircle, Share2, Bookmark } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { socialApi } from '@/lib/api/social';
+import { usePostViewTracking, useInteractionLogger } from '@/hooks/useFeedTracking';
 import {
   Popover,
   PopoverContent,
@@ -52,12 +53,18 @@ const Moment = ({ post }: MomentProps) => {
   const [saved, setSaved] = useState(post.has_saved || false);
   const [saving, setSaving] = useState(false);
 
+  // Feed ranking: viewport tracking for view/dwell signals
+  const viewTrackingRef = usePostViewTracking(post.id);
+  const { logInteraction } = useInteractionLogger();
+
   const handleGlow = async () => {
     if (glowing) return;
     setGlowing(true);
     const wasGlowed = glowed;
     setGlowed(!wasGlowed);
     setGlowCount(prev => wasGlowed ? prev - 1 : prev + 1);
+    // Track interaction for ranking
+    logInteraction(post.id, wasGlowed ? 'unglow' : 'glow');
     try {
       if (wasGlowed) await socialApi.unglowPost(post.id);
       else await socialApi.glowPost(post.id);
@@ -78,6 +85,7 @@ const Moment = ({ post }: MomentProps) => {
     setSaving(true);
     const wasSaved = saved;
     setSaved(!wasSaved);
+    logInteraction(post.id, wasSaved ? 'unsave' : 'save');
     try {
       if (wasSaved) await socialApi.unsavePost(post.id);
       else await socialApi.savePost(post.id);
@@ -136,6 +144,7 @@ const Moment = ({ post }: MomentProps) => {
 
   return (
     <div
+      ref={viewTrackingRef}
       className="bg-card rounded-lg shadow-sm border border-border overflow-hidden cursor-pointer"
       onClick={handlePostClick}
     >

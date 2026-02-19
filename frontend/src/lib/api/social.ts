@@ -15,6 +15,8 @@ export interface FeedQueryParams {
   page?: number;
   limit?: number;
   type?: "all" | "following" | "events" | "services" | "moments";
+  mode?: "ranked" | "chronological";
+  session_id?: string;
 }
 
 export interface PostQueryParams {
@@ -94,6 +96,27 @@ export const socialApi = {
   unsavePost: (postId: string) => del<any>(`/posts/${postId}/save`),
   getSavedPosts: (params?: { page?: number; limit?: number }) =>
     get<any>(`/posts/saved${buildQueryString(params)}`),
+
+  // ── Feed Interaction Tracking ──
+  logInteraction: (data: {
+    post_id: string;
+    interaction_type: string;
+    dwell_time_ms?: number;
+    session_id?: string;
+    device_type?: string;
+  }) => post<any>("/posts/feed/interactions", data),
+
+  logInteractionBatch: (data: {
+    interactions: Array<{
+      post_id: string;
+      interaction_type: string;
+      dwell_time_ms?: number;
+    }>;
+    session_id?: string;
+    device_type?: string;
+  }) => post<any>("/posts/feed/interactions", data),
+
+  getUserInterests: () => get<any>("/posts/feed/interests"),
 
   // Pin/unpin
   pinPost: (postId: string) => post<any>(`/posts/${postId}/pin`),

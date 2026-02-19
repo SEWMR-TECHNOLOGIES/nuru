@@ -14523,3 +14523,461 @@ Body: `{ "content_id": "<uuid>", "content_type": "post" | "moment", "appeal_reas
 - **Auth dependency changed:** All backend admin endpoints use `Depends(require_admin)` returning `AdminUser` — `get_current_user` is NOT used in admin routes
 
 
+---
+
+# 🧠 MODULE 30: FEED RANKING & RECOMMENDATION SYSTEM
+
+## System Overview
+
+Nuru uses an intelligent, multi-factor feed ranking system that replaces chronological ordering with personalized content delivery. The system is optimized for meaningful event-based content (weddings, birthdays, memorials, corporate events) rather than addictive viral content.
+
+### Architecture
+
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   Client App    │────▶│  Feed Endpoint   │────▶│   Candidate     │
+│  (React/Vite)   │     │  /posts/feed     │     │   Generation    │
+│                 │     │  ?mode=ranked    │     │   (500-1500)    │
+└────────┬────────┘     └────────┬─────────┘     └────────┬────────┘
+         │                       │                         │
+         │  Interactions         │  Scoring                │  Sources:
+         │  (batched)            │                         │  - Following
+         ▼                       ▼                         │  - Circles
+┌─────────────────┐     ┌──────────────────┐              │  - Events
+│  Interaction    │     │   Multi-Factor   │              │  - Trending
+│  Tracking API   │────▶│   Scoring        │              │  - Platform
+│  /feed/interact │     │   Algorithm      │              └──────────────
+└─────────────────┘     └────────┬─────────┘
+                                 │
+                        ┌────────▼─────────┐
+                        │  Diversity       │
+                        │  Re-Ranking      │
+                        └────────┬─────────┘
+                                 │
+                        ┌────────▼─────────┐
+                        │  Paginated       │
+                        │  Response        │
+                        └──────────────────┘
+```
+
+### Data Models
+
+#### user_interaction_logs
+Tracks every user interaction with feed content.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | Primary key |
+| user_id | UUID | FK → users.id |
+| post_id | UUID | FK → user_feeds.id |
+| interaction_type | text | view, dwell, glow, unglow, comment, echo, spark, save, unsave, click_image, click_profile, hide, report, expand |
+| dwell_time_ms | integer | Milliseconds user spent viewing (for dwell events) |
+| session_id | text | Groups interactions within one feed session |
+| device_type | text | mobile, desktop, tablet |
+| created_at | timestamp | Auto-generated |
+
+#### user_interest_profiles
+Stores per-user interest vectors, updated after each interaction.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| user_id | UUID | PK, FK → users.id |
+| interest_vector | JSONB | Category interest scores (0.0-1.0) e.g. {"wedding": 0.82, "birthday": 0.45} |
+| engagement_stats | JSONB | Aggregate stats: total_glows, total_comments, total_dwell_ms, etc. |
+| negative_signals | JSONB | Hidden authors, disliked categories |
+| last_computed_at | timestamp | Last recomputation time |
+
+#### author_affinity_scores
+Precomputed relationship strength between viewer and author.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | Primary key |
+| viewer_id | UUID | FK → users.id |
+| author_id | UUID | FK → users.id |
+| interaction_count | integer | Raw count of interactions |
+| weighted_score | float | Time-decayed weighted sum (0.0-1.0) |
+| is_following | boolean | Whether viewer follows author |
+| shared_events_count | integer | Events both participated in |
+| is_circle_member | boolean | Whether in each other's circle |
+| last_interaction_at | timestamp | Most recent interaction |
+
+#### post_quality_scores
+Cached quality score for each post, recomputed every 30 minutes.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| post_id | UUID | PK, FK → user_feeds.id |
+| engagement_velocity | float | Engagements per hour since creation |
+| content_richness | float | Score based on text, images, media (0.0-1.0) |
+| author_credibility | float | Based on author's engagement history (0.0-1.0) |
+| moderation_flag | boolean | Flagged by moderation (suppresses ranking) |
+| spam_probability | float | Spam likelihood (0.0-1.0) |
+| category | text | Detected category: wedding, birthday, memorial, etc. |
+| final_quality_score | float | Composite quality metric (0.0-1.0) |
+| total_engagements | integer | Weighted engagement count |
+| engagement_rate | float | Engagements / impressions |
+| impression_count | integer | Times shown in feeds |
+
+#### feed_impressions
+Tracks which posts were shown to which users and in what position.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | Primary key |
+| user_id | UUID | FK → users.id |
+| post_id | UUID | FK → user_feeds.id |
+| position | integer | 0-indexed position in feed |
+| session_id | text | Client session identifier |
+| was_engaged | boolean | Updated after interaction |
+
+---
+
+## 30.1 Get Ranked Feed
+
+Returns personalized, ranked feed posts.
+
+```
+GET /posts/feed
+Authorization: Bearer {access_token}
+```
+
+**Query Parameters:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| page | integer | 1 | Page number |
+| limit | integer | 20 | Items per page (max 100) |
+| mode | string | "ranked" | "ranked" (intelligent) or "chronological" (legacy) |
+| session_id | string | null | Client session ID for impression deduplication |
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Feed retrieved",
+  "data": {
+    "posts": [...],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total_items": 342,
+      "total_pages": 18,
+      "has_next": true,
+      "has_previous": false
+    },
+    "feed_mode": "ranked"
+  }
+}
+```
+
+**feed_mode values:**
+- `ranked` — Full personalized ranking (user has ≥10 interactions)
+- `cold_start` — Engagement-based ranking for new users (<10 interactions)
+- `chronological` — Legacy mode (requested via mode=chronological)
+- `chronological_fallback` — Automatic fallback on ranking error
+
+---
+
+## 30.2 Log Feed Interaction
+
+Logs user interactions with feed content for ranking improvement.
+
+```
+POST /posts/feed/interactions
+Authorization: Bearer {access_token}
+Content-Type: application/json
+```
+
+**Single Interaction:**
+```json
+{
+  "post_id": "550e8400-e29b-41d4-a716-446655440000",
+  "interaction_type": "glow",
+  "dwell_time_ms": 5000,
+  "session_id": "abc123",
+  "device_type": "mobile"
+}
+```
+
+**Batch Interactions (max 50):**
+```json
+{
+  "interactions": [
+    {"post_id": "uuid-1", "interaction_type": "view"},
+    {"post_id": "uuid-1", "interaction_type": "dwell", "dwell_time_ms": 8200},
+    {"post_id": "uuid-2", "interaction_type": "glow"}
+  ],
+  "session_id": "abc123",
+  "device_type": "mobile"
+}
+```
+
+**Interaction Types:**
+
+| Type | Weight | Description |
+|------|--------|-------------|
+| view | 0.1 | Post entered viewport (50% visible) |
+| dwell | 0.3 | User spent >3s viewing |
+| glow | 1.0 | User liked the post |
+| unglow | -0.5 | User unliked |
+| comment | 1.5 | User commented |
+| echo | 2.0 | User reposted |
+| spark | 2.5 | User shared externally |
+| save | 1.2 | User bookmarked |
+| unsave | -0.3 | User removed bookmark |
+| click_image | 0.4 | User clicked/tapped image |
+| click_profile | 0.6 | User navigated to author profile |
+| hide | -2.0 | User hid the post |
+| report | -5.0 | User reported the post |
+| expand | 0.3 | User expanded truncated text |
+
+---
+
+## 30.3 Get User Interests
+
+Returns the current user's computed interest profile.
+
+```
+GET /posts/feed/interests
+Authorization: Bearer {access_token}
+```
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "interest_vector": {
+      "wedding": 0.82,
+      "birthday": 0.45,
+      "memorial": 0.12,
+      "corporate_event": 0.60,
+      "graduation": 0.33,
+      "general": 0.50
+    },
+    "engagement_stats": {
+      "total_glows": 142,
+      "total_comments": 38,
+      "total_dwell_ms": 892000
+    },
+    "last_computed_at": "2026-02-19T14:30:00",
+    "is_default": false
+  }
+}
+```
+
+---
+
+## Ranking Algorithm
+
+### Scoring Formula
+
+```
+FinalScore = W1 × EngagementPrediction
+           + W2 × RelationshipStrength
+           + W3 × InterestMatch
+           + W4 × RecencyDecay
+           + W5 × ContentQuality
+           + W6 × DiversityPenalty
+           + W7 × ExplorationBoost
+```
+
+### Weight Configuration
+
+| Weight | Value | Component |
+|--------|-------|-----------|
+| W1 | 0.25 | Engagement Prediction — P(like, comment, dwell >3s) |
+| W2 | 0.22 | Relationship Strength — Viewer-author affinity |
+| W3 | 0.18 | Interest Match — Post category vs user interest vector |
+| W4 | 0.15 | Recency Decay — Exponential time decay |
+| W5 | 0.10 | Content Quality — Richness + credibility score |
+| W6 | -0.05 | Diversity Penalty — Penalize repeated authors/categories |
+| W7 | 0.05 | Exploration Boost — Inject novel content |
+
+### Component Details
+
+**Engagement Prediction:**
+- Heuristic model using engagement velocity (engagements/hour)
+- Sigmoid normalization: `1 / (1 + exp(-0.5 × (velocity - 2)))`
+- Boosted by user's interest match with content category
+
+**Relationship Strength:**
+- From `author_affinity_scores.weighted_score`
+- Base 0.4 if following, 0.0 if not
+- Incrementally updated on each interaction
+- Factors: interaction count, follow status, circle membership, shared events
+
+**Interest Match:**
+- User interest vector lookup by detected post category
+- Categories: wedding, birthday, memorial, graduation, baby_shower, corporate_event, fundraiser, cultural, general
+- Category detection via keyword matching in post content
+- Updated via exponential moving average (α=0.05) after each interaction
+
+**Recency Decay:**
+```
+RecencyScore = exp(-λ × age_in_hours)
+λ = 0.04
+```
+- 50% score at ~17 hours
+- 25% score at ~35 hours
+- 10% score at ~57 hours
+
+**Content Quality:**
+```
+quality = content_richness × 0.3 + author_credibility × 0.3 + engagement_velocity_norm × 0.4
+```
+- Content richness: text length, image count, video presence
+- Author credibility: historical engagement on author's posts
+- Suppressed if moderation_flag=true or spam_probability>0.5
+
+**Diversity Penalty:**
+- Max 2 posts from same author in sliding window of 10
+- Max 4 posts from same category in sliding window of 10
+- Deferred posts re-inserted at appropriate score positions
+
+**Exploration Boost:**
+- 8% of feed slots reserved for exploration
+- Deterministic per user-post-day (hash-based)
+- Exposes new creators and content categories
+
+### Candidate Generation Sources
+
+| Source | Limit | Priority |
+|--------|-------|----------|
+| Following users' posts | 500 | Highest |
+| Circle members' posts | 300 | High |
+| Shared event participants' posts | 200 | High |
+| Own posts | 50 | Always included |
+| Trending/high-engagement platform posts | 500 | Fill remaining |
+
+Total pool: up to 1,500 candidates
+
+### Cold Start Strategy
+
+For new users with <10 interactions:
+1. Recent high-quality posts with images (visual appeal)
+2. Posts from popular authors (social proof)
+3. Round-robin across categories for exploration
+4. Chronological tiebreaker within each category
+5. 3-day lookback window
+
+### Safeguards
+
+- Moderation-flagged posts suppressed (quality × 0.1)
+- Spam-probable posts penalized proportionally
+- Hidden/reported authors tracked in negative_signals
+- Graceful fallback to chronological on any ranking error
+- No pure engagement optimization — meaningful content prioritized
+
+### Background Tasks
+
+- **Quality Score Recomputation:** Every 30 minutes, recomputes `post_quality_scores` for up to 500 recent posts
+- **Content Cleanup:** Every 6 hours, permanently deletes removed content with no pending appeal after 7 days
+
+### Frontend Integration
+
+The frontend uses `useFeedTracking.ts` hooks for:
+- **Viewport tracking:** `usePostViewTracking(postId)` — IntersectionObserver at 50% threshold
+- **Dwell time:** Logged when post leaves viewport after >3s visible
+- **Explicit interactions:** `useInteractionLogger()` — logs glow, save, etc.
+- **Batching:** Interactions queued and flushed every 5s or at 30 items
+- **Session ID:** Generated per page load, sent with all feed requests
+
+### Evaluation Metrics
+
+| Metric | Description | Target |
+|--------|-------------|--------|
+| Feed CTR | Impressions → Engagements | >5% |
+| Avg Dwell Time | Mean time per post view | >4s |
+| Diversity Score | Unique authors per 20 posts | >12 |
+| Cold Start Engagement | New user engagement in first session | >3 actions |
+| Fallback Rate | % feeds using chronological fallback | <1% |
+| Feed Latency | Time to generate ranked feed | <200ms |
+
+### Scalability Considerations
+
+- Candidate generation uses indexed queries with limits
+- Affinity scores precomputed and cached per viewer
+- Quality scores batch-recomputed in background
+- Impression logging is best-effort (non-blocking)
+- Interaction tracking uses client-side batching (5s intervals)
+- Graceful degradation: ranking errors → chronological fallback
+
+### Database Migrations Required
+
+```sql
+-- Run these migrations on the external PostgreSQL database
+
+CREATE TABLE user_interaction_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    post_id UUID NOT NULL REFERENCES user_feeds(id) ON DELETE CASCADE,
+    interaction_type TEXT NOT NULL,
+    dwell_time_ms INTEGER,
+    session_id TEXT,
+    device_type TEXT,
+    created_at TIMESTAMP DEFAULT now()
+);
+CREATE INDEX idx_interaction_user_post ON user_interaction_logs(user_id, post_id);
+CREATE INDEX idx_interaction_user_type ON user_interaction_logs(user_id, interaction_type);
+CREATE INDEX idx_interaction_created ON user_interaction_logs(created_at);
+
+CREATE TABLE user_interest_profiles (
+    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    interest_vector JSONB DEFAULT '{}'::jsonb,
+    engagement_stats JSONB DEFAULT '{}'::jsonb,
+    negative_signals JSONB DEFAULT '{}'::jsonb,
+    last_computed_at TIMESTAMP DEFAULT now(),
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE author_affinity_scores (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    viewer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    author_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    interaction_count INTEGER DEFAULT 0,
+    weighted_score FLOAT DEFAULT 0.0,
+    is_following BOOLEAN DEFAULT false,
+    shared_events_count INTEGER DEFAULT 0,
+    is_circle_member BOOLEAN DEFAULT false,
+    last_interaction_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now()
+);
+CREATE UNIQUE INDEX idx_affinity_viewer_author ON author_affinity_scores(viewer_id, author_id);
+CREATE INDEX idx_affinity_viewer ON author_affinity_scores(viewer_id);
+
+CREATE TABLE post_quality_scores (
+    post_id UUID PRIMARY KEY REFERENCES user_feeds(id) ON DELETE CASCADE,
+    engagement_velocity FLOAT DEFAULT 0.0,
+    content_richness FLOAT DEFAULT 0.0,
+    author_credibility FLOAT DEFAULT 0.5,
+    moderation_flag BOOLEAN DEFAULT false,
+    spam_probability FLOAT DEFAULT 0.0,
+    category TEXT DEFAULT 'general',
+    final_quality_score FLOAT DEFAULT 0.5,
+    total_engagements INTEGER DEFAULT 0,
+    engagement_rate FLOAT DEFAULT 0.0,
+    impression_count INTEGER DEFAULT 0,
+    last_computed_at TIMESTAMP DEFAULT now(),
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE feed_impressions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    post_id UUID NOT NULL REFERENCES user_feeds(id) ON DELETE CASCADE,
+    position INTEGER,
+    session_id TEXT,
+    was_engaged BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT now()
+);
+CREATE INDEX idx_impression_user_session ON feed_impressions(user_id, session_id);
+CREATE INDEX idx_impression_post ON feed_impressions(post_id);
+CREATE INDEX idx_impression_created ON feed_impressions(created_at);
+```
+
+---

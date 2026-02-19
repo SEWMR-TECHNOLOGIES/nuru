@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Integer, Numeric, Text, Enum, UniqueConstraint, String, CheckConstraint
+from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Integer, Numeric, Text, Enum, UniqueConstraint, String, CheckConstraint, Float, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -1999,3 +1999,101 @@ class ServicePhotoLibraryImage(Base):
 
     # Relationships
     library = relationship("ServicePhotoLibrary", back_populates="photos")
+
+
+# ──────────────────────────────────────────────
+# Feed Ranking & Recommendation
+# ──────────────────────────────────────────────
+
+class UserInteractionLog(Base):
+    """Logs every user interaction with feed content for ranking signals."""
+    __tablename__ = 'user_interaction_logs'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    post_id = Column(UUID(as_uuid=True), ForeignKey('user_feeds.id', ondelete='CASCADE'), nullable=False)
+    interaction_type = Column(Text, nullable=False)
+    dwell_time_ms = Column(Integer)
+    session_id = Column(Text)
+    device_type = Column(Text)
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index('idx_interaction_user_post', 'user_id', 'post_id'),
+        Index('idx_interaction_user_type', 'user_id', 'interaction_type'),
+        Index('idx_interaction_created', 'created_at'),
+    )
+
+
+class UserInterestProfile(Base):
+    """Per-user interest vectors updated after each interaction."""
+    __tablename__ = 'user_interest_profiles'
+
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
+    interest_vector = Column(JSONB, server_default="'{}'::jsonb")
+    engagement_stats = Column(JSONB, server_default="'{}'::jsonb")
+    negative_signals = Column(JSONB, server_default="'{}'::jsonb")
+    last_computed_at = Column(DateTime, server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class AuthorAffinityScore(Base):
+    """Precomputed relationship strength between viewer and author."""
+    __tablename__ = 'author_affinity_scores'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    viewer_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    author_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    interaction_count = Column(Integer, default=0)
+    weighted_score = Column(Float, default=0.0)
+    is_following = Column(Boolean, default=False)
+    shared_events_count = Column(Integer, default=0)
+    is_circle_member = Column(Boolean, default=False)
+    last_interaction_at = Column(DateTime)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index('idx_affinity_viewer_author', 'viewer_id', 'author_id', unique=True),
+        Index('idx_affinity_viewer', 'viewer_id'),
+    )
+
+
+class PostQualityScore(Base):
+    """Cached quality score for each post, recomputed periodically."""
+    __tablename__ = 'post_quality_scores'
+
+    post_id = Column(UUID(as_uuid=True), ForeignKey('user_feeds.id', ondelete='CASCADE'), primary_key=True)
+    engagement_velocity = Column(Float, default=0.0)
+    content_richness = Column(Float, default=0.0)
+    author_credibility = Column(Float, default=0.5)
+    moderation_flag = Column(Boolean, default=False)
+    spam_probability = Column(Float, default=0.0)
+    category = Column(Text, default='general')
+    final_quality_score = Column(Float, default=0.5)
+    total_engagements = Column(Integer, default=0)
+    engagement_rate = Column(Float, default=0.0)
+    impression_count = Column(Integer, default=0)
+    last_computed_at = Column(DateTime, server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class FeedImpression(Base):
+    """Tracks which posts were shown to which users and in what position."""
+    __tablename__ = 'feed_impressions'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    post_id = Column(UUID(as_uuid=True), ForeignKey('user_feeds.id', ondelete='CASCADE'), nullable=False)
+    position = Column(Integer)
+    session_id = Column(Text)
+    was_engaged = Column(Boolean, default=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index('idx_impression_user_session', 'user_id', 'session_id'),
+        Index('idx_impression_post', 'post_id'),
+        Index('idx_impression_created', 'created_at'),
+    )

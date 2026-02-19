@@ -1919,3 +1919,86 @@ CREATE INDEX IF NOT EXISTS idx_spl_token ON service_photo_libraries(share_token)
 CREATE INDEX IF NOT EXISTS idx_spli_library ON service_photo_library_images(library_id);
 
 
+-- ──────────────────────────────────────────────
+-- Feed Ranking & Recommendation System
+-- ──────────────────────────────────────────────
+
+-- Interaction log: raw signal for ranking
+CREATE TABLE IF NOT EXISTS user_interaction_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    post_id UUID NOT NULL REFERENCES user_feeds(id) ON DELETE CASCADE,
+    interaction_type TEXT NOT NULL,
+    dwell_time_ms INTEGER,
+    session_id TEXT,
+    device_type TEXT,
+    created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_interaction_user_post ON user_interaction_logs(user_id, post_id);
+CREATE INDEX IF NOT EXISTS idx_interaction_user_type ON user_interaction_logs(user_id, interaction_type);
+CREATE INDEX IF NOT EXISTS idx_interaction_created ON user_interaction_logs(created_at);
+
+-- Per-user interest vectors
+CREATE TABLE IF NOT EXISTS user_interest_profiles (
+    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    interest_vector JSONB DEFAULT '{}'::jsonb,
+    engagement_stats JSONB DEFAULT '{}'::jsonb,
+    negative_signals JSONB DEFAULT '{}'::jsonb,
+    last_computed_at TIMESTAMP DEFAULT now(),
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now()
+);
+
+-- Precomputed relationship strength between viewer and author
+CREATE TABLE IF NOT EXISTS author_affinity_scores (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    viewer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    author_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    interaction_count INTEGER DEFAULT 0,
+    weighted_score FLOAT DEFAULT 0.0,
+    is_following BOOLEAN DEFAULT FALSE,
+    shared_events_count INTEGER DEFAULT 0,
+    is_circle_member BOOLEAN DEFAULT FALSE,
+    last_interaction_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now(),
+    UNIQUE(viewer_id, author_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_affinity_viewer_author ON author_affinity_scores(viewer_id, author_id);
+CREATE INDEX IF NOT EXISTS idx_affinity_viewer ON author_affinity_scores(viewer_id);
+
+-- Cached quality score per post
+CREATE TABLE IF NOT EXISTS post_quality_scores (
+    post_id UUID PRIMARY KEY REFERENCES user_feeds(id) ON DELETE CASCADE,
+    engagement_velocity FLOAT DEFAULT 0.0,
+    content_richness FLOAT DEFAULT 0.0,
+    author_credibility FLOAT DEFAULT 0.5,
+    moderation_flag BOOLEAN DEFAULT FALSE,
+    spam_probability FLOAT DEFAULT 0.0,
+    category TEXT DEFAULT 'general',
+    final_quality_score FLOAT DEFAULT 0.5,
+    total_engagements INTEGER DEFAULT 0,
+    engagement_rate FLOAT DEFAULT 0.0,
+    impression_count INTEGER DEFAULT 0,
+    last_computed_at TIMESTAMP DEFAULT now(),
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now()
+);
+
+-- Feed impressions: tracks what was shown to whom
+CREATE TABLE IF NOT EXISTS feed_impressions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    post_id UUID NOT NULL REFERENCES user_feeds(id) ON DELETE CASCADE,
+    position INTEGER,
+    session_id TEXT,
+    was_engaged BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_impression_user_session ON feed_impressions(user_id, session_id);
+CREATE INDEX IF NOT EXISTS idx_impression_post ON feed_impressions(post_id);
+CREATE INDEX IF NOT EXISTS idx_impression_created ON feed_impressions(created_at);
+

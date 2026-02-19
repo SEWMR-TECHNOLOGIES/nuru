@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { Loader2 } from 'lucide-react';
+import { feedSessionId } from '@/hooks/useFeedTracking';
 
 const SCROLL_KEY = 'feedScrollPosition';
 
@@ -15,7 +16,11 @@ const getScrollContainer = () =>
   document.querySelector('.flex-1.overflow-y-auto') as HTMLElement | null;
 
 const Feed = () => {
-  const { items: apiPosts, loading, error, refetch, loadMore, pagination } = useFeed({ limit: 15 });
+  const { items: apiPosts, loading, error, refetch, loadMore, pagination } = useFeed({
+    limit: 15,
+    mode: 'ranked',
+    session_id: feedSessionId,
+  });
   const hasLoadedOnce = useRef(false);
   const scrollRestoredRef = useRef(false);
   const [loadingMore, setLoadingMore] = useState(false);
