@@ -81,11 +81,7 @@ const MyServices = () => {
     if (success > 0) {
       toast.success(`${success} photo${success > 1 ? 's' : ''} added!`);
       await refetch();
-      // Sync imageDialogService with refreshed data
-      setImageDialogService((prev: any) => {
-        const updated = services.find((s: any) => s.id === prev?.id);
-        return updated || prev;
-      });
+      setImageDialogService(null);
     }
   };
 
@@ -304,6 +300,9 @@ const MyServices = () => {
                           <Package className="w-3.5 h-3.5 mr-1.5" /> Add Package
                         </Button>
                       )}
+                      <Button size="sm" variant="outline" onClick={() => setImageDialogService(service)}>
+                        <ImagePlus className="w-3.5 h-3.5 mr-1.5" /> Photos
+                      </Button>
                     </div>
                   )}
 
