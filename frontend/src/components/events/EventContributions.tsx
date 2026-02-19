@@ -41,6 +41,7 @@ interface EventContributionsProps {
   eventId: string;
   eventTitle?: string;
   eventBudget?: number;
+  eventEndDate?: string;
   isCreator?: boolean;
   permissions?: EventPermissions;
 }
@@ -58,7 +59,7 @@ const PAYMENT_METHODS = [
 
 const ITEMS_PER_PAGE = 10;
 
-const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true, permissions }: EventContributionsProps) => {
+const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, isCreator = true, permissions }: EventContributionsProps) => {
   const canManage = permissions?.can_manage_contributions || permissions?.is_creator;
   const canView = permissions?.can_view_contributions || permissions?.is_creator;
   // New contributor-based hooks
@@ -391,7 +392,8 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, isCreator = true
           budget: eventBudget,
         },
         isFiltered ? dateRangeLabel : undefined,
-        isFiltered ? { total_paid: fullSummary.total_paid, total_pledged: fullSummary.total_pledged, total_balance: fullSummary.total_balance } : undefined
+        isFiltered ? { total_paid: fullSummary.total_paid, total_pledged: fullSummary.total_pledged, total_balance: fullSummary.total_balance } : undefined,
+        eventEndDate
       );
       setReportHtml(html);
       setReportDateDialogOpen(false);

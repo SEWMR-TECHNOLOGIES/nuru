@@ -17,7 +17,8 @@ export const generateContributionReportHtml = (
   contributors: ContributorRow[],
   summary: { total_amount: number; target_amount?: number; currency?: string; budget?: number },
   dateRangeLabel?: string,
-  fullSummary?: { total_paid: number; total_pledged: number; total_balance: number }
+  fullSummary?: { total_paid: number; total_pledged: number; total_balance: number },
+  eventEndDate?: string
 ): string => {
   const currency = summary.currency || 'TZS';
   const fmt = (n: number) => `${currency} ${n.toLocaleString()}`;
@@ -32,11 +33,38 @@ export const generateContributionReportHtml = (
   // Use full summary for header cards if provided, otherwise fall back to table totals
   const summaryPledged = fullSummary?.total_pledged ?? totalPledged;
   const summaryPaid = fullSummary?.total_paid ?? totalPaid;
-  const summaryBalance = fullSummary?.total_balance ?? totalBalance;
+
+  // Outstanding pledge = what's promised but not yet collected
+  const outstandingPledge = Math.max(0, summaryPledged - summaryPaid);
 
   const logoAbsoluteUrl = new URL(nuruLogoUrl, window.location.origin).href;
 
   const isFiltered = !!dateRangeLabel;
+
+  // Countdown text for event end date (only on unfiltered full reports)
+  let countdownHtml = '';
+  if (eventEndDate && !isFiltered) {
+    const endDate = new Date(eventEndDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays > 0) {
+      const weeks = Math.floor(diffDays / 7);
+      const days = diffDays % 7;
+      let countdownText = '';
+      if (weeks > 0 && days > 0) {
+        countdownText = `${weeks} week${weeks !== 1 ? 's' : ''} and ${days} day${days !== 1 ? 's' : ''} remaining`;
+      } else if (weeks > 0) {
+        countdownText = `${weeks} week${weeks !== 1 ? 's' : ''} remaining`;
+      } else {
+        countdownText = `${days} day${days !== 1 ? 's' : ''} remaining`;
+      }
+      countdownHtml = `<div style="display:inline-flex;align-items:center;gap:6px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:6px 14px;margin-bottom:20px"><span style="font-size:16px">&#x23F3;</span><span style="font-size:13px;font-weight:600;color:#1d4ed8">${countdownText}</span></div>`;
+    } else if (diffDays === 0) {
+      countdownHtml = `<div style="display:inline-flex;align-items:center;gap:6px;background:#fefce8;border:1px solid #fde047;border-radius:20px;padding:6px 14px;margin-bottom:20px"><span style="font-size:16px">&#127881;</span><span style="font-size:13px;font-weight:600;color:#854d0e">Event is Today!</span></div>`;
+    }
+  }
 
   const rows = sorted.map((c, i) => isFiltered ? `
     <tr>
@@ -85,21 +113,22 @@ export const generateContributionReportHtml = (
         </div>
         <div class="header-right">
           <h1>Contribution Report</h1>
-          <h2>${eventTitle} — ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</h2>
+          <h2>${eventTitle} &mdash; ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</h2>
           ${dateRangeLabel ? `<h2 style="color:#ca8a04;margin-top:4px">Period: ${dateRangeLabel}</h2>` : ''}
         </div>
       </div>
+
+      ${countdownHtml}
       
       <div class="summary">
         ${summary.budget ? `<div class="summary-card"><div class="label">Event Budget</div><div class="value">${fmt(summary.budget)}</div></div>` : ''}
         <div class="summary-card"><div class="label">Total Pledged</div><div class="value" style="color:#7c3aed">${fmt(summaryPledged)}</div></div>
-        ${summary.budget ? `<div class="summary-card"><div class="label">Outstanding Pledge</div><div class="value" style="color:#ca8a04">${fmt(Math.max(0, summary.budget - summaryPledged))}</div></div>` : ''}
         <div class="summary-card"><div class="label">Total Raised</div><div class="value" style="color:#16a34a">${fmt(summaryPaid)}</div></div>
+        <div class="summary-card"><div class="label">Outstanding Pledge</div><div class="value" style="color:#ca8a04">${fmt(outstandingPledge)}</div></div>
       </div>
-      ${summary.budget ? `<div class="summary" style="margin-top:-8px"><div class="summary-card"><div class="label">Budget Shortfall</div><div class="value" style="color:#dc2626">${fmt(Math.max(0, summary.budget - summaryPledged))}</div></div></div>` : ''}
 
       ${summary.budget ? `<p style="font-size:12px;color:#666;margin-bottom:16px">Budget coverage: <strong>${((summaryPaid / summary.budget) * 100).toFixed(1)}%</strong> of event budget raised so far.</p>` : ''}
-      ${dateRangeLabel ? `<p style="font-size:11px;color:#ea580c;margin-bottom:16px;font-style:italic">⚠ The table below shows payments recorded within the selected period (${dateRangeLabel}). Summary cards above reflect all-time totals.</p>` : ''}
+      ${dateRangeLabel ? `<p style="font-size:11px;color:#ea580c;margin-bottom:16px;font-style:italic">&#9888; The table below shows payments recorded within the selected period (${dateRangeLabel}). Summary cards above reflect all-time totals.</p>` : ''}
 
       <table>
         <thead>
@@ -130,7 +159,7 @@ export const generateContributionReportHtml = (
         </tfoot>
       </table>
       
-      <div class="footer">Generated by Nuru Events Workspace · © ${new Date().getFullYear()} Nuru | SEWMR TECHNOLOGIES</div>
+      <div class="footer">Generated by Nuru Events Workspace &middot; &copy; ${new Date().getFullYear()} Nuru | SEWMR TECHNOLOGIES</div>
     </body></html>
   `;
 };
@@ -181,8 +210,8 @@ export const generateExpenseReportHtml = (
   const rows = sorted.map((e, i) => `
     <tr>
       <td style="padding:8px;border-bottom:1px solid #eee">${i + 1}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee">${e.expense_date ? new Date(e.expense_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee">${e.vendor_name || '—'}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee">${e.expense_date ? new Date(e.expense_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '&mdash;'}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee">${e.vendor_name || '&mdash;'}</td>
       <td style="padding:8px;border-bottom:1px solid #eee">${e.category}</td>
       <td style="padding:8px;border-bottom:1px solid #eee">${e.description}</td>
       <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${fmt(e.amount)}</td>
@@ -248,7 +277,7 @@ export const generateExpenseReportHtml = (
         </div>
         <div class="header-right">
           <h1>Expense Report</h1>
-          <h2>${eventTitle} — ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</h2>
+          <h2>${eventTitle} &mdash; ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</h2>
           ${dateHeader}
         </div>
       </div>
@@ -283,7 +312,7 @@ export const generateExpenseReportHtml = (
         </tfoot>
       </table>
       
-      <div class="footer">Generated by Nuru Events Workspace · © ${new Date().getFullYear()} Nuru | SEWMR TECHNOLOGIES</div>
+      <div class="footer">Generated by Nuru Events Workspace &middot; &copy; ${new Date().getFullYear()} Nuru | SEWMR TECHNOLOGIES</div>
     </body></html>
   `;
 };

@@ -18,7 +18,7 @@ from models import (
     UserService, Event, EventImage, EventService, ServicePhotoLibrary, ServicePhotoLibraryImage,
     User, PhotoLibraryPrivacyEnum, EventServiceStatusEnum,
 )
-from utils.auth import get_current_user
+from utils.auth import get_current_user, get_optional_user
 from utils.helpers import standard_response
 
 EAT = pytz.timezone("Africa/Nairobi")
@@ -170,13 +170,13 @@ def get_library(
 
 
 # ──────────────────────────────────────────────
-# Access via share token (public link)
+# Access via share token (public link) — NO auth required for public libraries
 # ──────────────────────────────────────────────
 @router.get("/shared/{share_token}")
 def get_library_by_token(
     share_token: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_optional_user),
 ):
     library = db.query(ServicePhotoLibrary).filter(
         ServicePhotoLibrary.share_token == share_token,
@@ -185,10 +185,20 @@ def get_library_by_token(
     if not library:
         return standard_response(False, "Library not found or link is invalid")
 
+    # Public libraries: accessible by anyone (even without auth token)
+    if library.privacy == PhotoLibraryPrivacyEnum.public:
+        data = _library_dict(library, include_photos=True)
+        data["is_owner"] = False
+        return standard_response(True, "Library retrieved", data)
+
+    # Private libraries: only accessible to owner or event organizer
+    if current_user is None:
+        return standard_response(False, "This library is private")
+
     is_owner = library.user_service.user_id == current_user.id
     is_event_organizer = library.event.organizer_id == current_user.id if library.event else False
 
-    if library.privacy == PhotoLibraryPrivacyEnum.event_creator_only and not is_owner and not is_event_organizer:
+    if not is_owner and not is_event_organizer:
         return standard_response(False, "This library is private")
 
     data = _library_dict(library, include_photos=True)

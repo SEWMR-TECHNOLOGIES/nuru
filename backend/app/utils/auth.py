@@ -2,6 +2,7 @@ import hashlib
 import secrets
 import jwt
 from datetime import datetime, timedelta
+from typing import Optional
 from sqlalchemy.orm import Session
 from core.config import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, REFRESH_TOKEN_EXPIRE_DAYS, SECRET_KEY
 from models.users import User
@@ -10,6 +11,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from core.database import get_db
 
 security = HTTPBearer()
+security_optional = HTTPBearer(auto_error=False)
 
 def get_current_user(
     request: Request,
@@ -47,6 +49,35 @@ def get_current_user(
         raise HTTPException(status_code=403, detail="User account is inactive")
 
     return user
+
+
+def get_optional_user(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional),
+    session_cookie: str = Cookie(None, alias="session_id"),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """
+    Like get_current_user but returns None instead of raising 401 when no auth is provided.
+    Used for publicly accessible endpoints that may serve richer data to authenticated users.
+    """
+    user = None
+
+    if credentials:
+        token = credentials.credentials
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("uid")
+            if user_id:
+                user = db.query(User).filter(User.id == user_id).first()
+        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+            pass
+
+    if not user and session_cookie:
+        user = db.query(User).filter(User.id == session_cookie).first()
+
+    return user if (user and user.is_active) else None
+
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return hashlib.sha256(plain_password.encode()).hexdigest() == hashed_password
