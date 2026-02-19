@@ -41,14 +41,14 @@ export const generateContributionReportHtml = (
 
   const isFiltered = !!dateRangeLabel;
 
-  // Countdown text for event end date (only on unfiltered full reports)
+  // Countdown text based on event START date (only on unfiltered full reports, only if event hasn't started yet)
   let countdownHtml = '';
   if (eventEndDate && !isFiltered) {
-    const endDate = new Date(eventEndDate);
+    const startDate = new Date(eventEndDate); // param is actually start_date now
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    endDate.setHours(0, 0, 0, 0);
-    const diffDays = Math.round((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    startDate.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     if (diffDays > 0) {
       const weeks = Math.floor(diffDays / 7);
       const days = diffDays % 7;
@@ -60,10 +60,11 @@ export const generateContributionReportHtml = (
       } else {
         countdownText = `${days} day${days !== 1 ? 's' : ''} remaining`;
       }
-      countdownHtml = `<div style="display:inline-flex;align-items:center;gap:6px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:6px 14px;margin-bottom:20px"><span style="font-size:16px">&#x23F3;</span><span style="font-size:13px;font-weight:600;color:#1d4ed8">${countdownText}</span></div>`;
+      countdownHtml = `<div style="display:inline-flex;align-items:center;background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:6px 14px;margin-bottom:20px"><span style="font-size:13px;font-weight:600;color:#1d4ed8">${countdownText}</span></div>`;
     } else if (diffDays === 0) {
-      countdownHtml = `<div style="display:inline-flex;align-items:center;gap:6px;background:#fefce8;border:1px solid #fde047;border-radius:20px;padding:6px 14px;margin-bottom:20px"><span style="font-size:16px">&#127881;</span><span style="font-size:13px;font-weight:600;color:#854d0e">Event is Today!</span></div>`;
+      countdownHtml = `<div style="display:inline-flex;align-items:center;background:#fefce8;border:1px solid #fde047;border-radius:20px;padding:6px 14px;margin-bottom:20px"><span style="font-size:13px;font-weight:600;color:#854d0e">Event is Today!</span></div>`;
     }
+    // If diffDays < 0, event has already started — show no countdown
   }
 
   const rows = sorted.map((c, i) => isFiltered ? `
@@ -125,6 +126,7 @@ export const generateContributionReportHtml = (
         <div class="summary-card"><div class="label">Total Pledged</div><div class="value" style="color:#7c3aed">${fmt(summaryPledged)}</div></div>
         <div class="summary-card"><div class="label">Total Raised</div><div class="value" style="color:#16a34a">${fmt(summaryPaid)}</div></div>
         <div class="summary-card"><div class="label">Outstanding Pledge</div><div class="value" style="color:#ca8a04">${fmt(outstandingPledge)}</div></div>
+        ${summary.budget ? `<div class="summary-card" style="background:#fef2f2"><div class="label" style="color:#991b1b">Budget Shortfall</div><div class="value" style="color:${Math.max(0, summary.budget - summaryPledged) > 0 ? '#dc2626' : '#16a34a'}">${fmt(Math.max(0, summary.budget - summaryPledged))}</div></div>` : ''}
       </div>
 
       ${summary.budget ? `<p style="font-size:12px;color:#666;margin-bottom:16px">Budget coverage: <strong>${((summaryPaid / summary.budget) * 100).toFixed(1)}%</strong> of event budget raised so far.</p>` : ''}
