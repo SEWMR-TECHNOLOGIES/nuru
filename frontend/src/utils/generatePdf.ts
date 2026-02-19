@@ -92,11 +92,11 @@ export const generateContributionReportHtml = (
       
       <div class="summary">
         ${summary.budget ? `<div class="summary-card"><div class="label">Event Budget</div><div class="value">${fmt(summary.budget)}</div></div>` : ''}
+        <div class="summary-card"><div class="label">Total Pledged</div><div class="value" style="color:#7c3aed">${fmt(summaryPledged)}</div></div>
+        ${summary.budget ? `<div class="summary-card"><div class="label">Outstanding Pledge</div><div class="value" style="color:#ca8a04">${fmt(Math.max(0, summary.budget - summaryPledged))}</div></div>` : ''}
         <div class="summary-card"><div class="label">Total Raised</div><div class="value" style="color:#16a34a">${fmt(summaryPaid)}</div></div>
-        <div class="summary-card"><div class="label">Total Pledged</div><div class="value" style="color:#ca8a04">${fmt(summaryPledged)}</div></div>
-        <div class="summary-card"><div class="label">Pending Pledge</div><div class="value" style="color:#ea580c">${fmt(Math.max(0, summaryPledged - summaryPaid))}</div></div>
-        <div class="summary-card"><div class="label">Outstanding Balance</div><div class="value" style="color:#dc2626">${fmt(summaryBalance)}</div></div>
       </div>
+      ${summary.budget ? `<div class="summary" style="margin-top:-8px"><div class="summary-card"><div class="label">Budget Shortfall</div><div class="value" style="color:#dc2626">${fmt(Math.max(0, summary.budget - summaryPledged))}</div></div></div>` : ''}
 
       ${summary.budget ? `<p style="font-size:12px;color:#666;margin-bottom:16px">Budget coverage: <strong>${((summaryPaid / summary.budget) * 100).toFixed(1)}%</strong> of event budget raised so far.</p>` : ''}
       ${dateRangeLabel ? `<p style="font-size:11px;color:#ea580c;margin-bottom:16px;font-style:italic">⚠ The table below shows payments recorded within the selected period (${dateRangeLabel}). Summary cards above reflect all-time totals.</p>` : ''}

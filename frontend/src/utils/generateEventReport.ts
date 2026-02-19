@@ -43,7 +43,7 @@ export const generateEventReportHtml = (event: EventReportData): string => {
     return new Date(d).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   };
 
-  const outstanding = event.budget ? Math.max(0, event.budget - (event.contribution_total || 0)) : 0;
+  const _budgetShortfall = event.budget ? Math.max(0, event.budget - (event.contribution_target || 0)) : 0;
   const budgetCoverage = event.budget && event.budget > 0
     ? ((event.contribution_total || 0) / event.budget * 100).toFixed(1)
     : null;
@@ -135,8 +135,6 @@ export const generateEventReportHtml = (event: EventReportData): string => {
           <div class="info-item"><div class="label">Event Budget</div><div class="value">${event.budget ? fmt(event.budget) : '—'}</div></div>
           <div class="info-item"><div class="label">Total Raised</div><div class="value" style="color:#16a34a">${fmt(event.contribution_total || 0)}</div></div>
           <div class="info-item"><div class="label">Unique Contributors</div><div class="value">${event.contribution_count || 0}</div></div>
-          ${event.budget ? `<div class="info-item"><div class="label">Outstanding</div><div class="value" style="color:#dc2626">${fmt(outstanding)}</div></div>` : ''}
-          ${event.contribution_target ? `<div class="info-item"><div class="label">Contribution Target</div><div class="value">${fmt(event.contribution_target)}</div></div>` : ''}
           <div class="info-item"><div class="label">Committee Members</div><div class="value">${event.committee_count || 0}</div></div>
         </div>
         ${budgetCoverage ? `

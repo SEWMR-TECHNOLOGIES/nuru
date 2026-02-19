@@ -14,6 +14,7 @@ import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useEvents, useDeleteEvent } from '@/data/useEvents';
 import { usePolling } from '@/hooks/usePolling';
 import { formatPrice } from '@/utils/formatPrice';
+import { getEventCountdown } from '@/utils/getEventCountdown';
 import { Skeleton } from '@/components/ui/skeleton';
 import { eventsApi } from '@/lib/api/events';
 import { toast } from 'sonner';
@@ -259,6 +260,16 @@ const MyEvents = () => {
                   {new Date(eventDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
                 </span>
               )}
+              {(() => {
+                const countdown = getEventCountdown(eventDate);
+                if (!countdown) return null;
+                return (
+                  <span className={`flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${countdown.isPast ? 'bg-muted text-muted-foreground' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'}`}>
+                    <Clock className="w-3 h-3" />
+                    {countdown.text}
+                  </span>
+                );
+              })()}
               {event.location && (
                 <span className="flex items-center gap-1.5">
                   <MapPin className="w-4 h-4 flex-shrink-0" />
@@ -301,10 +312,10 @@ const MyEvents = () => {
             </div>
 
             {/* Actions row */}
-            <div className="flex flex-wrap items-center gap-2 pt-1" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-1.5 pt-1" onClick={e => e.stopPropagation()}>
               {/* Status selector */}
               <Select value={getEventStatus(event)} onValueChange={val => handleStatusChange(event.id, val)} disabled={updatingStatus === event.id}>
-                <SelectTrigger className={`h-8 w-32 text-xs font-medium rounded-lg border-0 ${cfg.cls}`}>
+                <SelectTrigger className={`h-7 w-[110px] text-[11px] font-medium rounded-md border-0 ${cfg.cls}`}>
                   {updatingStatus === event.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <SelectValue />}
                 </SelectTrigger>
                 <SelectContent>
@@ -314,15 +325,15 @@ const MyEvents = () => {
 
               <button
                 onClick={() => navigate(`/event-management/${event.id}`)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-sm font-medium">
+                className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-xs font-medium h-7">
                 Manage
               </button>
 
               <button
                 onClick={() => handleDelete(event.id)}
                 disabled={deleting}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors text-sm font-medium disabled:opacity-50 ml-auto">
-                {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors text-xs font-medium disabled:opacity-50 h-7">
+                {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                 Delete
               </button>
             </div>

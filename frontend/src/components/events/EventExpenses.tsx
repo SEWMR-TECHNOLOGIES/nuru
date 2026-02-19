@@ -421,20 +421,38 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">Money Raised</p>
-                <p className="text-base font-semibold text-primary mt-1">{formatPrice(totalRaised)}</p>
-                <p className="text-xs text-muted-foreground mt-1">Total contributions</p>
+        {eventBudget != null && eventBudget > 0 && (
+          <Card>
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">Money Raised</p>
+                  <p className="text-base font-semibold text-primary mt-1">{formatPrice(totalRaised)}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Total contributions</p>
+                </div>
+                <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <Receipt className="w-4 h-4 text-primary" />
+                </div>
               </div>
-              <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center">
-                <Receipt className="w-4 h-4 text-primary" />
+            </CardContent>
+          </Card>
+        )}
+        {!eventBudget && (
+          <Card>
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">Money Raised</p>
+                  <p className="text-base font-semibold text-primary mt-1">{formatPrice(totalRaised)}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Total contributions</p>
+                </div>
+                <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <Receipt className="w-4 h-4 text-primary" />
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center justify-between">

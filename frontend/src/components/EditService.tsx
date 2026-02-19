@@ -106,8 +106,8 @@ const EditService = () => {
     try {
       const form = new FormData();
       form.append('title', title);
-      form.append('service_category_id', serviceCategoryId);
-      form.append('service_type_id', serviceTypeId);
+      if (serviceCategoryId) form.append('service_category_id', serviceCategoryId);
+      if (serviceTypeId) form.append('service_type_id', serviceTypeId);
       form.append('description', description);
       form.append('min_price', String(parseInt(minPrice.replace(/,/g, ''), 10) || 0));
       form.append('max_price', String(parseInt(maxPrice.replace(/,/g, ''), 10) || 0));

@@ -74,6 +74,7 @@ const RightSidebar = () => {
   const { circles, addMember, createCircle } = useCircles();
   const [addingUserId, setAddingUserId] = useState<string | null>(null);
   const [addedUserIds, setAddedUserIds] = useState<Set<string>>(new Set());
+  const [hiddenSuggestionIds, setHiddenSuggestionIds] = useState<Set<string>>(new Set());
 
   const [committeeEvents, setCommitteeEvents] = useState<any[]>([]);
   const [invitedEvents, setInvitedEvents] = useState<any[]>([]);
@@ -91,6 +92,7 @@ const RightSidebar = () => {
       if (!circleId) throw new Error('No circle');
       await addMember(circleId, user.id);
       setAddedUserIds(prev => new Set([...prev, user.id]));
+      setHiddenSuggestionIds(prev => new Set([...prev, user.id]));
       toast.success(`${user.first_name} added to your circle`);
     } catch {
       toast.error('Failed to add to circle');
@@ -283,11 +285,11 @@ const RightSidebar = () => {
       {/* Friend Suggestions / People You May Know — only shown when there are results */}
       {suggestionsLoading && !hasLoadedSuggestions ? (
         <SidebarCardSkeleton title="People You May Know" count={3} />
-      ) : suggestions.length > 0 ? (
+      ) : suggestions.filter(u => !hiddenSuggestionIds.has(u.id)).length > 0 ? (
         <div className="bg-card rounded-lg p-4 border border-border">
           <h2 className="font-semibold text-foreground mb-4">People You May Know</h2>
           <div className="space-y-3">
-            {suggestions.map((user) => (
+            {suggestions.filter(u => !hiddenSuggestionIds.has(u.id)).map((user) => (
               <div key={user.id} className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-muted overflow-hidden flex items-center justify-center">
                   {user.avatar ? (

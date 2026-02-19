@@ -24,6 +24,7 @@ import { useEvent } from '@/data/useEvents';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { usePolling } from '@/hooks/usePolling';
 import { formatPrice } from '@/utils/formatPrice';
+import { getEventCountdown } from '@/utils/getEventCountdown';
 import { EventManagementSkeleton } from '@/components/ui/EventManagementSkeleton';
 import { eventsApi, showCaughtError } from '@/lib/api';
 import { servicesApi } from '@/lib/api/services';
@@ -194,8 +195,17 @@ const EventManagement = () => {
             <ChevronLeft className="w-5 h-5" />
           </Button>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-sm text-muted-foreground">
+        <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
           <span className="flex items-center gap-2"><img src={CalendarIcon} alt="Calendar" className="w-4 h-4 flex-shrink-0" /><span className="truncate">{eventDate}</span></span>
+          {(() => {
+            const countdown = getEventCountdown(apiEvent?.start_date);
+            if (!countdown) return null;
+            return (
+              <span className={`flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${countdown.isPast ? 'bg-muted text-muted-foreground' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'}`}>
+                {countdown.text}
+              </span>
+            );
+          })()}
           <span className="flex items-center gap-2"><img src={LocationIcon} alt="Location" className="w-4 h-4 flex-shrink-0" /><span className="truncate">{eventLocation}</span></span>
           <span className="flex items-center gap-2"><Users className="w-4 h-4 flex-shrink-0" /><span className="truncate">{expectedGuests} expected</span></span>
           <span className="flex items-center gap-2"><UserCheck className="w-4 h-4 flex-shrink-0" /><span className="truncate">{apiEvent?.confirmed_guest_count || 0} confirmed</span></span>

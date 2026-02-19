@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Clock, CheckCircle, XCircle, HelpCircle, Loader2, Printer } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, HelpCircle, Loader2, Printer, Timer } from 'lucide-react';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { eventsApi } from '@/lib/api/events';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
 import InvitationCard from './InvitationCard';
+import { getEventCountdown } from '@/utils/getEventCountdown';
 
 const rsvpStyles: Record<string, string> = {
   pending: 'bg-amber-100 text-amber-800',
@@ -162,6 +163,16 @@ const InvitedEvents = () => {
                           {new Date(event.start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </span>
                       )}
+                      {(() => {
+                        const countdown = getEventCountdown(event.start_date);
+                        if (!countdown) return null;
+                        return (
+                          <span className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${countdown.isPast ? 'bg-muted text-muted-foreground' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'}`}>
+                            <Timer className="w-3 h-3" />
+                            {countdown.text}
+                          </span>
+                        );
+                      })()}
                       {event.start_time && (
                         <span className="flex items-center gap-1">
                           <Clock className="w-4 h-4" />
