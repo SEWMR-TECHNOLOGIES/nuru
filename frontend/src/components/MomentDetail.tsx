@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Heart, Share2, Send, X, Loader2, CornerDownRight, ChevronDown, MapPin, AlertTriangle } from 'lucide-react';
+import { VerifiedUserBadge } from '@/components/ui/verified-badge';
 import CustomImageIcon from '@/assets/icons/image-icon.svg';
 import { Button } from '@/components/ui/button';
 import {
@@ -522,6 +523,7 @@ const MomentDetail = () => {
     || (post.user?.first_name ? `${post.user.first_name} ${post.user.last_name || ''}`.trim() : null)
     || 'Anonymous';
   const authorAvatar = post.author?.avatar || post.user?.avatar || '';
+  const authorVerified = post.user?.is_identity_verified || post.author?.is_verified || false;
   const postTitle = post.title || post.content?.title || '';
   const postContent = post.content?.text || post.content || (typeof post.content === 'string' ? post.content : '');
   const postImages = post.images || post.media?.map((m: any) => m.url) || [];
@@ -583,7 +585,10 @@ const MomentDetail = () => {
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <UserAvatar src={authorAvatar} name={authorName} />
             <div className="min-w-0">
-              <h3 className="font-semibold text-foreground text-sm md:text-base truncate">{authorName}</h3>
+              <h3 className="font-semibold text-foreground text-sm md:text-base truncate flex items-center gap-1.5">
+                {authorVerified && <VerifiedUserBadge size="xs" />}
+                {authorName}
+              </h3>
               <p className="text-xs md:text-sm text-muted-foreground">
                 {postTimeAgo}
                 {postLocation && <span className="inline-flex items-center gap-0.5"> · <MapPin className="w-3 h-3 inline" /> {postLocation}</span>}

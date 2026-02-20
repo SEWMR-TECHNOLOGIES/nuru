@@ -4,6 +4,7 @@ import {
   Mail, Phone, User as UserIcon, Shield, ShieldCheck, ShieldAlert,
   Upload, FileText, AlertCircle, Clock, ImagePlus, Users, X
 } from "lucide-react";
+import { VerifiedUserBadge } from '@/components/ui/verified-badge';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import CameraIcon from '@/assets/icons/camera-icon.svg';
@@ -348,12 +349,8 @@ const UserProfile = () => {
               ) : (
                 <div>
                   <div className="flex items-center gap-3 mb-2">
+                    {isVerified && <VerifiedUserBadge size="md" />}
                     <h1 className="text-2xl font-bold text-foreground">{fullName}</h1>
-                    {isVerified && (
-                      <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 gap-1">
-                        <CheckCircle className="w-3 h-3" /> Verified
-                      </Badge>
-                    )}
                   </div>
                   {currentUser.username && (
                     <p className="text-muted-foreground text-sm mb-2">@{currentUser.username}</p>

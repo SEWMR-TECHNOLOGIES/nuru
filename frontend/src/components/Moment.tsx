@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Heart, MessageCircle, Share2, Bookmark } from 'lucide-react';
+import { VerifiedUserBadge } from '@/components/ui/verified-badge';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { socialApi } from '@/lib/api/social';
@@ -25,6 +26,7 @@ interface MomentProps {
       name: string;
       avatar: string;
       timeAgo: string;
+      is_verified?: boolean;
     };
     content?: {
       title?: string;
@@ -163,7 +165,10 @@ const Moment = ({ post }: MomentProps) => {
             </div>
           )}
           <div>
-            <h3 className="font-semibold text-sm md:text-base text-foreground">{post.author.name}</h3>
+            <h3 className="font-semibold text-sm md:text-base text-foreground flex items-center gap-1.5">
+              {post.author.is_verified && <VerifiedUserBadge size="xs" />}
+              {post.author.name}
+            </h3>
             <p className="text-xs md:text-sm text-muted-foreground">{post.author.timeAgo}</p>
           </div>
         </div>

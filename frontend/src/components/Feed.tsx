@@ -103,7 +103,8 @@ const Feed = () => {
       author: {
         name: authorName,
         avatar: authorAvatar,
-        timeAgo: apiPost.created_at ? getTimeAgo(apiPost.created_at) : 'Recently'
+        timeAgo: apiPost.created_at ? getTimeAgo(apiPost.created_at) : 'Recently',
+        is_verified: apiPost.user?.is_identity_verified || apiPost.author?.is_verified || false,
       },
       content: {
         title: apiPost.title || '',

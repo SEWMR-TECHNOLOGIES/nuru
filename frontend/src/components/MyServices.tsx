@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { formatPrice } from '@/utils/formatPrice';
 import { Star, CheckCircle, Users, Plus, Edit, Eye, Package, Loader2, Camera, MapPin, ChevronRight, BookOpen, Upload, Trash2, X, ImagePlus } from 'lucide-react';
+import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import CalendarSVG from '@/assets/icons/calendar-icon.svg';
 import PhotosSVG from '@/assets/icons/photos-icon.svg';
 import { Button } from '@/components/ui/button';
@@ -236,7 +237,7 @@ const MyServices = () => {
                   <div className="absolute top-3 left-3 flex gap-2">
                     {isVerified && (
                       <Badge className="bg-green-500 text-white border-0 shadow">
-                        <CheckCircle className="w-3 h-3 mr-1" /> Verified
+                        <VerifiedServiceBadge size="xs" className="brightness-200" /> Verified
                       </Badge>
                     )}
                     {!isVerified && service.verification_status === 'pending' && (

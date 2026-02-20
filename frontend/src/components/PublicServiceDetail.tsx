@@ -5,6 +5,7 @@ import {
   Award, Briefcase, X, MessageSquare,
   ArrowUpRight, Shield, Users, Loader2
 } from 'lucide-react';
+import { VerifiedServiceBadge, VerifiedServiceBadgeWithLabel } from '@/components/ui/verified-badge';
 import calendarIcon from '@/assets/icons/calendar-icon.svg';
 import locationIcon from '@/assets/icons/location-icon.svg';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -243,12 +244,12 @@ const PublicServiceDetail = () => {
                 {(service as any).service_category?.name || (service as any).category?.name || 'Service'}
               </Badge>
               {isVerified && (
-                <Badge className="bg-emerald-500/90 text-white border-0 text-xs gap-1">
-                  <Shield className="w-3 h-3" /> Verified
-                </Badge>
+                <span className="inline-flex items-center gap-1 bg-emerald-500/90 text-white border-0 text-xs px-2 py-0.5 rounded-full">
+                  <VerifiedServiceBadge size="xs" className="brightness-200" /> Verified
+                </span>
               )}
             </div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-white leading-tight">{service.title}</h1>
+            <h1 className="text-3xl sm:text-4xl font-bold text-white leading-tight flex items-center gap-2">{service.title}</h1>
             {service.location && (
               <p className="text-white/80 text-sm mt-1.5 flex items-center gap-1">
                 <img src={locationIcon} alt="location" className="w-3.5 h-3.5 dark:invert" />{service.location}
@@ -294,9 +295,7 @@ const PublicServiceDetail = () => {
               <p className="text-xs text-muted-foreground mb-0.5">Service Provider</p>
               <p className="font-semibold text-foreground truncate">{ownerName}</p>
               {isVerified && (
-                <span className="text-xs text-emerald-600 flex items-center gap-1 mt-0.5">
-                  <CheckCircle className="w-3 h-3" /> Verified Professional
-                </span>
+                <VerifiedServiceBadgeWithLabel size="xs" />
               )}
             </div>
           </div>

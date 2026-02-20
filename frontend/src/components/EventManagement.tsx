@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2, Images } from 'lucide-react';
+import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
@@ -570,8 +571,8 @@ const EventManagement = () => {
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
+                        {service.verified && <VerifiedServiceBadge size="xs" />}
                         <span className="font-medium truncate">{service.title}</span>
-                        {service.verified && <Badge className="bg-green-100 text-green-800 text-xs flex-shrink-0"><CheckCircle2 className="w-3 h-3 mr-1" />Verified</Badge>}
                       </div>
                       <div className="flex items-center gap-1.5 text-sm text-muted-foreground flex-wrap">
                         <span className="truncate">{service.category_name || service.category || service.service_type_name}</span>

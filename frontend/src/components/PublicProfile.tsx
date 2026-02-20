@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  CheckCircle, Users, UserPlus, UserMinus, Loader2, 
+  Users, UserPlus, UserMinus, Loader2, 
   Link as LinkIcon, Briefcase, Star
 } from 'lucide-react';
+import { VerifiedUserBadge, VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import CameraIcon from '@/assets/icons/camera-icon.svg';
@@ -282,10 +283,10 @@ const PublicProfile = () => {
         className="pt-10 px-1"
       >
         <div className="flex items-center gap-2 mb-0.5">
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">{fullName}</h1>
           {user.is_identity_verified && (
-            <CheckCircle className="w-5 h-5 text-blue-500 flex-shrink-0" />
+            <VerifiedUserBadge size="md" />
           )}
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">{fullName}</h1>
           {user.is_vendor && (
              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-semibold text-primary">
                <Briefcase className="w-3 h-3" /> Vendor
@@ -518,10 +519,10 @@ const PublicProfile = () => {
                           </div>
                           <div className="p-3">
                             <div className="flex items-center gap-1.5">
-                              <h3 className="font-medium text-sm text-foreground truncate">{service.title}</h3>
                               {service.verification_status === 'verified' && (
-                                <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                                <VerifiedServiceBadge size="xs" />
                               )}
+                              <h3 className="font-medium text-sm text-foreground truncate">{service.title}</h3>
                             </div>
                             <p className="text-xs text-muted-foreground mt-0.5">{service.service_category?.name}</p>
                           </div>

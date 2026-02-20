@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Star, CheckCircle, Loader2, SlidersHorizontal, X, ChevronRight, MapPin, SearchX, LocateFixed } from 'lucide-react';
+import { Search, Star, Loader2, SlidersHorizontal, X, ChevronRight, MapPin, SearchX, LocateFixed } from 'lucide-react';
+import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -535,7 +536,7 @@ const FindServices = () => {
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="font-semibold text-foreground text-[15px] leading-tight line-clamp-1 flex items-center gap-1.5">
                       {provider.verification_status === 'verified' && (
-                        <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                        <VerifiedServiceBadge size="sm" />
                       )}
                       {provider.title}
                     </h3>
