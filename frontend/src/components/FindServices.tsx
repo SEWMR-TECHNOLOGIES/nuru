@@ -35,6 +35,17 @@ const ServiceCardSkeleton = () => (
 
 const PAGE_SIZE = 20;
 
+// ── Module-level cache ──
+interface FindServicesCache {
+  services: UserService[];
+  totalResults: number;
+  locations: Array<{ name: string; count: number }>;
+  maxPrice: number;
+  hasMore: boolean;
+  ts: number;
+}
+let _findServicesCache: FindServicesCache | null = null;
+
 const FindServices = () => {
   useWorkspaceMeta({
     title: 'Find Services',
@@ -44,9 +55,11 @@ const FindServices = () => {
   const navigate = useNavigate();
   const { categories: apiCategories, loading: categoriesLoading } = useServiceCategories();
 
+  const cached = _findServicesCache;
+
   // State
-  const [services, setServices] = useState<UserService[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [services, setServices] = useState<UserService[]>(cached?.services || []);
+  const [loading, setLoading] = useState(!cached);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -54,18 +67,18 @@ const FindServices = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedLocation, setSelectedLocation] = useState('all');
   const [sortBy, setSortBy] = useState<ServiceQueryParams['sort_by']>('relevance');
-  const [locations, setLocations] = useState<Array<{ name: string; count: number }>>([]);
-  const [totalResults, setTotalResults] = useState(0);
+  const [locations, setLocations] = useState<Array<{ name: string; count: number }>>(cached?.locations || []);
+  const [totalResults, setTotalResults] = useState(cached?.totalResults || 0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000000]);
-  const [maxPriceAvailable, setMaxPriceAvailable] = useState(10000000);
+  const [hasMore, setHasMore] = useState(cached?.hasMore ?? true);
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, cached?.maxPrice || 10000000]);
+  const [maxPriceAvailable, setMaxPriceAvailable] = useState(cached?.maxPrice || 10000000);
   const [showPriceFilter, setShowPriceFilter] = useState(false);
   const [userLat, setUserLat] = useState<number | undefined>();
   const [userLng, setUserLng] = useState<number | undefined>();
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [locatingUser, setLocatingUser] = useState(false);
-  const initialLoad = useRef(true);
+  const initialLoad = useRef(!cached);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -115,8 +128,11 @@ const FindServices = () => {
 
   // Fetch services
   const fetchServices = useCallback(async (page: number, append = false) => {
-    if (!append) setLoading(true);
-    else setLoadingMore(true);
+    if (!append) {
+      if (initialLoad.current) setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
     setError(null);
 
     try {
@@ -126,30 +142,51 @@ const FindServices = () => {
         const data = response.data as any;
         const newServices = data.services || [];
 
+        const updatedServices = append ? [...services, ...newServices] : newServices;
+        const updatedTotal = data.pagination?.total_items || newServices.length;
+        const updatedHasMore = data.pagination?.has_next ?? newServices.length === PAGE_SIZE;
+
         if (append) {
-          setServices(prev => [...prev, ...newServices]);
+          setServices(updatedServices);
         } else {
           setServices(newServices);
         }
 
-        setTotalResults(data.pagination?.total_items || newServices.length);
-        setHasMore(data.pagination?.has_next ?? newServices.length === PAGE_SIZE);
+        setTotalResults(updatedTotal);
+        setHasMore(updatedHasMore);
 
         // Extract locations from filters
+        let updatedLocations = locations;
         if (data.filters?.locations) {
-          setLocations(data.filters.locations);
+          updatedLocations = data.filters.locations;
+          setLocations(updatedLocations);
         } else if (!append) {
           const locs = [...new Set((newServices).map((s: any) => s.location).filter(Boolean))];
-          setLocations(locs.map((l: string) => ({ name: l, count: 0 })));
+          updatedLocations = locs.map((l: string) => ({ name: l, count: 0 }));
+          setLocations(updatedLocations);
         }
 
         // Extract price range from filters
+        let updatedMaxPrice = maxPriceAvailable;
         if (data.filters?.price_range && !append) {
           const max = data.filters.price_range.max || 10000000;
+          updatedMaxPrice = max;
           setMaxPriceAvailable(max);
           if (priceRange[1] === 10000000 || priceRange[1] > max) {
             setPriceRange([priceRange[0], max]);
           }
+        }
+
+        // Update module-level cache (only for first page with no filters)
+        if (!append && page === 1 && !debouncedSearch && selectedCategory === 'all' && selectedLocation === 'all') {
+          _findServicesCache = {
+            services: newServices,
+            totalResults: updatedTotal,
+            locations: updatedLocations,
+            maxPrice: updatedMaxPrice,
+            hasMore: updatedHasMore,
+            ts: Date.now(),
+          };
         }
       } else {
         setError(response.message || 'Failed to load services');
@@ -161,7 +198,7 @@ const FindServices = () => {
       setLoadingMore(false);
       initialLoad.current = false;
     }
-  }, [buildParams, priceRange]);
+  }, [buildParams, priceRange, services, locations, maxPriceAvailable, debouncedSearch, selectedCategory, selectedLocation]);
 
   // Initial fetch & filter-change fetch
   useEffect(() => {

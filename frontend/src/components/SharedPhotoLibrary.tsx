@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Globe, Lock, X, ZoomIn, Download, ChevronLeft, ChevronRight, Camera } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { photoLibrariesApi, PhotoLibrary } from '@/lib/api/photoLibraries';
 import { showCaughtError } from '@/lib/api';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import nuruLogo from '@/assets/nuru-logo.png';
 import PhotosIcon from '@/assets/icons/photos-icon.svg';
 import CalendarIconSVG from '@/assets/icons/calendar-icon.svg';
@@ -15,6 +17,8 @@ import LocationIcon from '@/assets/icons/location-icon.svg';
 
 const SharedPhotoLibrary = () => {
   const { token } = useParams<{ token: string }>();
+  const navigate = useNavigate();
+  const { data: currentUser, userIsLoggedIn } = useCurrentUser();
   const [library, setLibrary] = useState<PhotoLibrary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,11 +50,15 @@ const SharedPhotoLibrary = () => {
 
   const photos = library?.photos || [];
 
+  // ── User initials for avatar fallback ──
+  const userInitials = currentUser
+    ? `${currentUser.first_name?.[0] || ''}${currentUser.last_name?.[0] || ''}`.toUpperCase()
+    : '';
+
   // ─── LOADING ───
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        {/* Skeleton header */}
         <div className="border-b border-border">
           <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
             <Skeleton className="h-8 w-24" />
@@ -73,15 +81,23 @@ const SharedPhotoLibrary = () => {
   if (error || !library) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        {/* Branded header */}
         <header className="border-b border-border">
           <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
             <Link to="/">
               <img src={nuruLogo} alt="Nuru" className="h-8 w-auto" />
             </Link>
-            <Button asChild variant="outline" size="sm" className="rounded-full">
-              <Link to="/register">Join Nuru</Link>
-            </Button>
+            {userIsLoggedIn ? (
+              <button onClick={() => navigate('/')} className="flex items-center gap-2">
+                <Avatar className="w-8 h-8">
+                  {currentUser?.avatar && <AvatarImage src={currentUser.avatar} />}
+                  <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">{userInitials}</AvatarFallback>
+                </Avatar>
+              </button>
+            ) : (
+              <Button asChild variant="outline" size="sm" className="rounded-full">
+                <Link to="/register">Join Nuru</Link>
+              </Button>
+            )}
           </div>
         </header>
         <div className="flex-1 flex items-center justify-center px-6">
@@ -96,7 +112,6 @@ const SharedPhotoLibrary = () => {
             </Button>
           </div>
         </div>
-        {/* Mini footer */}
         <footer className="border-t border-border py-6 text-center">
           <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} Nuru — Plan Smarter</p>
         </footer>
@@ -117,9 +132,25 @@ const SharedPhotoLibrary = () => {
             <span className="hidden sm:inline text-xs text-muted-foreground">
               Shared Photo Library
             </span>
-            <Button asChild size="sm" className="rounded-full bg-foreground text-background hover:bg-foreground/90 px-5 text-xs font-medium">
-              <Link to="/register">Join Nuru</Link>
-            </Button>
+            {userIsLoggedIn ? (
+              <button
+                onClick={() => navigate('/')}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted hover:bg-muted/80 transition-colors"
+                title="Go to Dashboard"
+              >
+                <Avatar className="w-7 h-7">
+                  {currentUser?.avatar && <AvatarImage src={currentUser.avatar} />}
+                  <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-semibold">{userInitials}</AvatarFallback>
+                </Avatar>
+                <span className="text-xs font-medium text-foreground hidden sm:inline">
+                  {currentUser?.first_name || 'Dashboard'}
+                </span>
+              </button>
+            ) : (
+              <Button asChild size="sm" className="rounded-full bg-foreground text-background hover:bg-foreground/90 px-5 text-xs font-medium">
+                <Link to="/register">Join Nuru</Link>
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -135,22 +166,17 @@ const SharedPhotoLibrary = () => {
             transition={{ duration: 0.5 }}
             className="relative rounded-2xl overflow-hidden mb-8 h-56 sm:h-64"
           >
-            {/* Background: first photo or gradient */}
             {photos.length > 0 ? (
               <img src={photos[0].url} alt="" className="absolute inset-0 w-full h-full object-cover" />
             ) : (
               <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-primary/10 to-background" />
             )}
-            {/* Dark overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/10" />
-            {/* Dot pattern */}
             <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '24px 24px' }} />
 
-            {/* Content */}
             <div className="absolute inset-0 flex flex-col justify-end p-6 sm:p-8">
               <div className="flex items-end justify-between gap-4">
                 <div className="min-w-0 flex-1">
-                  {/* Event badge */}
                   {library.event && (
                     <div className="flex flex-wrap items-center gap-2 mb-3">
                       <Badge className="bg-white/15 backdrop-blur-sm text-white border-white/20 text-[11px] font-medium gap-1.5">
@@ -164,7 +190,6 @@ const SharedPhotoLibrary = () => {
                     </div>
                   )}
                   <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight truncate">{library.name}</h1>
-                  {/* Meta row */}
                   <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2">
                     {library.event?.start_date && (
                       <div className="flex items-center gap-1.5 text-white/70 text-xs">
@@ -185,7 +210,6 @@ const SharedPhotoLibrary = () => {
                   </div>
                 </div>
 
-                {/* Nuru watermark */}
                 <div className="hidden sm:flex flex-col items-end shrink-0">
                   <img src={nuruLogo} alt="Nuru" className="h-5 w-auto brightness-0 invert opacity-60" />
                   <span className="text-[10px] text-white/40 mt-1">Plan Smarter</span>
@@ -194,7 +218,6 @@ const SharedPhotoLibrary = () => {
             </div>
           </motion.div>
 
-          {/* Description */}
           {library.description && (
             <p className="text-sm text-muted-foreground mb-6 max-w-2xl">{library.description}</p>
           )}
@@ -246,12 +269,27 @@ const SharedPhotoLibrary = () => {
             className="mt-16 rounded-2xl bg-foreground text-background p-8 sm:p-10 flex flex-col sm:flex-row items-center justify-between gap-6"
           >
             <div className="text-center sm:text-left">
-              <h3 className="text-xl font-bold mb-1.5">Plan your own event with Nuru</h3>
-              <p className="text-background/60 text-sm">Create photo libraries, manage guests, and coordinate vendors — all in one workspace.</p>
+              {userIsLoggedIn ? (
+                <>
+                  <h3 className="text-xl font-bold mb-1.5">Create your own photo library</h3>
+                  <p className="text-background/60 text-sm">Manage event photos, share galleries, and coordinate with vendors — all in one workspace.</p>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-xl font-bold mb-1.5">Plan your own event with Nuru</h3>
+                  <p className="text-background/60 text-sm">Create photo libraries, manage guests, and coordinate vendors — all in one workspace.</p>
+                </>
+              )}
             </div>
-            <Button asChild size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full px-8 font-semibold shrink-0">
-              <Link to="/register">Get Started Free</Link>
-            </Button>
+            {userIsLoggedIn ? (
+              <Button size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full px-8 font-semibold shrink-0" onClick={() => navigate('/')}>
+                Go to Dashboard
+              </Button>
+            ) : (
+              <Button asChild size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full px-8 font-semibold shrink-0">
+                <Link to="/register">Get Started Free</Link>
+              </Button>
+            )}
           </motion.div>
         </div>
       </main>
@@ -274,7 +312,6 @@ const SharedPhotoLibrary = () => {
       {/* ─── LIGHTBOX ─── */}
       {lightboxIdx !== null && (
         <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center" onClick={() => setLightboxIdx(null)}>
-          {/* Top bar with branding */}
           <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4">
             <div className="flex items-center gap-2">
               <img src={nuruLogo} alt="Nuru" className="h-5 w-auto brightness-0 invert opacity-70" />

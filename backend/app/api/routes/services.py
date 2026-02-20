@@ -392,18 +392,32 @@ def get_service_details(service_id: str, db: Session = Depends(get_db)):
             "created_at": r.created_at.isoformat()
         })
 
+    # Count completed events for this service
+    completed_events = db.query(sa_func.count(EventService.id)).filter(
+        EventService.provider_user_service_id == sid,
+        EventService.service_status == "completed",
+    ).scalar() or 0
+
+    owner_name = f"{service.user.first_name} {service.user.last_name}".strip()
+    owner_avatar = service.user.profile.profile_picture_url if service.user and service.user.profile else None
+
     data = {
         "id": str(service.id),
         "title": service.title,
         "description": service.description,
+        "short_description": (service.description[:120] + "…") if service.description and len(service.description) > 120 else service.description,
         "provider": {
             "id": str(service.user.id),
-            "name": f"{service.user.first_name} {service.user.last_name}",
-            "avatar": service.user.profile.profile_picture_url if service.user.profile else None,
+            "name": owner_name,
+            "avatar": owner_avatar,
             "bio": service.user.profile.bio if service.user.profile else None,
             "location": service.user.profile.location if service.user.profile else None,
             "verified": service.user.is_identity_verified
         },
+        "owner_name": owner_name,
+        "owner_avatar": owner_avatar,
+        "user_id": str(service.user.id),
+        "service_category": {"name": service.category.name} if service.category else None,
         "category": service.category.name if service.category else None,
         "service_type": service.service_type.name if service.service_type else None,
         "min_price": float(service.min_price) if service.min_price else None,
@@ -415,9 +429,14 @@ def get_service_details(service_id: str, db: Session = Depends(get_db)):
         "rating": avg_rating,
         "review_count": len(ratings),
         "verified": service.is_verified,
+        "is_verified": service.is_verified,
+        "verification_status": service.verification_status.value if hasattr(service.verification_status, "value") else str(service.verification_status) if service.verification_status else None,
         "availability": service.availability.value if hasattr(service.availability, "value") else service.availability,
+        "years_experience": service.years_experience if hasattr(service, "years_experience") else 0,
+        "completed_events": completed_events,
         "packages": packages,
         "reviews_preview": reviews_preview,
+        "is_owner": False,  # Public endpoint — viewer is never the owner
         "created_at": service.created_at.isoformat()
     }
 
