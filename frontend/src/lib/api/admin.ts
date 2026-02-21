@@ -6,7 +6,7 @@
 
 import type { ApiResponse } from "./types";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://api.nuru.tz/api/v1";
 
 // ── Admin-specific request helper ─────────────────────────────────────────────
 // Always attaches the admin_token, never the regular user token.

@@ -3,7 +3,7 @@
  */
 import type { ApiResponse } from "./types";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://api.nuru.tz/api/v1";
 
 async function publicRequest<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
   const url = `${BASE_URL}${endpoint}`;

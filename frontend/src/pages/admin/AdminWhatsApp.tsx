@@ -131,10 +131,14 @@ export default function AdminWhatsApp() {
       const res = await adminApi.getWAConversations({ q: searchQuery || undefined });
       if (res.success && res.data) {
         const list = Array.isArray(res.data) ? res.data : [];
+        const prev = JSON.stringify(_waConvCache);
+        const next = JSON.stringify(list);
         _waConvCache = list;
-        setConversations(list);
-        setIsOnline(true);
-        setLastSync(new Date());
+        if (prev !== next) {
+          setConversations(list);
+          setLastSync(new Date());
+        }
+        if (!isOnline) setIsOnline(true);
       }
     } catch {
       setIsOnline(false);
@@ -143,7 +147,7 @@ export default function AdminWhatsApp() {
       setConvLoading(false);
       initialConvLoad.current = false;
     }
-  }, [searchQuery]);
+  }, [searchQuery, isOnline]);
 
   useEffect(() => {
     loadConversations();

@@ -4,7 +4,7 @@
 
 import type { ApiResponse } from "./types";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://api.nuru.tz/api/v1";
 
 /**
  * Get authorization headers with token if available
