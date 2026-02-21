@@ -129,7 +129,7 @@ export const generateContributionReportHtml = (
         ${summary.budget ? `<div class="summary-card" style="background:#fef2f2"><div class="label" style="color:#991b1b">Budget Shortfall</div><div class="value" style="color:${Math.max(0, summary.budget - summaryPledged) > 0 ? '#dc2626' : '#16a34a'}">${fmt(Math.max(0, summary.budget - summaryPledged))}</div></div>` : ''}
       </div>
 
-      ${summary.budget ? `<p style="font-size:12px;color:#666;margin-bottom:16px">Budget coverage: <strong>${((summaryPaid / summary.budget) * 100).toFixed(1)}%</strong> of event budget raised so far.${summary.budget ? `<span style="float:right">Pledge coverage: <strong style="color:#7c3aed">${((summaryPledged / summary.budget) * 100).toFixed(1)}%</strong> of event budget pledged.</span>` : ''}</p>` : ''}
+      ${summary.budget ? `<p style="font-size:12px;color:#666;margin-bottom:16px">Budget coverage: <strong>${((summaryPaid / summary.budget) * 100).toFixed(1)}%</strong> of event budget raised so far.${summary.budget ? `<span style="float:right">Pledge coverage: <strong style="color:#7c3aed">${((summaryPledged / summary.budget) * 100).toFixed(1)}%</strong> of event budget.</span>` : ''}</p>` : ''}
       ${dateRangeLabel ? `<p style="font-size:11px;color:#7c3aed;margin-bottom:16px;font-style:italic">The table below shows payments recorded within the selected period (${dateRangeLabel}). Summary cards above reflect all-time totals.</p>` : ''}
 
       <table>
