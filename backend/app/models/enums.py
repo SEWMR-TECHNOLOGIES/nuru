@@ -221,3 +221,15 @@ class ServiceMediaTypeEnum(enum.Enum):
 class BusinessPhoneStatusEnum(enum.Enum):
     pending = "pending"
     verified = "verified"
+
+
+class WAMessageDirectionEnum(enum.Enum):
+    inbound = "inbound"
+    outbound = "outbound"
+
+
+class WAMessageStatusEnum(enum.Enum):
+    sent = "sent"
+    delivered = "delivered"
+    read = "read"
+    failed = "failed"

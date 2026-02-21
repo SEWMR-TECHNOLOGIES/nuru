@@ -282,4 +282,23 @@ export const adminApi = {
   },
   reviewAppeal: (appealId: string, decision: "approved" | "rejected", notes?: string) =>
     aPut<any>(`/admin/appeals/${appealId}/review`, { decision, notes }),
+
+  // WhatsApp Conversations
+  getWAConversations: (params?: any) => {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set("page", params.page);
+    if (params?.limit) qs.set("limit", params.limit);
+    if (params?.q) qs.set("q", params.q);
+    return aGet<any>(`/admin/whatsapp/conversations${qs.toString() ? `?${qs}` : ""}`);
+  },
+  getWAMessages: (conversationId: string, params?: any) => {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set("page", params.page);
+    if (params?.limit) qs.set("limit", params.limit);
+    return aGet<any>(`/admin/whatsapp/conversations/${conversationId}/messages${qs.toString() ? `?${qs}` : ""}`);
+  },
+  sendWAMessage: (conversationId: string, content: string) =>
+    aPost<any>(`/admin/whatsapp/conversations/${conversationId}/send`, { content }),
+  markWAConversationRead: (conversationId: string) =>
+    aPut<any>(`/admin/whatsapp/conversations/${conversationId}/read`),
 };

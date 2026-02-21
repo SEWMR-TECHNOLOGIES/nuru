@@ -49,6 +49,27 @@ serve(async (req) => {
       const entry = body?.entry?.[0];
       const changes = entry?.changes?.[0];
       const value = changes?.value;
+
+      // ── Handle status updates ──
+      const statuses = value?.statuses;
+      if (statuses && statuses.length > 0) {
+        for (const statusUpdate of statuses) {
+          const waMessageId = statusUpdate.id;
+          const status = statusUpdate.status; // sent, delivered, read, failed
+          if (waMessageId && status && API_BASE) {
+            try {
+              await fetch(`${API_BASE}/whatsapp/status-update`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ wa_message_id: waMessageId, status }),
+              });
+            } catch (e) {
+              console.error("Status update store error:", e);
+            }
+          }
+        }
+      }
+
       const message = value?.messages?.[0];
 
       if (!message) {
@@ -59,12 +80,32 @@ serve(async (req) => {
       }
 
       const from = message.from;
-      const text = message.text?.body?.trim().toUpperCase() || "";
+      const text = message.text?.body?.trim() || "";
       const whatsAppName = value?.contacts?.[0]?.profile?.name || "Guest";
+      const waMessageId = message.id;
 
       console.log(`Message from ${from} (${whatsAppName}): ${text}`);
 
-      // Single lookup to resolve guest identity from DB
+      // ── Store incoming message in backend ──
+      if (API_BASE) {
+        try {
+          await fetch(`${API_BASE}/whatsapp/incoming`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              phone: from,
+              content: text,
+              wa_message_id: waMessageId,
+              contact_name: whatsAppName,
+            }),
+          });
+        } catch (e) {
+          console.error("Incoming message store error:", e);
+        }
+      }
+
+      // ── Bot auto-reply logic ──
+      const upperText = text.toUpperCase();
       const lookup = await lookupGuest(from, API_BASE);
       const guestFullName = lookup?.guest_name || whatsAppName;
       const firstName = extractFirstName(guestFullName);
@@ -72,13 +113,13 @@ serve(async (req) => {
 
       let replyText = "";
 
-      if (text === "YES" || text === "CONFIRM") {
+      if (upperText === "YES" || upperText === "CONFIRM") {
         replyText = await handleRSVP(invitationCode, "confirmed", firstName, API_BASE);
-      } else if (text === "NO" || text === "DECLINE") {
+      } else if (upperText === "NO" || upperText === "DECLINE") {
         replyText = await handleRSVP(invitationCode, "declined", firstName, API_BASE);
-      } else if (text === "DETAILS" || text === "INFO") {
+      } else if (upperText === "DETAILS" || upperText === "INFO") {
         replyText = await handleDetails(invitationCode, firstName, API_BASE);
-      } else if (text === "HELP") {
+      } else if (upperText === "HELP") {
         replyText =
           `👋 Hi ${firstName}! Here's how to use Nuru:\n\n` +
           `✅ *YES* or *CONFIRM* — Accept an invitation\n` +
@@ -86,12 +127,32 @@ serve(async (req) => {
           `ℹ️ *DETAILS* — Get event details\n` +
           `❓ *HELP* — Show this menu`;
       } else {
-        replyText =
-          `Hi ${firstName}! I didn't understand that.\n\n` +
-          `Reply *HELP* to see available commands.`;
+        // No auto-reply for unrecognized messages - let admin handle it
+        replyText = "";
       }
 
-      await sendWhatsAppMessage(from, replyText, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+      if (replyText) {
+        const sendResult = await sendWhatsAppMessage(from, replyText, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+
+        // Store bot reply in backend
+        if (API_BASE && sendResult?.messageId) {
+          try {
+            await fetch(`${API_BASE}/whatsapp/incoming`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                phone: from,
+                content: replyText,
+                wa_message_id: sendResult.messageId,
+                contact_name: "Nuru Bot",
+                direction: "outbound",
+              }),
+            });
+          } catch (e) {
+            console.error("Bot reply store error:", e);
+          }
+        }
+      }
 
       return new Response(JSON.stringify({ status: "ok" }), {
         status: 200,
@@ -110,8 +171,6 @@ serve(async (req) => {
 });
 
 // ── Title-aware first name extraction ─────────────────
-// Preserves honorifics/titles as part of the first name.
-// e.g. "Dr. John Okelo" → "Dr. John", "Frank Mushi" → "Frank"
 const TITLE_PATTERN = /^((?:(?:Dr|Prof|Eng|Mr|Mrs|Ms|Miss|Mx|Hon|Rev|Pr|Sr|Jr|Capt|Col|Gen|Sgt|Cpl|Lt|Maj|Amb|Dkt|Mheshimiwa|Mwl|Sheikh|Imam|Bishop|Pastor|Father|Fr|Sister|Br|Brother|Dame|Sir|Lady|Lord|Chief|Justice|Judge|Adv|Advocate|Barrister|Solicitor|Atty|CPA|Arch|Comm|Comdr|Admiral|Cmdr|Brig|Pvt|Cdr|Gov|Pres|PM|VP|MP|Sen|Dip|Pharm|Nurse|Nrs|Doc|Dcn|Elder|Apostle|Prophet|Evangelist|Canon|Cardinal|Msgr|Monsignor|Abbess|Abbot|Prior|Prioress|Deacon|Vicar|Curate|Chaplain|Min|Mch)\.?\s+)+)(\S+)/i;
 
 function extractFirstName(fullName: string): string {
@@ -124,7 +183,6 @@ function extractFirstName(fullName: string): string {
     const first = match[2] || "";
     return title ? `${title} ${first}` : first;
   }
-  // No title found — just take the first word
   return trimmed.split(/\s+/)[0] || "Guest";
 }
 
@@ -152,7 +210,7 @@ async function lookupGuest(
   return null;
 }
 
-// ── RSVP handler (uses pre-resolved code & name) ──────
+// ── RSVP handler ──────
 async function handleRSVP(
   code: string | null,
   status: "confirmed" | "declined",
@@ -186,7 +244,7 @@ async function handleRSVP(
   }
 }
 
-// ── Details handler (uses pre-resolved code & name) ───
+// ── Details handler ───
 async function handleDetails(
   code: string | null,
   name: string,
@@ -231,25 +289,34 @@ async function sendWhatsAppMessage(
   text: string,
   accessToken: string,
   phoneNumberId: string
-) {
+): Promise<{ messageId?: string } | null> {
   const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to,
-      type: "text",
-      text: { body: text },
-    }),
-  });
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        type: "text",
+        text: { body: text },
+      }),
+    });
 
-  if (!res.ok) {
-    const err = await res.text();
-    console.error(`Failed to send message to ${to}:`, err);
+    if (!res.ok) {
+      const err = await res.text();
+      console.error(`Failed to send message to ${to}:`, err);
+      return null;
+    }
+
+    const data = await res.json();
+    return { messageId: data.messages?.[0]?.id };
+  } catch (e) {
+    console.error(`Error sending message to ${to}:`, e);
+    return null;
   }
 }

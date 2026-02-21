@@ -2204,3 +2204,38 @@ CREATE TABLE page_views (
 CREATE INDEX idx_page_views_created_at ON page_views(created_at);
 CREATE INDEX idx_page_views_path ON page_views(path);
 CREATE INDEX idx_page_views_visitor_id ON page_views(visitor_id);
+
+-- ──────────────────────────────────────────────
+-- WhatsApp Admin Chat
+-- ──────────────────────────────────────────────
+CREATE TYPE wa_message_direction_enum AS ENUM ('inbound', 'outbound');
+CREATE TYPE wa_message_status_enum AS ENUM ('sent', 'delivered', 'read', 'failed');
+
+CREATE TABLE wa_conversations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    phone VARCHAR(20) NOT NULL UNIQUE,
+    contact_name VARCHAR(255) DEFAULT '',
+    last_message TEXT DEFAULT '',
+    last_activity_at TIMESTAMPTZ DEFAULT now(),
+    unread_count INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_wa_conversations_phone ON wa_conversations(phone);
+CREATE INDEX idx_wa_conversations_last_activity ON wa_conversations(last_activity_at DESC);
+
+CREATE TABLE wa_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    conversation_id UUID NOT NULL REFERENCES wa_conversations(id) ON DELETE CASCADE,
+    wa_message_id VARCHAR(255) UNIQUE,
+    direction wa_message_direction_enum NOT NULL,
+    content TEXT NOT NULL,
+    status wa_message_status_enum DEFAULT 'sent',
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_wa_messages_conversation ON wa_messages(conversation_id);
+CREATE INDEX idx_wa_messages_wa_id ON wa_messages(wa_message_id);
+CREATE INDEX idx_wa_messages_created ON wa_messages(created_at);

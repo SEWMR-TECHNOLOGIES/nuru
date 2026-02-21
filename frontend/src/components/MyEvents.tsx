@@ -203,13 +203,13 @@ const MyEvents = () => {
             )}
 
             {/* Bottom overlay: date + actions */}
-            <div className="absolute bottom-0 left-0 right-0 flex items-end justify-between px-4 pb-3">
+            <div className="absolute bottom-0 left-0 right-0 flex flex-wrap items-end justify-between gap-2 px-4 pb-3">
               {eventDate && (
                 <p className="text-white/90 text-sm font-medium drop-shadow">
                   {new Date(eventDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </p>
               )}
-              <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
+              <div className="flex flex-wrap gap-1.5" onClick={e => e.stopPropagation()}>
                 <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white text-foreground shadow h-7 px-2.5 text-xs"
                   onClick={() => navigate(`/create-event?edit=${event.id}`)}>
                   <Edit2 className="w-3 h-3 mr-1" /> Edit
@@ -342,7 +342,7 @@ const MyEvents = () => {
             </div>
 
             {/* Actions row */}
-            <div className="flex items-center gap-1.5 pt-1" onClick={e => e.stopPropagation()}>
+            <div className="flex flex-wrap items-center gap-1.5 pt-1" onClick={e => e.stopPropagation()}>
               {/* Status selector */}
               <Select value={getEventStatus(event)} onValueChange={val => handleStatusChange(event.id, val)} disabled={updatingStatus === event.id}>
                 <SelectTrigger className={`h-7 w-[110px] text-[11px] font-medium rounded-md border-0 ${cfg.cls}`}>

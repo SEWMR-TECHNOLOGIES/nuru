@@ -6,7 +6,7 @@ import {
   LogOut, Menu,
   Package, Briefcase, Newspaper, Sparkles, Users2,
   BookOpen, CreditCard, Tag, UserCog, BadgeCheck, AlertTriangle,
-  BarChart3,
+  BarChart3, MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -28,6 +28,7 @@ const navItems = [
   { label: "Bookings", icon: BookOpen, to: "/admin/bookings" },
   { label: "NuruCard Orders", icon: CreditCard, to: "/admin/nuru-cards" },
   { label: "Live Chats", icon: MessageSquare, to: "/admin/chats" },
+  { label: "WhatsApp", icon: MessageCircle, to: "/admin/whatsapp" },
   { label: "Support Tickets", icon: HeadphonesIcon, to: "/admin/tickets" },
   { label: "FAQs", icon: HelpCircle, to: "/admin/faqs" },
   { label: "Notifications", icon: Bell, to: "/admin/notifications" },

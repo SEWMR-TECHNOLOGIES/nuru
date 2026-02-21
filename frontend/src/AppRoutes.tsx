@@ -96,6 +96,7 @@ import AdminKycDetail from "@/pages/admin/AdminKycDetail";
 import AdminServiceDetail from "@/pages/admin/AdminServiceDetail";
 import AdminAppeals from "@/pages/admin/AdminAppeals";
 import AdminAnalytics from "@/pages/admin/AdminAnalytics";
+import AdminWhatsApp from "@/pages/admin/AdminWhatsApp";
 
 // Inner component that uses router hooks (must be inside BrowserRouter)
 
@@ -217,6 +218,7 @@ function InnerRoutes() {
           <Route path="services/:id" element={<AdminServiceDetail />} />
           <Route path="appeals" element={<AdminAppeals />} />
           <Route path="analytics" element={<AdminAnalytics />} />
+          <Route path="whatsapp" element={<AdminWhatsApp />} />
         </Route>
 
 

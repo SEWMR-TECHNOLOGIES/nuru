@@ -16,6 +16,7 @@ from models.enums import (
     PhotoLibraryPrivacyEnum,
     TicketStatusEnum, TicketOrderStatusEnum,
     EventShareDurationEnum, ServiceMediaTypeEnum, BusinessPhoneStatusEnum,
+    WAMessageDirectionEnum, WAMessageStatusEnum,
 )
 from models.references import (
     Currency, Country, ServiceCategory, KYCRequirement,
@@ -76,3 +77,4 @@ from models.feed_ranking import (
     PostQualityScore, FeedImpression,
 )
 from models.page_views import PageView
+from models.whatsapp import WAConversation, WAMessage

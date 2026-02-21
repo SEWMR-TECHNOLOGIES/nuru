@@ -28,6 +28,7 @@ from .admin import router as admin_router
 from .photo_libraries import router as photo_libraries_router
 from .ticketing import router as ticketing_router
 from .analytics import router as analytics_router
+from .whatsapp_admin import router as whatsapp_admin_router
 
 # All routers to be included in main app
 all_routers = [
@@ -58,6 +59,7 @@ all_routers = [
     photo_libraries_router,    # /photo-libraries/...
     ticketing_router,          # /ticketing/...
     analytics_router,          # /analytics/...
+    whatsapp_admin_router,     # /whatsapp/... + /admin/whatsapp/...
 ]
 
 __all__ = [
@@ -88,5 +90,6 @@ __all__ = [
     "photo_libraries_router",
     "ticketing_router",
     "analytics_router",
+    "whatsapp_admin_router",
     "all_routers",
 ]

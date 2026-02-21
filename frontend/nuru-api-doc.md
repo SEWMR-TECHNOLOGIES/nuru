@@ -15469,3 +15469,59 @@ All OTP inputs across the platform now use consistent styling: `w-12 h-14 text-x
 - `cancelled` — Service cancelled
 
 ---
+
+### WhatsApp Admin Chat Module (2026-02-21)
+
+**Overview:** Full WhatsApp Web-style chat interface in the admin panel for real-time messaging with contacts via WhatsApp Business Cloud API.
+
+**Database Tables:**
+
+**`wa_conversations`** — Groups messages by phone number
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | Primary key |
+| phone | VARCHAR(20) | Unique phone number |
+| contact_name | VARCHAR(255) | Contact display name |
+| last_message | TEXT | Preview of last message |
+| last_activity_at | TIMESTAMPTZ | Timestamp of last activity |
+| unread_count | INTEGER | Number of unread messages |
+| is_active | BOOLEAN | Whether conversation is active |
+| created_at | TIMESTAMPTZ | Created timestamp |
+| updated_at | TIMESTAMPTZ | Updated timestamp |
+
+**`wa_messages`** — Individual messages within conversations
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | Primary key |
+| conversation_id | UUID | FK to wa_conversations |
+| wa_message_id | VARCHAR(255) | WhatsApp message ID (for status tracking) |
+| direction | ENUM(inbound, outbound) | Message direction |
+| content | TEXT | Message text content |
+| status | ENUM(sent, delivered, read, failed) | Delivery status |
+| created_at | TIMESTAMPTZ | Created timestamp |
+
+**Admin Endpoints:**
+
+`GET /admin/whatsapp/conversations` — List all conversations sorted by last activity
+- Response: `{ success, data: [{ id, phone, contact_name, last_message, last_activity_at, unread_count }] }`
+
+`GET /admin/whatsapp/conversations/{id}/messages?page=1&limit=50` — Paginated message history
+- Response: `{ success, data: { items: [{ id, direction, content, status, created_at }], total, page, pages } }`
+
+`POST /admin/whatsapp/conversations/{id}/send` — Send message to conversation
+- Body: `{ message: "Hello" }`
+- Response: `{ success, data: { id, direction, content, status, created_at } }`
+
+`PUT /admin/whatsapp/conversations/{id}/read` — Mark conversation as read (resets unread_count)
+
+**Internal Webhook Endpoints (called by whatsapp-webhook edge function):**
+
+`POST /whatsapp/incoming` — Store incoming message & update conversation
+- Body: `{ phone, name, content, wa_message_id }`
+
+`POST /whatsapp/status-update` — Update message delivery status
+- Body: `{ wa_message_id, status }`
+
+**Status Indicators:** ✓ Sent → ✓✓ Delivered → ✓✓ Read (blue)
+
+---
