@@ -66,7 +66,6 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
         sort_by: "rating",
         limit: 6,
       };
-      if (location) params.location = location;
       if (budget) {
         const budgetNum = parseFloat(String(budget).replace(/[^0-9.]/g, ""));
         if (!isNaN(budgetNum) && budgetNum > 0) {
@@ -74,10 +73,24 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
         }
       }
 
+      // Try with location first, fallback to all if no results
+      if (location) params.location = location;
       const response = await servicesApi.search(params);
       if (response.success && response.data?.services) {
-        setRecommendations(response.data.services);
-        if (response.data.services.length === 0) {
+        if (response.data.services.length > 0) {
+          setRecommendations(response.data.services);
+        } else if (location) {
+          // No results for this location — retry without location filter
+          const { location: _, ...fallbackParams } = params;
+          const fallback = await servicesApi.search(fallbackParams);
+          if (fallback.success && fallback.data?.services) {
+            setRecommendations(fallback.data.services);
+            if (fallback.data.services.length === 0) {
+              toast.info("No service providers found for this event type yet");
+            }
+          }
+        } else {
+          setRecommendations([]);
           toast.info("No service providers found for this event type yet");
         }
       } else {

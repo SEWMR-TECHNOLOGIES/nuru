@@ -3,7 +3,10 @@ import VideoPlayer from '@/components/VideoPlayer';
 import SmartMedia from '@/components/SmartMedia';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Heart, Share2, Send, X, Loader2, CornerDownRight, ChevronDown, AlertTriangle, Ticket } from 'lucide-react';
+import { ChevronLeft, Heart, Send, X, Loader2, CornerDownRight, ChevronDown, AlertTriangle } from 'lucide-react';
+import ShareIcon from '@/assets/icons/share-icon.svg';
+import ShareMenu from '@/components/ShareMenu';
+import TicketIcon from '@/assets/icons/ticket-icon.svg';
 import CustomCalendarIcon from '@/assets/icons/calendar-icon.svg';
 import CustomLocationIcon from '@/assets/icons/location-icon.svg';
 import CustomClockIcon from '@/assets/icons/clock-icon.svg';
@@ -337,29 +340,7 @@ const MomentDetail = () => {
   const shareUrl = `${window.location.origin}/shared/post/${id}`;
   const shareTitle = post?.title || post?.content?.slice(0, 50) || 'Check out this moment on Nuru';
 
-  const handleShare = (platform: string) => {
-    let url = '';
-    switch (platform) {
-      case 'whatsapp':
-        url = `https://wa.me/?text=${encodeURIComponent(shareTitle + ' ' + shareUrl)}`;
-        break;
-      case 'facebook':
-        url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
-        break;
-      case 'twitter':
-        url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareTitle)}&url=${encodeURIComponent(shareUrl)}`;
-        break;
-      case 'copy':
-        navigator.clipboard.writeText(shareUrl);
-        toast.success('Link copied!');
-        setShareOpen(false);
-        return;
-    }
-    if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
-      setShareOpen(false);
-    }
-  };
+  // Share logic moved to ShareMenu component
 
   const handleBack = () => {
     if (window.history.length > 1) navigate(-1);
@@ -618,17 +599,11 @@ const MomentDetail = () => {
           <Popover open={shareOpen} onOpenChange={setShareOpen}>
             <PopoverTrigger asChild>
               <Button variant="ghost" size="sm" className="text-muted-foreground flex-shrink-0">
-                <Share2 className="w-4 h-4" />
+                <img src={ShareIcon} alt="" className="w-4 h-4 dark:invert opacity-70" />
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-48 p-2" align="end">
-              <div className="flex flex-col gap-1">
-                {['whatsapp', 'facebook', 'twitter', 'copy'].map((p) => (
-                  <Button key={p} variant="ghost" className="justify-start gap-2 text-sm capitalize" onClick={() => handleShare(p)}>
-                    {p === 'copy' ? 'Copy Link' : p}
-                  </Button>
-                ))}
-              </div>
+              <ShareMenu shareUrl={shareUrl} shareTitle={shareTitle} onClose={() => setShareOpen(false)} />
             </PopoverContent>
           </Popover>
         </div>
@@ -681,7 +656,7 @@ const MomentDetail = () => {
                     )}
                     {sharedEvent.sells_tickets && (
                       <span className="bg-accent text-accent-foreground text-xs px-2 py-0.5 rounded-full backdrop-blur-sm flex items-center gap-1">
-                        <Ticket className="w-3 h-3" /> Tickets
+                        <img src={TicketIcon} alt="Ticket" className="w-3 h-3 dark:invert" /> Tickets
                       </span>
                     )}
                   </div>

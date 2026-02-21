@@ -739,7 +739,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm">{pc.contributor_name}</p>
                     <p className="text-xs text-muted-foreground">
-                      Recorded by {pc.recorded_by || 'Unknown'} {pc.created_at ? `on ${formatDateMedium(pc.created_at)}` : ''}
+                      Recorded by {pc.recorded_by || 'Unknown'} {pc.created_at ? `on ${formatDateMedium(pc.created_at)} at ${new Date(pc.created_at.endsWith('Z') || pc.created_at.includes('+') ? pc.created_at : pc.created_at + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
                     </p>
                   </div>
                   <div className="text-right">

@@ -708,12 +708,60 @@ async def create_event(
             db.add(EventImage(id=uuid.uuid4(), event_id=new_event.id, image_url=result["url"], created_at=now, updated_at=now))
 
     # Services
+    assigned_providers = []  # Track providers to notify after commit
     if services:
         try:
             service_list = json.loads(services)
             for s in service_list:
-                if "service_id" in s:
-                    db.add(EventService(id=uuid.uuid4(), event_id=new_event.id, service_id=uuid.UUID(s["service_id"]), service_status=EventServiceStatusEnum.pending, created_at=now, updated_at=now))
+                service_id_val = None
+                provider_service_id = None
+                provider_user_id_val = None
+
+                if s.get("service_id"):
+                    service_id_val = uuid.UUID(s["service_id"])
+                if s.get("provider_service_id"):
+                    provider_service_id = uuid.UUID(s["provider_service_id"])
+                    # Resolve service_type_id from provider's service
+                    psvc = db.query(UserService).filter(UserService.id == provider_service_id).first()
+                    if psvc:
+                        if psvc.service_type_id:
+                            service_id_val = psvc.service_type_id
+                        provider_user_id_val = psvc.user_id
+                if s.get("provider_user_id"):
+                    provider_user_id_val = uuid.UUID(s["provider_user_id"])
+
+                es = EventService(
+                    id=uuid.uuid4(), event_id=new_event.id,
+                    service_id=service_id_val,
+                    provider_user_service_id=provider_service_id,
+                    provider_user_id=provider_user_id_val,
+                    agreed_price=s.get("quoted_price"),
+                    service_status=EventServiceStatusEnum.pending,
+                    notes=s.get("notes"),
+                    created_at=now, updated_at=now,
+                )
+                db.add(es)
+
+                # Create a ServiceBookingRequest so it shows in vendor's incoming bookings
+                if provider_service_id:
+                    from models import ServiceBookingRequest
+                    booking_req = ServiceBookingRequest(
+                        id=uuid.uuid4(),
+                        user_service_id=provider_service_id,
+                        requester_user_id=current_user.id,
+                        event_id=new_event.id,
+                        message=s.get("notes") or f"Service requested for {new_event.name}",
+                        proposed_price=s.get("quoted_price"),
+                        status="pending",
+                        created_at=now, updated_at=now,
+                    )
+                    db.add(booking_req)
+
+                if provider_user_id_val and str(provider_user_id_val) != str(current_user.id):
+                    assigned_providers.append({
+                        "provider_user_id": provider_user_id_val,
+                        "provider_service_id": provider_service_id,
+                    })
         except (json.JSONDecodeError, ValueError):
             pass
 
@@ -722,6 +770,24 @@ async def create_event(
     except Exception as e:
         db.rollback()
         return standard_response(False, f"Failed to save event: {str(e)}")
+
+    # Notify assigned service providers after successful commit
+    for prov in assigned_providers:
+        try:
+            provider_user = db.query(User).filter(User.id == prov["provider_user_id"]).first()
+            if provider_user:
+                from utils.notify import notify_booking
+                service_name = "service"
+                if prov["provider_service_id"]:
+                    psvc = db.query(UserService).filter(UserService.id == prov["provider_service_id"]).first()
+                    if psvc:
+                        service_name = psvc.title or "service"
+                notify_booking(db, provider_user.id, current_user.id, new_event.id, new_event.name, service_name)
+                db.commit()
+                organizer_name = f"{current_user.first_name} {current_user.last_name}"
+                sms_booking_notification(provider_user.phone, f"{provider_user.first_name}", new_event.name, organizer_name)
+        except Exception:
+            pass
 
     return standard_response(True, "Event created successfully", _event_summary(db, new_event))
 
@@ -2656,6 +2722,15 @@ def add_event_service(event_id: str, body: dict = Body(...), db: Session = Depen
     # Also create a booking request so it shows in vendor's incoming bookings
     provider_service_id = uuid.UUID(body["provider_service_id"]) if body.get("provider_service_id") else None
     provider_user_id_val = uuid.UUID(body["provider_user_id"]) if body.get("provider_user_id") else None
+
+    # Check for duplicate: skip if this provider service is already assigned to this event
+    if provider_service_id:
+        existing = db.query(EventService).filter(
+            EventService.event_id == eid,
+            EventService.provider_user_service_id == provider_service_id,
+        ).first()
+        if existing:
+            return standard_response(True, "Service provider already assigned to this event", _service_booking_dict(db, existing, event.currency_id))
 
     es = EventService(
         id=uuid.uuid4(), event_id=eid,

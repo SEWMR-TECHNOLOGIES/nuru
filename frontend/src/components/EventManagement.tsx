@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2, Images, Share2 } from 'lucide-react';
+import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2, Images } from 'lucide-react';
+import ShareIcon from '@/assets/icons/share-icon.svg';
 import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -33,6 +34,7 @@ import { photoLibrariesApi } from '@/lib/api/photoLibraries';
 import { toast } from 'sonner';
 import { useEventPermissions } from '@/hooks/useEventPermissions';
 import ShareEventToFeed from '@/components/ShareEventToFeed';
+import EventTicketManagement from '@/components/events/EventTicketManagement';
 
 const EventManagement = () => {
   const { id } = useParams();
@@ -205,7 +207,7 @@ const EventManagement = () => {
                 }}
                 trigger={
                   <Button variant="outline" size="sm" className="gap-2">
-                    <Share2 className="w-4 h-4" />
+                    <img src={ShareIcon} alt="" className="w-4 h-4 dark:invert opacity-70" />
                     Share to Feed
                   </Button>
                 }
@@ -282,16 +284,33 @@ const EventManagement = () => {
       </AlertDialog>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 h-auto gap-1">
-          <TabsTrigger value="overview" className="text-xs sm:text-sm py-2">Overview</TabsTrigger>
-          <TabsTrigger value="checklist" className="text-xs sm:text-sm py-2">Checklist</TabsTrigger>
-          <TabsTrigger value="services" className="text-xs sm:text-sm py-2">Services</TabsTrigger>
-          <TabsTrigger value="committee" className="text-xs sm:text-sm py-2">Committee</TabsTrigger>
-          <TabsTrigger value="contributions" className="text-xs sm:text-sm py-2">Contributions</TabsTrigger>
-          <TabsTrigger value="expenses" className="text-xs sm:text-sm py-2">Expenses</TabsTrigger>
-          <TabsTrigger value="guests" className="text-xs sm:text-sm py-2">Guests</TabsTrigger>
-          <TabsTrigger value="rsvp" className="text-xs sm:text-sm py-2">RSVP</TabsTrigger>
-        </TabsList>
+        <div className="mb-6 -mx-1 px-1">
+          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            {[
+              { value: 'overview', label: 'Overview' },
+              { value: 'checklist', label: 'Checklist' },
+              { value: 'services', label: 'Services' },
+              { value: 'committee', label: 'Committee' },
+              { value: 'contributions', label: 'Contributions' },
+              { value: 'expenses', label: 'Expenses' },
+              { value: 'guests', label: 'Guests' },
+              { value: 'rsvp', label: 'RSVP' },
+              ...((apiEvent as any)?.sells_tickets ? [{ value: 'tickets', label: 'Tickets' }] : []),
+            ].map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => setActiveTab(tab.value)}
+                className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all flex-shrink-0
+                  ${activeTab === tab.value
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <TabsContent value="overview" className="space-y-4">
           {/* Row 1: Financial overview */}
@@ -563,6 +582,12 @@ const EventManagement = () => {
         <TabsContent value="rsvp" className="space-y-6">
           <EventRSVP eventId={id || ''} eventTitle={eventTitle} permissions={permissions} />
         </TabsContent>
+
+        {(apiEvent as any)?.sells_tickets && (
+          <TabsContent value="tickets" className="space-y-4">
+            <EventTicketManagement eventId={id!} isCreator={isCreator} />
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Add Service Dialog */}

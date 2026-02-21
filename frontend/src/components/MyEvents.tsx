@@ -238,8 +238,36 @@ const MyEvents = () => {
         ) : (
           /* No image – colored header strip */
           <div className={`relative h-16 ${cornerCls} flex items-center justify-between px-4`}>
-            <span className="text-white font-semibold text-sm">{status.charAt(0).toUpperCase() + status.slice(1)}</span>
-            {eventType && <Badge className="bg-white/20 text-white border-0 text-xs">{eventType}</Badge>}
+            <div className="flex items-center gap-2">
+              <span className="text-white font-semibold text-sm">{status.charAt(0).toUpperCase() + status.slice(1)}</span>
+              {eventType && <Badge className="bg-white/20 text-white border-0 text-xs">{eventType}</Badge>}
+            </div>
+            <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
+              <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white text-foreground shadow h-7 px-2.5 text-xs"
+                onClick={() => navigate(`/create-event?edit=${event.id}`)}>
+                <Edit2 className="w-3 h-3 mr-1" /> Edit
+              </Button>
+              <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white text-foreground shadow h-7 px-2.5 text-xs"
+                onClick={() => {
+                  const html = generateEventReportHtml({
+                    title: event.title, description: event.description, event_type: eventType,
+                    start_date: event.start_date, end_date: event.end_date, start_time: event.start_time, end_time: event.end_time,
+                    location: event.location, venue: event.venue, status,
+                    budget: typeof event.budget === 'number' ? event.budget : parseFloat(event.budget || '0'),
+                    currency: event.currency, expected_guests: event.expected_guests || 0,
+                    guest_count: event.guest_count || 0,
+                    confirmed_guest_count: event.confirmed_guest_count, pending_guest_count: event.pending_guest_count,
+                    declined_guest_count: event.declined_guest_count, checked_in_count: event.checked_in_count,
+                    committee_count: event.committee_count, contribution_total: event.contribution_total,
+                    contribution_count: event.contribution_count, contribution_target: event.contribution_target,
+                    dress_code: event.dress_code, special_instructions: event.special_instructions,
+                  });
+                  setReportHtml(html);
+                  setReportPreviewOpen(true);
+                }}>
+                <FileText className="w-3 h-3 mr-1" /> Report
+              </Button>
+            </div>
           </div>
         )}
 

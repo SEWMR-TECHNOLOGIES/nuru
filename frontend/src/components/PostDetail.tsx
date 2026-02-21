@@ -1,7 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Heart, MessageCircle, Share2, Send, MoreHorizontal, Loader2, Bookmark, Flag, ChevronDown, CornerDownRight, AlertTriangle, Ticket } from 'lucide-react';
+import { ChevronLeft, Heart, MessageCircle, Send, MoreHorizontal, Loader2, Bookmark, Flag, ChevronDown, CornerDownRight, AlertTriangle } from 'lucide-react';
+import ShareIcon from '@/assets/icons/share-icon.svg';
+import WhatsAppIcon from '@/assets/icons/whatsapp-icon.svg';
+import FacebookIcon from '@/assets/icons/facebook-icon.svg';
+import XIcon from '@/assets/icons/x-icon.svg';
+import CopyIcon from '@/assets/icons/copy-icon.svg';
+import ShareMenu from '@/components/ShareMenu';
+import TicketIcon from '@/assets/icons/ticket-icon.svg';
 import SmartMedia from '@/components/SmartMedia';
 import CustomCalendarIcon from '@/assets/icons/calendar-icon.svg';
 import CustomLocationIcon from '@/assets/icons/location-icon.svg';
@@ -455,8 +462,8 @@ const PostDetail = () => {
       case 'facebook':
         url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
         break;
-      case 'twitter':
-        url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareTitle)}&url=${encodeURIComponent(shareUrl)}`;
+      case 'x':
+        url = `https://x.com/intent/tweet?text=${encodeURIComponent(shareTitle)}&url=${encodeURIComponent(shareUrl)}`;
         break;
       case 'copy':
         navigator.clipboard.writeText(shareUrl);
@@ -643,16 +650,16 @@ const PostDetail = () => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => handleShare('whatsapp')}>
-                <Share2 className="w-4 h-4 mr-2" /> WhatsApp
+                <img src={WhatsAppIcon} alt="" className="w-4 h-4 mr-2 dark:invert opacity-80" /> WhatsApp
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleShare('facebook')}>
-                <Share2 className="w-4 h-4 mr-2" /> Facebook
+                <img src={FacebookIcon} alt="" className="w-4 h-4 mr-2 dark:invert opacity-80" /> Facebook
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleShare('twitter')}>
-                <Share2 className="w-4 h-4 mr-2" /> Twitter
+              <DropdownMenuItem onClick={() => handleShare('x')}>
+                <img src={XIcon} alt="" className="w-4 h-4 mr-2 dark:invert opacity-80" /> X
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleShare('copy')}>
-                <Share2 className="w-4 h-4 mr-2" /> Copy Link
+                <img src={CopyIcon} alt="" className="w-4 h-4 mr-2 dark:invert opacity-80" /> Copy Link
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleSave}>
                 <Bookmark className={`w-4 h-4 mr-2 ${saved ? 'fill-current' : ''}`} />
@@ -711,7 +718,7 @@ const PostDetail = () => {
                     )}
                     {sharedEvent.sells_tickets && (
                       <span className="bg-accent text-accent-foreground text-xs px-2 py-0.5 rounded-full backdrop-blur-sm flex items-center gap-1">
-                        <Ticket className="w-3 h-3" /> Tickets
+                        <img src={TicketIcon} alt="Ticket" className="w-3 h-3 dark:invert" /> Tickets
                       </span>
                     )}
                   </div>
@@ -824,18 +831,12 @@ const PostDetail = () => {
             <Popover open={shareOpen} onOpenChange={setShareOpen}>
               <PopoverTrigger asChild>
                 <button className="flex items-center gap-1.5 px-2 md:px-3 py-1 rounded-lg bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors text-xs md:text-sm">
-                  <Share2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                  <img src={ShareIcon} alt="" className="w-3.5 h-3.5 md:w-4 md:h-4 dark:invert opacity-70" />
                   <span className="hidden sm:inline">Spark</span>
                 </button>
               </PopoverTrigger>
               <PopoverContent className="w-48 p-2" align="start">
-                <div className="flex flex-col gap-1">
-                  {['whatsapp', 'facebook', 'twitter', 'copy'].map((p) => (
-                    <Button key={p} variant="ghost" className="justify-start gap-2 text-sm capitalize" onClick={() => handleShare(p)}>
-                      {p === 'copy' ? 'Copy Link' : p}
-                    </Button>
-                  ))}
-                </div>
+                <ShareMenu shareUrl={`${window.location.origin}/shared/post/${id}`} shareTitle={post?.title || post?.content?.slice(0, 50) || 'Check this out'} onClose={() => setShareOpen(false)} />
               </PopoverContent>
             </Popover>
           </div>

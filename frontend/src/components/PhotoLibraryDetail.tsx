@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, Upload, Trash2, Globe, Lock,
   CheckCircle2, Clock, X, ZoomIn, Calendar, MapPin,
-  Share2, Check, AlertCircle, HardDrive, Download
+  Check, AlertCircle, HardDrive, Download
 } from 'lucide-react';
+import ShareIcon from '@/assets/icons/share-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -183,7 +184,7 @@ const PhotoLibraryDetail = () => {
       <div className="flex items-center justify-between py-4 px-1 mb-2">
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={copyShareLink}>
-            {copied ? <Check className="w-4 h-4 mr-1.5 text-emerald-500" /> : <Share2 className="w-4 h-4 mr-1.5" />}
+            {copied ? <Check className="w-4 h-4 mr-1.5 text-emerald-500" /> : <img src={ShareIcon} alt="" className="w-4 h-4 mr-1.5 dark:invert opacity-70" />}
             {copied ? 'Copied!' : 'Share'}
           </Button>
           {isOwner && (
@@ -370,17 +371,27 @@ const PhotoLibraryDetail = () => {
                   >
                     <ZoomIn className="w-4 h-4 text-foreground" />
                   </button>
-                  <a
-                    href={photo.url}
-                    download
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={e => e.stopPropagation()}
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        const response = await fetch(photo.url);
+                        const blob = await response.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = photo.original_name || `photo-${idx + 1}.jpg`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                      } catch { toast.error('Download failed. Please try again.'); }
+                    }}
                     className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors shadow"
                     title="Download"
                   >
                     <Download className="w-4 h-4 text-foreground" />
-                  </a>
+                  </button>
                   {isOwner && (
                     <button
                       onClick={() => setDeletePhotoId(photo.id)}
@@ -408,17 +419,27 @@ const PhotoLibraryDetail = () => {
         >
           {/* Top controls */}
           <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
-            <a
-              href={photos[lightboxIdx]?.url}
-              download
-              target="_blank"
-              rel="noreferrer"
+            <button
               className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-              onClick={e => e.stopPropagation()}
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  const response = await fetch(photos[lightboxIdx]?.url);
+                  const blob = await response.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = photos[lightboxIdx]?.original_name || `photo-${lightboxIdx + 1}.jpg`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                } catch { toast.error('Download failed. Please try again.'); }
+              }}
               title="Download photo"
             >
               <Download className="w-5 h-5" />
-            </a>
+            </button>
             <button
               onClick={() => setLightboxIdx(null)}
               className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
@@ -521,7 +542,7 @@ const PhotoLibraryDetail = () => {
                   className="flex-1 text-xs bg-muted rounded-md px-3 py-2 text-muted-foreground font-mono border border-border"
                 />
                 <Button size="sm" variant="outline" onClick={copyShareLink}>
-                  {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Share2 className="w-4 h-4" />}
+                  {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <img src={ShareIcon} alt="" className="w-4 h-4 dark:invert opacity-70" />}
                 </Button>
               </div>
             </div>

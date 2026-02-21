@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Ticket, Loader2, AlertCircle, CheckCircle, Minus, Plus } from "lucide-react";
+import { Loader2, AlertCircle, Minus, Plus } from "lucide-react";
+import TicketIcon from "@/assets/icons/ticket-icon.svg";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +42,7 @@ const EventTicketPurchase = ({ eventId, eventName }: EventTicketPurchaseProps) =
       if (res.success && res.data) {
         const data = res.data as any;
         setPurchaseResult({ ticket_code: data.ticket_code, total_amount: data.total_amount });
-        toast.success("Ticket purchased successfully!");
+        toast.success("Ticket request sent! Awaiting organizer approval.");
         // Refresh classes
         const refresh = await ticketingApi.getTicketClasses(eventId);
         if (refresh.success && refresh.data) setClasses((refresh.data as any).ticket_classes || []);
@@ -74,7 +75,7 @@ const EventTicketPurchase = ({ eventId, eventName }: EventTicketPurchaseProps) =
         <CardContent className="p-5">
           <div className="flex items-center gap-2 mb-4">
             <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Ticket className="w-5 h-5 text-primary" />
+              <img src={TicketIcon} alt="Ticket" className="w-5 h-5 dark:invert" />
             </div>
             <div>
               <h2 className="font-semibold text-foreground">Tickets</h2>
@@ -93,7 +94,7 @@ const EventTicketPurchase = ({ eventId, eventName }: EventTicketPurchaseProps) =
                     isSoldOut
                       ? "border-border bg-muted/30 opacity-60 cursor-not-allowed"
                       : selectedClass?.id === tc.id
-                        ? "border-primary bg-primary/5 shadow-sm"
+                        ? "border-primary bg-primary/10 ring-1 ring-primary/30 shadow-md"
                         : "border-border hover:border-primary/40 hover:bg-muted/30"
                   }`}
                 >
@@ -118,10 +119,9 @@ const EventTicketPurchase = ({ eventId, eventName }: EventTicketPurchaseProps) =
                     </div>
                   </div>
 
+                  {/* Selected indicator - subtle left accent bar */}
                   {selectedClass?.id === tc.id && (
-                    <div className="absolute top-2 right-2">
-                      <CheckCircle className="w-5 h-5 text-primary" />
-                    </div>
+                    <div className="absolute left-0 top-3 bottom-3 w-1 rounded-full bg-primary" />
                   )}
                 </div>
               );
@@ -171,7 +171,7 @@ const EventTicketPurchase = ({ eventId, eventName }: EventTicketPurchaseProps) =
                 onClick={handlePurchase}
                 disabled={purchasing}
               >
-                {purchasing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4" />}
+                {purchasing ? <Loader2 className="w-4 h-4 animate-spin" /> : <img src={TicketIcon} alt="Ticket" className="w-4 h-4 invert" />}
                 Purchase Ticket{quantity > 1 ? "s" : ""}
               </Button>
             </motion.div>
@@ -183,13 +183,10 @@ const EventTicketPurchase = ({ eventId, eventName }: EventTicketPurchaseProps) =
       <Dialog open={!!purchaseResult} onOpenChange={() => { setPurchaseResult(null); setSelectedClass(null); setQuantity(1); }}>
         <DialogContent className="max-w-sm text-center">
           <DialogHeader>
-            <DialogTitle className="flex flex-col items-center gap-3">
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                <CheckCircle className="w-8 h-8 text-primary" />
-              </div>
-              Ticket Purchased!
+            <DialogTitle className="text-lg">
+              Ticket Request Sent!
             </DialogTitle>
-            <DialogDescription>Your ticket has been confirmed</DialogDescription>
+            <DialogDescription>Your ticket is pending approval by the event organizer</DialogDescription>
           </DialogHeader>
           {purchaseResult && (
             <div className="space-y-3 py-2">

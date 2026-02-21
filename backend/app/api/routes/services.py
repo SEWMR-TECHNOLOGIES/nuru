@@ -165,7 +165,9 @@ def search_services(
         except ValueError:
             pass
 
-    if location:
+    # When event_type_id is set, treat location as a soft preference (used for ranking)
+    # rather than a hard filter, so we always return relevant services.
+    if location and not event_type_id:
         query = query.filter(UserService.location.ilike(f"%{location}%"))
 
     if min_price is not None:
@@ -238,6 +240,9 @@ def search_services(
                 user_lat=lat,
                 user_lng=lng
             )
+            # Boost services whose location text matches the search location
+            if location and s.location and location.lower() in s.location.lower():
+                score += 15
             scored.append((s, score))
 
         # Sort by score descending, then by created_at for stability

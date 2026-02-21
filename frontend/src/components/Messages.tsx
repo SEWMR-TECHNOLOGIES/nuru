@@ -498,35 +498,67 @@ const Messages = () => {
                   <p className="text-muted-foreground">No messages in this conversation</p>
                 </div>
               ) : (
-                messages.map((msg) => {
+                messages.map((msg, idx) => {
                   const isSender = msg.is_sender || msg.sender_id === currentUser?.id;
+                  const msgDate = msg.created_at ? new Date(msg.created_at.endsWith('Z') || msg.created_at.includes('+') ? msg.created_at : msg.created_at + 'Z') : null;
+                  const prevMsg = idx > 0 ? messages[idx - 1] : null;
+                  const prevDate = prevMsg?.created_at ? new Date(prevMsg.created_at.endsWith('Z') || prevMsg.created_at.includes('+') ? prevMsg.created_at : prevMsg.created_at + 'Z') : null;
+
+                  // Show day separator if day changes
+                  let showDaySeparator = false;
+                  if (msgDate) {
+                    if (!prevDate) {
+                      showDaySeparator = true;
+                    } else {
+                      showDaySeparator = msgDate.toDateString() !== prevDate.toDateString();
+                    }
+                  }
+
+                  const getDayLabel = (d: Date) => {
+                    const today = new Date();
+                    const yesterday = new Date();
+                    yesterday.setDate(today.getDate() - 1);
+                    if (d.toDateString() === today.toDateString()) return 'Today';
+                    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+                    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+                  };
+
                   return (
-                    <div key={msg.id} className={`flex ${isSender ? 'justify-end' : 'justify-start'}`}>
-                      {/* Receiver avatar */}
-                      {!isSender && (
-                        <Avatar className="w-7 h-7 mr-2 mt-1 flex-shrink-0">
-                          {isValidAvatar(selectedConversation.participant?.avatar) ? (
-                            <AvatarImage src={selectedConversation.participant.avatar} alt="" />
-                          ) : null}
-                          <AvatarFallback className="bg-muted text-muted-foreground text-[10px] font-medium">
-                            {getInitials(selectedConversation.participant?.name)}
-                          </AvatarFallback>
-                        </Avatar>
+                    <div key={msg.id}>
+                      {showDaySeparator && msgDate && (
+                        <div className="flex items-center justify-center my-3">
+                          <span className="text-[11px] text-muted-foreground bg-muted px-3 py-1 rounded-full font-medium">
+                            {getDayLabel(msgDate)}
+                          </span>
+                        </div>
                       )}
-                      <div className={`max-w-[75%] md:max-w-xs lg:max-w-md px-3 md:px-4 py-2 ${
-                        isSender 
-                          ? 'bg-primary text-primary-foreground rounded-2xl rounded-br-md' 
-                          : 'bg-card border border-border text-foreground rounded-2xl rounded-bl-md shadow-sm'
-                      }`}>
-                        {msg.attachments && msg.attachments.length > 0 && (
-                            <div className="mb-2 rounded-lg overflow-hidden">
-                              <img src={msg.attachments[0]} alt="attachment" className="w-full h-32 md:h-40 object-cover" />
-                            </div>
+                      <div className={`flex ${isSender ? 'justify-end' : 'justify-start'}`}>
+                        {/* Receiver avatar */}
+                        {!isSender && (
+                          <Avatar className="w-7 h-7 mr-2 mt-1 flex-shrink-0">
+                            {isValidAvatar(selectedConversation.participant?.avatar) ? (
+                              <AvatarImage src={selectedConversation.participant.avatar} alt="" />
+                            ) : null}
+                            <AvatarFallback className="bg-muted text-muted-foreground text-[10px] font-medium">
+                              {getInitials(selectedConversation.participant?.name)}
+                            </AvatarFallback>
+                          </Avatar>
                         )}
-                        {msg.content && <p className="text-sm break-words">{msg.content}</p>}
-                        <p className={`text-[10px] mt-1 ${isSender ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                          {msg.created_at ? new Date(msg.created_at.endsWith('Z') || msg.created_at.includes('+') ? msg.created_at : msg.created_at + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                        </p>
+                        <div className={`max-w-[75%] md:max-w-xs lg:max-w-md px-3 md:px-4 py-2 ${
+                          isSender 
+                            ? 'bg-primary text-primary-foreground rounded-2xl rounded-br-md' 
+                            : 'bg-card border border-border text-foreground rounded-2xl rounded-bl-md shadow-sm'
+                        }`}>
+                          {msg.attachments && msg.attachments.length > 0 && (
+                              <div className="mb-2 rounded-lg overflow-hidden">
+                                <img src={msg.attachments[0]} alt="attachment" className="w-full h-32 md:h-40 object-cover" />
+                              </div>
+                          )}
+                          {msg.content && <p className="text-sm break-words">{msg.content}</p>}
+                          <p className={`text-[10px] mt-1 ${isSender ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                            {msgDate ? msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   );

@@ -7,11 +7,21 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from models import (
-    User, Event, EventTicketClass, EventTicket,
+    User, Event, EventTicketClass, EventTicket, EventImage,
     TicketStatusEnum, TicketOrderStatusEnum, PaymentStatusEnum,
 )
 from utils.auth import get_current_user, get_optional_user
 from utils.helpers import standard_response
+
+
+def _resolve_event_cover(event, db):
+    """Resolve best cover image: cover_image_url → featured EventImage → first EventImage."""
+    if event.cover_image_url:
+        return event.cover_image_url
+    img = db.query(EventImage).filter(
+        EventImage.event_id == event.id
+    ).order_by(EventImage.is_featured.desc(), EventImage.created_at.asc()).first()
+    return img.image_url if img else None
 
 router = APIRouter(prefix="/ticketing", tags=["Ticketing"])
 
@@ -279,7 +289,7 @@ async def purchase_ticket(
         buyer_name=f"{current_user.first_name} {current_user.last_name}",
         buyer_phone=current_user.phone,
         buyer_email=current_user.email,
-        status=TicketOrderStatusEnum.confirmed,
+        status=TicketOrderStatusEnum.pending,
         payment_status=PaymentStatusEnum.pending,
     )
 
@@ -414,6 +424,125 @@ def get_event_tickets(
 
 
 # ──────────────────────────────────────────────
+# Organizer: Approve / Reject a ticket
+# ──────────────────────────────────────────────
+@router.put("/tickets/{ticket_id}/status")
+async def update_ticket_status(
+    ticket_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Organizer approves or rejects a ticket order."""
+    try:
+        tid = UUID(ticket_id)
+    except (ValueError, TypeError):
+        return standard_response(False, "Invalid ticket ID")
+
+    ticket = db.query(EventTicket).filter(EventTicket.id == tid).first()
+    if not ticket:
+        return standard_response(False, "Ticket not found")
+
+    event = db.query(Event).filter(Event.id == ticket.event_id, Event.organizer_id == current_user.id).first()
+    if not event:
+        return standard_response(False, "Not authorized to manage this ticket")
+
+    payload = await request.json()
+    new_status = payload.get("status", "").lower()
+
+    if new_status not in ("approved", "rejected", "confirmed", "cancelled"):
+        return standard_response(False, "Invalid status. Use: approved, rejected, confirmed, cancelled")
+
+    try:
+        ticket.status = TicketOrderStatusEnum(new_status)
+    except (ValueError, KeyError):
+        return standard_response(False, "Invalid status value")
+
+    # If rejected, restore the sold count
+    if new_status == "rejected":
+        tc = db.query(EventTicketClass).filter(EventTicketClass.id == ticket.ticket_class_id).first()
+        if tc:
+            tc.sold = max(0, tc.sold - ticket.quantity)
+            if tc.sold < tc.quantity:
+                tc.status = TicketStatusEnum.available
+
+    db.commit()
+
+    # Notify buyer
+    try:
+        from utils.notify import create_notification
+        if new_status == "approved":
+            create_notification(
+                db, ticket.buyer_user_id, current_user.id,
+                "general",
+                f"Your ticket for {event.name} has been approved!",
+                reference_id=event.id, reference_type="event",
+                message_data={"event_title": event.name, "ticket_code": ticket.ticket_code},
+            )
+        elif new_status == "rejected":
+            create_notification(
+                db, ticket.buyer_user_id, current_user.id,
+                "general",
+                f"Your ticket for {event.name} has been rejected.",
+                reference_id=event.id, reference_type="event",
+                message_data={"event_title": event.name, "ticket_code": ticket.ticket_code},
+            )
+        db.commit()
+    except Exception:
+        pass
+
+    return standard_response(True, f"Ticket {new_status} successfully")
+
+
+# ──────────────────────────────────────────────
+# Get my upcoming tickets (for sidebar)
+# ──────────────────────────────────────────────
+@router.get("/my-upcoming-tickets")
+def get_my_upcoming_tickets(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get approved/confirmed tickets for upcoming events (today or future)."""
+    from sqlalchemy import or_
+    today = datetime.now().date()
+
+    tickets = db.query(EventTicket).filter(
+        EventTicket.buyer_user_id == current_user.id,
+        EventTicket.status.in_([TicketOrderStatusEnum.confirmed, TicketOrderStatusEnum.approved]),
+    ).all()
+
+    result = []
+    for t in tickets:
+        event = db.query(Event).filter(Event.id == t.event_id).first()
+        if not event or not event.start_date:
+            continue
+        if event.start_date < today:
+            continue
+
+        tc = db.query(EventTicketClass).filter(EventTicketClass.id == t.ticket_class_id).first()
+        result.append({
+            "id": str(t.id),
+            "ticket_code": t.ticket_code,
+            "quantity": t.quantity,
+            "status": t.status.value if t.status else "confirmed",
+            "ticket_class": tc.name if tc else None,
+            "event": {
+                "id": str(event.id),
+                "name": event.name,
+                "start_date": str(event.start_date),
+                "start_time": str(event.start_time) if event.start_time else None,
+                "location": event.location,
+                "cover_image": _resolve_event_cover(event, db),
+            },
+        })
+
+    # Sort by event start_date
+    result.sort(key=lambda x: x["event"]["start_date"])
+
+    return standard_response(True, "Upcoming tickets retrieved", {"tickets": result[:10]})
+
+
+# ──────────────────────────────────────────────
 # Get ticketed events (public, for right panel)
 # ──────────────────────────────────────────────
 @router.get("/events")
@@ -446,7 +575,7 @@ def get_ticketed_events(
             "name": e.name,
             "start_date": str(e.start_date) if e.start_date else None,
             "location": e.location,
-            "cover_image": e.cover_image_url,
+            "cover_image": _resolve_event_cover(e, db),
             "min_price": min_price,
             "total_available": total_available,
             "ticket_class_count": len(ticket_classes),

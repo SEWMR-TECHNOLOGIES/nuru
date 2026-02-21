@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import VideoPlayer from '@/components/VideoPlayer';
 import SmartMedia from '@/components/SmartMedia';
-import { Heart, MessageCircle, Share2, Bookmark, Ticket } from 'lucide-react';
+import { Heart, MessageCircle, Bookmark } from 'lucide-react';
+import ShareIcon from '@/assets/icons/share-icon.svg';
+import ShareMenu from '@/components/ShareMenu';
+import TicketIcon from '@/assets/icons/ticket-icon.svg';
 import CustomCalendarIcon from '@/assets/icons/calendar-icon.svg';
 import CustomLocationIcon from '@/assets/icons/location-icon.svg';
 import CustomClockIcon from '@/assets/icons/clock-icon.svg';
@@ -149,29 +152,6 @@ const Moment = ({ post }: MomentProps) => {
   const shareUrl = `${window.location.origin}/shared/post/${post.id}`;
   const shareTitle = isEventShare ? (sharedEvent?.title || 'Event') : (title || text?.slice(0, 50) || 'Check this out');
 
-  const handleShare = (platform: string) => {
-    let url = '';
-    switch (platform) {
-      case 'whatsapp':
-        url = `https://wa.me/?text=${encodeURIComponent(shareTitle + ' ' + shareUrl)}`;
-        break;
-      case 'facebook':
-        url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
-        break;
-      case 'twitter':
-        url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareTitle)}&url=${encodeURIComponent(shareUrl)}`;
-        break;
-      case 'copy':
-        navigator.clipboard.writeText(shareUrl);
-        toast.success('Link copied!');
-        setShareOpen(false);
-        return;
-    }
-    if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
-      setShareOpen(false);
-    }
-  };
 
   const handlePostClick = () => {
     const scrollContainer = document.querySelector('.flex-1.overflow-y-auto');
@@ -280,7 +260,7 @@ const Moment = ({ post }: MomentProps) => {
                   )}
                   {sharedEvent.sells_tickets && (
                     <Badge className="bg-accent text-accent-foreground text-xs backdrop-blur-sm gap-1">
-                      <Ticket className="w-3 h-3" /> Tickets
+                      <img src={TicketIcon} alt="Ticket" className="w-3 h-3 dark:invert" /> Tickets
                     </Badge>
                   )}
                 </div>
@@ -413,18 +393,12 @@ const Moment = ({ post }: MomentProps) => {
                 onClick={(e) => e.stopPropagation()}
                 className="flex items-center justify-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 rounded-lg bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors text-xs md:text-sm min-w-[60px] md:min-w-[80px]"
               >
-                <Share2 className="w-4 h-4 flex-shrink-0" />
+                <img src={ShareIcon} alt="" className="w-4 h-4 flex-shrink-0 dark:invert opacity-70" />
                 <span className="hidden sm:inline whitespace-nowrap">Spark</span>
               </button>
             </PopoverTrigger>
             <PopoverContent className="w-48 p-2" align="start" onClick={(e) => e.stopPropagation()}>
-              <div className="flex flex-col gap-1">
-                {['whatsapp', 'facebook', 'twitter', 'copy'].map((p) => (
-                  <Button key={p} variant="ghost" className="justify-start gap-2 text-sm capitalize" onClick={() => handleShare(p)}>
-                    {p === 'copy' ? 'Copy Link' : p}
-                  </Button>
-                ))}
-              </div>
+              <ShareMenu shareUrl={shareUrl} shareTitle={shareTitle} onClose={() => setShareOpen(false)} />
             </PopoverContent>
           </Popover>
         </div>

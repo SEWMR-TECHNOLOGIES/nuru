@@ -2013,8 +2013,12 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  CREATE TYPE ticket_order_status_enum AS ENUM ('pending', 'confirmed', 'cancelled', 'refunded');
+  CREATE TYPE ticket_order_status_enum AS ENUM ('pending', 'confirmed', 'approved', 'rejected', 'cancelled', 'refunded');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Add approved/rejected values to existing enum if needed
+DO $$ BEGIN ALTER TYPE ticket_order_status_enum ADD VALUE IF NOT EXISTS 'approved'; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TYPE ticket_order_status_enum ADD VALUE IF NOT EXISTS 'rejected'; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
   CREATE TYPE event_share_duration_enum AS ENUM ('timed', 'lifetime');

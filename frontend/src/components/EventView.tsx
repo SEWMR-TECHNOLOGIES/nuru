@@ -144,15 +144,17 @@ const EventView = () => {
         <h1 className="text-2xl md:text-3xl font-bold">{event.title || 'Event Details'}</h1>
         <div className="flex items-center gap-2">
           {isCreator && (
-            <Button variant="outline" size="sm" onClick={() => navigate(`/create-event?edit=${id}`)} className="gap-1.5">
-              <Edit2 className="w-4 h-4" />
-              Edit
-            </Button>
+            <>
+              <Button variant="outline" size="sm" onClick={() => navigate(`/create-event?edit=${id}`)} className="gap-1.5">
+                <Edit2 className="w-4 h-4" />
+                Edit
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleGenerateReport} className="gap-1.5">
+                <FileText className="w-4 h-4" />
+                Report
+              </Button>
+            </>
           )}
-          <Button variant="outline" size="sm" onClick={handleGenerateReport} className="gap-1.5">
-            <FileText className="w-4 h-4" />
-            Report
-          </Button>
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ChevronLeft className="w-5 h-5" />
           </Button>

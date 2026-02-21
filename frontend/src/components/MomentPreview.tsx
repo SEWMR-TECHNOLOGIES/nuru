@@ -1,4 +1,5 @@
-import { Heart, MessageCircle, Share2 } from 'lucide-react';
+import { Heart, MessageCircle } from 'lucide-react';
+import ShareIcon from '@/assets/icons/share-icon.svg';
 import CustomImageIcon from '@/assets/icons/image-icon.svg';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 
@@ -145,7 +146,7 @@ const MomentPreview = ({ text, previews, location, mediaFiles }: MomentPreviewPr
             Echo
           </span>
           <span className="flex items-center gap-1">
-            <Share2 className="w-3.5 h-3.5" />
+            <img src={ShareIcon} alt="" className="w-3.5 h-3.5 dark:invert opacity-70" />
             Spark
           </span>
         </div>

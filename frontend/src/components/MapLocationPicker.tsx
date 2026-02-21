@@ -15,19 +15,16 @@ import { toast } from "sonner";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-// Fix Leaflet default icon issue
-import icon from "leaflet/dist/images/marker-icon.png";
-import iconShadow from "leaflet/dist/images/marker-shadow.png";
-import iconRetina from "leaflet/dist/images/marker-icon-2x.png";
+// Custom marker icon
+
+// Custom marker using the project's location icon
+const locationIconSvg = `data:image/svg+xml;base64,${btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="#e11d48"/></svg>`)}`;
 
 const DefaultIcon = L.icon({
-  iconUrl: icon,
-  iconRetinaUrl: iconRetina,
-  shadowUrl: iconShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
+  iconUrl: locationIconSvg,
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+  popupAnchor: [0, -32],
 });
 
 L.Marker.prototype.options.icon = DefaultIcon;

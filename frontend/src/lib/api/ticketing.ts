@@ -85,4 +85,12 @@ export const ticketingApi = {
     const qs = params ? `?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString()}` : '';
     return get<{ tickets: TicketPurchase[]; pagination: any }>(`/ticketing/events/${eventId}/tickets${qs}`);
   },
+
+  // Organizer: approve/reject ticket
+  updateTicketStatus: (ticketId: string, status: 'approved' | 'rejected' | 'confirmed' | 'cancelled') =>
+    put<any>(`/ticketing/tickets/${ticketId}/status`, { status }),
+
+  // My upcoming tickets (sidebar)
+  getMyUpcomingTickets: () =>
+    get<{ tickets: any[] }>(`/ticketing/my-upcoming-tickets`),
 };

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Plus, Trash2, Edit2, Ticket, DollarSign, Users, AlertCircle, Loader2 } from "lucide-react";
+import { Plus, Trash2, Edit2, DollarSign, Users, AlertCircle, Loader2 } from "lucide-react";
+import TicketIcon from "@/assets/icons/ticket-icon.svg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -111,7 +112,7 @@ const EventTicketing = ({
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Ticket className="w-5 h-5 text-primary" />
+            <img src={TicketIcon} alt="Ticket" className="w-5 h-5 dark:invert" />
             <CardTitle className="text-lg">Event Ticketing</CardTitle>
           </div>
           <Switch checked={enabled} onCheckedChange={onEnabledChange} />

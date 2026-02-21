@@ -42,7 +42,7 @@ export const socialApi = {
     get<{ items: FeedPost[]; pagination: PaginatedResponse<FeedPost>["pagination"] }>(`/posts/feed${buildQueryString(params)}`),
 
   getTrending: (params?: { limit?: number; period?: "day" | "week" | "month" }) => 
-    get<FeedPost[]>(`/posts/trending${buildQueryString(params)}`),
+    get<FeedPost[]>(`/posts/public/trending${buildQueryString(params)}`),
 
   getUserPosts: (userId: string, params?: PostQueryParams) => 
     get<{ posts: FeedPost[]; pagination: PaginatedResponse<FeedPost>["pagination"] }>(`/posts/user/${userId}${buildQueryString(params)}`),

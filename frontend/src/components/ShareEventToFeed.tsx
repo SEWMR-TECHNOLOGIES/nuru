@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Share2, Globe, Users, Clock, Infinity, Loader2, CalendarIcon } from "lucide-react";
+import { Globe, Users, Clock, Infinity, Loader2, CalendarIcon } from "lucide-react";
+import ShareIcon from '@/assets/icons/share-icon.svg';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -93,7 +94,7 @@ const ShareEventToFeed = ({ event, trigger }: ShareEventToFeedProps) => {
         <div onClick={() => setOpen(true)}>{trigger}</div>
       ) : (
         <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="gap-2">
-          <Share2 className="w-4 h-4" />
+          <img src={ShareIcon} alt="" className="w-4 h-4 dark:invert opacity-70" />
           Share to Feed
         </Button>
       )}
@@ -239,7 +240,7 @@ const ShareEventToFeed = ({ event, trigger }: ShareEventToFeedProps) => {
               {isSubmitting ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sharing...</>
               ) : (
-                <><Share2 className="w-4 h-4 mr-2" /> Share</>
+                <><img src={ShareIcon} alt="" className="w-4 h-4 mr-2 dark:invert" /> Share</>
               )}
             </Button>
           </div>

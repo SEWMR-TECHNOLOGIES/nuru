@@ -98,8 +98,8 @@ export const generateContributionReportHtml = (
       table { width: 100%; border-collapse: collapse; margin-top: 16px; }
       th { background: #f8f8f8; padding: 10px 8px; text-align: left; border-bottom: 2px solid #ddd; font-size: 13px; }
       td { font-size: 13px; }
-      .summary { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
-      .summary-card { background: #f9fafb; border-radius: 8px; padding: 14px 18px; flex:1; min-width: 120px; }
+      .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+      .summary-card { background: #f9fafb; border-radius: 8px; padding: 14px 18px; }
       .summary-card .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
       .summary-card .value { font-size: 17px; font-weight: bold; margin-top: 4px; }
       tfoot td { font-weight: bold; border-top: 2px solid #333; padding: 10px 8px; }
@@ -121,7 +121,7 @@ export const generateContributionReportHtml = (
 
       ${countdownHtml}
       
-      <div class="summary">
+      <div class="summary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
         ${summary.budget ? `<div class="summary-card"><div class="label">Event Budget</div><div class="value">${fmt(summary.budget)}</div></div>` : ''}
         <div class="summary-card"><div class="label">Total Pledged</div><div class="value" style="color:#7c3aed">${fmt(summaryPledged)}</div></div>
         <div class="summary-card"><div class="label">Total Raised</div><div class="value" style="color:#16a34a">${fmt(summaryPaid)}</div></div>
@@ -129,8 +129,8 @@ export const generateContributionReportHtml = (
         ${summary.budget ? `<div class="summary-card" style="background:#fef2f2"><div class="label" style="color:#991b1b">Budget Shortfall</div><div class="value" style="color:${Math.max(0, summary.budget - summaryPledged) > 0 ? '#dc2626' : '#16a34a'}">${fmt(Math.max(0, summary.budget - summaryPledged))}</div></div>` : ''}
       </div>
 
-      ${summary.budget ? `<p style="font-size:12px;color:#666;margin-bottom:16px">Budget coverage: <strong>${((summaryPaid / summary.budget) * 100).toFixed(1)}%</strong> of event budget raised so far.</p>` : ''}
-      ${dateRangeLabel ? `<p style="font-size:11px;color:#ea580c;margin-bottom:16px;font-style:italic">&#9888; The table below shows payments recorded within the selected period (${dateRangeLabel}). Summary cards above reflect all-time totals.</p>` : ''}
+      ${summary.budget ? `<p style="font-size:12px;color:#666;margin-bottom:16px">Budget coverage: <strong>${((summaryPaid / summary.budget) * 100).toFixed(1)}%</strong> of event budget raised so far.${summary.budget ? `<span style="float:right">Pledge coverage: <strong style="color:#7c3aed">${((summaryPledged / summary.budget) * 100).toFixed(1)}%</strong> of event budget pledged.</span>` : ''}</p>` : ''}
+      ${dateRangeLabel ? `<p style="font-size:11px;color:#7c3aed;margin-bottom:16px;font-style:italic">The table below shows payments recorded within the selected period (${dateRangeLabel}). Summary cards above reflect all-time totals.</p>` : ''}
 
       <table>
         <thead>

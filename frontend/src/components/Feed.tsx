@@ -7,8 +7,9 @@ import { useFeed } from '@/data/useSocial';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { getTimeAgo } from '@/utils/getTimeAgo';
-import { Loader2 } from 'lucide-react';
+import { Loader2, TrendingUp } from 'lucide-react';
 import { feedSessionId } from '@/hooks/useFeedTracking';
+import { socialApi } from '@/lib/api/social';
 
 const SCROLL_KEY = 'feedScrollPosition';
 
@@ -25,6 +26,9 @@ const Feed = () => {
   const scrollRestoredRef = useRef(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const [trendingPosts, setTrendingPosts] = useState<any[]>([]);
+  const [trendingLoading, setTrendingLoading] = useState(false);
+  const triedTrending = useRef(false);
 
   const currentPage = pagination?.page || 1;
   const totalPages = pagination?.pages || 1;
@@ -91,6 +95,23 @@ const Feed = () => {
     return () => observer.disconnect();
   }, [handleLoadMore, hasMore, loadingMore, loading]);
 
+  // Fallback to trending when feed is empty for new users
+  useEffect(() => {
+    if (!loading && apiPosts.length === 0 && !triedTrending.current) {
+      triedTrending.current = true;
+      setTrendingLoading(true);
+      socialApi.getTrending({ limit: 15, period: 'week' })
+        .then((res) => {
+          if (res.success) {
+            const data = res.data as any;
+            setTrendingPosts(Array.isArray(data) ? data : data?.posts || data?.items || []);
+          }
+        })
+        .catch(() => {})
+        .finally(() => setTrendingLoading(false));
+    }
+  }, [loading, apiPosts.length]);
+
   const transformApiPost = (apiPost: any) => {
     const authorName = apiPost.author?.name || apiPost.user?.first_name
       ? `${apiPost.user?.first_name || ''} ${apiPost.user?.last_name || ''}`.trim() || apiPost.author?.name || 'Anonymous'
@@ -133,6 +154,9 @@ const Feed = () => {
   };
 
   const posts = (apiPosts || []).map(transformApiPost);
+  const trendingTransformed = trendingPosts.map(transformApiPost);
+  const displayPosts = posts.length > 0 ? posts : trendingTransformed;
+  const isTrendingFallback = posts.length === 0 && trendingTransformed.length > 0;
 
   useWorkspaceMeta({
     title: "Workspace",
@@ -179,13 +203,38 @@ const Feed = () => {
     <div className="space-y-4 md:space-y-6 pb-4">
       <CreatePostBox />
 
-      {posts.length === 0 && !loading && (
+      {displayPosts.length === 0 && !loading && !trendingLoading && (
         <div className="text-center py-8">
           <p className="text-muted-foreground text-sm">No posts yet. Be the first to share something with the community!</p>
         </div>
       )}
 
-      {posts.map((post, index) => (
+      {trendingLoading && posts.length === 0 && (
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-card rounded-lg shadow-sm border border-border p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <Skeleton className="w-10 h-10 rounded-full" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </div>
+              <Skeleton className="h-48 w-full rounded-lg mb-4" />
+              <Skeleton className="h-4 w-full" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isTrendingFallback && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 text-muted-foreground text-sm mb-2">
+          <TrendingUp className="w-4 h-4 flex-shrink-0" />
+          <span>Trending in the community</span>
+        </div>
+      )}
+
+      {displayPosts.map((post, index) => (
         <div key={post.id}>
           <Moment post={post} />
 

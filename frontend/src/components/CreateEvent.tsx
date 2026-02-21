@@ -115,6 +115,25 @@ const CreateEvent: React.FC = () => {
       };
       loadEvent();
 
+      // Load existing assigned services
+      const loadExistingServices = async () => {
+        try {
+          const res = await eventsApi.getEventServices(editId);
+          if (res.success && res.data) {
+            const services = Array.isArray(res.data) ? res.data : (res.data as any).services || [];
+            const existingIds = services
+              .map((s: any) => s.provider_user_service_id || s.provider_service_id)
+              .filter(Boolean);
+            if (existingIds.length > 0) {
+              setSelectedServices(existingIds);
+            }
+          }
+        } catch {
+          // Silent - no services yet
+        }
+      };
+      loadExistingServices();
+
       // Load existing ticket classes
       const loadTicketClasses = async () => {
         try {
@@ -272,14 +291,14 @@ const CreateEvent: React.FC = () => {
           <CardContent className="space-y-4">
             {/* Event Type Selection */}
             <div>
-              <label className="block text-sm font-medium mb-2">
-                Event Type <span className="text-destructive">*</span>
+              <label className="block text-sm font-medium mb-3">
+                What type of event are you planning? <span className="text-destructive">*</span>
               </label>
               {loadingEventTypes ? (
-                <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
-                  {[1,2,3,4,5].map(i => (
+                <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                  {[1,2,3,4,5,6].map(i => (
                     <div key={i} className="p-4 rounded-xl border border-border animate-pulse">
-                      <div className="w-8 h-8 bg-muted rounded-lg mx-auto mb-2" />
+                      <div className="w-10 h-10 bg-muted rounded-lg mx-auto mb-2" />
                       <div className="h-3 bg-muted rounded w-16 mx-auto" />
                     </div>
                   ))}
@@ -287,26 +306,31 @@ const CreateEvent: React.FC = () => {
               ) : displayedEventTypes.length === 0 ? (
                 <p className="text-sm text-muted-foreground p-4 text-center border border-dashed rounded-lg">No event types available</p>
               ) : (
-                <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+                <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
                   {displayedEventTypes.map((type) => (
                     <button
                       key={type.id}
                       type="button"
                       onClick={() => setFormData({ ...formData, eventType: type.id })}
                       className={cn(
-                        "p-4 rounded-xl border-2 text-center transition-all duration-200 group",
+                        "flex flex-col items-center gap-2 p-4 rounded-xl border-2 text-center transition-all duration-200 group cursor-pointer",
                         formData.eventType === type.id
-                          ? "border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20"
+                          ? "border-primary bg-primary/10 shadow-sm ring-1 ring-primary/20"
                           : "border-border hover:border-primary/30 hover:bg-muted/50"
                       )}
                     >
                       <div className={cn(
-                        "text-2xl mb-1.5 transition-transform duration-200",
-                        formData.eventType === type.id ? "scale-110" : "group-hover:scale-105"
+                        "w-10 h-10 rounded-lg flex items-center justify-center transition-transform duration-200",
+                        formData.eventType === type.id
+                          ? "bg-primary/15 scale-110"
+                          : "bg-muted group-hover:scale-105"
                       )}>
-                        <EventIcon iconName={type.icon} />
+                        <EventIcon iconName={type.icon} size={24} />
                       </div>
-                      <div className="text-xs font-medium leading-tight">{type.name}</div>
+                      <span className={cn(
+                        "text-xs font-medium leading-tight",
+                        formData.eventType === type.id ? "text-primary" : "text-foreground"
+                      )}>{type.name}</span>
                     </button>
                   ))}
                 </div>

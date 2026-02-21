@@ -202,6 +202,8 @@ class TicketStatusEnum(enum.Enum):
 class TicketOrderStatusEnum(enum.Enum):
     pending = "pending"
     confirmed = "confirmed"
+    approved = "approved"
+    rejected = "rejected"
     cancelled = "cancelled"
     refunded = "refunded"
 
