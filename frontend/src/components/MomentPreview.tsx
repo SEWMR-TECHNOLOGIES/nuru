@@ -12,9 +12,10 @@ interface MomentPreviewProps {
   text: string;
   previews: string[];
   location: LocationData | null;
+  mediaFiles?: File[];
 }
 
-const MomentPreview = ({ text, previews, location }: MomentPreviewProps) => {
+const MomentPreview = ({ text, previews, location, mediaFiles }: MomentPreviewProps) => {
   const { data: currentUser } = useCurrentUser();
   
   // Don't show preview if nothing to display
@@ -89,23 +90,37 @@ const MomentPreview = ({ text, previews, location }: MomentPreviewProps) => {
           <div className={`rounded-lg overflow-hidden ${previews.length === 1 ? '' : 'grid gap-1'}`}
             style={previews.length > 1 ? { gridTemplateColumns: previews.length === 2 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)' } : undefined}
           >
-            {previews.slice(0, 6).map((src, idx) => (
+            {previews.slice(0, 6).map((src, idx) => {
+              const isVideo = mediaFiles?.[idx]?.type?.startsWith('video/');
+              return (
               <div 
                 key={idx} 
                 className={`relative bg-muted ${previews.length === 1 ? 'aspect-video' : 'aspect-square'}`}
               >
-                <img
-                  src={src}
-                  alt={`Preview ${idx + 1}`}
-                  className="w-full h-full object-cover"
-                />
+                {isVideo ? (
+                  <video
+                    src={src}
+                    className="w-full h-full object-cover"
+                    muted
+                    playsInline
+                    loop
+                    autoPlay
+                  />
+                ) : (
+                  <img
+                    src={src}
+                    alt={`Preview ${idx + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                )}
                 {idx === 5 && previews.length > 6 && (
                   <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                     <span className="text-white font-semibold text-lg">+{previews.length - 6}</span>
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

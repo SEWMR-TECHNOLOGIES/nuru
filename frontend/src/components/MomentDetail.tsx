@@ -1,8 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import VideoPlayer from '@/components/VideoPlayer';
+import SmartMedia from '@/components/SmartMedia';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Heart, Share2, Send, X, Loader2, CornerDownRight, ChevronDown, MapPin, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, Heart, Share2, Send, X, Loader2, CornerDownRight, ChevronDown, AlertTriangle, Ticket } from 'lucide-react';
+import CustomCalendarIcon from '@/assets/icons/calendar-icon.svg';
+import CustomLocationIcon from '@/assets/icons/location-icon.svg';
+import CustomClockIcon from '@/assets/icons/clock-icon.svg';
 import { VerifiedUserBadge } from '@/components/ui/verified-badge';
 import CustomImageIcon from '@/assets/icons/image-icon.svg';
 import { Button } from '@/components/ui/button';
@@ -527,12 +531,26 @@ const MomentDetail = () => {
   const authorVerified = post.user?.is_identity_verified || post.author?.is_verified || false;
   const postTitle = post.title || post.content?.title || '';
   const postContent = post.content?.text || post.content || (typeof post.content === 'string' ? post.content : '');
-  const postImages = post.images || post.media?.map((m: any) => m.url) || [];
+  const rawMedia = post.images || post.media || [];
+  const postImages = rawMedia.map((m: any) => typeof m === 'string' ? m : (m?.image_url || m?.url)).filter(Boolean);
+  const mediaTypes = rawMedia.map((m: any) => typeof m === 'string' ? undefined : (m?.media_type || m?.type));
+  const isVideoUrl = (url: string, idx: number) => {
+    const mt = mediaTypes[idx];
+    if (mt && mt !== 'image' && (mt === 'video' || mt.startsWith('video'))) return true;
+    // Check extension anywhere in the URL (before query params)
+    const urlPath = url.split('?')[0];
+    return /\.(mp4|webm|mov|avi|mkv|m4v|3gp)$/i.test(urlPath) || /video/i.test(url);
+  };
   const postImage = post.event?.image || post.content?.image || postImages[0] || '';
   const postTimeAgo = post.created_at ? getTimeAgo(post.created_at) : 'Recently';
   const postLocation = post.location || '';
   const isOwner = currentUser && (post.user?.id === currentUser.id || post.author?.id === currentUser.id);
   const isRemoved = post.is_active === false;
+
+  // Shared event detection
+  const isEventShare = post.post_type === 'event_share' && !!post.shared_event;
+  const sharedEvent = post.shared_event;
+  const eventImages = sharedEvent?.images?.length ? sharedEvent.images : (sharedEvent?.cover_image ? [sharedEvent.cover_image] : []);
 
   return (
     <>
@@ -592,7 +610,7 @@ const MomentDetail = () => {
               </h3>
               <p className="text-xs md:text-sm text-muted-foreground">
                 {postTimeAgo}
-                {postLocation && <span className="inline-flex items-center gap-0.5"> · <MapPin className="w-3 h-3 inline" /> {postLocation}</span>}
+                {postLocation && <span className="inline-flex items-center gap-0.5"> · <img src={CustomLocationIcon} alt="" className="w-3 h-3 inline dark:invert" /> {postLocation}</span>}
               </p>
             </div>
           </div>
@@ -615,47 +633,161 @@ const MomentDetail = () => {
           </Popover>
         </div>
 
-        {/* Media (Images + Videos) */}
-        {postImages.length > 0 ? (
-          <div className={`px-3 md:px-4 ${postImages.length > 1 ? 'flex gap-2 overflow-x-auto py-1' : ''}`}>
-            {postImages.length === 1 ? (
-              (() => {
-                const url = postImages[0];
-                const isVideo = /\.(mp4|webm|mov|avi)$/i.test(url) || url.includes('video');
-                return isVideo ? (
-                  <VideoPlayer src={url} className="w-full max-h-[500px] rounded-lg" />
-                ) : (
-                  <img src={url} alt="Post" className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30" />
-                );
-              })()
-            ) : (
-              postImages.map((media: string, idx: number) => {
-                const isVideo = /\.(mp4|webm|mov|avi)$/i.test(media) || media.includes('video');
-                return isVideo ? (
-                  <VideoPlayer key={idx} src={media} className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 rounded-lg" compact />
-                ) : (
-                  <img key={idx} src={media} alt={`Post ${idx + 1}`} className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg" />
-                );
-              })
+        {/* ── EVENT SHARE CARD ── */}
+        {isEventShare && sharedEvent ? (
+          <div className="mx-3 md:mx-4 mb-3">
+            {/* Caption above event card */}
+            {typeof postContent === 'string' && postContent && (
+              <p className="text-foreground text-sm md:text-base whitespace-pre-wrap break-words mb-3">{postContent}</p>
             )}
-          </div>
-        ) : postImage ? (
-          <div className="px-3 md:px-4">
-            {(/\.(mp4|webm|mov|avi)$/i.test(postImage) || postImage.includes('video')) ? (
-              <VideoPlayer src={postImage} className="w-full max-h-[500px] rounded-lg" />
-            ) : (
-              <img src={postImage} alt={postTitle || 'Moment image'} className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30" />
-            )}
-          </div>
-        ) : null}
 
-        {/* Content */}
-        <div className="px-3 md:px-4 py-2 md:py-3">
-          {postTitle && <h2 className="text-lg md:text-xl font-bold text-foreground mb-1">{postTitle}</h2>}
-          {typeof postContent === 'string' && postContent && (
-            <p className="text-sm md:text-base text-foreground whitespace-pre-wrap">{postContent}</p>
-          )}
-        </div>
+            <div
+              className="rounded-xl border border-border overflow-hidden bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer"
+              onClick={() => navigate(`/event/${sharedEvent.id}`)}
+            >
+              {/* Event Hero Image(s) */}
+              {eventImages.length > 0 && (
+                <div className="relative">
+                  {eventImages.length === 1 ? (
+                    <img src={eventImages[0]} alt={sharedEvent.title} className="w-full h-48 sm:h-56 object-cover" />
+                  ) : (
+                    <div className="grid grid-cols-2 gap-0.5 h-48 sm:h-56">
+                      <img src={eventImages[0]} alt={sharedEvent.title} className={`w-full h-full object-cover ${eventImages.length === 2 ? '' : 'row-span-2'}`} />
+                      {eventImages.length === 2 ? (
+                        <img src={eventImages[1]} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="flex flex-col gap-0.5">
+                          <img src={eventImages[1]} alt="" className="w-full flex-1 object-cover" />
+                          {eventImages.length > 2 && (
+                            <div className="relative flex-1">
+                              <img src={eventImages[2]} alt="" className="w-full h-full object-cover" />
+                              {eventImages.length > 3 && (
+                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                  <span className="text-white font-bold text-lg">+{eventImages.length - 3}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* Overlay badges */}
+                  <div className="absolute top-3 left-3 flex gap-2">
+                    {sharedEvent.event_type && (
+                      <span className="bg-primary/90 text-primary-foreground text-xs px-2 py-0.5 rounded-full backdrop-blur-sm">
+                        {sharedEvent.event_type}
+                      </span>
+                    )}
+                    {sharedEvent.sells_tickets && (
+                      <span className="bg-accent text-accent-foreground text-xs px-2 py-0.5 rounded-full backdrop-blur-sm flex items-center gap-1">
+                        <Ticket className="w-3 h-3" /> Tickets
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Event Info */}
+              <div className="p-4 space-y-3">
+                <h3 className="text-lg font-bold text-foreground leading-tight">{sharedEvent.title}</h3>
+
+                {sharedEvent.description && (
+                  <p className="text-sm text-muted-foreground line-clamp-2">{sharedEvent.description}</p>
+                )}
+
+                <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                  {sharedEvent.start_date && (
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <img src={CustomCalendarIcon} alt="" className="w-4 h-4 flex-shrink-0 dark:invert" />
+                      <span>
+                        {new Date(sharedEvent.start_date).toLocaleDateString('en-GB', {
+                          weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                  )}
+                  {sharedEvent.start_time && (
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <img src={CustomClockIcon} alt="" className="w-4 h-4 flex-shrink-0 dark:invert" />
+                      <span>{sharedEvent.start_time}</span>
+                    </div>
+                  )}
+                  {sharedEvent.location && (
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <img src={CustomLocationIcon} alt="" className="w-4 h-4 flex-shrink-0 dark:invert" />
+                      <span className="truncate max-w-[200px]">{sharedEvent.location}</span>
+                    </div>
+                  )}
+                </div>
+
+                {sharedEvent.dress_code && (
+                  <div className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">Dress Code:</span> {sharedEvent.dress_code}
+                  </div>
+                )}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2 mt-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/event/${sharedEvent.id}`);
+                  }}
+                >
+                  View Event Details
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Media (Images + Videos) */}
+            {postImages.length > 0 ? (
+              <div className={`px-3 md:px-4 ${postImages.length > 1 ? 'flex gap-2 overflow-x-auto py-1' : ''}`}>
+                {postImages.length === 1 ? (
+                  <SmartMedia
+                    src={postImages[0]}
+                    alt="Post"
+                    className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30"
+                    isVideo={isVideoUrl(postImages[0], 0)}
+                  />
+                ) : (
+                  postImages.map((media: string, idx: number) => (
+                    <SmartMedia
+                      key={idx}
+                      src={media}
+                      alt={`Post ${idx + 1}`}
+                      className={isVideoUrl(media, idx)
+                        ? "w-40 h-32 md:w-48 md:h-40 flex-shrink-0 rounded-lg"
+                        : "w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg"
+                      }
+                      isVideo={isVideoUrl(media, idx)}
+                    />
+                  ))
+                )}
+              </div>
+            ) : postImage ? (
+              <div className="px-3 md:px-4">
+                <SmartMedia
+                  src={postImage}
+                  alt={postTitle || 'Moment image'}
+                  className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30"
+                  isVideo={isVideoUrl(postImage, 0)}
+                />
+              </div>
+            ) : null}
+
+            {/* Content */}
+            <div className="px-3 md:px-4 py-2 md:py-3">
+              {postTitle && <h2 className="text-lg md:text-xl font-bold text-foreground mb-1">{postTitle}</h2>}
+              {typeof postContent === 'string' && postContent && (
+                <p className="text-sm md:text-base text-foreground whitespace-pre-wrap">{postContent}</p>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Action Buttons */}
         <div className="px-3 md:px-4 py-2 md:py-3 border-t border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">

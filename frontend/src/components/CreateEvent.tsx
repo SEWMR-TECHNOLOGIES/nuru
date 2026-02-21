@@ -191,7 +191,9 @@ const CreateEvent: React.FC = () => {
       }
 
       toast.success(response.message || (editId ? "Event updated successfully." : "Event created successfully."));
-      navigate(`/event-management/${createdId}`);
+      if (!editId) {
+        navigate(`/event-management/${createdId}`);
+      }
     } catch (err: any) {
       console.error("Event API error:", err);
       showCaughtError(err);

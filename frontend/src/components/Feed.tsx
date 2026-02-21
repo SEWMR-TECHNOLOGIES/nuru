@@ -118,6 +118,9 @@ const Feed = () => {
         images: (apiPost.images || apiPost.media || []).map((img: any) =>
           typeof img === 'string' ? img : (img?.image_url || img?.url)
         ).filter(Boolean),
+        media_types: (apiPost.images || apiPost.media || []).map((img: any) =>
+          typeof img === 'string' ? undefined : (img?.media_type || img?.type)
+        ),
       },
       likes: apiPost.glow_count || 0,
       comments: apiPost.comment_count || apiPost.echo_count || 0,

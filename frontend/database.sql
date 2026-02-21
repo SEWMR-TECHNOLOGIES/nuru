@@ -475,6 +475,7 @@ CREATE TABLE IF NOT EXISTS user_feed_images (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     feed_id uuid REFERENCES user_feeds(id) ON DELETE CASCADE,
     image_url text NOT NULL,
+    media_type text DEFAULT 'image',
     description text,
     is_featured boolean DEFAULT false,
     created_at timestamp DEFAULT now(),

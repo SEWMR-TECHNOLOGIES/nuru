@@ -112,7 +112,6 @@ const FindServices = () => {
       return;
     }
     setCurrentPage(1);
-    setServices([]);
     setHasMore(true);
   }, [debouncedSearch, selectedCategory, selectedLocation, sortBy, priceRange, userLat, userLng]);
 

@@ -467,6 +467,7 @@ const CreatePostBox = () => {
           text={text}
           previews={previews}
           location={location}
+          mediaFiles={images}
         />
 
         {/* Post button */}

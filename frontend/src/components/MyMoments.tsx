@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import Moment from '@/components/Moment';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal, Edit, Trash2, Globe, Users } from 'lucide-react';
@@ -185,38 +186,41 @@ const MyMoments = () => {
 
       {posts.map((post) => {
         const authorName = post.author?.name || `${currentUser?.first_name || ''} ${currentUser?.last_name || ''}`.trim() || 'You';
-        const authorAvatar = post.author?.avatar || currentUser?.avatar;
-        const images = post.images || post.media?.map((m: any) => m.url) || [];
+        const authorAvatar = post.author?.avatar || currentUser?.avatar || '';
+        const rawMedia = post.images || post.media || [];
+        const imageUrls = rawMedia.map((m: any) => typeof m === 'string' ? m : (m?.image_url || m?.url)).filter(Boolean);
+        const mediaTypesList = rawMedia.map((m: any) => typeof m === 'string' ? undefined : (m?.media_type || m?.type));
+
+        const momentPost = {
+          id: post.id,
+          type: post.post_type || 'moment',
+          author: {
+            name: authorName,
+            avatar: authorAvatar,
+            timeAgo: post.created_at ? getTimeAgo(post.created_at) : 'Recently',
+            is_verified: post.user?.is_identity_verified || post.author?.is_verified || false,
+          },
+          content: {
+            title: post.title || '',
+            text: post.content || '',
+            images: imageUrls,
+            media_types: mediaTypesList,
+          },
+          likes: post.glow_count || 0,
+          comments: post.comment_count || post.echo_count || 0,
+          has_glowed: post.has_glowed || false,
+          has_saved: post.has_saved || false,
+          shared_event: post.shared_event || null,
+          share_expires_at: post.share_expires_at || null,
+        };
 
         return (
-          <div key={post.id} className="bg-card rounded-lg shadow-sm border border-border overflow-hidden">
-            {/* Header */}
-            <div className="p-3 md:p-4 flex items-center justify-between">
-              <div className="flex items-center gap-2 md:gap-3">
-                {authorAvatar ? (
-                  <img src={authorAvatar} alt={authorName} className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover" />
-                ) : (
-                  <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
-                    {authorName.charAt(0)}
-                  </div>
-                )}
-                <div>
-                  <h3 className="font-semibold text-sm md:text-base text-foreground">{authorName}</h3>
-                  <div className="flex items-center gap-1.5 text-xs md:text-sm text-muted-foreground">
-                    <span>{post.created_at ? getTimeAgo(post.created_at) : 'Recently'}</span>
-                    <span>·</span>
-                    {(post.visibility || 'public') === 'circle' ? (
-                      <span className="flex items-center gap-0.5"><Users className="w-3 h-3" /> Circle</span>
-                    ) : (
-                      <span className="flex items-center gap-0.5"><Globe className="w-3 h-3" /> Public</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
+          <div key={post.id} className="relative">
+            {/* Management dropdown overlay */}
+            <div className="absolute top-2 right-2 z-10">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-muted-foreground">
+                  <Button variant="secondary" size="sm" className="h-8 w-8 p-0 rounded-full shadow-sm">
                     <MoreHorizontal className="w-4 h-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -244,32 +248,7 @@ const MyMoments = () => {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-
-            {/* Images */}
-            {images.length > 0 && (
-              <div className={`px-3 md:px-4 cursor-pointer ${images.length > 1 ? 'flex gap-2 overflow-x-auto py-1' : ''}`} onClick={() => viewPost(post)}>
-                {images.length === 1 ? (
-                  <img src={images[0]} alt="Post" className="w-full h-48 md:h-64 object-cover rounded-lg" />
-                ) : (
-                  images.map((img: string, idx: number) => (
-                    <img key={idx} src={img} alt={`Post ${idx + 1}`} className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg" />
-                  ))
-                )}
-              </div>
-            )}
-
-            {/* Content */}
-            <div className="px-3 md:px-4 py-3 cursor-pointer" onClick={() => viewPost(post)}>
-              {post.content && <p className="text-foreground">{post.content}</p>}
-            </div>
-
-            {/* Stats */}
-            <div className="px-3 md:px-4 py-2 md:py-3 border-t border-border">
-              <div className="flex items-center gap-3 md:gap-4 text-xs md:text-sm text-muted-foreground">
-                <span>{post.glow_count || 0} {(post.glow_count || 0) === 1 ? 'Glow' : 'Glows'}</span>
-                <span>{post.comment_count || 0} {(post.comment_count || 0) === 1 ? 'Echo' : 'Echoes'}</span>
-              </div>
-            </div>
+            <Moment post={momentPost} />
           </div>
         );
       })}

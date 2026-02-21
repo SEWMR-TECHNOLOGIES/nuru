@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import VideoPlayer from '@/components/VideoPlayer';
-import { Heart, MessageCircle, Share2, Bookmark, CalendarDays, MapPin, Clock, Users, Ticket } from 'lucide-react';
+import SmartMedia from '@/components/SmartMedia';
+import { Heart, MessageCircle, Share2, Bookmark, Ticket } from 'lucide-react';
+import CustomCalendarIcon from '@/assets/icons/calendar-icon.svg';
+import CustomLocationIcon from '@/assets/icons/location-icon.svg';
+import CustomClockIcon from '@/assets/icons/clock-icon.svg';
 import { VerifiedUserBadge } from '@/components/ui/verified-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -52,6 +56,7 @@ interface MomentProps {
       text?: string;
       image?: string;
       images?: string[];
+      media_types?: string[];
     };
     likes: number;
     comments: number;
@@ -128,6 +133,14 @@ const Moment = ({ post }: MomentProps) => {
   const text = post.content?.text?.trim() || '';
   const image = post.content?.image || undefined;
   const allImages = post.content?.images?.length ? post.content.images : (image ? [image] : []);
+  const mediaTypes = post.content?.media_types || [];
+
+  const isVideoUrl = (url: string, idx: number) => {
+    const mt = mediaTypes[idx];
+    if (mt && mt !== 'image' && (mt === 'video' || mt.startsWith('video'))) return true;
+    const urlPath = url.split('?')[0];
+    return /\.(mp4|webm|mov|avi|mkv|m4v|3gp)$/i.test(urlPath) || /video/i.test(url);
+  };
 
   // For event shares, use event images if post has none
   const eventImages = sharedEvent?.images?.length ? sharedEvent.images : (sharedEvent?.cover_image ? [sharedEvent.cover_image] : []);
@@ -285,7 +298,7 @@ const Moment = ({ post }: MomentProps) => {
               <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
                 {sharedEvent.start_date && (
                   <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <CalendarDays className="w-4 h-4 text-primary flex-shrink-0" />
+                    <img src={CustomCalendarIcon} alt="" className="w-4 h-4 flex-shrink-0 dark:invert" />
                     <span>
                       {new Date(sharedEvent.start_date).toLocaleDateString('en-GB', {
                         weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
@@ -295,20 +308,14 @@ const Moment = ({ post }: MomentProps) => {
                 )}
                 {sharedEvent.start_time && (
                   <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Clock className="w-4 h-4 text-primary flex-shrink-0" />
+                    <img src={CustomClockIcon} alt="" className="w-4 h-4 flex-shrink-0 dark:invert" />
                     <span>{sharedEvent.start_time}</span>
                   </div>
                 )}
                 {sharedEvent.location && (
                   <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <MapPin className="w-4 h-4 text-primary flex-shrink-0" />
+                    <img src={CustomLocationIcon} alt="" className="w-4 h-4 flex-shrink-0 dark:invert" />
                     <span className="truncate max-w-[200px]">{sharedEvent.location}</span>
-                  </div>
-                )}
-                {sharedEvent.expected_guests && sharedEvent.expected_guests > 0 && (
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Users className="w-4 h-4 text-primary flex-shrink-0" />
-                    <span>{sharedEvent.expected_guests} expected</span>
                   </div>
                 )}
               </div>
@@ -339,24 +346,26 @@ const Moment = ({ post }: MomentProps) => {
           {allImages.length > 0 && (
             <div className={`px-3 md:px-4 ${allImages.length > 1 ? 'flex gap-2 overflow-x-auto py-1' : ''}`}>
               {allImages.length === 1 ? (
-                (() => {
-                  const url = allImages[0];
-                  const isVideo = /\.(mp4|webm|mov|avi)$/i.test(url) || url.includes('video');
-                  return isVideo ? (
-                    <VideoPlayer src={url} className="w-full max-h-[500px] rounded-lg" />
-                  ) : (
-                    <img src={url} alt={title || 'Post image'} className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30" />
-                  );
-                })()
+                <SmartMedia
+                  src={allImages[0]}
+                  alt={title || 'Post image'}
+                  className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30"
+                  isVideo={isVideoUrl(allImages[0], 0)}
+                />
               ) : (
-                allImages.map((imgUrl, idx) => {
-                  const isVideo = /\.(mp4|webm|mov|avi)$/i.test(imgUrl) || imgUrl.includes('video');
-                  return isVideo ? (
-                    <VideoPlayer key={idx} src={imgUrl} className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 rounded-lg" compact />
-                  ) : (
-                    <img key={idx} src={imgUrl} alt={`Post ${idx + 1}`} className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg" />
-                  );
-                })
+                allImages.map((imgUrl, idx) => (
+                  <SmartMedia
+                    key={idx}
+                    src={imgUrl}
+                    alt={`Post ${idx + 1}`}
+                    className={isVideoUrl(imgUrl, idx)
+                      ? "w-40 h-32 md:w-48 md:h-40 flex-shrink-0 rounded-lg"
+                      : "w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg"
+                    }
+                    isVideo={isVideoUrl(imgUrl, idx)}
+                    compact
+                  />
+                ))
               )}
             </div>
           )}

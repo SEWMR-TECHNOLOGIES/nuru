@@ -392,7 +392,7 @@ def get_community_posts(community_id: str, page: int = 1, limit: int = 20, db: S
                 "avatar": profile.profile_picture_url if profile else None,
             },
             "content": cp.content,
-            "images": [img.image_url for img in images],
+            "images": [{"url": img.image_url, "media_type": getattr(img, 'media_type', None) or 'image'} for img in images],
             "glow_count": glow_count,
             "has_glowed": has_glowed,
             "created_at": cp.created_at.isoformat() if cp.created_at else None,

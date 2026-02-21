@@ -54,6 +54,7 @@ class UserFeedImage(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     feed_id = Column(UUID(as_uuid=True), ForeignKey('user_feeds.id', ondelete='CASCADE'))
     image_url = Column(Text, nullable=False)
+    media_type = Column(Text, default='image')  # 'image' or 'video'
     description = Column(Text)
     is_featured = Column(Boolean, default=False)
     created_at = Column(DateTime, server_default=func.now())

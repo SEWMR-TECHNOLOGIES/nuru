@@ -153,7 +153,7 @@ def _post_dict(db, post, current_user_id=None):
             "username": user.username if user else None,
             "avatar": profile.profile_picture_url if profile else None,
         },
-        "content": post.content, "images": [img.image_url for img in images],
+        "content": post.content, "images": [{"url": img.image_url, "media_type": getattr(img, 'media_type', None) or 'image'} for img in images],
         "location": post.location,
         "visibility": post.visibility.value if post.visibility else "public",
         "post_type": post.post_type or "post",
@@ -230,7 +230,7 @@ def get_my_removed_posts(
         data.append({
             "id": str(p.id),
             "content": p.content,
-            "images": [img.image_url for img in images],
+            "images": [{"url": img.image_url, "media_type": getattr(img, 'media_type', None) or 'image'} for img in images],
             "location": p.location,
             "visibility": p.visibility.value if p.visibility else "public",
             "glow_count": glow_count,
@@ -511,7 +511,8 @@ async def create_post(
                     resp = await client.post(UPLOAD_SERVICE_URL, data={"target_path": f"nuru/uploads/posts/{post.id}/"}, files={"file": (unique_name, file_content, file.content_type)}, timeout=20)
                     result = resp.json()
                     if result.get("success"):
-                        db.add(UserFeedImage(id=uuid.uuid4(), feed_id=post.id, image_url=result["data"]["url"], created_at=now))
+                        mt = 'video' if (file.content_type or '').startswith('video') else 'image'
+                        db.add(UserFeedImage(id=uuid.uuid4(), feed_id=post.id, image_url=result["data"]["url"], media_type=mt, created_at=now))
                 except Exception:
                     pass
 

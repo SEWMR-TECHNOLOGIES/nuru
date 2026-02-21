@@ -1,10 +1,37 @@
 import { useState, useEffect } from 'react';
-import { Bookmark, Loader2 } from 'lucide-react';
+import { Bookmark } from 'lucide-react';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { socialApi } from '@/lib/api/social';
 import Moment from './Moment';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { toast } from 'sonner';
+import { Skeleton } from '@/components/ui/skeleton';
+
+const SavedPostsSkeleton = () => (
+  <div className="space-y-4 md:space-y-6">
+    {[1, 2, 3].map((i) => (
+      <div key={i} className="bg-card rounded-lg shadow-sm border border-border overflow-hidden">
+        <div className="p-3 md:p-4 flex items-center gap-3">
+          <Skeleton className="w-10 h-10 rounded-full" />
+          <div className="space-y-2 flex-1">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-3 w-20" />
+          </div>
+          <Skeleton className="w-5 h-5 rounded" />
+        </div>
+        <Skeleton className="h-48 mx-3 md:mx-4 rounded-lg" />
+        <div className="px-3 md:px-4 py-3 space-y-2">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-3 w-full" />
+        </div>
+        <div className="px-3 md:px-4 py-3 border-t border-border flex justify-between">
+          <Skeleton className="h-8 w-20 rounded-lg" />
+          <Skeleton className="h-4 w-24" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
 
 const SavedPosts = () => {
   useWorkspaceMeta({ title: 'Saved Posts', description: 'View your saved posts on Nuru.' });
@@ -38,6 +65,7 @@ const SavedPosts = () => {
         name: authorName,
         avatar: authorAvatar,
         timeAgo: apiPost.created_at ? getTimeAgo(apiPost.created_at) : 'Recently',
+        is_verified: apiPost.user?.is_identity_verified || apiPost.author?.is_verified || false,
       },
       content: {
         title: apiPost.title || '',
@@ -51,17 +79,25 @@ const SavedPosts = () => {
           const first = imgs[0];
           return typeof first === 'string' ? first : (first?.image_url || first?.url);
         })(),
+        media_types: (apiPost.images || apiPost.media || []).map((img: any) =>
+          typeof img === 'string' ? undefined : (img?.media_type || img?.type)
+        ),
       },
       likes: apiPost.glow_count || 0,
-      comments: apiPost.comment_count || 0,
+      comments: apiPost.comment_count || apiPost.echo_count || 0,
       has_glowed: apiPost.has_glowed || false,
+      has_saved: apiPost.has_saved ?? apiPost.is_saved ?? true,
+      // Event share data
+      shared_event: apiPost.shared_event || null,
+      share_expires_at: apiPost.share_expires_at || null,
     };
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      <div className="space-y-4 md:space-y-6 pb-4">
+        <h1 className="text-2xl md:text-3xl font-bold">Saved Posts</h1>
+        <SavedPostsSkeleton />
       </div>
     );
   }

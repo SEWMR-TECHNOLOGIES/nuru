@@ -16,7 +16,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useUserService } from '@/hooks/useUserService';
-import { servicesApi, userServicesApi } from '@/lib/api/services';
+import { servicesApi } from '@/lib/api/services';
 import { formatPrice } from '@/utils/formatPrice';
 import { ServiceDetailLoadingSkeleton } from '@/components/ui/ServiceLoadingSkeleton';
 import { UserService, ServicePackage, ServiceReview } from '@/lib/api/types';
@@ -73,13 +73,7 @@ const PublicServiceDetail = () => {
     }
   }, [service]);
 
-  // Fetch intro media
-  useEffect(() => {
-    if (!id) return;
-    userServicesApi.getIntroMedia(id).then(res => {
-      if (res.success && res.data) setIntroMedia(Array.isArray(res.data) ? res.data : []);
-    }).catch(() => {});
-  }, [id]);
+  // Intro media is already included in the public service response (line 71-73 sets it from service data)
 
   useEffect(() => {
     if (!id) return;
