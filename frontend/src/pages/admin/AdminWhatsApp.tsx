@@ -163,14 +163,14 @@ export default function AdminWhatsApp() {
       if (res.success && res.data) {
         const newMsgs = Array.isArray(res.data) ? res.data : [];
         setMessages(prev => {
-          // Smart merge: keep optimistic messages, update statuses
           const tempMsgs = prev.filter(m => m.id.startsWith("temp-"));
           const serverIds = new Set(newMsgs.map((m: WAMessage) => m.id));
           const remainingTemp = tempMsgs.filter(m => !serverIds.has(m.id));
-          return [...newMsgs, ...remainingTemp];
+          const merged = [...newMsgs, ...remainingTemp];
+          // Only update if data actually changed
+          if (JSON.stringify(prev) === JSON.stringify(merged)) return prev;
+          return merged;
         });
-        setIsOnline(true);
-        setLastSync(new Date());
       }
     } catch {
       setIsOnline(false);
@@ -264,7 +264,7 @@ export default function AdminWhatsApp() {
   const totalUnread = conversations.reduce((sum, c) => sum + (c.unread_count || 0), 0);
 
   // ── Conversation List ──
-  const ConversationList = () => (
+  const conversationListJsx = (
     <div className="flex flex-col h-full bg-card">
       {/* Header */}
       <div className="px-4 py-3 border-b border-border bg-card">
@@ -411,7 +411,7 @@ export default function AdminWhatsApp() {
   );
 
   // ── Chat Area ──
-  const ChatArea = () => (
+  const chatAreaJsx = (
     <div className="flex flex-col h-full bg-background relative">
       {!activeConv ? (
         <div className="flex-1 flex items-center justify-center text-center">
@@ -630,14 +630,14 @@ export default function AdminWhatsApp() {
         "w-full md:w-[360px] shrink-0 border-r border-border",
         showMobileChat && "hidden md:flex md:flex-col"
       )}>
-        <ConversationList />
+        {conversationListJsx}
       </div>
       {/* Main chat */}
       <div className={cn(
         "flex-1 min-w-0",
         !showMobileChat && "hidden md:flex md:flex-col"
       )}>
-        <ChatArea />
+        {chatAreaJsx}
       </div>
     </div>
   );

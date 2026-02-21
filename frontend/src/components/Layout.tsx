@@ -50,7 +50,7 @@ const Layout = ({ children }: LayoutProps) => {
   }, [handleScroll]);
 
   return (
-    <div className="h-screen w-screen bg-background font-inter overflow-hidden px-2 md:px-0 lg:px-16">
+    <div className="h-screen w-screen bg-background font-inter overflow-hidden px-2 md:px-0 tablet:px-0 lg:px-16">
       <div className="h-full bg-card rounded-lg overflow-hidden flex flex-col relative">
         {/* Header */}
         <div
