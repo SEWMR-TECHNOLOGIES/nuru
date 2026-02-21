@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { PillTabsNav } from '@/components/ui/pill-tabs';
 import { useNavigate } from 'react-router-dom';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useEvents, useDeleteEvent } from '@/data/useEvents';
@@ -63,6 +64,7 @@ const MyEvents = () => {
   const [localStatusOverrides, setLocalStatusOverrides] = useState<Record<string, string>>({});
   const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
   const [reportHtml, setReportHtml] = useState('');
+  const [eventsTabValue, setEventsTabValue] = useState('my-events');
 
   const events = fetchedEvents.map((e: any) =>
     localStatusOverrides[e.id] ? { ...e, status: localStatusOverrides[e.id] } : e
@@ -438,19 +440,16 @@ const MyEvents = () => {
       )}
 
       {/* ── Tabs ── */}
-      <Tabs defaultValue="my-events" className="w-full">
-        <TabsList className="w-full mb-6">
-          <TabsTrigger value="my-events" className="flex-1 gap-1.5">
-            <img src={CalendarIcon} alt="Calendar" className="w-4 h-4 dark:invert" />
-            My Events
-          </TabsTrigger>
-          <TabsTrigger value="invited" className="flex-1 gap-1.5">
-            <Mail className="w-4 h-4" /> Invited
-          </TabsTrigger>
-          <TabsTrigger value="committee" className="flex-1 gap-1.5">
-            <Shield className="w-4 h-4" /> Committee
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={eventsTabValue} onValueChange={setEventsTabValue} className="w-full">
+        <PillTabsNav
+          activeTab={eventsTabValue}
+          onTabChange={setEventsTabValue}
+          tabs={[
+            { value: 'my-events', label: 'My Events', icon: <img src={CalendarIcon} alt="" className="w-4 h-4 dark:invert" /> },
+            { value: 'invited', label: 'Invited', icon: <Mail className="w-4 h-4" /> },
+            { value: 'committee', label: 'Committee', icon: <Shield className="w-4 h-4" /> },
+          ]}
+        />
 
         <TabsContent value="my-events">{renderMyEventsList()}</TabsContent>
         <TabsContent value="invited"><InvitedEvents /></TabsContent>

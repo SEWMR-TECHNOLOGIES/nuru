@@ -49,6 +49,7 @@
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.23.12",
     "html2canvas": "^1.4.1",
+    "html5-qrcode": "^2.3.8",
     "input-otp": "^1.4.2",
     "jspdf": "^4.1.0",
     "leaflet": "^1.9.4",

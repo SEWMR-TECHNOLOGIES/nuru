@@ -10,7 +10,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL;
  * Get authorization headers with token if available
  */
 export const getAuthHeaders = (): HeadersInit => {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("access_token") || localStorage.getItem("token");
   return {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -40,8 +40,9 @@ export async function request<T>(
 
     // Handle 401 globally - token expired or invalid
     if (response.status === 401) {
-      const currentToken = localStorage.getItem("token");
+      const currentToken = localStorage.getItem("access_token") || localStorage.getItem("token");
       if (currentToken) {
+        localStorage.removeItem("access_token");
         localStorage.removeItem("token");
         localStorage.removeItem("refresh_token");
         // Show message and redirect
@@ -133,7 +134,7 @@ export async function del<T>(endpoint: string, body?: unknown): Promise<ApiRespo
  * POST with FormData (for file uploads)
  */
 export async function postFormData<T>(endpoint: string, formData: FormData): Promise<ApiResponse<T>> {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("access_token") || localStorage.getItem("token");
   const url = `${BASE_URL}${endpoint}`;
   
   try {
@@ -175,7 +176,7 @@ export async function postFormData<T>(endpoint: string, formData: FormData): Pro
  * PUT with FormData (for file uploads)
  */
 export async function putFormData<T>(endpoint: string, formData: FormData): Promise<ApiResponse<T>> {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("access_token") || localStorage.getItem("token");
   const url = `${BASE_URL}${endpoint}`;
   
   try {

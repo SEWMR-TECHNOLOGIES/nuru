@@ -319,27 +319,17 @@ const SharedPhotoLibrary = () => {
               <span className="text-white/40 text-xs hidden sm:inline truncate max-w-[200px]">{library.name}</span>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  try {
-                    const response = await fetch(photos[lightboxIdx].url);
-                    const blob = await response.blob();
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = photos[lightboxIdx].original_name || `photo-${lightboxIdx + 1}.jpg`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                  } catch { /* silent */ }
-                }}
+              <a
+                href={photos[lightboxIdx].url}
+                download={photos[lightboxIdx].original_name || `photo-${lightboxIdx + 1}.jpg`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors inline-flex"
+                onClick={(e) => e.stopPropagation()}
                 title="Download photo"
               >
                 <Download className="w-5 h-5" />
-              </button>
+              </a>
               <button className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors" onClick={() => setLightboxIdx(null)}>
                 <X className="w-5 h-5" />
               </button>

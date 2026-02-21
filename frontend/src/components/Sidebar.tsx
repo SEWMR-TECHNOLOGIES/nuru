@@ -18,6 +18,7 @@ import CalendarIcon from '@/assets/icons/calendar-icon.svg'
 import ChatIcon from '@/assets/icons/chat-icon.svg'
 import BellIcon from '@/assets/icons/bell-icon.svg'
 import CardIcon from '@/assets/icons/card-icon.svg'
+import TicketIcon from '@/assets/icons/ticket-icon.svg'
 import AddSquareIcon from '@/assets/icons/add-square-icon.svg'
 
 interface SidebarProps {
@@ -81,7 +82,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
       </nav>
 
       {/* Create Event Button */}
-      <div className="mt-6">
+      <div className="mt-2">
         <NavLink to="/create-event" onClick={onNavigate}>
           <Button className="w-full bg-nuru-yellow hover:bg-nuru-yellow/90 text-foreground font-medium">
             <img src={AddSquareIcon} alt="Create Event" className="w-4 h-4 mr-2" />
@@ -90,8 +91,16 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
         </NavLink>
       </div>
 
+      {/* Browse Tickets */}
+      <nav className="mt-2 space-y-2">
+        <NavLink to="/tickets" className={linkClass} onClick={onNavigate}>
+          <img src={TicketIcon} alt="Tickets" className="w-5 h-5 flex-shrink-0 dark:invert" />
+          Browse Tickets
+        </NavLink>
+      </nav>
+
       {/* Secondary Navigation */}
-      <nav className="mt-8 space-y-2">
+      <nav className="mt-2 space-y-2">
         {secondaryItems.map(item => (
           <NavLink key={item.path} to={item.path} className={linkClass} onClick={onNavigate}>
             {renderIcon(item)}

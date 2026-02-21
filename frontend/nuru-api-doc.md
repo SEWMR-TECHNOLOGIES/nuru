@@ -15399,3 +15399,73 @@ All OTP inputs across the platform now use consistent styling: `w-12 h-14 text-x
 - Business phone verification in Add/Edit Service
 
 ---
+
+### Website Analytics & Page Views Tracking (2026-02-21)
+
+**Overview:** The platform now tracks page views for analytics purposes. A `page_views` table stores visitor data including path, referrer, device type, browser, and location. The admin dashboard at `/admin/analytics` displays traffic metrics, top pages, device/browser breakdowns, and daily trends.
+
+**Table: `page_views`**
+| Column | Type | Description |
+|---|---|---|
+| `id` | UUID | Primary key |
+| `path` | TEXT | Page path visited |
+| `referrer` | TEXT | Referring URL |
+| `user_agent` | TEXT | Browser user agent string |
+| `country` | TEXT | Visitor country |
+| `city` | TEXT | Visitor city |
+| `device_type` | TEXT | mobile / tablet / desktop |
+| `browser` | TEXT | Browser name |
+| `session_id` | TEXT | Session identifier |
+| `visitor_id` | TEXT | Persistent visitor identifier |
+| `created_at` | TIMESTAMPTZ | Timestamp of visit |
+
+**Frontend Hook:** `usePageTracking()` — automatically logs page views on route changes, deduplicating within the same session.
+
+**Admin Dashboard:** `/admin/analytics` — displays total views, unique visitors, sessions, top pages, device/browser distribution, daily trend chart, and recent activity log. Data is filterable by time range (24h, 7d, 30d, 90d).
+
+---
+
+### Printable Tickets (2026-02-21)
+
+**Overview:** Confirmed ticket orders can now be printed as modern-styled tickets. The `PrintableTicket` component renders event details, QR code, buyer info, and ticket metadata in a print-optimized layout.
+
+---
+
+### Invitation Card Redesign (2026-02-21)
+
+**Overview:** The invitation card has been redesigned with event-type-specific themes. Each event type (wedding, birthday, corporate, memorial, anniversary, conference, graduation) has a unique color scheme, typography, ornamental decorations, and invitation label. Cards include QR code generation and print/share functionality.
+
+**Supported event type themes:**
+- Wedding — Rose/pink palette with elegant serif typography
+- Birthday — Amber/orange with playful rounded styling
+- Corporate — Slate/blue with professional sans-serif
+- Memorial — Gray/muted with respectful understated design
+- Anniversary — Purple/violet with refined decorative elements
+- Conference — Teal/cyan with modern clean lines
+- Graduation — Indigo/blue with academic styling
+
+---
+
+### Events Done Count Fix (2026-02-21)
+
+**Overview:** The "events done" count on public service detail pages now correctly queries only `completed` status from the `event_service_status` enum. Previously used invalid values `confirmed` and `accepted` which caused database errors.
+
+---
+
+### Event Service Status Management (2026-02-21)
+
+**Overview:** Event organizers can now update the status of assigned service providers directly from the event management dashboard. A status dropdown allows setting service status to any valid value: `pending`, `assigned`, `in_progress`, `completed`, `cancelled`.
+
+**Backend endpoint:** `PUT /user-events/{event_id}/services/{service_id}`
+- Accepts `status` or `service_status` field in request body
+- Validates against the `event_service_status` enum
+- Requires `can_manage_vendors` permission or event creator role
+
+**Valid `event_service_status` enum values:**
+- `pending` — Service not yet confirmed
+- `assigned` — Service provider assigned to event
+- `in_progress` — Service currently being delivered
+- `completed` — Service fully delivered ✅ (counts toward "events done")
+- `cancelled` — Service cancelled
+
+---

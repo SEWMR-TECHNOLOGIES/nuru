@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2, Images } from 'lucide-react';
+import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2, Images, ChevronDown } from 'lucide-react';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
@@ -9,9 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { PillTabsNav } from '@/components/ui/pill-tabs';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
@@ -101,18 +103,29 @@ const EventManagement = () => {
     }
   }, [id]);
 
-  const completedServices = eventServices.filter((s: any) => ['completed', 'confirmed', 'assigned', 'accepted'].includes(s.status)).length;
+  const completedServices = eventServices.filter((s: any) => s.status === 'completed').length;
   const totalServices = eventServices.length;
   const progress = totalServices > 0 ? Math.round((completedServices / totalServices) * 100) : 0;
 
-  const toggleServiceComplete = async (serviceId: string) => {
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+
+  const updateServiceStatus = async (serviceId: string, newStatus: string) => {
+    setUpdatingStatusId(serviceId);
     try {
-      const svc = eventServices.find(s => s.id === serviceId);
-      const newStatus = svc?.status === 'completed' ? 'pending' : 'completed';
       await eventsApi.updateEventService(id!, serviceId, { service_status: newStatus });
       loadEventServices();
+      toast.success(`Service status updated to ${newStatus}`);
     } catch (err: any) { showCaughtError(err); }
+    finally { setUpdatingStatusId(null); }
   };
+
+  const statusOptions = [
+    { value: 'pending', label: 'Pending', color: 'bg-yellow-500' },
+    { value: 'assigned', label: 'Assigned', color: 'bg-blue-500' },
+    { value: 'in_progress', label: 'In Progress', color: 'bg-orange-500' },
+    { value: 'completed', label: 'Completed', color: 'bg-green-500' },
+    { value: 'cancelled', label: 'Cancelled', color: 'bg-red-500' },
+  ];
 
   const handleRemoveService = async () => {
     if (!deleteServiceId || !id) return;
@@ -284,33 +297,21 @@ const EventManagement = () => {
       </AlertDialog>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="mb-6 -mx-1 px-1">
-          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            {[
-              { value: 'overview', label: 'Overview' },
-              { value: 'checklist', label: 'Checklist' },
-              { value: 'services', label: 'Services' },
-              { value: 'committee', label: 'Committee' },
-              { value: 'contributions', label: 'Contributions' },
-              { value: 'expenses', label: 'Expenses' },
-              { value: 'guests', label: 'Guests' },
-              { value: 'rsvp', label: 'RSVP' },
-              ...((apiEvent as any)?.sells_tickets ? [{ value: 'tickets', label: 'Tickets' }] : []),
-            ].map((tab) => (
-              <button
-                key={tab.value}
-                onClick={() => setActiveTab(tab.value)}
-                className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all flex-shrink-0
-                  ${activeTab === tab.value
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
-                  }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <PillTabsNav
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          tabs={[
+            { value: 'overview', label: 'Overview' },
+            { value: 'checklist', label: 'Checklist' },
+            { value: 'services', label: 'Services' },
+            { value: 'committee', label: 'Committee' },
+            { value: 'contributions', label: 'Contributions' },
+            { value: 'expenses', label: 'Expenses' },
+            { value: 'guests', label: 'Guests' },
+            { value: 'rsvp', label: 'RSVP' },
+            ...((apiEvent as any)?.sells_tickets ? [{ value: 'tickets', label: 'Tickets' }] : []),
+          ]}
+        />
 
         <TabsContent value="overview" className="space-y-4">
           {/* Row 1: Financial overview */}
@@ -366,7 +367,7 @@ const EventManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-bold">Service Providers</h2>
-              <p className="text-xs text-muted-foreground">{eventServices.length} service{eventServices.length !== 1 ? 's' : ''} · {completedServices} confirmed</p>
+              <p className="text-xs text-muted-foreground">{eventServices.length} service{eventServices.length !== 1 ? 's' : ''} · {completedServices} completed</p>
             </div>
             {(permissions.can_manage_vendors || permissions.is_creator) && (
               <Button size="sm" onClick={() => setShowAddServiceDialog(true)}>
@@ -418,12 +419,12 @@ const EventManagement = () => {
                   || extractFirstImage(service.service?.gallery_images)
                   || '';
 
-                const isConfirmed = ['completed', 'confirmed', 'assigned', 'accepted'].includes(service.status);
+                const isActiveService = ['completed', 'assigned', 'in_progress'].includes(service.status);
                 // provider_service_id is the UserService id that was added to the event
                 const providerServiceId = service.provider_service_id || service.service?.id;
                 const serviceCategory = (service.service?.category || service.service?.service_type_name || service.service?.title || '').toLowerCase();
                 const isPhotographyService = serviceCategory.includes('photo') || serviceCategory.includes('cinema') || serviceCategory.includes('video') || serviceCategory.includes('film');
-                const matchedLibrary = isPhotographyService && isConfirmed
+                const matchedLibrary = isPhotographyService && isActiveService
                   ? eventPhotoLibraries.find((lib: any) =>
                       lib.user_service_id === providerServiceId ||
                       lib.user_service_id === service.provider_service_id ||
@@ -434,18 +435,18 @@ const EventManagement = () => {
 
                 const statusStyle: Record<string, string> = {
                   completed: 'bg-emerald-500 text-white',
-                  confirmed: 'bg-blue-500 text-white',
-                  accepted: 'bg-blue-500 text-white',
                   assigned: 'bg-blue-500 text-white',
+                  in_progress: 'bg-indigo-500 text-white',
                   pending: 'bg-amber-500 text-white',
                   cancelled: 'bg-destructive text-white',
                 };
+                const isCompleted = service.status === 'completed';
 
                 return (
                   <div
                     key={service.id}
                     className={`rounded-2xl border overflow-hidden bg-card transition-all hover:shadow-md
-                      ${isConfirmed ? 'border-emerald-200 dark:border-emerald-800/60' : 'border-border'}`}
+                      ${isCompleted ? 'border-emerald-200 dark:border-emerald-800/60' : 'border-border'}`}
                   >
                     {/* Image Header */}
                     <div className="relative h-32 bg-gradient-to-br from-primary/10 to-muted overflow-hidden">
@@ -473,18 +474,51 @@ const EventManagement = () => {
                       )}
 
                       {/* Service title on image */}
-                      <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between">
+                      <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between gap-2">
                         <h3 className="text-white font-bold text-sm truncate">{service.service?.title || 'Unnamed Service'}</h3>
                         {(permissions.can_manage_vendors || permissions.is_creator) && (
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <button
-                              onClick={() => toggleServiceComplete(service.id)}
-                              className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors
-                                ${isConfirmed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-white/70 bg-white/10 hover:border-white'}`}
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full backdrop-blur-sm text-white border border-white/20 cursor-pointer hover:bg-white/20 transition-colors flex-shrink-0"
+                                style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+                              >
+                                {updatingStatusId === service.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${statusOptions.find(s => s.value === service.status)?.color || 'bg-gray-400'}`} />
+                                )}
+                                <span className="capitalize">{service.status?.replace('_', ' ') || 'Pending'}</span>
+                                <ChevronDown className="w-3 h-3 opacity-70" />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent
+                              className="w-44 p-1 z-50 bg-popover border border-border shadow-lg rounded-lg"
+                              align="end"
+                              side="bottom"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              {isConfirmed && <CheckCircle2 className="w-3.5 h-3.5" />}
-                            </button>
-                          </div>
+                              {statusOptions.map((opt) => (
+                                <button
+                                  key={opt.value}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (opt.value !== service.status) updateServiceStatus(service.id, opt.value);
+                                  }}
+                                  className={`w-full flex items-center gap-2 px-3 py-2 text-xs rounded-md transition-colors ${
+                                    opt.value === service.status
+                                      ? 'bg-accent text-accent-foreground font-semibold'
+                                      : 'hover:bg-accent/50 text-foreground'
+                                  }`}
+                                >
+                                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${opt.color}`} />
+                                  {opt.label}
+                                  {opt.value === service.status && <CheckCircle2 className="w-3 h-3 ml-auto text-primary" />}
+                                </button>
+                              ))}
+                            </PopoverContent>
+                          </Popover>
                         )}
                       </div>
                     </div>
@@ -520,7 +554,7 @@ const EventManagement = () => {
                       </div>
 
                       {/* Photo Library CTA for photography services */}
-                      {isPhotographyService && isConfirmed && (
+                      {isPhotographyService && isActiveService && (
                         matchedLibrary ? (
                           <button
                             onClick={() => navigate(`/photo-library/${matchedLibrary.id}`)}

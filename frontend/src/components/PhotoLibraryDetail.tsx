@@ -371,27 +371,17 @@ const PhotoLibraryDetail = () => {
                   >
                     <ZoomIn className="w-4 h-4 text-foreground" />
                   </button>
-                  <button
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      try {
-                        const response = await fetch(photo.url);
-                        const blob = await response.blob();
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = photo.original_name || `photo-${idx + 1}.jpg`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                      } catch { toast.error('Download failed. Please try again.'); }
-                    }}
-                    className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors shadow"
+                  <a
+                    href={photo.url}
+                    download={photo.original_name || `photo-${idx + 1}.jpg`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors shadow inline-flex"
                     title="Download"
                   >
                     <Download className="w-4 h-4 text-foreground" />
-                  </button>
+                  </a>
                   {isOwner && (
                     <button
                       onClick={() => setDeletePhotoId(photo.id)}
@@ -419,27 +409,17 @@ const PhotoLibraryDetail = () => {
         >
           {/* Top controls */}
           <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
-            <button
-              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-              onClick={async (e) => {
-                e.stopPropagation();
-                try {
-                  const response = await fetch(photos[lightboxIdx]?.url);
-                  const blob = await response.blob();
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = photos[lightboxIdx]?.original_name || `photo-${lightboxIdx + 1}.jpg`;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
-                } catch { toast.error('Download failed. Please try again.'); }
-              }}
+            <a
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors inline-flex"
+              href={photos[lightboxIdx]?.url}
+              download={photos[lightboxIdx]?.original_name || `photo-${lightboxIdx + 1}.jpg`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
               title="Download photo"
             >
               <Download className="w-5 h-5" />
-            </button>
+            </a>
             <button
               onClick={() => setLightboxIdx(null)}
               className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"

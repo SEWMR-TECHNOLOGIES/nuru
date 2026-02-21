@@ -48,16 +48,24 @@ def get_ticket_classes(
         EventTicketClass.event_id == eid
     ).order_by(EventTicketClass.display_order).all()
 
+    from sqlalchemy import func as sa_func
+
     result = []
     for tc in classes:
-        available = tc.quantity - tc.sold
+        # Calculate sold from actual ticket orders (SUM of quantity)
+        sold = db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
+            EventTicket.ticket_class_id == tc.id,
+            EventTicket.status.notin_([TicketOrderStatusEnum.rejected, TicketOrderStatusEnum.cancelled]),
+        ).scalar()
+        sold = int(sold)
+        available = tc.quantity - sold
         result.append({
             "id": str(tc.id),
             "name": tc.name,
             "description": tc.description,
             "price": float(tc.price),
             "quantity": tc.quantity,
-            "sold": tc.sold,
+            "sold": sold,
             "available": available,
             "status": tc.status.value if tc.status else "available",
             "is_sold_out": available <= 0,
@@ -96,16 +104,24 @@ def get_my_ticket_classes(
         EventTicketClass.event_id == eid
     ).order_by(EventTicketClass.display_order).all()
 
+    from sqlalchemy import func as sa_func
+
     result = []
     for tc in classes:
-        available = tc.quantity - tc.sold
+        # Organizer view: count only approved/confirmed tickets as "sold"
+        sold = db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
+            EventTicket.ticket_class_id == tc.id,
+            EventTicket.status.in_([TicketOrderStatusEnum.approved, TicketOrderStatusEnum.confirmed]),
+        ).scalar()
+        sold = int(sold)
+        available = tc.quantity - sold
         result.append({
             "id": str(tc.id),
             "name": tc.name,
             "description": tc.description,
             "price": float(tc.price),
             "quantity": tc.quantity,
-            "sold": tc.sold,
+            "sold": sold,
             "available": available,
             "status": tc.status.value if tc.status else "available",
             "display_order": tc.display_order,
@@ -193,6 +209,14 @@ async def update_ticket_class(
     if not event:
         return standard_response(False, "Not authorized")
 
+    from sqlalchemy import func as sa_func
+    # Organizer context: count only approved/confirmed as truly "sold"
+    actual_sold = db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
+        EventTicket.ticket_class_id == tc.id,
+        EventTicket.status.in_([TicketOrderStatusEnum.approved, TicketOrderStatusEnum.confirmed]),
+    ).scalar()
+    actual_sold = int(actual_sold)
+
     payload = await request.json()
     for field in ["name", "description", "price", "quantity", "display_order", "sale_start_date", "sale_end_date"]:
         if field in payload:
@@ -200,8 +224,8 @@ async def update_ticket_class(
                 setattr(tc, field, float(payload[field]))
             elif field == "quantity":
                 new_qty = int(payload[field])
-                if new_qty < tc.sold:
-                    return standard_response(False, f"Cannot set quantity below {tc.sold} (already sold)")
+                if new_qty < actual_sold:
+                    return standard_response(False, f"Cannot set quantity below {actual_sold} (already sold)")
                 tc.quantity = new_qty
             else:
                 setattr(tc, field, payload[field])
@@ -236,7 +260,12 @@ def delete_ticket_class(
     if not event:
         return standard_response(False, "Not authorized")
 
-    if tc.sold > 0:
+    from sqlalchemy import func as sa_func
+    actual_sold = db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
+        EventTicket.ticket_class_id == tc.id,
+        EventTicket.status.in_([TicketOrderStatusEnum.approved, TicketOrderStatusEnum.confirmed]),
+    ).scalar()
+    if int(actual_sold) > 0:
         return standard_response(False, "Cannot delete ticket class with sold tickets")
 
     db.delete(tc)
@@ -272,7 +301,14 @@ async def purchase_ticket(
     if not tc:
         return standard_response(False, "Ticket class not found")
 
-    available = tc.quantity - tc.sold
+    from sqlalchemy import func as sa_func
+    # Calculate sold from actual orders (SUM of quantity), not tc.sold column
+    current_sold = db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
+        EventTicket.ticket_class_id == tc.id,
+        EventTicket.status.notin_([TicketOrderStatusEnum.rejected, TicketOrderStatusEnum.cancelled]),
+    ).scalar()
+    current_sold = int(current_sold)
+    available = tc.quantity - current_sold
     if available < quantity:
         return standard_response(False, f"Only {available} tickets available for '{tc.name}'. You requested {quantity}.")
 
@@ -293,9 +329,7 @@ async def purchase_ticket(
         payment_status=PaymentStatusEnum.pending,
     )
 
-    tc.sold += quantity
-    if tc.sold >= tc.quantity:
-        tc.status = TicketStatusEnum.sold_out
+    # No need to maintain tc.sold column — sold count is always computed from orders
 
     db.add(ticket)
     db.commit()
@@ -458,13 +492,8 @@ async def update_ticket_status(
     except (ValueError, KeyError):
         return standard_response(False, "Invalid status value")
 
-    # If rejected, restore the sold count
-    if new_status == "rejected":
-        tc = db.query(EventTicketClass).filter(EventTicketClass.id == ticket.ticket_class_id).first()
-        if tc:
-            tc.sold = max(0, tc.sold - ticket.quantity)
-            if tc.sold < tc.quantity:
-                tc.status = TicketStatusEnum.available
+    # No need to manually adjust tc.sold — sold is always computed from orders
+    # Rejected orders are excluded by the notin_ filter in sold calculations
 
     db.commit()
 
@@ -543,15 +572,110 @@ def get_my_upcoming_tickets(
 
 
 # ──────────────────────────────────────────────
+# Verify ticket by code (public - for QR scan)
+# ──────────────────────────────────────────────
+@router.get("/verify/{ticket_code}")
+def verify_ticket(
+    ticket_code: str,
+    db: Session = Depends(get_db),
+):
+    """Public endpoint to verify a ticket by its code (used by QR scan)."""
+    from models.users import UserProfile
+
+    ticket = db.query(EventTicket).filter(EventTicket.ticket_code == ticket_code).first()
+    if not ticket:
+        return standard_response(False, "Ticket not found")
+
+    event = db.query(Event).filter(Event.id == ticket.event_id).first()
+    tc = db.query(EventTicketClass).filter(EventTicketClass.id == ticket.ticket_class_id).first()
+
+    # Resolve buyer profile picture
+    buyer = db.query(User).filter(User.id == ticket.buyer_user_id).first()
+    buyer_avatar = None
+    if buyer:
+        profile = db.query(UserProfile).filter(UserProfile.user_id == buyer.id).first()
+        buyer_avatar = profile.profile_picture_url if profile else None
+
+    return standard_response(True, "Ticket verified", {
+        "ticket": {
+            "ticket_code": ticket.ticket_code,
+            "event_title": event.name if event else "Unknown Event",
+            "event_date": str(event.start_date) if event and event.start_date else None,
+            "event_time": str(event.start_time) if event and event.start_time else None,
+            "event_location": event.location if event else None,
+            "event_cover": _resolve_event_cover(event, db) if event else None,
+            "ticket_class": tc.name if tc else None,
+            "ticket_class_price": float(tc.price) if tc else None,
+            "quantity": ticket.quantity,
+            "buyer_name": ticket.buyer_name,
+            "buyer_phone": ticket.buyer_phone,
+            "buyer_email": ticket.buyer_email,
+            "buyer_avatar": buyer_avatar,
+            "total_amount": float(ticket.total_amount),
+            "currency": "TZS",
+            "status": ticket.status.value if ticket.status else "pending",
+            "checked_in": ticket.checked_in,
+            "checked_in_at": str(ticket.checked_in_at) if ticket.checked_in_at else None,
+            "event_id": str(event.id) if event else None,
+            "purchased_at": str(ticket.created_at) if ticket.created_at else None,
+        }
+    })
+
+
+# ──────────────────────────────────────────────
+# Check-in ticket (organizer scans QR)
+# ──────────────────────────────────────────────
+@router.put("/verify/{ticket_code}/check-in")
+def check_in_ticket(
+    ticket_code: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Mark a ticket as checked-in (used). Only the event organizer can do this."""
+    ticket = db.query(EventTicket).filter(EventTicket.ticket_code == ticket_code).first()
+    if not ticket:
+        return standard_response(False, "Ticket not found")
+
+    event = db.query(Event).filter(Event.id == ticket.event_id).first()
+    if not event:
+        return standard_response(False, "Event not found")
+
+    # Only organizer can check in
+    if event.organizer_id != current_user.id:
+        return standard_response(False, "Only the event organizer can check in tickets")
+
+    # Must be approved/confirmed
+    if ticket.status not in (TicketOrderStatusEnum.approved, TicketOrderStatusEnum.confirmed):
+        return standard_response(False, f"Cannot check in a ticket with status '{ticket.status.value}'. Must be approved or confirmed.")
+
+    if ticket.checked_in:
+        return standard_response(False, "Ticket has already been checked in", {
+            "checked_in_at": str(ticket.checked_in_at) if ticket.checked_in_at else None
+        })
+
+    ticket.checked_in = True
+    ticket.checked_in_at = datetime.now()
+    db.commit()
+
+    return standard_response(True, "Ticket checked in successfully", {
+        "ticket_code": ticket.ticket_code,
+        "checked_in_at": str(ticket.checked_in_at),
+    })
+
+
+# ──────────────────────────────────────────────
 # Get ticketed events (public, for right panel)
 # ──────────────────────────────────────────────
 @router.get("/events")
 def get_ticketed_events(
     page: int = 1,
     limit: int = 10,
+    search: str = None,
     db: Session = Depends(get_db),
 ):
     """Get all public events that sell tickets."""
+    from sqlalchemy import func as sa_func
+
     page = max(1, page)
     limit = max(1, min(limit, 50))
     offset = (page - 1) * limit
@@ -559,7 +683,17 @@ def get_ticketed_events(
     query = db.query(Event).filter(
         Event.sells_tickets == True,
         Event.is_public == True,
-    ).order_by(Event.start_date.asc())
+    )
+
+    # Live search filter
+    if search and search.strip():
+        search_term = f"%{search.strip().lower()}%"
+        query = query.filter(
+            sa_func.lower(Event.name).like(search_term) |
+            sa_func.lower(Event.location).like(search_term)
+        )
+
+    query = query.order_by(Event.start_date.asc())
 
     total = query.count()
     events = query.offset(offset).limit(limit).all()
@@ -568,7 +702,14 @@ def get_ticketed_events(
     for e in events:
         ticket_classes = db.query(EventTicketClass).filter(EventTicketClass.event_id == e.id).all()
         min_price = min([float(tc.price) for tc in ticket_classes], default=0) if ticket_classes else 0
-        total_available = sum([(tc.quantity - tc.sold) for tc in ticket_classes]) if ticket_classes else 0
+
+        # Calculate available using SUM(quantity) from actual ticket orders
+        total_sold_qty = db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
+            EventTicket.event_id == e.id,
+            EventTicket.status.notin_([TicketOrderStatusEnum.rejected, TicketOrderStatusEnum.cancelled]),
+        ).scalar()
+        total_qty = sum([tc.quantity for tc in ticket_classes]) if ticket_classes else 0
+        total_available = total_qty - int(total_sold_qty)
 
         result.append({
             "id": str(e.id),
@@ -577,7 +718,7 @@ def get_ticketed_events(
             "location": e.location,
             "cover_image": _resolve_event_cover(e, db),
             "min_price": min_price,
-            "total_available": total_available,
+            "total_available": max(0, total_available),
             "ticket_class_count": len(ticket_classes),
         })
 

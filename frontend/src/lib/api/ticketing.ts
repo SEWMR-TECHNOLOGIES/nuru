@@ -47,8 +47,8 @@ export interface TicketedEvent {
 
 export const ticketingApi = {
   // Public: get ticketed events for discovery
-  getTicketedEvents: (params?: { page?: number; limit?: number }) => {
-    const qs = params ? `?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString()}` : '';
+  getTicketedEvents: (params?: { page?: number; limit?: number; search?: string }) => {
+    const qs = params ? `?${new URLSearchParams(Object.entries(params).filter(([_, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])).toString()}` : '';
     return get<{ events: TicketedEvent[]; pagination: any }>(`/ticketing/events${qs}`);
   },
 
@@ -93,4 +93,8 @@ export const ticketingApi = {
   // My upcoming tickets (sidebar)
   getMyUpcomingTickets: () =>
     get<{ tickets: any[] }>(`/ticketing/my-upcoming-tickets`),
+
+  // Check-in ticket (organizer scans QR)
+  checkInTicket: (ticketCode: string) =>
+    put<{ ticket_code: string; checked_in_at: string }>(`/ticketing/verify/${ticketCode}/check-in`, {}),
 };

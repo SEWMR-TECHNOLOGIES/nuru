@@ -14,6 +14,7 @@ export const useLogout = () => {
       if (!response.success) throw new Error("Failed to logout");
 
       // Clear local auth tokens
+      localStorage.removeItem("access_token");
       localStorage.removeItem("token");
       localStorage.removeItem("refresh_token");
 

@@ -5,10 +5,12 @@ import { useNavigate } from 'react-router-dom';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import TicketIcon from '@/assets/icons/ticket-icon.svg';
+import PrintIcon from '@/assets/icons/print-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import PrintableTicket from '@/components/PrintableTicket';
 
 import { useEvents } from '@/data/useEvents';
 import { useServices } from '@/data/useUserServices';
@@ -117,6 +119,7 @@ const MyTicketsSection = ({ navigate }: { navigate: (path: string) => void }) =>
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const loadedRef = useRef(false);
+  const [printTicket, setPrintTicket] = useState<any>(null);
 
   useEffect(() => {
     if (loadedRef.current) return;
@@ -132,67 +135,101 @@ const MyTicketsSection = ({ navigate }: { navigate: (path: string) => void }) =>
   if (loading || tickets.length === 0) return null;
 
   return (
-    <div className="bg-card rounded-lg border border-border overflow-hidden">
-      <div className="px-4 pt-4 pb-2">
-        <h2 className="font-semibold text-foreground flex items-center gap-2">
-          <img src={TicketIcon} alt="Ticket" className="w-4 h-4 dark:invert" />
-          My Tickets
-        </h2>
-      </div>
-      <div className="px-2 pb-3 space-y-1">
-        {tickets.map((ticket) => {
-          const event = ticket.event;
-          const startDate = event?.start_date ? new Date(event.start_date) : null;
-          const isToday = startDate && startDate.toDateString() === new Date().toDateString();
-          return (
-            <div
-              key={ticket.id}
-              className="flex gap-3 cursor-pointer hover:bg-muted/50 px-2 py-2.5 rounded-lg transition-colors"
-              onClick={() => navigate(`/event/${event?.id}`)}
-            >
-              <div className="relative w-11 h-11 rounded-lg bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-                {event?.cover_image ? (
-                  <img src={event.cover_image} alt={event.name} className="w-full h-full object-cover" />
-                ) : (
-                  <img src={TicketIcon} alt="Ticket" className="w-5 h-5 dark:invert opacity-50" />
-                )}
-                {isToday && (
-                  <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-card" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-medium text-sm text-foreground truncate">{event?.name}</h3>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[11px] text-muted-foreground">
-                    {startDate
-                      ? isToday
-                        ? 'Today'
-                        : startDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-                      : 'Date TBD'}
-                  </span>
-                  {event?.start_time && (
+    <>
+      <div className="bg-card rounded-lg border border-border overflow-hidden">
+        <div className="px-4 pt-4 pb-2">
+          <h2 className="font-semibold text-foreground flex items-center gap-2">
+            <img src={TicketIcon} alt="Ticket" className="w-4 h-4 dark:invert" />
+            My Tickets
+          </h2>
+        </div>
+        <div className="px-2 pb-3 space-y-1">
+          {tickets.map((ticket) => {
+            const event = ticket.event;
+            const startDate = event?.start_date ? new Date(event.start_date) : null;
+            const isToday = startDate && startDate.toDateString() === new Date().toDateString();
+            return (
+              <div
+                key={ticket.id}
+                className="flex gap-3 cursor-pointer hover:bg-muted/50 px-2 py-2.5 rounded-lg transition-colors"
+                onClick={() => navigate(`/event/${event?.id}`)}
+              >
+                <div className="relative w-11 h-11 rounded-lg bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
+                  {event?.cover_image ? (
+                    <img src={event.cover_image} alt={event.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <img src={TicketIcon} alt="Ticket" className="w-5 h-5 dark:invert opacity-50" />
+                  )}
+                  {isToday && (
+                    <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-card" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <h3 className="font-medium text-sm text-foreground truncate">{event?.name}</h3>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPrintTicket({
+                          ticket_code: ticket.ticket_code,
+                          event_title: event?.name || 'Event',
+                          event_date: event?.start_date,
+                          event_time: event?.start_time ? event.start_time.slice(0, 5) : undefined,
+                          event_location: event?.location,
+                          ticket_class: ticket.ticket_class_name || ticket.ticket_class,
+                          quantity: ticket.quantity,
+                          buyer_name: ticket.buyer_name,
+                          total_amount: ticket.total_amount,
+                          currency: ticket.currency,
+                          status: ticket.status,
+                        });
+                      }}
+                      className="flex-shrink-0 p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                      title="Print ticket"
+                    >
+                      <img src={PrintIcon} alt="Print" className="w-3.5 h-3.5 dark:invert" />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[11px] text-muted-foreground">
-                      · {event.start_time.slice(0, 5)}
+                      {startDate
+                        ? isToday
+                          ? 'Today'
+                          : startDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                        : 'Date TBD'}
                     </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-mono tracking-wide">
-                    {ticket.ticket_code}
-                  </Badge>
-                  <span className="text-[10px] h-4 px-1.5 capitalize inline-flex items-center rounded-full border border-border bg-muted text-muted-foreground">
-                    {ticket.status}
-                  </span>
-                  {ticket.quantity > 1 && (
-                    <span className="text-[10px] text-muted-foreground">×{ticket.quantity}</span>
-                  )}
+                    {event?.start_time && (
+                      <span className="text-[11px] text-muted-foreground">
+                        · {event.start_time.slice(0, 5)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-mono tracking-wide">
+                      {ticket.ticket_code}
+                    </Badge>
+                    <span className="text-[10px] h-4 px-1.5 capitalize inline-flex items-center rounded-full border border-border bg-muted text-muted-foreground">
+                      {ticket.status}
+                    </span>
+                    {ticket.quantity > 1 && (
+                      <span className="text-[10px] text-muted-foreground">×{ticket.quantity}</span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
-    </div>
+
+      {printTicket && (
+        <PrintableTicket
+          ticket={printTicket}
+          open={!!printTicket}
+          onClose={() => setPrintTicket(null)}
+        />
+      )}
+    </>
   );
 };
 

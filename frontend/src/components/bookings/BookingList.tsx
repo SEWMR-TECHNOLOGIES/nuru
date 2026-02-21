@@ -41,7 +41,8 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { PillTabsNav } from '@/components/ui/pill-tabs';
 import { useMyBookings, useIncomingBookings } from '@/data/useBookings';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
@@ -95,14 +96,18 @@ const BookingList = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'my' | 'incoming')}>
-        <TabsList>
-          <TabsTrigger value="my">My Bookings</TabsTrigger>
-          <TabsTrigger value="incoming">Incoming Requests</TabsTrigger>
-        </TabsList>
-        <TabsContent value="my" className="mt-6">
+        <PillTabsNav
+          activeTab={activeTab}
+          onTabChange={(v) => setActiveTab(v as 'my' | 'incoming')}
+          tabs={[
+            { value: 'my', label: 'My Bookings' },
+            { value: 'incoming', label: 'Incoming Requests' },
+          ]}
+        />
+        <TabsContent value="my" className="mt-2">
           <MyBookingsTab />
         </TabsContent>
-        <TabsContent value="incoming" className="mt-6">
+        <TabsContent value="incoming" className="mt-2">
           <IncomingBookingsTab />
         </TabsContent>
       </Tabs>

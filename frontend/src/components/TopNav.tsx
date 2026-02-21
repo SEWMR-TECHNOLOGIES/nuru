@@ -3,12 +3,14 @@ import { Users, Search } from 'lucide-react';
 import HomeIcon from '@/assets/icons/home-icon.svg';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import ChatIcon from '@/assets/icons/chat-icon.svg';
+import TicketIcon from '@/assets/icons/ticket-icon.svg';
 import { useConversations } from '@/data/useSocial';
 
 const navItems = [
   { icon: HomeIcon, label: 'Home', path: '/', isCustom: true },
   { icon: CalendarIcon, label: 'Events', path: '/my-events', isCustom: true },
   { icon: ChatIcon, label: 'Messages', path: '/messages', isCustom: true },
+  { icon: TicketIcon, label: 'Tickets', path: '/tickets', isCustom: true },
   { icon: Search, label: 'Services', path: '/find-services', isCustom: false },
   { icon: Users, label: 'Community', path: '/communities', isCustom: false },
 ];

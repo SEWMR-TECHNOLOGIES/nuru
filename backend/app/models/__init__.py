@@ -75,3 +75,4 @@ from models.feed_ranking import (
     UserInteractionLog, UserInterestProfile, AuthorAffinityScore,
     PostQualityScore, FeedImpression,
 )
+from models.page_views import PageView

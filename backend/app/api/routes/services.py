@@ -403,10 +403,10 @@ def get_service_details(service_id: str, db: Session = Depends(get_db)):
             "created_at": r.created_at.isoformat()
         })
 
-    # Count completed events for this service
+    # Count events where this service was completed
     completed_events = db.query(sa_func.count(EventService.id)).filter(
         EventService.provider_user_service_id == sid,
-        EventService.service_status == "completed",
+        EventService.service_status == EventServiceStatusEnum.completed,
     ).scalar() or 0
 
     owner_name = f"{service.user.first_name} {service.user.last_name}".strip()
@@ -615,7 +615,7 @@ def get_service_calendar(
 
         status = es.service_status.value if hasattr(es.service_status, "value") else str(es.service_status)
 
-        show_price = float(es.agreed_price) if es.agreed_price and status in ("confirmed", "completed", "accepted") else None
+        show_price = float(es.agreed_price) if es.agreed_price and status in ("assigned", "in_progress", "completed") else None
 
         booked_dates.append({
             "date": event_date_str,

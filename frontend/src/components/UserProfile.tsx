@@ -17,7 +17,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { PillTabsNav } from "@/components/ui/pill-tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -508,14 +509,14 @@ const UserProfile = () => {
 
       {/* Tabs */}
       <Tabs value={activeProfileTab} onValueChange={setActiveProfileTab} className="space-y-4">
-        <TabsList className="bg-muted/50">
-          <TabsTrigger value="verification" className="gap-2">
-            <Shield className="w-4 h-4" /> Identity Verification
-          </TabsTrigger>
-          <TabsTrigger value="contact" className="gap-2">
-            <UserIcon className="w-4 h-4" /> Contact Info
-          </TabsTrigger>
-        </TabsList>
+        <PillTabsNav
+          activeTab={activeProfileTab}
+          onTabChange={setActiveProfileTab}
+          tabs={[
+            { value: 'verification', label: 'Identity Verification', icon: <Shield className="w-4 h-4" /> },
+            { value: 'contact', label: 'Contact Info', icon: <UserIcon className="w-4 h-4" /> },
+          ]}
+        />
 
         <TabsContent value="verification">
           <Card className="border-0 shadow-sm">

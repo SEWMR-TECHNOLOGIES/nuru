@@ -12,7 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { PillTabsNav } from '@/components/ui/pill-tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { motion } from 'framer-motion';
 import { profileApi } from '@/lib/api/profile';
@@ -62,6 +63,7 @@ const PublicProfile = () => {
   const [posts, setPosts] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [contentLoading, setContentLoading] = useState(false);
+  const [profileTab, setProfileTab] = useState('moments');
 
   // Is this my own profile?
   const isOwnProfile = currentUser?.username === username;
@@ -364,20 +366,16 @@ const PublicProfile = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
       >
-        <Tabs defaultValue="moments" className="space-y-4">
-          <TabsList className="bg-muted/50 w-full">
-            <TabsTrigger value="moments" className="flex-1 text-xs sm:text-sm gap-1">
-              <img src={CameraIcon} alt="" className="w-4 h-4" /> Moments
-            </TabsTrigger>
-            <TabsTrigger value="events" className="flex-1 text-xs sm:text-sm gap-1">
-              <img src={CalendarIcon} alt="" className="w-4 h-4" /> Events
-            </TabsTrigger>
-            {user.is_vendor && (
-              <TabsTrigger value="services" className="flex-1 text-xs sm:text-sm gap-1">
-                <Briefcase className="w-4 h-4" /> Services
-              </TabsTrigger>
-            )}
-          </TabsList>
+        <Tabs value={profileTab} onValueChange={setProfileTab} className="space-y-4">
+          <PillTabsNav
+            activeTab={profileTab}
+            onTabChange={setProfileTab}
+            tabs={[
+              { value: 'moments', label: 'Moments', icon: <img src={CameraIcon} alt="" className="w-4 h-4" /> },
+              { value: 'events', label: 'Events', icon: <img src={CalendarIcon} alt="" className="w-4 h-4" /> },
+              ...(user.is_vendor ? [{ value: 'services', label: 'Services', icon: <Briefcase className="w-4 h-4" /> }] : []),
+            ]}
+          />
 
           {/* Moments Tab */}
           <TabsContent value="moments" className="mt-0">

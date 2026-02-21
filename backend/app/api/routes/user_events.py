@@ -2795,7 +2795,12 @@ def update_event_service(event_id: str, service_id: str, body: dict = Body(...),
     if not es:
         return standard_response(False, "Event service not found")
 
-    if "status" in body: es.service_status = body["status"]
+    new_status = body.get("status") or body.get("service_status")
+    if new_status:
+        try:
+            es.service_status = EventServiceStatusEnum(new_status)
+        except ValueError:
+            return standard_response(False, f"Invalid status: {new_status}. Valid: pending, assigned, in_progress, completed, cancelled")
     if "quoted_price" in body: es.agreed_price = body["quoted_price"]
     if "notes" in body: es.notes = body["notes"]
     es.updated_at = datetime.now(EAT)

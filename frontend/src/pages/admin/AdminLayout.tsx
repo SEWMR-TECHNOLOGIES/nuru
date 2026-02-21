@@ -6,6 +6,7 @@ import {
   LogOut, Menu,
   Package, Briefcase, Newspaper, Sparkles, Users2,
   BookOpen, CreditCard, Tag, UserCog, BadgeCheck, AlertTriangle,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -31,6 +32,7 @@ const navItems = [
   { label: "FAQs", icon: HelpCircle, to: "/admin/faqs" },
   { label: "Notifications", icon: Bell, to: "/admin/notifications" },
   { label: "Admin Accounts", icon: UserCog, to: "/admin/admins" },
+  { label: "Analytics", icon: BarChart3, to: "/admin/analytics" },
 ];
 
 export default function AdminLayout() {

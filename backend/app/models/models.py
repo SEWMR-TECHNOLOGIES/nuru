@@ -37,6 +37,8 @@ from models.enums import (
     BusinessPhoneStatusEnum,
 )
 
+from models.page_views import PageView  # noqa: F401
+
 
 # ──────────────────────────────────────────────
 # Reference / Lookup Tables

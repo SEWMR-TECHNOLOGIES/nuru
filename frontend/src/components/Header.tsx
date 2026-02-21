@@ -10,6 +10,7 @@ import CloseIcon from '@/assets/icons/close-icon.svg';
 import BellIcon from '@/assets/icons/bell-icon.svg';
 import ChatIcon from '@/assets/icons/chat-icon.svg';
 import CardIcon from '@/assets/icons/card-icon.svg';
+import TicketIcon from '@/assets/icons/ticket-icon.svg';
 import PanelRightIcon from '@/assets/icons/panel-right-icon.svg';
 import {
   Popover,
@@ -105,6 +106,13 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
         <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileSearchOpen(true)}>
           <Search className="w-5 h-5" />
         </Button>
+
+        {/* Tickets */}
+        <NavLink to="/tickets">
+          <Button variant="ghost" size="icon">
+            <img src={TicketIcon} alt="Tickets" className="w-5 h-5 dark:invert" />
+          </Button>
+        </NavLink>
 
         {/* Messages */}
         <NavLink to="/messages">

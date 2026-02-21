@@ -3,7 +3,19 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ENUMS
 CREATE TYPE event_status AS ENUM ('draft', 'confirmed', 'completed', 'published', 'cancelled');
 CREATE TYPE payment_status AS ENUM ('pending', 'completed', 'refunded');
-CREATE TYPE payment_method AS ENUM ('mobile', 'bank', 'card');
+CREATE TYPE payment_method AS ENUM ('cash', 'mobile', 'bank', 'card');
+CREATE TYPE guest_type_enum AS ENUM ('user', 'contributor');
+CREATE TYPE contribution_status AS ENUM ('confirmed', 'pending', 'rejected');
+CREATE TYPE feed_visibility AS ENUM ('public', 'circle');
+CREATE TYPE checklist_item_status AS ENUM ('pending', 'in_progress', 'completed', 'skipped');
+CREATE TYPE appeal_status AS ENUM ('pending', 'approved', 'rejected');
+CREATE TYPE appeal_content_type AS ENUM ('post', 'moment');
+CREATE TYPE photo_library_privacy AS ENUM ('public', 'event_creator_only');
+CREATE TYPE ticket_status AS ENUM ('available', 'sold_out', 'cancelled');
+CREATE TYPE ticket_order_status AS ENUM ('pending', 'confirmed', 'approved', 'rejected', 'cancelled', 'refunded');
+CREATE TYPE event_share_duration AS ENUM ('timed', 'lifetime');
+CREATE TYPE service_media_type AS ENUM ('video', 'audio');
+CREATE TYPE business_phone_status AS ENUM ('pending', 'verified');
 CREATE TYPE rsvp_status AS ENUM ('pending', 'confirmed', 'declined', 'checked_in');
 CREATE TYPE verification_status AS ENUM ('pending', 'verified', 'rejected');
 CREATE TYPE otp_verification_type AS ENUM ('phone', 'email');
@@ -2171,3 +2183,24 @@ FROM (VALUES
 ) AS t(name, description, requires_kyc), service_categories sc
 WHERE sc.name = 'Stationery and Printing'
 ON CONFLICT (name) DO NOTHING;
+
+-- ──────────────────────────────────────────────
+-- Page Views (Website Analytics)
+-- ──────────────────────────────────────────────
+CREATE TABLE page_views (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    path TEXT NOT NULL,
+    referrer TEXT,
+    user_agent TEXT,
+    country TEXT,
+    city TEXT,
+    device_type TEXT,
+    browser TEXT,
+    session_id TEXT,
+    visitor_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_page_views_created_at ON page_views(created_at);
+CREATE INDEX idx_page_views_path ON page_views(path);
+CREATE INDEX idx_page_views_visitor_id ON page_views(visitor_id);

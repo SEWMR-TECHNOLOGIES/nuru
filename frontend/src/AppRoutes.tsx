@@ -2,6 +2,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useAuthSync } from "@/hooks/useAuthSync";
+import { usePageTracking } from "@/hooks/usePageTracking";
 import PrivateRoute from "@/components/PrivateRoute";
 import FullPageLoader from "@/components/FullPageLoader";
 
@@ -34,6 +35,7 @@ import RemovedContent from "@/components/RemovedContent";
 import LiveChat from "@/components/LiveChat";
 import NuruCards from "@/components/NuruCards";
 import BookingList from "@/components/bookings/BookingList";
+import BrowseTickets from "@/components/BrowseTickets";
 import BookingDetail from "@/components/bookings/BookingDetail";
 import EventView from "@/components/EventView";
 import PublicProfile from "@/components/PublicProfile";
@@ -62,6 +64,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import GuestPost from "@/pages/GuestPost";
 import RSVPConfirmation from "@/pages/RSVPConfirmation";
 import ChangePassword from "@/pages/ChangePassword";
+import TicketVerification from "@/pages/TicketVerification";
 
 // Admin
 import AdminLogin from "@/pages/admin/AdminLogin";
@@ -92,12 +95,14 @@ import AdminUserVerifications from "@/pages/admin/AdminUserVerifications";
 import AdminKycDetail from "@/pages/admin/AdminKycDetail";
 import AdminServiceDetail from "@/pages/admin/AdminServiceDetail";
 import AdminAppeals from "@/pages/admin/AdminAppeals";
+import AdminAnalytics from "@/pages/admin/AdminAnalytics";
 
 // Inner component that uses router hooks (must be inside BrowserRouter)
 
 function InnerRoutes() {
   const { userIsLoggedIn, isLoading } = useCurrentUser();
-  useAuthSync(); // safe here — inside BrowserRouter context
+  useAuthSync();
+  usePageTracking();
 
   if (isLoading) return <FullPageLoader />;
 
@@ -133,6 +138,7 @@ function InnerRoutes() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/post/:id" element={<PostDetail />} />
           <Route path="/create-event" element={<CreateEvent />} />
+          <Route path="/tickets" element={<BrowseTickets />} />
           <Route path="/event-management/:id" element={<EventManagement />} />
           <Route path="/my-services" element={<MyServices />} />
           <Route path="/services/new" element={<AddService />} />
@@ -174,6 +180,7 @@ function InnerRoutes() {
         <Route path="/shared/post/:id" element={<GuestPost />} />
         <Route path="/shared/photo-library/:token" element={<SharedPhotoLibrary />} />
         <Route path="/rsvp/:code" element={<RSVPConfirmation />} />
+        <Route path="/ticket/:code" element={<TicketVerification />} />
         <Route path="/features/event-planning" element={<EventPlanning />} />
         <Route path="/features/service-providers" element={<ServiceProviders />} />
         <Route path="/features/invitations" element={<Invitations />} />
@@ -209,6 +216,7 @@ function InnerRoutes() {
           <Route path="kyc/:id" element={<AdminKycDetail />} />
           <Route path="services/:id" element={<AdminServiceDetail />} />
           <Route path="appeals" element={<AdminAppeals />} />
+          <Route path="analytics" element={<AdminAnalytics />} />
         </Route>
 
 

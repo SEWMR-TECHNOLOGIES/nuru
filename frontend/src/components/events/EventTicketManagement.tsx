@@ -1,13 +1,20 @@
-import { useState, useEffect } from "react";
-import { Loader2, Check, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Loader2, Check, X, ChevronLeft, ChevronRight, CheckCircle2, ShieldCheck, AlertTriangle, Phone, Mail, Calendar, MapPin, Clock, Keyboard } from "lucide-react";
+import CameraIcon from "@/assets/icons/camera-icon.svg";
 import { Skeleton } from "@/components/ui/skeleton";
 import TicketIcon from "@/assets/icons/ticket-icon.svg";
+import ScanIcon from "@/assets/icons/scan-icon.svg";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { ticketingApi } from "@/lib/api/ticketing";
+import { get, put } from "@/lib/api/helpers";
 import { formatPrice } from "@/utils/formatPrice";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface EventTicketManagementProps {
   eventId: string;
@@ -29,6 +36,16 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<any>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanMode, setScanMode] = useState<'manual' | 'camera'>('manual');
+  const [scanCode, setScanCode] = useState("");
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scannedTicket, setScannedTicket] = useState<any>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [checkingIn, setCheckingIn] = useState(false);
+  const [checkInDone, setCheckInDone] = useState(false);
+  const cameraRef = useRef<HTMLDivElement>(null);
+  const scannerRef = useRef<any>(null);
 
   const loadTickets = async (p = 1) => {
     setLoading(true);
@@ -75,18 +92,148 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
     }
   };
 
+  const handleScanLookup = async () => {
+    const code = scanCode.trim();
+    if (!code) return;
+    setScanLoading(true);
+    setScanError(null);
+    setScannedTicket(null);
+    setCheckInDone(false);
+    try {
+      const res = await get<any>(`/ticketing/verify/${code}`);
+      if (res.success && (res.data as any)?.ticket) {
+        setScannedTicket((res.data as any).ticket);
+      } else {
+        setScanError(res.message || 'Ticket not found');
+      }
+    } catch {
+      setScanError('Failed to look up ticket');
+    } finally {
+      setScanLoading(false);
+    }
+  };
+
+  const handleScanCheckIn = async () => {
+    if (!scannedTicket) return;
+    setCheckingIn(true);
+    try {
+      const res = await put<any>(`/ticketing/verify/${scannedTicket.ticket_code}/check-in`, {});
+      if (res.success) {
+        setCheckInDone(true);
+        setScannedTicket((prev: any) => prev ? { ...prev, checked_in: true, checked_in_at: (res.data as any)?.checked_in_at || new Date().toISOString() } : prev);
+        toast.success('Guest checked in!');
+        loadTickets(page);
+      } else {
+        toast.error(res.message || 'Check-in failed');
+      }
+    } catch {
+      toast.error('Check-in failed');
+    } finally {
+      setCheckingIn(false);
+    }
+  };
+
+  const resetScan = useCallback(() => {
+    setScanCode("");
+    setScannedTicket(null);
+    setScanError(null);
+    setCheckInDone(false);
+    setScanMode('manual');
+    // Stop camera scanner if running
+    if (scannerRef.current) {
+      try { scannerRef.current.stop(); } catch {}
+      scannerRef.current = null;
+    }
+  }, []);
+
+  const startCameraScanner = useCallback(async () => {
+    setScanMode('camera');
+    // Wait for DOM to render
+    await new Promise(r => setTimeout(r, 300));
+    if (!cameraRef.current) return;
+    try {
+      const { Html5Qrcode } = await import('html5-qrcode');
+      const scanner = new Html5Qrcode(cameraRef.current.id);
+      scannerRef.current = scanner;
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText) => {
+          // Extract ticket code from URL or use directly
+          let code = decodedText;
+          const match = decodedText.match(/\/ticket\/([A-Z0-9-]+)/i);
+          if (match) code = match[1];
+          setScanCode(code.toUpperCase());
+          try { scanner.stop(); } catch {}
+          scannerRef.current = null;
+          setScanMode('manual');
+          // Auto-lookup
+          setScanLoading(true);
+          setScanError(null);
+          setScannedTicket(null);
+          setCheckInDone(false);
+          get<any>(`/ticketing/verify/${code}`).then(res => {
+            if (res.success && (res.data as any)?.ticket) {
+              setScannedTicket((res.data as any).ticket);
+            } else {
+              setScanError(res.message || 'Ticket not found');
+            }
+          }).catch(() => setScanError('Failed to look up ticket')).finally(() => setScanLoading(false));
+        },
+        () => {} // ignore errors during scanning
+      );
+    } catch (err) {
+      toast.error('Camera not available');
+      setScanMode('manual');
+    }
+  }, []);
+
+  // Cleanup scanner on dialog close
+  useEffect(() => {
+    if (!scanOpen && scannerRef.current) {
+      try { scannerRef.current.stop(); } catch {}
+      scannerRef.current = null;
+    }
+  }, [scanOpen]);
+
+  const getInitials = (name?: string) => {
+    if (!name) return '?';
+    return name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const formatDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+
+  const formatTime = (timeStr: string) => {
+    try {
+      const [h, m] = timeStr.split(':');
+      const hour = parseInt(h);
+      return `${hour % 12 || 12}:${m} ${hour >= 12 ? 'PM' : 'AM'}`;
+    } catch { return timeStr; }
+  };
+
   // Summary
-  // Calculate sold from ticket orders (approved/confirmed tickets)
-  const soldFromOrders = tickets.reduce((sum: number, t: any) => {
-    if (t.status === 'approved' || t.status === 'confirmed') return sum + (t.quantity || 0);
-    return sum;
-  }, 0);
-  const totalSold = ticketClasses.reduce((sum: number, tc: any) => sum + (tc.sold || 0), 0) || soldFromOrders;
+  // Use sold from ticket classes (backend computes via SUM of order quantities)
+  const totalSold = ticketClasses.reduce((sum: number, tc: any) => sum + (tc.sold || 0), 0);
   const totalQuantity = ticketClasses.reduce((sum: number, tc: any) => sum + (tc.quantity || 0), 0);
   const totalRevenue = tickets.reduce((sum: number, t: any) => sum + (t.total_amount || 0), 0);
 
+  const scannedIsValid = scannedTicket ? ['confirmed', 'approved'].includes(scannedTicket.status) : false;
+  const canScanCheckIn = scannedIsValid && !scannedTicket?.checked_in && !checkInDone;
+
   return (
     <div className="space-y-4">
+      {/* Scan Ticket Button */}
+      {isCreator && (
+        <Button
+          onClick={() => { resetScan(); setScanOpen(true); }}
+          className="w-full h-11 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground font-semibold rounded-xl shadow-md"
+        >
+          <img src={ScanIcon} alt="Scan" className="w-4 h-4 mr-2 invert" />
+          Scan / Enter Ticket Code
+        </Button>
+      )}
+
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card>
@@ -246,6 +393,181 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
           </div>
         )}
       </div>
+
+      {/* Scan Ticket Dialog */}
+      <Dialog open={scanOpen} onOpenChange={(open) => { setScanOpen(open); if (!open) resetScan(); }}>
+        <DialogContent className="max-w-md p-0 overflow-hidden">
+          <DialogHeader className="p-5 pb-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <img src={ScanIcon} alt="Scan" className="w-4 h-4 dark:invert" />
+              Verify & Check-In Ticket
+            </DialogTitle>
+          </DialogHeader>
+
+          {!scannedTicket && !scanError && (
+            <div className="px-5 pb-5 space-y-3">
+              {scanMode === 'camera' ? (
+                <div className="space-y-3">
+                  <div id="scan-camera-reader" ref={cameraRef} className="w-full rounded-lg overflow-hidden" />
+                  <Button variant="outline" size="sm" className="w-full gap-2" onClick={() => { if (scannerRef.current) { try { scannerRef.current.stop(); } catch {} scannerRef.current = null; } setScanMode('manual'); }}>
+                    <Keyboard className="w-4 h-4" />
+                    Enter Code Manually
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">Enter the ticket code or scan the QR code</p>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="NTK-XXXXXXXX"
+                      value={scanCode}
+                      onChange={(e) => setScanCode(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => e.key === 'Enter' && handleScanLookup()}
+                      className="font-mono tracking-wider"
+                      autoFocus
+                    />
+                    <Button onClick={handleScanLookup} disabled={scanLoading || !scanCode.trim()}>
+                      {scanLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Verify'}
+                    </Button>
+                  </div>
+                  <Button variant="outline" size="sm" className="w-full gap-2" onClick={startCameraScanner}>
+                    <img src={CameraIcon} alt="Camera" className="w-4 h-4 dark:invert" />
+                    Scan QR with Camera
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+
+          {scanError && (
+            <div className="px-5 pb-5 text-center space-y-3">
+              <div className="w-14 h-14 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+                <AlertTriangle className="w-7 h-7 text-destructive" />
+              </div>
+              <p className="text-sm text-destructive font-medium">{scanError}</p>
+              <Button variant="outline" size="sm" onClick={resetScan}>Try Again</Button>
+            </div>
+          )}
+
+          {scannedTicket && (
+            <div className="divide-y divide-border">
+              {/* Status Banner */}
+              <div className={`px-5 py-4 text-center ${
+                scannedTicket.checked_in || checkInDone
+                  ? 'bg-amber-500/10'
+                  : scannedIsValid ? 'bg-emerald-500/10' : 'bg-destructive/10'
+              }`}>
+                <AnimatePresence mode="wait">
+                  {(scannedTicket.checked_in || checkInDone) ? (
+                    <motion.div key="used" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="space-y-1">
+                      <ShieldCheck className="w-8 h-8 mx-auto text-amber-500" />
+                      <p className="text-amber-600 dark:text-amber-400 font-bold text-sm">ALREADY USED</p>
+                      <p className="text-muted-foreground text-xs">
+                        {scannedTicket.checked_in_at ? `Checked in at ${new Date(scannedTicket.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+                      </p>
+                    </motion.div>
+                  ) : scannedIsValid ? (
+                    <motion.div key="valid" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="space-y-1">
+                      <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-500" />
+                      <p className="text-emerald-600 dark:text-emerald-400 font-bold text-sm">VALID TICKET</p>
+                    </motion.div>
+                  ) : (
+                    <motion.div key="invalid" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="space-y-1">
+                      <AlertTriangle className="w-8 h-8 mx-auto text-destructive" />
+                      <p className="text-destructive font-bold text-sm">{scannedTicket.status?.toUpperCase()}</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Buyer */}
+              <div className="px-5 py-4 flex items-center gap-3">
+                <Avatar className="w-12 h-12 ring-2 ring-border">
+                  {scannedTicket.buyer_avatar ? <AvatarImage src={scannedTicket.buyer_avatar} /> : null}
+                  <AvatarFallback className="bg-muted text-foreground font-bold">{getInitials(scannedTicket.buyer_name)}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-foreground truncate">{scannedTicket.buyer_name || 'Unknown'}</p>
+                  {scannedTicket.buyer_phone && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" />{scannedTicket.buyer_phone}</p>
+                  )}
+                  {scannedTicket.buyer_email && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1 truncate"><Mail className="w-3 h-3" />{scannedTicket.buyer_email}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Event & Ticket Details */}
+              <div className="px-5 py-4 space-y-2">
+                <p className="font-semibold text-foreground text-sm">{scannedTicket.event_title}</p>
+                {scannedTicket.ticket_class && (
+                  <Badge variant="secondary" className="text-[10px] tracking-[1.5px] uppercase">{scannedTicket.ticket_class}</Badge>
+                )}
+                <div className="space-y-1.5 mt-2">
+                  {scannedTicket.event_date && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-2"><Calendar className="w-3 h-3" />{formatDate(scannedTicket.event_date)}</p>
+                  )}
+                  {scannedTicket.event_time && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-2"><Clock className="w-3 h-3" />{formatTime(scannedTicket.event_time)}</p>
+                  )}
+                  {scannedTicket.event_location && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-2"><MapPin className="w-3 h-3" />{scannedTicket.event_location}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Ticket Meta */}
+              <div className="px-5 py-3 grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <p className="text-[9px] tracking-[1.5px] uppercase text-muted-foreground">Code</p>
+                  <p className="font-mono text-xs font-bold text-foreground">{scannedTicket.ticket_code}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] tracking-[1.5px] uppercase text-muted-foreground">Qty</p>
+                  <p className="text-xs font-bold text-foreground">{scannedTicket.quantity}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] tracking-[1.5px] uppercase text-muted-foreground">Total</p>
+                  <p className="text-xs font-bold text-foreground">{scannedTicket.currency || 'TZS'} {scannedTicket.total_amount?.toLocaleString()}</p>
+                </div>
+              </div>
+
+              {/* Check-in Action */}
+              <div className="px-5 py-4">
+                <AnimatePresence mode="wait">
+                  {checkInDone ? (
+                    <motion.div key="done" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center space-y-1">
+                      <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+                      <p className="text-emerald-600 dark:text-emerald-400 font-bold text-sm">Checked In!</p>
+                      <p className="text-muted-foreground text-xs">Guest may enter</p>
+                      <Button variant="outline" size="sm" className="mt-2" onClick={resetScan}>Scan Another</Button>
+                    </motion.div>
+                  ) : canScanCheckIn ? (
+                    <Button
+                      onClick={handleScanCheckIn}
+                      disabled={checkingIn}
+                      className="w-full h-10 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl"
+                    >
+                      {checkingIn ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
+                      {checkingIn ? 'Checking In...' : 'Check In Guest'}
+                    </Button>
+                  ) : scannedTicket.checked_in ? (
+                    <div className="text-center">
+                      <p className="text-amber-600 dark:text-amber-400 text-sm font-medium">Already used</p>
+                      <Button variant="outline" size="sm" className="mt-2" onClick={resetScan}>Scan Another</Button>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <p className="text-destructive text-sm font-medium">Cannot check in — ticket is {scannedTicket.status}</p>
+                      <Button variant="outline" size="sm" className="mt-2" onClick={resetScan}>Scan Another</Button>
+                    </div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
