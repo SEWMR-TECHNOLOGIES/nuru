@@ -93,6 +93,7 @@ export const adminApi = {
   activateUser:     (id: string) => aPut<any>(`/admin/users/${id}/activate`),
   deactivateUser:   (id: string) => aPut<any>(`/admin/users/${id}/deactivate`),
   resetUserPassword:(id: string, new_password: string) => aPut<any>(`/admin/users/${id}/reset-password`, { new_password }),
+  updateUser: (id: string, data: any) => aPut<any>(`/admin/users/${id}`, data),
 
   // Admin Accounts
   getAdmins:        ()                           => aGet<any>("/admin/admins"),

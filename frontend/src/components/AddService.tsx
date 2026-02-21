@@ -1,17 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Upload, X, Loader2 } from 'lucide-react';
+import { ChevronLeft, Upload, X, Loader2, Phone, CheckCircle, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { toast } from 'sonner';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useServiceCategories } from '@/data/useServiceCategories';
 import { useServiceTypes } from '@/data/useServiceTypes';
 import { userServicesApi, showApiErrors, showCaughtError } from '@/lib/api';
+import { businessPhoneApi, type BusinessPhone } from '@/lib/api/businessPhone';
+import MapLocationPicker from '@/components/MapLocationPicker';
 
 const AddService = () => {
   useWorkspaceMeta({
@@ -32,10 +36,28 @@ const AddService = () => {
     maxPrice: '',
     location: '',
   });
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [formattedAddress, setFormattedAddress] = useState('');
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingTypes, setIsLoadingTypes] = useState(false);
+
+  // Business phone state
+  const [businessPhones, setBusinessPhones] = useState<BusinessPhone[]>([]);
+  const [selectedPhoneId, setSelectedPhoneId] = useState('');
+  const [showAddPhone, setShowAddPhone] = useState(false);
+  const [newPhoneNumber, setNewPhoneNumber] = useState('');
+  const [phoneOtp, setPhoneOtp] = useState('');
+  const [pendingPhoneId, setPendingPhoneId] = useState('');
+  const [phoneLoading, setPhoneLoading] = useState(false);
+
+  useEffect(() => {
+    businessPhoneApi.getAll().then(res => {
+      if (res.success && res.data) setBusinessPhones(Array.isArray(res.data) ? res.data : []);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (formData.category) {
@@ -69,6 +91,10 @@ const AddService = () => {
       form.append("min_price", formData.minPrice.replace(/,/g, ""));
       form.append("max_price", formData.maxPrice.replace(/,/g, ""));
       form.append("location", formData.location || "");
+      if (latitude !== null) form.append("latitude", String(latitude));
+      if (longitude !== null) form.append("longitude", String(longitude));
+      if (formattedAddress) form.append("formatted_address", formattedAddress);
+      if (selectedPhoneId) form.append("business_phone_id", selectedPhoneId);
 
       images.forEach((file) => {
         form.append("images", file);
@@ -208,15 +234,135 @@ const AddService = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="location">Location *</Label>
-                <Input
-                  id="location"
-                  placeholder="e.g., Dar es Salaam"
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  required
+                <Label>Service Location *</Label>
+                <MapLocationPicker
+                  value={latitude && longitude ? { latitude, longitude, name: formData.location, address: formattedAddress } : null}
+                  onChange={(loc) => {
+                    if (loc) {
+                      setLatitude(loc.latitude);
+                      setLongitude(loc.longitude);
+                      setFormattedAddress(loc.address || loc.name);
+                      setFormData(prev => ({ ...prev, location: loc.address || loc.name }));
+                    } else {
+                      setLatitude(null);
+                      setLongitude(null);
+                      setFormattedAddress('');
+                      setFormData(prev => ({ ...prev, location: '' }));
+                    }
+                  }}
                 />
+                {formData.location && (
+                  <p className="text-xs text-muted-foreground mt-1">📍 {formData.location}</p>
+                )}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Business Phone */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Phone className="w-5 h-5" />
+                Business Phone Number
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">Add a verified business contact number for clients</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {businessPhones.length > 0 && (
+                <Select value={selectedPhoneId} onValueChange={setSelectedPhoneId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a verified phone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {businessPhones.filter(p => p.verification_status === 'verified').map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        <span className="flex items-center gap-2">
+                          {p.phone_number}
+                          <CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {!showAddPhone ? (
+                <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => setShowAddPhone(true)}>
+                  <Plus className="w-4 h-4" /> Add New Phone
+                </Button>
+              ) : pendingPhoneId ? (
+                <div className="space-y-3 p-4 rounded-lg bg-muted/30">
+                  <p className="text-sm font-medium">Enter the verification code</p>
+                  <InputOTP maxLength={6} value={phoneOtp} onChange={setPhoneOtp}>
+                    <InputOTPGroup className="gap-2 justify-center w-full">
+                      {[0,1,2,3,4,5].map(i => <InputOTPSlot key={i} index={i} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />)}
+                    </InputOTPGroup>
+                  </InputOTP>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={phoneOtp.length < 6 || phoneLoading}
+                    onClick={async () => {
+                      setPhoneLoading(true);
+                      try {
+                        const res = await businessPhoneApi.verify(pendingPhoneId, { otp_code: phoneOtp });
+                        if (res.success) {
+                          toast.success("Phone verified!");
+                          const refreshed = await businessPhoneApi.getAll();
+                          if (refreshed.success && refreshed.data) setBusinessPhones(Array.isArray(refreshed.data) ? refreshed.data : []);
+                          setSelectedPhoneId(pendingPhoneId);
+                          setPendingPhoneId('');
+                          setShowAddPhone(false);
+                          setPhoneOtp('');
+                        } else {
+                          toast.error(res.message || "Invalid code");
+                        }
+                      } catch { toast.error("Verification failed"); }
+                      finally { setPhoneLoading(false); }
+                    }}
+                  >
+                    {phoneLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                    Verify
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3 p-4 rounded-lg bg-muted/30">
+                  <div className="space-y-2">
+                    <Label>Phone Number</Label>
+                    <Input
+                      placeholder="0712 345 678"
+                      value={newPhoneNumber}
+                      onChange={(e) => setNewPhoneNumber(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!newPhoneNumber.trim() || phoneLoading}
+                      onClick={async () => {
+                        setPhoneLoading(true);
+                        try {
+                          const res = await businessPhoneApi.add({ phone_number: newPhoneNumber.trim() });
+                          if (res.success && res.data) {
+                            setPendingPhoneId((res.data as any).id);
+                            toast.success("Verification code sent!");
+                          } else {
+                            toast.error((res as any).message || "Failed to add phone");
+                          }
+                        } catch (err: any) { toast.error(err?.message || "Failed"); }
+                        finally { setPhoneLoading(false); }
+                      }}
+                    >
+                      {phoneLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                      Send Code
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => { setShowAddPhone(false); setNewPhoneNumber(''); }}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

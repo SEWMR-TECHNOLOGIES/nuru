@@ -2,8 +2,10 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { 
   CheckCircle, Edit, Loader2, 
   Mail, Phone, User as UserIcon, Shield, ShieldCheck, ShieldAlert,
-  Upload, FileText, AlertCircle, Clock, ImagePlus, Users, X
+  Upload, FileText, AlertCircle, Clock, ImagePlus, Users, X, SendHorizonal
 } from "lucide-react";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { authApi } from "@/lib/api/auth";
 import { VerifiedUserBadge } from '@/components/ui/verified-badge';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
@@ -63,6 +65,7 @@ const UserProfile = () => {
   });
 
   const [isEditing, setIsEditing] = useState(false);
+  const [activeProfileTab, setActiveProfileTab] = useState("verification");
   const [saving, setSaving] = useState(false);
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [verificationStep, setVerificationStep] = useState<"idle" | "form" | "submitted" | "verified" | "rejected">("idle");
@@ -81,7 +84,13 @@ const UserProfile = () => {
     bio: "",
     phone: "",
     location: "",
+    email: "",
   });
+  // Email OTP verification state
+  const [emailOtpMode, setEmailOtpMode] = useState(false);
+  const [emailOtp, setEmailOtp] = useState("");
+  const [emailOtpLoading, setEmailOtpLoading] = useState(false);
+  const [emailResendLoading, setEmailResendLoading] = useState(false);
 
   // Fetch verification status from API on mount
   useEffect(() => {
@@ -92,6 +101,7 @@ const UserProfile = () => {
         bio: currentUser.bio || "",
         phone: currentUser.phone || "",
         location: currentUser.location || "",
+        email: currentUser.email || "",
       });
 
       if (currentUser.is_identity_verified) {
@@ -126,6 +136,25 @@ const UserProfile = () => {
       formData.append("bio", editData.bio);
       formData.append("phone", editData.phone);
       formData.append("location", editData.location);
+
+      // Handle email update separately if changed
+      const emailChanged = editData.email !== (currentUser?.email || "");
+      if (emailChanged && editData.email) {
+        try {
+          await profileApi.updateEmail({ new_email: editData.email, password: "" });
+          toast.info("A verification code has been sent to " + editData.email);
+          setEmailOtpMode(true);
+          setEmailOtp("");
+          // Auto-switch to Contact Info tab so user sees the OTP input
+          setActiveProfileTab("contact");
+        } catch (emailErr: any) {
+          const msg = emailErr?.response?.data?.message || emailErr?.message || "";
+          if (!msg.toLowerCase().includes("password")) {
+            toast.error(msg || "Failed to update email");
+          }
+        }
+      }
+
       await profileApi.update(formData);
       await queryClient.invalidateQueries({ queryKey: ["currentUser"] });
       toast.success("Profile updated successfully");
@@ -331,13 +360,20 @@ const UserProfile = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Email</label>
+                      <Input type="email" value={editData.email} onChange={(e) => setEditData(prev => ({ ...prev, email: e.target.value }))} placeholder="your@email.com" />
+                      {!currentUser.email && (
+                        <p className="text-[11px] text-muted-foreground mt-1">Optional — add to receive notifications</p>
+                      )}
+                    </div>
+                    <div>
                       <label className="text-xs font-medium text-muted-foreground mb-1 block">Phone</label>
                       <Input value={editData.phone} onChange={(e) => setEditData(prev => ({ ...prev, phone: e.target.value }))} />
                     </div>
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Location</label>
-                      <Input value={editData.location} onChange={(e) => setEditData(prev => ({ ...prev, location: e.target.value }))} placeholder="City, Country" />
-                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Location</label>
+                    <Input value={editData.location} onChange={(e) => setEditData(prev => ({ ...prev, location: e.target.value }))} placeholder="City, Country" />
                   </div>
                   <div className="flex gap-3">
                     <Button onClick={handleSave} disabled={saving}>
@@ -349,8 +385,7 @@ const UserProfile = () => {
               ) : (
                 <div>
                   <div className="flex items-center gap-3 mb-2">
-                    {isVerified && <VerifiedUserBadge size="md" />}
-                    <h1 className="text-2xl font-bold text-foreground">{fullName}</h1>
+                    <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">{fullName} {isVerified && <VerifiedUserBadge size="md" />}</h1>
                   </div>
                   {currentUser.username && (
                     <p className="text-muted-foreground text-sm mb-2">@{currentUser.username}</p>
@@ -472,7 +507,7 @@ const UserProfile = () => {
       </Dialog>
 
       {/* Tabs */}
-      <Tabs defaultValue="verification" className="space-y-4">
+      <Tabs value={activeProfileTab} onValueChange={setActiveProfileTab} className="space-y-4">
         <TabsList className="bg-muted/50">
           <TabsTrigger value="verification" className="gap-2">
             <Shield className="w-4 h-4" /> Identity Verification
@@ -626,7 +661,6 @@ const UserProfile = () => {
                 {[
                   { label: "Full Name", value: fullName, icon: UserIcon },
                   { label: "Username", value: currentUser.username ? `@${currentUser.username}` : "—", icon: UserIcon },
-                  { label: "Email", value: currentUser.email, icon: Mail, verified: currentUser.is_email_verified },
                   { label: "Phone", value: currentUser.phone || "—", icon: Phone, verified: currentUser.is_phone_verified },
                 ].map(item => (
                   <div key={item.label} className="flex items-start gap-3 p-3 rounded-lg bg-muted/20">
@@ -644,6 +678,145 @@ const UserProfile = () => {
                     </div>
                   </div>
                 ))}
+
+                {/* Email — special handling for optional email */}
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/20">
+                  <div className="w-9 h-9 bg-muted/50 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Mail className="w-4 h-4 text-muted-foreground" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs text-muted-foreground">Email</p>
+                    {currentUser.email ? (
+                      <>
+                        <p className="font-medium text-sm">{currentUser.email}</p>
+                        {currentUser.is_email_verified ? (
+                          <Badge variant="outline" className="mt-1 text-xs border-green-300 text-green-700">
+                            Verified
+                          </Badge>
+                        ) : emailOtpMode ? (
+                          /* OTP Verification UI */
+                          <div className="mt-3 space-y-3">
+                            <p className="text-xs text-muted-foreground">Enter the 6-digit code sent to your email</p>
+                            <InputOTP maxLength={6} value={emailOtp} onChange={setEmailOtp}>
+                              <InputOTPGroup className="gap-2 justify-center w-full">
+                                {[0,1,2,3,4,5].map(i => (
+                                  <InputOTPSlot key={i} index={i} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                                ))}
+                              </InputOTPGroup>
+                            </InputOTP>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                className="h-8 text-xs"
+                                disabled={emailOtp.length < 6 || emailOtpLoading}
+                                onClick={async () => {
+                                  if (!currentUser?.id) return;
+                                  setEmailOtpLoading(true);
+                                  try {
+                                    const res = await authApi.verifyOtp({
+                                      user_id: currentUser.id,
+                                      verification_type: "email",
+                                      otp_code: emailOtp,
+                                    });
+                                    if (res.success) {
+                                      toast.success("Email verified successfully!");
+                                      setEmailOtpMode(false);
+                                      setEmailOtp("");
+                                      await queryClient.invalidateQueries({ queryKey: ["currentUser"] });
+                                    } else {
+                                      toast.error(res.message || "Invalid code");
+                                    }
+                                  } catch (err: any) {
+                                    toast.error(err?.message || "Verification failed");
+                                  } finally {
+                                    setEmailOtpLoading(false);
+                                  }
+                                }}
+                              >
+                                {emailOtpLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <CheckCircle className="w-3.5 h-3.5 mr-1.5" />}
+                                Verify
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 text-xs"
+                                disabled={emailResendLoading}
+                                onClick={async () => {
+                                  if (!currentUser?.id) return;
+                                  setEmailResendLoading(true);
+                                  try {
+                                    const res = await authApi.requestOtp({
+                                      user_id: currentUser.id,
+                                      verification_type: "email",
+                                    });
+                                    toast.success(res.success ? "Code resent!" : "Failed to resend");
+                                  } catch {
+                                    toast.error("Failed to resend code");
+                                  } finally {
+                                    setEmailResendLoading(false);
+                                  }
+                                }}
+                              >
+                                {emailResendLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                                Resend Code
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          /* Not verified, show verify button */
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">
+                              Not verified
+                            </Badge>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 text-[11px] px-2"
+                              disabled={emailResendLoading}
+                              onClick={async () => {
+                                if (!currentUser?.id) return;
+                                setEmailResendLoading(true);
+                                try {
+                                  const res = await authApi.requestOtp({
+                                    user_id: currentUser.id,
+                                    verification_type: "email",
+                                  });
+                                  if (res.success) {
+                                    toast.success("Verification code sent to " + currentUser.email);
+                                    setEmailOtpMode(true);
+                                    setEmailOtp("");
+                                  } else {
+                                    toast.error(res.message || "Failed to send code");
+                                  }
+                                } catch {
+                                  toast.error("Failed to send verification code");
+                                } finally {
+                                  setEmailResendLoading(false);
+                                }
+                              }}
+                            >
+                              {emailResendLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <SendHorizonal className="w-3 h-3 mr-1" />}
+                              Verify Now
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm text-muted-foreground">No email added</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-2 h-7 text-xs"
+                          onClick={() => setIsEditing(true)}
+                        >
+                          <Mail className="w-3 h-3 mr-1.5" />
+                          Add Email
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>

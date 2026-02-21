@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { X, ChevronLeft, Upload } from "lucide-react";
+import { ticketingApi } from "@/lib/api/ticketing";
+import type { TicketClass as TicketClassType } from "@/lib/api/ticketing";
+import { X, ChevronLeft, Upload, MapPin } from "lucide-react";
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import MapLocationPicker from "@/components/MapLocationPicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormattedNumberInput } from "@/components/ui/formatted-number-input";
@@ -18,6 +21,8 @@ import EventIcon from "@/components/icons/EventIcons";
 import { toast } from "sonner";
 import { showApiErrors, showCaughtError } from "@/lib/api";
 import EventRecommendations from "@/components/events/EventRecommendations";
+import EventTicketing from "@/components/EventTicketing";
+import type { TicketClass } from "@/components/EventTicketing";
 
 const CreateEvent: React.FC = () => {
   const navigate = useNavigate();
@@ -33,12 +38,23 @@ const CreateEvent: React.FC = () => {
     expectedGuests: "",
     budget: "",
     eventType: "",
+    venueLatitude: null as number | null,
+    venueLongitude: null as number | null,
+    venueName: "",
+    venueAddress: "",
   });
+
+  const [showMapPicker, setShowMapPicker] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  
+  // Ticketing state
+  const [ticketingEnabled, setTicketingEnabled] = useState(false);
+  const [ticketClasses, setTicketClasses] = useState<TicketClass[]>([]);
+  const [isPublicEvent, setIsPublicEvent] = useState(false);
 
   const handleToggleService = (serviceId: string) => {
     setSelectedServices(prev =>
@@ -72,6 +88,10 @@ const CreateEvent: React.FC = () => {
               expectedGuests: event.expected_guests ? String(event.expected_guests) : "",
               budget: event.budget ? String(event.budget) : "",
               eventType: event.event_type_id || "wedding",
+              venueLatitude: (event as any).venue_coordinates?.latitude || null,
+              venueLongitude: (event as any).venue_coordinates?.longitude || null,
+              venueName: (event as any).venue || "",
+              venueAddress: (event as any).venue_address || "",
             });
             if (event.gallery_images && event.gallery_images.length > 0) {
               setPreviews(event.gallery_images);
@@ -118,6 +138,10 @@ const CreateEvent: React.FC = () => {
       if (formData.date) form.append("start_date", format(formData.date, "yyyy-MM-dd"));
       if (formData.time) form.append("time", formData.time);
       if (formData.location) form.append("location", formData.location);
+      if (formData.venueLatitude != null) form.append("venue_latitude", String(formData.venueLatitude));
+      if (formData.venueLongitude != null) form.append("venue_longitude", String(formData.venueLongitude));
+      if (formData.venueName) form.append("venue", formData.venueName);
+      if (formData.venueAddress) form.append("venue_address", formData.venueAddress);
       
       const expectedGuests = formData.expectedGuests ? parseInt(String(formData.expectedGuests), 10) : null;
       if (expectedGuests !== null && !Number.isNaN(expectedGuests)) form.append("expected_guests", String(expectedGuests));
@@ -146,6 +170,22 @@ const CreateEvent: React.FC = () => {
             await eventsApi.addEventService(createdId, { provider_service_id: svcId });
           } catch {
             // Silent fail for individual service assignments
+          }
+        }
+      }
+
+      // Create ticket classes if ticketing enabled
+      if (ticketingEnabled && ticketClasses.length > 0 && createdId) {
+        for (const tc of ticketClasses) {
+          try {
+            await ticketingApi.createTicketClass(createdId, {
+              name: tc.name,
+              description: tc.description,
+              price: parseFloat(String(tc.price).replace(/[^0-9.]/g, "")) || 0,
+              quantity: parseInt(String(tc.quantity).replace(/[^0-9]/g, ""), 10) || 1,
+            });
+          } catch {
+            // Silent fail for individual ticket classes
           }
         }
       }
@@ -259,6 +299,48 @@ const CreateEvent: React.FC = () => {
               </div>
             </div>
 
+            {/* Venue Map Picker */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium">Pin Venue on Map (optional)</label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowMapPicker(!showMapPicker)}
+                >
+                  <MapPin className="w-4 h-4 mr-1" />
+                  {showMapPicker ? "Hide Map" : "Pick Location"}
+                </Button>
+              </div>
+              {formData.venueAddress && (
+                <p className="text-xs text-muted-foreground mb-2">
+                  📍 {formData.venueAddress}
+                </p>
+              )}
+              {showMapPicker && (
+                <MapLocationPicker
+                  onChange={(location) => {
+                    if (location) {
+                      setFormData(prev => ({
+                        ...prev,
+                        venueLatitude: location.latitude,
+                        venueLongitude: location.longitude,
+                        venueAddress: location.address || "",
+                        venueName: location.name || "",
+                        location: prev.location || location.address || location.name || "",
+                      }));
+                    }
+                  }}
+                  value={
+                    formData.venueLatitude && formData.venueLongitude
+                      ? { latitude: formData.venueLatitude, longitude: formData.venueLongitude, name: formData.venueName, address: formData.venueAddress }
+                      : null
+                  }
+                />
+              )}
+            </div>
+
             {/* Description */}
             <div>
               <label className="block text-sm font-medium mb-2">Description</label>
@@ -326,7 +408,24 @@ const CreateEvent: React.FC = () => {
                 onChange={(v) => setFormData({ ...formData, budget: v })}
               />
             </div>
+          </CardContent>
+        </Card>
 
+        {/* Ticketing */}
+        <EventTicketing
+          enabled={ticketingEnabled}
+          onEnabledChange={setTicketingEnabled}
+          ticketClasses={ticketClasses}
+          onTicketClassesChange={setTicketClasses}
+          isPublicEvent={isPublicEvent}
+          onPublicChange={setIsPublicEvent}
+        />
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Event Media</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
             {/* Image Upload */}
             <div>
               <label className="block text-sm font-medium mb-2">Event Images (optional)</label>

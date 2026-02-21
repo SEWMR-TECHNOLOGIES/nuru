@@ -19,6 +19,7 @@ from models import (
     UserFeedSpark, UserFeedComment, UserFeedCommentGlow,
     UserFeedPinned, UserFeedSaved, User, UserProfile, UserCircle, FeedVisibilityEnum,
     ContentAppeal, AppealStatusEnum, AppealContentTypeEnum,
+    Event, EventShareDurationEnum,
 )
 from utils.auth import get_current_user
 from utils.helpers import standard_response, paginate
@@ -32,10 +33,14 @@ def _visible_feed_query(db, current_user_id):
     """
     from sqlalchemy import or_, and_
     # Find all users who have added current_user to THEIR circle
-    authors_who_include_me = db.query(UserCircle.user_id).filter(
-        UserCircle.circle_member_id == current_user_id
-    )
-    author_ids = [r[0] for r in authors_who_include_me.all()]
+    try:
+        authors_who_include_me = db.query(UserCircle.user_id).filter(
+            UserCircle.circle_member_id == current_user_id
+        )
+        author_ids = [r[0] for r in authors_who_include_me.all()]
+    except Exception:
+        db.rollback()
+        author_ids = []
     query = db.query(UserFeed).filter(UserFeed.is_active == True)
     if author_ids:
         query = query.filter(
@@ -140,7 +145,7 @@ def _post_dict(db, post, current_user_id=None):
         has_echoed = db.query(UserFeedEcho).filter(UserFeedEcho.feed_id == post.id, UserFeedEcho.user_id == current_user_id).first() is not None
         has_saved = db.query(UserFeedSaved).filter(UserFeedSaved.feed_id == post.id, UserFeedSaved.user_id == current_user_id).first() is not None
 
-    return {
+    result = {
         "id": str(post.id),
         "author": {
             "id": str(user.id) if user else None,
@@ -151,12 +156,44 @@ def _post_dict(db, post, current_user_id=None):
         "content": post.content, "images": [img.image_url for img in images],
         "location": post.location,
         "visibility": post.visibility.value if post.visibility else "public",
+        "post_type": post.post_type or "post",
         "glow_count": glow_count, "echo_count": echo_count,
         "spark_count": spark_count, "comment_count": comment_count,
         "has_glowed": has_glowed, "has_echoed": has_echoed, "has_saved": has_saved,
         "is_pinned": db.query(UserFeedPinned).filter(UserFeedPinned.feed_id == post.id).first() is not None,
         "created_at": post.created_at.isoformat() if post.created_at else None,
     }
+
+    # Include shared event data if this is an event_share post
+    if post.post_type == "event_share" and post.shared_event_id:
+        event = db.query(Event).filter(Event.id == post.shared_event_id).first()
+        if event:
+            from models import EventImage
+            event_images = db.query(EventImage).filter(EventImage.event_id == event.id).all()
+            cover = event.cover_image_url
+            gallery = [img.image_url for img in event_images] if event_images else []
+            if cover and cover not in gallery:
+                gallery.insert(0, cover)
+
+            result["shared_event"] = {
+                "id": str(event.id),
+                "title": event.name,
+                "description": event.description,
+                "start_date": event.start_date.isoformat() if event.start_date else None,
+                "end_date": event.end_date.isoformat() if event.end_date else None,
+                "start_time": event.start_time.strftime("%H:%M") if event.start_time else None,
+                "location": event.location,
+                "cover_image": cover,
+                "images": gallery,
+                "event_type": event.event_type.name if event.event_type else None,
+                "sells_tickets": getattr(event, 'sells_tickets', False) or False,
+                "is_public": getattr(event, 'is_public', False) or False,
+                "expected_guests": event.expected_guests,
+                "dress_code": event.dress_code,
+            }
+            result["share_expires_at"] = post.share_expires_at.isoformat() if post.share_expires_at else None
+
+    return result
 
 
 
@@ -419,11 +456,19 @@ def get_post(post_id: str, db: Session = Depends(get_db), current_user: User = D
 async def create_post(
     content: Optional[str] = Form(None), location: Optional[str] = Form(None),
     visibility: Optional[str] = Form("public"),
+    post_type: Optional[str] = Form("post"),
+    event_id: Optional[str] = Form(None),
+    expires_at: Optional[str] = Form(None),
     images: Optional[List[UploadFile]] = File(None),
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
-    if not content and not images:
+    is_event_share = post_type and post_type.strip() == "event_share"
+
+    if not content and not images and not is_event_share:
         return standard_response(False, "Content or images are required")
+
+    if is_event_share and not event_id:
+        return standard_response(False, "Event ID is required for event shares")
 
     now = datetime.now(EAT)
     post = UserFeed(id=uuid.uuid4(), user_id=current_user.id, content=content.strip() if content else None, is_active=True, created_at=now, updated_at=now)
@@ -433,6 +478,24 @@ async def create_post(
         post.visibility = FeedVisibilityEnum(visibility.strip())
     else:
         post.visibility = FeedVisibilityEnum.public
+
+    # Handle event share
+    if is_event_share:
+        post.post_type = "event_share"
+        try:
+            post.shared_event_id = uuid.UUID(event_id.strip())
+        except (ValueError, AttributeError):
+            return standard_response(False, "Invalid event ID")
+        # Set expiration
+        if expires_at:
+            try:
+                post.share_expires_at = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+                post.share_duration = EventShareDurationEnum.timed
+            except (ValueError, TypeError):
+                pass
+        else:
+            post.share_duration = EventShareDurationEnum.lifetime
+
     db.add(post)
     db.flush()
 

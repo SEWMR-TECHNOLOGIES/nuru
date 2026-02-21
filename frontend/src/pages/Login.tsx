@@ -46,13 +46,6 @@ const Login = () => {
       if (response.success) {
         const user = response.data.user;
 
-        if (!user.is_email_verified) {
-          toast({ title: "Email not verified", description: "Please verify your email to continue.", variant: "destructive" });
-          localStorage.setItem("userId", user.id);
-          navigate(`/verify-email?email=${user.email}`);
-          return;
-        }
-
         if (!user.is_phone_verified) {
           toast({ title: "Phone not verified", description: "Please verify your phone to continue.", variant: "destructive" });
           localStorage.setItem("userId", user.id);

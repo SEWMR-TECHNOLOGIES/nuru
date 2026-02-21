@@ -33,25 +33,25 @@ const sanitizeText = (text: string): string => {
 };
 
 // Validate content
-const validateContent = (text: string, images: File[]): { valid: boolean; message: string } => {
+const validateContent = (text: string, media: File[]): { valid: boolean; message: string } => {
   const trimmedText = text.trim();
   
-  if (!trimmedText && images.length === 0) {
-    return { valid: false, message: 'Please add some content or images' };
+  if (!trimmedText && media.length === 0) {
+    return { valid: false, message: 'Please add some content or media' };
   }
   
   if (trimmedText.length > 2000) {
     return { valid: false, message: 'Content cannot exceed 2000 characters' };
   }
   
-  if (images.length > 10) {
-    return { valid: false, message: 'Maximum 10 images allowed' };
+  if (media.length > 10) {
+    return { valid: false, message: 'Maximum 10 files allowed' };
   }
   
-  // Check file sizes (max 10MB per image)
-  for (const image of images) {
-    if (image.size > 10 * 1024 * 1024) {
-      return { valid: false, message: `Image "${image.name}" exceeds 10MB limit` };
+  // Check file sizes (max 10MB per file)
+  for (const file of media) {
+    if (file.size > 10 * 1024 * 1024) {
+      return { valid: false, message: `"${file.name}" exceeds 10MB limit` };
     }
   }
   
@@ -82,14 +82,16 @@ const CreatePostBox = () => {
   
   const { refetch: refetchFeed } = useFeed();
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const filesArray = Array.from(e.target.files);
       
-      // Validate file types
+      // Validate file types (images + videos)
       const validFiles = filesArray.filter(file => {
-        if (!file.type.startsWith('image/')) {
-          toast.error(`"${file.name}" is not an image`);
+        const isImage = file.type.startsWith('image/');
+        const isVideo = file.type.startsWith('video/');
+        if (!isImage && !isVideo) {
+          toast.error(`"${file.name}" is not a supported file type`);
           return false;
         }
         if (file.size > 10 * 1024 * 1024) {
@@ -100,7 +102,7 @@ const CreatePostBox = () => {
       });
       
       if (images.length + validFiles.length > 10) {
-        toast.error('Maximum 10 images allowed');
+        toast.error('Maximum 10 files allowed');
         const remaining = 10 - images.length;
         validFiles.splice(remaining);
       }
@@ -360,16 +362,16 @@ const CreatePostBox = () => {
                 <img src={CameraIcon} alt="Camera" className="w-4 h-4 md:w-5 md:h-5" />
               </button>
 
-              {/* Gallery button */}
+      {/* Gallery/Media button */}
               <label className="p-1.5 md:p-2 hover:bg-muted rounded-lg cursor-pointer transition-colors">
-                <img src={ImageIcon} alt="Gallery" className="w-4 h-4 md:w-5 md:h-5" />
+                <img src={ImageIcon} alt="Media" className="w-4 h-4 md:w-5 md:h-5" />
                 <input
                   ref={galleryInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/*,video/*"
                   multiple
                   className="hidden"
-                  onChange={handleImageChange}
+                  onChange={handleMediaChange}
                   disabled={isSubmitting}
                 />
               </label>
@@ -414,16 +416,16 @@ const CreatePostBox = () => {
           </div>
         )}
 
-        {/* Preview uploaded images */}
+        {/* Preview uploaded media */}
         {previews.length > 0 && (
           <div className="mt-3 md:mt-4">
             {previews.length === 1 ? (
               <div className="relative w-full h-48 md:h-64 rounded-lg overflow-hidden border border-border">
-                <img
-                  src={previews[0]}
-                  alt="preview"
-                  className="w-full h-full object-cover"
-                />
+                {images[0]?.type?.startsWith('video/') ? (
+                  <video src={previews[0]} className="w-full h-full object-cover" muted playsInline />
+                ) : (
+                  <img src={previews[0]} alt="preview" className="w-full h-full object-cover" />
+                )}
                 <button
                   type="button"
                   onClick={() => removeImage(0)}
@@ -440,11 +442,11 @@ const CreatePostBox = () => {
                     key={idx}
                     className="relative w-32 h-24 md:w-40 md:h-32 flex-shrink-0 rounded-lg overflow-hidden border border-border"
                   >
-                    <img
-                      src={src}
-                      alt={`preview ${idx}`}
-                      className="w-full h-full object-cover"
-                    />
+                    {images[idx]?.type?.startsWith('video/') ? (
+                      <video src={src} className="w-full h-full object-cover" muted playsInline />
+                    ) : (
+                      <img src={src} alt={`preview ${idx}`} className="w-full h-full object-cover" />
+                    )}
                     <button
                       type="button"
                       onClick={() => removeImage(idx)}
@@ -494,7 +496,7 @@ const CreatePostBox = () => {
         accept="image/*"
         capture="environment"
         className="hidden"
-        onChange={handleImageChange}
+        onChange={handleMediaChange}
       />
 
       {/* Camera dialog */}

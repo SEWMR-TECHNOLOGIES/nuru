@@ -191,3 +191,31 @@ class AppealContentTypeEnum(enum.Enum):
 class PhotoLibraryPrivacyEnum(enum.Enum):
     public = "public"                      # anyone with link who is a Nuru user
     event_creator_only = "event_creator_only"  # only event organizer
+
+
+class TicketStatusEnum(enum.Enum):
+    available = "available"
+    sold_out = "sold_out"
+    cancelled = "cancelled"
+
+
+class TicketOrderStatusEnum(enum.Enum):
+    pending = "pending"
+    confirmed = "confirmed"
+    cancelled = "cancelled"
+    refunded = "refunded"
+
+
+class EventShareDurationEnum(enum.Enum):
+    timed = "timed"          # until a specific date/time
+    lifetime = "lifetime"    # user decides when to remove
+
+
+class ServiceMediaTypeEnum(enum.Enum):
+    video = "video"
+    audio = "audio"
+
+
+class BusinessPhoneStatusEnum(enum.Enum):
+    pending = "pending"
+    verified = "verified"

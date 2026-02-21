@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Users, Search, CheckCircle, XCircle, Eye, ChevronLeft, ChevronRight, KeyRound, Loader2 } from "lucide-react";
+import { Users, Search, CheckCircle, XCircle, Eye, ChevronLeft, ChevronRight, KeyRound, Loader2, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +26,9 @@ export default function AdminUsers() {
   const [resetDialog, setResetDialog] = useState<{ id: string; name: string } | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [resetting, setResetting] = useState(false);
+  const [editDialog, setEditDialog] = useState<any>(null);
+  const [editForm, setEditForm] = useState<any>({});
+  const [editSaving, setEditSaving] = useState(false);
 
   const load = useCallback(async () => {
     if (initialLoad.current) setLoading(true);
@@ -68,6 +71,20 @@ export default function AdminUsers() {
     if (res.success) { toast.success(`Password reset for ${resetDialog.name}`); setResetDialog(null); setNewPassword(""); }
     else toast.error(res.message || "Failed to reset password");
     setResetting(false);
+  };
+
+  const openEditDialog = (user: any) => {
+    setEditForm({ first_name: user.first_name || '', last_name: user.last_name || '', email: user.email || '', phone: user.phone || '', location: user.location || '' });
+    setEditDialog(user);
+  };
+
+  const handleEditSave = async () => {
+    if (!editDialog) return;
+    setEditSaving(true);
+    const res = await adminApi.updateUser(editDialog.id, editForm);
+    if (res.success) { toast.success("User updated & notified"); setEditDialog(null); load(); }
+    else toast.error(res.message || "Failed to update user");
+    setEditSaving(false);
   };
 
 
@@ -187,15 +204,18 @@ export default function AdminUsers() {
               </div>
               {selected.bio && <p className="text-muted-foreground text-xs bg-muted rounded-lg p-3">{selected.bio}</p>}
               <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => { setSelected(null); openEditDialog(selected); }}>
+                  <Edit className="w-4 h-4 mr-1.5" /> Edit Details
+                </Button>
                 <Button
                   className="flex-1"
                   variant={selected.is_active ? "destructive" : "default"}
                   onClick={() => toggleActive(selected.id, selected.is_active)}
                   disabled={actionLoading === selected.id}>
-                  {selected.is_active ? "Deactivate Account" : "Activate Account"}
+                  {selected.is_active ? "Deactivate" : "Activate"}
                 </Button>
                 <Button variant="outline" onClick={() => { setSelected(null); setResetDialog({ id: selected.id, name: `${selected.first_name} ${selected.last_name}` }); setNewPassword(""); }}>
-                  <KeyRound className="w-4 h-4 mr-1.5" /> Reset Password
+                  <KeyRound className="w-4 h-4 mr-1.5" /> Reset PW
                 </Button>
               </div>
             </div>
@@ -219,6 +239,26 @@ export default function AdminUsers() {
             <Button className="flex-1" onClick={handleResetPassword} disabled={resetting || newPassword.length < 8}>
               {resetting ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
               Reset Password
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={!!editDialog} onOpenChange={() => setEditDialog(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Edit className="w-4 h-4" /> Edit User</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="space-y-1.5"><Label>First Name</Label><Input value={editForm.first_name || ''} onChange={e => setEditForm((p: any) => ({ ...p, first_name: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>Last Name</Label><Input value={editForm.last_name || ''} onChange={e => setEditForm((p: any) => ({ ...p, last_name: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>Email</Label><Input value={editForm.email || ''} onChange={e => setEditForm((p: any) => ({ ...p, email: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>Phone</Label><Input value={editForm.phone || ''} onChange={e => setEditForm((p: any) => ({ ...p, phone: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>Location</Label><Input value={editForm.location || ''} onChange={e => setEditForm((p: any) => ({ ...p, location: e.target.value }))} /></div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setEditDialog(null)}>Cancel</Button>
+            <Button className="flex-1" onClick={handleEditSave} disabled={editSaving}>
+              {editSaving ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null} Save Changes
             </Button>
           </div>
         </DialogContent>

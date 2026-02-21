@@ -56,12 +56,12 @@ async def signup(request: Request, db: Session = Depends(get_db)):
     if db.query(User).filter(User.username == username).first():
         return standard_response(False, f"The username '{username}' is already taken. Please choose a different one.")
 
-    if not email:
-        return standard_response(False, "An email address helps us communicate important updates to you. Please provide one.")
-    if not validate_email(email):
-        return standard_response(False, f"The email '{email}' doesn't seem to be valid. Please double-check and enter a correct email address.")
-    if db.query(User).filter(User.email == email).first():
-        return standard_response(False, f"The email '{email}' is already associated with another account. Please use a different one.")
+    # Email is now OPTIONAL
+    if email:
+        if not validate_email(email):
+            return standard_response(False, f"The email '{email}' doesn't seem to be valid. Please double-check and enter a correct email address.")
+        if db.query(User).filter(User.email == email).first():
+            return standard_response(False, f"The email '{email}' is already associated with another account. Please use a different one.")
 
     if not phone:
         return standard_response(False, "Your phone number allows us to verify your account and send important notifications. Please provide a valid Tanzanian number.")
@@ -83,7 +83,7 @@ async def signup(request: Request, db: Session = Depends(get_db)):
         first_name=first_name,
         last_name=last_name,
         username=username,
-        email=email,
+        email=email if email else None,
         phone=formatted_phone,
         password_hash=password_hash
     )
@@ -452,6 +452,93 @@ async def search_users(
             "has_next": (page * limit) < total,
             "has_previous": page > 1
         }
+    })
+
+
+# ──────────────────────────────────────────────
+# Check Username Availability (PUBLIC — no auth required)
+# IMPORTANT: This must be defined BEFORE the /{user_id} catch-all route
+# ──────────────────────────────────────────────
+@router.get("/check-username")
+def check_username(
+    username: str = "",
+    first_name: str = "",
+    last_name: str = "",
+    db: Session = Depends(get_db),
+):
+    """
+    Check if a username is available and provide smart suggestions if taken.
+    This endpoint is PUBLIC (no authentication required) — used during signup.
+
+    Query params:
+      - username (required): the username to check
+      - first_name (optional): user's first name for smarter suggestions
+      - last_name (optional): user's last name for smarter suggestions
+    """
+    import random
+
+    if not username or len(username) < 3:
+        return standard_response(False, "Username must be at least 3 characters")
+
+    username = username.strip().lower()
+    if not validate_username(username):
+        return standard_response(False, "Username can only contain letters, numbers, and underscores")
+
+    existing = db.query(User).filter(User.username == username).first()
+    if not existing:
+        return standard_response(True, "Username is available", {"available": True, "username": username})
+
+    # ── Generate smart suggestions ──────────────────────────────────────
+    fn = first_name.strip().lower().replace(" ", "") if first_name else ""
+    ln = last_name.strip().lower().replace(" ", "") if last_name else ""
+
+    candidates = []
+
+    # Name-based variants (like Google / social platforms do)
+    if fn and ln:
+        candidates += [
+            f"{fn}{ln}",
+            f"{fn}.{ln}",
+            f"{fn}_{ln}",
+            f"{fn}{ln[0]}",
+            f"{fn[0]}{ln}",
+            f"{fn}{ln}{random.randint(1, 99)}",
+            f"{fn}.{ln}{random.randint(1, 99)}",
+            f"{fn}_{ln}{random.randint(1, 9)}",
+        ]
+    elif fn:
+        candidates += [
+            f"{fn}{random.randint(1, 999)}",
+            f"{fn}_nuru",
+            f"the_{fn}",
+        ]
+
+    # Original username variants
+    candidates += [
+        f"{username}{random.randint(1, 99)}",
+        f"{username}_{random.randint(1, 9)}",
+        f"{username}{random.randint(100, 999)}",
+        f"{username}_tz",
+        f"{username}_nuru",
+    ]
+
+    # De-duplicate, validate, and check availability
+    seen = set()
+    suggestions = []
+    for c in candidates:
+        c = c.lower().replace(".", "_")  # normalize dots to underscores
+        if c in seen or c == username or not validate_username(c):
+            continue
+        seen.add(c)
+        if not db.query(User).filter(User.username == c).first():
+            suggestions.append(c)
+        if len(suggestions) >= 5:
+            break
+
+    return standard_response(True, "Username is taken", {
+        "available": False,
+        "username": username,
+        "suggestions": suggestions,
     })
 
 
@@ -898,4 +985,56 @@ def get_user_following(
             "total_pages": (total + limit - 1) // limit,
             "has_next": (page * limit) < total, "has_previous": page > 1
         }
+    })
+
+
+# ──────────────────────────────────────────────
+# Update Email (post-login)
+# ──────────────────────────────────────────────
+@router.post("/update-email")
+async def update_email(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Allow authenticated user to add/update their email address."""
+    try:
+        payload = await request.json()
+    except Exception:
+        return standard_response(False, "Invalid request body")
+
+    email = payload.get("email", "").strip()
+    if not email:
+        return standard_response(False, "Email is required")
+    if not validate_email(email):
+        return standard_response(False, "Invalid email format")
+
+    # Check if email is already taken by another user
+    existing = db.query(User).filter(User.email == email, User.id != current_user.id).first()
+    if existing:
+        return standard_response(False, "This email is already associated with another account")
+
+    current_user.email = email
+    current_user.is_email_verified = False
+    db.commit()
+
+    # Send verification OTP
+    try:
+        code = generate_otp()
+        expires_at = get_expiry(minutes=10)
+        otp_entry = UserVerificationOTP(
+            user_id=current_user.id,
+            otp_code=code,
+            verification_type=OTPVerificationTypeEnum.email,
+            expires_at=expires_at
+        )
+        db.add(otp_entry)
+        db.commit()
+        send_verification_email(email, code, current_user.first_name)
+    except Exception:
+        pass
+
+    return standard_response(True, "Email updated. Please verify your email.", {
+        "email": email,
+        "is_email_verified": False
     })

@@ -67,6 +67,28 @@ export const userServicesApi = {
   delete: (serviceId: string) => del(`/user-services/${serviceId}`),
 
   // ============================================================================
+  // INTRO MEDIA (Video/Audio clips)
+  // ============================================================================
+
+  /**
+   * Get intro media for a service
+   */
+  getIntroMedia: (serviceId: string) =>
+    get<Array<{ id: string; media_type: string; media_url: string }>>(`/user-services/${serviceId}/intro-media`),
+
+  /**
+   * Upload intro media (video or audio clip, max 1 min)
+   */
+  addIntroMedia: (serviceId: string, formData: FormData) =>
+    postFormData<{ id: string; media_type: string; media_url: string }>(`/user-services/${serviceId}/intro-media`, formData),
+
+  /**
+   * Delete intro media
+   */
+  deleteIntroMedia: (serviceId: string, mediaId: string) =>
+    del(`/user-services/${serviceId}/intro-media/${mediaId}`),
+
+  // ============================================================================
   // SERVICE PACKAGES
   // ============================================================================
 

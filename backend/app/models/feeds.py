@@ -1,9 +1,9 @@
-from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Integer, Text, Enum, UniqueConstraint
+from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Integer, Text, Enum, UniqueConstraint, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from core.base import Base
-from models.enums import FeedVisibilityEnum
+from models.enums import FeedVisibilityEnum, EventShareDurationEnum
 
 
 # ──────────────────────────────────────────────
@@ -28,6 +28,11 @@ class UserFeed(Base):
     spark_count = Column(Integer, default=0)
     video_url = Column(Text)
     video_thumbnail_url = Column(Text)
+    # Event share fields
+    post_type = Column(Text, default='post')  # 'post' or 'event_share'
+    shared_event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='SET NULL'))
+    share_duration = Column(Enum(EventShareDurationEnum, name="event_share_duration_enum"))
+    share_expires_at = Column(DateTime)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -40,6 +45,7 @@ class UserFeed(Base):
     comments = relationship("UserFeedComment", back_populates="feed")
     pinned_by = relationship("UserFeedPinned", back_populates="feed")
     saved_by = relationship("UserFeedSaved", back_populates="feed")
+    shared_event = relationship("Event")
 
 
 class UserFeedImage(Base):

@@ -1,37 +1,20 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Users, Loader2, UserCheck } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { Users, Loader2, Ticket } from 'lucide-react';
+import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import { useNavigate } from 'react-router-dom';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
 import { useEvents } from '@/data/useEvents';
 import { useServices } from '@/data/useUserServices';
 import { useFollowSuggestions, useCircles } from '@/data/useSocial';
 import { eventsApi } from '@/lib/api/events';
-
-// Empty card placeholder for upcoming features
-const EmptyCard = ({ title, count = 3 }: { title: string; count?: number }) => (
-  <div className="bg-card rounded-lg p-4 border border-border">
-    <h2 className="font-semibold text-foreground mb-4">{title}</h2>
-    <div className="space-y-3">
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="flex gap-3 p-2 rounded-lg border border-dashed border-border/50">
-          <div className="w-12 h-12 rounded-lg bg-muted/50 flex items-center justify-center">
-            <div className="w-6 h-6 rounded bg-muted" />
-          </div>
-          <div className="flex-1 min-w-0 space-y-2">
-            <div className="h-3 w-3/4 bg-muted/50 rounded" />
-            <div className="h-2 w-1/2 bg-muted/30 rounded" />
-          </div>
-        </div>
-      ))}
-    </div>
-    <p className="text-xs text-muted-foreground text-center mt-3">Coming soon</p>
-  </div>
-);
+import { ticketingApi } from '@/lib/api/ticketing';
+import { formatPrice } from '@/utils/formatPrice';
 
 // Loading skeleton for sidebar cards
 const SidebarCardSkeleton = ({ title, count = 3 }: { title: string; count?: number }) => (
@@ -66,6 +49,68 @@ const ROLE_LABELS: Record<string, string> = {
   guest: 'Invited',
 };
 
+// ── Ticket-Selling Events Section ──
+const TicketEventsSection = ({ navigate }: { navigate: (path: string) => void }) => {
+  const [ticketEvents, setTicketEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const loadedRef = useRef(false);
+
+  useEffect(() => {
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+    ticketingApi.getTicketedEvents({ limit: 5 }).then((res) => {
+      if (res.success && res.data) {
+        const data = res.data as any;
+        setTicketEvents(data.events || []);
+      }
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  if (loading || ticketEvents.length === 0) return null;
+
+  return (
+    <div className="bg-card rounded-lg p-4 border border-border">
+      <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+        <Ticket className="w-4 h-4 text-primary" />
+        Events with Tickets
+      </h2>
+      <div className="space-y-3">
+        {ticketEvents.map((event) => (
+          <div
+            key={event.id}
+            className="flex gap-3 cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors"
+            onClick={() => navigate(`/event/${event.id}`)}
+          >
+            <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
+              {event.cover_image ? (
+                <img src={event.cover_image} alt={event.name} className="w-full h-full object-cover" />
+              ) : (
+                <Ticket className="w-5 h-5 text-muted-foreground" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-medium text-sm text-foreground truncate">{event.name}</h3>
+              <p className="text-xs text-muted-foreground">
+                {event.start_date ? new Date(event.start_date).toLocaleDateString('en-US', {
+                  weekday: 'short', month: 'short', day: 'numeric'
+                }) : 'Date TBD'}
+              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge variant="secondary" className="text-[10px] h-4">
+                  From {formatPrice(event.min_price)}
+                </Badge>
+                {event.total_available <= 0 && (
+                  <Badge variant="destructive" className="text-[10px] h-4">Sold Out</Badge>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const RightSidebar = () => {
   const navigate = useNavigate();
   const { events, loading: eventsLoading } = useEvents();
@@ -79,6 +124,35 @@ const RightSidebar = () => {
   const [committeeEvents, setCommitteeEvents] = useState<any[]>([]);
   const [invitedEvents, setInvitedEvents] = useState<any[]>([]);
   const [extraLoading, setExtraLoading] = useState(true);
+  const extraLoadedRef = useRef(false);
+
+  const fetchExtra = useCallback(async () => {
+    try {
+      const [commRes, invRes] = await Promise.all([
+        eventsApi.getCommitteeEvents({ limit: 5 }),
+        eventsApi.getInvitedEvents({ limit: 5 }),
+      ]);
+      if (commRes.success) setCommitteeEvents(commRes.data.events || []);
+      if (invRes.success) setInvitedEvents(invRes.data.events || []);
+    } catch { /* silent */ }
+    finally {
+      if (!extraLoadedRef.current) {
+        extraLoadedRef.current = true;
+        setExtraLoading(false);
+      }
+    }
+  }, []);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchExtra();
+  }, [fetchExtra]);
+
+  // Background poll every 15s to keep sidebar data fresh
+  useEffect(() => {
+    const id = setInterval(() => { fetchExtra(); }, 15000);
+    return () => clearInterval(id);
+  }, [fetchExtra]);
 
   const handleAddToCircle = async (user: any) => {
     if (addingUserId) return;
@@ -100,24 +174,6 @@ const RightSidebar = () => {
       setAddingUserId(null);
     }
   };
-
-  useEffect(() => {
-    let cancelled = false;
-    const fetchExtra = async () => {
-      try {
-        const [commRes, invRes] = await Promise.all([
-          eventsApi.getCommitteeEvents({ limit: 5 }),
-          eventsApi.getInvitedEvents({ limit: 5 }),
-        ]);
-        if (cancelled) return;
-        if (commRes.success) setCommitteeEvents(commRes.data.events || []);
-        if (invRes.success) setInvitedEvents(invRes.data.events || []);
-      } catch { /* silent */ }
-      finally { if (!cancelled) setExtraLoading(false); }
-    };
-    fetchExtra();
-    return () => { cancelled = true; };
-  }, []);
 
   // Merge & deduplicate events by ID, prioritizing creator > committee > guest
   // Filter out: past events, declined/cancelled invitations
@@ -145,9 +201,7 @@ const RightSidebar = () => {
 
     return Array.from(map.values())
       .filter((ev) => {
-        // Exclude past events
         if (ev.start_date && new Date(ev.start_date) < now) return false;
-        // Exclude cancelled events
         if (ev.status?.toLowerCase() === 'cancelled') return false;
         return true;
       })
@@ -169,7 +223,7 @@ const RightSidebar = () => {
 
   return (
     <div className="space-y-6">
-      {/* Upcoming Events */}
+      {/* Upcoming Events — only show when loading or there are events */}
       {allLoading ? (
         <SidebarCardSkeleton title="Upcoming Events" count={3} />
       ) : displayedEvents.length > 0 ? (
@@ -218,9 +272,7 @@ const RightSidebar = () => {
             </Button>
           )}
         </div>
-      ) : (
-        <EmptyCard title="Upcoming Events" count={3} />
-      )}
+      ) : null /* No card when no upcoming events */}
 
       {/* Service Providers */}
       {servicesLoading && !hasLoadedServices ? (
@@ -230,7 +282,6 @@ const RightSidebar = () => {
           <h2 className="font-semibold text-foreground mb-4">Service Providers</h2>
           <div className="grid grid-cols-2 gap-3">
             {services.slice(0, 4).map((service: any) => {
-              // Try all possible image field variations from the API
               const imgUrl = service.primary_image?.thumbnail_url 
                 || service.primary_image?.url 
                 || service.primary_image 
@@ -256,7 +307,7 @@ const RightSidebar = () => {
                       <span className="text-sm font-semibold text-muted-foreground">{initials}</span>
                     )}
                   </div>
-                  <p className="text-xs font-medium text-foreground capitalize line-clamp-2">{title}</p>
+                  <p className="text-xs font-medium text-foreground capitalize line-clamp-2 flex items-center gap-1">{title} {service.verified && <VerifiedServiceBadge size="xs" />}</p>
                   {service.provider?.name && (
                     <p className="text-[10px] text-muted-foreground truncate">{service.provider.name}</p>
                   )}
@@ -282,7 +333,7 @@ const RightSidebar = () => {
         </div>
       )}
 
-      {/* Friend Suggestions / People You May Know — only shown when there are results */}
+      {/* Friend Suggestions / People You May Know */}
       {suggestionsLoading && !hasLoadedSuggestions ? (
         <SidebarCardSkeleton title="People You May Know" count={3} />
       ) : suggestions.filter(u => !hiddenSuggestionIds.has(u.id)).length > 0 ? (
@@ -333,7 +384,10 @@ const RightSidebar = () => {
         </div>
       ) : null}
 
-      {/* Promoted Events - Empty placeholder */}
+      {/* Ticket-Selling Events */}
+      <TicketEventsSection navigate={navigate} />
+
+      {/* Promoted Events - placeholder */}
       <div className="bg-card rounded-lg p-4 border border-border">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-foreground">Promoted Events</h2>

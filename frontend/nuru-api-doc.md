@@ -143,6 +143,52 @@ Authentication: None
 }
 ```
 
+## 1.1.1 Check Username Availability
+Checks if a username is available and returns smart suggestions based on the user's name if taken.
+
+```
+GET /users/check-username
+Authentication: None (public endpoint)
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| username | string | Yes | The username to check (min 3 chars, alphanumeric + underscores) |
+| first_name | string | No | User's first name — used to generate smarter suggestions |
+| last_name | string | No | User's last name — used to generate smarter suggestions |
+
+**Example Request:**
+```
+GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
+```
+
+**Success Response — Available:**
+```json
+{
+  "success": true,
+  "message": "Username is available",
+  "data": {
+    "available": true,
+    "username": "johndoe"
+  }
+}
+```
+
+**Success Response — Taken (with suggestions):**
+```json
+{
+  "success": true,
+  "message": "Username is taken",
+  "data": {
+    "available": false,
+    "username": "johndoe",
+    "suggestions": ["john_doe", "johnd", "johndoe42", "john_doe3", "johndoe_tz"]
+  }
+}
+```
+
 ---
 
 ## 1.2 Sign In
@@ -1291,6 +1337,126 @@ Content-Type: application/json
 {
   "success": false,
   "message": "You do not have an invitation for this event"
+}
+```
+
+## 1.1.1 Check Username Availability
+Checks if a username is available and returns smart suggestions based on the user's name if taken.
+
+```
+GET /users/check-username
+Authentication: None (public endpoint)
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| username | string | Yes | The username to check (min 3 chars, alphanumeric + underscores) |
+| first_name | string | No | User's first name — used to generate smarter suggestions |
+| last_name | string | No | User's last name — used to generate smarter suggestions |
+
+**Example Request:**
+```
+GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
+```
+
+**Success Response — Available:**
+```json
+{
+  "success": true,
+  "message": "Username is available",
+  "data": {
+    "available": true,
+    "username": "johndoe"
+  }
+}
+```
+
+**Success Response — Taken (with suggestions):**
+```json
+{
+  "success": true,
+  "message": "Username is taken",
+  "data": {
+    "available": false,
+    "username": "johndoe",
+    "suggestions": [
+      "john_doe",
+      "johnd",
+      "johndoe42",
+      "john_doe3",
+      "johndoe_tz"
+    ]
+  }
+}
+```
+
+**Error Response — Invalid username:**
+```json
+{
+  "success": false,
+  "message": "Username can only contain letters, numbers, and underscores"
+}
+```
+
+## 1.1.1 Check Username Availability
+Checks if a username is available and returns smart suggestions based on the user's name if taken.
+
+```
+GET /users/check-username
+Authentication: None (public endpoint)
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| username | string | Yes | The username to check (min 3 chars, alphanumeric + underscores) |
+| first_name | string | No | User's first name — used to generate smarter suggestions |
+| last_name | string | No | User's last name — used to generate smarter suggestions |
+
+**Example Request:**
+```
+GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
+```
+
+**Success Response — Available:**
+```json
+{
+  "success": true,
+  "message": "Username is available",
+  "data": {
+    "available": true,
+    "username": "johndoe"
+  }
+}
+```
+
+**Success Response — Taken (with suggestions):**
+```json
+{
+  "success": true,
+  "message": "Username is taken",
+  "data": {
+    "available": false,
+    "username": "johndoe",
+    "suggestions": [
+      "john_doe",
+      "johnd",
+      "johndoe42",
+      "john_doe3",
+      "johndoe_tz"
+    ]
+  }
+}
+```
+
+**Error Response — Invalid username:**
+```json
+{
+  "success": false,
+  "message": "Username can only contain letters, numbers, and underscores"
 }
 ```
 
@@ -15071,5 +15237,165 @@ All outbound WhatsApp messages now use **approved Meta templates** instead of pl
 **Expense Report Ordering:**
 - Backend `GET /user-events/{event_id}/expenses/report` now orders expenses by `expense_date ASC` (chronological) instead of category-first.
 - Frontend `generateExpenseReportHtml` sorts expenses by date ascending for consistent report output.
+
+---
+
+### Event Ticketing System (2026-02-21)
+
+**Overview:** Events can now sell tickets with multiple ticket classes (tiers). Organizers create ticket classes with names, prices, and quantities. Users discover ticketed events in the right sidebar and purchase tickets directly on the platform.
+
+#### Endpoints
+
+**Public — Get Ticketed Events**
+```
+GET /ticketing/events?page=1&limit=10
+```
+Returns all public events that sell tickets, with `min_price`, `total_available`, and `ticket_class_count`.
+
+**Public — Get Ticket Classes for an Event**
+```
+GET /ticketing/events/{event_id}/ticket-classes
+```
+Returns all ticket classes for a public ticketed event with `id`, `name`, `description`, `price`, `quantity`, `sold`, `available`, `is_sold_out`, `status`, `display_order`.
+
+**Organizer — Create Ticket Class** *(Auth required)*
+```
+POST /ticketing/events/{event_id}/ticket-classes
+Body: { "name": "VIP", "description": "Front row", "price": 50000, "quantity": 100 }
+```
+
+**Organizer — Update Ticket Class** *(Auth required)*
+```
+PUT /ticketing/ticket-classes/{class_id}
+Body: { "name": "...", "price": ..., "quantity": ..., "status": "..." }
+```
+
+**Organizer — Delete Ticket Class** *(Auth required, only if no tickets sold)*
+```
+DELETE /ticketing/ticket-classes/{class_id}
+```
+
+**User — Purchase Ticket** *(Auth required)*
+```
+POST /ticketing/purchase
+Body: { "ticket_class_id": "uuid", "quantity": 1 }
+Response: { "ticket_id": "...", "ticket_code": "NTK-XXXXXXXX", "quantity": 1, "total_amount": 50000 }
+```
+
+**User — Get My Tickets** *(Auth required)*
+```
+GET /ticketing/my-tickets?page=1&limit=20
+```
+
+**Organizer — Get Event Tickets** *(Auth required)*
+```
+GET /ticketing/events/{event_id}/tickets?page=1&limit=50
+```
+
+#### Frontend Integration
+- `EventTicketing` component in Create/Edit Event for organizers to manage ticket classes
+- `EventTicketPurchase` component on Event View page showing all available classes with purchase flow
+- `TicketEventsSection` in Right Sidebar showing public ticketed events with "From [price]" badges
+- Sold-out classes are visually disabled with "Sold Out" badge
+
+---
+
+### Business Phone Number for Services (2026-02-21)
+
+**Overview:** Service providers can add verified business phone numbers and reuse them across multiple services without re-verification.
+
+#### Endpoints
+
+**List Business Phones** *(Auth required)*
+```
+GET /user-services/business-phones/list
+```
+
+**Add Business Phone** *(Auth required)*
+```
+POST /user-services/business-phones
+Body: { "phone_number": "0653750805" }
+```
+
+**Verify Business Phone** *(Auth required)*
+```
+POST /user-services/business-phones/{phone_id}/verify
+Body: { "otp": "123456" }
+```
+
+#### Frontend Integration
+- Business phone selector in Add Service and Edit Service forms
+- Inline OTP verification flow matching registration-style inputs
+- Verified phones can be reused across multiple services
+
+---
+
+### Share Events to Feed (2026-02-21) — Updated
+
+**Overview:** Event creators can share their events to the feed with visibility (Public/Circle) and duration controls (specific date or lifetime). Shared events render as rich event preview cards in the feed, distinct from regular posts/moments.
+
+#### Backend Changes
+- `POST /posts/` now accepts additional form fields:
+  - `post_type`: `"post"` (default) or `"event_share"`
+  - `event_id`: UUID of the event to share (required when `post_type=event_share`)
+  - `expires_at`: ISO 8601 timestamp for timed shares (optional)
+- `_post_dict()` now includes `post_type` field in all post responses
+- When `post_type == "event_share"`, the response includes a `shared_event` object:
+  ```json
+  {
+    "post_type": "event_share",
+    "shared_event": {
+      "id": "uuid",
+      "title": "Wedding Celebration",
+      "description": "Join us for...",
+      "start_date": "2026-03-15T00:00:00",
+      "end_date": null,
+      "start_time": "14:00",
+      "location": "Dar es Salaam",
+      "cover_image": "https://...",
+      "images": ["https://..."],
+      "event_type": "Wedding",
+      "sells_tickets": false,
+      "is_public": true,
+      "expected_guests": 200,
+      "dress_code": "Smart Casual"
+    },
+    "share_expires_at": "2026-03-10T23:59:00"
+  }
+  ```
+
+#### Frontend Integration
+- `ShareEventToFeed` component accessible from Event Management header
+- Visibility options: Public (all users) or Circle (only circle members)
+- Duration options: Until specific date/time or Lifetime (manual removal)
+- **Rich Event Card**: `Moment.tsx` detects `post_type === "event_share"` and renders a distinct event card with:
+  - Image mosaic (1, 2, or 3+ images with "+N" overlay)
+  - Event type and ticket badges
+  - Date, time, location, guest count, dress code info
+  - "View Event Details" CTA button
+- Regular posts continue to render with standard media/text layout
+
+#### Database
+- `user_feeds.post_type` — TEXT, default `'post'`
+- `user_feeds.shared_event_id` — UUID FK → `events(id)`
+- `user_feeds.share_duration` — `event_share_duration_enum` (`'timed'`, `'lifetime'`)
+- `user_feeds.share_expires_at` — TIMESTAMP
+
+---
+
+### Video Support for Moments (2026-02-21)
+
+**Overview:** Users can upload videos in addition to images when creating moments. Videos render inline using the `VideoPlayer` component across Feed, My Moments, and Moment Detail views.
+
+---
+
+### OTP Input Standardization (2026-02-21)
+
+All OTP inputs across the platform now use consistent styling: `w-12 h-14 text-xl font-semibold rounded-xl border-2` with `gap-2` spacing. Applied to:
+- Registration (phone verification)
+- Phone verification page
+- Email verification page
+- Email OTP in Profile
+- Business phone verification in Add/Edit Service
 
 ---

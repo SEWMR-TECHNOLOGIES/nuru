@@ -329,6 +329,8 @@ def search_services(
             "max_price": float(s.max_price) if s.max_price else None,
             "currency": "TZS",
             "location": s.location,
+            "latitude": float(s.latitude) if s.latitude else None,
+            "longitude": float(s.longitude) if s.longitude else None,
             "primary_image": primary_image,
             "images": [{"id": str(img.id), "url": img.image_url, "is_primary": img.is_featured} for img in (s.images or [])],
             "rating": round(avg, 1),
@@ -338,6 +340,10 @@ def search_services(
             "availability": s.availability.value if hasattr(s.availability, "value") else s.availability,
             "years_experience": getattr(s, "years_experience", None),
             "completed_events": getattr(s, "completed_events", None),
+            "business_phone": {
+                "phone_number": s.business_phone.phone_number,
+                "verification_status": s.business_phone.verification_status.value if hasattr(s.business_phone.verification_status, "value") else str(s.business_phone.verification_status),
+            } if s.business_phone else None,
             "created_at": s.created_at.isoformat()
         })
 
@@ -424,6 +430,9 @@ def get_service_details(service_id: str, db: Session = Depends(get_db)):
         "max_price": float(service.max_price) if service.max_price else None,
         "currency": "TZS",
         "location": service.location,
+        "latitude": float(service.latitude) if service.latitude else None,
+        "longitude": float(service.longitude) if service.longitude else None,
+        "formatted_address": service.formatted_address,
         "service_areas": service.service_areas if hasattr(service, "service_areas") else [],
         "images": images,
         "rating": avg_rating,
@@ -436,7 +445,18 @@ def get_service_details(service_id: str, db: Session = Depends(get_db)):
         "completed_events": completed_events,
         "packages": packages,
         "reviews_preview": reviews_preview,
-        "is_owner": False,  # Public endpoint — viewer is never the owner
+        "intro_media": [
+            {
+                "id": str(m.id),
+                "media_type": m.media_type.value if hasattr(m.media_type, "value") else str(m.media_type),
+                "media_url": m.media_url,
+            } for m in (service.intro_media or [])
+        ],
+        "business_phone": {
+            "phone_number": service.business_phone.phone_number,
+            "verification_status": service.business_phone.verification_status.value if hasattr(service.business_phone.verification_status, "value") else str(service.business_phone.verification_status),
+        } if service.business_phone else None,
+        "is_owner": False,
         "created_at": service.created_at.isoformat()
     }
 

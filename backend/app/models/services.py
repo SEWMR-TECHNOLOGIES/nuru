@@ -7,6 +7,8 @@ from models.enums import (
     ServiceAvailabilityEnum,
     VerificationStatusEnum,
     UploadFileTypeEnum,
+    ServiceMediaTypeEnum,
+    BusinessPhoneStatusEnum,
 )
 
 
@@ -30,6 +32,10 @@ class UserService(Base):
     verification_progress = Column(Integer, default=0)
     is_verified = Column(Boolean, default=False)
     location = Column(Text)
+    latitude = Column(Numeric)
+    longitude = Column(Numeric)
+    formatted_address = Column(Text)
+    business_phone_id = Column(UUID(as_uuid=True), ForeignKey('service_business_phones.id', ondelete='SET NULL'))
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
@@ -47,6 +53,8 @@ class UserService(Base):
     conversations = relationship("Conversation", back_populates="service")
     booking_requests = relationship("ServiceBookingRequest", back_populates="user_service")
     photo_libraries = relationship("ServicePhotoLibrary", back_populates="user_service")
+    intro_media = relationship("ServiceIntroMedia", back_populates="user_service")
+    business_phone = relationship("ServiceBusinessPhone", back_populates="services")
 
 
 class UserServiceImage(Base):
@@ -190,3 +198,45 @@ class ServiceReviewHelpful(Base):
     # Relationships
     rating = relationship("UserServiceRating", back_populates="helpfuls")
     user = relationship("User", back_populates="service_review_helpfuls")
+
+
+# ──────────────────────────────────────────────
+# Service Intro Media (video/audio)
+# ──────────────────────────────────────────────
+
+class ServiceIntroMedia(Base):
+    __tablename__ = 'service_intro_media'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    user_service_id = Column(UUID(as_uuid=True), ForeignKey('user_services.id', ondelete='CASCADE'), nullable=False)
+    media_type = Column(Enum(ServiceMediaTypeEnum, name="service_media_type_enum"), nullable=False)
+    media_url = Column(Text, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    user_service = relationship("UserService", back_populates="intro_media")
+
+
+# ──────────────────────────────────────────────
+# Service Business Phones (verified, reusable)
+# ──────────────────────────────────────────────
+
+class ServiceBusinessPhone(Base):
+    __tablename__ = 'service_business_phones'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    phone_number = Column(Text, nullable=False)
+    verification_status = Column(Enum(BusinessPhoneStatusEnum, name="business_phone_status_enum"), default=BusinessPhoneStatusEnum.pending)
+    verified_at = Column(DateTime)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'phone_number', name='uq_user_business_phone'),
+    )
+
+    # Relationships
+    user = relationship("User")
+    services = relationship("UserService", back_populates="business_phone")

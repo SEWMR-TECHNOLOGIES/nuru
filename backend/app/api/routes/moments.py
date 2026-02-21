@@ -38,6 +38,7 @@ def _moment_dict(db, m, current_user_id=None):
         "author": {"id": str(user.id), "name": f"{user.first_name} {user.last_name}", "avatar": profile.profile_picture_url if profile else None} if user else None,
         "caption": m.caption, "content_type": m.content_type.value if m.content_type else "image",
         "media_url": m.media_url,
+        "thumbnail_url": m.thumbnail_url if hasattr(m, "thumbnail_url") else None,
         "location": m.location if hasattr(m, "location") else None,
         "viewer_count": viewer_count, "has_seen": has_seen,
         "is_active": m.is_active,
@@ -145,11 +146,20 @@ def get_user_moments(user_id: str, db: Session = Depends(get_db), current_user: 
 async def create_moment(
     content: Optional[str] = Form(None), location: Optional[str] = Form(None),
     media: Optional[UploadFile] = File(None), duration_hours: int = Form(24),
+    content_type: Optional[str] = Form("image"),
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     now = datetime.now(EAT)
     media_url = None
+    thumbnail_url = None
+
+    # Determine content type from file or form param
+    media_content_type = content_type or "image"
     if media and media.filename:
+        file_ext = os.path.splitext(media.filename)[1].lower()
+        if file_ext in ('.mp4', '.mov', '.webm', '.avi', '.mkv'):
+            media_content_type = "video"
+
         file_content = await media.read()
         _, ext = os.path.splitext(media.filename)
         unique_name = f"{uuid.uuid4().hex}{ext}"
@@ -159,14 +169,16 @@ async def create_moment(
                 result = resp.json()
                 if result.get("success"):
                     media_url = result["data"]["url"]
+                    thumbnail_url = result["data"].get("thumbnail_url")
             except Exception:
                 pass
 
     moment = UserMoment(
         id=uuid.uuid4(), user_id=current_user.id,
         caption=content.strip() if content else None,
-        content_type="image",
+        content_type=media_content_type,
         media_url=media_url or "",
+        thumbnail_url=thumbnail_url,
         is_active=True,
         expires_at=now + timedelta(hours=duration_hours),
         created_at=now,

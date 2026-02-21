@@ -104,8 +104,13 @@ const FindServices = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // Reset pagination when filters change
+  // Reset pagination when filters change (skip initial mount to preserve cache)
+  const hasMounted = useRef(false);
   useEffect(() => {
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      return;
+    }
     setCurrentPage(1);
     setServices([]);
     setHasMore(true);
@@ -475,7 +480,7 @@ const FindServices = () => {
       )}
 
       {/* ── Empty state ── */}
-      {!error && services.length === 0 && !loading && (
+      {!error && services.length === 0 && !loading && !loadingMore && (
         <div className="bg-card border border-border rounded-xl p-12 text-center">
           <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
             <SearchX className="w-6 h-6 text-muted-foreground" />
@@ -490,8 +495,13 @@ const FindServices = () => {
         </div>
       )}
 
-      {/* ── Service grid ── */}
-      {services.length > 0 && (
+      {/* ── Service grid or inline skeleton during filter reload ── */}
+      {loading && !initialLoad.current && !loadingMore && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map(i => <ServiceCardSkeleton key={`bg-${i}`} />)}
+        </div>
+      )}
+      {services.length > 0 && !(loading && !initialLoad.current && !loadingMore) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {services.map((provider) => {
             const imageUrl = getImageUrl(provider);
@@ -535,10 +545,10 @@ const FindServices = () => {
                   {/* Title + rating */}
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="font-semibold text-foreground text-[15px] leading-tight line-clamp-1 flex items-center gap-1.5">
+                      {provider.title}
                       {provider.verification_status === 'verified' && (
                         <VerifiedServiceBadge size="sm" />
                       )}
-                      {provider.title}
                     </h3>
                     {(provider.rating ?? 0) > 0 && (
                       <div className="flex items-center gap-1 flex-shrink-0">
@@ -610,12 +620,6 @@ const FindServices = () => {
         </p>
       )}
 
-      {/* Background filter change skeleton */}
-      {loading && !initialLoad.current && !loadingMore && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3, 4, 5, 6].map(i => <ServiceCardSkeleton key={`bg-${i}`} />)}
-        </div>
-      )}
     </div>
   );
 };

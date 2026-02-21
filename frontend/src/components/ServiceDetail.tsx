@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ChevronLeft, Star, CheckCircle, ChevronRight, Loader2,
   Award, Briefcase, X, TrendingUp,
-  ArrowUpRight, Shield, Edit, Eye, DollarSign, Users
+  ArrowUpRight, Shield, Edit, Eye, DollarSign, Users, Video, Music
 } from 'lucide-react';
 import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import calendarIcon from '@/assets/icons/calendar-icon.svg';
@@ -16,7 +16,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useUserService } from '@/hooks/useUserService';
-import { servicesApi } from '@/lib/api/services';
+import { servicesApi, userServicesApi } from '@/lib/api/services';
 import { formatPrice } from '@/utils/formatPrice';
 import { ServiceDetailLoadingSkeleton } from '@/components/ui/ServiceLoadingSkeleton';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -50,6 +50,7 @@ const ServiceDetail = () => {
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [activeTab, setActiveTab] = useState<'overview' | 'calendar' | 'reviews'>('overview');
+  const [introMedia, setIntroMedia] = useState<Array<{ id: string; media_type: string; media_url: string }>>([]);
 
   useWorkspaceMeta({
     title: service?.title || 'My Service',
@@ -61,7 +62,18 @@ const ServiceDetail = () => {
     if ((service as any).packages && Array.isArray((service as any).packages)) {
       setPackages((service as any).packages);
     }
+    if ((service as any).intro_media && Array.isArray((service as any).intro_media)) {
+      setIntroMedia((service as any).intro_media);
+    }
   }, [service]);
+
+  // Fetch intro media separately for fresh data
+  useEffect(() => {
+    if (!id) return;
+    userServicesApi.getIntroMedia(id).then(res => {
+      if (res.success && res.data) setIntroMedia(Array.isArray(res.data) ? res.data : []);
+    }).catch(() => {});
+  }, [id]);
 
   const loadReviews = useCallback(async () => {
     if (!id) return;
@@ -211,16 +223,11 @@ const ServiceDetail = () => {
               <Badge className="bg-white/20 backdrop-blur-sm text-white border-white/30 text-xs">
                 {(service as any).service_category?.name || (service as any).category?.name || 'Service'}
               </Badge>
-              {isVerified && (
-                <span className="inline-flex items-center gap-1 bg-emerald-500/90 text-white border-0 text-xs px-2 py-0.5 rounded-full">
-                  <VerifiedServiceBadge size="xs" className="brightness-200" /> Verified
-                </span>
-              )}
               {isPending && (
                 <Badge className="bg-amber-500/90 text-white border-0 text-xs">Pending Review</Badge>
               )}
             </div>
-            <h1 className="text-3xl font-bold text-white">{service.title}</h1>
+            <h1 className="text-3xl font-bold text-white flex items-center gap-2">{service.title} {isVerified && <VerifiedServiceBadge size="md" className="brightness-200" />}</h1>
             {service.location && (
               <p className="text-white/80 text-sm mt-1.5 flex items-center gap-1">
                 <img src={locationIcon} alt="location" className="w-3.5 h-3.5 dark:invert" />{service.location}
@@ -309,7 +316,36 @@ const ServiceDetail = () => {
               </div>
             )}
 
-            {/* Meta grid */}
+            {/* Intro Media */}
+            {introMedia.length > 0 && (
+              <div className="bg-card border border-border rounded-2xl p-6">
+                <h2 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <Video className="w-4 h-4 text-primary" />Intro Clip
+                </h2>
+                <div className="space-y-3">
+                  {introMedia.map((media) => (
+                    <div key={media.id} className="rounded-xl overflow-hidden border border-border">
+                      {media.media_type === 'video' ? (
+                        <div className="aspect-video bg-black">
+                          <video src={media.media_url} controls playsInline className="w-full h-full object-contain" />
+                        </div>
+                      ) : (
+                        <div className="p-4 flex items-center gap-3 bg-gradient-to-r from-primary/5 to-transparent">
+                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                            <Music className="w-6 h-6 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground mb-1">Audio Introduction</p>
+                            <audio src={media.media_url} controls className="w-full h-8" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 { label: 'Category', value: (typeof (service as any).category === 'string' ? (service as any).category : null) || (service as any).service_category?.name || (service as any).category?.name || service.service_type?.name || (service as any).service_type_name || '—', icon: Briefcase },

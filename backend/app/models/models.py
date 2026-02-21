@@ -30,6 +30,11 @@ from models.enums import (
     AppealStatusEnum,
     AppealContentTypeEnum,
     PhotoLibraryPrivacyEnum,
+    TicketStatusEnum,
+    TicketOrderStatusEnum,
+    EventShareDurationEnum,
+    ServiceMediaTypeEnum,
+    BusinessPhoneStatusEnum,
 )
 
 
@@ -670,6 +675,11 @@ class UserFeed(Base):
     spark_count = Column(Integer, default=0)
     video_url = Column(Text)
     video_thumbnail_url = Column(Text)
+    # Event share fields
+    post_type = Column(Text, default='post')
+    shared_event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='SET NULL'))
+    share_duration = Column(Enum(EventShareDurationEnum, name="event_share_duration_enum"))
+    share_expires_at = Column(DateTime)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -682,6 +692,7 @@ class UserFeed(Base):
     comments = relationship("UserFeedComment", back_populates="feed")
     pinned_by = relationship("UserFeedPinned", back_populates="feed")
     saved_by = relationship("UserFeedSaved", back_populates="feed")
+    shared_event = relationship("Event")
 
 
 class UserFeedImage(Base):
@@ -936,6 +947,10 @@ class UserService(Base):
     verification_progress = Column(Integer, default=0)
     is_verified = Column(Boolean, default=False)
     location = Column(Text)
+    latitude = Column(Numeric)
+    longitude = Column(Numeric)
+    formatted_address = Column(Text)
+    business_phone_id = Column(UUID(as_uuid=True), ForeignKey('service_business_phones.id', ondelete='SET NULL'))
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
@@ -952,6 +967,9 @@ class UserService(Base):
     event_services = relationship("EventService", back_populates="provider_user_service")
     conversations = relationship("Conversation", back_populates="service")
     booking_requests = relationship("ServiceBookingRequest", back_populates="user_service")
+    photo_libraries = relationship("ServicePhotoLibrary", back_populates="user_service")
+    intro_media = relationship("ServiceIntroMedia", back_populates="user_service")
+    business_phone = relationship("ServiceBusinessPhone", back_populates="services")
 
 
 class UserServiceImage(Base):
@@ -1138,6 +1156,7 @@ class Event(Base):
     currency_id = Column(UUID(as_uuid=True), ForeignKey('currencies.id'))
     cover_image_url = Column(Text)
     is_public = Column(Boolean, default=False)
+    sells_tickets = Column(Boolean, default=False)
     theme_color = Column(String(7))
     dress_code = Column(String(100))
     special_instructions = Column(Text)
@@ -1165,6 +1184,9 @@ class Event(Base):
     promoted_events = relationship("PromotedEvent", back_populates="event")
     checklist_items = relationship("EventChecklistItem", back_populates="event")
     expenses = relationship("EventExpense", back_populates="event")
+    photo_libraries = relationship("ServicePhotoLibrary", back_populates="event")
+    ticket_classes = relationship("EventTicketClass", back_populates="event")
+    tickets = relationship("EventTicket", back_populates="event")
 
 
 class EventTypeService(Base):
@@ -2097,3 +2119,101 @@ class FeedImpression(Base):
         Index('idx_impression_post', 'post_id'),
         Index('idx_impression_created', 'created_at'),
     )
+
+
+# ──────────────────────────────────────────────
+# Ticketing Tables
+# ──────────────────────────────────────────────
+
+class EventTicketClass(Base):
+    __tablename__ = 'event_ticket_classes'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
+    name = Column(Text, nullable=False)
+    description = Column(Text)
+    price = Column(Numeric(12, 2), nullable=False)
+    currency_id = Column(UUID(as_uuid=True), ForeignKey('currencies.id'))
+    quantity = Column(Integer, nullable=False)
+    sold = Column(Integer, default=0)
+    status = Column(Enum(TicketStatusEnum, name="ticket_status_enum"), default=TicketStatusEnum.available)
+    display_order = Column(Integer, default=0)
+    sale_start_date = Column(DateTime)
+    sale_end_date = Column(DateTime)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    event = relationship("Event", back_populates="ticket_classes")
+    currency = relationship("Currency")
+    tickets = relationship("EventTicket", back_populates="ticket_class")
+
+
+class EventTicket(Base):
+    __tablename__ = 'event_tickets'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    ticket_class_id = Column(UUID(as_uuid=True), ForeignKey('event_ticket_classes.id', ondelete='CASCADE'), nullable=False)
+    event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
+    buyer_user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    ticket_code = Column(Text, unique=True, nullable=False)
+    quantity = Column(Integer, default=1)
+    total_amount = Column(Numeric(12, 2), nullable=False)
+    payment_method = Column(Enum(PaymentMethodEnum, name="payment_method_enum"))
+    payment_status = Column(Enum(PaymentStatusEnum, name="payment_status_enum"), default=PaymentStatusEnum.pending)
+    payment_ref = Column(Text)
+    status = Column(Enum(TicketOrderStatusEnum, name="ticket_order_status_enum"), default=TicketOrderStatusEnum.pending)
+    checked_in = Column(Boolean, default=False)
+    checked_in_at = Column(DateTime)
+    buyer_name = Column(Text)
+    buyer_phone = Column(Text)
+    buyer_email = Column(Text)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    ticket_class = relationship("EventTicketClass", back_populates="tickets")
+    event = relationship("Event", back_populates="tickets")
+    buyer = relationship("User")
+
+
+# ──────────────────────────────────────────────
+# Service Intro Media
+# ──────────────────────────────────────────────
+
+class ServiceIntroMedia(Base):
+    __tablename__ = 'service_intro_media'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    user_service_id = Column(UUID(as_uuid=True), ForeignKey('user_services.id', ondelete='CASCADE'), nullable=False)
+    media_type = Column(Enum(ServiceMediaTypeEnum, name="service_media_type_enum"), nullable=False)
+    media_url = Column(Text, nullable=False)
+    thumbnail_url = Column(Text)
+    duration_seconds = Column(Integer)
+    title = Column(Text)
+    display_order = Column(Integer, default=0)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    user_service = relationship("UserService", back_populates="intro_media")
+
+
+# ──────────────────────────────────────────────
+# Service Business Phones
+# ──────────────────────────────────────────────
+
+class ServiceBusinessPhone(Base):
+    __tablename__ = 'service_business_phones'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    phone_number = Column(Text, nullable=False)
+    verification_status = Column(Enum(BusinessPhoneStatusEnum, name="business_phone_status_enum"), default=BusinessPhoneStatusEnum.pending)
+    verified_at = Column(DateTime)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'phone_number', name='uq_user_business_phone'),
+    )
+
+    user = relationship("User")
+    services = relationship("UserService", back_populates="business_phone")

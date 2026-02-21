@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { formatPrice } from '@/utils/formatPrice';
-import { Star, CheckCircle, Users, Plus, Edit, Eye, Package, Loader2, Camera, MapPin, ChevronRight, BookOpen, Upload, Trash2, X, ImagePlus } from 'lucide-react';
+import { Star, CheckCircle, Users, Plus, Edit, Eye, Package, Loader2, Camera, MapPin, ChevronRight, BookOpen, Upload, Trash2, X, ImagePlus, Video, Music } from 'lucide-react';
 import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import CalendarSVG from '@/assets/icons/calendar-icon.svg';
 import PhotosSVG from '@/assets/icons/photos-icon.svg';
@@ -59,6 +59,15 @@ const MyServices = () => {
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
   const imageFileRef = useRef<HTMLInputElement>(null);
 
+  // Intro media dialog state
+  const [mediaDialogService, setMediaDialogService] = useState<any | null>(null);
+  const [mediaList, setMediaList] = useState<Array<{ id: string; media_type: string; media_url: string }>>([]);
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [pendingMediaFile, setPendingMediaFile] = useState<File | null>(null);
+  const [mediaUploading, setMediaUploading] = useState(false);
+  const [deletingMediaId, setDeletingMediaId] = useState<string | null>(null);
+  const mediaFileRef = useRef<HTMLInputElement>(null);
+
   const handleAddPackage = (serviceId: string) => {
     setSelectedServiceId(serviceId);
     setPackageDialogOpen(true);
@@ -102,6 +111,61 @@ const MyServices = () => {
     } catch (err) { showCaughtError(err); }
     finally { setDeletingImageId(null); }
   };
+
+  // ─── INTRO MEDIA HANDLERS ───
+  const openMediaDialog = async (service: any) => {
+    setMediaDialogService(service);
+    setMediaList([]);
+    setPendingMediaFile(null);
+    setMediaLoading(true);
+    try {
+      const res = await userServicesApi.getIntroMedia(service.id);
+      if (res.success && res.data) setMediaList(Array.isArray(res.data) ? res.data : []);
+    } catch { /* silent */ }
+    finally { setMediaLoading(false); }
+  };
+
+  const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const isVideo = file.type.startsWith('video/');
+    const isAudio = file.type.startsWith('audio/');
+    if (!isVideo && !isAudio) { toast.error('Please select a video or audio file'); return; }
+    setPendingMediaFile(file);
+    if (mediaFileRef.current) mediaFileRef.current.value = '';
+  };
+
+  const handleConfirmMediaUpload = async () => {
+    if (!pendingMediaFile || !mediaDialogService) return;
+    const isVideo = pendingMediaFile.type.startsWith('video/');
+    setMediaUploading(true);
+    try {
+      const form = new FormData();
+      form.append('media_type', isVideo ? 'video' : 'audio');
+      form.append('media', pendingMediaFile);
+      const res = await userServicesApi.addIntroMedia(mediaDialogService.id, form);
+      if (res.success && res.data) {
+        setMediaList(prev => [...prev, res.data as any]);
+        toast.success('Intro clip uploaded!');
+        setPendingMediaFile(null);
+      } else { showApiErrors(res); }
+    } catch (err) { showCaughtError(err); }
+    finally { setMediaUploading(false); }
+  };
+
+  const handleDeleteMedia = async (mediaId: string) => {
+    if (!mediaDialogService) return;
+    setDeletingMediaId(mediaId);
+    try {
+      const res = await userServicesApi.deleteIntroMedia(mediaDialogService.id, mediaId);
+      if (res.success) {
+        setMediaList(prev => prev.filter(m => m.id !== mediaId));
+        toast.success('Intro clip removed');
+      } else { showApiErrors(res); }
+    } catch (err) { showCaughtError(err); }
+    finally { setDeletingMediaId(null); }
+  };
+
 
   const handleSavePackage = async () => {
     if (!selectedServiceId) return;
@@ -233,20 +297,13 @@ const MyServices = () => {
                   {/* Gradient overlay */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
 
-                  {/* Verification badge */}
+                  {/* Status badge - only show non-verified statuses */}
                   <div className="absolute top-3 left-3 flex gap-2">
-                    {isVerified && (
-                      <Badge className="bg-green-500 text-white border-0 shadow">
-                        <VerifiedServiceBadge size="xs" className="brightness-200" /> Verified
-                      </Badge>
-                    )}
                     {!isVerified && service.verification_status === 'pending' && (
                       <Badge className="bg-amber-500/90 text-white border-0 shadow">Pending Verification</Badge>
                     )}
-                    {isPhoto && (
-                      <Badge className="bg-purple-600 text-white border-0 shadow">
-                        <Camera className="w-3 h-3 mr-1" /> Photography
-                      </Badge>
+                    {!isVerified && service.verification_status && service.verification_status !== 'pending' && service.verification_status !== 'verified' && (
+                      <Badge className="bg-muted text-muted-foreground border-0 shadow">{service.verification_status}</Badge>
                     )}
                   </div>
 
@@ -279,6 +336,10 @@ const MyServices = () => {
                       onClick={() => setImageDialogService(service)}>
                       <ImagePlus className="w-3.5 h-3.5 mr-1.5" /> Photos
                     </Button>
+                    <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white text-foreground shadow"
+                      onClick={() => openMediaDialog(service)}>
+                      <Video className="w-3.5 h-3.5 mr-1.5" /> Intro Clip
+                    </Button>
                   </div>
                 </div>
               )}
@@ -304,14 +365,18 @@ const MyServices = () => {
                       <Button size="sm" variant="outline" onClick={() => setImageDialogService(service)}>
                         <ImagePlus className="w-3.5 h-3.5 mr-1.5" /> Photos
                       </Button>
+                      <Button size="sm" variant="outline" onClick={() => openMediaDialog(service)}>
+                        <Video className="w-3.5 h-3.5 mr-1.5" /> Intro Clip
+                      </Button>
                     </div>
                   )}
 
                   <div className="flex-1 space-y-4">
                     {/* Title + badges */}
                     <div>
-                      <div className="flex items-start gap-3 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <h3 className="text-xl font-bold">{service.title}</h3>
+                        {isVerified && <VerifiedServiceBadge size="sm" />}
                       </div>
                       <div className="flex items-center gap-2 flex-wrap mt-2">
                         <Badge variant="secondary">{getCategoryName(service)}</Badge>
@@ -588,6 +653,119 @@ const MyServices = () => {
 
           <DialogFooter className="pt-4 border-t border-border mt-4">
             <Button variant="outline" onClick={() => setImageDialogService(null)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── INTRO MEDIA DIALOG ─── */}
+      <Dialog open={!!mediaDialogService} onOpenChange={(open) => { if (!open) { setMediaDialogService(null); setPendingMediaFile(null); } }}>
+        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Video className="w-5 h-5 text-primary" />
+              Intro Clip
+              {mediaDialogService && (
+                <span className="text-sm font-normal text-muted-foreground truncate">— {mediaDialogService.title}</span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
+            {mediaLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            ) : (
+              <>
+                {/* Existing media */}
+                {mediaList.map((media) => (
+                  <div key={media.id} className="rounded-xl border border-border overflow-hidden">
+                    {media.media_type === 'video' ? (
+                      <div className="aspect-video bg-black">
+                        <video src={media.media_url} controls playsInline className="w-full h-full object-contain" />
+                      </div>
+                    ) : (
+                      <div className="p-4 flex items-center gap-3 bg-gradient-to-r from-primary/5 to-transparent">
+                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <Music className="w-6 h-6 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground mb-1">Audio Clip</p>
+                          <audio src={media.media_url} controls className="w-full h-8" />
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between px-4 py-2.5 border-t border-border">
+                      <p className="text-xs text-muted-foreground capitalize">{media.media_type} intro</p>
+                      <Button type="button" variant="ghost" size="sm"
+                        className="text-destructive hover:text-destructive h-7 px-2 text-xs"
+                        onClick={() => handleDeleteMedia(media.id)} disabled={deletingMediaId === media.id}>
+                        {deletingMediaId === media.id ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Trash2 className="w-3.5 h-3.5 mr-1" />}
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Pending file preview */}
+                {pendingMediaFile && (
+                  <div className="rounded-xl border-2 border-primary/30 bg-primary/5 overflow-hidden">
+                    {pendingMediaFile.type.startsWith('video/') ? (
+                      <div className="aspect-video bg-black">
+                        <video src={URL.createObjectURL(pendingMediaFile)} controls playsInline className="w-full h-full object-contain" />
+                      </div>
+                    ) : (
+                      <div className="p-4 flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <Music className="w-6 h-6 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground mb-1">{pendingMediaFile.name}</p>
+                          <audio src={URL.createObjectURL(pendingMediaFile)} controls className="w-full h-8" />
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-primary/20">
+                      <p className="text-xs text-muted-foreground">{(pendingMediaFile.size / (1024 * 1024)).toFixed(1)} MB</p>
+                      <div className="flex gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={() => setPendingMediaFile(null)} className="h-8">Cancel</Button>
+                        <Button type="button" size="sm" onClick={handleConfirmMediaUpload} disabled={mediaUploading} className="h-8">
+                          {mediaUploading ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Uploading...</> : <><Upload className="w-3.5 h-3.5 mr-1.5" />Upload</>}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Upload zone */}
+                {!pendingMediaFile && (
+                  <div
+                    className="border-2 border-dashed border-border rounded-2xl p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all"
+                    onClick={() => mediaFileRef.current?.click()}
+                  >
+                    <div className="flex items-center justify-center gap-2 mb-3">
+                      <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                        <Video className="w-5 h-5 text-primary" />
+                      </div>
+                      <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                        <Music className="w-5 h-5 text-primary" />
+                      </div>
+                    </div>
+                    <p className="font-semibold text-foreground mb-1">Add intro clip</p>
+                    <p className="text-xs text-muted-foreground">Video or audio · Max 1 minute</p>
+                    <input ref={mediaFileRef} type="file" accept="video/*,audio/*" className="hidden" onChange={handleMediaSelect} />
+                  </div>
+                )}
+
+                {mediaList.length === 0 && !pendingMediaFile && (
+                  <p className="text-center text-sm text-muted-foreground py-2">No intro clip yet. Add one to introduce your service!</p>
+                )}
+              </>
+            )}
+          </div>
+
+          <DialogFooter className="pt-4 border-t border-border mt-4">
+            <Button variant="outline" onClick={() => { setMediaDialogService(null); setPendingMediaFile(null); }}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

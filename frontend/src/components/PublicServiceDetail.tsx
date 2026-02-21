@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ChevronLeft, Star, CheckCircle, ChevronRight, Send,
   Award, Briefcase, X, MessageSquare,
-  ArrowUpRight, Shield, Users, Loader2
+  ArrowUpRight, Shield, Users, Loader2, Video, Music
 } from 'lucide-react';
 import { VerifiedServiceBadge, VerifiedServiceBadgeWithLabel } from '@/components/ui/verified-badge';
 import calendarIcon from '@/assets/icons/calendar-icon.svg';
@@ -16,7 +16,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useUserService } from '@/hooks/useUserService';
-import { servicesApi } from '@/lib/api/services';
+import { servicesApi, userServicesApi } from '@/lib/api/services';
 import { formatPrice } from '@/utils/formatPrice';
 import { ServiceDetailLoadingSkeleton } from '@/components/ui/ServiceLoadingSkeleton';
 import { UserService, ServicePackage, ServiceReview } from '@/lib/api/types';
@@ -41,6 +41,7 @@ const PublicServiceDetail = () => {
   const [packages, setPackages] = useState<ServicePackage[]>([]);
   const [reviews, setReviews] = useState<ServiceReview[]>([]);
   const [bookedDates, setBookedDates] = useState<BookedDate[]>([]);
+  const [introMedia, setIntroMedia] = useState<Array<{ id: string; media_type: string; media_url: string }>>([]);
   const [calendarLoading, setCalendarLoading] = useState(true);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -67,7 +68,18 @@ const PublicServiceDetail = () => {
     if ((service as any).reviews_preview && Array.isArray((service as any).reviews_preview)) {
       setReviews((service as any).reviews_preview);
     }
+    if ((service as any).intro_media && Array.isArray((service as any).intro_media)) {
+      setIntroMedia((service as any).intro_media);
+    }
   }, [service]);
+
+  // Fetch intro media
+  useEffect(() => {
+    if (!id) return;
+    userServicesApi.getIntroMedia(id).then(res => {
+      if (res.success && res.data) setIntroMedia(Array.isArray(res.data) ? res.data : []);
+    }).catch(() => {});
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
@@ -243,13 +255,8 @@ const PublicServiceDetail = () => {
               <Badge className="bg-white/20 backdrop-blur-sm text-white border-white/30 text-xs">
                 {(service as any).service_category?.name || (service as any).category?.name || 'Service'}
               </Badge>
-              {isVerified && (
-                <span className="inline-flex items-center gap-1 bg-emerald-500/90 text-white border-0 text-xs px-2 py-0.5 rounded-full">
-                  <VerifiedServiceBadge size="xs" className="brightness-200" /> Verified
-                </span>
-              )}
             </div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-white leading-tight flex items-center gap-2">{service.title}</h1>
+            <h1 className="text-3xl sm:text-4xl font-bold text-white leading-tight flex items-center gap-2">{service.title} {isVerified && <VerifiedServiceBadge size="md" className="brightness-200" />}</h1>
             {service.location && (
               <p className="text-white/80 text-sm mt-1.5 flex items-center gap-1">
                 <img src={locationIcon} alt="location" className="w-3.5 h-3.5 dark:invert" />{service.location}
@@ -293,10 +300,7 @@ const PublicServiceDetail = () => {
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-xs text-muted-foreground mb-0.5">Service Provider</p>
-              <p className="font-semibold text-foreground truncate">{ownerName}</p>
-              {isVerified && (
-                <VerifiedServiceBadgeWithLabel size="xs" />
-              )}
+              <p className="font-semibold text-foreground truncate flex items-center gap-1.5">{ownerName} {isVerified && <VerifiedServiceBadge size="sm" />}</p>
             </div>
           </div>
         )}
@@ -350,12 +354,41 @@ const PublicServiceDetail = () => {
         </div>
       )}
 
+      {/* ─── INTRO MEDIA ─── */}
+      {introMedia.length > 0 && (
+        <div className="bg-card border border-border rounded-2xl p-6 mb-6">
+          <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+            <Video className="w-5 h-5 text-primary" />Introduction
+          </h2>
+          <div className="space-y-3">
+            {introMedia.map((media) => (
+              <div key={media.id} className="rounded-xl overflow-hidden border border-border">
+                {media.media_type === 'video' ? (
+                  <div className="aspect-video bg-black">
+                    <video src={media.media_url} controls playsInline className="w-full h-full object-contain" />
+                  </div>
+                ) : (
+                  <div className="p-4 flex items-center gap-3 bg-gradient-to-r from-primary/5 to-transparent">
+                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <Music className="w-6 h-6 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground mb-1">Audio Introduction</p>
+                      <audio src={media.media_url} controls className="w-full h-8" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ─── MAIN CONTENT ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* LEFT: Description + Reviews */}
         <div className="lg:col-span-2 space-y-6">
-
 
 
           {/* Availability Calendar */}

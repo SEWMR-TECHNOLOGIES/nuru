@@ -283,10 +283,7 @@ const PublicProfile = () => {
         className="pt-10 px-1"
       >
         <div className="flex items-center gap-2 mb-0.5">
-          {user.is_identity_verified && (
-            <VerifiedUserBadge size="md" />
-          )}
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">{fullName}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">{fullName} {user.is_identity_verified && <VerifiedUserBadge size="md" />}</h1>
           {user.is_vendor && (
              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-semibold text-primary">
                <Briefcase className="w-3 h-3" /> Vendor
@@ -519,10 +516,10 @@ const PublicProfile = () => {
                           </div>
                           <div className="p-3">
                             <div className="flex items-center gap-1.5">
+                              <h3 className="font-medium text-sm text-foreground truncate">{service.title}</h3>
                               {service.verification_status === 'verified' && (
                                 <VerifiedServiceBadge size="xs" />
                               )}
-                              <h3 className="font-medium text-sm text-foreground truncate">{service.title}</h3>
                             </div>
                             <p className="text-xs text-muted-foreground mt-0.5">{service.service_category?.name}</p>
                           </div>

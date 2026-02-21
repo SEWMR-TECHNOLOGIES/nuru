@@ -14,6 +14,7 @@ import type { PhotoLibrary } from '@/lib/api/photoLibraries';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
 import InvitationCard from './InvitationCard';
+import EventTicketPurchase from './EventTicketPurchase';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 const EventView = () => {
@@ -284,6 +285,11 @@ const EventView = () => {
           </Card>
         )}
       </motion.div>
+
+      {/* Ticket Purchase Section */}
+      {id && event.sells_tickets && (
+        <EventTicketPurchase eventId={id} eventName={event.title} />
+      )}
 
       {/* Description */}
       {event.description && (

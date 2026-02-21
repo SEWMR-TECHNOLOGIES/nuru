@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2, Images } from 'lucide-react';
+import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2, Images, Share2 } from 'lucide-react';
 import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
@@ -32,6 +32,7 @@ import { servicesApi } from '@/lib/api/services';
 import { photoLibrariesApi } from '@/lib/api/photoLibraries';
 import { toast } from 'sonner';
 import { useEventPermissions } from '@/hooks/useEventPermissions';
+import ShareEventToFeed from '@/components/ShareEventToFeed';
 
 const EventManagement = () => {
   const { id } = useParams();
@@ -192,9 +193,28 @@ const EventManagement = () => {
       <div className="mb-6">
         <div className="flex items-start justify-between gap-3 mb-3">
           <h1 className="text-xl md:text-2xl lg:text-3xl font-bold">{eventTitle}</h1>
-          <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => navigate('/my-events')}>
-            <ChevronLeft className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {isCreator && event && (
+              <ShareEventToFeed
+                event={{
+                  id: event.id,
+                  title: event.title,
+                  start_date: event.start_date,
+                  location: event.location,
+                  cover_image: (event as any).cover_image || eventImages[0],
+                }}
+                trigger={
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Share2 className="w-4 h-4" />
+                    Share to Feed
+                  </Button>
+                }
+              />
+            )}
+            <Button variant="ghost" size="icon" onClick={() => navigate('/my-events')}>
+              <ChevronLeft className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
         <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
           <span className="flex items-center gap-2"><img src={CalendarIcon} alt="Calendar" className="w-4 h-4 flex-shrink-0" /><span className="truncate">{eventDate}</span></span>
@@ -571,8 +591,8 @@ const EventManagement = () => {
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        {service.verified && <VerifiedServiceBadge size="xs" />}
                         <span className="font-medium truncate">{service.title}</span>
+                        {service.verified && <VerifiedServiceBadge size="xs" />}
                       </div>
                       <div className="flex items-center gap-1.5 text-sm text-muted-foreground flex-wrap">
                         <span className="truncate">{service.category_name || service.category || service.service_type_name}</span>

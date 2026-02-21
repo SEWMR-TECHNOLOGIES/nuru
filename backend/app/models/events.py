@@ -47,6 +47,7 @@ class Event(Base):
     currency_id = Column(UUID(as_uuid=True), ForeignKey('currencies.id'))
     cover_image_url = Column(Text)
     is_public = Column(Boolean, default=False)
+    sells_tickets = Column(Boolean, default=False)
     theme_color = Column(String(7))
     dress_code = Column(String(100))
     special_instructions = Column(Text)
@@ -75,6 +76,8 @@ class Event(Base):
     checklist_items = relationship("EventChecklistItem", back_populates="event")
     expenses = relationship("EventExpense", back_populates="event")
     photo_libraries = relationship("ServicePhotoLibrary", back_populates="event")
+    ticket_classes = relationship("EventTicketClass", back_populates="event")
+    tickets = relationship("EventTicket", back_populates="event")
 
 
 class EventTypeService(Base):

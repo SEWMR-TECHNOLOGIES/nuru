@@ -8,7 +8,7 @@ from typing import List, Optional
 
 import httpx
 import pytz
-from fastapi import APIRouter, Depends, File, Form, UploadFile, Body
+from fastapi import APIRouter, Depends, File, Form, UploadFile, Body, Request
 from sqlalchemy.orm import Session
 
 from core.config import UPLOAD_SERVICE_URL
@@ -20,6 +20,8 @@ from models import (
     ServiceReviewHelpful, ServiceCategory, ServiceType,
     ServiceKYCMapping, KYCRequirement, ServiceBookingRequest, User,
     VerificationStatusEnum,
+    ServiceIntroMedia, ServiceBusinessPhone, ServiceMediaTypeEnum,
+    BusinessPhoneStatusEnum,
 )
 from utils.auth import get_current_user
 from utils.helpers import format_price, standard_response
@@ -77,6 +79,15 @@ def _service_dict(db, service):
         "max_price": float(service.max_price) if service.max_price else None,
         "currency": "TZS",
         "location": service.location,
+        "latitude": float(service.latitude) if service.latitude else None,
+        "longitude": float(service.longitude) if service.longitude else None,
+        "formatted_address": service.formatted_address,
+        "business_phone_id": str(service.business_phone_id) if service.business_phone_id else None,
+        "business_phone": {
+            "id": str(service.business_phone.id),
+            "phone_number": service.business_phone.phone_number,
+            "verification_status": service.business_phone.verification_status.value if hasattr(service.business_phone.verification_status, "value") else str(service.business_phone.verification_status),
+        } if service.business_phone else None,
         "status": "active" if service.is_active else "inactive",
         "verification_status": service.verification_status.value if service.verification_status else "unverified",
         "verification_progress": verification_progress,
@@ -90,6 +101,13 @@ def _service_dict(db, service):
         "kyc_list": kyc_list,
         "packages": packages,
         "package_count": len(packages),
+        "intro_media": [
+            {
+                "id": str(m.id),
+                "media_type": m.media_type.value if hasattr(m.media_type, "value") else str(m.media_type),
+                "media_url": m.media_url,
+            } for m in (service.intro_media or [])
+        ],
         "created_at": service.created_at.isoformat() if service.created_at else None,
         "updated_at": service.updated_at.isoformat() if service.updated_at else None,
     }
@@ -170,6 +188,10 @@ async def create_service(
     category_id: Optional[str] = Form(None), service_type_id: Optional[str] = Form(None),
     min_price: Optional[float] = Form(None), max_price: Optional[float] = Form(None),
     location: Optional[str] = Form(None),
+    latitude: Optional[float] = Form(None),
+    longitude: Optional[float] = Form(None),
+    formatted_address: Optional[str] = Form(None),
+    business_phone_id: Optional[str] = Form(None),
     images: Optional[List[UploadFile]] = File(None),
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
@@ -184,6 +206,9 @@ async def create_service(
         service_type_id=uuid.UUID(service_type_id) if service_type_id else None,
         min_price=min_price, max_price=max_price,
         location=location.strip() if location else None,
+        latitude=latitude, longitude=longitude,
+        formatted_address=formatted_address.strip() if formatted_address else None,
+        business_phone_id=uuid.UUID(business_phone_id) if business_phone_id else None,
         is_active=True, is_verified=False, verification_status=VerificationStatusEnum.pending,
         created_at=now, updated_at=now,
     )
@@ -237,6 +262,10 @@ async def update_service(
     category_id: Optional[str] = Form(None), service_type_id: Optional[str] = Form(None),
     min_price: Optional[float] = Form(None), max_price: Optional[float] = Form(None),
     location: Optional[str] = Form(None),
+    latitude: Optional[float] = Form(None),
+    longitude: Optional[float] = Form(None),
+    formatted_address: Optional[str] = Form(None),
+    business_phone_id: Optional[str] = Form(None),
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     try:
@@ -255,6 +284,10 @@ async def update_service(
     if min_price is not None: service.min_price = min_price
     if max_price is not None: service.max_price = max_price
     if location is not None: service.location = location.strip()
+    if latitude is not None: service.latitude = latitude
+    if longitude is not None: service.longitude = longitude
+    if formatted_address is not None: service.formatted_address = formatted_address.strip()
+    if business_phone_id is not None: service.business_phone_id = uuid.UUID(business_phone_id) if business_phone_id else None
     service.updated_at = datetime.now(EAT)
 
     db.commit()
@@ -717,3 +750,221 @@ def get_service_analytics(service_id: str, db: Session = Depends(get_db), curren
         "total_bookings": total_bookings, "total_reviews": total_reviews,
         "average_rating": round(float(avg_rating), 1),
     })
+
+
+# ──────────────────────────────────────────────
+# BUSINESS PHONES
+# ──────────────────────────────────────────────
+@router.get("/business-phones/list")
+def get_my_business_phones(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """List all business phones for the current user."""
+    phones = db.query(ServiceBusinessPhone).filter(
+        ServiceBusinessPhone.user_id == current_user.id
+    ).order_by(ServiceBusinessPhone.created_at.desc()).all()
+    return standard_response(True, "Business phones retrieved", [
+        {
+            "id": str(p.id),
+            "phone_number": p.phone_number,
+            "verification_status": p.verification_status.value if hasattr(p.verification_status, "value") else str(p.verification_status),
+            "verified_at": p.verified_at.isoformat() if p.verified_at else None,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        } for p in phones
+    ])
+
+
+@router.post("/business-phones")
+async def add_business_phone(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Add a new business phone number. Triggers verification."""
+    try:
+        body = await request.json()
+    except Exception:
+        return standard_response(False, "Invalid JSON body")
+
+    phone_number = (body.get("phone_number") or "").strip()
+    if not phone_number:
+        return standard_response(False, "Phone number is required")
+
+    # Check if already exists
+    existing = db.query(ServiceBusinessPhone).filter(
+        ServiceBusinessPhone.user_id == current_user.id,
+        ServiceBusinessPhone.phone_number == phone_number,
+    ).first()
+    if existing:
+        return standard_response(False, "This phone number is already registered", {
+            "id": str(existing.id),
+            "verification_status": existing.verification_status.value if hasattr(existing.verification_status, "value") else str(existing.verification_status),
+        })
+
+    now = datetime.now(EAT)
+    phone = ServiceBusinessPhone(
+        id=uuid.uuid4(),
+        user_id=current_user.id,
+        phone_number=phone_number,
+        verification_status=BusinessPhoneStatusEnum.pending,
+        created_at=now, updated_at=now,
+    )
+    db.add(phone)
+    db.commit()
+
+    # TODO: Send OTP to phone_number for verification
+
+    return standard_response(True, "Business phone added. Verification OTP sent.", {
+        "id": str(phone.id),
+        "phone_number": phone.phone_number,
+        "verification_status": "pending",
+    })
+
+
+@router.post("/business-phones/{phone_id}/verify")
+async def verify_business_phone(
+    phone_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Verify a business phone with OTP code."""
+    try:
+        pid = uuid.UUID(phone_id)
+    except ValueError:
+        return standard_response(False, "Invalid phone ID")
+
+    phone = db.query(ServiceBusinessPhone).filter(
+        ServiceBusinessPhone.id == pid,
+        ServiceBusinessPhone.user_id == current_user.id,
+    ).first()
+    if not phone:
+        return standard_response(False, "Phone not found")
+
+    # TODO: Validate OTP code from body
+    now = datetime.now(EAT)
+    phone.verification_status = BusinessPhoneStatusEnum.verified
+    phone.verified_at = now
+    phone.updated_at = now
+    db.commit()
+
+    return standard_response(True, "Business phone verified successfully", {
+        "id": str(phone.id),
+        "verification_status": "verified",
+    })
+
+
+# ──────────────────────────────────────────────
+# INTRO MEDIA (Video/Audio clips)
+# ──────────────────────────────────────────────
+@router.get("/{service_id}/intro-media")
+def get_intro_media(service_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Get intro media for a service."""
+    try:
+        sid = uuid.UUID(service_id)
+    except ValueError:
+        return standard_response(False, "Invalid service ID")
+
+    service = db.query(UserService).filter(UserService.id == sid, UserService.user_id == current_user.id).first()
+    if not service:
+        return standard_response(False, "Service not found")
+
+    media = db.query(ServiceIntroMedia).filter(
+        ServiceIntroMedia.user_service_id == sid
+    ).order_by(ServiceIntroMedia.created_at).all()
+
+    return standard_response(True, "Intro media retrieved", [
+        {
+            "id": str(m.id),
+            "media_type": m.media_type.value if hasattr(m.media_type, "value") else str(m.media_type),
+            "media_url": m.media_url,
+        } for m in media
+    ])
+
+
+@router.post("/{service_id}/intro-media")
+async def add_intro_media(
+    service_id: str,
+    media_type: str = Form(...),  # "video" or "audio"
+    title: Optional[str] = Form(None),
+    media: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload intro video/audio for a service (max 1 min)."""
+    try:
+        sid = uuid.UUID(service_id)
+    except ValueError:
+        return standard_response(False, "Invalid service ID")
+
+    service = db.query(UserService).filter(UserService.id == sid, UserService.user_id == current_user.id).first()
+    if not service:
+        return standard_response(False, "Service not found")
+
+    if media_type not in ("video", "audio"):
+        return standard_response(False, "media_type must be 'video' or 'audio'")
+
+    now = datetime.now(EAT)
+    file_content = await media.read()
+    _, ext = os.path.splitext(media.filename or "media")
+    unique_name = f"{uuid.uuid4().hex}{ext}"
+
+    media_url = None
+    thumbnail_url = None
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(
+                UPLOAD_SERVICE_URL,
+                data={"target_path": f"nuru/uploads/services/{service.id}/intro/"},
+                files={"file": (unique_name, file_content, media.content_type)},
+                timeout=30,
+            )
+            result = resp.json()
+            if result.get("success"):
+                media_url = result["data"]["url"]
+                thumbnail_url = result["data"].get("thumbnail_url")
+        except Exception:
+            return standard_response(False, "Failed to upload media")
+
+    if not media_url:
+        return standard_response(False, "Upload failed")
+
+    intro = ServiceIntroMedia(
+        id=uuid.uuid4(),
+        user_service_id=sid,
+        media_type=ServiceMediaTypeEnum(media_type),
+        media_url=media_url,
+        created_at=now, updated_at=now,
+    )
+    db.add(intro)
+    db.commit()
+
+    return standard_response(True, "Intro media added successfully", {
+        "id": str(intro.id),
+        "media_type": media_type,
+        "media_url": media_url,
+    })
+
+
+@router.delete("/{service_id}/intro-media/{media_id}")
+def delete_intro_media(
+    service_id: str, media_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete an intro media item."""
+    try:
+        sid = uuid.UUID(service_id)
+        mid = uuid.UUID(media_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+
+    service = db.query(UserService).filter(UserService.id == sid, UserService.user_id == current_user.id).first()
+    if not service:
+        return standard_response(False, "Service not found")
+
+    media = db.query(ServiceIntroMedia).filter(ServiceIntroMedia.id == mid, ServiceIntroMedia.user_service_id == sid).first()
+    if not media:
+        return standard_response(False, "Media not found")
+
+    db.delete(media)
+    db.commit()
+    return standard_response(True, "Intro media deleted")

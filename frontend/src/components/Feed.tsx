@@ -123,6 +123,9 @@ const Feed = () => {
       comments: apiPost.comment_count || apiPost.echo_count || 0,
       has_glowed: apiPost.has_glowed || false,
       has_saved: apiPost.has_saved || false,
+      // Event share data
+      shared_event: apiPost.shared_event || null,
+      share_expires_at: apiPost.share_expires_at || null,
     };
   };
 

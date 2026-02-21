@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import VideoPlayer from '@/components/VideoPlayer';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Heart, Share2, Send, X, Loader2, CornerDownRight, ChevronDown, MapPin, AlertTriangle } from 'lucide-react';
@@ -614,20 +615,37 @@ const MomentDetail = () => {
           </Popover>
         </div>
 
-        {/* Images */}
+        {/* Media (Images + Videos) */}
         {postImages.length > 0 ? (
           <div className={`px-3 md:px-4 ${postImages.length > 1 ? 'flex gap-2 overflow-x-auto py-1' : ''}`}>
             {postImages.length === 1 ? (
-              <img src={postImages[0]} alt="Post" className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30" />
+              (() => {
+                const url = postImages[0];
+                const isVideo = /\.(mp4|webm|mov|avi)$/i.test(url) || url.includes('video');
+                return isVideo ? (
+                  <VideoPlayer src={url} className="w-full max-h-[500px] rounded-lg" />
+                ) : (
+                  <img src={url} alt="Post" className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30" />
+                );
+              })()
             ) : (
-              postImages.map((img: string, idx: number) => (
-                <img key={idx} src={img} alt={`Post ${idx + 1}`} className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg" />
-              ))
+              postImages.map((media: string, idx: number) => {
+                const isVideo = /\.(mp4|webm|mov|avi)$/i.test(media) || media.includes('video');
+                return isVideo ? (
+                  <VideoPlayer key={idx} src={media} className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 rounded-lg" compact />
+                ) : (
+                  <img key={idx} src={media} alt={`Post ${idx + 1}`} className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg" />
+                );
+              })
             )}
           </div>
         ) : postImage ? (
           <div className="px-3 md:px-4">
-            <img src={postImage} alt={postTitle || 'Moment image'} className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30" />
+            {(/\.(mp4|webm|mov|avi)$/i.test(postImage) || postImage.includes('video')) ? (
+              <VideoPlayer src={postImage} className="w-full max-h-[500px] rounded-lg" />
+            ) : (
+              <img src={postImage} alt={postTitle || 'Moment image'} className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30" />
+            )}
           </div>
         ) : null}
 

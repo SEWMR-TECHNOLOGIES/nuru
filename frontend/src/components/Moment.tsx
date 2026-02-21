@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { Heart, MessageCircle, Share2, Bookmark } from 'lucide-react';
+import VideoPlayer from '@/components/VideoPlayer';
+import { Heart, MessageCircle, Share2, Bookmark, CalendarDays, MapPin, Clock, Users, Ticket } from 'lucide-react';
 import { VerifiedUserBadge } from '@/components/ui/verified-badge';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { socialApi } from '@/lib/api/social';
@@ -17,6 +19,23 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from 'sonner';
+
+interface SharedEvent {
+  id: string;
+  title: string;
+  description?: string;
+  start_date?: string;
+  end_date?: string;
+  start_time?: string;
+  location?: string;
+  cover_image?: string;
+  images?: string[];
+  event_type?: string;
+  sells_tickets?: boolean;
+  is_public?: boolean;
+  expected_guests?: number;
+  dress_code?: string;
+}
 
 interface MomentProps {
   post: {
@@ -38,6 +57,8 @@ interface MomentProps {
     comments: number;
     has_glowed?: boolean;
     has_saved?: boolean;
+    shared_event?: SharedEvent | null;
+    share_expires_at?: string | null;
   };
 }
 
@@ -100,14 +121,20 @@ const Moment = ({ post }: MomentProps) => {
     }
   };
 
+  const isEventShare = post.type === 'event_share' && !!post.shared_event;
+  const sharedEvent = post.shared_event;
+
   const title = post.content?.title?.trim() || '';
   const text = post.content?.text?.trim() || '';
   const image = post.content?.image || undefined;
   const allImages = post.content?.images?.length ? post.content.images : (image ? [image] : []);
 
+  // For event shares, use event images if post has none
+  const eventImages = sharedEvent?.images?.length ? sharedEvent.images : (sharedEvent?.cover_image ? [sharedEvent.cover_image] : []);
+
   // Use /shared/post/ URL for sharing
   const shareUrl = `${window.location.origin}/shared/post/${post.id}`;
-  const shareTitle = title || text?.slice(0, 50) || 'Check this out';
+  const shareTitle = isEventShare ? (sharedEvent?.title || 'Event') : (title || text?.slice(0, 50) || 'Check this out');
 
   const handleShare = (platform: string) => {
     let url = '';
@@ -166,8 +193,8 @@ const Moment = ({ post }: MomentProps) => {
           )}
           <div>
             <h3 className="font-semibold text-sm md:text-base text-foreground flex items-center gap-1.5">
-              {post.author.is_verified && <VerifiedUserBadge size="xs" />}
               {post.author.name}
+              {post.author.is_verified && <VerifiedUserBadge size="xs" />}
             </h3>
             <p className="text-xs md:text-sm text-muted-foreground">{post.author.timeAgo}</p>
           </div>
@@ -181,33 +208,166 @@ const Moment = ({ post }: MomentProps) => {
         </button>
       </div>
 
-      {/* Images */}
-      {allImages.length > 0 && (
-        <div className={`px-3 md:px-4 ${allImages.length > 1 ? 'flex gap-2 overflow-x-auto py-1' : ''}`}>
-          {allImages.length === 1 ? (
-            <img
-              src={allImages[0]}
-              alt={title || 'Post image'}
-              className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30"
-            />
-          ) : (
-            allImages.map((imgUrl, idx) => (
-              <img
-                key={idx}
-                src={imgUrl}
-                alt={`Post ${idx + 1}`}
-                className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg"
-              />
-            ))
+      {/* ── EVENT SHARE CARD ── */}
+      {isEventShare && sharedEvent ? (
+        <div className="mx-3 md:mx-4 mb-3">
+          {/* Caption above event card */}
+          {text && (
+            <p className="text-foreground text-sm md:text-base whitespace-pre-wrap break-words mb-3">{text}</p>
           )}
-        </div>
-      )}
 
-      {/* Title and text */}
-      <div className="px-3 md:px-4 py-3">
-        {title && <h2 className="text-lg md:text-xl font-bold text-foreground mb-1">{title}</h2>}
-        {text && <p className="text-foreground text-sm md:text-base whitespace-pre-wrap break-words">{text}</p>}
-      </div>
+          <div
+            className="rounded-xl border border-border overflow-hidden bg-muted/20 hover:bg-muted/40 transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/event/${sharedEvent.id}`);
+            }}
+          >
+            {/* Event Hero Image(s) */}
+            {eventImages.length > 0 && (
+              <div className="relative">
+                {eventImages.length === 1 ? (
+                  <img
+                    src={eventImages[0]}
+                    alt={sharedEvent.title}
+                    className="w-full h-48 sm:h-56 object-cover"
+                  />
+                ) : (
+                  <div className="grid grid-cols-2 gap-0.5 h-48 sm:h-56">
+                    <img
+                      src={eventImages[0]}
+                      alt={sharedEvent.title}
+                      className={`w-full h-full object-cover ${eventImages.length === 2 ? '' : 'row-span-2'}`}
+                    />
+                    {eventImages.length === 2 ? (
+                      <img src={eventImages[1]} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="flex flex-col gap-0.5">
+                        <img src={eventImages[1]} alt="" className="w-full flex-1 object-cover" />
+                        {eventImages.length > 2 && (
+                          <div className="relative flex-1">
+                            <img src={eventImages[2]} alt="" className="w-full h-full object-cover" />
+                            {eventImages.length > 3 && (
+                              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                <span className="text-white font-bold text-lg">+{eventImages.length - 3}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* Overlay badges */}
+                <div className="absolute top-3 left-3 flex gap-2">
+                  {sharedEvent.event_type && (
+                    <Badge className="bg-primary/90 text-primary-foreground text-xs backdrop-blur-sm">
+                      {sharedEvent.event_type}
+                    </Badge>
+                  )}
+                  {sharedEvent.sells_tickets && (
+                    <Badge className="bg-accent text-accent-foreground text-xs backdrop-blur-sm gap-1">
+                      <Ticket className="w-3 h-3" /> Tickets
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Event Info */}
+            <div className="p-4 space-y-3">
+              <h3 className="text-lg font-bold text-foreground leading-tight">{sharedEvent.title}</h3>
+
+              {sharedEvent.description && (
+                <p className="text-sm text-muted-foreground line-clamp-2">{sharedEvent.description}</p>
+              )}
+
+              <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                {sharedEvent.start_date && (
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <CalendarDays className="w-4 h-4 text-primary flex-shrink-0" />
+                    <span>
+                      {new Date(sharedEvent.start_date).toLocaleDateString('en-GB', {
+                        weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+                      })}
+                    </span>
+                  </div>
+                )}
+                {sharedEvent.start_time && (
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Clock className="w-4 h-4 text-primary flex-shrink-0" />
+                    <span>{sharedEvent.start_time}</span>
+                  </div>
+                )}
+                {sharedEvent.location && (
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <MapPin className="w-4 h-4 text-primary flex-shrink-0" />
+                    <span className="truncate max-w-[200px]">{sharedEvent.location}</span>
+                  </div>
+                )}
+                {sharedEvent.expected_guests && sharedEvent.expected_guests > 0 && (
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Users className="w-4 h-4 text-primary flex-shrink-0" />
+                    <span>{sharedEvent.expected_guests} expected</span>
+                  </div>
+                )}
+              </div>
+
+              {sharedEvent.dress_code && (
+                <div className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Dress Code:</span> {sharedEvent.dress_code}
+                </div>
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-2 mt-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/event/${sharedEvent.id}`);
+                }}
+              >
+                View Event Details
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Regular Media (Images + Videos) */}
+          {allImages.length > 0 && (
+            <div className={`px-3 md:px-4 ${allImages.length > 1 ? 'flex gap-2 overflow-x-auto py-1' : ''}`}>
+              {allImages.length === 1 ? (
+                (() => {
+                  const url = allImages[0];
+                  const isVideo = /\.(mp4|webm|mov|avi)$/i.test(url) || url.includes('video');
+                  return isVideo ? (
+                    <VideoPlayer src={url} className="w-full max-h-[500px] rounded-lg" />
+                  ) : (
+                    <img src={url} alt={title || 'Post image'} className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30" />
+                  );
+                })()
+              ) : (
+                allImages.map((imgUrl, idx) => {
+                  const isVideo = /\.(mp4|webm|mov|avi)$/i.test(imgUrl) || imgUrl.includes('video');
+                  return isVideo ? (
+                    <VideoPlayer key={idx} src={imgUrl} className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 rounded-lg" compact />
+                  ) : (
+                    <img key={idx} src={imgUrl} alt={`Post ${idx + 1}`} className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg" />
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {/* Title and text */}
+          <div className="px-3 md:px-4 py-3">
+            {title && <h2 className="text-lg md:text-xl font-bold text-foreground mb-1">{title}</h2>}
+            {text && <p className="text-foreground text-sm md:text-base whitespace-pre-wrap break-words">{text}</p>}
+          </div>
+        </>
+      )}
 
       {/* Action Buttons */}
       <div className="px-3 md:px-4 py-2 md:py-3 border-t border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0" onClick={(e) => e.stopPropagation()}>

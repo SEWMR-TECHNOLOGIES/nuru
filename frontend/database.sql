@@ -2004,3 +2004,165 @@ CREATE INDEX IF NOT EXISTS idx_impression_user_session ON feed_impressions(user_
 CREATE INDEX IF NOT EXISTS idx_impression_post ON feed_impressions(post_id);
 CREATE INDEX IF NOT EXISTS idx_impression_created ON feed_impressions(created_at);
 
+-- ============================================================
+-- NEW TABLES: Ticketing System
+-- ============================================================
+DO $$ BEGIN
+  CREATE TYPE ticket_status_enum AS ENUM ('available', 'sold_out', 'cancelled');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE ticket_order_status_enum AS ENUM ('pending', 'confirmed', 'cancelled', 'refunded');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE event_share_duration_enum AS ENUM ('timed', 'lifetime');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE service_media_type_enum AS ENUM ('video', 'audio');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE business_phone_status_enum AS ENUM ('pending', 'verified');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Event sells_tickets flag
+ALTER TABLE events ADD COLUMN IF NOT EXISTS sells_tickets BOOLEAN DEFAULT FALSE;
+
+-- Event Ticket Classes
+CREATE TABLE IF NOT EXISTS event_ticket_classes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    price NUMERIC(12,2) NOT NULL,
+    currency_id UUID REFERENCES currencies(id),
+    quantity INTEGER NOT NULL,
+    sold INTEGER DEFAULT 0,
+    status ticket_status_enum DEFAULT 'available',
+    display_order INTEGER DEFAULT 0,
+    sale_start_date TIMESTAMP,
+    sale_end_date TIMESTAMP,
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ticket_classes_event ON event_ticket_classes(event_id);
+
+-- Event Tickets (purchased)
+CREATE TABLE IF NOT EXISTS event_tickets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ticket_class_id UUID NOT NULL REFERENCES event_ticket_classes(id) ON DELETE CASCADE,
+    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    buyer_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    ticket_code TEXT UNIQUE NOT NULL,
+    quantity INTEGER DEFAULT 1,
+    total_amount NUMERIC(12,2) NOT NULL,
+    payment_method payment_method,
+    payment_status payment_status DEFAULT 'pending',
+    payment_ref TEXT,
+    status ticket_order_status_enum DEFAULT 'pending',
+    checked_in BOOLEAN DEFAULT FALSE,
+    checked_in_at TIMESTAMP,
+    buyer_name TEXT,
+    buyer_phone TEXT,
+    buyer_email TEXT,
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_tickets_event ON event_tickets(event_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_buyer ON event_tickets(buyer_user_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_code ON event_tickets(ticket_code);
+
+-- ============================================================
+-- NEW: Event Share to Feed columns
+-- ============================================================
+ALTER TABLE user_feeds ADD COLUMN IF NOT EXISTS post_type TEXT DEFAULT 'post';
+ALTER TABLE user_feeds ADD COLUMN IF NOT EXISTS shared_event_id UUID REFERENCES events(id) ON DELETE SET NULL;
+ALTER TABLE user_feeds ADD COLUMN IF NOT EXISTS share_duration event_share_duration_enum;
+ALTER TABLE user_feeds ADD COLUMN IF NOT EXISTS share_expires_at TIMESTAMP;
+
+-- ============================================================
+-- NEW: Service location coordinates
+-- ============================================================
+ALTER TABLE user_services ADD COLUMN IF NOT EXISTS latitude NUMERIC;
+ALTER TABLE user_services ADD COLUMN IF NOT EXISTS longitude NUMERIC;
+ALTER TABLE user_services ADD COLUMN IF NOT EXISTS formatted_address TEXT;
+
+-- ============================================================
+-- NEW: Service Intro Media (video/audio clips)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS service_intro_media (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_service_id UUID NOT NULL REFERENCES user_services(id) ON DELETE CASCADE,
+    media_type service_media_type_enum NOT NULL,
+    media_url TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_service_intro_media_service ON service_intro_media(user_service_id);
+
+-- ============================================================
+-- NEW: Service Business Phones (verified, reusable)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS service_business_phones (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    phone_number TEXT NOT NULL,
+    verification_status business_phone_status_enum DEFAULT 'pending',
+    verified_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now(),
+    UNIQUE(user_id, phone_number)
+);
+CREATE INDEX IF NOT EXISTS idx_business_phones_user ON service_business_phones(user_id);
+
+ALTER TABLE user_services ADD COLUMN IF NOT EXISTS business_phone_id UUID REFERENCES service_business_phones(id) ON DELETE SET NULL;
+
+-- ============================================================
+-- SEED: Additional Service Categories (Venues & more)
+-- ============================================================
+INSERT INTO service_categories (name, description)
+VALUES
+  ('Venues', 'Event halls, outdoor spaces, conference centers, and other event venue providers.'),
+  ('Beauty and Grooming', 'Makeup artists, hair stylists, and beauty service providers for events.'),
+  ('Stationery and Printing', 'Invitation cards, banners, flyers, programs, and other printed materials for events.'),
+  ('Health and Wellness', 'First aid, paramedic services, and wellness providers for events.'),
+  ('Hospitality', 'Ushers, waitstaff, hostesses, and front-of-house personnel for events.')
+ON CONFLICT (name) DO NOTHING;
+
+-- Venues service types
+INSERT INTO service_types (name, description, requires_kyc, category_id)
+SELECT t.name, t.description, t.requires_kyc, sc.id
+FROM (VALUES
+  ('Event Hall', 'Indoor halls for weddings, conferences, and celebrations', true),
+  ('Outdoor Venue', 'Gardens, parks, and open-air spaces for events', true),
+  ('Conference Center', 'Professional conference and meeting facilities', true),
+  ('Hotel Ballroom', 'Hotel-based event spaces with accommodation options', true),
+  ('Rooftop Venue', 'Rooftop spaces for cocktail parties and receptions', true),
+  ('Beach Venue', 'Beachside locations for destination events', true)
+) AS t(name, description, requires_kyc), service_categories sc
+WHERE sc.name = 'Venues'
+ON CONFLICT (name) DO NOTHING;
+
+-- Beauty and Grooming service types
+INSERT INTO service_types (name, description, requires_kyc, category_id)
+SELECT t.name, t.description, t.requires_kyc, sc.id
+FROM (VALUES
+  ('Makeup Artist', 'Professional makeup services for bridal and event parties', true),
+  ('Hair Stylist', 'Hair styling and grooming for event attendees', true),
+  ('Henna Artist', 'Traditional henna/mehndi art for weddings and celebrations', false)
+) AS t(name, description, requires_kyc), service_categories sc
+WHERE sc.name = 'Beauty and Grooming'
+ON CONFLICT (name) DO NOTHING;
+
+-- Stationery service types
+INSERT INTO service_types (name, description, requires_kyc, category_id)
+SELECT t.name, t.description, t.requires_kyc, sc.id
+FROM (VALUES
+  ('Invitation Designer', 'Custom invitation card design and printing', false),
+  ('Banner and Signage', 'Event banners, backdrops, and directional signage', false),
+  ('Program Printing', 'Event programs, menus, and booklets', false)
+) AS t(name, description, requires_kyc), service_categories sc
+WHERE sc.name = 'Stationery and Printing'
+ON CONFLICT (name) DO NOTHING;

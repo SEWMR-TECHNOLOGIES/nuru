@@ -14,6 +14,8 @@ from models.enums import (
     CardTypeEnum, ChecklistItemStatusEnum,
     UploadFileTypeEnum, PriorityLevelEnum, SocialProviderEnum,
     PhotoLibraryPrivacyEnum,
+    TicketStatusEnum, TicketOrderStatusEnum,
+    EventShareDurationEnum, ServiceMediaTypeEnum, BusinessPhoneStatusEnum,
 )
 from models.references import (
     Currency, Country, ServiceCategory, KYCRequirement,
@@ -40,6 +42,7 @@ from models.services import (
     UserService, UserServiceImage, ServicePackage, UserServiceRating,
     UserServiceVerification, UserServiceVerificationFile,
     UserServiceKYCStatus, ServiceReviewPhoto, ServiceReviewHelpful,
+    ServiceIntroMedia, ServiceBusinessPhone,
 )
 from models.events import (
     EventType, Event, EventTypeService, EventImage,
@@ -67,6 +70,7 @@ from models.promotions import Promotion, PromotedEvent
 from models.uploads import FileUpload
 from models.appeals import ContentAppeal
 from models.photo_libraries import ServicePhotoLibrary, ServicePhotoLibraryImage
+from models.ticketing import EventTicketClass, EventTicket
 from models.feed_ranking import (
     UserInteractionLog, UserInterestProfile, AuthorAffinityScore,
     PostQualityScore, FeedImpression,

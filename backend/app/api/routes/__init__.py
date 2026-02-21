@@ -26,6 +26,7 @@ from .templates import router as templates_router
 from .expenses import router as expenses_router
 from .admin import router as admin_router
 from .photo_libraries import router as photo_libraries_router
+from .ticketing import router as ticketing_router
 
 # All routers to be included in main app
 all_routers = [
@@ -54,6 +55,7 @@ all_routers = [
     expenses_router,           # /user-events/.../expenses
     admin_router,              # /admin/...
     photo_libraries_router,    # /photo-libraries/...
+    ticketing_router,          # /ticketing/...
 ]
 
 __all__ = [
@@ -80,5 +82,8 @@ __all__ = [
     "rsvp_router",
     "templates_router",
     "expenses_router",
+    "admin_router",
+    "photo_libraries_router",
+    "ticketing_router",
     "all_routers",
 ]
