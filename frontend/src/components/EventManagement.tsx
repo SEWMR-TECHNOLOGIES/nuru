@@ -480,11 +480,12 @@ const EventManagement = () => {
                           </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
+                          <p className="text-xs font-medium text-foreground truncate flex items-center gap-1">
+                            {service.service?.title || 'Unnamed Service'}
+                            {(service.service?.verification_status === 'verified' || service.service?.verified) && <VerifiedServiceBadge size="xs" />}
+                          </p>
                           {service.service?.provider_name && (
-                            <p className="text-xs font-medium text-foreground truncate">{service.service.provider_name}</p>
-                          )}
-                          {service.service?.category && (
-                            <p className="text-[11px] text-muted-foreground truncate">{service.service.category}</p>
+                            <p className="text-[11px] text-muted-foreground truncate">{service.service.provider_name}</p>
                           )}
                         </div>
                         {(permissions.can_manage_vendors || permissions.is_creator) && (
@@ -592,7 +593,7 @@ const EventManagement = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium truncate">{service.title}</span>
-                        {service.verified && <VerifiedServiceBadge size="xs" />}
+                        {(service.verification_status === 'verified' || service.verified) && <VerifiedServiceBadge size="xs" />}
                       </div>
                       <div className="flex items-center gap-1.5 text-sm text-muted-foreground flex-wrap">
                         <span className="truncate">{service.category_name || service.category || service.service_type_name}</span>

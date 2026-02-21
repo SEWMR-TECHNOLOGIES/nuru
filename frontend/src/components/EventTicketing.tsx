@@ -33,6 +33,7 @@ interface EventTicketingProps {
   onTicketClassesChange: (classes: TicketClass[]) => void;
   isPublicEvent: boolean;
   onPublicChange: (isPublic: boolean) => void;
+  onDeleteTicketClass?: (classId: string) => void;
 }
 
 const EventTicketing = ({
@@ -42,6 +43,7 @@ const EventTicketing = ({
   onTicketClassesChange,
   isPublicEvent,
   onPublicChange,
+  onDeleteTicketClass,
 }: EventTicketingProps) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -90,6 +92,10 @@ const EventTicketing = ({
   };
 
   const removeTicketClass = (index: number) => {
+    const tc = ticketClasses[index];
+    if (tc.id && onDeleteTicketClass) {
+      onDeleteTicketClass(tc.id);
+    }
     const updated = ticketClasses.filter((_, i) => i !== index);
     onTicketClassesChange(updated);
     toast.success("Ticket class removed");
@@ -156,10 +162,10 @@ const EventTicketing = ({
                     </div>
                   </div>
                   <div className="flex items-center gap-1 ml-2">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(index)}>
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(index)}>
                       <Edit2 className="w-3.5 h-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeTicketClass(index)}>
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeTicketClass(index)}>
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>
                   </div>
@@ -168,7 +174,7 @@ const EventTicketing = ({
             </div>
           )}
 
-          <Button variant="outline" className="w-full gap-2" onClick={openAddDialog}>
+          <Button type="button" variant="outline" className="w-full gap-2" onClick={openAddDialog}>
             <Plus className="w-4 h-4" />
             Add Ticket Class
           </Button>
@@ -226,10 +232,10 @@ const EventTicketing = ({
               </div>
 
               <div className="flex gap-3">
-                <Button variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button className="flex-1" onClick={saveTicketClass}>
+                <Button type="button" className="flex-1" onClick={saveTicketClass}>
                   {editingIndex !== null ? "Update" : "Add"} Class
                 </Button>
               </div>

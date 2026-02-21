@@ -81,6 +81,7 @@ def _public_event_dict(db: Session, event: Event) -> dict:
         "organizer": {
             "name": f"{organizer.first_name} {organizer.last_name}" if organizer else None,
         },
+        "sells_tickets": event.sells_tickets or False,
         "status": "published" if (event.status.value if hasattr(event.status, "value") else event.status) == "confirmed" else (event.status.value if hasattr(event.status, "value") else event.status),
         "created_at": event.created_at.isoformat() if event.created_at else None,
     }

@@ -64,6 +64,51 @@ def get_ticket_classes(
 
 
 # ──────────────────────────────────────────────
+# Get ticket classes for own event (organizer)
+# ──────────────────────────────────────────────
+@router.get("/my-events/{event_id}/ticket-classes")
+def get_my_ticket_classes(
+    event_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get ticket classes for an event owned by the current user."""
+    try:
+        eid = UUID(event_id)
+    except (ValueError, TypeError):
+        return standard_response(False, "Invalid event ID")
+
+    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
+    if not event:
+        return standard_response(False, "Event not found or not authorized")
+
+    classes = db.query(EventTicketClass).filter(
+        EventTicketClass.event_id == eid
+    ).order_by(EventTicketClass.display_order).all()
+
+    result = []
+    for tc in classes:
+        available = tc.quantity - tc.sold
+        result.append({
+            "id": str(tc.id),
+            "name": tc.name,
+            "description": tc.description,
+            "price": float(tc.price),
+            "quantity": tc.quantity,
+            "sold": tc.sold,
+            "available": available,
+            "status": tc.status.value if tc.status else "available",
+            "display_order": tc.display_order,
+        })
+
+    return standard_response(True, "Ticket classes retrieved", {
+        "event_id": event_id,
+        "event_name": event.name,
+        "ticket_classes": result,
+    })
+
+
+# ──────────────────────────────────────────────
 # Create/Update ticket classes (organizer)
 # ──────────────────────────────────────────────
 @router.post("/events/{event_id}/ticket-classes")

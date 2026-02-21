@@ -121,6 +121,7 @@ def _event_summary(db: Session, event: Event) -> dict:
         "venue_coordinates": {"latitude": float(vc.latitude), "longitude": float(vc.longitude)} if vc and vc.latitude else None,
         "cover_image": _pick_cover_image(event, images), "images": images,
         "theme_color": event.theme_color, "is_public": event.is_public,
+        "sells_tickets": event.sells_tickets or False,
         "status": event.status.value if hasattr(event.status, "value") else event.status,
         "budget": float(event.budget) if event.budget else None,
         "currency": _currency_code(db, event.currency_id),
@@ -589,6 +590,7 @@ async def create_event(
     venue_latitude: Optional[float] = Form(None), venue_longitude: Optional[float] = Form(None),
     time: Optional[str] = Form(None), cover_image: Optional[UploadFile] = File(None),
     theme_color: Optional[str] = Form(None), is_public: Optional[bool] = Form(False),
+    sells_tickets: Optional[bool] = Form(False),
     budget: Optional[float] = Form(None), currency: Optional[str] = Form(None),
     expected_guests: Optional[int] = Form(None), dress_code: Optional[str] = Form(None),
     special_instructions: Optional[str] = Form(None), rsvp_deadline: Optional[str] = Form(None),
@@ -662,6 +664,7 @@ async def create_event(
         expected_guests=expected_guests, budget=budget,
         status=EventStatusEnum.draft, currency_id=currency_id,
         is_public=is_public or False,
+        sells_tickets=sells_tickets or False,
         theme_color=theme_color.strip() if theme_color else None,
         dress_code=dress_code.strip() if dress_code else None,
         special_instructions=special_instructions.strip() if special_instructions else None,
@@ -736,6 +739,7 @@ async def update_event(
     venue_latitude: Optional[float] = Form(None), venue_longitude: Optional[float] = Form(None),
     cover_image: Optional[UploadFile] = File(None), remove_cover_image: Optional[bool] = Form(False),
     theme_color: Optional[str] = Form(None), is_public: Optional[bool] = Form(None),
+    sells_tickets: Optional[bool] = Form(None),
     status: Optional[str] = Form(None), budget: Optional[float] = Form(None),
     currency: Optional[str] = Form(None), expected_guests: Optional[int] = Form(None),
     dress_code: Optional[str] = Form(None), special_instructions: Optional[str] = Form(None),
@@ -820,6 +824,8 @@ async def update_event(
         event.expected_guests = expected_guests
     if is_public is not None:
         event.is_public = is_public
+    if sells_tickets is not None:
+        event.sells_tickets = sells_tickets
     if currency is not None:
         cur = db.query(Currency).filter(Currency.code == currency.upper()).first()
         if cur:
@@ -2599,6 +2605,8 @@ def _service_booking_dict(db: Session, es: EventService, currency_id) -> dict:
             "category": svc_type.category.name if svc_type and hasattr(svc_type, "category") and svc_type.category else None,
             "provider_name": f"{provider_user.first_name} {provider_user.last_name}" if provider_user else None,
             "image": service_image,
+            "verification_status": provider_svc.verification_status.value if provider_svc and hasattr(provider_svc.verification_status, "value") else (str(provider_svc.verification_status) if provider_svc and provider_svc.verification_status else "unverified"),
+            "verified": provider_svc.is_verified if provider_svc else False,
         },
         "quoted_price": float(es.agreed_price) if es.agreed_price else None,
         "currency": _currency_code(db, currency_id),

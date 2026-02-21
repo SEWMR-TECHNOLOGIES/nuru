@@ -42,7 +42,7 @@ export const profileApi = {
    * Update email
    */
   updateEmail: (data: { new_email: string; password: string }) => 
-    put<{ pending_email: string; verification_expires_at: string }>("/users/email", data),
+    post<{ email: string; is_email_verified: boolean }>("/users/update-email", { email: data.new_email }),
 
   /**
    * Update phone

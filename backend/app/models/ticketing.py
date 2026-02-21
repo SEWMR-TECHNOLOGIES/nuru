@@ -19,7 +19,6 @@ class EventTicketClass(Base):
     name = Column(Text, nullable=False)
     description = Column(Text)
     price = Column(Numeric(12, 2), nullable=False)
-    currency_id = Column(UUID(as_uuid=True), ForeignKey('currencies.id'))
     quantity = Column(Integer, nullable=False)
     sold = Column(Integer, default=0)
     status = Column(Enum(TicketStatusEnum, name="ticket_status_enum"), default=TicketStatusEnum.available)
@@ -31,7 +30,6 @@ class EventTicketClass(Base):
 
     # Relationships
     event = relationship("Event", back_populates="ticket_classes")
-    currency = relationship("Currency")
     tickets = relationship("EventTicket", back_populates="ticket_class")
 
 

@@ -93,10 +93,14 @@ const CreateEvent: React.FC = () => {
               venueName: (event as any).venue || "",
               venueAddress: (event as any).venue_address || "",
             });
+
+            // Restore ticketing state
+            setTicketingEnabled(!!(event as any).sells_tickets);
+            setIsPublicEvent(!!(event as any).is_public);
+
             if (event.gallery_images && event.gallery_images.length > 0) {
               setPreviews(event.gallery_images);
             } else if ((event as any).images && (event as any).images.length > 0) {
-              // Backend returns images as array of objects {image_url, ...}
               const imageUrls = (event as any).images.map((img: any) =>
                 typeof img === 'string' ? img : (img.image_url || img.url)
               ).filter(Boolean);
@@ -110,6 +114,28 @@ const CreateEvent: React.FC = () => {
         }
       };
       loadEvent();
+
+      // Load existing ticket classes
+      const loadTicketClasses = async () => {
+        try {
+          const res = await ticketingApi.getMyTicketClasses(editId);
+          if (res.success && res.data?.ticket_classes) {
+            setTicketClasses(
+              res.data.ticket_classes.map((tc) => ({
+                id: tc.id,
+                name: tc.name,
+                description: tc.description || "",
+                price: String(tc.price),
+                quantity: String(tc.quantity),
+                sold: tc.sold,
+              }))
+            );
+          }
+        } catch {
+          // Silent - no ticket classes yet
+        }
+      };
+      loadTicketClasses();
     }
   }, [editId]);
 
@@ -149,6 +175,10 @@ const CreateEvent: React.FC = () => {
       const budgetNumber = formData.budget ? parseFloat(String(formData.budget).replace(/[^0-9.]/g, "")) : null;
       if (budgetNumber !== null && !Number.isNaN(budgetNumber)) form.append("budget", String(budgetNumber));
 
+      // Ticketing flags
+      form.append("sells_tickets", ticketingEnabled ? "true" : "false");
+      form.append("is_public", isPublicEvent ? "true" : "false");
+
       if (images.length > 0) {
         images.forEach((file) => form.append("images", file));
       }
@@ -174,16 +204,23 @@ const CreateEvent: React.FC = () => {
         }
       }
 
-      // Create ticket classes if ticketing enabled
-      if (ticketingEnabled && ticketClasses.length > 0 && createdId) {
+      // Sync ticket classes if ticketing enabled
+      if (ticketingEnabled && createdId) {
         for (const tc of ticketClasses) {
+          const tcData = {
+            name: tc.name,
+            description: tc.description,
+            price: parseFloat(String(tc.price).replace(/[^0-9.]/g, "")) || 0,
+            quantity: parseInt(String(tc.quantity).replace(/[^0-9]/g, ""), 10) || 1,
+          };
           try {
-            await ticketingApi.createTicketClass(createdId, {
-              name: tc.name,
-              description: tc.description,
-              price: parseFloat(String(tc.price).replace(/[^0-9.]/g, "")) || 0,
-              quantity: parseInt(String(tc.quantity).replace(/[^0-9]/g, ""), 10) || 1,
-            });
+            if (tc.id) {
+              // Update existing ticket class
+              await ticketingApi.updateTicketClass(tc.id, tcData);
+            } else {
+              // Create new ticket class
+              await ticketingApi.createTicketClass(createdId, tcData);
+            }
           } catch {
             // Silent fail for individual ticket classes
           }
@@ -421,6 +458,13 @@ const CreateEvent: React.FC = () => {
           onTicketClassesChange={setTicketClasses}
           isPublicEvent={isPublicEvent}
           onPublicChange={setIsPublicEvent}
+          onDeleteTicketClass={async (classId) => {
+            try {
+              await ticketingApi.deleteTicketClass(classId);
+            } catch {
+              // Will be removed from local state regardless
+            }
+          }}
         />
 
         <Card>

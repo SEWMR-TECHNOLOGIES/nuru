@@ -56,6 +56,10 @@ export const ticketingApi = {
   getTicketClasses: (eventId: string) =>
     get<{ event_id: string; event_name: string; ticket_classes: TicketClass[] }>(`/ticketing/events/${eventId}/ticket-classes`),
 
+  // Organizer: get ticket classes for own event (no public/sells_tickets requirement)
+  getMyTicketClasses: (eventId: string) =>
+    get<{ event_id: string; event_name: string; ticket_classes: TicketClass[] }>(`/ticketing/my-events/${eventId}/ticket-classes`),
+
   // Organizer
   createTicketClass: (eventId: string, data: { name: string; description?: string; price: number; quantity: number }) =>
     post<{ id: string }>(`/ticketing/events/${eventId}/ticket-classes`, data),

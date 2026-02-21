@@ -700,7 +700,7 @@ const UserProfile = () => {
                             <InputOTP maxLength={6} value={emailOtp} onChange={setEmailOtp}>
                               <InputOTPGroup className="gap-2 justify-center w-full">
                                 {[0,1,2,3,4,5].map(i => (
-                                  <InputOTPSlot key={i} index={i} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
+                                  <InputOTPSlot key={i} index={i} className="w-9 h-10 text-base font-semibold rounded-lg border" />
                                 ))}
                               </InputOTPGroup>
                             </InputOTP>
@@ -733,7 +733,7 @@ const UserProfile = () => {
                                   }
                                 }}
                               >
-                                {emailOtpLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <CheckCircle className="w-3.5 h-3.5 mr-1.5" />}
+                                {emailOtpLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
                                 Verify
                               </Button>
                               <Button

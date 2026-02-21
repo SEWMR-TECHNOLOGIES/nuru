@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ChevronLeft, Clock, Users, CheckCircle, XCircle, Loader2, Printer, Camera, Images } from 'lucide-react';
+import { ChevronLeft, Clock, Users, CheckCircle, XCircle, Loader2, Printer, Camera, Images, Edit2, FileText } from 'lucide-react';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { motion } from 'framer-motion';
@@ -15,6 +15,8 @@ import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
 import InvitationCard from './InvitationCard';
 import EventTicketPurchase from './EventTicketPurchase';
+import ReportPreviewDialog from '@/components/ReportPreviewDialog';
+import { generateEventReportHtml } from '@/utils/generateEventReport';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 const EventView = () => {
@@ -28,7 +30,8 @@ const EventView = () => {
   const [showInvitationCard, setShowInvitationCard] = useState(false);
   const [hasInvitation, setHasInvitation] = useState(false);
   const [photoLibraries, setPhotoLibraries] = useState<PhotoLibrary[]>([]);
-
+  const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
+  const [reportHtml, setReportHtml] = useState('');
   const fetchEvent = useCallback(async () => {
     if (!id) return;
     try {
@@ -116,14 +119,44 @@ const EventView = () => {
 
   const coverImage = event.cover_image || event.images?.[0]?.url;
 
+  const isCreator = !!(currentUser && event && (event.organizer_id === currentUser.id || event.organizer?.id === currentUser.id));
+
+  const handleGenerateReport = () => {
+    if (!event) return;
+    const html = generateEventReportHtml({
+      title: event.title,
+      description: event.description,
+      event_type: event.event_type?.name,
+      start_date: event.start_date,
+      start_time: event.start_time,
+      location: event.location,
+      venue: event.venue,
+      status: event.status,
+    });
+    setReportHtml(html);
+    setReportPreviewOpen(true);
+  };
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl md:text-3xl font-bold">{event.title || 'Event Details'}</h1>
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-          <ChevronLeft className="w-5 h-5" />
-        </Button>
+        <div className="flex items-center gap-2">
+          {isCreator && (
+            <Button variant="outline" size="sm" onClick={() => navigate(`/create-event?edit=${id}`)} className="gap-1.5">
+              <Edit2 className="w-4 h-4" />
+              Edit
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={handleGenerateReport} className="gap-1.5">
+            <FileText className="w-4 h-4" />
+            Report
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+        </div>
       </div>
 
       {/* Cover Image */}
@@ -424,6 +457,13 @@ const EventView = () => {
           onClose={() => setShowInvitationCard(false)}
         />
       )}
+
+      <ReportPreviewDialog
+        open={reportPreviewOpen}
+        onOpenChange={setReportPreviewOpen}
+        title="Event Report"
+        html={reportHtml}
+      />
     </div>
   );
 };
