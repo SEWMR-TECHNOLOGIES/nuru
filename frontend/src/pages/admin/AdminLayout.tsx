@@ -6,8 +6,9 @@ import {
   LogOut, Menu,
   Package, Briefcase, Newspaper, Sparkles, Users2,
   BookOpen, CreditCard, Tag, UserCog, BadgeCheck, AlertTriangle,
-  BarChart3, MessageCircle,
+  BarChart3, MessageCircle, PanelLeftClose, PanelLeft,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import nuruLogo from "@/assets/nuru-logo.png";
@@ -99,7 +100,7 @@ export default function AdminLayout() {
   const SidebarContent = ({ mobile = false, scrollRef }: { mobile?: boolean; scrollRef?: React.RefObject<HTMLElement> }) => (
     <div className="flex flex-col h-full min-h-0">
       {/* Logo — left-aligned */}
-      <div className="p-4 border-b border-border shrink-0">
+      <div className="p-4 border-b border-border/60 shrink-0">
         <div className="flex items-center gap-2">
           <img
             src={nuruLogo}
@@ -108,7 +109,7 @@ export default function AdminLayout() {
           />
         </div>
         {(sidebarOpen || mobile) && (
-          <p className="text-[10px] font-semibold tracking-widest text-muted-foreground mt-1 uppercase">
+          <p className="text-[10px] font-bold tracking-[0.2em] text-muted-foreground/70 mt-1.5 uppercase">
             Admin Console
           </p>
         )}
@@ -118,7 +119,7 @@ export default function AdminLayout() {
       <nav
         ref={scrollRef as any}
         onScroll={!mobile ? handleNavScroll : undefined}
-        className="flex-1 p-3 space-y-0.5 overflow-y-auto"
+        className="flex-1 p-2.5 space-y-0.5 overflow-y-auto"
       >
         {navItems.map((item) => (
           <NavLink
@@ -127,32 +128,32 @@ export default function AdminLayout() {
             end={item.to === "/admin"}
             onClick={() => { if (mobile) setMobileSidebarOpen(false); }}
             className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
+              "flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-200",
               isActive(item.to)
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                ? "bg-foreground text-background shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
             )}
           >
-            <item.icon className="w-4 h-4 shrink-0" />
+            <item.icon className="w-[18px] h-[18px] shrink-0" />
             {(sidebarOpen || mobile) && <span className="truncate">{item.label}</span>}
           </NavLink>
         ))}
       </nav>
 
       {/* Admin Info + Logout */}
-      <div className="p-3 border-t border-border space-y-1 shrink-0">
+      <div className="p-3 border-t border-border/60 space-y-1 shrink-0">
         {adminUser && (sidebarOpen || mobile) && (
-          <div className="px-3 py-2 rounded-lg bg-muted/50 mb-1">
+          <div className="px-3 py-2.5 rounded-lg bg-muted/40 mb-1">
             <div className="font-semibold text-xs text-foreground truncate">{adminUser.full_name}</div>
-            <div className="text-xs text-muted-foreground truncate">{adminUser.email}</div>
-            <div className="text-xs text-primary capitalize mt-0.5">{adminUser.role}</div>
+            <div className="text-[11px] text-muted-foreground truncate">{adminUser.email}</div>
+            <div className="text-[11px] text-primary font-medium capitalize mt-0.5">{adminUser.role}</div>
           </div>
         )}
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-destructive hover:bg-destructive/10 w-full transition-colors"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium text-destructive hover:bg-destructive/8 w-full transition-all duration-200"
         >
-          <LogOut className="w-4 h-4 shrink-0" />
+          <LogOut className="w-[18px] h-[18px] shrink-0" />
           {(sidebarOpen || mobile) && <span>Logout</span>}
         </button>
       </div>
@@ -193,26 +194,26 @@ export default function AdminLayout() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="sticky top-0 z-30 h-14 border-b border-border bg-card flex items-center px-4 gap-4 shrink-0">
+        <header className="sticky top-0 z-30 h-14 border-b border-border/60 bg-card/80 backdrop-blur-md flex items-center px-5 gap-4 shrink-0">
           <button
             onClick={() => {
               setSidebarOpen((prev) => !prev);
               handleMobileToggle();
             }}
-            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200"
           >
-            <Menu className="w-5 h-5" />
+            {sidebarOpen ? <PanelLeftClose className="w-5 h-5" /> : <PanelLeft className="w-5 h-5" />}
           </button>
           <div className="flex-1">
-            <h1 className="text-sm font-semibold text-foreground">{currentLabel}</h1>
+            <h1 className="text-sm font-bold tracking-tight text-foreground">{currentLabel}</h1>
           </div>
           {adminUser && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
-                <div className="text-xs font-medium text-foreground leading-tight">{adminUser.full_name}</div>
-                <div className="text-xs text-muted-foreground capitalize leading-tight">{adminUser.role}</div>
+                <div className="text-xs font-semibold text-foreground leading-tight">{adminUser.full_name}</div>
+                <div className="text-[11px] text-muted-foreground capitalize leading-tight">{adminUser.role}</div>
               </div>
-              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+              <div className="w-8 h-8 rounded-full bg-foreground/10 flex items-center justify-center text-xs font-bold text-foreground shrink-0 ring-1 ring-border/60">
                 {adminUser.full_name?.[0]?.toUpperCase() || "A"}
               </div>
             </div>
@@ -221,7 +222,17 @@ export default function AdminLayout() {
 
         {/* Page */}
         <main className="flex-1 overflow-auto p-6">
-          <Outlet />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
     </div>

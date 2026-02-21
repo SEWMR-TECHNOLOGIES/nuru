@@ -81,14 +81,14 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
         </NavLink>
       </div>
 
-      {/* Search Bar - Desktop */}
-      <div className="hidden lg:block flex-1 max-w-3xl mx-8">
+      {/* Search Bar - Desktop & Tablet */}
+      <div className="hidden tablet:block flex-1 max-w-3xl mx-4 lg:mx-8">
         <GlobalSearchBar />
       </div>
 
       {/* Mobile Search Overlay */}
       {mobileSearchOpen && (
-        <div className="fixed inset-0 z-50 bg-background flex flex-col lg:hidden">
+        <div className="fixed inset-0 z-50 bg-background flex flex-col tablet:hidden">
           <div className="flex items-center gap-2 px-3 py-3 border-b border-border">
             <div className="flex-1 min-w-0">
               <GlobalSearchBar autoFocus onNavigate={() => setMobileSearchOpen(false)} fullScreen />
@@ -103,7 +103,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
       {/* Right Actions */}
       <div className="flex items-center gap-2 md:gap-4">
         {/* Mobile Search */}
-        <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileSearchOpen(true)}>
+        <Button variant="ghost" size="icon" className="tablet:hidden" onClick={() => setMobileSearchOpen(true)}>
           <Search className="w-5 h-5" />
         </Button>
 

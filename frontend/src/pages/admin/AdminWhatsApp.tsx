@@ -23,6 +23,7 @@ type WAConversation = {
   last_message: string;
   last_activity_at: string | null;
   unread_count: number;
+  avatar_url?: string | null;
 };
 
 type WAMessage = {
@@ -343,14 +344,22 @@ export default function AdminWhatsApp() {
                 )}
               >
                 {/* Avatar */}
-                <div className={cn(
-                  "w-12 h-12 rounded-full bg-gradient-to-br flex items-center justify-center shrink-0 shadow-sm",
-                  getAvatarColor(conv.id)
-                )}>
-                  <span className="text-sm font-bold text-white drop-shadow-sm">
-                    {getInitials(conv.contact_name || conv.phone)}
-                  </span>
-                </div>
+                {conv.avatar_url ? (
+                  <img
+                    src={conv.avatar_url}
+                    alt={conv.contact_name}
+                    className="w-12 h-12 rounded-full object-cover shrink-0 shadow-sm"
+                  />
+                ) : (
+                  <div className={cn(
+                    "w-12 h-12 rounded-full bg-gradient-to-br flex items-center justify-center shrink-0 shadow-sm",
+                    getAvatarColor(conv.id)
+                  )}>
+                    <span className="text-sm font-bold text-white drop-shadow-sm">
+                      {getInitials(conv.contact_name || conv.phone)}
+                    </span>
+                  </div>
+                )}
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
@@ -446,14 +455,22 @@ export default function AdminWhatsApp() {
             >
               <ChevronLeft className="w-5 h-5" />
             </Button>
-            <div className={cn(
-              "w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center shrink-0 shadow-sm",
-              getAvatarColor(activeConv.id)
-            )}>
-              <span className="text-sm font-bold text-white drop-shadow-sm">
-                {getInitials(activeConv.contact_name || activeConv.phone)}
-              </span>
-            </div>
+            {activeConv.avatar_url ? (
+              <img
+                src={activeConv.avatar_url}
+                alt={activeConv.contact_name}
+                className="w-10 h-10 rounded-full object-cover shrink-0 shadow-sm"
+              />
+            ) : (
+              <div className={cn(
+                "w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center shrink-0 shadow-sm",
+                getAvatarColor(activeConv.id)
+              )}>
+                <span className="text-sm font-bold text-white drop-shadow-sm">
+                  {getInitials(activeConv.contact_name || activeConv.phone)}
+                </span>
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <h3 className="font-bold text-sm truncate text-foreground">
                 {activeConv.contact_name || formatPhoneDisplay(activeConv.phone)}

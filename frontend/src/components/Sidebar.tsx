@@ -55,7 +55,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
   ]
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `w-full flex items-center gap-3 px-3 py-3 md:py-2.5 rounded-lg font-medium transition-colors text-left text-base md:text-base ${
+    `w-full flex items-center gap-3 px-3 lg:px-3 md:px-0 md:justify-center lg:justify-start py-3 md:py-2.5 rounded-lg font-medium transition-colors text-left text-base md:text-base ${
       isActive
         ? 'bg-nuru-yellow/20 text-nuru-yellow'
         : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
@@ -70,13 +70,13 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
   }
 
   return (
-    <aside className="w-48 lg:w-64 bg-sidebar-background md:border-r md:border-sidebar-border h-full overflow-y-auto overscroll-y-contain p-2 lg:p-4">
+    <aside className="w-14 lg:w-64 bg-sidebar-background md:border-r md:border-sidebar-border h-full overflow-y-auto overscroll-y-contain p-1.5 lg:p-4">
       {/* Navigation */}
-      <nav className="space-y-2">
+      <nav className="space-y-1 lg:space-y-2">
         {navItems.map(item => (
-          <NavLink key={item.path} to={item.path} className={linkClass} onClick={onNavigate}>
+          <NavLink key={item.path} to={item.path} className={linkClass} onClick={onNavigate} title={item.label}>
             {renderIcon(item)}
-            {item.label}
+            <span className="hidden lg:inline">{item.label}</span>
           </NavLink>
         ))}
       </nav>
@@ -84,36 +84,36 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
       {/* Create Event Button */}
       <div className="mt-2">
         <NavLink to="/create-event" onClick={onNavigate}>
-          <Button className="w-full bg-nuru-yellow hover:bg-nuru-yellow/90 text-foreground font-medium">
-            <img src={AddSquareIcon} alt="Create Event" className="w-4 h-4 mr-2" />
-            Create Event
+          <Button className="w-full bg-nuru-yellow hover:bg-nuru-yellow/90 text-foreground font-medium lg:px-4 px-0 justify-center">
+            <img src={AddSquareIcon} alt="Create Event" className="w-5 h-5 lg:w-4 lg:h-4 lg:mr-2" />
+            <span className="hidden lg:inline">Create Event</span>
           </Button>
         </NavLink>
       </div>
 
       {/* Browse Tickets */}
-      <nav className="mt-2 space-y-2">
-        <NavLink to="/tickets" className={linkClass} onClick={onNavigate}>
+      <nav className="mt-2 space-y-1 lg:space-y-2">
+        <NavLink to="/tickets" className={linkClass} onClick={onNavigate} title="Browse Tickets">
           <img src={TicketIcon} alt="Tickets" className="w-5 h-5 flex-shrink-0 dark:invert" />
-          Browse Tickets
+          <span className="hidden lg:inline">Browse Tickets</span>
         </NavLink>
       </nav>
 
       {/* Secondary Navigation */}
-      <nav className="mt-2 space-y-2">
+      <nav className="mt-2 space-y-1 lg:space-y-2">
         {secondaryItems.map(item => (
-          <NavLink key={item.path} to={item.path} className={linkClass} onClick={onNavigate}>
+          <NavLink key={item.path} to={item.path} className={linkClass} onClick={onNavigate} title={item.label}>
             {renderIcon(item)}
-            {item.label}
+            <span className="hidden lg:inline">{item.label}</span>
           </NavLink>
         ))}
       </nav>
 
       {/* Profile Section */}
       <div className="mt-auto pt-4 border-t border-sidebar-border">
-        <NavLink to="/profile" className={linkClass} onClick={onNavigate}>
+        <NavLink to="/profile" className={linkClass} onClick={onNavigate} title="Your Profile">
           <User className="w-5 h-5" />
-          Your Profile
+          <span className="hidden lg:inline">Your Profile</span>
         </NavLink>
       </div>
     </aside>

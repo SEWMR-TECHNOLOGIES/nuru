@@ -5,7 +5,9 @@ import {
   Users, ShieldCheck, MessageSquare, HeadphonesIcon,
   CalendarDays, Briefcase, ChevronRight,
   Newspaper, Sparkles, Users2, BookOpen, CreditCard, Tag,
+  ArrowUpRight,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { adminApi } from "@/lib/api/admin";
 import { adminCaches } from "@/lib/api/adminCache";
 import { usePolling } from "@/hooks/usePolling";
@@ -102,40 +104,63 @@ export default function AdminDashboard() {
     );
   }
 
+  const container = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { staggerChildren: 0.04 } },
+  };
+  const item = {
+    hidden: { opacity: 0, y: 12 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.25, ease: "easeOut" as const } },
+  };
+
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <h2 className="text-2xl font-bold tracking-tight text-foreground">Dashboard</h2>
         <p className="text-sm text-muted-foreground mt-1">Welcome back — here's what's happening on Nuru.</p>
-      </div>
+      </motion.div>
 
       {/* Stats Grid */}
       {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <motion.div
+          className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+          variants={container}
+          initial="hidden"
+          animate="show"
+        >
           {statCards(stats, extended).map((card) => (
-            <Link
-              key={card.label}
-              to={card.to}
-              className="bg-card border border-border rounded-xl p-5 hover:border-primary/40 hover:shadow-sm transition-all group"
-            >
-              <div className="flex items-start justify-between">
-                <div className={`w-10 h-10 rounded-lg ${card.bgClass} flex items-center justify-center`}>
-                  <card.icon className={`w-5 h-5 ${card.colorClass}`} />
+            <motion.div key={card.label} variants={item}>
+              <Link
+                to={card.to}
+                className="block bg-card border border-border/60 rounded-xl p-5 hover:border-foreground/20 hover:shadow-md transition-all duration-300 group"
+              >
+                <div className="flex items-start justify-between">
+                  <div className={`w-10 h-10 rounded-xl ${card.bgClass} flex items-center justify-center`}>
+                    <card.icon className={`w-5 h-5 ${card.colorClass}`} />
+                  </div>
+                  <ArrowUpRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-foreground transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-              </div>
-              <div className="mt-4">
-                <div className="text-2xl font-bold text-foreground">{card.value.toLocaleString()}</div>
-                <div className="text-xs text-muted-foreground mt-0.5">{card.label}</div>
-              </div>
-            </Link>
+                <div className="mt-4">
+                  <div className="text-2xl font-bold tracking-tight text-foreground">{card.value.toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground font-medium mt-0.5">{card.label}</div>
+                </div>
+              </Link>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
 
       {/* Quick Actions */}
-      <div>
-        <h3 className="text-sm font-semibold text-foreground mb-3">Quick Actions</h3>
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.15 }}
+      >
+        <h3 className="text-sm font-bold tracking-tight text-foreground mb-3">Quick Actions</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {[
             { label: "Review KYC Submissions", to: "/admin/kyc?status=pending", desc: "Approve or reject pending service verifications" },
@@ -151,14 +176,17 @@ export default function AdminDashboard() {
             <Link
               key={action.to}
               to={action.to}
-              className="bg-card border border-border rounded-xl p-4 hover:border-primary/40 hover:shadow-sm transition-all group"
+              className="bg-card border border-border/60 rounded-xl p-4 hover:border-foreground/20 hover:shadow-md transition-all duration-300 group"
             >
-              <div className="font-medium text-sm text-foreground group-hover:text-primary transition-colors">{action.label}</div>
-              <div className="text-xs text-muted-foreground mt-1">{action.desc}</div>
+              <div className="flex items-center justify-between">
+                <div className="font-semibold text-[13px] text-foreground group-hover:text-foreground transition-colors">{action.label}</div>
+                <ArrowUpRight className="w-3.5 h-3.5 text-muted-foreground/30 group-hover:text-foreground transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+              </div>
+              <div className="text-xs text-muted-foreground mt-1.5 leading-relaxed">{action.desc}</div>
             </Link>
           ))}
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
