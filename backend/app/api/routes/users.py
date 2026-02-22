@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Request, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, func as sa_func
-
+import re
 from core.database import get_db
 from models import (
     User, UserVerificationOTP, UserProfile, UserSetting, UserFollower, UserCircle,

@@ -14,7 +14,8 @@ from sqlalchemy import func as sa_func, or_, case, literal
 from core.database import get_db
 from models import (
     EventTypeService, EventService, Event, EventInvitation, EventCommitteeMember,
-    ServiceType, UserService, ServicePackage, UserServiceRating
+    ServiceType, UserService, ServicePackage, UserServiceRating,
+    EventServiceStatusEnum,
 )
 from utils.auth import get_current_user
 
