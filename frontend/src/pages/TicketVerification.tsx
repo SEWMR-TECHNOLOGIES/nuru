@@ -301,7 +301,7 @@ const TicketVerification = () => {
                       ) : (
                         <ShieldCheck className="w-5 h-5 mr-2" />
                       )}
-                      {checkingIn ? 'Checking In...' : 'Check In Guest'}
+                      {checkingIn ? 'Checking In...' : 'Check In Attendee'}
                     </Button>
                   </motion.div>
                 ) : ticket.checked_in ? (

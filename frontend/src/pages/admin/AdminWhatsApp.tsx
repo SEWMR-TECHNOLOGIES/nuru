@@ -447,10 +447,10 @@ export default function AdminWhatsApp() {
       ) : (
         <>
           {/* Chat Header */}
-          <div className="px-4 py-3 border-b border-border flex items-center gap-3 bg-card shrink-0 shadow-sm">
+          <div className="px-2 md:px-4 py-3 border-b border-border flex items-center gap-2 md:gap-3 bg-card shrink-0 shadow-sm">
             <Button
               variant="ghost" size="icon"
-              className="md:hidden shrink-0 -ml-1"
+              className="md:hidden shrink-0 h-8 w-8"
               onClick={() => setShowMobileChat(false)}
             >
               <ChevronLeft className="w-5 h-5" />
@@ -459,14 +459,14 @@ export default function AdminWhatsApp() {
               <img
                 src={activeConv.avatar_url}
                 alt={activeConv.contact_name}
-                className="w-10 h-10 rounded-full object-cover shrink-0 shadow-sm"
+                className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover shrink-0 shadow-sm"
               />
             ) : (
               <div className={cn(
-                "w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center shrink-0 shadow-sm",
+                "w-9 h-9 md:w-10 md:h-10 rounded-full bg-gradient-to-br flex items-center justify-center shrink-0 shadow-sm",
                 getAvatarColor(activeConv.id)
               )}>
-                <span className="text-sm font-bold text-white drop-shadow-sm">
+                <span className="text-xs md:text-sm font-bold text-white drop-shadow-sm">
                   {getInitials(activeConv.contact_name || activeConv.phone)}
                 </span>
               </div>
@@ -475,11 +475,11 @@ export default function AdminWhatsApp() {
               <h3 className="font-bold text-sm truncate text-foreground">
                 {activeConv.contact_name || formatPhoneDisplay(activeConv.phone)}
               </h3>
-              <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-                <Phone className="w-3 h-3" />
-                {formatPhoneDisplay(activeConv.phone)}
-                <span className="text-muted-foreground/40">•</span>
-                <span className="flex items-center gap-0.5">
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1 md:gap-1.5 truncate">
+                <Phone className="w-3 h-3 shrink-0" />
+                <span className="truncate">{formatPhoneDisplay(activeConv.phone)}</span>
+                <span className="text-muted-foreground/40 hidden md:inline">•</span>
+                <span className="hidden md:flex items-center gap-0.5">
                   {isOnline ? (
                     <><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" /> online</>
                   ) : "offline"}

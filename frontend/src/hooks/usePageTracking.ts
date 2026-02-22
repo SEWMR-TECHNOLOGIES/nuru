@@ -18,15 +18,27 @@ const getBrowser = (): string => {
   return 'Other';
 };
 
+const generateId = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback for non-secure contexts (e.g. localhost without HTTPS)
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
 let visitorId = localStorage.getItem('nuru_visitor_id');
 if (!visitorId) {
-  visitorId = crypto.randomUUID();
+  visitorId = generateId();
   localStorage.setItem('nuru_visitor_id', visitorId);
 }
 
 let sessionId = sessionStorage.getItem('nuru_session_id');
 if (!sessionId) {
-  sessionId = crypto.randomUUID();
+  sessionId = generateId();
   sessionStorage.setItem('nuru_session_id', sessionId);
 }
 

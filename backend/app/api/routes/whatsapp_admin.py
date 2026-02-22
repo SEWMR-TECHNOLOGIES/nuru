@@ -7,13 +7,14 @@ import uuid
 from datetime import datetime
 
 import pytz
+from sqlalchemy.orm import joinedload
 import requests
 from fastapi import APIRouter, Depends, Body, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from core.database import get_db
-from models import WAConversation, WAMessage, WAMessageDirectionEnum, WAMessageStatusEnum, AdminUser
+from models import WAConversation, WAMessage, WAMessageDirectionEnum, WAMessageStatusEnum, AdminUser, User, UserProfile
 from utils.helpers import standard_response, paginate
 
 EAT = pytz.timezone("Africa/Nairobi")
@@ -134,6 +135,20 @@ def list_wa_conversations(
     query = query.order_by(desc(WAConversation.last_activity_at), desc(WAConversation.id))
     items, pagination = paginate(query, page, limit)
 
+    # Look up Nuru user avatars by matching phone numbers (last 9 digits)
+    avatar_map = {}
+    for c in items:
+        if c.phone:
+            last9 = c.phone[-9:] if len(c.phone) >= 9 else c.phone
+            user = (
+                db.query(User)
+                .options(joinedload(User.profile))
+                .filter(User.phone.ilike(f"%{last9}"))
+                .first()
+            )
+            if user and user.profile and user.profile.profile_picture_url:
+                avatar_map[c.id] = user.profile.profile_picture_url
+
     data = [{
         "id": str(c.id),
         "phone": c.phone,
@@ -141,6 +156,7 @@ def list_wa_conversations(
         "last_message": c.last_message or "",
         "last_activity_at": c.last_activity_at.isoformat() if c.last_activity_at else None,
         "unread_count": c.unread_count or 0,
+        "avatar_url": avatar_map.get(c.id),
     } for c in items]
 
     return standard_response(True, "Conversations retrieved", data, pagination=pagination)

@@ -36,6 +36,7 @@ import LiveChat from "@/components/LiveChat";
 import NuruCards from "@/components/NuruCards";
 import BookingList from "@/components/bookings/BookingList";
 import BrowseTickets from "@/components/BrowseTickets";
+import MyTickets from "@/components/MyTickets";
 import BookingDetail from "@/components/bookings/BookingDetail";
 import EventView from "@/components/EventView";
 import PublicProfile from "@/components/PublicProfile";
@@ -140,6 +141,7 @@ function InnerRoutes() {
           <Route path="/post/:id" element={<PostDetail />} />
           <Route path="/create-event" element={<CreateEvent />} />
           <Route path="/tickets" element={<BrowseTickets />} />
+          <Route path="/my-tickets" element={<MyTickets />} />
           <Route path="/event-management/:id" element={<EventManagement />} />
           <Route path="/my-services" element={<MyServices />} />
           <Route path="/services/new" element={<AddService />} />

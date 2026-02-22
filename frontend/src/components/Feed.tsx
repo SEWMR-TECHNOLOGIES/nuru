@@ -96,19 +96,34 @@ const Feed = () => {
   }, [handleLoadMore, hasMore, loadingMore, loading]);
 
   // Fallback to trending when feed is empty for new users
+  // Use the authenticated explore endpoint so has_glowed/has_saved are correctly set
   useEffect(() => {
     if (!loading && apiPosts.length === 0 && !triedTrending.current) {
       triedTrending.current = true;
       setTrendingLoading(true);
-      socialApi.getTrending({ limit: 15, period: 'week' })
-        .then((res) => {
-          if (res.success) {
-            const data = res.data as any;
-            setTrendingPosts(Array.isArray(data) ? data : data?.posts || data?.items || []);
-          }
-        })
-        .catch(() => {})
-        .finally(() => setTrendingLoading(false));
+      // Use explore endpoint (authenticated) instead of public trending
+      // so that has_glowed/has_saved state is included
+      import('@/lib/api/helpers').then(({ get }) => {
+        get<any>('/posts/explore?limit=15')
+          .then((res) => {
+            if (res.success) {
+              const data = res.data as any;
+              setTrendingPosts(Array.isArray(data) ? data : data?.posts || data?.items || []);
+            }
+          })
+          .catch(() => {
+            // Fallback to public trending if explore fails
+            socialApi.getTrending({ limit: 15, period: 'week' })
+              .then((res) => {
+                if (res.success) {
+                  const data = res.data as any;
+                  setTrendingPosts(Array.isArray(data) ? data : data?.posts || data?.items || []);
+                }
+              })
+              .catch(() => {});
+          })
+          .finally(() => setTrendingLoading(false));
+      });
     }
   }, [loading, apiPosts.length]);
 

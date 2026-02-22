@@ -107,8 +107,8 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
           <Search className="w-5 h-5" />
         </Button>
 
-        {/* Tickets */}
-        <NavLink to="/tickets">
+        {/* Tickets - mobile only (hidden on tablet+) */}
+        <NavLink to="/tickets" className="md:hidden">
           <Button variant="ghost" size="icon">
             <img src={TicketIcon} alt="Tickets" className="w-5 h-5 dark:invert" />
           </Button>

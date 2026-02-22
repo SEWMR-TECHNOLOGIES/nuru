@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Loader2, Search, MapPin, Calendar, ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
 import TicketIcon from "@/assets/icons/ticket-icon.svg";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ticketingApi, TicketClass } from "@/lib/api/ticketing";
 import { formatPrice } from "@/utils/formatPrice";
+import { getEventCountdown } from "@/utils/getEventCountdown";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 
@@ -91,8 +92,8 @@ const BrowseTickets = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div>
-        <div className="flex items-center gap-3 mb-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
             <img src={TicketIcon} alt="Tickets" className="w-5 h-5 dark:invert" />
           </div>
@@ -101,6 +102,12 @@ const BrowseTickets = () => {
             <p className="text-sm text-muted-foreground">Find events and purchase tickets</p>
           </div>
         </div>
+        <Link to="/my-tickets">
+          <Button variant="outline" size="sm" className="gap-2">
+            <img src={TicketIcon} alt="" className="w-3.5 h-3.5 dark:invert" />
+            My Tickets
+          </Button>
+        </Link>
       </div>
 
       {/* Search */}
@@ -182,7 +189,21 @@ const BrowseTickets = () => {
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 mt-3">
+                  {/* Countdown */}
+                  {event.start_date && (() => {
+                    const countdown = getEventCountdown(event.start_date);
+                    if (!countdown) return null;
+                    return (
+                      <div className={`mt-2.5 inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-wide uppercase ${
+                        countdown.isPast
+                          ? 'bg-muted text-muted-foreground'
+                          : 'bg-primary/10 text-primary'
+                      }`}>
+                        {countdown.text}
+                      </div>
+                    );
+                  })()}
+                  <div className="flex items-center gap-2 mt-2">
                     <Badge variant="outline" className="text-[10px]">
                       {event.ticket_class_count} class{event.ticket_class_count !== 1 ? 'es' : ''}
                     </Badge>

@@ -549,7 +549,7 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
                       className="w-full h-10 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl"
                     >
                       {checkingIn ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
-                      {checkingIn ? 'Checking In...' : 'Check In Guest'}
+                      {checkingIn ? 'Checking In...' : 'Check In Attendee'}
                     </Button>
                   ) : scannedTicket.checked_in ? (
                     <div className="text-center">
