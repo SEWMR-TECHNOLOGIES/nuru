@@ -390,6 +390,7 @@ def get_community_posts(community_id: str, page: int = 1, limit: int = 20, db: S
                 "id": str(user.id) if user else None,
                 "name": f"{user.first_name} {user.last_name}" if user else None,
                 "avatar": profile.profile_picture_url if profile else None,
+                "is_verified": user.is_identity_verified if user else False,
             },
             "content": cp.content,
             "images": [{"url": img.image_url, "media_type": getattr(img, 'media_type', None) or 'image'} for img in images],

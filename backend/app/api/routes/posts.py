@@ -79,6 +79,7 @@ def _user_dict(db, user_id):
         "name": f"{u.first_name} {u.last_name}",
         "username": u.username,
         "avatar": p.profile_picture_url if p else None,
+        "is_identity_verified": u.is_identity_verified or False,
     }
 
 
@@ -152,6 +153,7 @@ def _post_dict(db, post, current_user_id=None):
             "name": f"{user.first_name} {user.last_name}" if user else None,
             "username": user.username if user else None,
             "avatar": profile.profile_picture_url if profile else None,
+            "is_verified": user.is_identity_verified if user else False,
         },
         "content": post.content, "images": [{"url": img.image_url, "media_type": getattr(img, 'media_type', None) or 'image'} for img in images],
         "location": post.location,

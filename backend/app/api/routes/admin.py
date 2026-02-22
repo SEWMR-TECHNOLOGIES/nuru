@@ -1672,6 +1672,18 @@ def delete_moment_echo_admin(moment_id: str, echo_id: str, db: Session = Depends
 # USER IDENTITY VERIFICATION ADMIN
 # ──────────────────────────────────────────────
 
+def _group_identity_submissions(items):
+    """Group individual document rows into submissions by user + created_at."""
+    groups = {}
+    for v in items:
+        # Documents submitted together share exact same created_at
+        key = (str(v.user_id), str(v.created_at))
+        if key not in groups:
+            groups[key] = []
+        groups[key].append(v)
+    return groups
+
+
 @router.get("/user-verifications")
 def list_user_verifications_admin(
     page: int = 1, limit: int = 20,
@@ -1679,6 +1691,7 @@ def list_user_verifications_admin(
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(require_admin)
 ):
+    # Get all verifications (we group them, so fetch by distinct user submissions)
     query = db.query(UserIdentityVerification).options(
         joinedload(UserIdentityVerification.user).joinedload(User.profile),
         joinedload(UserIdentityVerification.document_type),
@@ -1690,20 +1703,62 @@ def list_user_verifications_admin(
         except ValueError:
             pass
     query = query.order_by(UserIdentityVerification.created_at.desc())
-    items, pagination = paginate(query, page, limit)
-    data = []
-    for v in items:
-        u = v.user
+    all_items = query.all()
+
+    # Group into submissions
+    groups = _group_identity_submissions(all_items)
+    submissions = []
+    for (uid, ts), docs in groups.items():
+        first = docs[0]
+        u = first.user
         profile = u.profile if u else None
-        doc_type = v.document_type
-        data.append({
-            "id": str(v.id),
+
+        # Determine overall status: all verified = verified, any rejected = rejected, else pending
+        statuses = [d.verification_status.value if d.verification_status else "pending" for d in docs]
+        if "rejected" in statuses:
+            overall_status = "rejected"
+        elif all(s == "verified" for s in statuses):
+            overall_status = "verified"
+        else:
+            overall_status = "pending"
+
+        # Get the real document number (from the front doc, not the back/selfie variants)
+        doc_number = None
+        for d in docs:
+            if d.document_number and d.document_number != "N/A" and "(back)" not in d.document_number and "(selfie)" not in d.document_number:
+                doc_number = d.document_number
+                break
+        if not doc_number:
+            # Fallback: strip suffixes
+            for d in docs:
+                if d.document_number and d.document_number != "N/A":
+                    doc_number = d.document_number.replace(" (back)", "").replace(" (selfie)", "")
+                    break
+
+        doc_type = first.document_type
+        documents = []
+        for d in docs:
+            label = "ID Front"
+            if d.remarks == "ID Back":
+                label = "ID Back"
+            elif d.remarks == "Selfie":
+                label = "Selfie"
+            documents.append({
+                "id": str(d.id),
+                "label": label,
+                "file_url": d.document_file_url,
+                "status": d.verification_status.value if d.verification_status else "pending",
+                "remarks": d.remarks if d.remarks not in ("ID Back", "Selfie", None) else None,
+            })
+
+        submissions.append({
+            "id": str(first.id),  # Use first doc's ID as submission reference
+            "submission_ids": [str(d.id) for d in docs],
             "document_type": doc_type.name if doc_type else "—",
-            "document_number": v.document_number,
-            "document_file_url": v.document_file_url,
-            "verification_status": v.verification_status.value if v.verification_status else "pending",
-            "remarks": v.remarks,
-            "created_at": v.created_at.isoformat() if v.created_at else None,
+            "document_number": doc_number or "—",
+            "verification_status": overall_status,
+            "documents": documents,
+            "created_at": first.created_at.isoformat() if first.created_at else None,
             "user": {
                 "id": str(u.id) if u else None,
                 "name": f"{u.first_name} {u.last_name}".strip() if u else None,
@@ -1711,7 +1766,22 @@ def list_user_verifications_admin(
                 "avatar": profile.profile_picture_url if profile else None,
             } if u else None,
         })
-    return standard_response(True, "User verifications retrieved", data, pagination=pagination)
+
+    # If status filter was applied, filter already happened at query level
+    # Manual pagination over grouped results
+    total = len(submissions)
+    total_pages = max(1, (total + limit - 1) // limit)
+    start = (page - 1) * limit
+    end = start + limit
+    page_data = submissions[start:end]
+
+    pagination = {
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": total_pages,
+    }
+    return standard_response(True, "User verifications retrieved", page_data, pagination=pagination)
 
 
 @router.put("/user-verifications/{verification_id}/approve")
@@ -1732,25 +1802,47 @@ def approve_user_verification(
     v.verified_at = datetime.now(EAT)
     v.remarks = body.get("notes", v.remarks)
     v.updated_at = datetime.now(EAT)
-    # Mark user as identity verified
-    user = db.query(User).filter(User.id == v.user_id).first()
-    if user:
-        user.is_identity_verified = True
     db.commit()
-    # Notify user
-    if v.user_id:
-        notif = Notification(
-            id=uuid.uuid4(),
-            recipient_id=v.user_id,
-            type=NotificationTypeEnum.system,
-            message_template="Your identity has been verified! Your account is now fully verified.",
-            message_data={"status": "verified"},
-            is_read=False,
-            created_at=datetime.now(EAT),
-        )
-        db.add(notif)
-        db.commit()
-    return standard_response(True, "Identity verified")
+
+    # Check batch status
+    batch = db.query(UserIdentityVerification).filter(
+        UserIdentityVerification.user_id == v.user_id,
+        UserIdentityVerification.created_at == v.created_at,
+    ).all()
+    approved_count = sum(1 for d in batch if d.verification_status == VerificationStatusEnum.verified)
+    total_count = len(batch)
+
+    # Identity is verified if the FRONT document is approved (front = no "back"/"selfie" suffix)
+    front_doc = next(
+        (d for d in batch if d.remarks not in ("ID Back", "Selfie")),
+        None
+    )
+    front_approved = front_doc and front_doc.verification_status == VerificationStatusEnum.verified
+    all_verified = all(d.verification_status == VerificationStatusEnum.verified for d in batch)
+
+    if front_approved:
+        user = db.query(User).filter(User.id == v.user_id).first()
+        if user and not user.is_identity_verified:
+            user.is_identity_verified = True
+            db.commit()
+            notif = Notification(
+                id=uuid.uuid4(),
+                recipient_id=v.user_id,
+                type=NotificationTypeEnum.system,
+                message_template="Your identity has been verified! Your account is now fully verified.",
+                message_data={"status": "verified"},
+                is_read=False,
+                created_at=datetime.now(EAT),
+            )
+            db.add(notif)
+            db.commit()
+
+    return standard_response(True, "Document approved", {
+        "approved_count": approved_count,
+        "total_count": total_count,
+        "all_approved": all_verified,
+        "identity_verified": bool(front_approved),
+    })
 
 
 @router.put("/user-verifications/{verification_id}/reject")
@@ -1770,10 +1862,18 @@ def reject_user_verification(
     notes = body.get("notes", "").strip()
     if not notes:
         return standard_response(False, "Rejection reason is required")
-    v.verification_status = VerificationStatusEnum.rejected
-    v.remarks = notes
-    v.updated_at = datetime.now(EAT)
+
+    # Reject ALL documents in this submission batch
+    batch = db.query(UserIdentityVerification).filter(
+        UserIdentityVerification.user_id == v.user_id,
+        UserIdentityVerification.created_at == v.created_at,
+    ).all()
+    for d in batch:
+        d.verification_status = VerificationStatusEnum.rejected
+        d.remarks = notes
+        d.updated_at = datetime.now(EAT)
     db.commit()
+
     if v.user_id:
         notif = Notification(
             id=uuid.uuid4(),

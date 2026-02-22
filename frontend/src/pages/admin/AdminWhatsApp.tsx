@@ -118,40 +118,35 @@ export default function AdminWhatsApp() {
   const [lastSync, setLastSync] = useState<Date>(new Date());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const initialConvLoad = useRef(!_waConvCache);
   const activeConvRef = useRef<string | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const hasFetchedRef = useRef(false);
 
   const scrollToBottom = (smooth = true) => {
     messagesEndRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "instant" });
   };
 
-  // ── Load conversations silently after first load ──
+  // ── Load conversations ──
   const loadConversations = useCallback(async () => {
-    if (initialConvLoad.current) setConvLoading(true);
     try {
       const res = await adminApi.getWAConversations({ q: searchQuery || undefined });
       if (res.success && res.data) {
         const list = Array.isArray(res.data) ? res.data : [];
-        const prev = JSON.stringify(_waConvCache);
-        const next = JSON.stringify(list);
-        if (prev !== next) {
-          _waConvCache = list;
-          setConversations(list);
-          setLastSync(new Date());
-        }
+        _waConvCache = list;
+        setConversations(list);
+        setLastSync(new Date());
         if (!isOnline) setIsOnline(true);
       }
     } catch {
       setIsOnline(false);
     }
-    if (initialConvLoad.current) {
-      setConvLoading(false);
-      initialConvLoad.current = false;
-    }
+    setConvLoading(false);
+    hasFetchedRef.current = true;
   }, [searchQuery, isOnline]);
 
+  // Initial load — always fetch on mount regardless of cache
   useEffect(() => {
+    setConvLoading(!_waConvCache);
     loadConversations();
   }, [loadConversations]);
 

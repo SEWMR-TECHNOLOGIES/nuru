@@ -518,3 +518,9 @@ img.invert[src*="/icons/"] {
 .dark [class*="bg-foreground"] img[src*="/icons/"] {
   filter: brightness(0);
 }
+
+/* Nuru Official shimmer animation */
+@keyframes nuru-shimmer {
+  0%, 100% { box-shadow: 0 0 12px hsl(45 96% 64% / 0.4); }
+  50% { box-shadow: 0 0 20px hsl(45 96% 64% / 0.6), 0 0 40px hsl(45 96% 64% / 0.2); }
+}

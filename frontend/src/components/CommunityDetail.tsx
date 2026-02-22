@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Users, Crown, Plus, Loader2, Heart, Send, X, Search, Trash2, Camera } from 'lucide-react';
+import { VerifiedUserBadge } from '@/components/ui/verified-badge';
 import SvgIcon from '@/components/ui/svg-icon';
 import CustomImageIcon from '@/assets/icons/image-icon.svg';
 import { Button } from '@/components/ui/button';
@@ -459,7 +460,10 @@ const CommunityDetail = () => {
                         </div>
                       )}
                       <div>
-                        <h3 className="font-semibold text-sm md:text-base text-foreground">{authorName}</h3>
+                        <h3 className="font-semibold text-sm md:text-base text-foreground flex items-center gap-1.5">
+                          {authorName}
+                          {(author.is_verified || author.is_identity_verified) && <VerifiedUserBadge size="xs" />}
+                        </h3>
                         <p className="text-xs md:text-sm text-muted-foreground">{post.created_at ? getTimeAgo(post.created_at) : ''}</p>
                       </div>
                     </div>

@@ -22,50 +22,12 @@ export const VerifiedServiceBadge = ({
       aria-label="Nuru Verified Service"
       role="img"
     >
-      {/* 12-point starburst — Nuru signature shape */}
-      <path
-        d="M12 0l2.35 4.13L19 2.6l-.4 4.75 4.65.95-3.05 3.6 3.05 3.6-4.65.95.4 4.75-4.65-1.53L12 24l-2.35-4.13L5 21.4l.4-4.75L.75 15.7l3.05-3.6L.75 8.5l4.65-.95L5 2.8l4.65 1.53z"
-        fill="url(#nuruServiceOuter)"
-      />
-      {/* Inner shield */}
-      <path
-        d="M12 5.5l-5 2.5v4c0 3.6 2.1 6.9 5 8 2.9-1.1 5-4.4 5-8V8z"
-        fill="url(#nuruServiceInner)"
-      />
-      {/* Gold rim on shield */}
-      <path
-        d="M12 5.5l-5 2.5v4c0 3.6 2.1 6.9 5 8 2.9-1.1 5-4.4 5-8V8z"
-        fill="none"
-        stroke="url(#nuruServiceRim)"
-        strokeWidth="0.5"
-        opacity="0.7"
-      />
+      {/* Clipboard body */}
+      <path d="M16.2391 3.6499H7.75906C5.28906 3.6499 3.28906 5.6599 3.28906 8.1199V17.5299C3.28906 19.9899 5.29906 21.9999 7.75906 21.9999H16.2291C18.6991 21.9999 20.6991 19.9899 20.6991 17.5299V8.1199C20.7091 5.6499 18.6991 3.6499 16.2391 3.6499Z" fill="hsl(45, 96%, 64%)" />
+      {/* Clipboard top */}
+      <path d="M14.3498 2H9.64977C8.60977 2 7.75977 2.84 7.75977 3.88V4.82C7.75977 5.86 8.59977 6.7 9.63977 6.7H14.3498C15.3898 6.7 16.2298 5.86 16.2298 4.82V3.88C16.2398 2.84 15.3898 2 14.3498 2Z" fill="hsl(45, 96%, 64%)" />
       {/* Checkmark */}
-      <path
-        d="M9.2 12.3l2 2 3.6-4"
-        stroke="hsl(51, 100%, 50%)"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      {/* Top sparkle accent */}
-      <circle cx="12" cy="2.8" r="0.7" fill="hsl(51, 100%, 65%)" opacity="0.9" />
-      <defs>
-        <linearGradient id="nuruServiceOuter" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="hsl(0, 0%, 9%)" />
-          <stop offset="0.55" stopColor="hsl(0, 0%, 15%)" />
-          <stop offset="1" stopColor="hsl(51, 100%, 42%)" />
-        </linearGradient>
-        <linearGradient id="nuruServiceInner" x1="7" y1="5.5" x2="17" y2="20" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="hsl(0, 0%, 14%)" />
-          <stop offset="1" stopColor="hsl(0, 0%, 7%)" />
-        </linearGradient>
-        <linearGradient id="nuruServiceRim" x1="7" y1="5.5" x2="17" y2="20" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="hsl(51, 100%, 60%)" />
-          <stop offset="1" stopColor="hsl(51, 100%, 40%)" />
-        </linearGradient>
-      </defs>
+      <path d="M10.81 16.9501C10.62 16.9501 10.43 16.8801 10.28 16.7301L8.78 15.2301C8.49 14.9401 8.49 14.4601 8.78 14.1701C9.07 13.8801 9.55 13.8801 9.84 14.1701L10.81 15.1401L14.28 11.6701C14.57 11.3801 15.05 11.3801 15.34 11.6701C15.63 11.9601 15.63 12.4401 15.34 12.7301L11.34 16.7301C11.2 16.8801 11 16.9501 10.81 16.9501Z" fill="hsl(222.2, 47.4%, 11.2%)" />
     </svg>
   );
 };
@@ -92,44 +54,10 @@ export const VerifiedUserBadge = ({
       aria-label="Nuru Verified User"
       role="img"
     >
-      {/* Outer 8-point star — angular, modern */}
-      <path
-        d="M12 0l3.09 5.26L21 3l-2.26 5.91L24 12l-5.26 3.09L21 21l-5.91-2.26L12 24l-3.09-5.26L3 21l2.26-5.91L0 12l5.26-3.09L3 3l5.91 2.26z"
-        fill="url(#nuruUserOuter)"
-      />
-      {/* Inner circle — the gem face */}
-      <circle cx="12" cy="12" r="6.8" fill="url(#nuruUserInner)" />
-      {/* Gold ring accent */}
-      <circle cx="12" cy="12" r="6.8" fill="none" stroke="url(#nuruUserRing)" strokeWidth="0.6" opacity="0.8" />
-      {/* Second inner ring for depth */}
-      <circle cx="12" cy="12" r="5.6" fill="none" stroke="hsl(25, 90%, 55%)" strokeWidth="0.3" opacity="0.3" />
-      {/* Checkmark in warm amber */}
-      <path
-        d="M9 12.4l2 2 3.5-4"
-        stroke="hsl(25, 95%, 55%)"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      {/* Top sparkle */}
-      <circle cx="12" cy="2.2" r="0.6" fill="hsl(25, 90%, 65%)" opacity="0.85" />
-      <defs>
-        <linearGradient id="nuruUserOuter" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="hsl(0, 0%, 9%)" />
-          <stop offset="0.6" stopColor="hsl(15, 15%, 14%)" />
-          <stop offset="1" stopColor="hsl(25, 85%, 45%)" />
-        </linearGradient>
-        <linearGradient id="nuruUserInner" x1="5" y1="5" x2="19" y2="19" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="hsl(15, 10%, 14%)" />
-          <stop offset="0.5" stopColor="hsl(15, 8%, 9%)" />
-          <stop offset="1" stopColor="hsl(10, 5%, 6%)" />
-        </linearGradient>
-        <linearGradient id="nuruUserRing" x1="5.2" y1="5.2" x2="18.8" y2="18.8" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="hsl(25, 95%, 60%)" />
-          <stop offset="1" stopColor="hsl(25, 85%, 40%)" />
-        </linearGradient>
-      </defs>
+      {/* Shield body */}
+      <path d="M10.9608 2.06008L5.46078 4.12008C4.41078 4.52008 3.55078 5.76008 3.55078 6.89008V14.9901C3.55078 15.8001 4.08078 16.8701 4.73078 17.3501L10.2308 21.4601C11.2008 22.1901 12.7908 22.1901 13.7608 21.4601L19.2608 17.3501C19.9108 16.8601 20.4408 15.8001 20.4408 14.9901V6.89008C20.4408 5.77008 19.5808 4.52008 18.5308 4.13008L13.0308 2.07008C12.4708 1.85008 11.5308 1.85008 10.9608 2.06008Z" fill="hsl(45, 96%, 64%)" />
+      {/* Checkmark */}
+      <path d="M10.6602 14.2301C10.4702 14.2301 10.2802 14.1601 10.1302 14.0101L8.52023 12.4001C8.23023 12.1101 8.23023 11.6301 8.52023 11.3401C8.81023 11.0501 9.29023 11.0501 9.58023 11.3401L10.6602 12.4201L14.4302 8.65012C14.7202 8.36012 15.2002 8.36012 15.4902 8.65012C15.7802 8.94012 15.7802 9.42012 15.4902 9.71012L11.1902 14.0101C11.0402 14.1601 10.8502 14.2301 10.6602 14.2301Z" fill="hsl(222.2, 47.4%, 11.2%)" />
     </svg>
   );
 };

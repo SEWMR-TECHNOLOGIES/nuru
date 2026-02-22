@@ -5,8 +5,11 @@ import {
   Link as LinkIcon, Briefcase, Star
 } from 'lucide-react';
 import { VerifiedUserBadge, VerifiedServiceBadge } from '@/components/ui/verified-badge';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { NuruOfficialBadge, NuruOfficialCoverOverlay, NuruOfficialAvatarRing } from '@/components/ui/nuru-official-badge';
 import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import NuruLogo from '@/assets/nuru-logo.png';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import CameraIcon from '@/assets/icons/camera-icon.svg';
 import { Button } from '@/components/ui/button';
@@ -273,30 +276,31 @@ const PublicProfile = () => {
   const fullName = `${user.first_name} ${user.last_name}`.trim();
   const initials = `${(user.first_name || 'U')[0]}${(user.last_name || '')[0] || ''}`.toUpperCase();
   const joinDate = user.created_at ? formatDateMedium(user.created_at) : null;
+  const isNuruOfficial = user.username?.toLowerCase() === 'nuru';
 
   return (
     <div className="space-y-6">
       {/* Profile Header — Premium Cover (matches UserProfile) */}
       <Card className="overflow-hidden border-0 shadow-xl">
-        <div className="relative h-56 md:h-64">
-          {/* Multi-layered gradient cover */}
-          <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/90 to-accent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
-
-          {/* Animated mesh pattern */}
-          <div className="absolute inset-0 opacity-[0.06]" style={{
-            backgroundImage: `radial-gradient(circle at 25% 25%, rgba(255,255,255,0.3) 1px, transparent 1px), radial-gradient(circle at 75% 75%, rgba(255,255,255,0.2) 1px, transparent 1px)`,
-            backgroundSize: '30px 30px, 20px 20px',
-          }} />
-
-          {/* Large decorative blobs */}
-          <div className="absolute -top-20 -right-20 w-72 h-72 bg-primary-foreground/8 rounded-full blur-3xl" />
-          <div className="absolute -bottom-16 -left-16 w-56 h-56 bg-accent/20 rounded-full blur-3xl" />
-          <div className="absolute top-1/2 left-1/3 w-32 h-32 bg-primary-foreground/5 rounded-full blur-2xl" />
-
-          {/* Subtle geometric accent lines */}
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary-foreground/20 to-transparent" />
-          <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-primary-foreground/10 to-transparent" />
+        <div className={`relative ${isNuruOfficial ? 'h-64 md:h-72' : 'h-56 md:h-64'}`}>
+          {isNuruOfficial ? (
+            <NuruOfficialCoverOverlay />
+          ) : (
+            <>
+              {/* Multi-layered gradient cover */}
+              <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/90 to-accent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
+              <div className="absolute inset-0 opacity-[0.06]" style={{
+                backgroundImage: `radial-gradient(circle at 25% 25%, rgba(255,255,255,0.3) 1px, transparent 1px), radial-gradient(circle at 75% 75%, rgba(255,255,255,0.2) 1px, transparent 1px)`,
+                backgroundSize: '30px 30px, 20px 20px',
+              }} />
+              <div className="absolute -top-20 -right-20 w-72 h-72 bg-primary-foreground/8 rounded-full blur-3xl" />
+              <div className="absolute -bottom-16 -left-16 w-56 h-56 bg-accent/20 rounded-full blur-3xl" />
+              <div className="absolute top-1/2 left-1/3 w-32 h-32 bg-primary-foreground/5 rounded-full blur-2xl" />
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary-foreground/20 to-transparent" />
+              <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-primary-foreground/10 to-transparent" />
+            </>
+          )}
 
           {/* Follow / Add to Circle buttons */}
           {!isOwnProfile && (
@@ -344,20 +348,41 @@ const PublicProfile = () => {
           <div className="flex flex-col md:flex-row gap-6 -mt-20 relative z-10 px-1">
             {/* Avatar with gradient ring */}
             <div className="relative flex-shrink-0">
-              <div className="p-1 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 shadow-2xl">
-                <Avatar className="w-32 h-32 border-4 border-background shadow-xl">
-                  <AvatarImage src={user.avatar || undefined} alt={fullName} />
-                  <AvatarFallback className="text-2xl font-semibold bg-primary/10 text-primary">{initials}</AvatarFallback>
-                </Avatar>
-              </div>
+              {isNuruOfficial ? (
+                <NuruOfficialAvatarRing>
+                  <Avatar className="w-32 h-32 border-4 border-background shadow-xl">
+                    <AvatarImage src={user.avatar || undefined} alt={fullName} />
+                    <AvatarFallback className="text-2xl font-semibold bg-primary/10 text-primary">{initials}</AvatarFallback>
+                  </Avatar>
+                </NuruOfficialAvatarRing>
+              ) : (
+                <div className="p-1 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 shadow-2xl">
+                  <Avatar className="w-32 h-32 border-4 border-background shadow-xl">
+                    <AvatarImage src={user.avatar || undefined} alt={fullName} />
+                    <AvatarFallback className="text-2xl font-semibold bg-primary/10 text-primary">{initials}</AvatarFallback>
+                  </Avatar>
+                </div>
+              )}
             </div>
 
             <div className="flex-1 mt-14 md:mt-6">
-              <div className="flex items-center gap-3 mb-1">
+              <div className="flex items-center gap-3 mb-1 flex-wrap">
                 <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
                   {fullName}
                   {user.is_identity_verified && <VerifiedUserBadge size="md" />}
+                  {['mpinzile', 'mangowi'].includes(user.username?.toLowerCase()) && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <img src={NuruLogo} alt="Nuru Creator" className="w-7 h-7 object-contain cursor-pointer" />
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="flex items-center gap-2 bg-card border-primary/20 px-3 py-2 rounded-lg shadow-lg">
+                        <img src={NuruLogo} alt="" className="w-4 h-4" />
+                        <span className="text-xs font-semibold text-foreground">Nuru Creator</span>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                 </h1>
+                {isNuruOfficial && <NuruOfficialBadge size="md" />}
                 {user.is_vendor && (
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-semibold text-primary">
                     <Briefcase className="w-3 h-3" /> Vendor

@@ -35,7 +35,7 @@ def _moment_dict(db, m, current_user_id=None):
 
     return {
         "id": str(m.id),
-        "author": {"id": str(user.id), "name": f"{user.first_name} {user.last_name}", "avatar": profile.profile_picture_url if profile else None} if user else None,
+        "author": {"id": str(user.id), "name": f"{user.first_name} {user.last_name}", "avatar": profile.profile_picture_url if profile else None, "is_verified": user.is_identity_verified or False} if user else None,
         "caption": m.caption, "content_type": m.content_type.value if m.content_type else "image",
         "media_url": m.media_url,
         "thumbnail_url": m.thumbnail_url if hasattr(m, "thumbnail_url") else None,

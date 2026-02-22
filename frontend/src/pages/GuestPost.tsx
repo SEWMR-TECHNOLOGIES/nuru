@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Heart, MessageCircle, MapPin } from 'lucide-react';
+import { VerifiedUserBadge } from '@/components/ui/verified-badge';
 import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import { Button } from '@/components/ui/button';
@@ -129,6 +130,7 @@ const GuestPost = () => {
 
   const authorName = post.author?.name || 'Anonymous';
   const authorAvatar = post.author?.avatar || '';
+  const authorVerified = post.author?.is_verified || post.user?.is_identity_verified || false;
   const postContent = post.content || '';
   const postImages = post.images || [];
   const postTimeAgo = post.created_at ? getTimeAgo(post.created_at) : 'Recently';
@@ -151,7 +153,10 @@ const GuestPost = () => {
               </div>
             )}
             <div>
-              <h3 className="font-semibold text-foreground text-sm md:text-base">{authorName}</h3>
+              <h3 className="font-semibold text-foreground text-sm md:text-base flex items-center gap-1.5">
+                {authorName}
+                {authorVerified && <VerifiedUserBadge size="xs" />}
+              </h3>
               <p className="text-xs text-muted-foreground">
                 {postTimeAgo}
                 {postLocation && <span className="inline-flex items-center gap-0.5"> · <MapPin className="w-3 h-3 inline" /> {postLocation}</span>}

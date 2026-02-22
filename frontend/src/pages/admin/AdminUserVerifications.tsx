@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { ShieldCheck, CheckCircle2, XCircle, Search, ChevronLeft, ChevronRight, RefreshCw, FileText, User } from "lucide-react";
+import { ShieldCheck, CheckCircle2, XCircle, Search, ChevronLeft, ChevronRight, RefreshCw, FileText, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,17 +27,37 @@ const statusBadge = (s: string) => {
   return "bg-muted text-muted-foreground";
 };
 
+interface VerificationDoc {
+  id: string;
+  label: string;
+  file_url: string;
+  status: string;
+  remarks?: string;
+}
+
+interface VerificationSubmission {
+  id: string;
+  submission_ids: string[];
+  document_type: string;
+  document_number: string;
+  verification_status: string;
+  documents: VerificationDoc[];
+  created_at: string;
+  user: { id: string; name: string; email: string; avatar?: string } | null;
+}
+
 export default function AdminUserVerifications() {
   useAdminMeta("User Verification");
   const cache = adminCaches.userVerifications;
-  const [items, setItems] = useState<any[]>(cache.data);
+  const [items, setItems] = useState<VerificationSubmission[]>(cache.data);
   const [loading, setLoading] = useState(!cache.loaded);
   const initialLoad = useRef(!cache.loaded);
   const [status, setStatus] = useState("pending");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<any>(null);
-  const [actionDialog, setActionDialog] = useState<{ type: "approve" | "reject"; id: string; userName: string; docType: string } | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [actionDialog, setActionDialog] = useState<{ type: "approve" | "reject"; docId: string; docLabel: string; userName: string } | null>(null);
   const [notes, setNotes] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -68,10 +88,17 @@ export default function AdminUserVerifications() {
     }
     setActionLoading(true);
     const res = actionDialog.type === "approve"
-      ? await adminApi.approveUserVerification(actionDialog.id, notes)
-      : await adminApi.rejectUserVerification(actionDialog.id, notes);
+      ? await adminApi.approveUserVerification(actionDialog.docId, notes)
+      : await adminApi.rejectUserVerification(actionDialog.docId, notes);
     if (res.success) {
-      toast.success(actionDialog.type === "approve" ? "Identity verified!" : "Verification rejected");
+      if (actionDialog.type === "approve") {
+        const msg = res.data?.identity_verified
+          ? "✅ Front ID approved — user identity verified!"
+          : `Document approved (${res.data?.approved_count}/${res.data?.total_count})`;
+        toast.success(msg);
+      } else {
+        toast.success("Submission rejected");
+      }
       setActionDialog(null); setNotes(""); load();
     } else toast.error(res.message || "Action failed");
     setActionLoading(false);
@@ -79,6 +106,7 @@ export default function AdminUserVerifications() {
 
   const filtered = q ? items.filter(i =>
     i.user?.name?.toLowerCase().includes(q.toLowerCase()) ||
+    i.document_number?.toLowerCase().includes(q.toLowerCase()) ||
     i.document_type?.toLowerCase().includes(q.toLowerCase())
   ) : items;
 
@@ -110,75 +138,82 @@ export default function AdminUserVerifications() {
       </div>
 
       {loading ? (
-        <AdminTableSkeleton columns={6} rows={8} />
+        <AdminTableSkeleton columns={5} rows={6} />
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground"><ShieldCheck className="w-10 h-10 mx-auto mb-3 opacity-30" /><p>No identity verifications found</p></div>
       ) : (
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">User</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Document Type</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Doc Number</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Submitted</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {filtered.map((item) => (
-                <tr key={item.id} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      {item.user?.avatar ? (
-                        <img src={item.user.avatar} className="w-7 h-7 rounded-full object-cover" alt="" />
-                      ) : (
-                        <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                          {item.user?.name?.[0] || "?"}
+        <div className="space-y-3">
+          {filtered.map((submission) => (
+            <div key={submission.id} className="bg-card border border-border rounded-xl overflow-hidden">
+              {/* Submission header */}
+              <button
+                className="w-full flex items-center gap-3 p-4 text-left hover:bg-muted/30 transition-colors"
+                onClick={() => setExpanded(expanded === submission.id ? null : submission.id)}
+              >
+                {submission.user?.avatar ? (
+                  <img src={submission.user.avatar} className="w-9 h-9 rounded-full object-cover shrink-0" alt="" />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+                    {submission.user?.name?.[0] || "?"}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-foreground text-sm">{submission.user?.name || "—"}</p>
+                  <p className="text-xs text-muted-foreground">{submission.user?.email} · {submission.document_type} · #{submission.document_number}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-muted-foreground">{submission.documents.length} doc{submission.documents.length !== 1 ? "s" : ""}</span>
+                  <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium capitalize", statusBadge(submission.verification_status))}>
+                    {submission.verification_status}
+                  </span>
+                </div>
+              </button>
+
+              {/* Expanded: document list */}
+              {expanded === submission.id && (
+                <div className="border-t border-border px-4 py-3 space-y-2 bg-muted/20">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Submitted {submission.created_at ? new Date(submission.created_at).toLocaleDateString() : "—"}
+                  </p>
+                  {submission.documents.map((doc) => (
+                    <div key={doc.id} className="flex items-center justify-between gap-3 border border-border rounded-lg p-3 bg-card">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <ImageIcon className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <div>
+                          <p className="font-medium text-sm text-foreground">{doc.label}</p>
+                          {doc.remarks && <p className="text-xs text-muted-foreground italic">{doc.remarks}</p>}
                         </div>
-                      )}
-                      <div>
-                        <p className="font-medium text-foreground text-xs">{item.user?.name || "—"}</p>
-                        <p className="text-xs text-muted-foreground">{item.user?.email}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium capitalize", statusBadge(doc.status))}>
+                          {doc.status}
+                        </span>
+                        {doc.file_url && (
+                          <a href={doc.file_url} target="_blank" rel="noopener noreferrer">
+                            <Button variant="ghost" size="sm" className="h-7 px-2" title="View document">
+                              <FileText className="w-3.5 h-3.5" />
+                            </Button>
+                          </a>
+                        )}
+                        {doc.status === "pending" && (
+                          <>
+                            <Button variant="ghost" size="sm" className="text-primary hover:bg-primary/10 h-7 px-2"
+                              onClick={(e) => { e.stopPropagation(); setActionDialog({ type: "approve", docId: doc.id, docLabel: doc.label, userName: submission.user?.name || "User" }); }}>
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10 h-7 px-2"
+                              onClick={(e) => { e.stopPropagation(); setActionDialog({ type: "reject", docId: doc.id, docLabel: doc.label, userName: submission.user?.name || "User" }); }}>
+                              <XCircle className="w-3.5 h-3.5" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{item.document_type || "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{item.document_number || "—"}</td>
-                  <td className="px-4 py-3">
-                    <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium capitalize", statusBadge(item.verification_status))}>
-                      {item.verification_status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{item.created_at ? new Date(item.created_at).toLocaleDateString() : "—"}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      {item.document_file_url && (
-                        <a href={item.document_file_url} target="_blank" rel="noopener noreferrer">
-                          <Button variant="ghost" size="sm" title="View document">
-                            <FileText className="w-3.5 h-3.5" />
-                          </Button>
-                        </a>
-                      )}
-                      {item.verification_status === "pending" && (
-                        <>
-                          <Button variant="ghost" size="sm" className="text-primary hover:bg-primary/10"
-                            onClick={() => setActionDialog({ type: "approve", id: item.id, userName: item.user?.name || "User", docType: item.document_type || "document" })}>
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10"
-                            onClick={() => setActionDialog({ type: "reject", id: item.id, userName: item.user?.name || "User", docType: item.document_type || "document" })}>
-                            <XCircle className="w-3.5 h-3.5" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
@@ -195,9 +230,12 @@ export default function AdminUserVerifications() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {actionDialog?.type === "approve" ? "✅ Approve" : "❌ Reject"} Identity — {actionDialog?.userName}
+              {actionDialog?.type === "approve" ? "✅ Approve" : "❌ Reject"} — {actionDialog?.userName}
             </DialogTitle>
-            <p className="text-sm text-muted-foreground">{actionDialog?.docType}</p>
+            <p className="text-sm text-muted-foreground">{actionDialog?.docLabel}</p>
+            {actionDialog?.type === "reject" && (
+              <p className="text-xs text-destructive">⚠️ Rejecting any document will reject the entire submission</p>
+            )}
           </DialogHeader>
           <div className="space-y-3">
             <Label>{actionDialog?.type === "approve" ? "Notes (optional)" : "Rejection reason (required)"}</Label>
@@ -206,7 +244,7 @@ export default function AdminUserVerifications() {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setActionDialog(null); setNotes(""); }}>Cancel</Button>
             <Button onClick={handleAction} disabled={actionLoading} variant={actionDialog?.type === "reject" ? "destructive" : "default"}>
-              Confirm {actionDialog?.type === "approve" ? "Approval" : "Rejection"}
+              {actionLoading ? "Processing..." : `Confirm ${actionDialog?.type === "approve" ? "Approval" : "Rejection"}`}
             </Button>
           </DialogFooter>
         </DialogContent>

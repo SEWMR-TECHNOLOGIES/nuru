@@ -7,8 +7,11 @@ import {
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { authApi } from "@/lib/api/auth";
 import { VerifiedUserBadge } from '@/components/ui/verified-badge';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { NuruOfficialBadge, NuruOfficialCoverOverlay, NuruOfficialAvatarRing } from '@/components/ui/nuru-official-badge';
 import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import NuruLogo from '@/assets/nuru-logo.png';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import CameraIcon from '@/assets/icons/camera-icon.svg';
 import { Button } from "@/components/ui/button";
@@ -272,7 +275,7 @@ const UserProfile = () => {
   const initials = `${(currentUser.first_name || "U").charAt(0)}${(currentUser.last_name || "").charAt(0)}`.toUpperCase();
   const joinDate = currentUser.created_at ? formatDateMedium(currentUser.created_at) : "N/A";
   const isVerified = currentUser.is_identity_verified || verificationStep === "verified";
-
+  const isNuruOfficial = currentUser.username?.toLowerCase() === 'nuru';
   return (
     <div className="space-y-6">
       {/* Hidden avatar file input */}
@@ -295,25 +298,24 @@ const UserProfile = () => {
 
       {/* Profile Header - Premium Cover */}
       <Card className="overflow-hidden border-0 shadow-xl">
-        <div className="relative h-56 md:h-64">
-          {/* Multi-layered gradient cover */}
-          <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/90 to-accent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
-          
-          {/* Animated mesh pattern */}
-          <div className="absolute inset-0 opacity-[0.06]" style={{
-            backgroundImage: `radial-gradient(circle at 25% 25%, rgba(255,255,255,0.3) 1px, transparent 1px), radial-gradient(circle at 75% 75%, rgba(255,255,255,0.2) 1px, transparent 1px)`,
-            backgroundSize: '30px 30px, 20px 20px',
-          }} />
-          
-          {/* Large decorative blobs */}
-          <div className="absolute -top-20 -right-20 w-72 h-72 bg-primary-foreground/8 rounded-full blur-3xl" />
-          <div className="absolute -bottom-16 -left-16 w-56 h-56 bg-accent/20 rounded-full blur-3xl" />
-          <div className="absolute top-1/2 left-1/3 w-32 h-32 bg-primary-foreground/5 rounded-full blur-2xl" />
-          
-          {/* Subtle geometric accent lines */}
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary-foreground/20 to-transparent" />
-          <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-primary-foreground/10 to-transparent" />
+        <div className={`relative ${isNuruOfficial ? 'h-64 md:h-72' : 'h-56 md:h-64'}`}>
+          {isNuruOfficial ? (
+            <NuruOfficialCoverOverlay />
+          ) : (
+            <>
+              <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/90 to-accent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
+              <div className="absolute inset-0 opacity-[0.06]" style={{
+                backgroundImage: `radial-gradient(circle at 25% 25%, rgba(255,255,255,0.3) 1px, transparent 1px), radial-gradient(circle at 75% 75%, rgba(255,255,255,0.2) 1px, transparent 1px)`,
+                backgroundSize: '30px 30px, 20px 20px',
+              }} />
+              <div className="absolute -top-20 -right-20 w-72 h-72 bg-primary-foreground/8 rounded-full blur-3xl" />
+              <div className="absolute -bottom-16 -left-16 w-56 h-56 bg-accent/20 rounded-full blur-3xl" />
+              <div className="absolute top-1/2 left-1/3 w-32 h-32 bg-primary-foreground/5 rounded-full blur-2xl" />
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary-foreground/20 to-transparent" />
+              <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-primary-foreground/10 to-transparent" />
+            </>
+          )}
 
           {!isEditing && (
             <Button
@@ -335,12 +337,21 @@ const UserProfile = () => {
           <div className="flex flex-col md:flex-row gap-6 -mt-20 relative z-10 px-1">
             {/* Avatar with camera button */}
             <div className="relative flex-shrink-0 group">
-              <div className="p-1 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 shadow-2xl">
-                <Avatar className="w-32 h-32 border-4 border-background shadow-xl">
-                  <AvatarImage src={currentUser.avatar || undefined} alt={fullName} />
-                  <AvatarFallback className="text-2xl font-semibold bg-primary/10 text-primary">{initials}</AvatarFallback>
-                </Avatar>
-              </div>
+              {isNuruOfficial ? (
+                <NuruOfficialAvatarRing>
+                  <Avatar className="w-32 h-32 border-4 border-background shadow-xl">
+                    <AvatarImage src={currentUser.avatar || undefined} alt={fullName} />
+                    <AvatarFallback className="text-2xl font-semibold bg-primary/10 text-primary">{initials}</AvatarFallback>
+                  </Avatar>
+                </NuruOfficialAvatarRing>
+              ) : (
+                <div className="p-1 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 shadow-2xl">
+                  <Avatar className="w-32 h-32 border-4 border-background shadow-xl">
+                    <AvatarImage src={currentUser.avatar || undefined} alt={fullName} />
+                    <AvatarFallback className="text-2xl font-semibold bg-primary/10 text-primary">{initials}</AvatarFallback>
+                  </Avatar>
+                </div>
+              )}
 
               {/* Camera overlay */}
               <button
@@ -351,11 +362,6 @@ const UserProfile = () => {
                 <SvgIcon src={CameraIcon} alt="Camera" className="w-6 h-6" forceWhite />
               </button>
 
-              {isVerified && (
-                <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1.5 shadow-md border border-border">
-                  <ShieldCheck className="w-6 h-6 text-green-600" />
-                </div>
-              )}
             </div>
 
             <div className="flex-1 mt-14 md:mt-6">
@@ -401,8 +407,23 @@ const UserProfile = () => {
                 </div>
               ) : (
                 <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">{fullName} {isVerified && <VerifiedUserBadge size="md" />}</h1>
+                  <div className="flex items-center gap-3 mb-2 flex-wrap">
+                    <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                      {fullName}
+                      {isVerified && <VerifiedUserBadge size="md" />}
+                      {['mpinzile', 'mangowi'].includes(currentUser.username?.toLowerCase()) && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <img src={NuruLogo} alt="Nuru Creator" className="w-7 h-7 object-contain cursor-pointer" />
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="flex items-center gap-2 bg-card border-primary/20 px-3 py-2 rounded-lg shadow-lg">
+                            <img src={NuruLogo} alt="" className="w-4 h-4" />
+                            <span className="text-xs font-semibold text-foreground">Nuru Creator</span>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </h1>
+                    {isNuruOfficial && <NuruOfficialBadge size="md" />}
                   </div>
                   {currentUser.username && (
                     <p className="text-muted-foreground text-sm mb-2">@{currentUser.username}</p>
@@ -600,15 +621,15 @@ const UserProfile = () => {
                       <AlertCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
                       <div className="text-sm text-muted-foreground">
                         <p className="font-medium text-foreground mb-1">Documents Required</p>
-                        <p>Upload clear photos of your government-issued ID (front & back) and a selfie for verification.</p>
+                        <p>Upload a clear photo of the front of your government-issued ID. Back side and selfie are optional but recommended.</p>
                       </div>
                     </div>
                   </div>
 
                   {[
-                    { key: "id_front" as const, label: "ID Front", desc: "Front side of your national ID or passport" },
-                    { key: "id_back" as const, label: "ID Back", desc: "Back side of your national ID" },
-                    { key: "selfie" as const, label: "Selfie", desc: "A clear photo of your face" },
+                    { key: "id_front" as const, label: "ID Front", desc: "Front side of your national ID or passport", required: true },
+                    { key: "id_back" as const, label: "ID Back (optional)", desc: "Back side of your national ID", required: false },
+                    { key: "selfie" as const, label: "Selfie (optional)", desc: "A clear photo of your face", required: false },
                   ].map(slot => (
                     <div key={slot.key} className="border border-dashed border-border rounded-lg p-4">
                       <div className="flex items-center justify-between">
@@ -617,7 +638,7 @@ const UserProfile = () => {
                             {verifyFiles[slot.key] ? <FileText className="w-5 h-5 text-green-600" /> : <Upload className="w-5 h-5 text-muted-foreground" />}
                           </div>
                           <div>
-                            <p className="text-sm font-medium">{slot.label} {slot.key !== "selfie" && "*"}</p>
+                            <p className="text-sm font-medium">{slot.label} {slot.required && <span className="text-destructive">*</span>}</p>
                             <p className="text-xs text-muted-foreground">{verifyFiles[slot.key] ? verifyFiles[slot.key]!.name : slot.desc}</p>
                           </div>
                         </div>

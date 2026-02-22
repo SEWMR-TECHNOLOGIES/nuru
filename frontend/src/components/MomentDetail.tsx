@@ -134,6 +134,7 @@ const EchoItem = ({
     ? `${cUser.first_name} ${cUser.last_name || ''}`.trim()
     : cUser.name || cUser.username || 'User';
   const cAvatar = cUser.avatar || '';
+  const cVerified = cUser.is_identity_verified || cUser.is_verified || false;
   const isOwn = currentUser?.id === cUser.id;
 
   const maxDepth = 5;
@@ -212,9 +213,10 @@ const EchoItem = ({
         <UserAvatar src={cAvatar} name={cName} size={depth > 0 ? 'sm' : 'md'} />
         <div className="flex-1 min-w-0">
           {/* Comment bubble */}
-          <div className="bg-muted/50 rounded-2xl px-3 py-2 inline-block max-w-full">
+           <div className="bg-muted/50 rounded-2xl px-3 py-2 inline-block max-w-full">
             <div className="flex items-center gap-2">
               <span className="font-semibold text-xs md:text-sm">{cName}</span>
+              {cVerified && <VerifiedUserBadge size="xs" />}
             </div>
             {comment.content && (
               <p className="text-xs md:text-sm break-words whitespace-pre-wrap mt-0.5">{comment.content}</p>

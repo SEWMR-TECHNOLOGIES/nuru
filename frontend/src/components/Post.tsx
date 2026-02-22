@@ -4,6 +4,7 @@ import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import { Button } from '@/components/ui/button';
 import ShareMenu from '@/components/ShareMenu';
+import { VerifiedUserBadge } from '@/components/ui/verified-badge';
 import { useNavigate } from 'react-router-dom';
 import {
   Popover,
@@ -20,6 +21,7 @@ interface PostProps {
       name: string;
       avatar: string;
       timeAgo: string;
+      is_verified?: boolean;
     };
     // event and content may both exist; prefer event values but fallback to content
     event?: {
@@ -89,7 +91,10 @@ const Post = ({ post }: PostProps) => {
             className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover"
           />
           <div>
-            <h3 className="font-semibold text-sm md:text-base text-foreground">{post.author.name}</h3>
+            <h3 className="font-semibold text-sm md:text-base text-foreground flex items-center gap-1.5">
+              {post.author.name}
+              {post.author.is_verified && <VerifiedUserBadge size="xs" />}
+            </h3>
             <p className="text-xs md:text-sm text-muted-foreground">{post.author.timeAgo}</p>
           </div>
         </div>
