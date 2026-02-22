@@ -5,6 +5,7 @@ import {
   CheckCircle2, Clock, X, ZoomIn, Calendar, MapPin,
   Check, AlertCircle, HardDrive, Download
 } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

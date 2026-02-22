@@ -4,6 +4,7 @@ import {
   ChevronLeft, Zap,
   CheckCircle2, Globe, Lock, MapPin
 } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

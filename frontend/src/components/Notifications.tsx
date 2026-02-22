@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Heart, MessageCircle, UserPlus, Loader2, Briefcase, CheckCircle, ShieldCheck, Lock, AlertTriangle, ExternalLink } from 'lucide-react';
+import { Heart, MessageCircle, UserPlus, Users, Loader2, Briefcase, CheckCircle, ShieldCheck, Lock, AlertTriangle, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import BellIcon from '@/assets/icons/bell-icon.svg';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import IssueIcon from '@/assets/icons/issue-icon.svg';
 import NuruLogo from '@/assets/nuru-logo.png';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -14,13 +15,16 @@ import { getTimeAgo } from '@/utils/getTimeAgo';
 const getIcon = (type: string) => {
   switch (type) {
     case 'glow':
-      return <Heart className="w-4 h-4 text-red-500" />;
+      return <span className="text-sm">❤️</span>;
     case 'comment':
     case 'echo':
       return <MessageCircle className="w-4 h-4 text-blue-500" />;
     case 'follow':
-    case 'circle_add':
       return <UserPlus className="w-4 h-4 text-green-500" />;
+    case 'circle_add':
+    case 'circle_request':
+    case 'circle_accepted':
+      return <Users className="w-4 h-4 text-green-500" />;
     case 'event_invite':
     case 'committee_invite':
     case 'rsvp_received':
@@ -33,7 +37,7 @@ const getIcon = (type: string) => {
       return <CheckCircle className="w-4 h-4 text-emerald-500" />;
     case 'moment_view':
     case 'moment_reaction':
-      return <Heart className="w-4 h-4 text-pink-500" />;
+      return <span className="text-sm">❤️</span>;
     case 'content_removed':
     case 'post_removed':
     case 'moment_removed':
@@ -44,6 +48,11 @@ const getIcon = (type: string) => {
     case 'password_changed':
     case 'password_reset':
       return <Lock className="w-4 h-4 text-primary" />;
+    case 'issue_response':
+    case 'issue_resolved':
+    case 'issue_closed':
+    case 'issue_updated':
+      return <img src={IssueIcon} alt="Issue" className="w-4 h-4 dark:invert" />;
     default:
       return <img src={BellIcon} alt="Notification" className="w-4 h-4" />;
   }
@@ -103,6 +112,11 @@ const getNavigationTarget = (notification: any): string | null => {
     case 'circle_add':
       if (actorId) return `/u/${notification.actor?.username || actorId}`;
       break;
+    case 'circle_request':
+      return '/circle?tab=requests';
+    case 'circle_accepted':
+      if (actorId) return `/u/${notification.actor?.username || actorId}`;
+      break;
 
     // ── Content removal ──
     case 'content_removed':
@@ -132,6 +146,14 @@ const getNavigationTarget = (notification: any): string | null => {
       if (actorId) return `/u/${notification.actor?.username || actorId}`;
       break;
 
+    // ── Issue responses ──
+    case 'issue_response':
+    case 'issue_resolved':
+    case 'issue_closed':
+    case 'issue_updated':
+      if (refId && refType === 'issue') return `/my-issues?issue=${refId}`;
+      return '/my-issues';
+
     default:
       // Generic fallback: use reference_type to determine route
       if (refId) {
@@ -139,6 +161,7 @@ const getNavigationTarget = (notification: any): string | null => {
         if (refType === 'post') return `/post/${refId}`;
         if (refType === 'booking') return `/bookings/${refId}`;
         if (refType === 'service') return `/service/${refId}`;
+        if (refType === 'issue') return `/my-issues?issue=${refId}`;
         if (refType === 'user' && actorId) return `/u/${notification.actor?.username || actorId}`;
       }
       break;

@@ -147,7 +147,7 @@ export default function AdminPosts() {
                   )}
                   <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
-                      <Heart className="w-3.5 h-3.5" /> {post.glow_count ?? 0} glows
+                      <span className="text-xs">❤️</span> {post.glow_count ?? 0} glows
                     </span>
                     <span className="flex items-center gap-1">
                       <MessageCircle className="w-3.5 h-3.5" /> {post.echo_count ?? post.comment_count ?? 0} echoes

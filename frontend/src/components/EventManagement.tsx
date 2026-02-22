@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2, Images, ChevronDown } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
@@ -220,7 +221,7 @@ const EventManagement = () => {
                 }}
                 trigger={
                   <Button variant="outline" size="sm" className="gap-2">
-                    <img src={ShareIcon} alt="" className="w-4 h-4 dark:invert opacity-70" />
+                    <SvgIcon src={ShareIcon} alt="" className="w-4 h-4 opacity-70" />
                     Share to Feed
                   </Button>
                 }
@@ -232,7 +233,7 @@ const EventManagement = () => {
           </div>
         </div>
         <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-          <span className="flex items-center gap-2"><img src={CalendarIcon} alt="Calendar" className="w-4 h-4 flex-shrink-0" /><span className="truncate">{eventDate}</span></span>
+          <span className="flex items-center gap-2"><SvgIcon src={CalendarIcon} alt="Calendar" className="w-4 h-4 flex-shrink-0" /><span className="truncate">{eventDate}</span></span>
           {(() => {
             const countdown = getEventCountdown(apiEvent?.start_date);
             if (!countdown) return null;
@@ -242,7 +243,7 @@ const EventManagement = () => {
               </span>
             );
           })()}
-          <span className="flex items-center gap-2"><img src={LocationIcon} alt="Location" className="w-4 h-4 flex-shrink-0" /><span className="truncate">{eventLocation}</span></span>
+          <span className="flex items-center gap-2"><SvgIcon src={LocationIcon} alt="Location" className="w-4 h-4 flex-shrink-0" /><span className="truncate">{eventLocation}</span></span>
           <span className="flex items-center gap-2"><Users className="w-4 h-4 flex-shrink-0" /><span className="truncate">{expectedGuests} expected</span></span>
           <span className="flex items-center gap-2"><UserCheck className="w-4 h-4 flex-shrink-0" /><span className="truncate">{apiEvent?.confirmed_guest_count || 0} confirmed</span></span>
         </div>

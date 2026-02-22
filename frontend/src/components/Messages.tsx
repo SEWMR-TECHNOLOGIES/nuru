@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { X, Send, Plus, ChevronLeft, MessageCircle, Loader2, Search } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
 import CustomImageIcon from '@/assets/icons/image-icon.svg';
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';

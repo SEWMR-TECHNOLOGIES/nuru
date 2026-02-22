@@ -301,4 +301,25 @@ export const adminApi = {
     aPost<any>(`/admin/whatsapp/conversations/${conversationId}/send`, { content }),
   markWAConversationRead: (conversationId: string) =>
     aPut<any>(`/admin/whatsapp/conversations/${conversationId}/read`),
+
+  // Issues
+  getIssues: (params?: any) => {
+    const qs = new URLSearchParams();
+    if (params?.page)        qs.set("page",        params.page);
+    if (params?.limit)       qs.set("limit",       params.limit);
+    if (params?.status)      qs.set("status",      params.status);
+    if (params?.q)           qs.set("q",           params.q);
+    if (params?.category_id) qs.set("category_id", params.category_id);
+    return aGet<any>(`/admin/issues${qs.toString() ? `?${qs}` : ""}`);
+  },
+  getIssueDetail:       (id: string)                    => aGet<any>(`/admin/issues/${id}`),
+  replyToIssue:         (id: string, message: string)   => aPost<any>(`/admin/issues/${id}/reply`, { message }),
+  updateIssueStatus:    (id: string, status: string)    => aPut<any>(`/admin/issues/${id}/status`, { status }),
+  updateIssuePriority:  (id: string, priority: string)  => aPut<any>(`/admin/issues/${id}/priority`, { priority }),
+
+  // Issue Categories
+  getIssueCategories:    ()                      => aGet<any>("/admin/issue-categories"),
+  createIssueCategory:   (data: any)             => aPost<any>("/admin/issue-categories", data),
+  updateIssueCategory:   (id: string, data: any) => aPut<any>(`/admin/issue-categories/${id}`, data),
+  deleteIssueCategory:   (id: string)            => aDel<any>(`/admin/issue-categories/${id}`),
 };

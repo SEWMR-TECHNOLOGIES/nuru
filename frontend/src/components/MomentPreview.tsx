@@ -1,4 +1,5 @@
 import { Heart, MessageCircle } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import CustomImageIcon from '@/assets/icons/image-icon.svg';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -138,7 +139,7 @@ const MomentPreview = ({ text, previews, location, mediaFiles }: MomentPreviewPr
         {/* Engagement Preview */}
         <div className="flex items-center gap-4 mt-3 pt-3 border-t border-border/50 text-muted-foreground text-xs">
           <span className="flex items-center gap-1">
-            <Heart className="w-3.5 h-3.5" />
+            <span className="text-xs">❤️</span>
             Glow
           </span>
           <span className="flex items-center gap-1">

@@ -4,6 +4,7 @@ import SmartMedia from '@/components/SmartMedia';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Heart, Send, X, Loader2, CornerDownRight, ChevronDown, AlertTriangle } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import ShareMenu from '@/components/ShareMenu';
 import TicketIcon from '@/assets/icons/ticket-icon.svg';
@@ -251,7 +252,7 @@ const EchoItem = ({
             )}
             {glowCount > 0 && (
               <span className="flex items-center gap-0.5 text-muted-foreground">
-                <Heart className="w-3 h-3 fill-red-500 text-red-500" />
+                <span className="text-xs">❤️</span>
                 {glowCount}
               </span>
             )}
@@ -773,7 +774,7 @@ const MomentDetail = () => {
                 glowed ? 'bg-red-100 text-red-600' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
             >
-              <Heart className={`w-4 h-4 flex-shrink-0 ${glowed ? 'fill-current' : ''}`} />
+              <span className="text-sm flex-shrink-0">❤️</span>
               <span className="hidden sm:inline whitespace-nowrap">{glowed ? 'Glowed' : 'Glow'}</span>
             </button>
           </div>

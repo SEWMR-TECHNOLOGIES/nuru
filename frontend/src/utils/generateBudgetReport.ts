@@ -72,7 +72,7 @@ export const generateBudgetReportHtml = (data: BudgetReportData): string => {
 
   .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #111; padding-bottom: 20px; margin-bottom: 32px; }
   .brand { display: flex; flex-direction: column; }
-  .brand img { height: 36px; margin-bottom: 6px; }
+  .brand img { height: 36px; width: auto; object-fit: contain; margin-bottom: 6px; }
   .brand .tag { font-size: 10px; color: #888; letter-spacing: 1px; text-transform: uppercase; }
   .header-right { text-align: right; }
   .header-right h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }

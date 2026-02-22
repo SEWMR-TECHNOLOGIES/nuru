@@ -480,7 +480,41 @@
   }
 }
 
-/* Custom SVG icons: black in light mode, white in dark mode */
-.dark img[src*="/icons/"] {
-  filter: invert(1);
+/* Custom SVG icons: ensure black in light mode, white in dark mode.
+   Targets icon imports from assets/icons via multiple selectors to cover
+   both Vite dev paths (/src/assets/icons/xxx.svg) and prod hashed paths. */
+.icon-adaptive,
+img[src*="/icons/"],
+img[src*="icon-"][src$=".svg"] {
+  filter: brightness(0);
+}
+.dark .icon-adaptive,
+.dark img[src*="/icons/"],
+.dark img[src*="icon-"][src$=".svg"] {
+  filter: brightness(0) invert(1);
+}
+/* Force white icon on dark backgrounds regardless of theme */
+.icon-white,
+img.invert[src*="icon-"],
+img.invert[src*="/icons/"] {
+  filter: brightness(0) invert(1) !important;
+}
+/* Icons inside dark-bg containers (primary buttons, active tabs, etc.) */
+.icon-on-primary .icon-adaptive,
+.bg-primary .icon-adaptive,
+.bg-primary img[src*="icon-"],
+.bg-primary img[src*="/icons/"],
+[class*="bg-foreground"] .icon-adaptive,
+[class*="bg-foreground"] img[src*="icon-"],
+[class*="bg-foreground"] img[src*="/icons/"] {
+  filter: brightness(0) invert(1);
+}
+.dark .icon-on-primary .icon-adaptive,
+.dark .bg-primary .icon-adaptive,
+.dark .bg-primary img[src*="icon-"],
+.dark .bg-primary img[src*="/icons/"],
+.dark [class*="bg-foreground"] .icon-adaptive,
+.dark [class*="bg-foreground"] img[src*="icon-"],
+.dark [class*="bg-foreground"] img[src*="/icons/"] {
+  filter: brightness(0);
 }

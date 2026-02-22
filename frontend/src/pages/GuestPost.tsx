@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Heart, MessageCircle, MapPin } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -196,7 +197,7 @@ const GuestPost = () => {
           <div className="px-3 md:px-4 py-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
             <div className="flex gap-2 flex-wrap">
               <button onClick={handleAuthAction} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50 text-muted-foreground text-xs md:text-sm">
-                <Heart className="w-3.5 h-3.5 md:w-4 md:h-4" /> <span>Glow</span>
+                <span className="text-sm">❤️</span> <span>Glow</span>
               </button>
               <button onClick={handleAuthAction} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50 text-muted-foreground text-xs md:text-sm">
                 <MessageCircle className="w-3.5 h-3.5 md:w-4 md:h-4" /> <span>Echo</span>

@@ -107,7 +107,7 @@ const TrendingMoments = () => {
         </motion.div>
 
         {/* Masonry-style Grid */}
-        <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4">
+        <div className="columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-3 sm:gap-4 space-y-3 sm:space-y-4">
           {posts.map((post, index) => (
             <motion.div
               key={post.id}
@@ -154,7 +154,7 @@ const TrendingMoments = () => {
                     {/* Engagement stats on hover */}
                     <div className="absolute bottom-3 left-3 right-3 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-y-2 group-hover:translate-y-0">
                       <span className="flex items-center gap-1 text-white/90 text-xs font-medium">
-                        <Heart className="w-3.5 h-3.5" fill="currentColor" />
+                        <span className="text-xs">❤️</span>
                         {post.glow_count}
                       </span>
                       <span className="flex items-center gap-1 text-white/90 text-xs font-medium">

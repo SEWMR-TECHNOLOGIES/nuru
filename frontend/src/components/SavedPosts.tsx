@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Bookmark } from 'lucide-react';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { socialApi } from '@/lib/api/social';
@@ -33,23 +33,31 @@ const SavedPostsSkeleton = () => (
   </div>
 );
 
+// Module-level cache
+let _savedPostsCache: any[] = [];
+let _savedPostsHasLoaded = false;
+
 const SavedPosts = () => {
   useWorkspaceMeta({ title: 'Saved Posts', description: 'View your saved posts on Nuru.' });
 
-  const [posts, setPosts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [posts, setPosts] = useState<any[]>(_savedPostsCache);
+  const [loading, setLoading] = useState(!_savedPostsHasLoaded);
+  const initialLoad = useRef(!_savedPostsHasLoaded);
 
   useEffect(() => {
-    setLoading(true);
+    if (initialLoad.current) setLoading(true);
     socialApi.getSavedPosts()
       .then((res) => {
         if (res.success) {
           const data = res.data as any;
-          setPosts(data?.saved_posts || data?.posts || data?.items || (Array.isArray(data) ? data : []));
+          const list = data?.saved_posts || data?.posts || data?.items || (Array.isArray(data) ? data : []);
+          _savedPostsCache = list;
+          _savedPostsHasLoaded = true;
+          setPosts(list);
         }
       })
       .catch(() => toast.error('Failed to load saved posts'))
-      .finally(() => setLoading(false));
+      .finally(() => { setLoading(false); initialLoad.current = false; });
   }, []);
 
   const transformPost = (apiPost: any) => {

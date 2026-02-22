@@ -180,6 +180,11 @@ export const socialApi = {
   getCircleMembers: (circleId: string) => 
     get<{ members: UserProfile[] }>(`/circles/${circleId}/members`),
 
+  // Circle requests
+  getCircleRequests: () => get<any>("/circles/requests"),
+  acceptCircleRequest: (requestId: string) => put<any>(`/circles/requests/${requestId}/accept`),
+  rejectCircleRequest: (requestId: string) => put<any>(`/circles/requests/${requestId}/reject`),
+
   // ============================================================================
   // COMMUNITIES
   // ============================================================================

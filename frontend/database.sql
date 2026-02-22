@@ -288,6 +288,7 @@ CREATE TABLE IF NOT EXISTS user_circles (
     user_id uuid REFERENCES users(id) ON DELETE CASCADE,
     circle_member_id uuid REFERENCES users(id) ON DELETE CASCADE,
     mutual_friends_count integer DEFAULT 0,
+    status varchar(20) NOT NULL DEFAULT 'pending',
     created_at timestamp DEFAULT now(),
     updated_at timestamp DEFAULT now(),
     UNIQUE(user_id, circle_member_id)
@@ -2239,3 +2240,73 @@ CREATE TABLE wa_messages (
 CREATE INDEX idx_wa_messages_conversation ON wa_messages(conversation_id);
 CREATE INDEX idx_wa_messages_wa_id ON wa_messages(wa_message_id);
 CREATE INDEX idx_wa_messages_created ON wa_messages(created_at);
+
+-- ──────────────────────────────────────────────
+-- Issue Reporting System
+-- ──────────────────────────────────────────────
+CREATE TYPE issue_status_enum AS ENUM ('open', 'in_progress', 'resolved', 'closed');
+CREATE TYPE issue_priority_enum AS ENUM ('low', 'medium', 'high', 'critical');
+
+CREATE TABLE issue_categories (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    icon TEXT,
+    display_order INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE issues (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    category_id UUID NOT NULL REFERENCES issue_categories(id) ON DELETE RESTRICT,
+    subject TEXT NOT NULL,
+    description TEXT NOT NULL,
+    status issue_status_enum DEFAULT 'open',
+    priority issue_priority_enum DEFAULT 'medium',
+    screenshot_urls JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_issues_user ON issues(user_id);
+CREATE INDEX idx_issues_status ON issues(status);
+CREATE INDEX idx_issues_category ON issues(category_id);
+CREATE INDEX idx_issues_created ON issues(created_at DESC);
+
+CREATE TABLE issue_responses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    issue_id UUID NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+    responder_id UUID,
+    is_admin BOOLEAN DEFAULT false,
+    admin_name TEXT,
+    message TEXT NOT NULL,
+    attachments JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_issue_responses_issue ON issue_responses(issue_id);
+CREATE INDEX idx_issue_responses_created ON issue_responses(created_at);
+
+-- ──────────────────────────────────────────────
+-- Issue Categories Seed Data
+-- ──────────────────────────────────────────────
+INSERT INTO issue_categories (name, description, icon, display_order) VALUES
+('Account & Login', 'Issues with login, registration, password reset, or account access', 'UserX', 1),
+('Events', 'Problems creating, managing, or viewing events', 'CalendarX', 2),
+('Services', 'Issues with service listings, bookings, or provider features', 'BriefcaseX', 3),
+('Payments & Contributions', 'Payment failures, contribution errors, or financial discrepancies', 'CreditCard', 4),
+('Messaging', 'Problems with chat, conversations, or message delivery', 'MessageSquareX', 5),
+('Notifications', 'Missing, delayed, or incorrect notifications', 'BellOff', 6),
+('Invitations & RSVP', 'Issues with sending invitations or RSVP responses', 'MailX', 7),
+('NuruCards', 'NFC card orders, activation, or scanning issues', 'CreditCard', 8),
+('Ticketing', 'Ticket purchase, QR codes, or event entry issues', 'TicketX', 9),
+('Communities & Circles', 'Issues with community features, circles, or social connections', 'UsersX', 10),
+('Photos & Media', 'Problems uploading images, videos, or managing photo libraries', 'ImageOff', 11),
+('Feed & Posts', 'Issues with creating, viewing, or interacting with posts', 'Newspaper', 12),
+('Moments', 'Problems with creating or viewing moments/stories', 'Sparkles', 13),
+('Performance & Bugs', 'Slow loading, crashes, broken UI, or unexpected behavior', 'Bug', 14),
+('Feature Request', 'Suggestions for new features or improvements', 'Lightbulb', 15),
+('Other', 'Any issue not covered by the categories above', 'HelpCircle', 16);

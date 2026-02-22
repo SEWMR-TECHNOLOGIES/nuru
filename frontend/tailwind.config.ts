@@ -20,7 +20,7 @@ export default {
     },
     extend: {
       screens: {
-        tablet: "800px",
+        tablet: "1024px",
       },
       fontFamily: {
         sans: ["Inter", "sans-serif"], // Default font for public pages

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Download, Loader2 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
+import SvgIcon from '@/components/ui/svg-icon';
 import PrintIcon from '@/assets/icons/print-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';

@@ -3,6 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import SvgIcon from "@/components/ui/svg-icon";
 import CloseIcon from "@/assets/icons/close-icon.svg";
 
 const Sheet = SheetPrimitive.Root;

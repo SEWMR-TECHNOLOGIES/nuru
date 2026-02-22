@@ -152,7 +152,7 @@ function RemovedCard({ item, onAppealSubmitted }: { item: RemovedItem; onAppealS
       {/* Engagement stats */}
       {item.type === 'post' && (
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {item.glow_count ?? 0} glows</span>
+          <span className="flex items-center gap-1"><span className="text-xs">❤️</span> {item.glow_count ?? 0} glows</span>
           <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" /> {item.comment_count ?? 0} echoes</span>
           <span className="flex items-center gap-1"><RefreshCw className="w-3 h-3" /> {item.echo_count ?? 0} reposts</span>
         </div>

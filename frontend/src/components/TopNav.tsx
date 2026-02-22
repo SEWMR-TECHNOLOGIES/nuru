@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { Users, Search } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
 import HomeIcon from '@/assets/icons/home-icon.svg';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import ChatIcon from '@/assets/icons/chat-icon.svg';
@@ -38,7 +39,7 @@ const TopNav = () => {
               <>
                 <div className="relative">
                   {isCustom ? (
-                    <img
+                    <SvgIcon
                       src={Icon as string}
                       alt={label}
                       className={`w-6 h-6 transition-transform duration-200 ${isActive ? 'scale-110' : ''}`}

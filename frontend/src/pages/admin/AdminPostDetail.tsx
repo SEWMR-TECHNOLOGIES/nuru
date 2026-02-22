@@ -243,7 +243,7 @@ export default function AdminPostDetail() {
 
         {/* Live Stats */}
         <div className="flex items-center gap-5 mt-4 pt-3 border-t border-border text-sm text-muted-foreground">
-          <span className="flex items-center gap-1.5"><Heart className="w-4 h-4" /> {post.glow_count ?? 0} glows</span>
+          <span className="flex items-center gap-1.5"><span className="text-sm">❤️</span> {post.glow_count ?? 0} glows</span>
           <span className="flex items-center gap-1.5"><MessageCircle className="w-4 h-4" /> {totalEchoes} echoes</span>
           {post.location && <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4" /> {post.location}</span>}
         </div>

@@ -2,8 +2,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * Nuru Premium Verified Service Badge
- * A premium shield-based badge with golden accent for verified service providers.
- * Placed AFTER the service name consistently.
+ * A bespoke starburst-shield badge using Nuru's signature black-to-gold palette.
+ * The outer starburst radiates authority; the inner shield conveys trust.
  */
 export const VerifiedServiceBadge = ({
   size = "sm",
@@ -19,45 +19,51 @@ export const VerifiedServiceBadge = ({
       viewBox="0 0 24 24"
       fill="none"
       className={cn(dims, "flex-shrink-0", className)}
-      aria-label="Premium Verified Service"
+      aria-label="Nuru Verified Service"
       role="img"
     >
-      {/* Outer shield */}
+      {/* 12-point starburst — Nuru signature shape */}
       <path
-        d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7L12 2z"
-        fill="url(#serviceGradient)"
+        d="M12 0l2.35 4.13L19 2.6l-.4 4.75 4.65.95-3.05 3.6 3.05 3.6-4.65.95.4 4.75-4.65-1.53L12 24l-2.35-4.13L5 21.4l.4-4.75L.75 15.7l3.05-3.6L.75 8.5l4.65-.95L5 2.8l4.65 1.53z"
+        fill="url(#nuruServiceOuter)"
       />
-      {/* Inner glow */}
+      {/* Inner shield */}
       <path
-        d="M12 3.5L4.5 7.8v4.2c0 4.84 3.3 9.35 7.5 10.5 4.2-1.15 7.5-5.66 7.5-10.5V7.8L12 3.5z"
-        fill="url(#serviceInnerGradient)"
+        d="M12 5.5l-5 2.5v4c0 3.6 2.1 6.9 5 8 2.9-1.1 5-4.4 5-8V8z"
+        fill="url(#nuruServiceInner)"
+      />
+      {/* Gold rim on shield */}
+      <path
+        d="M12 5.5l-5 2.5v4c0 3.6 2.1 6.9 5 8 2.9-1.1 5-4.4 5-8V8z"
+        fill="none"
+        stroke="url(#nuruServiceRim)"
+        strokeWidth="0.5"
+        opacity="0.7"
       />
       {/* Checkmark */}
       <path
-        d="M9.5 12.5l2 2 3.5-4"
-        stroke="white"
+        d="M9.2 12.3l2 2 3.6-4"
+        stroke="hsl(51, 100%, 50%)"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
         fill="none"
       />
-      {/* Star accent at top */}
-      <circle cx="12" cy="6.5" r="1.2" fill="white" opacity="0.8" />
-      {/* Premium shimmer */}
-      <path
-        d="M6 8l1-1 1 1-1 1z"
-        fill="white"
-        opacity="0.4"
-      />
+      {/* Top sparkle accent */}
+      <circle cx="12" cy="2.8" r="0.7" fill="hsl(51, 100%, 65%)" opacity="0.9" />
       <defs>
-        <linearGradient id="serviceGradient" x1="3" y1="2" x2="21" y2="24" gradientUnits="userSpaceOnUse">
-          <stop stopColor="hsl(152, 69%, 42%)" />
-          <stop offset="0.5" stopColor="hsl(152, 80%, 38%)" />
-          <stop offset="1" stopColor="hsl(160, 70%, 30%)" />
+        <linearGradient id="nuruServiceOuter" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="hsl(0, 0%, 9%)" />
+          <stop offset="0.55" stopColor="hsl(0, 0%, 15%)" />
+          <stop offset="1" stopColor="hsl(51, 100%, 42%)" />
         </linearGradient>
-        <linearGradient id="serviceInnerGradient" x1="4.5" y1="3.5" x2="19.5" y2="22.5" gradientUnits="userSpaceOnUse">
-          <stop stopColor="hsl(152, 69%, 52%)" />
-          <stop offset="1" stopColor="hsl(152, 69%, 42%)" />
+        <linearGradient id="nuruServiceInner" x1="7" y1="5.5" x2="17" y2="20" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="hsl(0, 0%, 14%)" />
+          <stop offset="1" stopColor="hsl(0, 0%, 7%)" />
+        </linearGradient>
+        <linearGradient id="nuruServiceRim" x1="7" y1="5.5" x2="17" y2="20" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="hsl(51, 100%, 60%)" />
+          <stop offset="1" stopColor="hsl(51, 100%, 40%)" />
         </linearGradient>
       </defs>
     </svg>
@@ -66,8 +72,8 @@ export const VerifiedServiceBadge = ({
 
 /**
  * Nuru Premium Verified User Badge
- * A premium diamond/gem-based badge with golden ring for identity-verified users.
- * Placed AFTER the user's full name consistently.
+ * A bespoke hexagonal-gem badge with Nuru's black-to-gold palette.
+ * Angular faceted shape conveys exclusivity; the gold checkmark seals identity.
  */
 export const VerifiedUserBadge = ({
   size = "sm",
@@ -83,45 +89,45 @@ export const VerifiedUserBadge = ({
       viewBox="0 0 24 24"
       fill="none"
       className={cn(dims, "flex-shrink-0", className)}
-      aria-label="Premium Verified User"
+      aria-label="Nuru Verified User"
       role="img"
     >
-      {/* Hexagonal badge shape */}
+      {/* Outer 8-point star — angular, modern */}
       <path
-        d="M12 1l5.196 3v6L12 13 6.804 10V4L12 1z"
-        fill="url(#userGradientTop)"
-        transform="translate(0 2) scale(1.15) translate(-1.8 -1)"
+        d="M12 0l3.09 5.26L21 3l-2.26 5.91L24 12l-5.26 3.09L21 21l-5.91-2.26L12 24l-3.09-5.26L3 21l2.26-5.91L0 12l5.26-3.09L3 3l5.91 2.26z"
+        fill="url(#nuruUserOuter)"
       />
-      {/* Lower half for full badge */}
+      {/* Inner circle — the gem face */}
+      <circle cx="12" cy="12" r="6.8" fill="url(#nuruUserInner)" />
+      {/* Gold ring accent */}
+      <circle cx="12" cy="12" r="6.8" fill="none" stroke="url(#nuruUserRing)" strokeWidth="0.6" opacity="0.8" />
+      {/* Second inner ring for depth */}
+      <circle cx="12" cy="12" r="5.6" fill="none" stroke="hsl(25, 90%, 55%)" strokeWidth="0.3" opacity="0.3" />
+      {/* Checkmark in warm amber */}
       <path
-        d="M12 1l5.196 3v6L12 13 6.804 10V4L12 1z"
-        fill="url(#userGradientBottom)"
-        transform="rotate(180 12 12) translate(0 2) scale(1.15) translate(-1.8 -1)"
-      />
-      {/* Inner circle with golden ring */}
-      <circle cx="12" cy="12" r="6" fill="none" stroke="hsl(45, 90%, 60%)" strokeWidth="0.8" opacity="0.6" />
-      <circle cx="12" cy="12" r="5.5" fill="url(#userInnerGradient)" />
-      {/* Checkmark */}
-      <path
-        d="M9.2 12.2l1.8 1.8 3.2-3.6"
-        stroke="white"
+        d="M9 12.4l2 2 3.5-4"
+        stroke="hsl(25, 95%, 55%)"
         strokeWidth="1.8"
         strokeLinecap="round"
         strokeLinejoin="round"
         fill="none"
       />
+      {/* Top sparkle */}
+      <circle cx="12" cy="2.2" r="0.6" fill="hsl(25, 90%, 65%)" opacity="0.85" />
       <defs>
-        <linearGradient id="userGradientTop" x1="6.8" y1="1" x2="17.2" y2="13" gradientUnits="userSpaceOnUse">
-          <stop stopColor="hsl(217, 91%, 60%)" />
-          <stop offset="1" stopColor="hsl(217, 91%, 50%)" />
+        <linearGradient id="nuruUserOuter" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="hsl(0, 0%, 9%)" />
+          <stop offset="0.6" stopColor="hsl(15, 15%, 14%)" />
+          <stop offset="1" stopColor="hsl(25, 85%, 45%)" />
         </linearGradient>
-        <linearGradient id="userGradientBottom" x1="6.8" y1="1" x2="17.2" y2="13" gradientUnits="userSpaceOnUse">
-          <stop stopColor="hsl(217, 91%, 55%)" />
-          <stop offset="1" stopColor="hsl(217, 80%, 45%)" />
+        <linearGradient id="nuruUserInner" x1="5" y1="5" x2="19" y2="19" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="hsl(15, 10%, 14%)" />
+          <stop offset="0.5" stopColor="hsl(15, 8%, 9%)" />
+          <stop offset="1" stopColor="hsl(10, 5%, 6%)" />
         </linearGradient>
-        <linearGradient id="userInnerGradient" x1="6.5" y1="6.5" x2="17.5" y2="17.5" gradientUnits="userSpaceOnUse">
-          <stop stopColor="hsl(217, 91%, 55%)" />
-          <stop offset="1" stopColor="hsl(217, 91%, 45%)" />
+        <linearGradient id="nuruUserRing" x1="5.2" y1="5.2" x2="18.8" y2="18.8" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="hsl(25, 95%, 60%)" />
+          <stop offset="1" stopColor="hsl(25, 85%, 40%)" />
         </linearGradient>
       </defs>
     </svg>
@@ -140,7 +146,7 @@ export const VerifiedServiceBadgeWithLabel = ({
 }) => (
   <span className={cn("inline-flex items-center gap-1", className)}>
     <VerifiedServiceBadge size={size} />
-    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Premium Verified</span>
+    <span className="text-[10px] font-semibold text-accent-foreground/70">Nuru Verified</span>
   </span>
 );
 
@@ -153,6 +159,6 @@ export const VerifiedUserBadgeWithLabel = ({
 }) => (
   <span className={cn("inline-flex items-center gap-1", className)}>
     <VerifiedUserBadge size={size} />
-    <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400">Premium Verified</span>
+    <span className="text-[10px] font-semibold text-accent-foreground/70">Nuru Verified</span>
   </span>
 );

@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Loader2, Search, MapPin, ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
+import SvgIcon from '@/components/ui/svg-icon';
 import TicketIcon from "@/assets/icons/ticket-icon.svg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,12 +15,18 @@ import { toast } from "sonner";
 import { motion } from "framer-motion";
 import CountdownClock from "@/components/CountdownClock";
 
+// Module-level cache
+let _browseEventsCache: any[] = [];
+let _browseEventsPagination: any = null;
+let _browseEventsHasLoaded = false;
+
 const BrowseTickets = () => {
   const navigate = useNavigate();
-  const [events, setEvents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [events, setEvents] = useState<any[]>(_browseEventsCache);
+  const [loading, setLoading] = useState(!_browseEventsHasLoaded);
+  const initialLoad = useRef(!_browseEventsHasLoaded);
   const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState<any>(null);
+  const [pagination, setPagination] = useState<any>(_browseEventsPagination);
   const [searchQuery, setSearchQuery] = useState("");
 
   // Purchase flow
@@ -34,16 +41,23 @@ const BrowseTickets = () => {
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const loadEvents = async (p = 1, search = "") => {
-    setLoading(true);
+    if (initialLoad.current) setLoading(true);
     try {
       const res = await ticketingApi.getTicketedEvents({ page: p, limit: 12, search: search || undefined });
       if (res.success && res.data) {
         const data = res.data as any;
-        setEvents(data.events || []);
+        const evts = data.events || [];
+        // Only cache first page with no search
+        if (p === 1 && !search) {
+          _browseEventsCache = evts;
+          _browseEventsPagination = data.pagination || null;
+          _browseEventsHasLoaded = true;
+        }
+        setEvents(evts);
         setPagination(data.pagination || null);
       }
     } catch {}
-    finally { setLoading(false); }
+    finally { setLoading(false); initialLoad.current = false; }
   };
 
   useEffect(() => { loadEvents(page, debouncedSearch); }, [page, debouncedSearch]);

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ticketingApi } from "@/lib/api/ticketing";
 import type { TicketClass as TicketClassType } from "@/lib/api/ticketing";
 import { X, ChevronLeft, Upload, MapPin } from "lucide-react";
+import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import aiIcon from '@/assets/icons/ai-icon.svg';
 import MapLocationPicker from "@/components/MapLocationPicker";

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Star, Loader2, SlidersHorizontal, X, ChevronRight, MapPin, SearchX, LocateFixed } from 'lucide-react';
 import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
+import SvgIcon from '@/components/ui/svg-icon';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

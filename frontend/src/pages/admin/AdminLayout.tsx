@@ -35,6 +35,8 @@ const navItems = [
   { label: "Notifications", icon: Bell, to: "/admin/notifications" },
   { label: "Admin Accounts", icon: UserCog, to: "/admin/admins" },
   { label: "Analytics", icon: BarChart3, to: "/admin/analytics" },
+  { label: "User Issues", icon: AlertTriangle, to: "/admin/issues" },
+  { label: "Issue Categories", icon: Tag, to: "/admin/issue-categories" },
 ];
 
 export default function AdminLayout() {

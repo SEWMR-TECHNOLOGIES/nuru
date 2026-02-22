@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { User, Lock, Globe, Moon, Loader2 } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
 import BellIcon from '@/assets/icons/bell-icon.svg';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Users, UserPlus, UserMinus, Loader2, 
   Link as LinkIcon, Briefcase, Star
 } from 'lucide-react';
 import { VerifiedUserBadge, VerifiedServiceBadge } from '@/components/ui/verified-badge';
+import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import CameraIcon from '@/assets/icons/camera-icon.svg';
@@ -18,8 +19,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { motion } from 'framer-motion';
 import { profileApi } from '@/lib/api/profile';
 import { searchApi } from '@/lib/api/search';
+import { socialApi } from '@/lib/api/social';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
+import { useCircles } from '@/data/useSocial';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
 import { formatDateMedium } from '@/utils/formatDate';
@@ -51,13 +54,17 @@ interface PublicUser {
 const PublicProfile = () => {
   const { username } = useParams<{ username: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { data: currentUser } = useCurrentUser();
+  const showAddToCircle = searchParams.get('from') === 'add';
   
   const [user, setUser] = useState<PublicUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [followLoading, setFollowLoading] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
+  const [circleLoading, setCircleLoading] = useState(false);
+  const [circleRequestSent, setCircleRequestSent] = useState(false);
   
   const [events, setEvents] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
@@ -195,19 +202,56 @@ const PublicProfile = () => {
     }
   };
 
+  const handleAddToCircle = async () => {
+    if (!user) return;
+    setCircleLoading(true);
+    try {
+      // Use the circle API directly
+      const res = await socialApi.addCircleMember('me', user.id);
+      if (res.success) {
+        setCircleRequestSent(true);
+        toast.success(`Circle request sent to ${user.first_name}`);
+      } else {
+        toast.error((res as any).message || 'Failed to send request');
+      }
+    } catch (err: any) {
+      showCaughtError(err, 'Failed to send circle request');
+    } finally {
+      setCircleLoading(false);
+    }
+  };
+
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto space-y-6">
-        <Skeleton className="h-44 w-full rounded-2xl" />
-        <div className="flex gap-4 -mt-10 px-6">
-          <Skeleton className="w-24 h-24 rounded-full" />
-          <div className="flex-1 mt-10 space-y-2">
-            <Skeleton className="h-6 w-40" />
-            <Skeleton className="h-4 w-28" />
-          </div>
-        </div>
-        <div className="grid grid-cols-4 gap-3">
-          {[1,2,3,4].map(i => <Skeleton key={i} className="h-16 rounded-lg" />)}
+      <div className="space-y-6">
+        {/* Cover skeleton */}
+        <Card className="overflow-hidden border-0 shadow-xl">
+          <Skeleton className="h-56 md:h-64 w-full rounded-none" />
+          <CardContent className="pt-0 pb-6">
+            <div className="flex flex-col md:flex-row gap-6 -mt-20 relative z-10 px-1">
+              <Skeleton className="w-[136px] h-[136px] rounded-full flex-shrink-0" />
+              <div className="flex-1 mt-14 md:mt-6 space-y-2">
+                <Skeleton className="h-7 w-48" />
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-4 w-64 mt-2" />
+                <div className="flex gap-4 mt-3">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-28" />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        {/* Stats skeleton */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1,2,3,4].map(i => (
+            <Card key={i} className="border-0 shadow-sm">
+              <CardContent className="p-4 text-center space-y-2">
+                <Skeleton className="h-7 w-10 mx-auto" />
+                <Skeleton className="h-3 w-16 mx-auto" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </div>
     );
@@ -231,119 +275,150 @@ const PublicProfile = () => {
   const joinDate = user.created_at ? formatDateMedium(user.created_at) : null;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
-      {/* Cover + Avatar */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative"
-      >
-        <div className="h-40 sm:h-48 rounded-2xl overflow-hidden relative">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/80 to-accent" />
+    <div className="space-y-6">
+      {/* Profile Header — Premium Cover (matches UserProfile) */}
+      <Card className="overflow-hidden border-0 shadow-xl">
+        <div className="relative h-56 md:h-64">
+          {/* Multi-layered gradient cover */}
+          <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/90 to-accent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
+
+          {/* Animated mesh pattern */}
           <div className="absolute inset-0 opacity-[0.06]" style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23fff' fill-opacity='0.4' fill-rule='evenodd'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40'/%3E%3C/g%3E%3C/svg%3E")`,
+            backgroundImage: `radial-gradient(circle at 25% 25%, rgba(255,255,255,0.3) 1px, transparent 1px), radial-gradient(circle at 75% 75%, rgba(255,255,255,0.2) 1px, transparent 1px)`,
+            backgroundSize: '30px 30px, 20px 20px',
           }} />
-          <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary-foreground/5 rounded-full blur-2xl" />
-        </div>
 
-        {/* Avatar */}
-        <div className="absolute -bottom-12 left-5 sm:left-6">
-          <Avatar className="w-24 h-24 sm:w-28 sm:h-28 border-4 border-background shadow-xl">
-            <AvatarImage src={user.avatar || undefined} alt={fullName} />
-            <AvatarFallback className="text-2xl font-bold bg-primary/10 text-primary">{initials}</AvatarFallback>
-          </Avatar>
-        </div>
+          {/* Large decorative blobs */}
+          <div className="absolute -top-20 -right-20 w-72 h-72 bg-primary-foreground/8 rounded-full blur-3xl" />
+          <div className="absolute -bottom-16 -left-16 w-56 h-56 bg-accent/20 rounded-full blur-3xl" />
+          <div className="absolute top-1/2 left-1/3 w-32 h-32 bg-primary-foreground/5 rounded-full blur-2xl" />
 
-        {/* Follow / Unfollow button - only for other users */}
-        {!isOwnProfile && (
-          <div className="absolute -bottom-6 right-4 sm:right-6">
-            <Button
-              onClick={handleFollow}
-              disabled={followLoading}
-              variant={isFollowing ? 'outline' : 'default'}
-              size="sm"
-              className="gap-1.5 rounded-full px-5 shadow-md"
-            >
-              {followLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : isFollowing ? (
-                <UserMinus className="w-4 h-4" />
-              ) : (
-                <UserPlus className="w-4 h-4" />
+          {/* Subtle geometric accent lines */}
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary-foreground/20 to-transparent" />
+          <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-primary-foreground/10 to-transparent" />
+
+          {/* Follow / Add to Circle buttons */}
+          {!isOwnProfile && (
+            <div className="absolute top-4 right-4 flex gap-2">
+              {showAddToCircle && (
+                <Button
+                  onClick={handleAddToCircle}
+                  disabled={circleLoading || circleRequestSent}
+                  variant="secondary"
+                  size="sm"
+                  className="gap-1.5 rounded-full px-4 shadow-lg backdrop-blur-md bg-background/70 hover:bg-background/90 border border-border/50"
+                >
+                  {circleLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Users className="w-4 h-4" />
+                  )}
+                  {circleRequestSent ? 'Request Sent' : 'Add to Circle'}
+                </Button>
               )}
-              {isFollowing ? 'Unfollow' : 'Follow'}
-            </Button>
+              <Button
+                onClick={handleFollow}
+                disabled={followLoading}
+                variant={isFollowing ? 'secondary' : 'default'}
+                size="sm"
+                className="gap-1.5 rounded-full px-5 shadow-lg backdrop-blur-md"
+              >
+                {followLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : isFollowing ? (
+                  <UserMinus className="w-4 h-4" />
+                ) : (
+                  <UserPlus className="w-4 h-4" />
+                )}
+                {isFollowing ? 'Unfollow' : 'Follow'}
+              </Button>
+            </div>
+          )}
+
+          {/* Bottom gradient for text readability */}
+          <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-card to-transparent" />
+        </div>
+
+        <CardContent className="pt-0 pb-6">
+          <div className="flex flex-col md:flex-row gap-6 -mt-20 relative z-10 px-1">
+            {/* Avatar with gradient ring */}
+            <div className="relative flex-shrink-0">
+              <div className="p-1 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 shadow-2xl">
+                <Avatar className="w-32 h-32 border-4 border-background shadow-xl">
+                  <AvatarImage src={user.avatar || undefined} alt={fullName} />
+                  <AvatarFallback className="text-2xl font-semibold bg-primary/10 text-primary">{initials}</AvatarFallback>
+                </Avatar>
+              </div>
+            </div>
+
+            <div className="flex-1 mt-14 md:mt-6">
+              <div className="flex items-center gap-3 mb-1">
+                <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                  {fullName}
+                  {user.is_identity_verified && <VerifiedUserBadge size="md" />}
+                </h1>
+                {user.is_vendor && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-semibold text-primary">
+                    <Briefcase className="w-3 h-3" /> Vendor
+                  </span>
+                )}
+              </div>
+              <p className="text-muted-foreground text-sm mb-2">@{user.username}</p>
+
+              {user.bio && (
+                <p className="text-muted-foreground mb-4 max-w-lg">{user.bio}</p>
+              )}
+
+              {/* Meta row */}
+              <div className="flex flex-wrap items-center gap-5 text-sm text-muted-foreground">
+                {user.location && (
+                  <span className="flex items-center gap-1.5">
+                    <SvgIcon src={LocationIcon} alt="" className="w-4 h-4" /> {user.location}
+                  </span>
+                )}
+                {joinDate && (
+                  <span className="flex items-center gap-1.5">
+                    <SvgIcon src={CalendarIcon} alt="" className="w-4 h-4" /> Joined {joinDate}
+                  </span>
+                )}
+                {user.website && (
+                  <a
+                    href={user.website.startsWith('http') ? user.website : `https://${user.website}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-primary hover:underline"
+                  >
+                    <LinkIcon className="w-4 h-4" />
+                    {user.website.replace(/^https?:\/\//, '')}
+                  </a>
+                )}
+              </div>
+
+              {/* Follows you badge & mutual count */}
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                {!isOwnProfile && user.is_followed_by && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-[10px] font-medium text-accent-foreground">
+                    <Users className="w-3 h-3" /> Follows you
+                  </span>
+                )}
+                {!isOwnProfile && (user.mutual_followers_count ?? 0) > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-[10px] text-muted-foreground">
+                    <Star className="w-3 h-3" /> {user.mutual_followers_count} mutual{user.mutual_followers_count! > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
-        )}
-      </motion.div>
-
-      {/* User Info */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.1 }}
-        className="pt-10 px-1"
-      >
-        <div className="flex items-center gap-2 mb-0.5">
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">{fullName} {user.is_identity_verified && <VerifiedUserBadge size="md" />}</h1>
-          {user.is_vendor && (
-             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-semibold text-primary">
-               <Briefcase className="w-3 h-3" /> Vendor
-             </span>
-          )}
-        </div>
-        <p className="text-muted-foreground text-sm mb-2">@{user.username}</p>
-
-        {user.bio && (
-          <p className="text-foreground/90 text-sm leading-relaxed mb-3 max-w-lg">{user.bio}</p>
-        )}
-
-        {/* Meta row */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-1">
-          {user.location && (
-            <span className="flex items-center gap-1">
-              <img src={LocationIcon} alt="" className="w-3.5 h-3.5" /> {user.location}
-            </span>
-          )}
-          {joinDate && (
-            <span className="flex items-center gap-1">
-              <img src={CalendarIcon} alt="" className="w-3.5 h-3.5" /> Joined {joinDate}
-            </span>
-          )}
-          {user.website && (
-            <a
-              href={user.website.startsWith('http') ? user.website : `https://${user.website}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-primary hover:underline"
-            >
-              <LinkIcon className="w-3.5 h-3.5" />
-              {user.website.replace(/^https?:\/\//, '')}
-            </a>
-          )}
-        </div>
-
-        {/* Follows you badge & mutual count */}
-        <div className="flex flex-wrap items-center gap-2 mt-1">
-          {!isOwnProfile && user.is_followed_by && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-[10px] font-medium text-accent-foreground">
-              <Users className="w-3 h-3" /> Follows you
-            </span>
-          )}
-          {!isOwnProfile && (user.mutual_followers_count ?? 0) > 0 && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-[10px] text-muted-foreground">
-              <Star className="w-3 h-3" /> {user.mutual_followers_count} mutual{user.mutual_followers_count! > 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-      </motion.div>
+        </CardContent>
+      </Card>
 
       {/* Stats */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
-        className="grid grid-cols-4 gap-2 sm:gap-3"
+        className="grid grid-cols-2 md:grid-cols-4 gap-4"
       >
         {[
           { label: 'Followers', value: followerCount },
@@ -351,10 +426,10 @@ const PublicProfile = () => {
           { label: 'Events', value: user.event_count ?? 0 },
           { label: 'Moments', value: user.post_count ?? user.moments_count ?? 0 },
         ].map(stat => (
-          <Card key={stat.label} className="border-0 shadow-sm">
-            <CardContent className="p-3 text-center">
-              <div className="text-lg sm:text-xl font-bold text-primary">{stat.value}</div>
-              <div className="text-[10px] sm:text-xs text-muted-foreground">{stat.label}</div>
+          <Card key={stat.label} className="border-0 shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-primary">{stat.value}</div>
+              <div className="text-xs text-muted-foreground mt-1">{stat.label}</div>
             </CardContent>
           </Card>
         ))}
@@ -371,8 +446,8 @@ const PublicProfile = () => {
             activeTab={profileTab}
             onTabChange={setProfileTab}
             tabs={[
-              { value: 'moments', label: 'Moments', icon: <img src={CameraIcon} alt="" className="w-4 h-4" /> },
-              { value: 'events', label: 'Events', icon: <img src={CalendarIcon} alt="" className="w-4 h-4" /> },
+              { value: 'moments', label: 'Moments', icon: <SvgIcon src={CameraIcon} alt="" className="w-4 h-4" /> },
+              { value: 'events', label: 'Events', icon: <SvgIcon src={CalendarIcon} alt="" className="w-4 h-4" /> },
               ...(user.is_vendor ? [{ value: 'services', label: 'Services', icon: <Briefcase className="w-4 h-4" /> }] : []),
             ]}
           />
@@ -384,7 +459,7 @@ const PublicProfile = () => {
                 {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="aspect-square rounded-xl" />)}
               </div>
             ) : posts.length === 0 ? (
-              <EmptyState icon={<img src={CameraIcon} alt="" className="w-8 h-8 opacity-40" />} text="No public moments yet" />
+              <EmptyState icon={<SvgIcon src={CameraIcon} alt="" className="w-8 h-8 opacity-40" />} text="No public moments yet" />
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {posts.map(post => (
@@ -433,7 +508,7 @@ const PublicProfile = () => {
                 {[1,2].map(i => <Skeleton key={i} className="h-32 rounded-xl" />)}
               </div>
             ) : events.length === 0 ? (
-              <EmptyState icon={<img src={CalendarIcon} alt="" className="w-8 h-8 opacity-40" />} text="No published events" />
+              <EmptyState icon={<SvgIcon src={CalendarIcon} alt="" className="w-8 h-8 opacity-40" />} text="No published events" />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {events.map(event => (
@@ -459,13 +534,13 @@ const PublicProfile = () => {
                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
                               {event.start_date && (
                                 <span className="flex items-center gap-0.5">
-                                  <img src={CalendarIcon} alt="" className="w-3 h-3" />
+                                  <SvgIcon src={CalendarIcon} alt="" className="w-3 h-3" />
                                   {new Date(event.start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                                 </span>
                               )}
                               {event.location && (
                                 <span className="flex items-center gap-0.5 truncate">
-                                  <img src={LocationIcon} alt="" className="w-3 h-3" />
+                                  <SvgIcon src={LocationIcon} alt="" className="w-3 h-3" />
                                   {event.venue || event.location}
                                 </span>
                               )}

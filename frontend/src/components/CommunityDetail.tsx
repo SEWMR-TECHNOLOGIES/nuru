@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Users, Crown, Plus, Loader2, Heart, Send, X, Search, Trash2, Camera } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
 import CustomImageIcon from '@/assets/icons/image-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -502,7 +503,7 @@ const CommunityDetail = () => {
                           post.has_glowed ? 'bg-red-100 text-red-600' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
                         }`}
                       >
-                        <Heart className={`w-4 h-4 flex-shrink-0 ${post.has_glowed ? 'fill-current' : ''}`} />
+                        <span className="text-sm flex-shrink-0">❤️</span>
                         <span className="hidden sm:inline whitespace-nowrap">{post.has_glowed ? 'Glowed' : 'Glow'}</span>
                       </button>
                     </div>

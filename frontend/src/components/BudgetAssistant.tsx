@@ -10,6 +10,7 @@ import remarkGfm from 'remark-gfm';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import SvgIcon from '@/components/ui/svg-icon';
 import closeIcon from '@/assets/icons/close-icon.svg';
 import aiIcon from '@/assets/icons/ai-icon.svg';
 import { generateBudgetReportHtml } from '@/utils/generateBudgetReport';

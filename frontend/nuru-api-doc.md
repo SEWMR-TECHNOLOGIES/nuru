@@ -15525,3 +15525,98 @@ All OTP inputs across the platform now use consistent styling: `w-12 h-14 text-x
 **Status Indicators:** ✓ Sent → ✓✓ Delivered → ✓✓ Read (blue)
 
 ---
+
+## 📋 Issue Reporting System
+
+### Database Tables
+
+**`issue_categories`** — Predefined categories for issue classification
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | Primary key |
+| name | TEXT | Unique category name |
+| description | TEXT | Category description |
+| icon | TEXT | Lucide icon name |
+| display_order | INTEGER | Sort order |
+| is_active | BOOLEAN | Whether category is active |
+| created_at | TIMESTAMPTZ | Created timestamp |
+| updated_at | TIMESTAMPTZ | Updated timestamp |
+
+**`issues`** — User-submitted issues
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | Primary key |
+| user_id | UUID | FK to users |
+| category_id | UUID | FK to issue_categories |
+| subject | TEXT | Issue subject line |
+| description | TEXT | Detailed description |
+| status | ENUM(open, in_progress, resolved, closed) | Current status |
+| priority | ENUM(low, medium, high, critical) | Priority level |
+| screenshot_urls | JSONB | Array of screenshot URLs |
+| created_at | TIMESTAMPTZ | Created timestamp |
+| updated_at | TIMESTAMPTZ | Updated timestamp |
+
+**`issue_responses`** — Threaded responses on issues
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | Primary key |
+| issue_id | UUID | FK to issues |
+| responder_id | UUID | User or admin ID |
+| is_admin | BOOLEAN | Whether response is from admin |
+| admin_name | TEXT | Admin display name |
+| message | TEXT | Response message |
+| attachments | JSONB | Array of attachment URLs |
+| created_at | TIMESTAMPTZ | Created timestamp |
+
+### User Endpoints (Auth Required)
+
+`GET /issues/categories` — List active issue categories
+- Response: `{ success, data: [{ id, name, description, icon, display_order }] }`
+
+`GET /issues/` — List user's submitted issues
+- Query: `?page=1&limit=20&status=open`
+- Response: `{ success, data: { issues: [...], summary: { total, open, in_progress, resolved } } }`
+
+`GET /issues/{issue_id}` — Get issue detail with responses
+- Response: `{ success, data: { id, subject, description, status, priority, category, screenshot_urls, responses: [...], created_at } }`
+
+`POST /issues/` — Submit a new issue
+- Body: `{ category_id, subject, description, priority?, screenshot_urls? }`
+- Response: `{ success, data: { id, subject, status } }`
+
+`POST /issues/{issue_id}/reply` — Reply to an issue
+- Body: `{ message }`
+- Response: `{ success, data: { id } }`
+
+`PUT /issues/{issue_id}/close` — Close an issue
+- Response: `{ success, message }`
+
+### Admin Endpoints (Admin Auth Required)
+
+`GET /admin/issues` — List all issues with filtering
+- Query: `?page=1&limit=20&status=open&priority=high&search=keyword`
+- Response: `{ success, data: { items: [...], total, page, pages, counts: { total, open, in_progress, resolved, closed } } }`
+
+`GET /admin/issues/{issue_id}` — Get issue detail with user info and responses
+- Response: `{ success, data: { id, subject, description, status, priority, category, user, responses, screenshot_urls, created_at } }`
+
+`POST /admin/issues/{issue_id}/reply` — Admin reply to an issue
+- Body: `{ message }`
+- Response: `{ success, data: { id } }`
+
+`PUT /admin/issues/{issue_id}/status` — Update issue status/priority
+- Body: `{ status?, priority? }`
+- Response: `{ success, message }`
+
+`GET /admin/issue-categories` — List all categories (including inactive)
+- Response: `{ success, data: [...] }`
+
+`POST /admin/issue-categories` — Create a new category
+- Body: `{ name, description?, icon?, display_order? }`
+
+`PUT /admin/issue-categories/{id}` — Update a category
+- Body: `{ name?, description?, icon?, display_order?, is_active? }`
+
+`DELETE /admin/issue-categories/{id}` — Delete a category (fails if issues exist)
+
+---

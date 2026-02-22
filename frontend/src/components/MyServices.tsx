@@ -1,9 +1,13 @@
 import { useNavigate } from 'react-router-dom';
 import { formatPrice } from '@/utils/formatPrice';
-import { Star, CheckCircle, Users, Plus, Edit, Eye, Package, Loader2, Camera, MapPin, ChevronRight, BookOpen, Upload, Trash2, X, ImagePlus, Video, Music } from 'lucide-react';
+import { Star, CheckCircle, Users, Plus, Edit, Loader2, Camera, MapPin, ChevronRight, BookOpen, Upload, Trash2, X, Music } from 'lucide-react';
 import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
+import SvgIcon from '@/components/ui/svg-icon';
 import CalendarSVG from '@/assets/icons/calendar-icon.svg';
 import PhotosSVG from '@/assets/icons/photos-icon.svg';
+import ViewSVG from '@/assets/icons/view-icon.svg';
+import PackageSVG from '@/assets/icons/package-icon.svg';
+import VideoSVG from '@/assets/icons/video-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -236,7 +240,7 @@ const MyServices = () => {
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Services', value: services.length, icon: <Package className="w-5 h-5" />, color: 'text-primary', bg: 'bg-primary/10' },
+          { label: 'Services', value: services.length, icon: <img src={PackageSVG} alt="" className="w-5 h-5 dark:invert" />, color: 'text-primary', bg: 'bg-primary/10' },
           { label: 'Avg Rating', value: summary?.average_rating != null && summary.average_rating > 0 ? Number(summary.average_rating).toFixed(1) : '–', icon: <Star className="w-5 h-5" />, color: 'text-yellow-600', bg: 'bg-yellow-100 dark:bg-yellow-900/30' },
           { label: 'Total Reviews', value: summary?.total_reviews ?? services.reduce((s, x) => s + (x.review_count || 0), 0), icon: <Users className="w-5 h-5" />, color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900/30' },
           { label: 'Completed Events', value: services.reduce((s, x) => s + (x.completed_events || 0), 0), icon: <CheckCircle className="w-5 h-5" />, color: 'text-green-600', bg: 'bg-green-100 dark:bg-green-900/30' },
@@ -318,7 +322,7 @@ const MyServices = () => {
                   <div className="absolute bottom-3 left-3 flex gap-2">
                     <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white text-foreground shadow"
                       onClick={() => navigate(`/service/${service.id}`)}>
-                      <Eye className="w-3.5 h-3.5 mr-1.5" /> View
+                      <img src={ViewSVG} alt="" className="w-3.5 h-3.5 mr-1.5 dark:invert" /> View
                     </Button>
                     {service.verification_status !== 'verified' && (
                       <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white text-foreground shadow"
@@ -329,16 +333,16 @@ const MyServices = () => {
                     {isVerified && (
                       <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white text-foreground shadow"
                         onClick={() => handleAddPackage(service.id)}>
-                        <Package className="w-3.5 h-3.5 mr-1.5" /> Package
+                        <img src={PackageSVG} alt="" className="w-3.5 h-3.5 mr-1.5 dark:invert" /> Package
                       </Button>
                     )}
                     <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white text-foreground shadow"
                       onClick={() => setImageDialogService(service)}>
-                      <ImagePlus className="w-3.5 h-3.5 mr-1.5" /> Photos
+                      <img src={PhotosSVG} alt="" className="w-3.5 h-3.5 mr-1.5 dark:invert" /> Photos
                     </Button>
                     <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white text-foreground shadow"
                       onClick={() => openMediaDialog(service)}>
-                      <Video className="w-3.5 h-3.5 mr-1.5" /> Intro Clip
+                      <img src={VideoSVG} alt="" className="w-3.5 h-3.5 mr-1.5 dark:invert" /> Intro Clip
                     </Button>
                   </div>
                 </div>
@@ -350,7 +354,7 @@ const MyServices = () => {
                   {images.length === 0 && (
                     <div className="flex gap-2 flex-wrap mb-2">
                       <Button size="sm" variant="outline" onClick={() => navigate(`/service/${service.id}`)}>
-                        <Eye className="w-3.5 h-3.5 mr-1.5" /> View
+                        <img src={ViewSVG} alt="" className="w-3.5 h-3.5 mr-1.5 dark:invert" /> View
                       </Button>
                       {service.verification_status !== 'verified' && (
                         <Button size="sm" variant="outline" onClick={() => navigate(`/services/edit/${service.id}`)}>
@@ -359,14 +363,14 @@ const MyServices = () => {
                       )}
                       {isVerified && (
                         <Button size="sm" variant="outline" onClick={() => handleAddPackage(service.id)}>
-                          <Package className="w-3.5 h-3.5 mr-1.5" /> Add Package
+                          <img src={PackageSVG} alt="" className="w-3.5 h-3.5 mr-1.5 dark:invert" /> Add Package
                         </Button>
                       )}
                       <Button size="sm" variant="outline" onClick={() => setImageDialogService(service)}>
-                        <ImagePlus className="w-3.5 h-3.5 mr-1.5" /> Photos
+                        <img src={PhotosSVG} alt="" className="w-3.5 h-3.5 mr-1.5 dark:invert" /> Photos
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => openMediaDialog(service)}>
-                        <Video className="w-3.5 h-3.5 mr-1.5" /> Intro Clip
+                        <img src={VideoSVG} alt="" className="w-3.5 h-3.5 mr-1.5 dark:invert" /> Intro Clip
                       </Button>
                     </div>
                   )}
@@ -476,7 +480,7 @@ const MyServices = () => {
         {services.length === 0 && (
           <div className="text-center py-20 border-2 border-dashed border-muted-foreground/20 rounded-2xl">
             <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Package className="w-10 h-10 text-primary" />
+              <img src={PackageSVG} alt="" className="w-10 h-10 dark:invert" />
             </div>
             <h3 className="text-xl font-bold mb-2">No Services Yet</h3>
             <p className="text-muted-foreground mb-6 max-w-md mx-auto">
@@ -572,7 +576,7 @@ const MyServices = () => {
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ImagePlus className="w-5 h-5 text-primary" />
+              <img src={PhotosSVG} alt="" className="w-5 h-5 dark:invert" />
               Manage Photos
               {imageDialogService && (
                 <span className="text-sm font-normal text-muted-foreground truncate">— {imageDialogService.title}</span>
@@ -662,7 +666,7 @@ const MyServices = () => {
         <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Video className="w-5 h-5 text-primary" />
+              <img src={VideoSVG} alt="" className="w-5 h-5 dark:invert" />
               Intro Clip
               {mediaDialogService && (
                 <span className="text-sm font-normal text-muted-foreground truncate">— {mediaDialogService.title}</span>
@@ -745,7 +749,7 @@ const MyServices = () => {
                   >
                     <div className="flex items-center justify-center gap-2 mb-3">
                       <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-                        <Video className="w-5 h-5 text-primary" />
+                        <img src={VideoSVG} alt="" className="w-5 h-5 dark:invert" />
                       </div>
                       <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
                         <Music className="w-5 h-5 text-primary" />

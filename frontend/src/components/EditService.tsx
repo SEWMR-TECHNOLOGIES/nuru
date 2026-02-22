@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, Upload, X, Loader2, Music, Video, Trash2, Play, Pause, Volume2, VolumeX, Phone, CheckCircle, Plus } from 'lucide-react';
+import { ChevronLeft, Upload, X, Loader2, Music, Trash2, Play, Pause, Volume2, VolumeX, Phone, CheckCircle, Plus } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
+import VideoSVG from '@/assets/icons/video-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -498,7 +500,7 @@ const EditService = () => {
             {!pendingMediaFile && (
               <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
-                  <Video className="w-6 h-6 text-muted-foreground" />
+                  <img src={VideoSVG} alt="" className="w-6 h-6 dark:invert" />
                   <Music className="w-6 h-6 text-muted-foreground" />
                 </div>
                 <p className="text-sm text-muted-foreground mb-3">Upload a video or audio clip (max 1 minute)</p>

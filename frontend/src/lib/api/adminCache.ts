@@ -29,5 +29,7 @@ export const adminCaches = {
   serviceCategories:  makeCache<any[]>([]),
   admins:             makeCache<any[]>([]),
   userVerifications:  makeCache<any[]>([]),
+  issues:             makeCache<any[]>([]),
+  issueCategories:    makeCache<any[]>([]),
   pagination:         {} as Record<string, any>,
 };

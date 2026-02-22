@@ -5,7 +5,7 @@ import {
   Users, ShieldCheck, MessageSquare, HeadphonesIcon,
   CalendarDays, Briefcase, ChevronRight,
   Newspaper, Sparkles, Users2, BookOpen, CreditCard, Tag,
-  ArrowUpRight,
+  ArrowUpRight, AlertCircle,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { adminApi } from "@/lib/api/admin";
@@ -36,6 +36,7 @@ interface ExtendedStats {
   total_bookings: number;
   pending_bookings: number;
   pending_card_orders: number;
+  open_issues: number;
 }
 
 const statCards = (s: Stats, e: ExtendedStats | null) => [
@@ -51,6 +52,7 @@ const statCards = (s: Stats, e: ExtendedStats | null) => [
     { label: "Communities", value: e.total_communities, icon: Users2, to: "/admin/communities", colorClass: "text-teal-500", bgClass: "bg-teal-500/10" },
     { label: "Total Bookings", value: e.total_bookings, icon: BookOpen, to: "/admin/bookings", colorClass: "text-orange-500", bgClass: "bg-orange-500/10" },
     { label: "Card Orders", value: e.pending_card_orders, icon: CreditCard, to: "/admin/nuru-cards", colorClass: "text-violet-500", bgClass: "bg-violet-500/10" },
+    { label: "Open Issues", value: e.open_issues ?? 0, icon: AlertCircle, to: "/admin/issues", colorClass: "text-rose-500", bgClass: "bg-rose-500/10" },
     { label: "Service Categories", value: 0, icon: Tag, to: "/admin/service-categories", colorClass: "text-emerald-500", bgClass: "bg-emerald-500/10" },
   ] : []),
 ];

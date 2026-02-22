@@ -98,6 +98,10 @@ import AdminServiceDetail from "@/pages/admin/AdminServiceDetail";
 import AdminAppeals from "@/pages/admin/AdminAppeals";
 import AdminAnalytics from "@/pages/admin/AdminAnalytics";
 import AdminWhatsApp from "@/pages/admin/AdminWhatsApp";
+import AdminIssues from "@/pages/admin/AdminIssues";
+import AdminIssueDetail from "@/pages/admin/AdminIssueDetail";
+import AdminIssueCategories from "@/pages/admin/AdminIssueCategories";
+import MyIssues from "@/components/MyIssues";
 
 // Inner component that uses router hooks (must be inside BrowserRouter)
 
@@ -164,6 +168,7 @@ function InnerRoutes() {
           <Route path="/my-contributors" element={<MyContributors />} />
           <Route path="/change-password" element={<ChangePassword />} />
           <Route path="/removed-content" element={<RemovedContent />} />
+          <Route path="/my-issues" element={<MyIssues />} />
           <Route path="/u/:username" element={<PublicProfile />} />
           <Route path="/services/events/:serviceId" element={<ServiceEventsPage />} />
           <Route path="/services/photo-libraries/:serviceId" element={<ServicePhotoLibraries />} />
@@ -221,6 +226,9 @@ function InnerRoutes() {
           <Route path="appeals" element={<AdminAppeals />} />
           <Route path="analytics" element={<AdminAnalytics />} />
           <Route path="whatsapp" element={<AdminWhatsApp />} />
+          <Route path="issues" element={<AdminIssues />} />
+          <Route path="issues/:id" element={<AdminIssueDetail />} />
+          <Route path="issue-categories" element={<AdminIssueCategories />} />
         </Route>
 
 

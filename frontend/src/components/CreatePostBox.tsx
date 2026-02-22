@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import SvgIcon from '@/components/ui/svg-icon';
 import CameraIcon from '@/assets/icons/camera-icon.svg';
 import ImageIcon from '@/assets/icons/image-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';

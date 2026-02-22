@@ -3,11 +3,13 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ChevronLeft, Star, CheckCircle, ChevronRight, Send,
   Award, Briefcase, X, MessageSquare,
-  ArrowUpRight, Shield, Users, Loader2, Video, Music
+  ArrowUpRight, Shield, Users, Loader2, Music
 } from 'lucide-react';
 import { VerifiedServiceBadge, VerifiedServiceBadgeWithLabel } from '@/components/ui/verified-badge';
+import SvgIcon from '@/components/ui/svg-icon';
 import calendarIcon from '@/assets/icons/calendar-icon.svg';
 import locationIcon from '@/assets/icons/location-icon.svg';
+import VideoSVG from '@/assets/icons/video-icon.svg';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -352,7 +354,7 @@ const PublicServiceDetail = () => {
       {introMedia.length > 0 && (
         <div className="bg-card border border-border rounded-2xl p-6 mb-6">
           <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-            <Video className="w-5 h-5 text-primary" />Introduction
+            <img src={VideoSVG} alt="" className="w-5 h-5 dark:invert" />Introduction
           </h2>
           <div className="space-y-3">
             {introMedia.map((media) => (

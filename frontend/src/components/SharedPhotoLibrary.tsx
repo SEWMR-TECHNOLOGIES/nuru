@@ -11,6 +11,7 @@ import { showCaughtError } from '@/lib/api';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import nuruLogo from '@/assets/nuru-logo.png';
+import SvgIcon from '@/components/ui/svg-icon';
 import PhotosIcon from '@/assets/icons/photos-icon.svg';
 import CalendarIconSVG from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';

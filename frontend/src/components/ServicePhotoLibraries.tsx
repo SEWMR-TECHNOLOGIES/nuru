@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { photoLibrariesApi, PhotoLibrary } from '@/lib/api/photoLibraries';
 import { showCaughtError } from '@/lib/api';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
+import SvgIcon from '@/components/ui/svg-icon';
 import PhotosIcon from '@/assets/icons/photos-icon.svg';
 import CalendarIconSVG from '@/assets/icons/calendar-icon.svg';
 import LocationIconSVG from '@/assets/icons/location-icon.svg';

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Globe, Users, Clock, Infinity, Loader2, CalendarIcon } from "lucide-react";
+import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";

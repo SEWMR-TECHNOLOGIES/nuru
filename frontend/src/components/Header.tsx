@@ -1,6 +1,9 @@
 import { useState } from 'react';
-import { User, Settings, LogOut, Bookmark, Search } from 'lucide-react';
+import { User, LogOut, Bookmark, Search } from 'lucide-react';
+import { VerifiedUserBadge } from '@/components/ui/verified-badge';
+import SvgIcon from '@/components/ui/svg-icon';
 import CameraIcon from '@/assets/icons/camera-icon.svg';
+import SettingsIcon from '@/assets/icons/settings-icon.svg';
 import GlobalSearchBar from './GlobalSearchBar';
 import { Button } from '@/components/ui/button';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -10,7 +13,7 @@ import CloseIcon from '@/assets/icons/close-icon.svg';
 import BellIcon from '@/assets/icons/bell-icon.svg';
 import ChatIcon from '@/assets/icons/chat-icon.svg';
 import CardIcon from '@/assets/icons/card-icon.svg';
-import TicketIcon from '@/assets/icons/ticket-icon.svg';
+
 import PanelRightIcon from '@/assets/icons/panel-right-icon.svg';
 import {
   Popover,
@@ -46,7 +49,6 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
         />
       );
     } else if (currentUser) {
-      // Generate initials
       const initials = `${currentUser.first_name[0]}${currentUser.last_name[0]}`.toUpperCase();
       return (
         <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground text-xs md:text-sm font-semibold">
@@ -54,7 +56,6 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
         </div>
       );
     } else {
-      // Default placeholder
       return (
         <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground font-semibold">
           ?
@@ -73,7 +74,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
           className="md:hidden"
           onClick={onMenuToggle}
         >
-          <img src={MenuIcon} alt="Menu" className="w-5 h-5" />
+          <SvgIcon src={MenuIcon} alt="Menu" className="w-5 h-5" />
         </Button>
         
         <NavLink to="/">
@@ -107,17 +108,10 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
           <Search className="w-5 h-5" />
         </Button>
 
-        {/* Tickets - mobile only (hidden on tablet+) */}
-        <NavLink to="/tickets" className="md:hidden">
-          <Button variant="ghost" size="icon">
-            <img src={TicketIcon} alt="Tickets" className="w-5 h-5 dark:invert" />
-          </Button>
-        </NavLink>
-
         {/* Messages */}
         <NavLink to="/messages">
           <Button variant="ghost" size="icon" className="relative">
-            <img src={ChatIcon} alt="Messages" className="w-5 h-5" />
+            <SvgIcon src={ChatIcon} alt="Messages" className="w-5 h-5" />
             {messageCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 md:w-5 md:h-5 flex items-center justify-center text-[10px] md:text-xs">
                 {messageCount > 99 ? '99+' : messageCount}
@@ -129,7 +123,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
         {/* Notifications */}
         <NavLink to="/notifications">
           <Button variant="ghost" size="icon" className="relative">
-            <img src={BellIcon} alt="Notifications" className="w-5 h-5" />
+            <SvgIcon src={BellIcon} alt="Notifications" className="w-5 h-5" />
             {notificationCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 md:w-5 md:h-5 flex items-center justify-center text-[10px] md:text-xs">
                 {notificationCount > 99 ? '99+' : notificationCount}
@@ -145,7 +139,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
           className="lg:hidden"
           onClick={onRightPanelToggle}
         >
-          <img src={PanelRightIcon} alt="Toggle right panel" className="w-5 h-5" />
+          <SvgIcon src={PanelRightIcon} alt="Toggle right panel" className="w-5 h-5" />
         </Button>
 
         {/* Profile */}
@@ -164,8 +158,9 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
                   {renderAvatar()}
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-semibold text-foreground">
+                  <span className="font-semibold text-foreground flex items-center gap-1">
                     {`${currentUser.first_name.charAt(0).toUpperCase()}${currentUser.first_name.slice(1)} ${currentUser.last_name.charAt(0).toUpperCase()}${currentUser.last_name.slice(1)}`}
+                    {currentUser.is_identity_verified && <VerifiedUserBadge size="xs" />}
                   </span>
                   <span className="text-sm text-muted-foreground">@{currentUser.username}</span>
                 </div>
@@ -192,7 +187,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
                   navigate('/settings');
                 }}
               >
-                <Settings className="w-4 h-4" />
+                <SvgIcon src={SettingsIcon} alt="" className="w-4 h-4" />
                 Settings
               </Button>
               <Button
@@ -203,7 +198,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
                   navigate('/my-posts');
                 }}
               >
-                <img src={CameraIcon} alt="Moments" className="w-4 h-4" />
+                <SvgIcon src={CameraIcon} alt="Moments" className="w-4 h-4" />
                 Moments
               </Button>
               <Button
@@ -214,7 +209,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
                   navigate('/nuru-cards');
                 }}
               >
-                <img src={CardIcon} alt="Cards" className="w-4 h-4" />
+                <SvgIcon src={CardIcon} alt="Cards" className="w-4 h-4" />
                 Nuru Cards
               </Button>
               <Button

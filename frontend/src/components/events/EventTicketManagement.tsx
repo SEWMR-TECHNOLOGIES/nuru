@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Loader2, Check, X, ChevronLeft, ChevronRight, CheckCircle2, ShieldCheck, AlertTriangle, Phone, Mail, Calendar, MapPin, Clock, Keyboard } from "lucide-react";
+import SvgIcon from '@/components/ui/svg-icon';
 import CameraIcon from "@/assets/icons/camera-icon.svg";
 import { Skeleton } from "@/components/ui/skeleton";
 import TicketIcon from "@/assets/icons/ticket-icon.svg";

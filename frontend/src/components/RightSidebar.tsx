@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Users, Loader2 } from 'lucide-react';
 import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import { useNavigate } from 'react-router-dom';
+import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import TicketIcon from '@/assets/icons/ticket-icon.svg';
@@ -289,7 +290,7 @@ const RightSidebar = () => {
       await addMember(circleId, user.id);
       setAddedUserIds(prev => new Set([...prev, user.id]));
       setHiddenSuggestionIds(prev => new Set([...prev, user.id]));
-      toast.success(`${user.first_name} added to your circle`);
+      toast.success(`Circle request sent to ${user.first_name}`);
     } catch {
       toast.error('Failed to add to circle');
     } finally {
@@ -467,7 +468,10 @@ const RightSidebar = () => {
           <div className="space-y-3">
             {suggestions.filter(u => !hiddenSuggestionIds.has(u.id)).map((user) => (
               <div key={user.id} className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-muted overflow-hidden flex items-center justify-center">
+                <div 
+                  className="w-10 h-10 rounded-full bg-muted overflow-hidden flex items-center justify-center cursor-pointer"
+                  onClick={() => navigate(`/u/${(user as any).username || user.id}?from=add`)}
+                >
                   {user.avatar ? (
                     <img
                       src={user.avatar}
@@ -480,8 +484,11 @@ const RightSidebar = () => {
                     </span>
                   )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-sm text-foreground">
+                <div 
+                  className="flex-1 min-w-0 cursor-pointer"
+                  onClick={() => navigate(`/u/${(user as any).username || user.id}?from=add`)}
+                >
+                  <h3 className="font-medium text-sm text-foreground hover:underline">
                     {user.first_name} {user.last_name}
                   </h3>
                   <p className="text-xs text-muted-foreground">
@@ -498,7 +505,7 @@ const RightSidebar = () => {
                   {addingUserId === user.id ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
                   ) : addedUserIds.has(user.id) ? (
-                    "Added ✓"
+                    "Sent ✓"
                   ) : (
                     "Add"
                   )}

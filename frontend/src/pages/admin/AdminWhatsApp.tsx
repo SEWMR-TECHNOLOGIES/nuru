@@ -4,6 +4,7 @@ import {
   RefreshCw, ChevronLeft, Smile, Clock, Wifi, WifiOff,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import SvgIcon from '@/components/ui/svg-icon';
 import ChatUnreadIcon from "@/assets/icons/chat-unread-icon.svg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

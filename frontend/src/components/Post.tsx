@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Heart, MessageCircle, MoreHorizontal } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import { Button } from '@/components/ui/button';
 import ShareMenu from '@/components/ShareMenu';
@@ -143,7 +144,7 @@ const Post = ({ post }: PostProps) => {
                 : 'bg-gray-200/20 text-muted-foreground hover:bg-gray-200/30 hover:text-foreground'
             }`}
           >
-            <Heart className="w-4 h-4 flex-shrink-0" />
+            <span className="text-sm flex-shrink-0">❤️</span>
             <span className="hidden sm:inline whitespace-nowrap">{liked ? 'Glowed' : 'Glow'}</span>
           </button>
 

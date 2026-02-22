@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { RefreshCw, Star, Loader2, Check, Plus } from "lucide-react";
 import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
+import SvgIcon from '@/components/ui/svg-icon';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Clock, CheckCircle, XCircle, HelpCircle, Loader2, Printer, Timer } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
@@ -26,34 +27,43 @@ const rsvpIcons: Record<string, any> = {
   maybe: HelpCircle,
 };
 
+// Module-level cache
+let _invitedCache: any[] = [];
+let _invitedHasLoaded = false;
+
 const InvitedEvents = () => {
   const navigate = useNavigate();
-  const [events, setEvents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [events, setEvents] = useState<any[]>(_invitedCache);
+  const [loading, setLoading] = useState(!_invitedHasLoaded);
+  const initialLoad = useRef(!_invitedHasLoaded);
   const [error, setError] = useState<string | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const [respondingId, setRespondingId] = useState<string | null>(null);
+  const [respondingAction, setRespondingAction] = useState<{ eventId: string; status: string } | null>(null);
 
   const fetchInvited = useCallback(async () => {
-    setLoading(true);
+    if (initialLoad.current) setLoading(true);
     try {
       const response = await eventsApi.getInvitedEvents();
       if (response.success) {
-        setEvents(response.data?.events || []);
+        const list = response.data?.events || [];
+        _invitedCache = list;
+        _invitedHasLoaded = true;
+        setEvents(list);
       } else {
-        setError(response.message);
+        if (initialLoad.current) setError(response.message);
       }
     } catch {
-      setError('Failed to load invited events');
+      if (initialLoad.current) setError('Failed to load invited events');
     } finally {
       setLoading(false);
+      initialLoad.current = false;
     }
   }, []);
 
   useEffect(() => { fetchInvited(); }, [fetchInvited]);
 
   const handleRSVP = async (eventId: string, rsvpStatus: 'confirmed' | 'declined') => {
-    setRespondingId(eventId);
+    setRespondingAction({ eventId, status: rsvpStatus });
     try {
       const response = await eventsApi.respondToInvitation(eventId, { rsvp_status: rsvpStatus });
       if (response.success) {
@@ -70,7 +80,7 @@ const InvitedEvents = () => {
     } catch (err: any) {
       showCaughtError(err, 'Failed to respond to invitation');
     } finally {
-      setRespondingId(null);
+      setRespondingAction(null);
     }
   };
 
@@ -117,7 +127,8 @@ const InvitedEvents = () => {
         {events.map((event) => {
           const rsvpStatus = event.invitation?.rsvp_status || 'pending';
           const RsvpIcon = rsvpIcons[rsvpStatus] || HelpCircle;
-          const isResponding = respondingId === event.id;
+          const isResponding = respondingAction?.eventId === event.id;
+          const respondingStatus = respondingAction?.eventId === event.id ? respondingAction.status : null;
 
           return (
             <article
@@ -206,7 +217,7 @@ const InvitedEvents = () => {
                             disabled={isResponding}
                             className="gap-1.5"
                           >
-                            {isResponding ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                            {respondingStatus === 'confirmed' ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                             Accept
                           </Button>
                           <Button
@@ -219,7 +230,7 @@ const InvitedEvents = () => {
                             disabled={isResponding}
                             className="gap-1.5 text-destructive hover:text-destructive"
                           >
-                            {isResponding ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                            {respondingStatus === 'declined' ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
                             Decline
                           </Button>
                         </>
@@ -235,7 +246,7 @@ const InvitedEvents = () => {
                           disabled={isResponding}
                           className="gap-1.5 text-destructive hover:text-destructive"
                         >
-                          {isResponding ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                          {respondingStatus === 'declined' ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
                           Cancel RSVP
                         </Button>
                       )}
@@ -250,7 +261,7 @@ const InvitedEvents = () => {
                           disabled={isResponding}
                           className="gap-1.5"
                         >
-                          {isResponding ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                          {respondingStatus === 'confirmed' ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                           Accept Instead
                         </Button>
                       )}

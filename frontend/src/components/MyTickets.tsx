@@ -1,12 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
+import { MapPin, ChevronLeft, ChevronRight } from "lucide-react";
+import SvgIcon from '@/components/ui/svg-icon';
 import TicketIcon from "@/assets/icons/ticket-icon.svg";
 import CalendarIcon from "@/assets/icons/calendar-icon.svg";
 import PrintIcon from "@/assets/icons/print-icon.svg";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ticketingApi } from "@/lib/api/ticketing";
 import { formatPrice } from "@/utils/formatPrice";
 import { getEventCountdown } from "@/utils/getEventCountdown";
@@ -22,46 +24,110 @@ const STATUS_STYLES: Record<string, string> = {
   cancelled: "bg-muted text-muted-foreground",
 };
 
+// Module-level cache
+let _ticketsCache: any[] = [];
+let _ticketsPagination: any = null;
+let _upcomingCache: any[] = [];
+let _ticketsHasLoaded = false;
+
+const TicketCardSkeleton = () => (
+  <div className="relative overflow-hidden rounded-xl border border-border bg-card">
+    <div className="absolute left-[72px] top-[-8px] w-4 h-4 rounded-full bg-background border border-border z-10" />
+    <div className="absolute left-[72px] bottom-[-8px] w-4 h-4 rounded-full bg-background border border-border z-10" />
+    <div className="absolute left-[80px] top-2 bottom-2 border-l border-dashed border-border/60 z-[5]" />
+    <div className="flex">
+      <div className="flex flex-col items-center justify-center w-[80px] py-4 shrink-0 bg-muted/20">
+        <Skeleton className="h-7 w-8 mb-1" />
+        <Skeleton className="h-3 w-6 mb-0.5" />
+        <Skeleton className="h-2 w-8" />
+      </div>
+      <div className="flex-1 min-w-0 p-3 pl-5 space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-4 w-14 rounded-full" />
+        </div>
+        <Skeleton className="h-3 w-1/2" />
+        <div className="flex items-center gap-1.5">
+          <Skeleton className="h-4 w-20 rounded" />
+          <Skeleton className="h-3 w-12" />
+          <Skeleton className="h-3 w-16" />
+        </div>
+        <Skeleton className="h-5 w-32 rounded-full" />
+      </div>
+      <div className="flex items-center justify-center px-3 border-l border-dashed border-border">
+        <Skeleton className="w-4 h-4" />
+      </div>
+    </div>
+  </div>
+);
+
+const UpcomingSidebarSkeleton = () => (
+  <div className="space-y-3">
+    {[1, 2, 3].map(i => (
+      <Card key={i} className="overflow-hidden">
+        <Skeleton className="h-24 w-full" />
+        <CardContent className="p-2.5 space-y-1.5">
+          <Skeleton className="h-3 w-3/4" />
+          <Skeleton className="h-2.5 w-1/2" />
+          <Skeleton className="h-5 w-24 rounded-full" />
+        </CardContent>
+      </Card>
+    ))}
+  </div>
+);
+
 const MyTickets = () => {
   const navigate = useNavigate();
-  const [tickets, setTickets] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [tickets, setTickets] = useState<any[]>(_ticketsCache);
+  const [loading, setLoading] = useState(!_ticketsHasLoaded);
+  const initialLoad = useRef(!_ticketsHasLoaded);
   const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState<any>(null);
-  const [upcomingTickets, setUpcomingTickets] = useState<any[]>([]);
+  const [pagination, setPagination] = useState<any>(_ticketsPagination);
+  const [upcomingTickets, setUpcomingTickets] = useState<any[]>(_upcomingCache);
   const [printTicket, setPrintTicket] = useState<any>(null);
 
   useEffect(() => {
-    setLoading(true);
+    if (initialLoad.current) setLoading(true);
     Promise.all([
       ticketingApi.getMyTickets({ page, limit: 20 }),
       ticketingApi.getMyUpcomingTickets(),
     ]).then(([ticketRes, upRes]) => {
       if (ticketRes.success && ticketRes.data) {
         const d = ticketRes.data as any;
-        setTickets(d.tickets || []);
+        const t = d.tickets || [];
+        _ticketsCache = t;
+        _ticketsPagination = d.pagination || null;
+        _ticketsHasLoaded = true;
+        setTickets(t);
         setPagination(d.pagination || null);
       }
       if (upRes.success && upRes.data) {
-        setUpcomingTickets((upRes.data as any).tickets || []);
+        const up = (upRes.data as any).tickets || [];
+        _upcomingCache = up;
+        setUpcomingTickets(up);
       }
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(() => {}).finally(() => {
+      setLoading(false);
+      initialLoad.current = false;
+    });
   }, [page]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <img src={TicketIcon} alt="Tickets" className="w-5 h-5 dark:invert" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-foreground">My Tickets</h1>
+            <p className="text-sm text-muted-foreground">All your purchased event tickets</p>
+          </div>
+        </div>
         <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate(-1)}>
           <ChevronLeft className="w-5 h-5" />
         </Button>
-        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-          <img src={TicketIcon} alt="Tickets" className="w-5 h-5 dark:invert" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold text-foreground">My Tickets</h1>
-          <p className="text-sm text-muted-foreground">All your purchased event tickets</p>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -70,15 +136,7 @@ const MyTickets = () => {
           {loading ? (
             <div className="space-y-3">
               {[...Array(4)].map((_, i) => (
-                <Card key={i} className="animate-pulse">
-                  <CardContent className="p-4 flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-xl bg-muted" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 bg-muted rounded w-3/4" />
-                      <div className="h-3 bg-muted rounded w-1/2" />
-                    </div>
-                  </CardContent>
-                </Card>
+                <TicketCardSkeleton key={i} />
               ))}
             </div>
           ) : tickets.length === 0 ? (
@@ -218,7 +276,14 @@ const MyTickets = () => {
 
         {/* Right sidebar - upcoming tickets */}
         <div className="space-y-4">
-          {upcomingTickets.length > 0 && (
+          {loading ? (
+            <div>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                Upcoming Events
+              </h3>
+              <UpcomingSidebarSkeleton />
+            </div>
+          ) : upcomingTickets.length > 0 ? (
             <div>
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                 Upcoming Events
@@ -273,7 +338,7 @@ const MyTickets = () => {
                 })}
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 

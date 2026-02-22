@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { Loader2, AlertCircle, Minus, Plus } from "lucide-react";
+import SvgIcon from '@/components/ui/svg-icon';
 import TicketIcon from "@/assets/icons/ticket-icon.svg";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ticketingApi, TicketClass } from "@/lib/api/ticketing";
 import { formatPrice } from "@/utils/formatPrice";
@@ -58,10 +60,32 @@ const EventTicketPurchase = ({ eventId, eventName }: EventTicketPurchaseProps) =
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="p-5 flex items-center justify-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Loading tickets...</span>
+      <Card className="border-primary/20">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Skeleton className="w-9 h-9 rounded-lg" />
+            <div className="space-y-1.5">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-3 w-40" />
+            </div>
+          </div>
+          <div className="space-y-3">
+            {[1, 2].map(i => (
+              <div key={i} className="p-4 rounded-xl border-2 border-border">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-48" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                  <div className="text-right space-y-1">
+                    <Skeleton className="h-6 w-20 ml-auto" />
+                    <Skeleton className="h-3 w-14 ml-auto" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
     );

@@ -3,6 +3,7 @@ import {
   Users, UserCheck, Edit2, Trash2, Loader2, FileText, Mail, Shield,
   Plus, MapPin, CalendarDays, Clock, Wallet, ChevronRight, CheckCircle2
 } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -71,9 +72,20 @@ const MyEvents = () => {
   );
 
   // ── Derived summary stats ──────────────────────────────────────────────────
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const isEventPast = (e: any) => {
+    const dateStr = e.end_date || e.start_date || e.date;
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    d.setHours(23, 59, 59, 999);
+    return d < today;
+  };
+
   const totalEvents    = events.length;
-  const upcoming       = events.filter((e: any) => ['confirmed', 'published'].includes(e.status || 'draft')).length;
-  const completed      = events.filter((e: any) => e.status === 'completed').length;
+  const completed      = events.filter((e: any) => e.status === 'completed' || (e.status !== 'cancelled' && e.status !== 'draft' && isEventPast(e))).length;
+  const upcoming       = events.filter((e: any) => ['confirmed', 'published'].includes(e.status || 'draft') && !isEventPast(e)).length;
   const totalGuests    = events.reduce((s: number, e: any) => s + (e.expected_guests || 0), 0);
 
   const handleDelete = async (id: string) => {
@@ -417,7 +429,7 @@ const MyEvents = () => {
       {!loading && events.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Total Events',     value: totalEvents,  icon: <img src={CalendarIcon} alt="" className="w-5 h-5 dark:invert" />, color: 'text-primary',    bg: 'bg-primary/10' },
+            { label: 'Total Events',     value: totalEvents,  icon: <SvgIcon src={CalendarIcon} alt="" className="w-5 h-5" />, color: 'text-primary',    bg: 'bg-primary/10' },
             { label: 'Upcoming',         value: upcoming,     icon: <Clock className="w-5 h-5" />,         color: 'text-green-600',  bg: 'bg-green-100 dark:bg-green-900/30' },
             { label: 'Completed',        value: completed,    icon: <CheckCircle2 className="w-5 h-5" />,  color: 'text-blue-600',   bg: 'bg-blue-100 dark:bg-blue-900/30' },
             { label: 'Total Guests',     value: totalGuests,  icon: <Users className="w-5 h-5" />,         color: 'text-purple-600', bg: 'bg-purple-100 dark:bg-purple-900/30' },
@@ -445,7 +457,7 @@ const MyEvents = () => {
           activeTab={eventsTabValue}
           onTabChange={setEventsTabValue}
           tabs={[
-            { value: 'my-events', label: 'My Events', icon: <img src={CalendarIcon} alt="" className="w-4 h-4 dark:invert" /> },
+            { value: 'my-events', label: 'My Events', icon: <SvgIcon src={CalendarIcon} alt="" className="w-4 h-4" /> },
             { value: 'invited', label: 'Invited', icon: <Mail className="w-4 h-4" /> },
             { value: 'committee', label: 'Committee', icon: <Shield className="w-4 h-4" /> },
           ]}

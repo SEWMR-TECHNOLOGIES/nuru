@@ -7,6 +7,7 @@ import {
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { authApi } from "@/lib/api/auth";
 import { VerifiedUserBadge } from '@/components/ui/verified-badge';
+import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import CameraIcon from '@/assets/icons/camera-icon.svg';
@@ -292,57 +293,72 @@ const UserProfile = () => {
         saving={avatarSaving}
       />
 
-      {/* Profile Header - Improved Cover */}
-      <Card className="overflow-hidden border-0 shadow-lg">
-        <div className="relative h-52 md:h-56">
-          {/* Gradient cover with pattern overlay */}
-          <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/85 to-accent" />
-          <div className="absolute inset-0 opacity-[0.08]" style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23fff' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+      {/* Profile Header - Premium Cover */}
+      <Card className="overflow-hidden border-0 shadow-xl">
+        <div className="relative h-56 md:h-64">
+          {/* Multi-layered gradient cover */}
+          <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/90 to-accent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
+          
+          {/* Animated mesh pattern */}
+          <div className="absolute inset-0 opacity-[0.06]" style={{
+            backgroundImage: `radial-gradient(circle at 25% 25%, rgba(255,255,255,0.3) 1px, transparent 1px), radial-gradient(circle at 75% 75%, rgba(255,255,255,0.2) 1px, transparent 1px)`,
+            backgroundSize: '30px 30px, 20px 20px',
           }} />
-          {/* Decorative blobs */}
-          <div className="absolute -top-12 -right-12 w-48 h-48 bg-primary-foreground/5 rounded-full blur-2xl" />
-          <div className="absolute -bottom-8 -left-8 w-36 h-36 bg-primary-foreground/5 rounded-full blur-xl" />
+          
+          {/* Large decorative blobs */}
+          <div className="absolute -top-20 -right-20 w-72 h-72 bg-primary-foreground/8 rounded-full blur-3xl" />
+          <div className="absolute -bottom-16 -left-16 w-56 h-56 bg-accent/20 rounded-full blur-3xl" />
+          <div className="absolute top-1/2 left-1/3 w-32 h-32 bg-primary-foreground/5 rounded-full blur-2xl" />
+          
+          {/* Subtle geometric accent lines */}
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary-foreground/20 to-transparent" />
+          <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-primary-foreground/10 to-transparent" />
 
           {!isEditing && (
             <Button
               variant="secondary"
               size="sm"
-              className="absolute top-4 right-4 gap-2 shadow-md backdrop-blur-sm bg-background/80 hover:bg-background/95"
+              className="absolute top-4 right-4 gap-2 shadow-lg backdrop-blur-md bg-background/70 hover:bg-background/90 border border-border/50"
               onClick={() => setIsEditing(true)}
             >
               <Edit className="w-4 h-4" />
               Edit Profile
             </Button>
           )}
+
+          {/* Bottom gradient for text readability */}
+          <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-card to-transparent" />
         </div>
 
         <CardContent className="pt-0 pb-6">
-          <div className="flex flex-col md:flex-row gap-6 -mt-16 relative z-10">
+          <div className="flex flex-col md:flex-row gap-6 -mt-20 relative z-10 px-1">
             {/* Avatar with camera button */}
             <div className="relative flex-shrink-0 group">
-              <Avatar className="w-32 h-32 border-4 border-background shadow-xl ring-2 ring-primary/10">
-                <AvatarImage src={currentUser.avatar || undefined} alt={fullName} />
-                <AvatarFallback className="text-2xl font-semibold bg-primary/10 text-primary">{initials}</AvatarFallback>
-              </Avatar>
+              <div className="p-1 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 shadow-2xl">
+                <Avatar className="w-32 h-32 border-4 border-background shadow-xl">
+                  <AvatarImage src={currentUser.avatar || undefined} alt={fullName} />
+                  <AvatarFallback className="text-2xl font-semibold bg-primary/10 text-primary">{initials}</AvatarFallback>
+                </Avatar>
+              </div>
 
               {/* Camera overlay */}
               <button
                 onClick={() => avatarInputRef.current?.click()}
-                className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                className="absolute inset-1 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                 title="Change avatar"
               >
-                <img src={CameraIcon} alt="Camera" className="w-6 h-6" />
+                <SvgIcon src={CameraIcon} alt="Camera" className="w-6 h-6" forceWhite />
               </button>
 
               {isVerified && (
-                <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1 shadow-sm">
+                <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1.5 shadow-md border border-border">
                   <ShieldCheck className="w-6 h-6 text-green-600" />
                 </div>
               )}
             </div>
 
-            <div className="flex-1 mt-14 md:mt-4">
+            <div className="flex-1 mt-14 md:mt-6">
               {isEditing ? (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-3">
@@ -407,11 +423,11 @@ const UserProfile = () => {
                     )}
                     {currentUser.location && (
                       <span className="flex items-center gap-1.5">
-                        <img src={LocationIcon} alt="Location" className="w-4 h-4" /> {currentUser.location}
+                        <SvgIcon src={LocationIcon} alt="Location" className="w-4 h-4" /> {currentUser.location}
                       </span>
                     )}
                     <span className="flex items-center gap-1.5">
-                      <img src={CalendarIcon} alt="Calendar" className="w-4 h-4" /> Joined {joinDate}
+                      <SvgIcon src={CalendarIcon} alt="Calendar" className="w-4 h-4" /> Joined {joinDate}
                     </span>
                   </div>
                 </div>

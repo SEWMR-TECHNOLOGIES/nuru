@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Heart, MessageCircle, Send, MoreHorizontal, Loader2, Bookmark, Flag, ChevronDown, CornerDownRight, AlertTriangle } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import WhatsAppIcon from '@/assets/icons/whatsapp-icon.svg';
 import FacebookIcon from '@/assets/icons/facebook-icon.svg';
@@ -262,7 +263,7 @@ const EchoItem = ({
             )}
             {glowCount > 0 && (
               <span className="flex items-center gap-0.5 text-muted-foreground">
-                <Heart className="w-3 h-3 fill-red-500 text-red-500" />
+                <span className="text-xs">❤️</span>
                 {glowCount}
               </span>
             )}
@@ -822,7 +823,7 @@ const PostDetail = () => {
                 glowed ? 'bg-red-100 text-red-600' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
             >
-              <Heart className={`w-3.5 h-3.5 md:w-4 md:h-4 ${glowed ? 'fill-current' : ''}`} />
+              <span className="text-sm">❤️</span>
               <span className="hidden sm:inline">{glowed ? 'Glowed' : 'Glow'}</span>
             </button>
 

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { CreditCard, Check, Sparkles, Zap, Shield, Gift, QrCode, Users, Clock, Star, Printer, Download, Loader2, Phone, Package } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';

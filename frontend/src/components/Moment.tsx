@@ -2,6 +2,7 @@ import { useState } from 'react';
 import VideoPlayer from '@/components/VideoPlayer';
 import SmartMedia from '@/components/SmartMedia';
 import { Heart, MessageCircle, Bookmark } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import ShareMenu from '@/components/ShareMenu';
 import TicketIcon from '@/assets/icons/ticket-icon.svg';
@@ -370,7 +371,7 @@ const Moment = ({ post }: MomentProps) => {
                 : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
             }`}
           >
-            <Heart className={`w-4 h-4 flex-shrink-0 ${glowed ? 'fill-current' : ''}`} />
+            <span className="text-sm flex-shrink-0">❤️</span>
             <span className="hidden sm:inline whitespace-nowrap">{glowed ? 'Glowed' : 'Glow'}</span>
           </button>
 

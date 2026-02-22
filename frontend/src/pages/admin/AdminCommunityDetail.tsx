@@ -167,7 +167,7 @@ export default function AdminCommunityDetail() {
                     </div>
                     {post.glow_count > 0 && (
                       <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
-                        <Heart className="w-3 h-3" />{post.glow_count}
+                        <span className="text-xs">❤️</span>{post.glow_count}
                       </div>
                     )}
                   </div>

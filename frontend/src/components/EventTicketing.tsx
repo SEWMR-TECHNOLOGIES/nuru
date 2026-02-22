@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus, Trash2, Edit2, DollarSign, Users, AlertCircle, Loader2 } from "lucide-react";
+import SvgIcon from '@/components/ui/svg-icon';
 import TicketIcon from "@/assets/icons/ticket-icon.svg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

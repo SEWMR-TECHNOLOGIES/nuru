@@ -4,6 +4,7 @@ import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import {
   Receipt, Plus, Search, MoreVertical, Edit, Trash, Download, Loader2, Eye, ChevronLeft, ChevronRight, CalendarIcon
 } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
 import bellIcon from '@/assets/icons/bell-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
