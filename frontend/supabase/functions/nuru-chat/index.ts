@@ -54,6 +54,7 @@ TOOL USE:
 - People search → search_people tool
 - Categories → get_service_categories
 - Event types → get_event_types
+- Budget/cost estimation → create_event_budget tool (ask for event type, guest count, and budget tier if not provided)
 - Present results naturally. If none found, suggest alternatives briefly.`;
 
 serve(async (req) => {

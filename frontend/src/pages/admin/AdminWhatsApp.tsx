@@ -134,8 +134,8 @@ export default function AdminWhatsApp() {
         const list = Array.isArray(res.data) ? res.data : [];
         const prev = JSON.stringify(_waConvCache);
         const next = JSON.stringify(list);
-        _waConvCache = list;
         if (prev !== next) {
+          _waConvCache = list;
           setConversations(list);
           setLastSync(new Date());
         }

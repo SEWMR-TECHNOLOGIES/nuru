@@ -50,6 +50,7 @@ const ShareEventToFeed = ({ event, trigger }: ShareEventToFeedProps) => {
   const [untilTime, setUntilTime] = useState("23:59");
   const [caption, setCaption] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [untilDateOpen, setUntilDateOpen] = useState(false);
 
   const handleShare = async () => {
     setIsSubmitting(true);
@@ -193,7 +194,7 @@ const ShareEventToFeed = ({ event, trigger }: ShareEventToFeedProps) => {
 
               {duration === "until" && (
                 <div className="flex gap-2 mt-2">
-                  <Popover>
+                  <Popover open={untilDateOpen} onOpenChange={setUntilDateOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
@@ -210,7 +211,7 @@ const ShareEventToFeed = ({ event, trigger }: ShareEventToFeedProps) => {
                       <Calendar
                         mode="single"
                         selected={untilDate}
-                        onSelect={setUntilDate}
+                        onSelect={d => { setUntilDate(d); setUntilDateOpen(false); }}
                         disabled={(date) => date < new Date()}
                         initialFocus
                         className="p-3 pointer-events-auto"

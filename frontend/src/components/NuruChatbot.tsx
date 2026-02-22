@@ -84,6 +84,21 @@ const NuruChatbot = () => {
 
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
+  // Track visual viewport height for iPad keyboard
+  useEffect(() => {
+    const updateVH = () => {
+      const vh = window.visualViewport?.height || window.innerHeight;
+      document.documentElement.style.setProperty('--visual-viewport-height', `${vh * 0.85}px`);
+    };
+    updateVH();
+    window.visualViewport?.addEventListener('resize', updateVH);
+    window.addEventListener('resize', updateVH);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', updateVH);
+      window.removeEventListener('resize', updateVH);
+    };
+  }, []);
+
   useEffect(() => {
     if (isOpen && inputRef.current) inputRef.current.focus();
   }, [isOpen]);
@@ -248,8 +263,9 @@ const NuruChatbot = () => {
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
             className="fixed bottom-4 right-4 left-4 sm:left-auto sm:right-6 sm:bottom-6 z-50 sm:w-[400px]"
+            style={{ bottom: 'env(safe-area-inset-bottom, 16px)' }}
           >
-            <Card className="shadow-2xl border border-border overflow-hidden flex flex-col max-h-[85vh]">
+            <Card className="shadow-2xl border border-border overflow-hidden flex flex-col" style={{ maxHeight: 'calc(var(--visual-viewport-height, 85vh))' }}>
               {/* Header */}
               <CardHeader className="bg-foreground p-3 flex-shrink-0">
                 <div className="flex items-center justify-between">

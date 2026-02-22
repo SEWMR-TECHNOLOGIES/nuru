@@ -95,6 +95,9 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
   const [reportDateFrom, setReportDateFrom] = useState<Date | undefined>(undefined);
   const [reportDateTo, setReportDateTo] = useState<Date | undefined>(undefined);
   const [reportLoading, setReportLoading] = useState(false);
+  const [expenseDateOpen, setExpenseDateOpen] = useState(false);
+  const [reportFromOpen, setReportFromOpen] = useState(false);
+  const [reportToOpen, setReportToOpen] = useState(false);
 
   const fetchExpenses = async () => {
     try {
@@ -377,14 +380,14 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
         </div>
         <div className="space-y-1.5">
           <Label>Expense Date</Label>
-          <Popover>
+          <Popover open={expenseDateOpen} onOpenChange={setExpenseDateOpen}>
             <PopoverTrigger asChild>
               <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !form.expense_date && "text-muted-foreground")}>
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {form.expense_date ? format(form.expense_date, 'dd MMM yyyy') : 'Pick date'}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={form.expense_date} onSelect={d => d && setForm(f => ({ ...f, expense_date: d }))} /></PopoverContent>
+            <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={form.expense_date} onSelect={d => { if (d) setForm(f => ({ ...f, expense_date: d })); setExpenseDateOpen(false); }} className="p-3 pointer-events-auto" /></PopoverContent>
           </Popover>
         </div>
       </div>
@@ -520,26 +523,26 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label>From</Label>
-                    <Popover>
+                    <Popover open={reportFromOpen} onOpenChange={setReportFromOpen}>
                       <PopoverTrigger asChild>
                         <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-xs", !reportDateFrom && "text-muted-foreground")}>
                           <CalendarIcon className="mr-2 h-3.5 w-3.5" />
                           {reportDateFrom ? format(reportDateFrom, 'dd MMM yyyy') : 'Start'}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={reportDateFrom} onSelect={setReportDateFrom} /></PopoverContent>
+                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={reportDateFrom} onSelect={d => { setReportDateFrom(d); setReportFromOpen(false); }} className="p-3 pointer-events-auto" /></PopoverContent>
                     </Popover>
                   </div>
                   <div className="space-y-1.5">
                     <Label>To</Label>
-                    <Popover>
+                    <Popover open={reportToOpen} onOpenChange={setReportToOpen}>
                       <PopoverTrigger asChild>
                         <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-xs", !reportDateTo && "text-muted-foreground")}>
                           <CalendarIcon className="mr-2 h-3.5 w-3.5" />
                           {reportDateTo ? format(reportDateTo, 'dd MMM yyyy') : 'End'}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={reportDateTo} onSelect={setReportDateTo} /></PopoverContent>
+                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={reportDateTo} onSelect={d => { setReportDateTo(d); setReportToOpen(false); }} className="p-3 pointer-events-auto" /></PopoverContent>
                     </Popover>
                   </div>
                 </div>

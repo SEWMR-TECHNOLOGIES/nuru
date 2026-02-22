@@ -25,7 +25,7 @@ const UserSearchInput = ({ onSelect, placeholder = "Search by email or phone..."
   const [showDropdown, setShowDropdown] = useState(false);
   const [registering, setRegistering] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
-  const [registerData, setRegisterData] = useState({ first_name: "", last_name: "", username: "", email: "", phone: "" });
+  const [registerData, setRegisterData] = useState({ first_name: "", last_name: "", email: "", phone: "" });
   const { results, loading, search, clear } = useUserSearch();
   const { data: currentUser } = useCurrentUser();
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -54,7 +54,7 @@ const UserSearchInput = ({ onSelect, placeholder = "Search by email or phone..."
   };
 
   const handleRegister = async () => {
-    if (!registerData.first_name || !registerData.last_name || !registerData.username || !registerData.email || !registerData.phone) {
+    if (!registerData.first_name || !registerData.last_name || !registerData.phone) {
       toast.error("Please fill all required fields");
       return;
     }
@@ -64,8 +64,7 @@ const UserSearchInput = ({ onSelect, placeholder = "Search by email or phone..."
       const response = await authApi.signup({
         first_name: registerData.first_name,
         last_name: registerData.last_name,
-        username: registerData.username,
-        email: registerData.email,
+        email: registerData.email || undefined,
         phone: registerData.phone,
         password: "Nuru@2026",
         registered_by: registeredByName,
@@ -76,13 +75,13 @@ const UserSearchInput = ({ onSelect, placeholder = "Search by email or phone..."
           id: (response.data as any)?.id || "",
           first_name: registerData.first_name,
           last_name: registerData.last_name,
-          username: registerData.username,
+          username: (response.data as any)?.username || "",
           email: registerData.email,
           phone: registerData.phone,
         };
         handleSelect(newUser);
         setShowRegisterForm(false);
-        setRegisterData({ first_name: "", last_name: "", username: "", email: "", phone: "" });
+        setRegisterData({ first_name: "", last_name: "", email: "", phone: "" });
       } else {
         toast.error(response.message || "Registration failed");
       }
@@ -193,17 +192,6 @@ const UserSearchInput = ({ onSelect, placeholder = "Search by email or phone..."
                   onChange={(e) => setRegisterData(prev => ({ ...prev, last_name: e.target.value }))}
                 />
               </div>
-              <Input
-                placeholder="Username *"
-                value={registerData.username}
-                onChange={(e) => setRegisterData(prev => ({ ...prev, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
-              />
-              <Input
-                type="email"
-                placeholder="Email *"
-                value={registerData.email}
-                onChange={(e) => setRegisterData(prev => ({ ...prev, email: e.target.value }))}
-              />
               <Input
                 placeholder="Phone *"
                 value={registerData.phone}

@@ -71,8 +71,8 @@ export interface UserProfile extends User {
 export interface SignupData {
   first_name: string;
   last_name: string;
-  username: string;
-  email: string;
+  username?: string;
+  email?: string;
   phone: string;
   password: string;
   registered_by?: string;

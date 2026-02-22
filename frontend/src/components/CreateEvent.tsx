@@ -55,6 +55,7 @@ const CreateEvent: React.FC = () => {
   const [ticketingEnabled, setTicketingEnabled] = useState(false);
   const [ticketClasses, setTicketClasses] = useState<TicketClass[]>([]);
   const [isPublicEvent, setIsPublicEvent] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   const handleToggleService = (serviceId: string) => {
     setSelectedServices(prev =>
@@ -419,7 +420,7 @@ const CreateEvent: React.FC = () => {
             <div className="grid md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Event Date</label>
-                <Popover>
+                <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
@@ -436,7 +437,7 @@ const CreateEvent: React.FC = () => {
                     <CalendarComponent
                       mode="single"
                       selected={formData.date}
-                      onSelect={(date) => setFormData({ ...formData, date })}
+                      onSelect={(date) => { setFormData({ ...formData, date }); setDatePickerOpen(false); }}
                       initialFocus
                       className="p-3 pointer-events-auto"
                     />

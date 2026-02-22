@@ -26,6 +26,39 @@ router = APIRouter(prefix="/users", tags=["Users"])
 # ──────────────────────────────────────────────
 # Sign Up
 # ──────────────────────────────────────────────
+def _generate_unique_username(db: Session, first_name: str, last_name: str) -> str:
+    """Generate a unique username from first + last name."""
+    import random
+    fn = re.sub(r'[^a-z0-9]', '', first_name.lower())
+    ln = re.sub(r'[^a-z0-9]', '', last_name.lower())
+    
+    # Try simple combinations first
+    candidates = [
+        f"{fn}{ln}",
+        f"{fn}_{ln}",
+        f"{fn}{ln[0]}" if ln else fn,
+        f"{fn[0]}{ln}" if fn else ln,
+    ]
+    
+    for c in candidates:
+        if len(c) >= 3 and not db.query(User).filter(User.username == c).first():
+            return c
+    
+    # Add random numbers
+    base = f"{fn}{ln}" if fn and ln else (fn or ln or "user")
+    for _ in range(20):
+        candidate = f"{base}{random.randint(1, 9999)}"
+        if not db.query(User).filter(User.username == candidate).first():
+            return candidate
+    
+    # Fallback
+    import uuid
+    return f"user_{uuid.uuid4().hex[:8]}"
+
+
+# ──────────────────────────────────────────────
+# Sign Up
+# ──────────────────────────────────────────────
 @router.post("/signup")
 async def signup(request: Request, db: Session = Depends(get_db)):
     """Creates a new user account."""
@@ -49,12 +82,14 @@ async def signup(request: Request, db: Session = Depends(get_db)):
     if not last_name:
         return standard_response(False, "We couldn't identify your last name. Please provide it so we can complete your registration.")
 
+    # Auto-generate username if not provided (inline registration by another user)
     if not username:
-        return standard_response(False, "Please provide a username for your account.")
-    if not validate_username(username):
-        return standard_response(False, "Username can only contain letters, numbers, and underscores, and must be 3-30 characters long.")
-    if db.query(User).filter(User.username == username).first():
-        return standard_response(False, f"The username '{username}' is already taken. Please choose a different one.")
+        username = _generate_unique_username(db, first_name, last_name)
+    else:
+        if not validate_username(username):
+            return standard_response(False, "Username can only contain letters, numbers, and underscores, and must be 3-30 characters long.")
+        if db.query(User).filter(User.username == username).first():
+            return standard_response(False, f"The username '{username}' is already taken. Please choose a different one.")
 
     # Email is now OPTIONAL
     if email:

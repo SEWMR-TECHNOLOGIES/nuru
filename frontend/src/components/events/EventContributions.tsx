@@ -113,6 +113,8 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
   const [reportDateFrom, setReportDateFrom] = useState<Date | undefined>(undefined);
   const [reportDateTo, setReportDateTo] = useState<Date | undefined>(undefined);
   const [reportLoading, setReportLoading] = useState(false);
+  const [reportFromOpen, setReportFromOpen] = useState(false);
+  const [reportToOpen, setReportToOpen] = useState(false);
 
   // Bulk upload
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
@@ -1287,7 +1289,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
             <div className="space-y-3">
               <div>
                 <Label className="text-xs">From</Label>
-                <Popover>
+                <Popover open={reportFromOpen} onOpenChange={setReportFromOpen}>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !reportDateFrom && "text-muted-foreground")}>
                       <CalendarIcon className="mr-2 h-4 w-4" />
@@ -1295,13 +1297,13 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={reportDateFrom} onSelect={setReportDateFrom} initialFocus className="p-3 pointer-events-auto" />
+                    <Calendar mode="single" selected={reportDateFrom} onSelect={d => { setReportDateFrom(d); setReportFromOpen(false); }} initialFocus className="p-3 pointer-events-auto" />
                   </PopoverContent>
                 </Popover>
               </div>
               <div>
                 <Label className="text-xs">To</Label>
-                <Popover>
+                <Popover open={reportToOpen} onOpenChange={setReportToOpen}>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !reportDateTo && "text-muted-foreground")}>
                       <CalendarIcon className="mr-2 h-4 w-4" />
@@ -1309,7 +1311,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={reportDateTo} onSelect={setReportDateTo} initialFocus className="p-3 pointer-events-auto" />
+                    <Calendar mode="single" selected={reportDateTo} onSelect={d => { setReportDateTo(d); setReportToOpen(false); }} initialFocus className="p-3 pointer-events-auto" />
                   </PopoverContent>
                 </Popover>
               </div>

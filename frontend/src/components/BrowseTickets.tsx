@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Loader2, Search, MapPin, Calendar, ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
+import { Loader2, Search, MapPin, ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
 import TicketIcon from "@/assets/icons/ticket-icon.svg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { formatPrice } from "@/utils/formatPrice";
 import { getEventCountdown } from "@/utils/getEventCountdown";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import CountdownClock from "@/components/CountdownClock";
 
 const BrowseTickets = () => {
   const navigate = useNavigate();
@@ -142,79 +143,85 @@ const BrowseTickets = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredEvents.map((event, i) => (
-            <motion.div
-              key={event.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-            >
-              <Card
-                className="overflow-hidden cursor-pointer hover:shadow-lg hover:border-primary/30 transition-all group"
-                onClick={() => openEventTickets(event)}
+          {filteredEvents.map((event, i) => {
+            const d = event.start_date ? new Date(event.start_date) : null;
+            const countdown = getEventCountdown(event.start_date);
+            return (
+              <motion.div
+                key={event.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
               >
-                <div className="relative h-40 bg-muted overflow-hidden">
-                  {event.cover_image ? (
-                    <img src={event.cover_image} alt={event.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <img src={TicketIcon} alt="" className="w-10 h-10 dark:invert opacity-20" />
-                    </div>
-                  )}
-                  {/* Price badge */}
-                  <div className="absolute bottom-3 left-3">
-                    <Badge className="bg-primary text-primary-foreground shadow-lg text-xs font-bold px-2.5 py-1">
-                      From {formatPrice(event.min_price)}
-                    </Badge>
-                  </div>
-                  {event.total_available <= 0 && (
-                    <div className="absolute top-3 right-3">
-                      <Badge variant="destructive" className="text-xs font-bold">Sold Out</Badge>
-                    </div>
-                  )}
-                </div>
-                <CardContent className="p-4">
-                  <h3 className="font-semibold text-foreground text-sm line-clamp-2 mb-2">{event.name}</h3>
-                  <div className="space-y-1">
-                    {event.start_date && (
-                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                        <Calendar className="w-3 h-3 flex-shrink-0" />
-                        {new Date(event.start_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                      </p>
-                    )}
-                    {event.location && (
-                      <p className="text-xs text-muted-foreground flex items-center gap-1.5 truncate">
-                        <MapPin className="w-3 h-3 flex-shrink-0" />
-                        {event.location}
-                      </p>
-                    )}
-                  </div>
-                  {/* Countdown */}
-                  {event.start_date && (() => {
-                    const countdown = getEventCountdown(event.start_date);
-                    if (!countdown) return null;
-                    return (
-                      <div className={`mt-2.5 inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-wide uppercase ${
-                        countdown.isPast
-                          ? 'bg-muted text-muted-foreground'
-                          : 'bg-primary/10 text-primary'
-                      }`}>
-                        {countdown.text}
+                <Card
+                  className="overflow-hidden cursor-pointer hover:shadow-lg hover:border-primary/30 transition-all group"
+                  onClick={() => openEventTickets(event)}
+                >
+                  <div className="relative h-40 bg-muted overflow-hidden">
+                    {event.cover_image ? (
+                      <img src={event.cover_image} alt={event.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <img src={TicketIcon} alt="" className="w-10 h-10 dark:invert opacity-20" />
                       </div>
-                    );
-                  })()}
-                  <div className="flex items-center gap-2 mt-2">
-                    <Badge variant="outline" className="text-[10px]">
-                      {event.ticket_class_count} class{event.ticket_class_count !== 1 ? 'es' : ''}
-                    </Badge>
-                    {event.total_available > 0 && (
-                      <span className="text-[10px] text-muted-foreground">{event.total_available} tickets left</span>
+                    )}
+                    {/* Price badge */}
+                    <div className="absolute bottom-3 left-3">
+                      <Badge className="bg-primary text-primary-foreground shadow-lg text-xs font-bold px-2.5 py-1">
+                        From {formatPrice(event.min_price)}
+                      </Badge>
+                    </div>
+                    {event.total_available <= 0 && (
+                      <div className="absolute top-3 right-3">
+                        <Badge variant="destructive" className="text-xs font-bold">Sold Out</Badge>
+                      </div>
                     )}
                   </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
+                  <CardContent className="p-0">
+                    <div className="flex">
+                      {/* Stacked date block */}
+                      {d && (
+                        <div className={`flex flex-col items-center justify-center px-4 py-3 border-r border-border min-w-[60px] ${
+                          countdown?.isPast ? 'bg-muted/50' : 'bg-primary/5'
+                        }`}>
+                          <span className={`text-xl font-bold leading-none ${countdown?.isPast ? 'text-muted-foreground' : 'text-primary'}`}>
+                            {d.getDate()}
+                          </span>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider mt-0.5 ${countdown?.isPast ? 'text-muted-foreground' : 'text-primary'}`}>
+                            {d.toLocaleDateString('en-US', { month: 'short' })}
+                          </span>
+                          <span className="text-[9px] text-muted-foreground mt-0.5">
+                            {d.getFullYear()}
+                          </span>
+                        </div>
+                      )}
+                      {/* Event info */}
+                      <div className="flex-1 min-w-0 p-3 space-y-1.5">
+                        <h3 className="font-semibold text-foreground text-sm line-clamp-2 leading-tight">{event.name}</h3>
+                        {event.location && (
+                          <p className="text-[11px] text-muted-foreground flex items-center gap-1 truncate">
+                            <MapPin className="w-3 h-3 flex-shrink-0" />
+                            {event.location}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                          {event.start_date && (
+                            <CountdownClock targetDate={event.start_date} compact />
+                          )}
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
+                            {event.ticket_class_count} class{event.ticket_class_count !== 1 ? 'es' : ''}
+                          </Badge>
+                          {event.total_available > 0 && (
+                            <span className="text-[9px] text-muted-foreground">{event.total_available} left</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            );
+          })}
         </div>
       )}
 
@@ -247,7 +254,7 @@ const BrowseTickets = () => {
                   <h2 className="font-bold text-foreground text-lg">{selectedEvent.name}</h2>
                   {selectedEvent.start_date && (
                     <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
-                      <Calendar className="w-3 h-3" />
+                      <img src={TicketIcon} alt="" className="w-3 h-3 dark:invert" />
                       {new Date(selectedEvent.start_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
                     </p>
                   )}

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Calendar, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
 import TicketIcon from "@/assets/icons/ticket-icon.svg";
+import CalendarIcon from "@/assets/icons/calendar-icon.svg";
 import PrintIcon from "@/assets/icons/print-icon.svg";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,6 +12,7 @@ import { formatPrice } from "@/utils/formatPrice";
 import { getEventCountdown } from "@/utils/getEventCountdown";
 import { motion } from "framer-motion";
 import PrintableTicket from "@/components/PrintableTicket";
+import CountdownClock from "@/components/CountdownClock";
 
 const STATUS_STYLES: Record<string, string> = {
   confirmed: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
@@ -45,9 +47,6 @@ const MyTickets = () => {
       }
     }).catch(() => {}).finally(() => setLoading(false));
   }, [page]);
-
-  const formatDate = (d: string) =>
-    new Date(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -96,6 +95,7 @@ const MyTickets = () => {
               {tickets.map((ticket, i) => {
                 const event = ticket.event || {};
                 const countdown = getEventCountdown(event.start_date);
+                const d = event.start_date ? new Date(event.start_date) : null;
                 return (
                   <motion.div
                     key={ticket.id}
@@ -103,77 +103,99 @@ const MyTickets = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.04 }}
                   >
-                    <Card className="hover:shadow-md hover:border-primary/20 transition-all cursor-pointer" onClick={() => event.id && navigate(`/event/${event.id}`)}>
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-3">
-                          <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-                            {event.cover_image ? (
-                              <img src={event.cover_image} alt={event.name} className="w-full h-full object-cover" />
-                            ) : (
-                              <img src={TicketIcon} alt="" className="w-6 h-6 dark:invert opacity-40" />
-                            )}
+                    {/* Ticket-shaped card */}
+                    <div
+                      className="relative overflow-hidden rounded-xl border border-border bg-card hover:shadow-lg hover:border-primary/20 transition-all cursor-pointer group"
+                      onClick={() => event.id && navigate(`/event/${event.id}`)}
+                    >
+                      {/* Perforated circles */}
+                      <div className="absolute left-[72px] top-[-8px] w-4 h-4 rounded-full bg-background border border-border z-10" />
+                      <div className="absolute left-[72px] bottom-[-8px] w-4 h-4 rounded-full bg-background border border-border z-10" />
+                      
+                      {/* Dashed separator line */}
+                      <div className="absolute left-[80px] top-2 bottom-2 border-l border-dashed border-border/60 z-[5]" />
+                      
+                      <div className="flex">
+                        {/* Left stub - date block */}
+                        {d ? (
+                          <div className={`flex flex-col items-center justify-center w-[80px] py-4 shrink-0 ${
+                            countdown?.isPast ? 'bg-muted/30' : 'bg-primary/5'
+                          }`}>
+                            <span className={`text-2xl font-bold leading-none ${countdown?.isPast ? 'text-muted-foreground' : 'text-primary'}`}>
+                              {d.getDate()}
+                            </span>
+                            <span className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${countdown?.isPast ? 'text-muted-foreground' : 'text-primary'}`}>
+                              {d.toLocaleDateString('en-US', { month: 'short' })}
+                            </span>
+                            <span className="text-[9px] text-muted-foreground mt-0.5">
+                              {d.getFullYear()}
+                            </span>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <h3 className="font-semibold text-foreground text-sm truncate">{event.name || ticket.ticket_class_name || "Event"}</h3>
-                              <Badge className={`text-[10px] capitalize shrink-0 ${STATUS_STYLES[ticket.status] || STATUS_STYLES.pending}`}>
-                                {ticket.status}
-                              </Badge>
-                            </div>
-                            {event.start_date && (
-                              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                                <Calendar className="w-3 h-3" />
-                                {formatDate(event.start_date)}
-                              </p>
-                            )}
-                            <div className="flex items-center gap-2 mt-2 flex-wrap">
-                              <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-mono tracking-wide">
-                                {ticket.ticket_code}
-                              </Badge>
-                              {ticket.ticket_class_name && (
-                                <span className="text-[10px] text-muted-foreground">{ticket.ticket_class_name}</span>
-                              )}
-                              {ticket.quantity > 1 && (
-                                <span className="text-[10px] text-muted-foreground">×{ticket.quantity}</span>
-                              )}
-                              <span className="text-[10px] font-medium text-foreground">{formatPrice(ticket.total_amount)}</span>
-                            </div>
-                            {/* Countdown */}
-                            {countdown && (
-                              <div className={`mt-2 inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-wide uppercase ${
-                                countdown.isPast
-                                  ? 'bg-muted text-muted-foreground'
-                                  : 'bg-primary/10 text-primary'
-                              }`}>
-                                {countdown.text}
-                              </div>
-                            )}
+                        ) : (
+                          <div className="flex flex-col items-center justify-center w-[80px] py-4 shrink-0 bg-muted/20">
+                            <img src={TicketIcon} alt="" className="w-6 h-6 dark:invert opacity-30" />
                           </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPrintTicket({
-                                ticket_code: ticket.ticket_code,
-                                event_title: event.name || "Event",
-                                event_date: event.start_date,
-                                event_time: event.start_time?.slice(0, 5),
-                                event_location: event.location,
-                                ticket_class: ticket.ticket_class_name,
-                                quantity: ticket.quantity,
-                                buyer_name: ticket.buyer_name,
-                                total_amount: ticket.total_amount,
-                                currency: ticket.currency,
-                                status: ticket.status,
-                              });
-                            }}
-                            className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                            title="Print ticket"
-                          >
-                            <img src={PrintIcon} alt="Print" className="w-4 h-4 dark:invert" />
-                          </button>
+                        )}
+                        
+                        {/* Main ticket body */}
+                        <div className="flex-1 min-w-0 p-3 pl-5">
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="font-semibold text-foreground text-sm truncate">{event.name || ticket.ticket_class_name || "Event"}</h3>
+                            <Badge className={`text-[10px] capitalize shrink-0 border-0 ${STATUS_STYLES[ticket.status] || STATUS_STYLES.pending}`}>
+                              {ticket.status}
+                            </Badge>
+                          </div>
+                          {event.location && (
+                            <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-1 truncate">
+                              <MapPin className="w-3 h-3 flex-shrink-0" />
+                              {event.location}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                            <Badge variant="outline" className="text-[9px] h-4 px-1.5 font-mono tracking-wide">
+                              {ticket.ticket_code}
+                            </Badge>
+                            {ticket.ticket_class_name && (
+                              <span className="text-[9px] text-muted-foreground">{ticket.ticket_class_name}</span>
+                            )}
+                            {ticket.quantity > 1 && (
+                              <span className="text-[9px] text-muted-foreground">×{ticket.quantity}</span>
+                            )}
+                            <span className="text-[9px] font-semibold text-foreground">{formatPrice(ticket.total_amount)}</span>
+                          </div>
+                          {/* Digital countdown */}
+                          {event.start_date && (
+                            <div className="mt-2">
+                              <CountdownClock targetDate={event.start_date} compact />
+                            </div>
+                          )}
                         </div>
-                      </CardContent>
-                    </Card>
+                        
+                        {/* Print button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPrintTicket({
+                              ticket_code: ticket.ticket_code,
+                              event_title: event.name || "Event",
+                              event_date: event.start_date,
+                              event_time: event.start_time?.slice(0, 5),
+                              event_location: event.location,
+                              ticket_class: ticket.ticket_class_name,
+                              quantity: ticket.quantity,
+                              buyer_name: ticket.buyer_name,
+                              total_amount: ticket.total_amount,
+                              currency: ticket.currency,
+                              status: ticket.status,
+                            });
+                          }}
+                          className="flex items-center justify-center px-3 border-l border-dashed border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                          title="Print ticket"
+                        >
+                          <img src={PrintIcon} alt="Print" className="w-4 h-4 dark:invert" />
+                        </button>
+                      </div>
+                    </div>
                   </motion.div>
                 );
               })}
@@ -197,43 +219,60 @@ const MyTickets = () => {
         {/* Right sidebar - upcoming tickets */}
         <div className="space-y-4">
           {upcomingTickets.length > 0 && (
-            <Card className="border-primary/10">
-              <CardContent className="p-4">
-                <h3 className="font-semibold text-foreground flex items-center gap-2 mb-4">
-                  Upcoming
-                </h3>
-                <div className="space-y-3">
-                  {upcomingTickets.slice(0, 3).map((ticket) => {
-                    const event = ticket.event || {};
-                    const countdown = getEventCountdown(event.start_date);
-                    return (
-                      <div
-                        key={ticket.id}
-                        className="flex gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                        onClick={() => event.id && navigate(`/event/${event.id}`)}
-                      >
-                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-                          {event.cover_image ? (
-                            <img src={event.cover_image} alt={event.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <img src={TicketIcon} alt="" className="w-4 h-4 dark:invert opacity-50" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{event.name}</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {event.start_date ? new Date(event.start_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "TBD"}
-                          </p>
-                          {countdown && !countdown.isPast && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase bg-primary/10 text-primary mt-1">{countdown.text}</span>
-                          )}
-                        </div>
+            <div>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                Upcoming Events
+              </h3>
+              <div className="space-y-3">
+                {upcomingTickets.slice(0, 3).map((ticket) => {
+                  const event = ticket.event || {};
+                  const d = event.start_date ? new Date(event.start_date) : null;
+                  const countdown = getEventCountdown(event.start_date);
+                  return (
+                    <Card
+                      key={ticket.id}
+                      className="overflow-hidden hover:shadow-md hover:border-primary/20 cursor-pointer transition-all group"
+                      onClick={() => event.id && navigate(`/event/${event.id}`)}
+                    >
+                      {/* Cover image */}
+                      <div className="relative h-24 bg-muted overflow-hidden">
+                        {event.cover_image ? (
+                          <img src={event.cover_image} alt={event.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
+                            <img src={TicketIcon} alt="" className="w-6 h-6 dark:invert opacity-20" />
+                          </div>
+                        )}
+                        {/* Date overlay */}
+                        {d && (
+                          <div className="absolute top-2 left-2 bg-background/90 backdrop-blur-sm rounded-lg px-2 py-1.5 shadow-sm text-center min-w-[40px]">
+                            <span className="block text-sm font-bold leading-none text-primary">{d.getDate()}</span>
+                            <span className="block text-[8px] font-bold uppercase tracking-wider text-primary mt-0.5">
+                              {d.toLocaleDateString('en-US', { month: 'short' })}
+                            </span>
+                          </div>
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
+                      <CardContent className="p-2.5">
+                        <p className="text-xs font-semibold text-foreground truncate">{event.name}</p>
+                        {event.location && (
+                          <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
+                            <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
+                            {event.location}
+                          </p>
+                        )}
+                        {/* Digital countdown */}
+                        {event.start_date && (
+                          <div className="mt-1.5">
+                            <CountdownClock targetDate={event.start_date} compact />
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </div>
       </div>

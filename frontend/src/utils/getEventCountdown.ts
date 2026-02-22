@@ -23,14 +23,17 @@ export const getEventCountdown = (dateStr?: string): { text: string; isPast: boo
     return { text: 'Event has passed', isPast: true };
   }
 
-  const weeks = Math.floor(diffDays / 7);
-  const days = diffDays % 7;
-
-  if (weeks === 0) {
-    return { text: `${days} day${days !== 1 ? 's' : ''} to go`, isPast: false };
+  if (diffDays <= 7) {
+    return { text: `${diffDays} day${diffDays !== 1 ? 's' : ''} left`, isPast: false };
   }
-  if (days === 0) {
-    return { text: `${weeks} week${weeks !== 1 ? 's' : ''} to go`, isPast: false };
+  if (diffDays <= 30) {
+    const weeks = Math.round(diffDays / 7);
+    return { text: `${weeks} week${weeks !== 1 ? 's' : ''} left`, isPast: false };
   }
-  return { text: `${weeks}w ${days}d to go`, isPast: false };
+  if (diffDays <= 90) {
+    const months = Math.round(diffDays / 30);
+    return { text: `${months} month${months !== 1 ? 's' : ''} left`, isPast: false };
+  }
+  const months = Math.round(diffDays / 30);
+  return { text: `${months} months left`, isPast: false };
 };

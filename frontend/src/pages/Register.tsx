@@ -220,8 +220,12 @@ const Register = () => {
 
       if (signinResponse.success && signinResponse.data) {
         const d = signinResponse.data as any;
-        if (d.access_token) localStorage.setItem("access_token", d.access_token);
+        if (d.access_token) {
+          localStorage.setItem("access_token", d.access_token);
+          localStorage.setItem("token", d.access_token);
+        }
         if (d.refresh_token) localStorage.setItem("refresh_token", d.refresh_token);
+        localStorage.setItem("login", Date.now().toString());
       }
 
       return true;
@@ -322,7 +326,7 @@ const Register = () => {
 
   return (
     <Layout>
-      <div className="min-h-screen flex items-start md:items-center justify-center px-6 py-4 md:py-20">
+      <div className="min-h-screen flex items-start md:items-center justify-center px-6 pt-16 md:py-20">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

@@ -17,29 +17,48 @@ const Layout = ({ children }: LayoutProps) => {
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const [headerHidden, setHeaderHidden] = useState(false);
   const lastScrollY = useRef(0);
+  const scrollDirection = useRef<'up' | 'down' | null>(null);
+  const accumulatedDelta = useRef(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const ticking = useRef(false);
 
   const handleScroll = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container || window.innerWidth >= 768) return;
+    if (ticking.current) return;
+    ticking.current = true;
 
-    const currentY = container.scrollTop;
-    const delta = currentY - lastScrollY.current;
+    requestAnimationFrame(() => {
+      const container = scrollContainerRef.current;
+      if (!container || window.innerWidth >= 768) {
+        ticking.current = false;
+        return;
+      }
 
-    // Near top: always show
-    if (currentY < 50) {
-      setHeaderHidden(false);
-    }
-    // Scrolling down by meaningful amount: hide
-    else if (delta > 8) {
-      setHeaderHidden(true);
-    }
-    // Scrolling up by meaningful amount: show
-    else if (delta < -8) {
-      setHeaderHidden(false);
-    }
+      const currentY = container.scrollTop;
+      const delta = currentY - lastScrollY.current;
 
-    lastScrollY.current = currentY;
+      // Near top: always show
+      if (currentY < 50) {
+        setHeaderHidden(false);
+        accumulatedDelta.current = 0;
+        scrollDirection.current = null;
+      } else {
+        const dir = delta > 0 ? 'down' : 'up';
+        // Reset accumulator on direction change
+        if (dir !== scrollDirection.current) {
+          accumulatedDelta.current = 0;
+          scrollDirection.current = dir;
+        }
+        accumulatedDelta.current += Math.abs(delta);
+
+        // Only toggle after accumulating 30px in one direction
+        if (accumulatedDelta.current > 30) {
+          setHeaderHidden(dir === 'down');
+        }
+      }
+
+      lastScrollY.current = currentY;
+      ticking.current = false;
+    });
   }, []);
 
   useEffect(() => {

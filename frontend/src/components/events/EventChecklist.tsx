@@ -92,6 +92,7 @@ const EventChecklist: React.FC<EventChecklistProps> = ({ eventId, eventTypeId, p
   const [memberSearch, setMemberSearch] = useState("");
   const [showMemberDropdown, setShowMemberDropdown] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
+  const [dueDateOpen, setDueDateOpen] = useState(false);
 
   const fetchAssignableMembers = useCallback(async () => {
     if (!eventId) return;
@@ -493,7 +494,7 @@ const EventChecklist: React.FC<EventChecklistProps> = ({ eventId, eventTypeId, p
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">Due Date</label>
-              <Popover>
+              <Popover open={dueDateOpen} onOpenChange={setDueDateOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
@@ -510,7 +511,7 @@ const EventChecklist: React.FC<EventChecklistProps> = ({ eventId, eventTypeId, p
                   <Calendar
                     mode="single"
                     selected={addForm.due_date || undefined}
-                    onSelect={(date) => setAddForm(f => ({ ...f, due_date: date || null }))}
+                    onSelect={(date) => { setAddForm(f => ({ ...f, due_date: date || null })); setDueDateOpen(false); }}
                     initialFocus
                     className={cn("p-3 pointer-events-auto")}
                   />

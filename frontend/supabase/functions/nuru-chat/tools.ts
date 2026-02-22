@@ -100,4 +100,34 @@ export const chatTools = [
       },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "create_event_budget",
+      description:
+        "Generate a detailed event budget/cost estimate for the user. Use this when users ask to create a budget, estimate costs, or plan expenses for their event. Returns a structured budget breakdown with categories, items, and estimated costs in TZS.",
+      parameters: {
+        type: "object",
+        properties: {
+          event_type: {
+            type: "string",
+            description: "Type of event (e.g., 'wedding', 'birthday', 'corporate', 'graduation', 'conference')",
+          },
+          guest_count: {
+            type: "number",
+            description: "Expected number of guests (default 100)",
+          },
+          budget_range: {
+            type: "string",
+            description: "Budget tier: 'low' (budget-friendly), 'medium' (standard), 'high' (premium/luxury). Default: medium",
+          },
+          location: {
+            type: "string",
+            description: "City/location for pricing context (e.g., 'Dar es Salaam', 'Arusha'). Default: Dar es Salaam",
+          },
+        },
+        required: ["event_type"],
+      },
+    },
+  },
 ];
