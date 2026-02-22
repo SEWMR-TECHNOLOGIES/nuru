@@ -4,6 +4,7 @@ import { ticketingApi } from "@/lib/api/ticketing";
 import type { TicketClass as TicketClassType } from "@/lib/api/ticketing";
 import { X, ChevronLeft, Upload, MapPin } from "lucide-react";
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import aiIcon from '@/assets/icons/ai-icon.svg';
 import MapLocationPicker from "@/components/MapLocationPicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ import { toast } from "sonner";
 import { showApiErrors, showCaughtError } from "@/lib/api";
 import EventRecommendations from "@/components/events/EventRecommendations";
 import EventTicketing from "@/components/EventTicketing";
+import BudgetAssistant from "@/components/BudgetAssistant";
 import type { TicketClass } from "@/components/EventTicketing";
 
 const CreateEvent: React.FC = () => {
@@ -56,6 +58,7 @@ const CreateEvent: React.FC = () => {
   const [ticketClasses, setTicketClasses] = useState<TicketClass[]>([]);
   const [isPublicEvent, setIsPublicEvent] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [budgetAssistantOpen, setBudgetAssistantOpen] = useState(false);
 
   const handleToggleService = (serviceId: string) => {
     setSelectedServices(prev =>
@@ -465,7 +468,19 @@ const CreateEvent: React.FC = () => {
 
             {/* Budget */}
             <div>
-              <label className="block text-sm font-medium mb-2">Estimated Budget (TZS)</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium">Estimated Budget (TZS)</label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs h-8 rounded-lg border-foreground/20 hover:bg-foreground hover:text-background transition-colors"
+                  onClick={() => setBudgetAssistantOpen(true)}
+                >
+                  <img src={aiIcon} alt="" className="w-4 h-4 dark:invert" />
+                  AI Budget Assistant
+                </Button>
+              </div>
               <FormattedNumberInput
                 placeholder="e.g., 5,000,000"
                 value={formData.budget}
@@ -474,6 +489,21 @@ const CreateEvent: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Budget Assistant Dialog */}
+        <BudgetAssistant
+          open={budgetAssistantOpen}
+          onOpenChange={setBudgetAssistantOpen}
+          eventContext={{
+            eventType: formData.eventType,
+            eventTypeName: displayedEventTypes.find(t => t.id === formData.eventType)?.name,
+            title: formData.title,
+            location: formData.location,
+            expectedGuests: formData.expectedGuests,
+            budget: formData.budget,
+          }}
+          onSaveBudget={(amount) => setFormData(prev => ({ ...prev, budget: amount }))}
+        />
 
         {/* Ticketing */}
         <EventTicketing

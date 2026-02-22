@@ -76,7 +76,7 @@ serve(async (req) => {
       return jsonRes(cors, { error: "Invalid JSON body" }, 400);
     }
 
-    const { messages, firstName } = body;
+    const { messages, firstName, skipTools } = body;
     if (!messages || !Array.isArray(messages)) {
       return jsonRes(cors, { error: "Missing or invalid 'messages' array" }, 400);
     }
@@ -92,11 +92,13 @@ serve(async (req) => {
     };
     const aiUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
-    // Build conversation with system prompt
-    const fullMessages = [
-      { role: "system", content: SYSTEM_PROMPT(firstName) },
-      ...messages,
-    ];
+    // Build conversation with system prompt (skip for budget assistant which provides its own)
+    const fullMessages = skipTools
+      ? [...messages]
+      : [
+          { role: "system", content: SYSTEM_PROMPT(firstName) },
+          ...messages,
+        ];
 
     // Use a custom SSE stream that shows tool-call progress inline
     const encoder = new TextEncoder();
@@ -114,6 +116,35 @@ serve(async (req) => {
         };
 
         try {
+          if (skipTools) {
+            // Direct streaming without tool detection (used by Budget Assistant)
+            console.log("[nuru-chat] skipTools mode: streaming directly...");
+            const streamRes = await fetch(aiUrl, {
+              method: "POST",
+              headers: aiHeaders,
+              body: JSON.stringify({
+                model: "google/gemini-2.5-flash",
+                messages: fullMessages,
+                stream: true,
+              }),
+            });
+
+            if (!streamRes.ok) {
+              const errText = await streamRes.text();
+              console.error("[nuru-chat] Stream error:", streamRes.status, errText);
+              sendDelta("Sorry, I'm having trouble right now. Please try again.");
+              sendSSE("[DONE]");
+              controller.close();
+              return;
+            }
+
+            const reader = streamRes.body!.getReader();
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              controller.enqueue(value);
+            }
+          } else {
           // --- Step 1: Non-streaming call to detect tool calls ---
           console.log("[nuru-chat] Step 1: checking for tool calls...");
           const firstRes = await fetch(aiUrl, {
@@ -243,6 +274,7 @@ serve(async (req) => {
               if (done) break;
               controller.enqueue(value);
             }
+          }
           }
         } catch (e) {
           console.error("[nuru-chat] Stream error:", e);
