@@ -68,6 +68,7 @@ class User(Base):
     booking_requests = relationship("ServiceBookingRequest", back_populates="requester")
     file_uploads = relationship("FileUpload", back_populates="user")
     content_appeals = relationship("ContentAppeal", back_populates="user")
+    issues = relationship("Issue", back_populates="user")
 
     # Self-referential / multi-FK relationships
     blocks_made = relationship("UserBlock", back_populates="blocker", foreign_keys="[UserBlock.blocker_id]")
@@ -237,6 +238,7 @@ class UserCircle(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
     circle_member_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
     mutual_friends_count = Column(Integer, default=0)
+    status = Column(String(20), nullable=False, default='pending')
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

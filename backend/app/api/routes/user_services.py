@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from core.config import UPLOAD_SERVICE_URL
 from core.database import get_db
+from sqlalchemy import func as sa_func, or_
 from models import (
     UserService, UserServiceImage, UserServiceVerification,
     UserServiceVerificationFile, UserServiceKYCStatus,
@@ -22,6 +23,7 @@ from models import (
     VerificationStatusEnum,
     ServiceIntroMedia, ServiceBusinessPhone, ServiceMediaTypeEnum,
     BusinessPhoneStatusEnum,
+    EventService, EventServiceStatusEnum, Event,
 )
 from utils.auth import get_current_user
 from utils.helpers import format_price, standard_response
@@ -95,7 +97,17 @@ def _service_dict(db, service):
         "rating": avg_rating,
         "review_count": len(ratings),
         "booking_count": getattr(service, "booking_count", 0) or 0,
-        "completed_events": getattr(service, "completed_events", 0) or 0,
+        "completed_events": db.query(sa_func.count(EventService.id)).join(
+            Event, Event.id == EventService.event_id
+        ).filter(
+            EventService.provider_user_service_id == service.id,
+            EventService.service_status != EventServiceStatusEnum.cancelled,
+            or_(
+                EventService.service_status == EventServiceStatusEnum.completed,
+                Event.end_date < datetime.now(EAT),
+                sa_func.coalesce(Event.end_date, Event.start_date) < datetime.now(EAT),
+            ),
+        ).scalar() or 0,
         "availability": service.availability.value if hasattr(service.availability, "value") else (service.availability or "available"),
         "is_verified": service.is_verified,
         "kyc_list": kyc_list,

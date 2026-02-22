@@ -23,7 +23,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:8080",
         "http://127.0.0.1:8080",
-        "http://192.168.56.1:8080/",
+        "http://192.168.100.7:8080",
         "https://app.nuru.tz",
         "https://www.nuru.tz",
         "https://nuru.tz",

@@ -33,6 +33,7 @@ from models import (
     ServiceBookingRequest,
     NuruCardOrder,
     ContentAppeal,
+    IssueCategory, Issue, IssueResponse, IssueStatusEnum, IssuePriorityEnum,
 )
 from models.enums import VerificationStatusEnum, ChatSessionStatusEnum, NotificationTypeEnum, EventStatusEnum, AppealStatusEnum, AppealContentTypeEnum, CardOrderStatusEnum
 from utils.auth import create_access_token, create_refresh_token, verify_refresh_token
@@ -2717,3 +2718,300 @@ def review_appeal(
     db.commit()
     return standard_response(True, f"Appeal {decision}")
 
+
+# ──────────────────────────────────────────────
+# ISSUE CATEGORIES MANAGEMENT
+# ──────────────────────────────────────────────
+
+@router.get("/issue-categories")
+def admin_list_issue_categories(db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    cats = db.query(IssueCategory).order_by(IssueCategory.display_order.asc(), IssueCategory.name.asc()).all()
+    data = [{
+        "id": str(c.id),
+        "name": c.name,
+        "description": c.description,
+        "icon": c.icon,
+        "display_order": c.display_order,
+        "is_active": c.is_active,
+        "issue_count": db.query(func.count(Issue.id)).filter(Issue.category_id == c.id).scalar() or 0,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+    } for c in cats]
+    return standard_response(True, "Issue categories retrieved", data)
+
+
+@router.post("/issue-categories")
+def admin_create_issue_category(body: dict = Body(...), db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    name = (body.get("name") or "").strip()
+    if not name:
+        return standard_response(False, "Category name is required")
+    if db.query(IssueCategory).filter(IssueCategory.name == name).first():
+        return standard_response(False, "Category name already exists")
+    cat = IssueCategory(
+        name=name,
+        description=(body.get("description") or "").strip() or None,
+        icon=(body.get("icon") or "").strip() or None,
+        display_order=body.get("display_order", 0),
+        is_active=body.get("is_active", True),
+    )
+    db.add(cat)
+    db.commit()
+    return standard_response(True, "Issue category created", {"id": str(cat.id), "name": cat.name})
+
+
+@router.put("/issue-categories/{cat_id}")
+def admin_update_issue_category(cat_id: str, body: dict = Body(...), db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        cid = uuid.UUID(cat_id)
+    except ValueError:
+        return standard_response(False, "Invalid category ID")
+    cat = db.query(IssueCategory).filter(IssueCategory.id == cid).first()
+    if not cat:
+        return standard_response(False, "Category not found")
+    if "name" in body and body["name"]:
+        existing = db.query(IssueCategory).filter(IssueCategory.name == body["name"].strip(), IssueCategory.id != cid).first()
+        if existing:
+            return standard_response(False, "Category name already exists")
+        cat.name = body["name"].strip()
+    if "description" in body:
+        cat.description = (body["description"] or "").strip() or None
+    if "icon" in body:
+        cat.icon = (body["icon"] or "").strip() or None
+    if "display_order" in body:
+        cat.display_order = body["display_order"]
+    if "is_active" in body:
+        cat.is_active = body["is_active"]
+    cat.updated_at = datetime.now(EAT)
+    db.commit()
+    return standard_response(True, "Issue category updated")
+
+
+@router.delete("/issue-categories/{cat_id}")
+def admin_delete_issue_category(cat_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        cid = uuid.UUID(cat_id)
+    except ValueError:
+        return standard_response(False, "Invalid category ID")
+    cat = db.query(IssueCategory).filter(IssueCategory.id == cid).first()
+    if not cat:
+        return standard_response(False, "Category not found")
+    issue_count = db.query(func.count(Issue.id)).filter(Issue.category_id == cid).scalar() or 0
+    if issue_count > 0:
+        return standard_response(False, f"Cannot delete: {issue_count} issue(s) use this category. Deactivate instead.")
+    db.delete(cat)
+    db.commit()
+    return standard_response(True, "Issue category deleted")
+
+
+# ──────────────────────────────────────────────
+# ADMIN ISSUE MANAGEMENT
+# ──────────────────────────────────────────────
+
+@router.get("/issues")
+def admin_list_issues(
+    page: int = 1, limit: int = 20,
+    status: str = None, q: str = None, category_id: str = None,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    query = db.query(Issue).options(
+        joinedload(Issue.category),
+        joinedload(Issue.user).joinedload(User.profile),
+    )
+    if status:
+        try:
+            query = query.filter(Issue.status == IssueStatusEnum(status))
+        except ValueError:
+            pass
+    if q:
+        search = f"%{q}%"
+        query = query.filter(or_(Issue.subject.ilike(search), Issue.description.ilike(search)))
+    if category_id:
+        try:
+            query = query.filter(Issue.category_id == uuid.UUID(category_id))
+        except ValueError:
+            pass
+    query = query.order_by(Issue.created_at.desc(), Issue.id.desc())
+    items, pagination = paginate(query, page, limit)
+
+    data = []
+    for issue in items:
+        response_count = db.query(func.count(IssueResponse.id)).filter(IssueResponse.issue_id == issue.id).scalar() or 0
+        user_name = f"{issue.user.first_name} {issue.user.last_name}" if issue.user else "Unknown"
+        user_avatar = issue.user.profile.profile_picture_url if issue.user and issue.user.profile else None
+        data.append({
+            "id": str(issue.id),
+            "subject": issue.subject,
+            "description": issue.description[:150] + "..." if len(issue.description or "") > 150 else issue.description,
+            "status": issue.status.value if issue.status else "open",
+            "priority": issue.priority.value if issue.priority else "medium",
+            "category": {"id": str(issue.category.id), "name": issue.category.name, "icon": issue.category.icon} if issue.category else None,
+            "user": {"id": str(issue.user_id), "name": user_name, "avatar": user_avatar, "username": issue.user.username if issue.user else None},
+            "screenshot_urls": issue.screenshot_urls or [],
+            "response_count": response_count,
+            "created_at": issue.created_at.isoformat() if issue.created_at else None,
+            "updated_at": issue.updated_at.isoformat() if issue.updated_at else None,
+        })
+
+    # Summary
+    total = db.query(func.count(Issue.id)).scalar() or 0
+    open_count = db.query(func.count(Issue.id)).filter(Issue.status == IssueStatusEnum.open).scalar() or 0
+    in_progress_count = db.query(func.count(Issue.id)).filter(Issue.status == IssueStatusEnum.in_progress).scalar() or 0
+    resolved_count = db.query(func.count(Issue.id)).filter(Issue.status == IssueStatusEnum.resolved).scalar() or 0
+
+    return standard_response(True, "Issues retrieved", {
+        "issues": data,
+        "summary": {"total": total, "open": open_count, "in_progress": in_progress_count, "resolved": resolved_count},
+    }, pagination=pagination)
+
+
+@router.get("/issues/{issue_id}")
+def admin_get_issue_detail(issue_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        iid = uuid.UUID(issue_id)
+    except ValueError:
+        return standard_response(False, "Invalid issue ID")
+
+    issue = db.query(Issue).options(
+        joinedload(Issue.category),
+        joinedload(Issue.user).joinedload(User.profile),
+        joinedload(Issue.responses),
+    ).filter(Issue.id == iid).first()
+    if not issue:
+        return standard_response(False, "Issue not found")
+
+    user_name = f"{issue.user.first_name} {issue.user.last_name}" if issue.user else "Unknown"
+    user_avatar = issue.user.profile.profile_picture_url if issue.user and issue.user.profile else None
+
+    responses = [{
+        "id": str(r.id),
+        "message": r.message,
+        "is_admin": r.is_admin,
+        "admin_name": r.admin_name,
+        "responder_id": str(r.responder_id) if r.responder_id else None,
+        "attachments": r.attachments or [],
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    } for r in (issue.responses or [])]
+
+    return standard_response(True, "Issue retrieved", {
+        "id": str(issue.id),
+        "subject": issue.subject,
+        "description": issue.description,
+        "status": issue.status.value if issue.status else "open",
+        "priority": issue.priority.value if issue.priority else "medium",
+        "category": {"id": str(issue.category.id), "name": issue.category.name, "icon": issue.category.icon} if issue.category else None,
+        "user": {"id": str(issue.user_id), "name": user_name, "avatar": user_avatar, "username": issue.user.username if issue.user else None, "email": issue.user.email if issue.user else None},
+        "screenshot_urls": issue.screenshot_urls or [],
+        "responses": responses,
+        "created_at": issue.created_at.isoformat() if issue.created_at else None,
+        "updated_at": issue.updated_at.isoformat() if issue.updated_at else None,
+    })
+
+
+@router.put("/issues/{issue_id}/status")
+def admin_update_issue_status(issue_id: str, body: dict = Body(...), db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        iid = uuid.UUID(issue_id)
+    except ValueError:
+        return standard_response(False, "Invalid issue ID")
+
+    issue = db.query(Issue).filter(Issue.id == iid).first()
+    if not issue:
+        return standard_response(False, "Issue not found")
+
+    new_status = (body.get("status") or "").strip()
+    try:
+        status_enum = IssueStatusEnum(new_status)
+    except ValueError:
+        return standard_response(False, f"Invalid status. Must be one of: {[s.value for s in IssueStatusEnum]}")
+
+    issue.status = status_enum
+    issue.updated_at = datetime.now(EAT)
+    db.commit()
+
+    # Notify user
+    status_labels = {"open": "reopened", "in_progress": "being reviewed", "resolved": "resolved", "closed": "closed"}
+    notif = Notification(
+        id=uuid.uuid4(),
+        recipient_id=issue.user_id,
+        type=NotificationTypeEnum.system,
+        message_template=f"Your issue \"{issue.subject}\" has been {status_labels.get(new_status, new_status)}.",
+        message_data={"issue_id": str(issue.id), "status": new_status},
+        is_read=False,
+        created_at=datetime.now(EAT),
+    )
+    db.add(notif)
+    db.commit()
+
+    return standard_response(True, f"Issue status updated to {new_status}")
+
+
+@router.post("/issues/{issue_id}/reply")
+def admin_reply_to_issue(issue_id: str, body: dict = Body(...), db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        iid = uuid.UUID(issue_id)
+    except ValueError:
+        return standard_response(False, "Invalid issue ID")
+
+    issue = db.query(Issue).filter(Issue.id == iid).first()
+    if not issue:
+        return standard_response(False, "Issue not found")
+
+    message = (body.get("message") or "").strip()
+    if not message:
+        return standard_response(False, "Message is required")
+
+    now = datetime.now(EAT)
+    response = IssueResponse(
+        id=uuid.uuid4(),
+        issue_id=iid,
+        responder_id=admin.id,
+        is_admin=True,
+        admin_name=admin.full_name,
+        message=message,
+        created_at=now,
+    )
+    db.add(response)
+
+    # Auto-set to in_progress if still open
+    if issue.status == IssueStatusEnum.open:
+        issue.status = IssueStatusEnum.in_progress
+    issue.updated_at = now
+    db.commit()
+
+    # Notify user
+    notif = Notification(
+        id=uuid.uuid4(),
+        recipient_id=issue.user_id,
+        type=NotificationTypeEnum.system,
+        message_template=f"You received a response on your issue \"{issue.subject}\".",
+        message_data={"issue_id": str(issue.id)},
+        is_read=False,
+        created_at=now,
+    )
+    db.add(notif)
+    db.commit()
+
+    return standard_response(True, "Reply sent", {"id": str(response.id)})
+
+
+@router.put("/issues/{issue_id}/priority")
+def admin_update_issue_priority(issue_id: str, body: dict = Body(...), db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    try:
+        iid = uuid.UUID(issue_id)
+    except ValueError:
+        return standard_response(False, "Invalid issue ID")
+
+    issue = db.query(Issue).filter(Issue.id == iid).first()
+    if not issue:
+        return standard_response(False, "Issue not found")
+
+    new_priority = (body.get("priority") or "").strip()
+    try:
+        priority_enum = IssuePriorityEnum(new_priority)
+    except ValueError:
+        return standard_response(False, f"Invalid priority. Must be one of: {[p.value for p in IssuePriorityEnum]}")
+
+    issue.priority = priority_enum
+    issue.updated_at = datetime.now(EAT)
+    db.commit()
+    return standard_response(True, f"Issue priority updated to {new_priority}")

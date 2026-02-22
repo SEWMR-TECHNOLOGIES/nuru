@@ -82,6 +82,8 @@ class NotificationTypeEnum(enum.Enum):
     comment = "comment"
     mention = "mention"
     circle_add = "circle_add"
+    circle_request = "circle_request"
+    circle_accepted = "circle_accepted"
     expense_recorded = "expense_recorded"
     content_removed = "content_removed"
     post_removed = "post_removed"
@@ -233,3 +235,23 @@ class WAMessageStatusEnum(enum.Enum):
     delivered = "delivered"
     read = "read"
     failed = "failed"
+
+
+class IssueStatusEnum(enum.Enum):
+    open = "open"
+    in_progress = "in_progress"
+    resolved = "resolved"
+    closed = "closed"
+
+
+class IssuePriorityEnum(enum.Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
+    critical = "critical"
+
+
+class CircleRequestStatusEnum(enum.Enum):
+    pending = "pending"
+    accepted = "accepted"
+    rejected = "rejected"

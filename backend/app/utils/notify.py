@@ -154,3 +154,25 @@ def notify_circle_add(db, recipient_id, sender_id, sender_name):
         reference_type="circle",
         message_data={"sender_name": sender_name},
     )
+
+
+def notify_circle_request(db, recipient_id, sender_id, sender_name):
+    """Notify user someone wants to add them to their circle."""
+    return create_notification(
+        db, recipient_id, sender_id,
+        "circle_request",
+        "would like to add you to their circle",
+        reference_type="circle_request",
+        message_data={"sender_name": sender_name},
+    )
+
+
+def notify_circle_accepted(db, recipient_id, sender_id, sender_name):
+    """Notify requester that their circle request was accepted."""
+    return create_notification(
+        db, recipient_id, sender_id,
+        "circle_accepted",
+        "accepted your circle request",
+        reference_type="circle",
+        message_data={"sender_name": sender_name},
+    )

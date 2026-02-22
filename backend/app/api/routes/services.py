@@ -345,7 +345,16 @@ def search_services(
             "verified": s.is_verified,
             "availability": s.availability.value if hasattr(s.availability, "value") else s.availability,
             "years_experience": getattr(s, "years_experience", None),
-            "completed_events": getattr(s, "completed_events", None),
+            "completed_events": db.query(sa_func.count(EventService.id)).join(
+                Event, Event.id == EventService.event_id
+            ).filter(
+                EventService.provider_user_service_id == s.id,
+                EventService.service_status != EventServiceStatusEnum.cancelled,
+                or_(
+                    EventService.service_status == EventServiceStatusEnum.completed,
+                    sa_func.coalesce(Event.end_date, Event.start_date) < datetime.now(EAT),
+                ),
+            ).scalar() or 0,
             "business_phone": {
                 "phone_number": s.business_phone.phone_number,
                 "verification_status": s.business_phone.verification_status.value if hasattr(s.business_phone.verification_status, "value") else str(s.business_phone.verification_status),
@@ -405,9 +414,15 @@ def get_service_details(service_id: str, db: Session = Depends(get_db)):
         })
 
     # Count events where this service was completed
-    completed_events = db.query(sa_func.count(EventService.id)).filter(
+    completed_events = db.query(sa_func.count(EventService.id)).join(
+        Event, Event.id == EventService.event_id
+    ).filter(
         EventService.provider_user_service_id == sid,
-        EventService.service_status == EventServiceStatusEnum.completed,
+        EventService.service_status != EventServiceStatusEnum.cancelled,
+        or_(
+            EventService.service_status == EventServiceStatusEnum.completed,
+            sa_func.coalesce(Event.end_date, Event.start_date) < datetime.now(EAT),
+        ),
     ).scalar() or 0
 
     owner_name = f"{service.user.first_name} {service.user.last_name}".strip()

@@ -35,6 +35,8 @@ from models.enums import (
     EventShareDurationEnum,
     ServiceMediaTypeEnum,
     BusinessPhoneStatusEnum,
+    IssueStatusEnum,
+    IssuePriorityEnum,
 )
 
 from models.page_views import PageView  # noqa: F401
@@ -244,6 +246,7 @@ class User(Base):
     live_chat_messages = relationship("LiveChatMessage", back_populates="sender")
     service_review_helpfuls = relationship("ServiceReviewHelpful", back_populates="user")
     recorded_expenses = relationship("EventExpense", back_populates="recorder", foreign_keys="[EventExpense.recorded_by]")
+    issues = relationship("Issue", back_populates="user")
 
 
 class UserProfile(Base):
@@ -386,6 +389,7 @@ class UserCircle(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
     circle_member_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
     mutual_friends_count = Column(Integer, default=0)
+    status = Column(String(20), nullable=False, default='pending')
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
