@@ -635,8 +635,8 @@ const PostDetail = () => {
             <UserAvatar src={authorAvatar} name={authorName} />
             <div className="min-w-0">
               <h3 className="font-semibold text-foreground text-sm md:text-base truncate flex items-center gap-1.5">
-                {authorVerified && <VerifiedUserBadge size="xs" />}
                 {authorName}
+                {authorVerified && <VerifiedUserBadge size="xs" />}
               </h3>
               <p className="text-xs md:text-sm text-muted-foreground">
                 {postTimeAgo}
