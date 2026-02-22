@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, MessageCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { get } from '@/lib/api/helpers';
+
+interface TrendingPostImage {
+  url: string;
+  media_type?: string;
+}
 
 interface TrendingPost {
   id: string;
@@ -11,11 +15,26 @@ interface TrendingPost {
     avatar: string | null;
   };
   content: string;
-  images: string[];
+  images: (string | TrendingPostImage)[];
   glow_count: number;
   comment_count: number;
   created_at: string;
 }
+
+const getImageUrl = (img: string | TrendingPostImage): string | null => {
+  if (typeof img === 'string') return img;
+  if (img && typeof img === 'object' && img.url) return img.url;
+  return null;
+};
+
+const isVideoMedia = (img: string | TrendingPostImage): boolean => {
+  if (typeof img === 'object' && img.media_type === 'video') return true;
+  if (typeof img === 'string') {
+    return /\.(mp4|webm|mov|avi)(\?|$)/i.test(img);
+  }
+  const url = typeof img === 'object' ? img.url : '';
+  return /\.(mp4|webm|mov|avi)(\?|$)/i.test(url);
+};
 
 const getInitials = (name: string) => {
   const parts = name?.trim().split(/\s+/) || [];
@@ -29,14 +48,24 @@ const TrendingMoments = () => {
 
   useEffect(() => {
     console.log('TrendingMoments: Fetching data...');
-    get<TrendingPost[]>('/posts/public/trending?limit=12')
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID || 'lmfprculxhspqxppscbn'}.supabase.co`;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtZnByY3VseGhzcHF4cHBzY2JuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk5NTUyMjAsImV4cCI6MjA3NTUzMTIyMH0.1ecxgLKtqHGLQpZpbNsWil6gxkuKH7RtecR6D0aCLJs';
+
+    fetch(`${supabaseUrl}/functions/v1/public-trending`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+      },
+      body: JSON.stringify({ limit: 12 }),
+    })
+      .then(res => res.json())
       .then(res => {
-        console.log('TrendingMoments: API Response', res);
-        if (res.success && res.data?.length > 0) {
-          console.log('TrendingMoments: Setting posts', res.data);
-          setPosts(res.data);
-        } else {
-          console.log('TrendingMoments: No data or success=false');
+        console.log('TrendingMoments: Response', res);
+        const posts = res?.data || [];
+        if (Array.isArray(posts) && posts.length > 0) {
+          setPosts(posts);
         }
       })
       .catch(err => {
@@ -93,19 +122,32 @@ const TrendingMoments = () => {
                 className="group block relative rounded-2xl overflow-hidden bg-card border border-border hover:border-foreground/15 transition-all duration-500 hover:shadow-xl hover:-translate-y-1"
               >
                 {/* Image */}
-                {post.images[0] && (
+                {post.images[0] && getImageUrl(post.images[0]) && (
                   <div className="relative overflow-hidden">
-                    <img
-                      src={post.images[0]}
-                      alt="Moment"
-                      className="w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                      loading="lazy"
-                      style={{
-                        // Vary heights for masonry effect
-                        minHeight: index % 3 === 0 ? '280px' : index % 3 === 1 ? '200px' : '240px',
-                        maxHeight: '400px',
-                      }}
-                    />
+                    {isVideoMedia(post.images[0]) ? (
+                      <video
+                        src={getImageUrl(post.images[0])!}
+                        className="w-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                        style={{
+                          minHeight: index % 3 === 0 ? '280px' : index % 3 === 1 ? '200px' : '240px',
+                          maxHeight: '400px',
+                        }}
+                      />
+                    ) : (
+                      <img
+                        src={getImageUrl(post.images[0])!}
+                        alt="Moment"
+                        className="w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        loading="lazy"
+                        style={{
+                          minHeight: index % 3 === 0 ? '280px' : index % 3 === 1 ? '200px' : '240px',
+                          maxHeight: '400px',
+                        }}
+                      />
+                    )}
                     {/* Gradient overlay on hover */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                     

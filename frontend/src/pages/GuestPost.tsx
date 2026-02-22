@@ -16,6 +16,19 @@ const getInitials = (name: string) => {
   return name.charAt(0).toUpperCase();
 };
 
+const getImageUrl = (img: any): string | null => {
+  if (typeof img === 'string') return img;
+  if (img && typeof img === 'object' && img.url) return img.url;
+  return null;
+};
+
+const isVideoMedia = (img: any): boolean => {
+  if (typeof img === 'object' && img.media_type === 'video') return true;
+  if (typeof img === 'string') return /\.(mp4|webm|mov|avi)(\?|$)/i.test(img);
+  const url = typeof img === 'object' ? img.url : '';
+  return /\.(mp4|webm|mov|avi)(\?|$)/i.test(url);
+};
+
 const GuestPost = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -45,12 +58,15 @@ const GuestPost = () => {
           const ogUrl = document.querySelector('meta[property="og:url"]');
           
           if (data.data.images?.length > 0) {
-            if (ogImage) ogImage.setAttribute('content', data.data.images[0]);
-            else {
-              const meta = document.createElement('meta');
-              meta.setAttribute('property', 'og:image');
-              meta.setAttribute('content', data.data.images[0]);
-              document.head.appendChild(meta);
+            const firstUrl = getImageUrl(data.data.images[0]);
+            if (firstUrl) {
+              if (ogImage) ogImage.setAttribute('content', firstUrl);
+              else {
+                const meta = document.createElement('meta');
+                meta.setAttribute('property', 'og:image');
+                meta.setAttribute('content', firstUrl);
+                document.head.appendChild(meta);
+              }
             }
           }
           const title = data.data.content?.slice(0, 60) || 'Shared on Nuru';
@@ -146,12 +162,26 @@ const GuestPost = () => {
           {postImages.length > 0 && (
             <div className="px-3 md:px-4">
               {postImages.length === 1 ? (
-                <img src={postImages[0]} alt="Post" className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30" />
+                (() => {
+                  const url = getImageUrl(postImages[0]);
+                  if (!url) return null;
+                  return isVideoMedia(postImages[0]) ? (
+                    <video src={url} controls className="w-full max-h-[500px] rounded-lg bg-muted/30" />
+                  ) : (
+                    <img src={url} alt="Post" className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30" />
+                  );
+                })()
               ) : (
                 <div className="flex gap-2 overflow-x-auto py-1">
-                  {postImages.map((img: string, idx: number) => (
-                    <img key={idx} src={img} alt={`Post ${idx + 1}`} className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg" />
-                  ))}
+                  {postImages.map((img: any, idx: number) => {
+                    const url = getImageUrl(img);
+                    if (!url) return null;
+                    return isVideoMedia(img) ? (
+                      <video key={idx} src={url} muted playsInline preload="metadata" className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg" />
+                    ) : (
+                      <img key={idx} src={url} alt={`Post ${idx + 1}`} className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg" />
+                    );
+                  })}
                 </div>
               )}
             </div>
