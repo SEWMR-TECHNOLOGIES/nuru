@@ -3,7 +3,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Shield, FileText, CheckCircle, Loader2 } from "lucide-react";
+import { Shield, FileText, CheckCircle, Loader2, AlertTriangle } from "lucide-react";
 import { agreementsApi, type AgreementType } from "@/lib/api/agreements";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
@@ -13,6 +13,8 @@ interface AgreementModalProps {
   onClose: () => void;
   onAccepted: () => void;
   agreementType: AgreementType;
+  /** When set, shows an "Agreement Updated" banner with this text */
+  updateSummary?: string;
 }
 
 const AGREEMENT_META: Record<AgreementType, {
@@ -45,7 +47,7 @@ const AGREEMENT_META: Record<AgreementType, {
   },
 };
 
-const AgreementModal = ({ open, onClose, onAccepted, agreementType }: AgreementModalProps) => {
+const AgreementModal = ({ open, onClose, onAccepted, agreementType, updateSummary }: AgreementModalProps) => {
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showFullDoc, setShowFullDoc] = useState(false);
@@ -111,6 +113,17 @@ const AgreementModal = ({ open, onClose, onAccepted, agreementType }: AgreementM
             </div>
           </div>
         </div>
+
+        {/* Updated agreement banner */}
+        {updateSummary && !showFullDoc && (
+          <div className="mx-6 mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-3">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Agreement Updated</p>
+              <p className="text-xs text-amber-600/80 dark:text-amber-400/80 mt-0.5">{updateSummary}</p>
+            </div>
+          </div>
+        )}
 
         {showFullDoc ? (
           /* Full document view */

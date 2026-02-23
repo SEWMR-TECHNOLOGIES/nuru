@@ -58,6 +58,7 @@ const AddService = () => {
   // Agreement gate
   const [agreementAccepted, setAgreementAccepted] = useState<boolean | null>(null);
   const [showAgreementModal, setShowAgreementModal] = useState(false);
+  const [agreementSummary, setAgreementSummary] = useState<string | undefined>();
 
   useEffect(() => {
     agreementsApi.check('vendor_agreement').then(res => {
@@ -66,6 +67,7 @@ const AddService = () => {
           setAgreementAccepted(true);
         } else {
           setAgreementAccepted(false);
+          setAgreementSummary(res.data.summary || undefined);
           setShowAgreementModal(true);
         }
       } else {
@@ -157,6 +159,7 @@ const AddService = () => {
           onClose={() => { setShowAgreementModal(false); if (!agreementAccepted) navigate('/my-services'); }}
           onAccepted={() => { setAgreementAccepted(true); setShowAgreementModal(false); }}
           agreementType="vendor_agreement"
+          updateSummary={agreementSummary}
         />
 
         <form onSubmit={handleSubmit} className="space-y-6">

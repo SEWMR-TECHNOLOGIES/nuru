@@ -6,7 +6,7 @@ import {
   LogOut, Menu,
   Package, Briefcase, Newspaper, Sparkles, Users2,
   BookOpen, CreditCard, Tag, UserCog, BadgeCheck, AlertTriangle,
-  BarChart3, MessageCircle, PanelLeftClose, PanelLeft,
+  BarChart3, MessageCircle, PanelLeftClose, PanelLeft, FileCheck,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -37,6 +37,7 @@ const navItems = [
   { label: "Analytics", icon: BarChart3, to: "/admin/analytics" },
   { label: "User Issues", icon: AlertTriangle, to: "/admin/issues" },
   { label: "Issue Categories", icon: Tag, to: "/admin/issue-categories" },
+  { label: "Agreements", icon: FileCheck, to: "/admin/agreements" },
 ];
 
 export default function AdminLayout() {

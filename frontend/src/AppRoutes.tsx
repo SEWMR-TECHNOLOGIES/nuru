@@ -106,6 +106,7 @@ import AdminWhatsApp from "@/pages/admin/AdminWhatsApp";
 import AdminIssues from "@/pages/admin/AdminIssues";
 import AdminIssueDetail from "@/pages/admin/AdminIssueDetail";
 import AdminIssueCategories from "@/pages/admin/AdminIssueCategories";
+import AdminAgreements from "@/pages/admin/AdminAgreements";
 import MyIssues from "@/components/MyIssues";
 
 // Inner component that uses router hooks (must be inside BrowserRouter)
@@ -239,6 +240,7 @@ function InnerRoutes() {
           <Route path="issues" element={<AdminIssues />} />
           <Route path="issues/:id" element={<AdminIssueDetail />} />
           <Route path="issue-categories" element={<AdminIssueCategories />} />
+          <Route path="agreements" element={<AdminAgreements />} />
         </Route>
 
 

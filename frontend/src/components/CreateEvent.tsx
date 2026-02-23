@@ -66,6 +66,7 @@ const CreateEvent: React.FC = () => {
   // Agreement gate (only for new events, not edits)
   const [agreementAccepted, setAgreementAccepted] = useState<boolean | null>(null);
   const [showAgreementModal, setShowAgreementModal] = useState(false);
+  const [agreementSummary, setAgreementSummary] = useState<string | undefined>();
 
   useEffect(() => {
     if (editId) { setAgreementAccepted(true); return; }
@@ -75,6 +76,7 @@ const CreateEvent: React.FC = () => {
           setAgreementAccepted(true);
         } else {
           setAgreementAccepted(false);
+          setAgreementSummary(res.data.summary || undefined);
           setShowAgreementModal(true);
         }
       } else {
@@ -315,6 +317,7 @@ const CreateEvent: React.FC = () => {
           onClose={() => { setShowAgreementModal(false); if (!agreementAccepted) navigate('/my-events'); }}
           onAccepted={() => { setAgreementAccepted(true); setShowAgreementModal(false); }}
           agreementType="organiser_agreement"
+          updateSummary={agreementSummary}
         />
 
       <form onSubmit={handleSubmit} className="space-y-6">

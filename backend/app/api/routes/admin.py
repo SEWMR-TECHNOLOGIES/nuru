@@ -34,8 +34,9 @@ from models import (
     NuruCardOrder,
     ContentAppeal,
     IssueCategory, Issue, IssueResponse, IssueStatusEnum, IssuePriorityEnum,
+    AgreementVersion, UserAgreementAcceptance,
 )
-from models.enums import VerificationStatusEnum, ChatSessionStatusEnum, NotificationTypeEnum, EventStatusEnum, AppealStatusEnum, AppealContentTypeEnum, CardOrderStatusEnum
+from models.enums import VerificationStatusEnum, ChatSessionStatusEnum, NotificationTypeEnum, EventStatusEnum, AppealStatusEnum, AppealContentTypeEnum, CardOrderStatusEnum, AgreementTypeEnum
 from utils.auth import create_access_token, create_refresh_token, verify_refresh_token
 from utils.helpers import standard_response, paginate
 import jwt
@@ -3115,3 +3116,165 @@ def admin_update_issue_priority(issue_id: str, body: dict = Body(...), db: Sessi
     issue.updated_at = datetime.now(EAT)
     db.commit()
     return standard_response(True, f"Issue priority updated to {new_priority}")
+
+
+# ──────────────────────────────────────────────
+# AGREEMENTS MANAGEMENT
+# ──────────────────────────────────────────────
+
+@router.get("/agreements/versions")
+def admin_list_agreement_versions(
+    agreement_type: str = None,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """List all agreement versions, optionally filtered by type."""
+    q = db.query(AgreementVersion).order_by(desc(AgreementVersion.agreement_type), desc(AgreementVersion.version))
+    if agreement_type:
+        try:
+            ag_type = AgreementTypeEnum[agreement_type]
+            q = q.filter(AgreementVersion.agreement_type == ag_type)
+        except KeyError:
+            return standard_response(False, "Invalid agreement type")
+
+    versions = q.all()
+    items = []
+    for v in versions:
+        # Count acceptances for this version
+        acceptance_count = db.query(func.count(UserAgreementAcceptance.id)).filter(
+            UserAgreementAcceptance.agreement_version_id == v.id
+        ).scalar() or 0
+
+        items.append({
+            "id": str(v.id),
+            "agreement_type": v.agreement_type.name,
+            "version": v.version,
+            "summary": v.summary,
+            "document_path": v.document_path,
+            "published_at": v.published_at.isoformat() if v.published_at else None,
+            "created_at": v.created_at.isoformat() if v.created_at else None,
+            "acceptance_count": acceptance_count,
+        })
+
+    return standard_response(True, "Agreement versions", items)
+
+
+@router.post("/agreements/versions")
+async def admin_create_agreement_version(
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """Publish a new agreement version."""
+    try:
+        body = await request.json()
+    except Exception:
+        return standard_response(False, "Invalid JSON")
+
+    agreement_type = (body.get("agreement_type") or "").strip()
+    summary = (body.get("summary") or "").strip()
+    document_path = (body.get("document_path") or "").strip()
+
+    if not agreement_type or not document_path:
+        return standard_response(False, "agreement_type and document_path are required")
+
+    try:
+        ag_type = AgreementTypeEnum[agreement_type]
+    except KeyError:
+        return standard_response(False, f"Invalid agreement type. Must be one of: {[e.name for e in AgreementTypeEnum]}")
+
+    # Determine next version number
+    latest = (
+        db.query(AgreementVersion)
+        .filter(AgreementVersion.agreement_type == ag_type)
+        .order_by(desc(AgreementVersion.version))
+        .first()
+    )
+    next_version = (latest.version + 1) if latest else 1
+
+    new_ver = AgreementVersion(
+        agreement_type=ag_type,
+        version=next_version,
+        summary=summary or None,
+        document_path=document_path,
+    )
+    db.add(new_ver)
+    db.commit()
+    db.refresh(new_ver)
+
+    return standard_response(True, f"Version {next_version} published", {
+        "id": str(new_ver.id),
+        "agreement_type": ag_type.name,
+        "version": next_version,
+        "summary": new_ver.summary,
+        "document_path": new_ver.document_path,
+    })
+
+
+@router.get("/agreements/acceptances")
+def admin_list_acceptances(
+    agreement_type: str = None,
+    version: int = None,
+    page: int = 1,
+    limit: int = 20,
+    q: str = None,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """List user acceptances with user info, filterable."""
+    query = (
+        db.query(UserAgreementAcceptance, User, UserProfile)
+        .join(User, User.id == UserAgreementAcceptance.user_id)
+        .outerjoin(UserProfile, UserProfile.user_id == User.id)
+        .order_by(desc(UserAgreementAcceptance.accepted_at))
+    )
+
+    if agreement_type:
+        try:
+            ag_type = AgreementTypeEnum[agreement_type]
+            query = query.filter(UserAgreementAcceptance.agreement_type == ag_type)
+        except KeyError:
+            return standard_response(False, "Invalid agreement type")
+
+    if version:
+        query = query.filter(UserAgreementAcceptance.version_accepted == version)
+
+    if q:
+        search = f"%{q}%"
+        query = query.filter(
+            or_(
+                User.email.ilike(search),
+                User.phone.ilike(search),
+                UserProfile.first_name.ilike(search),
+                UserProfile.last_name.ilike(search),
+            )
+        )
+
+    total = query.count()
+    offset = (page - 1) * limit
+    records = query.offset(offset).limit(limit).all()
+
+    items = []
+    for acceptance, user, profile in records:
+        items.append({
+            "id": str(acceptance.id),
+            "user_id": str(user.id),
+            "user_name": f"{user.first_name or ''} {user.last_name or ''}".strip() or user.email,
+            "user_email": user.email,
+            "user_avatar": profile.profile_picture_url if profile else None,
+            "agreement_type": acceptance.agreement_type.name,
+            "version_accepted": acceptance.version_accepted,
+            "ip_address": acceptance.ip_address,
+            "user_agent": acceptance.user_agent,
+            "accepted_at": acceptance.accepted_at.isoformat() if acceptance.accepted_at else None,
+        })
+
+    return standard_response(True, "Acceptances", {
+        "items": items,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "pages": (total + limit - 1) // limit,
+        }
+    })

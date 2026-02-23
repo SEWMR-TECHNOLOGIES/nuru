@@ -322,4 +322,22 @@ export const adminApi = {
   createIssueCategory:   (data: any)             => aPost<any>("/admin/issue-categories", data),
   updateIssueCategory:   (id: string, data: any) => aPut<any>(`/admin/issue-categories/${id}`, data),
   deleteIssueCategory:   (id: string)            => aDel<any>(`/admin/issue-categories/${id}`),
+
+  // Agreements
+  getAgreementVersions: (params?: { agreement_type?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.agreement_type) qs.set("agreement_type", params.agreement_type);
+    return aGet<any>(`/admin/agreements/versions${qs.toString() ? `?${qs}` : ""}`);
+  },
+  createAgreementVersion: (data: { agreement_type: string; summary?: string; document_path: string }) =>
+    aPost<any>("/admin/agreements/versions", data),
+  getAgreementAcceptances: (params?: { agreement_type?: string; version?: number; page?: number; limit?: number; q?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.agreement_type) qs.set("agreement_type", params.agreement_type);
+    if (params?.version)        qs.set("version", String(params.version));
+    if (params?.page)           qs.set("page", String(params.page));
+    if (params?.limit)          qs.set("limit", String(params.limit));
+    if (params?.q)              qs.set("q", params.q);
+    return aGet<any>(`/admin/agreements/acceptances${qs.toString() ? `?${qs}` : ""}`);
+  },
 };
