@@ -111,6 +111,8 @@ def _service_dict(db, service):
         ).scalar() or 0,
         "availability": service.availability.value if hasattr(service.availability, "value") else (service.availability or "available"),
         "is_verified": service.is_verified,
+        "identity_verified": service.user.is_identity_verified if service.user else False,
+        "kyc_all_approved": total_kyc > 0 and verified_count == total_kyc,
         "kyc_list": kyc_list,
         "packages": packages,
         "package_count": len(packages),

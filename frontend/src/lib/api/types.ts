@@ -356,6 +356,8 @@ export interface UserService {
   status?: string;
   verification_status?: "verified" | "pending" | "rejected" | "unverified";
   verification_progress?: number;
+  identity_verified?: boolean;
+  kyc_all_approved?: boolean;
   images?: Array<{
     id: string;
     url: string;

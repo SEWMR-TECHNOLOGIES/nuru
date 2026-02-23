@@ -605,16 +605,19 @@ def approve_kyc_item(
             verification.verification_status = VerificationStatusEnum.verified
             verification.verified_at = datetime.now(EAT)
             verification.updated_at = datetime.now(EAT)
-            # Only now mark the service as verified
+            # Only mark the service as verified if user has identity verified
             if verification.user_service_id:
                 service = db.query(UserService).filter(
                     UserService.id == verification.user_service_id
                 ).first()
                 if service:
-                    service.verification_status = VerificationStatusEnum.verified
-                    service.is_verified = True
                     service_owner_id = service.user_id
                     service_title = service.title
+                    owner = db.query(User).filter(User.id == service.user_id).first()
+                    if owner and owner.is_identity_verified:
+                        service.verification_status = VerificationStatusEnum.verified
+                        service.is_verified = True
+                    # else: KYC all approved but identity not verified — service stays pending
         else:
             # Mark verification as still in progress (pending)
             if verification.verification_status != VerificationStatusEnum.pending:
@@ -631,17 +634,32 @@ def approve_kyc_item(
     # Send notification to service owner
     if service_owner_id:
         if all_approved:
-            notif = Notification(
-                id=uuid.uuid4(),
-                recipient_id=service_owner_id,
-                sender_ids=[],
-                type=NotificationTypeEnum.service_approved,
-                reference_id=verification.user_service_id if verification else None,
-                reference_type="user_service",
-                message_template=f"🎉 Your service \"{service_title}\" has been fully verified and is now live!",
-                message_data={"service_title": service_title},
-                is_read=False,
-            )
+            owner = db.query(User).filter(User.id == service_owner_id).first()
+            if owner and owner.is_identity_verified:
+                notif = Notification(
+                    id=uuid.uuid4(),
+                    recipient_id=service_owner_id,
+                    sender_ids=[],
+                    type=NotificationTypeEnum.service_approved,
+                    reference_id=verification.user_service_id if verification else None,
+                    reference_type="user_service",
+                    message_template=f"🎉 Your service \"{service_title}\" has been fully verified and is now live!",
+                    message_data={"service_title": service_title},
+                    is_read=False,
+                )
+            else:
+                # KYC all approved but identity not verified
+                notif = Notification(
+                    id=uuid.uuid4(),
+                    recipient_id=service_owner_id,
+                    sender_ids=[],
+                    type=NotificationTypeEnum.service_approved,
+                    reference_id=verification.user_service_id if verification else None,
+                    reference_type="user_service",
+                    message_template=f"✅ All business documents for \"{service_title}\" have been approved! Complete your identity verification to activate your service.",
+                    message_data={"service_title": service_title, "needs_identity": True},
+                    is_read=False,
+                )
         else:
             # KYC item approved (partial) — still notify
             req = ks.kyc_requirement
@@ -1826,6 +1844,40 @@ def approve_user_verification(
         if user and not user.is_identity_verified:
             user.is_identity_verified = True
             db.commit()
+
+            # Auto-activate services where ALL KYC items are approved but service is still pending
+            user_services = db.query(UserService).filter(
+                UserService.user_id == user.id,
+                UserService.is_active == True,
+                UserService.is_verified == False,
+            ).all()
+            activated_titles = []
+            for svc in user_services:
+                # Check if this service has a verification with all KYC approved
+                ver = db.query(UserServiceVerification).filter(
+                    UserServiceVerification.user_service_id == svc.id,
+                    UserServiceVerification.verification_status == VerificationStatusEnum.verified,
+                ).first()
+                if ver:
+                    svc.verification_status = VerificationStatusEnum.verified
+                    svc.is_verified = True
+                    activated_titles.append(svc.title)
+            if activated_titles:
+                db.commit()
+                # Notify user about auto-activated services
+                titles_str = ", ".join(f'"{t}"' for t in activated_titles)
+                svc_notif = Notification(
+                    id=uuid.uuid4(),
+                    recipient_id=user.id,
+                    type=NotificationTypeEnum.service_approved,
+                    message_template=f"🎉 Your identity is verified! Your services {titles_str} are now live and accepting bookings.",
+                    message_data={"activated_services": activated_titles},
+                    is_read=False,
+                    created_at=datetime.now(EAT),
+                )
+                db.add(svc_notif)
+                db.commit()
+
             notif = Notification(
                 id=uuid.uuid4(),
                 recipient_id=v.user_id,

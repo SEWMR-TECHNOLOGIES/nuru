@@ -421,19 +421,35 @@ const MyServices = () => {
 
                     {/* Verification Progress */}
                     {!isVerified && (
-                      <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold text-amber-800 dark:text-amber-200">Activation Progress</span>
-                          <span className="text-xs font-bold text-amber-700">{service.verification_progress || 0}%</span>
+                      service.kyc_all_approved && !service.identity_verified ? (
+                        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+                          <div className="flex items-center gap-2 mb-2">
+                            <CheckCircle className="w-4 h-4 text-green-600" />
+                            <span className="text-xs font-semibold text-blue-800 dark:text-blue-200">Business Documents Approved</span>
+                          </div>
+                          <p className="text-xs text-blue-700 dark:text-blue-300 mb-2">
+                            Complete your identity verification to activate this service and start receiving bookings.
+                          </p>
+                          <Button variant="link" size="sm" className="h-auto p-0 text-xs text-blue-700 dark:text-blue-300"
+                            onClick={() => navigate('/profile')}>
+                            Verify My Identity →
+                          </Button>
                         </div>
-                        <div className="w-full bg-amber-100 dark:bg-amber-900/40 rounded-full h-2 mb-2">
-                          <div className="bg-amber-500 h-2 rounded-full transition-all" style={{ width: `${service.verification_progress || 0}%` }} />
+                      ) : (
+                        <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold text-amber-800 dark:text-amber-200">Activation Progress</span>
+                            <span className="text-xs font-bold text-amber-700">{service.verification_progress || 0}%</span>
+                          </div>
+                          <div className="w-full bg-amber-100 dark:bg-amber-900/40 rounded-full h-2 mb-2">
+                            <div className="bg-amber-500 h-2 rounded-full transition-all" style={{ width: `${service.verification_progress || 0}%` }} />
+                          </div>
+                          <Button variant="link" size="sm" className="h-auto p-0 text-xs text-amber-700 dark:text-amber-300"
+                            onClick={() => navigate(`/services/verify/${service.id}/${service.service_type_id || 'default'}`)}>
+                            {(service.verification_progress || 0) > 0 ? 'Continue Activation →' : 'Activate Service →'}
+                          </Button>
                         </div>
-                        <Button variant="link" size="sm" className="h-auto p-0 text-xs text-amber-700 dark:text-amber-300"
-                          onClick={() => navigate(`/services/verify/${service.id}/${service.service_type_id || 'default'}`)}>
-                          {(service.verification_progress || 0) > 0 ? 'Continue Activation →' : 'Activate Service →'}
-                        </Button>
-                      </div>
+                      )
                     )}
 
                     {/* Quick Actions */}

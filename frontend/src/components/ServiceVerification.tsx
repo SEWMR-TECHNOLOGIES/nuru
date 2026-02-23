@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ChevronLeft,
@@ -7,6 +7,7 @@ import {
   Circle,
   FileCheck,
   AlertCircle,
+  ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ import { toast } from "sonner";
 import { useWorkspaceMeta } from "@/hooks/useWorkspaceMeta";
 import { useUserServiceKyc } from "@/data/useUserServiceKyc";
 import { userServicesApi, showApiErrors, showCaughtError } from "@/lib/api";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { ServiceLoadingSkeleton } from "@/components/ui/ServiceLoadingSkeleton";
 
 interface VerificationItem {
@@ -38,6 +40,7 @@ interface VerificationItem {
 const ServiceVerification = () => {
   const { serviceId } = useParams<{ serviceId: string }>();
   const navigate = useNavigate();
+  const { data: currentUser } = useCurrentUser();
   const { kycList, loading, error, refetch } = useUserServiceKyc(serviceId ?? null);
   const [items, setItems] = useState<VerificationItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -96,6 +99,9 @@ const ServiceVerification = () => {
   const hasEditableItems = items.some(
     (item) => item.status === null || item.status === "rejected"
   );
+  const identityVerified = currentUser?.is_identity_verified === true;
+  const allKycApproved = items.length > 0 && verifiedCount === items.length;
+  const needsIdentity = allKycApproved && !identityVerified;
 
   const submitVerification = async (partial: boolean = false) => {
     if (isSubmitting) return;
@@ -218,6 +224,29 @@ const ServiceVerification = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Identity Verification Required Banner */}
+        {needsIdentity && (
+          <Card className="border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 mb-6">
+            <CardContent className="pt-6 flex gap-3">
+              <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-semibold mb-1 text-amber-800 dark:text-amber-200">Identity Verification Required</h3>
+                <p className="text-sm text-amber-700 dark:text-amber-300 mb-3">
+                  All your business documents have been approved! To activate your service and start receiving bookings, 
+                  you need to complete your identity verification.
+                </p>
+                <Button
+                  size="sm"
+                  onClick={() => navigate('/profile')}
+                  className="bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  Verify My Identity →
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Verification Checklist */}
         <div className="space-y-4 mb-6">

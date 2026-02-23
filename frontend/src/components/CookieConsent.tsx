@@ -47,7 +47,7 @@ const CookieConsent = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 40, scale: 0.95 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] w-[calc(100%-2rem)] max-w-lg"
+            className="fixed bottom-6 left-4 right-4 z-[9999] mx-auto max-w-lg"
           >
             <div className="bg-card border border-border rounded-3xl shadow-2xl overflow-hidden">
               {/* Header */}
