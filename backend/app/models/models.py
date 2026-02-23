@@ -2213,6 +2213,8 @@ class ServiceBusinessPhone(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     phone_number = Column(Text, nullable=False)
     verification_status = Column(Enum(BusinessPhoneStatusEnum, name="business_phone_status_enum"), default=BusinessPhoneStatusEnum.pending)
+    otp_code = Column(Text, nullable=True)
+    otp_expires_at = Column(DateTime, nullable=True)
     verified_at = Column(DateTime)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

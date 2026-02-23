@@ -52,6 +52,11 @@ import Register from "@/pages/Register";
 import Login from "@/pages/Login";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import Terms from "@/pages/Terms";
+import VendorAgreement from "@/pages/VendorAgreement";
+import OrganiserAgreement from "@/pages/OrganiserAgreement";
+import CancellationPolicy from "@/pages/CancellationPolicy";
+import CookiePolicy from "@/pages/CookiePolicy";
+import CookieConsent from "@/components/CookieConsent";
 import NotFound from "@/pages/NotFound";
 import ScrollToTop from "@/components/ScrollToTop";
 import EventPlanning from "@/pages/features/EventPlanning";
@@ -115,6 +120,7 @@ function InnerRoutes() {
   return (
     <>
       <ScrollToTop />
+      <CookieConsent />
       <Routes>
         {/* Root: marketing landing when logged out; app feed when logged in */}
         <Route
@@ -185,6 +191,10 @@ function InnerRoutes() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<Terms />} />
+        <Route path="/vendor-agreement" element={<VendorAgreement />} />
+        <Route path="/organiser-agreement" element={<OrganiserAgreement />} />
+        <Route path="/cancellation-policy" element={<CancellationPolicy />} />
+        <Route path="/cookie-policy" element={<CookiePolicy />} />
         <Route path="/shared/post/:id" element={<GuestPost />} />
         <Route path="/shared/photo-library/:token" element={<SharedPhotoLibrary />} />
         <Route path="/rsvp/:code" element={<RSVPConfirmation />} />

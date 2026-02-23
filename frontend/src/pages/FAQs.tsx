@@ -26,11 +26,11 @@ const FAQs = () => {
     },
     {
       question: "Can I offer my services on Nuru?",
-      answer: "Yes. Complete our verification process with your business credentials and insurance information. Once verified, create your profile and start connecting with event planners."
+      answer: "Yes! Sign up, create your service listing, and complete a quick identity check to activate it. Once verified, you can start receiving bookings and payments from event organisers."
     },
     {
       question: "How are service providers verified?",
-      answer: "All providers undergo rigorous verification. We check business licenses, insurance coverage, review past work, and verify customer references. We continuously monitor reviews to ensure quality."
+      answer: "We verify provider identities using national ID or passport to protect both vendors and clients. This ensures trust, prevents fraud, and is required for payment processing through our financial partners."
     },
     {
       question: "Is payment secure?",

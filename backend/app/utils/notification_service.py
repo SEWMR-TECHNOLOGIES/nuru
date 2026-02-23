@@ -19,6 +19,23 @@ async def send_verification_sms(phone: str, code: str, first_name: str = ""):
         print("Failed to send verification SMS:", e)
         raise e
 
+async def send_business_phone_otp(phone: str, code: str, first_name: str = ""):
+    """
+    Sends OTP for business phone verification (not account activation).
+    """
+    client = SewmrSmsClient()
+    message = (
+        f"Hello {first_name}, use the code {code} to verify your business phone number on Nuru. "
+    )
+
+    try:
+        result = client.send_quick_sms(message=message, recipients=[phone])
+        if not result.get("success"):
+            raise Exception(result.get("error", "Failed to send business phone verification SMS"))
+    except Exception as e:
+        print("Failed to send business phone OTP:", e)
+        raise e
+
 def send_verification_email(to_email: str, code: str, first_name: str = ""):
     """
     Sends verification code email via PHP API.

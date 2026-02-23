@@ -106,7 +106,7 @@ const AddService = () => {
         return;
       }
 
-      toast.success(response.message || "Service created successfully");
+      toast.success(response.message || "Service created! Now activate it to start receiving bookings.");
       navigate(`/services/verify/${(response.data as any)?.id}/${formData.serviceType}`);
     } catch (err: any) {
       console.error(err);
@@ -298,32 +298,66 @@ const AddService = () => {
                       {[0,1,2,3,4,5].map(i => <InputOTPSlot key={i} index={i} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />)}
                     </InputOTPGroup>
                   </InputOTP>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={phoneOtp.length < 6 || phoneLoading}
-                    onClick={async () => {
-                      setPhoneLoading(true);
-                      try {
-                        const res = await businessPhoneApi.verify(pendingPhoneId, { otp_code: phoneOtp });
-                        if (res.success) {
-                          toast.success("Phone verified!");
-                          const refreshed = await businessPhoneApi.getAll();
-                          if (refreshed.success && refreshed.data) setBusinessPhones(Array.isArray(refreshed.data) ? refreshed.data : []);
-                          setSelectedPhoneId(pendingPhoneId);
-                          setPendingPhoneId('');
-                          setShowAddPhone(false);
-                          setPhoneOtp('');
-                        } else {
-                          toast.error(res.message || "Invalid code");
-                        }
-                      } catch { toast.error("Verification failed"); }
-                      finally { setPhoneLoading(false); }
-                    }}
-                  >
-                    {phoneLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-                    Verify
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={phoneOtp.length < 6 || phoneLoading}
+                      onClick={async () => {
+                        setPhoneLoading(true);
+                        try {
+                          const res = await businessPhoneApi.verify(pendingPhoneId, { otp_code: phoneOtp });
+                          if (res.success) {
+                            toast.success("Phone verified!");
+                            const refreshed = await businessPhoneApi.getAll();
+                            if (refreshed.success && refreshed.data) {
+                              const phones = Array.isArray(refreshed.data) ? refreshed.data : [];
+                              setBusinessPhones(phones);
+                              // Auto-select the newly verified phone
+                              const verified = phones.find((p: BusinessPhone) => p.id === pendingPhoneId) || phones.find((p: BusinessPhone) => p.verification_status === 'verified');
+                              if (verified) setSelectedPhoneId(verified.id);
+                            }
+                            setPendingPhoneId('');
+                            setShowAddPhone(false);
+                            setPhoneOtp('');
+                            setNewPhoneNumber('');
+                          } else {
+                            toast.error(res.message || "Invalid code");
+                          }
+                        } catch { toast.error("Verification failed"); }
+                        finally { setPhoneLoading(false); }
+                      }}
+                    >
+                      {phoneLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                      Verify
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={phoneLoading}
+                      onClick={async () => {
+                        setPhoneLoading(true);
+                        try {
+                          const res = await businessPhoneApi.resendOtp(pendingPhoneId);
+                          if (res.success) toast.success("Verification code resent!");
+                          else toast.error(res.message || "Failed to resend");
+                        } catch { toast.error("Failed to resend code"); }
+                        finally { setPhoneLoading(false); }
+                      }}
+                    >
+                      Resend Code
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={phoneLoading}
+                      onClick={() => { setPendingPhoneId(''); setPhoneOtp(''); }}
+                    >
+                      Change Number
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-3 p-4 rounded-lg bg-muted/30">

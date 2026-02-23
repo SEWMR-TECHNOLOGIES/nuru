@@ -23,4 +23,8 @@ export const businessPhoneApi = {
   /** Verify a business phone with OTP */
   verify: (phoneId: string, data: { otp_code: string }) =>
     post<BusinessPhone>(`/user-services/business-phones/${phoneId}/verify`, data),
+
+  /** Resend OTP for a pending business phone */
+  resendOtp: (phoneId: string) =>
+    post<BusinessPhone>(`/user-services/business-phones/${phoneId}/resend-otp`, {}),
 };

@@ -560,7 +560,7 @@ const UserProfile = () => {
             <CardHeader>
               <CardTitle className="text-lg">Identity Verification</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Verify your identity to build trust and unlock premium features
+                Verify your identity to build trust, protect your account, and unlock full platform features
               </p>
             </CardHeader>
             <CardContent>
@@ -620,8 +620,8 @@ const UserProfile = () => {
                     <div className="flex items-start gap-3">
                       <AlertCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
                       <div className="text-sm text-muted-foreground">
-                        <p className="font-medium text-foreground mb-1">Documents Required</p>
-                        <p>Upload a clear photo of the front of your government-issued ID. Back side and selfie are optional but recommended.</p>
+                        <p className="font-medium text-foreground mb-1">Quick Identity Check</p>
+                        <p>Upload a clear photo of the front of your national ID (NIDA) or passport. Back side and selfie are optional but speed up the process.</p>
                       </div>
                     </div>
                   </div>
@@ -669,20 +669,39 @@ const UserProfile = () => {
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-4 p-5 bg-muted/30 rounded-xl">
-                  <div className="w-14 h-14 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
-                    <ShieldAlert className="w-7 h-7 text-muted-foreground" />
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4 p-5 bg-muted/30 rounded-xl">
+                    <div className="w-14 h-14 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
+                      <ShieldAlert className="w-7 h-7 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold">Verify Your Identity</h4>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        A quick identity check helps keep Nuru safe for everyone. Once verified, you'll get a verified badge on your profile.
+                      </p>
+                      <Button onClick={handleStartVerification} size="sm">
+                        <Shield className="w-4 h-4 mr-2" />
+                        Get Verified
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <h4 className="font-semibold">Not Yet Verified</h4>
-                    <p className="text-sm text-muted-foreground mb-3">
-                      Verify your identity to gain trust, offer services, and access all features.
-                    </p>
-                    <Button onClick={handleStartVerification} size="sm">
-                      <Shield className="w-4 h-4 mr-2" />
-                      Start Verification
-                    </Button>
-                  </div>
+
+                  <Card className="bg-primary/5 border-primary/20">
+                    <CardContent className="pt-4 pb-4">
+                      <h4 className="text-sm font-semibold mb-2">What you'll need</h4>
+                      <ul className="text-sm text-muted-foreground space-y-1.5 list-disc list-inside">
+                        <li>National ID (NIDA) or Passport (front side required)</li>
+                        <li>Back side and selfie are optional but speed up the review</li>
+                      </ul>
+                      <h4 className="text-sm font-semibold mt-3 mb-2">Why verify?</h4>
+                      <ul className="text-sm text-muted-foreground space-y-1.5 list-disc list-inside">
+                        <li>Protects your account from impersonation</li>
+                        <li>Adds a verified badge next to your name</li>
+                        <li>Required for service providers and organisers who handle payments</li>
+                        <li>Helps prevent fraud and builds trust across the platform</li>
+                      </ul>
+                    </CardContent>
+                  </Card>
                 </div>
               )}
             </CardContent>

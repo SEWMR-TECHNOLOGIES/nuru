@@ -282,7 +282,7 @@ const EditService = () => {
         toast({
           title: 'Service updated!',
           description: keyFieldChanged
-            ? 'Key details changed — please complete verification again.'
+            ? 'Key details changed — please re-verify to keep your service active.'
             : (response.message || 'Your service has been updated successfully.'),
         });
         // If key fields changed, redirect to verification/KYC flow
@@ -563,23 +563,45 @@ const EditService = () => {
                     {[0,1,2,3,4,5].map(i => <InputOTPSlot key={i} index={i} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />)}
                   </InputOTPGroup>
                 </InputOTP>
-                <Button type="button" size="sm" disabled={phoneOtp.length < 6 || phoneLoading}
-                  onClick={async () => {
-                    setPhoneLoading(true);
-                    try {
-                      const res = await businessPhoneApi.verify(pendingPhoneId, { otp_code: phoneOtp });
-                      if (res.success) {
-                        toast({ title: "Phone verified!" });
-                        const refreshed = await businessPhoneApi.getAll();
-                        if (refreshed.success && refreshed.data) setBusinessPhones(Array.isArray(refreshed.data) ? refreshed.data : []);
-                        setSelectedPhoneId(pendingPhoneId);
-                        setPendingPhoneId(''); setShowAddPhone(false); setPhoneOtp('');
-                      } else { toast({ title: "Invalid code", variant: "destructive" }); }
-                    } catch { toast({ title: "Verification failed", variant: "destructive" }); }
-                    finally { setPhoneLoading(false); }
-                  }}>
-                  {phoneLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null} Verify
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button type="button" size="sm" disabled={phoneOtp.length < 6 || phoneLoading}
+                    onClick={async () => {
+                      setPhoneLoading(true);
+                      try {
+                        const res = await businessPhoneApi.verify(pendingPhoneId, { otp_code: phoneOtp });
+                        if (res.success) {
+                          toast({ title: "Phone verified!" });
+                          const refreshed = await businessPhoneApi.getAll();
+                          if (refreshed.success && refreshed.data) {
+                            const phones = Array.isArray(refreshed.data) ? refreshed.data : [];
+                            setBusinessPhones(phones);
+                            const verified = phones.find((p: any) => p.id === pendingPhoneId) || phones.find((p: any) => p.verification_status === 'verified');
+                            if (verified) setSelectedPhoneId(verified.id);
+                          }
+                          setPendingPhoneId(''); setShowAddPhone(false); setPhoneOtp(''); setNewPhoneNumber('');
+                        } else { toast({ title: "Invalid code", variant: "destructive" }); }
+                      } catch { toast({ title: "Verification failed", variant: "destructive" }); }
+                      finally { setPhoneLoading(false); }
+                    }}>
+                    {phoneLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null} Verify
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" disabled={phoneLoading}
+                    onClick={async () => {
+                      setPhoneLoading(true);
+                      try {
+                        const res = await businessPhoneApi.resendOtp(pendingPhoneId);
+                        if (res.success) toast({ title: "Verification code resent!" });
+                        else toast({ title: res.message || "Failed to resend", variant: "destructive" });
+                      } catch { toast({ title: "Failed to resend code", variant: "destructive" }); }
+                      finally { setPhoneLoading(false); }
+                    }}>
+                    Resend Code
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" disabled={phoneLoading}
+                    onClick={() => { setPendingPhoneId(''); setPhoneOtp(''); }}>
+                    Change Number
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="space-y-3 p-4 rounded-lg bg-muted/30">

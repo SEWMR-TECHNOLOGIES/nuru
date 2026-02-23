@@ -26,7 +26,8 @@ from models import (
     EventService, EventServiceStatusEnum, Event,
 )
 from utils.auth import get_current_user
-from utils.helpers import format_price, standard_response
+from utils.helpers import format_price, standard_response, generate_otp, get_expiry
+from utils.notification_service import send_business_phone_otp
 
 EAT = pytz.timezone("Africa/Nairobi")
 
@@ -796,9 +797,16 @@ async def add_business_phone(
     except Exception:
         return standard_response(False, "Invalid JSON body")
 
-    phone_number = (body.get("phone_number") or "").strip()
-    if not phone_number:
+    raw_phone = (body.get("phone_number") or "").strip()
+    if not raw_phone:
         return standard_response(False, "Phone number is required")
+
+    # Validate and standardize to 255 format
+    try:
+        from utils.validation_functions import validate_tanzanian_phone
+        phone_number = validate_tanzanian_phone(raw_phone)
+    except ValueError as e:
+        return standard_response(False, str(e))
 
     # Check if already exists
     existing = db.query(ServiceBusinessPhone).filter(
@@ -812,19 +820,28 @@ async def add_business_phone(
         })
 
     now = datetime.now(EAT)
+    code = generate_otp()
+    expires_at = get_expiry(minutes=10)
+
     phone = ServiceBusinessPhone(
         id=uuid.uuid4(),
         user_id=current_user.id,
         phone_number=phone_number,
         verification_status=BusinessPhoneStatusEnum.pending,
+        otp_code=code,
+        otp_expires_at=expires_at,
         created_at=now, updated_at=now,
     )
     db.add(phone)
     db.commit()
 
-    # TODO: Send OTP to phone_number for verification
+    # Send OTP via SMS
+    try:
+        await send_business_phone_otp(phone_number, code, current_user.first_name)
+    except Exception as e:
+        print(f"Failed to send business phone OTP: {e}")
 
-    return standard_response(True, "Business phone added. Verification OTP sent.", {
+    return standard_response(True, "Business phone added. Verification code sent.", {
         "id": str(phone.id),
         "phone_number": phone.phone_number,
         "verification_status": "pending",
@@ -851,16 +868,79 @@ async def verify_business_phone(
     if not phone:
         return standard_response(False, "Phone not found")
 
-    # TODO: Validate OTP code from body
+    try:
+        body = await request.json()
+    except Exception:
+        return standard_response(False, "Invalid JSON body")
+
+    otp_code = (body.get("otp_code") or "").strip()
+    if not otp_code:
+        return standard_response(False, "Verification code is required")
+
+    # Validate OTP — check expiry first (uses UTC, same as get_expiry)
+    if phone.otp_expires_at and phone.otp_expires_at < datetime.utcnow():
+        return standard_response(False, "Verification code has expired. Please request a new one.")
+
+    if phone.otp_code != otp_code:
+        return standard_response(False, "Invalid verification code")
+
     now = datetime.now(EAT)
     phone.verification_status = BusinessPhoneStatusEnum.verified
     phone.verified_at = now
     phone.updated_at = now
+    phone.otp_code = None
+    phone.otp_expires_at = None
     db.commit()
 
     return standard_response(True, "Business phone verified successfully", {
         "id": str(phone.id),
         "verification_status": "verified",
+    })
+
+
+@router.post("/business-phones/{phone_id}/resend-otp")
+async def resend_business_phone_otp(
+    phone_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Resend OTP for a pending business phone verification."""
+    try:
+        pid = uuid.UUID(phone_id)
+    except ValueError:
+        return standard_response(False, "Invalid phone ID")
+
+    phone = db.query(ServiceBusinessPhone).filter(
+        ServiceBusinessPhone.id == pid,
+        ServiceBusinessPhone.user_id == current_user.id,
+    ).first()
+    if not phone:
+        return standard_response(False, "Phone not found")
+
+    if hasattr(phone.verification_status, 'value'):
+        status = phone.verification_status.value
+    else:
+        status = str(phone.verification_status)
+
+    if status == "verified":
+        return standard_response(False, "Phone is already verified")
+
+    # Generate and send new OTP
+    code = generate_otp()
+    expires_at = get_expiry(minutes=10)
+    phone.otp_code = code
+    phone.otp_expires_at = expires_at
+    phone.updated_at = datetime.now(EAT)
+    db.commit()
+
+    try:
+        await send_business_phone_otp(phone.phone_number, code, current_user.first_name)
+    except Exception as e:
+        print(f"Failed to resend business phone OTP: {e}")
+
+    return standard_response(True, "Verification code resent", {
+        "id": str(phone.id),
+        "phone_number": phone.phone_number,
     })
 
 

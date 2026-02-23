@@ -1935,6 +1935,7 @@ CREATE INDEX IF NOT EXISTS idx_spl_token ON service_photo_libraries(share_token)
 CREATE INDEX IF NOT EXISTS idx_spli_library ON service_photo_library_images(library_id);
 
 
+
 -- ──────────────────────────────────────────────
 -- Feed Ranking & Recommendation System
 -- ──────────────────────────────────────────────
@@ -2128,6 +2129,8 @@ CREATE TABLE IF NOT EXISTS service_business_phones (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     phone_number TEXT NOT NULL,
     verification_status business_phone_status_enum DEFAULT 'pending',
+    otp_code TEXT,
+    otp_expires_at TIMESTAMP,
     verified_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT now(),
     updated_at TIMESTAMP DEFAULT now(),
@@ -2184,6 +2187,30 @@ FROM (VALUES
 ) AS t(name, description, requires_kyc), service_categories sc
 WHERE sc.name = 'Stationery and Printing'
 ON CONFLICT (name) DO NOTHING;
+
+-- KYC Mapping for new categories (Venues, Beauty, Hospitality)
+INSERT INTO service_kyc_mapping (service_type_id, kyc_requirement_id)
+SELECT st.id, kr.id
+FROM service_types st
+JOIN kyc_requirements kr ON kr.name IN ('Government-issued ID','Business License','Tax Compliance Certificate')
+WHERE st.category_id = (SELECT id FROM service_categories WHERE name='Venues')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO service_kyc_mapping (service_type_id, kyc_requirement_id)
+SELECT st.id, kr.id
+FROM service_types st
+JOIN kyc_requirements kr ON kr.name IN ('Government-issued ID','Portfolio/Work Samples')
+WHERE st.category_id = (SELECT id FROM service_categories WHERE name='Beauty and Grooming')
+AND st.requires_kyc = true
+ON CONFLICT DO NOTHING;
+
+INSERT INTO service_kyc_mapping (service_type_id, kyc_requirement_id)
+SELECT st.id, kr.id
+FROM service_types st
+JOIN kyc_requirements kr ON kr.name IN ('Government-issued ID')
+WHERE st.category_id = (SELECT id FROM service_categories WHERE name='Hospitality')
+AND st.requires_kyc = true
+ON CONFLICT DO NOTHING;
 
 -- ──────────────────────────────────────────────
 -- Page Views (Website Analytics)

@@ -43,8 +43,8 @@ const ServiceVerification = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useWorkspaceMeta({
-    title: "Service Verification",
-    description: "Complete verification to become a trusted service provider on Nuru.",
+    title: "Activate Your Service",
+    description: "Complete your business verification to activate your service and start receiving bookings on Nuru.",
   });
 
   // Format KYC items from API
@@ -138,7 +138,7 @@ const ServiceVerification = () => {
           }
         }
       }
-      toast.success("Verification documents submitted successfully");
+      toast.success("Documents submitted! Your service will be activated once reviewed.");
 
       // Refresh KYC data
       await refetch();
@@ -168,24 +168,29 @@ const ServiceVerification = () => {
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-2xl md:text-3xl font-bold">Service Verification</h1>
+            <h1 className="text-2xl md:text-3xl font-bold">Activate Your Service</h1>
             <Button variant="ghost" size="icon" onClick={() => navigate("/my-services")}>
               <ChevronLeft className="w-5 h-5" />
             </Button>
           </div>
           <p className="text-muted-foreground mb-4">
-            Complete the verification process to become a trusted service provider.
+            Complete these steps to activate your service and start receiving bookings.
           </p>
 
           <Card className="bg-primary/5 border-primary/20 mb-6">
             <CardContent className="pt-6 flex gap-3">
               <AlertCircle className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
               <div>
-                <h3 className="font-semibold mb-1">Why do we need verification?</h3>
-                <p className="text-sm text-muted-foreground">
-                  We verify all service providers to ensure legitimacy and quality.
-                  Verified providers gain trust and more bookings.
+                <h3 className="font-semibold mb-2">Why is this needed?</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Nuru holds money in escrow, handles disputes, and pays vendors after confirmation through our financial partners. Business verification ensures your service meets the standards required for payouts and bookings.
                 </p>
+                <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                  <li>Confirms your business credentials and qualifications</li>
+                  <li>Builds trust with event organisers</li>
+                  <li>Required by our financial partners for payouts</li>
+                  <li>Unlocks higher booking limits and faster payouts</li>
+                </ul>
               </div>
             </CardContent>
           </Card>
@@ -299,7 +304,7 @@ const ServiceVerification = () => {
                 )}
 
                 {item.status === "verified" && (
-                  <p className="text-sm text-green-600 font-medium">KYC Verified</p>
+                  <p className="text-sm text-green-600 font-medium">Verified ✓</p>
                 )}
 
                 {item.files.length > 0 && (
@@ -350,11 +355,11 @@ const ServiceVerification = () => {
                 onClick={() => submitVerification(false)}
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Submitting..." : "Submit for Verification"}
+                {isSubmitting ? "Submitting..." : "Submit & Activate"}
               </Button>
             </CardContent>
             <p className="text-xs text-center text-muted-foreground mt-3">
-              You can save your progress and return later. Our team typically reviews submissions within 24-48 hours.
+              You can save your progress and return later. Our team typically reviews submissions within 24–48 hours. Once approved, your service goes live.
             </p>
           </Card>
         )}

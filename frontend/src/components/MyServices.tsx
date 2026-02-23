@@ -304,7 +304,7 @@ const MyServices = () => {
                   {/* Status badge - only show non-verified statuses */}
                   <div className="absolute top-3 left-3 flex gap-2">
                     {!isVerified && service.verification_status === 'pending' && (
-                      <Badge className="bg-amber-500/90 text-white border-0 shadow">Pending Verification</Badge>
+                      <Badge className="bg-amber-500/90 text-white border-0 shadow">Pending Activation</Badge>
                     )}
                     {!isVerified && service.verification_status && service.verification_status !== 'pending' && service.verification_status !== 'verified' && (
                       <Badge className="bg-muted text-muted-foreground border-0 shadow">{service.verification_status}</Badge>
@@ -423,7 +423,7 @@ const MyServices = () => {
                     {!isVerified && (
                       <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold text-amber-800 dark:text-amber-200">Verification Progress</span>
+                          <span className="text-xs font-semibold text-amber-800 dark:text-amber-200">Activation Progress</span>
                           <span className="text-xs font-bold text-amber-700">{service.verification_progress || 0}%</span>
                         </div>
                         <div className="w-full bg-amber-100 dark:bg-amber-900/40 rounded-full h-2 mb-2">
@@ -431,7 +431,7 @@ const MyServices = () => {
                         </div>
                         <Button variant="link" size="sm" className="h-auto p-0 text-xs text-amber-700 dark:text-amber-300"
                           onClick={() => navigate(`/services/verify/${service.id}/${service.service_type_id || 'default'}`)}>
-                          {(service.verification_progress || 0) > 0 ? 'Continue Verification →' : 'Start Verification →'}
+                          {(service.verification_progress || 0) > 0 ? 'Continue Activation →' : 'Activate Service →'}
                         </Button>
                       </div>
                     )}
