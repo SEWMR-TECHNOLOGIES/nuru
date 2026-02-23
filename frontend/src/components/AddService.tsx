@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Upload, X, Loader2, Phone, CheckCircle, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,9 @@ import { useServiceCategories } from '@/data/useServiceCategories';
 import { useServiceTypes } from '@/data/useServiceTypes';
 import { userServicesApi, showApiErrors, showCaughtError } from '@/lib/api';
 import { businessPhoneApi, type BusinessPhone } from '@/lib/api/businessPhone';
+import { agreementsApi } from '@/lib/api/agreements';
 import MapLocationPicker from '@/components/MapLocationPicker';
+import AgreementModal from '@/components/AgreementModal';
 
 const AddService = () => {
   useWorkspaceMeta({
@@ -52,6 +54,25 @@ const AddService = () => {
   const [phoneOtp, setPhoneOtp] = useState('');
   const [pendingPhoneId, setPendingPhoneId] = useState('');
   const [phoneLoading, setPhoneLoading] = useState(false);
+
+  // Agreement gate
+  const [agreementAccepted, setAgreementAccepted] = useState<boolean | null>(null);
+  const [showAgreementModal, setShowAgreementModal] = useState(false);
+
+  useEffect(() => {
+    agreementsApi.check('vendor_agreement').then(res => {
+      if (res.success && res.data) {
+        if (res.data.accepted) {
+          setAgreementAccepted(true);
+        } else {
+          setAgreementAccepted(false);
+          setShowAgreementModal(true);
+        }
+      } else {
+        setAgreementAccepted(true); // No agreement configured, allow through
+      }
+    }).catch(() => setAgreementAccepted(true));
+  }, []);
 
   useEffect(() => {
     businessPhoneApi.getAll().then(res => {
@@ -130,6 +151,13 @@ const AddService = () => {
             <ChevronLeft className="w-5 h-5" />
           </Button>
         </div>
+
+      <AgreementModal
+          open={showAgreementModal}
+          onClose={() => { setShowAgreementModal(false); if (!agreementAccepted) navigate('/my-services'); }}
+          onAccepted={() => { setAgreementAccepted(true); setShowAgreementModal(false); }}
+          agreementType="vendor_agreement"
+        />
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <Card>

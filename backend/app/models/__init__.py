@@ -19,6 +19,7 @@ from models.enums import (
     WAMessageDirectionEnum, WAMessageStatusEnum,
     IssueStatusEnum, IssuePriorityEnum,
     CircleRequestStatusEnum,
+    AgreementTypeEnum,
 )
 from models.references import (
     Currency, Country, ServiceCategory, KYCRequirement,
@@ -81,3 +82,4 @@ from models.feed_ranking import (
 from models.page_views import PageView
 from models.whatsapp import WAConversation, WAMessage
 from models.issues import IssueCategory, Issue, IssueResponse
+from models.agreements import AgreementVersion, UserAgreementAcceptance

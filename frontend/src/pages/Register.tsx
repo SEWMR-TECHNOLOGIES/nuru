@@ -653,9 +653,23 @@ const Register = () => {
             </div>
           )}
 
+          {/* Terms link */}
+          {currentStep < 5 && (
+            <p className="text-center mt-4 text-xs text-muted-foreground">
+              By creating an account, you agree to our{" "}
+              <Link to="/terms" className="text-foreground hover:underline font-medium">
+                Terms & Conditions
+              </Link>{" "}
+              and{" "}
+              <Link to="/privacy" className="text-foreground hover:underline font-medium">
+                Privacy Policy
+              </Link>
+            </p>
+          )}
+
           {/* Login link */}
           {currentStep < 5 && (
-            <p className="text-center mt-6 text-sm text-muted-foreground">
+            <p className="text-center mt-3 text-sm text-muted-foreground">
               Already have an account?{" "}
               <Link to="/login" className="text-foreground hover:underline font-medium">
                 Sign in

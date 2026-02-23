@@ -255,3 +255,8 @@ class CircleRequestStatusEnum(enum.Enum):
     pending = "pending"
     accepted = "accepted"
     rejected = "rejected"
+
+
+class AgreementTypeEnum(enum.Enum):
+    vendor_agreement = "vendor_agreement"
+    organiser_agreement = "organiser_agreement"

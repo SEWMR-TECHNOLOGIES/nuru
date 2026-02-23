@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ticketingApi } from "@/lib/api/ticketing";
 import type { TicketClass as TicketClassType } from "@/lib/api/ticketing";
@@ -22,9 +22,11 @@ import { eventsApi } from "@/lib/api";
 import EventIcon from "@/components/icons/EventIcons";
 import { toast } from "sonner";
 import { showApiErrors, showCaughtError } from "@/lib/api";
+import { agreementsApi } from "@/lib/api/agreements";
 import EventRecommendations from "@/components/events/EventRecommendations";
 import EventTicketing from "@/components/EventTicketing";
 import BudgetAssistant from "@/components/BudgetAssistant";
+import AgreementModal from "@/components/AgreementModal";
 import type { TicketClass } from "@/components/EventTicketing";
 
 const CreateEvent: React.FC = () => {
@@ -60,6 +62,26 @@ const CreateEvent: React.FC = () => {
   const [isPublicEvent, setIsPublicEvent] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [budgetAssistantOpen, setBudgetAssistantOpen] = useState(false);
+
+  // Agreement gate (only for new events, not edits)
+  const [agreementAccepted, setAgreementAccepted] = useState<boolean | null>(null);
+  const [showAgreementModal, setShowAgreementModal] = useState(false);
+
+  useEffect(() => {
+    if (editId) { setAgreementAccepted(true); return; }
+    agreementsApi.check('organiser_agreement').then(res => {
+      if (res.success && res.data) {
+        if (res.data.accepted) {
+          setAgreementAccepted(true);
+        } else {
+          setAgreementAccepted(false);
+          setShowAgreementModal(true);
+        }
+      } else {
+        setAgreementAccepted(true);
+      }
+    }).catch(() => setAgreementAccepted(true));
+  }, [editId]);
 
   const handleToggleService = (serviceId: string) => {
     setSelectedServices(prev =>
@@ -287,6 +309,13 @@ const CreateEvent: React.FC = () => {
           <ChevronLeft className="w-5 h-5" />
         </Button>
       </div>
+
+      <AgreementModal
+          open={showAgreementModal}
+          onClose={() => { setShowAgreementModal(false); if (!agreementAccepted) navigate('/my-events'); }}
+          onAccepted={() => { setAgreementAccepted(true); setShowAgreementModal(false); }}
+          agreementType="organiser_agreement"
+        />
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>

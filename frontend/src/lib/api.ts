@@ -16,12 +16,14 @@ import { supportApi } from "./api/support";
 import { contributorsApi } from "./api/contributors";
 import { searchApi } from "./api/search";
 import { photoLibrariesApi } from "./api/photoLibraries";
+import { agreementsApi } from "./api/agreements";
 import { get, post, put, patch, del, postFormData, putFormData } from "./api/helpers";
 export { showApiErrors, showApiErrorsShadcn, showCaughtError, showCaughtErrorShadcn, throwApiError, ApiError } from "./api/showApiErrors";
 
 // Re-export types
 export * from "./api/types";
 export * from "./api/photoLibraries";
+export * from "./api/agreements";
 
 // Export API modules
 export {
@@ -40,6 +42,7 @@ export {
   contributorsApi,
   searchApi,
   photoLibrariesApi,
+  agreementsApi,
 };
 
 // Default API object for backward compatibility

@@ -2337,3 +2337,40 @@ INSERT INTO issue_categories (name, description, icon, display_order) VALUES
 ('Performance & Bugs', 'Slow loading, crashes, broken UI, or unexpected behavior', 'Bug', 14),
 ('Feature Request', 'Suggestions for new features or improvements', 'Lightbulb', 15),
 ('Other', 'Any issue not covered by the categories above', 'HelpCircle', 16);
+
+-- ============================================================
+-- Agreement Versioning & User Acceptance
+-- ============================================================
+CREATE TYPE agreement_type_enum AS ENUM ('vendor_agreement', 'organiser_agreement');
+
+CREATE TABLE IF NOT EXISTS agreement_versions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    agreement_type agreement_type_enum NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    summary TEXT,
+    document_path TEXT NOT NULL,
+    published_at TIMESTAMPTZ DEFAULT now(),
+    created_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(agreement_type, version)
+);
+
+CREATE TABLE IF NOT EXISTS user_agreement_acceptances (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    agreement_version_id UUID NOT NULL REFERENCES agreement_versions(id) ON DELETE CASCADE,
+    agreement_type agreement_type_enum NOT NULL,
+    version_accepted INTEGER NOT NULL,
+    ip_address TEXT,
+    user_agent TEXT,
+    accepted_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(user_id, agreement_type, version_accepted)
+);
+
+CREATE INDEX idx_user_agreements_user ON user_agreement_acceptances(user_id);
+CREATE INDEX idx_user_agreements_type ON user_agreement_acceptances(agreement_type);
+CREATE INDEX idx_agreement_versions_type ON agreement_versions(agreement_type);
+
+-- Seed current agreement versions
+INSERT INTO agreement_versions (agreement_type, version, summary, document_path) VALUES
+('vendor_agreement', 1, 'Covers escrow payments, cancellation rules, dispute handling, and platform fees for service providers.', '/docs/vendor-agreement.md'),
+('organiser_agreement', 1, 'Covers contribution management, ticket sales, vendor bookings, and dispute processes for event organisers.', '/docs/organiser-agreement.md');
