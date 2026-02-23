@@ -67,7 +67,7 @@ const AddService = () => {
           setAgreementAccepted(true);
         } else {
           setAgreementAccepted(false);
-          setAgreementSummary(res.data.summary || undefined);
+          setAgreementSummary(res.data.current_version > 1 ? (res.data.summary || undefined) : undefined);
           setShowAgreementModal(true);
         }
       } else {
@@ -145,7 +145,7 @@ const AddService = () => {
   };
 
   return (
-    <div className="p-4 md:p-6">
+    <div className="space-y-6">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl md:text-3xl font-bold">Add New Service</h1>

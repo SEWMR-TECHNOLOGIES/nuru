@@ -169,7 +169,7 @@ const ServiceVerification = () => {
     );
 
   return (
-    <div className="h-full overflow-y-auto p-4 md:p-6">
+    <div className="space-y-6">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-6">

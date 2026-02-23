@@ -76,7 +76,7 @@ const CreateEvent: React.FC = () => {
           setAgreementAccepted(true);
         } else {
           setAgreementAccepted(false);
-          setAgreementSummary(res.data.summary || undefined);
+          setAgreementSummary(res.data.current_version > 1 ? (res.data.summary || undefined) : undefined);
           setShowAgreementModal(true);
         }
       } else {
