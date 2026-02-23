@@ -317,18 +317,33 @@ def get_invited_events(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     """Returns events the current user has been invited to, with RSVP status."""
+    # 1. Direct invitations by invited_user_id
     invitations = (
         db.query(EventInvitation)
         .filter(EventInvitation.invited_user_id == current_user.id)
         .order_by(EventInvitation.created_at.desc())
         .all()
     )
+    inv_map = {inv.event_id: inv for inv in invitations}
 
-    event_ids = [inv.event_id for inv in invitations]
+    # 2. Also find events via EventAttendee (covers cases where invited_user_id is NULL)
+    attendee_records = (
+        db.query(EventAttendee)
+        .filter(EventAttendee.attendee_id == current_user.id)
+        .all()
+    )
+    for att in attendee_records:
+        if att.event_id not in inv_map and att.invitation_id:
+            inv = db.query(EventInvitation).filter(EventInvitation.id == att.invitation_id).first()
+            if inv:
+                inv_map[att.event_id] = inv
+        elif att.event_id not in inv_map:
+            # Attendee exists but no invitation record — synthesise minimal data
+            inv_map[att.event_id] = att  # we'll handle both types below
+
+    event_ids = list(inv_map.keys())
     if not event_ids:
         return standard_response(True, "No event invitations found", {"events": [], "pagination": {"page": 1, "limit": limit, "total_items": 0, "total_pages": 1, "has_next": False, "has_previous": False}})
-
-    inv_map = {inv.event_id: inv for inv in invitations}
 
     total = len(event_ids)
     total_pages = max(1, math.ceil(total / limit))
@@ -340,7 +355,8 @@ def get_invited_events(
 
     results = []
     for ev in events:
-        inv = inv_map.get(ev.id)
+        inv_or_att = inv_map.get(ev.id)
+        is_invitation = isinstance(inv_or_att, EventInvitation)
         event_type = db.query(EventType).filter(EventType.id == ev.event_type_id).first()
         vc = db.query(EventVenueCoordinate).filter(EventVenueCoordinate.event_id == ev.id).first()
         organizer = db.query(User).filter(User.id == ev.organizer_id).first()
@@ -348,6 +364,26 @@ def get_invited_events(
         attendee = db.query(EventAttendee).filter(
             EventAttendee.event_id == ev.id, EventAttendee.attendee_id == current_user.id
         ).first()
+
+        if is_invitation:
+            inv = inv_or_att
+            invitation_data = {
+                "id": str(inv.id),
+                "rsvp_status": inv.rsvp_status.value if hasattr(inv.rsvp_status, "value") else inv.rsvp_status,
+                "invitation_code": inv.invitation_code if inv.invitation_code else None,
+                "invited_at": inv.invited_at.isoformat() if inv.invited_at else None,
+                "rsvp_at": inv.rsvp_at.isoformat() if inv.rsvp_at else None,
+            }
+        else:
+            # Fallback from EventAttendee record
+            att_record = inv_or_att
+            invitation_data = {
+                "id": None,
+                "rsvp_status": att_record.rsvp_status.value if hasattr(att_record.rsvp_status, "value") else (att_record.rsvp_status or "pending"),
+                "invitation_code": None,
+                "invited_at": att_record.created_at.isoformat() if att_record.created_at else None,
+                "rsvp_at": None,
+            }
 
         results.append({
             "id": str(ev.id),
@@ -363,13 +399,7 @@ def get_invited_events(
             "theme_color": ev.theme_color,
             "organizer": {"name": f"{organizer.first_name} {organizer.last_name}"} if organizer else None,
             "status": ev.status.value if hasattr(ev.status, "value") else ev.status,
-            "invitation": {
-                "id": str(inv.id) if inv else None,
-                "rsvp_status": inv.rsvp_status.value if inv and hasattr(inv.rsvp_status, "value") else (inv.rsvp_status if inv else None),
-                "invitation_code": inv.invitation_code if inv else None,
-                "invited_at": inv.invited_at.isoformat() if inv and inv.invited_at else None,
-                "rsvp_at": inv.rsvp_at.isoformat() if inv and inv.rsvp_at else None,
-            },
+            "invitation": invitation_data,
             "attendee_id": str(attendee.id) if attendee else None,
         })
 

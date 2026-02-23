@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Clock, CheckCircle, XCircle, HelpCircle, Loader2, Printer, Timer } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
@@ -27,36 +27,27 @@ const rsvpIcons: Record<string, any> = {
   maybe: HelpCircle,
 };
 
-// Module-level cache
-let _invitedCache: any[] = [];
-let _invitedHasLoaded = false;
-
 const InvitedEvents = () => {
   const navigate = useNavigate();
-  const [events, setEvents] = useState<any[]>(_invitedCache);
-  const [loading, setLoading] = useState(!_invitedHasLoaded);
-  const initialLoad = useRef(!_invitedHasLoaded);
+  const [events, setEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [respondingAction, setRespondingAction] = useState<{ eventId: string; status: string } | null>(null);
 
   const fetchInvited = useCallback(async () => {
-    if (initialLoad.current) setLoading(true);
+    setLoading(true);
     try {
       const response = await eventsApi.getInvitedEvents();
       if (response.success) {
-        const list = response.data?.events || [];
-        _invitedCache = list;
-        _invitedHasLoaded = true;
-        setEvents(list);
+        setEvents(response.data?.events || []);
       } else {
-        if (initialLoad.current) setError(response.message);
+        setError(response.message);
       }
     } catch {
-      if (initialLoad.current) setError('Failed to load invited events');
+      setError('Failed to load invited events');
     } finally {
       setLoading(false);
-      initialLoad.current = false;
     }
   }, []);
 
