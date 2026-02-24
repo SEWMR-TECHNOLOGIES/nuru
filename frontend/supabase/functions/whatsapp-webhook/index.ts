@@ -89,12 +89,13 @@ serve(async (req) => {
       // ── Store incoming message in backend ──
       if (API_BASE) {
         try {
+          const storeContent = message.interactive?.button_reply?.title || text;
           await fetch(`${API_BASE}/whatsapp/incoming`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               phone: from,
-              content: text,
+              content: storeContent,
               wa_message_id: waMessageId,
               contact_name: whatsAppName,
             }),
@@ -104,31 +105,46 @@ serve(async (req) => {
         }
       }
 
-      // ── Bot auto-reply logic ──
-      const upperText = text.toUpperCase();
+      // ── Check for interactive button reply (RSVP buttons) ──
+      const buttonReply = message.interactive?.button_reply;
       const lookup = await lookupGuest(from, API_BASE);
       const guestFullName = lookup?.guest_name || whatsAppName;
       const firstName = extractFirstName(guestFullName);
-      const invitationCode = lookup?.code || null;
 
       let replyText = "";
 
-      if (upperText === "YES" || upperText === "CONFIRM") {
-        replyText = await handleRSVP(invitationCode, "confirmed", firstName, API_BASE);
-      } else if (upperText === "NO" || upperText === "DECLINE") {
-        replyText = await handleRSVP(invitationCode, "declined", firstName, API_BASE);
-      } else if (upperText === "DETAILS" || upperText === "INFO") {
-        replyText = await handleDetails(invitationCode, firstName, API_BASE);
-      } else if (upperText === "HELP") {
-        replyText =
-          `👋 Hi ${firstName}! Here's how to use Nuru:\n\n` +
-          `✅ *YES* or *CONFIRM* — Accept an invitation\n` +
-          `❌ *NO* or *DECLINE* — Decline an invitation\n` +
-          `ℹ️ *DETAILS* — Get event details\n` +
-          `❓ *HELP* — Show this menu`;
+      if (buttonReply) {
+        const buttonId = buttonReply.id || "";
+        // Button IDs: rsvp_confirm_{code} or rsvp_decline_{code}
+        const confirmMatch = buttonId.match(/^rsvp_confirm_(.+)$/);
+        const declineMatch = buttonId.match(/^rsvp_decline_(.+)$/);
+
+        if (confirmMatch) {
+          replyText = await handleRSVP(confirmMatch[1], "confirmed", firstName, API_BASE);
+        } else if (declineMatch) {
+          replyText = await handleRSVP(declineMatch[1], "declined", firstName, API_BASE);
+        }
       } else {
-        // No auto-reply for unrecognized messages - let admin handle it
-        replyText = "";
+        // ── Text-based bot reply logic ──
+        const upperText = text.toUpperCase();
+        const invitationCode = lookup?.code || null;
+
+        if (upperText === "YES" || upperText === "CONFIRM") {
+          replyText = await handleRSVP(invitationCode, "confirmed", firstName, API_BASE);
+        } else if (upperText === "NO" || upperText === "DECLINE") {
+          replyText = await handleRSVP(invitationCode, "declined", firstName, API_BASE);
+        } else if (upperText === "DETAILS" || upperText === "INFO") {
+          replyText = await handleDetails(invitationCode, firstName, API_BASE);
+        } else if (upperText === "HELP") {
+          replyText =
+            `👋 Hi ${firstName}! Here's how to use Nuru:\n\n` +
+            `✅ *YES* or *CONFIRM* — Accept an invitation\n` +
+            `❌ *NO* or *DECLINE* — Decline an invitation\n` +
+            `ℹ️ *DETAILS* — Get event details\n` +
+            `❓ *HELP* — Show this menu`;
+        } else {
+          replyText = "";
+        }
       }
 
       if (replyText) {
