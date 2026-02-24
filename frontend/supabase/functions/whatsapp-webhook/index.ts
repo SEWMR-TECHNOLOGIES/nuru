@@ -89,7 +89,7 @@ serve(async (req) => {
       // ── Store incoming message in backend ──
       if (API_BASE) {
         try {
-          const storeContent = message.interactive?.button_reply?.title || text;
+          const storeContent = message.interactive?.button_reply?.title || message.button?.text || text;
           await fetch(`${API_BASE}/whatsapp/incoming`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -105,19 +105,22 @@ serve(async (req) => {
         }
       }
 
-      // ── Check for interactive button reply (RSVP buttons) ──
-      const buttonReply = message.interactive?.button_reply;
+      // ── Check for button replies (interactive OR template quick_reply) ──
+      const interactiveReply = message.interactive?.button_reply;
+      const templateButtonReply = message.button; // template quick_reply responses
       const lookup = await lookupGuest(from, API_BASE);
       const guestFullName = lookup?.guest_name || whatsAppName;
       const firstName = extractFirstName(guestFullName);
 
       let replyText = "";
 
-      if (buttonReply) {
-        const buttonId = buttonReply.id || "";
-        // Button IDs: rsvp_confirm_{code} or rsvp_decline_{code}
-        const confirmMatch = buttonId.match(/^rsvp_confirm_(.+)$/);
-        const declineMatch = buttonId.match(/^rsvp_decline_(.+)$/);
+      // Determine button payload from either interactive or template quick_reply
+      const buttonPayload = interactiveReply?.id || templateButtonReply?.payload || "";
+
+      if (buttonPayload) {
+        console.log(`Button payload received: ${buttonPayload}`);
+        const confirmMatch = buttonPayload.match(/^rsvp_confirm_(.+)$/);
+        const declineMatch = buttonPayload.match(/^rsvp_decline_(.+)$/);
 
         if (confirmMatch) {
           replyText = await handleRSVP(confirmMatch[1], "confirmed", firstName, API_BASE);
