@@ -38,13 +38,7 @@ serve(async (req) => {
 
     switch (action) {
       case "invite":
-        // Try interactive buttons first; if it fails (outside 24h window), fall back to template with buttons
-        try {
-          result = await sendInteractiveInvite(phone, params, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-        } catch (interactiveErr) {
-          console.log("[WhatsApp] Interactive failed, falling back to template:", interactiveErr);
-          result = await sendTemplate(phone, "event_invitation_v2", buildInviteTemplateWithButtons(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-        }
+        result = await sendTemplate(phone, "event_invitation_v2", buildInviteTemplateWithButtons(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
         break;
       case "event_update":
         result = await sendTemplate(phone, "event_update", buildEventUpdateComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
@@ -177,7 +171,7 @@ function buildExpenseComponents(params: {
 async function sendTemplate(
   phone: string,
   templateName: string,
-  components: Array<{ type: string; parameters: Array<{ type: string; text: string }> }>,
+  components: Array<Record<string, unknown>>,
   accessToken: string,
   phoneNumberId: string
 ) {
