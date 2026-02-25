@@ -3,7 +3,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from core.base import Base
-from models.enums import EventStatusEnum, PriorityLevelEnum
+from models.enums import EventStatusEnum, PriorityLevelEnum, TicketApprovalStatusEnum
 
 
 # ──────────────────────────────────────────────
@@ -48,6 +48,12 @@ class Event(Base):
     cover_image_url = Column(Text)
     is_public = Column(Boolean, default=False)
     sells_tickets = Column(Boolean, default=False)
+    ticket_approval_status = Column(Enum(TicketApprovalStatusEnum, name="ticket_approval_status_enum"), default=TicketApprovalStatusEnum.pending)
+    ticket_rejection_reason = Column(Text)
+    ticket_removed_reason = Column(Text)
+    ticket_approved_by = Column(UUID(as_uuid=True))
+    ticket_approved_at = Column(DateTime)
+    ticket_removed_at = Column(DateTime)
     theme_color = Column(String(7))
     dress_code = Column(String(100))
     special_instructions = Column(Text)

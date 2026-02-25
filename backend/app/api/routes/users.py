@@ -18,6 +18,7 @@ from utils.helpers import standard_response, generate_otp, get_expiry, mask_emai
 from utils.notification_service import send_verification_email, send_verification_sms
 from utils.sms import sms_welcome_registered
 from utils.validation_functions import validate_email, validate_tanzanian_phone, validate_password_strength, validate_username
+from utils.name_validation import validate_name
 from utils.user_payload import build_user_payload
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -81,6 +82,14 @@ async def signup(request: Request, db: Session = Depends(get_db)):
         return standard_response(False, "We couldn't identify your first name. Please provide it so we can personalize your experience.")
     if not last_name:
         return standard_response(False, "We couldn't identify your last name. Please provide it so we can complete your registration.")
+
+    # Validate names are not fake/sample
+    fn_check = validate_name(first_name)
+    if not fn_check["valid"]:
+        return standard_response(False, fn_check["reason"])
+    ln_check = validate_name(last_name)
+    if not ln_check["valid"]:
+        return standard_response(False, ln_check["reason"])
 
     # Auto-generate username if not provided (inline registration by another user)
     if not username:
@@ -488,6 +497,21 @@ async def search_users(
             "has_previous": page > 1
         }
     })
+
+
+# ──────────────────────────────────────────────
+# Validate Name (PUBLIC — no auth required)
+# ──────────────────────────────────────────────
+@router.get("/validate-name")
+def validate_name_endpoint(name: str = "", db: Session = Depends(get_db)):
+    """
+    Validate a first or last name to ensure it's not a fake/sample name.
+    Public endpoint used during registration.
+    """
+    if not name or not name.strip():
+        return standard_response(False, "Name is required", {"valid": False})
+    result = validate_name(name.strip())
+    return standard_response(True, "Name checked", result)
 
 
 # ──────────────────────────────────────────────

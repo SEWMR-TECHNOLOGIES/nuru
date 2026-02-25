@@ -107,6 +107,8 @@ import AdminIssues from "@/pages/admin/AdminIssues";
 import AdminIssueDetail from "@/pages/admin/AdminIssueDetail";
 import AdminIssueCategories from "@/pages/admin/AdminIssueCategories";
 import AdminAgreements from "@/pages/admin/AdminAgreements";
+import AdminTicketedEvents from "@/pages/admin/AdminTicketedEvents";
+import AdminNameFlags from "@/pages/admin/AdminNameFlags";
 import MyIssues from "@/components/MyIssues";
 
 // Inner component that uses router hooks (must be inside BrowserRouter)
@@ -211,6 +213,7 @@ function InnerRoutes() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<AdminUsers />} />
+          <Route path="name-flags" element={<AdminNameFlags />} />
           <Route path="kyc" element={<AdminKyc />} />
           <Route path="services" element={<AdminServices />} />
           <Route path="events" element={<AdminEvents />} />
@@ -241,6 +244,7 @@ function InnerRoutes() {
           <Route path="issues/:id" element={<AdminIssueDetail />} />
           <Route path="issue-categories" element={<AdminIssueCategories />} />
           <Route path="agreements" element={<AdminAgreements />} />
+          <Route path="ticketed-events" element={<AdminTicketedEvents />} />
         </Route>
 
 

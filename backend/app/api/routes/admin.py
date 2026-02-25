@@ -15,7 +15,7 @@ from sqlalchemy import or_, func, desc
 
 from core.database import get_db
 from models import (
-    AdminUser, AdminRoleEnum,
+    AdminUser, AdminRoleEnum, NameValidationFlag,
     User, UserProfile, UserService, UserServiceVerification, UserServiceVerificationFile,
     UserServiceKYCStatus, KYCRequirement, ServiceKYCMapping, LiveChatSession, LiveChatMessage,
     SupportTicket, SupportMessage, FAQ,
@@ -35,6 +35,8 @@ from models import (
     ContentAppeal,
     IssueCategory, Issue, IssueResponse, IssueStatusEnum, IssuePriorityEnum,
     AgreementVersion, UserAgreementAcceptance,
+    EventTicketClass, EventTicket,
+    TicketApprovalStatusEnum, TicketOrderStatusEnum,
 )
 from models.enums import VerificationStatusEnum, ChatSessionStatusEnum, NotificationTypeEnum, EventStatusEnum, AppealStatusEnum, AppealContentTypeEnum, CardOrderStatusEnum, AgreementTypeEnum
 from utils.auth import create_access_token, create_refresh_token, verify_refresh_token
@@ -242,6 +244,8 @@ def list_users(
             "phone": u.phone,
             "avatar": avatar,
             "is_active": u.is_active,
+            "is_suspended": getattr(u, 'is_suspended', False),
+            "suspension_reason": getattr(u, 'suspension_reason', None),
             "is_email_verified": u.is_email_verified,
             "is_phone_verified": u.is_phone_verified,
             "is_identity_verified": u.is_identity_verified,
@@ -273,6 +277,8 @@ def get_user_detail(user_id: str, db: Session = Depends(get_db), admin: AdminUse
         "bio": user.profile.bio if user.profile else None,
         "location": user.profile.location if user.profile else None,
         "is_active": user.is_active,
+        "is_suspended": getattr(user, 'is_suspended', False),
+        "suspension_reason": getattr(user, 'suspension_reason', None),
         "is_email_verified": user.is_email_verified,
         "is_phone_verified": user.is_phone_verified,
         "is_identity_verified": user.is_identity_verified,
@@ -3330,3 +3336,497 @@ def admin_list_acceptances(
             "pages": (total + limit - 1) // limit,
         }
     })
+
+
+# ──────────────────────────────────────────────
+# Ticketed Events Approval
+# ──────────────────────────────────────────────
+
+def _resolve_event_cover_admin(event, db):
+    """Resolve best cover image for admin view."""
+    if event.cover_image_url:
+        return event.cover_image_url
+    img = db.query(EventImage).filter(EventImage.event_id == event.id).order_by(
+        EventImage.is_featured.desc(), EventImage.created_at.asc()
+    ).first()
+    return img.image_url if img else None
+
+
+@router.get("/ticketed-events")
+def get_ticketed_events_admin(
+    page: int = 1,
+    limit: int = 20,
+    status: str = None,
+    q: str = None,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """List all events with sells_tickets=True for admin approval."""
+    from sqlalchemy import func as sa_func
+
+    query = db.query(Event).filter(Event.sells_tickets == True)
+
+    if status:
+        try:
+            query = query.filter(Event.ticket_approval_status == TicketApprovalStatusEnum(status))
+        except (ValueError, KeyError):
+            pass
+
+    if q and q.strip():
+        term = f"%{q.strip().lower()}%"
+        query = query.filter(
+            or_(
+                func.lower(Event.name).like(term),
+                func.lower(Event.location).like(term),
+            )
+        )
+
+    query = query.order_by(Event.created_at.desc(), Event.id.desc())
+    total = query.count()
+    page = max(1, page)
+    limit = max(1, min(limit, 50))
+    offset = (page - 1) * limit
+    events = query.offset(offset).limit(limit).all()
+
+    result = []
+    for e in events:
+        organizer = db.query(User).filter(User.id == e.organizer_id).first()
+        ticket_classes = db.query(EventTicketClass).filter(EventTicketClass.event_id == e.id).all()
+        total_qty = sum([tc.quantity for tc in ticket_classes])
+        total_sold = db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
+            EventTicket.event_id == e.id,
+            EventTicket.status.notin_([TicketOrderStatusEnum.rejected, TicketOrderStatusEnum.cancelled]),
+        ).scalar()
+        result.append({
+            "id": str(e.id),
+            "name": e.name,
+            "organizer_name": f"{organizer.first_name} {organizer.last_name}" if organizer else "Unknown",
+            "organizer_id": str(e.organizer_id) if e.organizer_id else None,
+            "start_date": e.start_date.isoformat() if e.start_date else None,
+            "location": e.location,
+            "cover_image": _resolve_event_cover_admin(e, db),
+            "ticket_approval_status": e.ticket_approval_status.value if e.ticket_approval_status else "pending",
+            "ticket_rejection_reason": e.ticket_rejection_reason,
+            "ticket_removed_reason": e.ticket_removed_reason,
+            "ticket_class_count": len(ticket_classes),
+            "total_tickets": total_qty,
+            "total_sold": int(total_sold),
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+        })
+
+    return standard_response(True, "Ticketed events", {
+        "items": result,
+        "pagination": {
+            "page": page, "limit": limit, "total": total,
+            "pages": (total + limit - 1) // limit,
+        }
+    })
+
+
+@router.put("/ticketed-events/{event_id}/approve")
+async def approve_ticketed_event(
+    event_id: str,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """Approve a ticketed event for public visibility."""
+    try:
+        eid = uuid.UUID(event_id)
+    except (ValueError, TypeError):
+        return standard_response(False, "Invalid event ID")
+
+    event = db.query(Event).filter(Event.id == eid, Event.sells_tickets == True).first()
+    if not event:
+        return standard_response(False, "Ticketed event not found")
+
+    event.ticket_approval_status = TicketApprovalStatusEnum.approved
+    event.ticket_approved_by = admin.id
+    event.ticket_approved_at = datetime.now(EAT)
+    event.ticket_rejection_reason = None
+    db.commit()
+
+    # Notify organizer
+    try:
+        notif = Notification(
+            id=uuid.uuid4(),
+            recipient_id=event.organizer_id,
+            sender_ids=[],
+            type=NotificationTypeEnum.system,
+            message_template=f"Your ticketed event \"{event.name}\" has been approved! Tickets are now live.",
+            message_data={"event_id": str(event.id), "event_name": event.name, "action": "ticket_approved"},
+            reference_id=event.id,
+            reference_type="event",
+            is_read=False,
+            created_at=datetime.now(EAT),
+        )
+        db.add(notif)
+        db.commit()
+    except Exception:
+        pass
+
+    return standard_response(True, "Ticketed event approved")
+
+
+@router.put("/ticketed-events/{event_id}/reject")
+async def reject_ticketed_event(
+    event_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """Reject a ticketed event with a reason."""
+    try:
+        eid = uuid.UUID(event_id)
+    except (ValueError, TypeError):
+        return standard_response(False, "Invalid event ID")
+
+    event = db.query(Event).filter(Event.id == eid, Event.sells_tickets == True).first()
+    if not event:
+        return standard_response(False, "Ticketed event not found")
+
+    payload = await request.json()
+    reason = (payload.get("reason") or "").strip()
+    if not reason:
+        return standard_response(False, "Rejection reason is required")
+
+    event.ticket_approval_status = TicketApprovalStatusEnum.rejected
+    event.ticket_rejection_reason = reason
+    db.commit()
+
+    # Notify organizer
+    try:
+        notif = Notification(
+            id=uuid.uuid4(),
+            recipient_id=event.organizer_id,
+            sender_ids=[],
+            type=NotificationTypeEnum.system,
+            message_template=f"Your ticketed event \"{event.name}\" was rejected. Reason: {reason}",
+            message_data={"event_id": str(event.id), "event_name": event.name, "action": "ticket_rejected", "reason": reason},
+            reference_id=event.id,
+            reference_type="event",
+            is_read=False,
+            created_at=datetime.now(EAT),
+        )
+        db.add(notif)
+        db.commit()
+    except Exception:
+        pass
+
+    return standard_response(True, "Ticketed event rejected")
+
+
+@router.put("/ticketed-events/{event_id}/remove")
+async def remove_ticketed_event(
+    event_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """Soft-remove a ticketed event (not delete). Tickets are disabled."""
+    try:
+        eid = uuid.UUID(event_id)
+    except (ValueError, TypeError):
+        return standard_response(False, "Invalid event ID")
+
+    event = db.query(Event).filter(Event.id == eid, Event.sells_tickets == True).first()
+    if not event:
+        return standard_response(False, "Ticketed event not found")
+
+    payload = await request.json()
+    reason = (payload.get("reason") or "").strip()
+    if not reason:
+        return standard_response(False, "Removal reason is required")
+
+    event.ticket_approval_status = TicketApprovalStatusEnum.removed
+    event.ticket_removed_reason = reason
+    event.ticket_removed_at = datetime.now(EAT)
+    db.commit()
+
+    # Notify organizer
+    try:
+        notif = Notification(
+            id=uuid.uuid4(),
+            recipient_id=event.organizer_id,
+            sender_ids=[],
+            type=NotificationTypeEnum.system,
+            message_template=f"Your ticketed event \"{event.name}\" has been removed by an administrator. Reason: {reason}",
+            message_data={"event_id": str(event.id), "event_name": event.name, "action": "ticket_removed", "reason": reason},
+            reference_id=event.id,
+            reference_type="event",
+            is_read=False,
+            created_at=datetime.now(EAT),
+        )
+        db.add(notif)
+        db.commit()
+    except Exception:
+        pass
+
+    return standard_response(True, "Ticketed event removed")
+
+
+@router.delete("/ticketed-events/{event_id}")
+def delete_ticketed_event_permanently(
+    event_id: str,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """Permanently delete a ticketed event's ticketing data (ticket classes + tickets)."""
+    try:
+        eid = uuid.UUID(event_id)
+    except (ValueError, TypeError):
+        return standard_response(False, "Invalid event ID")
+
+    event = db.query(Event).filter(Event.id == eid, Event.sells_tickets == True).first()
+    if not event:
+        return standard_response(False, "Ticketed event not found")
+
+    # Delete all tickets and ticket classes
+    db.query(EventTicket).filter(EventTicket.event_id == eid).delete()
+    db.query(EventTicketClass).filter(EventTicketClass.event_id == eid).delete()
+
+    # Reset ticketing flags
+    event.sells_tickets = False
+    event.ticket_approval_status = TicketApprovalStatusEnum.pending
+    event.ticket_rejection_reason = None
+    event.ticket_removed_reason = None
+    event.ticket_approved_by = None
+    event.ticket_approved_at = None
+    event.ticket_removed_at = None
+    db.commit()
+
+    # Notify organizer
+    try:
+        notif = Notification(
+            id=uuid.uuid4(),
+            recipient_id=event.organizer_id,
+            sender_ids=[],
+            type=NotificationTypeEnum.system,
+            message_template=f"Your ticketed event \"{event.name}\" has been permanently removed by an administrator. All ticket classes and orders have been deleted.",
+            message_data={"event_id": str(event.id), "event_name": event.name, "action": "ticket_deleted"},
+            reference_id=event.id,
+            reference_type="event",
+            is_read=False,
+            created_at=datetime.now(EAT),
+        )
+        db.add(notif)
+        db.commit()
+    except Exception:
+        pass
+
+    return standard_response(True, "Ticketed event permanently deleted")
+
+
+# ──────────────────────────────────────────────
+# ACCOUNT SUSPENSION
+# ──────────────────────────────────────────────
+
+@router.put("/users/{user_id}/suspend")
+def suspend_user(user_id: str, request_data: dict = Body(...), db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    """Suspend a user account with a reason."""
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        return standard_response(False, "Invalid user ID")
+    user = db.query(User).filter(User.id == uid).first()
+    if not user:
+        return standard_response(False, "User not found")
+    reason = (request_data.get("reason") or "").strip()
+    if not reason:
+        return standard_response(False, "Suspension reason is required")
+    user.is_suspended = True
+    user.suspension_reason = reason
+    user.updated_at = datetime.now(EAT)
+    db.commit()
+
+    # Send notification
+    try:
+        notif = Notification(
+            id=uuid.uuid4(),
+            recipient_id=user.id,
+            sender_ids=[],
+            type=NotificationTypeEnum.system,
+            message_template=f"Your account has been suspended. Reason: {reason}. Contact support@nuru.tz for assistance.",
+            message_data={"action": "account_suspended", "reason": reason},
+            is_read=False,
+            created_at=datetime.now(EAT),
+        )
+        db.add(notif)
+        db.commit()
+    except Exception:
+        pass
+
+    return standard_response(True, "User suspended")
+
+
+@router.put("/users/{user_id}/unsuspend")
+def unsuspend_user(user_id: str, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    """Remove suspension from a user account."""
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        return standard_response(False, "Invalid user ID")
+    user = db.query(User).filter(User.id == uid).first()
+    if not user:
+        return standard_response(False, "User not found")
+    user.is_suspended = False
+    user.suspension_reason = None
+    user.updated_at = datetime.now(EAT)
+    db.commit()
+
+    # Notify user
+    try:
+        notif = Notification(
+            id=uuid.uuid4(),
+            recipient_id=user.id,
+            sender_ids=[],
+            type=NotificationTypeEnum.system,
+            message_template="Your account suspension has been lifted. Welcome back!",
+            message_data={"action": "account_unsuspended"},
+            is_read=False,
+            created_at=datetime.now(EAT),
+        )
+        db.add(notif)
+        db.commit()
+    except Exception:
+        pass
+
+    return standard_response(True, "User unsuspended")
+
+
+@router.post("/users/{user_id}/notify-invalid-name")
+def notify_invalid_name(user_id: str, request_data: dict = Body(...), db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+    """Send notification to user about invalid name, warning of suspension."""
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        return standard_response(False, "Invalid user ID")
+    user = db.query(User).filter(User.id == uid).first()
+    if not user:
+        return standard_response(False, "User not found")
+    
+    message = (request_data.get("message") or "").strip()
+    if not message:
+        message = (
+            f"We noticed your account name ({user.first_name} {user.last_name}) may not be a real name. "
+            "Please update your profile with your real name or business name. "
+            "Accounts with invalid names may be suspended. Contact support@nuru.tz if you need help."
+        )
+
+    try:
+        notif = Notification(
+            id=uuid.uuid4(),
+            recipient_id=user.id,
+            sender_ids=[],
+            type=NotificationTypeEnum.system,
+            message_template=message,
+            message_data={"action": "invalid_name_warning"},
+            is_read=False,
+            created_at=datetime.now(EAT),
+        )
+        db.add(notif)
+        db.commit()
+    except Exception:
+        return standard_response(False, "Failed to send notification")
+
+    return standard_response(True, "Notification sent to user")
+
+
+# ──────────────────────────────────────────────
+# NAME VALIDATION FLAGS
+# ──────────────────────────────────────────────
+
+@router.get("/name-flags")
+def get_name_flags(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    status: str = Query("all"),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """List all name validation flags with optional filtering."""
+    query = db.query(NameValidationFlag).join(User, NameValidationFlag.user_id == User.id)
+
+    if status == "unresolved":
+        query = query.filter(NameValidationFlag.is_resolved == False)
+    elif status == "resolved":
+        query = query.filter(NameValidationFlag.is_resolved == True)
+
+    total = query.count()
+    flags = query.order_by(desc(NameValidationFlag.created_at), desc(NameValidationFlag.id)).offset((page - 1) * limit).limit(limit).all()
+
+    items = []
+    for f in flags:
+        user = f.user
+        items.append({
+            "id": str(f.id),
+            "user_id": str(f.user_id),
+            "user_name": f"{user.first_name} {user.last_name}" if user else "Unknown",
+            "user_email": user.email if user else None,
+            "user_phone": user.phone if user else None,
+            "flagged_first_name": f.flagged_first_name,
+            "flagged_last_name": f.flagged_last_name,
+            "flag_reason": f.flag_reason,
+            "is_resolved": f.is_resolved,
+            "resolved_by": f.resolved_by,
+            "resolved_at": f.resolved_at.isoformat() if f.resolved_at else None,
+            "admin_notified": f.admin_notified,
+            "user_notified": f.user_notified,
+            "created_at": f.created_at.isoformat() if f.created_at else None,
+        })
+
+    return standard_response(True, "Name flags retrieved", {
+        "items": items,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "pages": (total + limit - 1) // limit,
+        }
+    })
+
+
+@router.put("/name-flags/{flag_id}/resolve")
+def resolve_name_flag(
+    flag_id: str,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """Mark a name validation flag as resolved."""
+    try:
+        fid = uuid.UUID(flag_id)
+    except ValueError:
+        return standard_response(False, "Invalid flag ID")
+
+    flag = db.query(NameValidationFlag).filter(NameValidationFlag.id == fid).first()
+    if not flag:
+        return standard_response(False, "Flag not found")
+
+    flag.is_resolved = True
+    flag.resolved_by = admin.full_name
+    flag.resolved_at = datetime.now(EAT)
+    flag.updated_at = datetime.now(EAT)
+    db.commit()
+
+    return standard_response(True, "Flag resolved")
+
+
+@router.delete("/name-flags/{flag_id}")
+def delete_name_flag(
+    flag_id: str,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """Delete a name validation flag entirely."""
+    try:
+        fid = uuid.UUID(flag_id)
+    except ValueError:
+        return standard_response(False, "Invalid flag ID")
+
+    flag = db.query(NameValidationFlag).filter(NameValidationFlag.id == fid).first()
+    if not flag:
+        return standard_response(False, "Flag not found")
+
+    db.delete(flag)
+    db.commit()
+
+    return standard_response(True, "Flag deleted")

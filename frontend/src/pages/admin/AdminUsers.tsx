@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Users, Search, CheckCircle, XCircle, Eye, ChevronLeft, ChevronRight, KeyRound, Loader2, Edit } from "lucide-react";
+import { Users, Search, CheckCircle, XCircle, Eye, ChevronLeft, ChevronRight, KeyRound, Loader2, Edit, ShieldAlert, ShieldOff, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { AdminTableSkeleton } from "@/components/ui/AdminTableSkeleton";
 import { adminApi } from "@/lib/api/admin";
 import { adminCaches } from "@/lib/api/adminCache";
@@ -29,6 +30,16 @@ export default function AdminUsers() {
   const [editDialog, setEditDialog] = useState<any>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [editSaving, setEditSaving] = useState(false);
+  
+  // Suspend dialog
+  const [suspendDialog, setSuspendDialog] = useState<{ id: string; name: string } | null>(null);
+  const [suspendReason, setSuspendReason] = useState("");
+  const [suspending, setSuspending] = useState(false);
+  
+  // Notify invalid name dialog
+  const [notifyDialog, setNotifyDialog] = useState<{ id: string; name: string } | null>(null);
+  const [notifyMessage, setNotifyMessage] = useState("");
+  const [notifying, setNotifying] = useState(false);
 
   const load = useCallback(async () => {
     if (initialLoad.current) setLoading(true);
@@ -87,6 +98,32 @@ export default function AdminUsers() {
     setEditSaving(false);
   };
 
+  const handleSuspend = async () => {
+    if (!suspendDialog || !suspendReason.trim()) { toast.error("Please provide a suspension reason"); return; }
+    setSuspending(true);
+    const res = await adminApi.suspendUser(suspendDialog.id, suspendReason.trim());
+    if (res.success) { toast.success(`${suspendDialog.name} suspended`); setSuspendDialog(null); setSuspendReason(""); load(); setSelected(null); }
+    else toast.error(res.message || "Failed to suspend");
+    setSuspending(false);
+  };
+
+  const handleUnsuspend = async (id: string) => {
+    setActionLoading(id);
+    const res = await adminApi.unsuspendUser(id);
+    if (res.success) { toast.success("Suspension lifted"); load(); setSelected(null); }
+    else toast.error(res.message || "Failed to unsuspend");
+    setActionLoading(null);
+  };
+
+  const handleNotifyInvalidName = async () => {
+    if (!notifyDialog) return;
+    setNotifying(true);
+    const res = await adminApi.notifyInvalidName(notifyDialog.id, notifyMessage.trim() || undefined);
+    if (res.success) { toast.success(`Notification sent to ${notifyDialog.name}`); setNotifyDialog(null); setNotifyMessage(""); }
+    else toast.error(res.message || "Failed to send notification");
+    setNotifying(false);
+  };
+
 
   return (
     <div className="space-y-6">
@@ -143,24 +180,35 @@ export default function AdminUsers() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", u.is_active ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive")}>
-                      {u.is_active ? "Active" : "Inactive"}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium w-fit", u.is_active ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive")}>
+                        {u.is_active ? "Active" : "Inactive"}
+                      </span>
+                      {u.is_suspended && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 w-fit">
+                          Suspended
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
                       <Button variant="ghost" size="sm" onClick={() => openUser(u.id)}><Eye className="w-3.5 h-3.5 mr-1" /> View</Button>
-                      <Button variant="ghost" size="sm"
-                        className={u.is_active ? "text-destructive hover:bg-destructive/10" : "text-primary"}
-                        onClick={() => toggleActive(u.id, u.is_active)}
-                        disabled={actionLoading === u.id}>
-                        {u.is_active ? <XCircle className="w-3.5 h-3.5 mr-1" /> : <CheckCircle className="w-3.5 h-3.5 mr-1" />}
-                        {u.is_active ? "Deactivate" : "Activate"}
-                      </Button>
+                      {u.is_suspended ? (
+                        <Button variant="ghost" size="sm" className="text-primary" onClick={() => handleUnsuspend(u.id)} disabled={actionLoading === u.id}>
+                          <ShieldOff className="w-3.5 h-3.5 mr-1" /> Unsuspend
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" size="sm" className="text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                          onClick={() => { setSuspendDialog({ id: u.id, name: `${u.first_name} ${u.last_name}` }); setSuspendReason(""); }}>
+                          <ShieldAlert className="w-3.5 h-3.5 mr-1" /> Suspend
+                        </Button>
+                      )}
                       <Button variant="ghost" size="sm" className="text-muted-foreground"
-                        onClick={() => { setResetDialog({ id: u.id, name: `${u.first_name} ${u.last_name}` }); setNewPassword(""); }}>
-                        <KeyRound className="w-3.5 h-3.5 mr-1" /> Reset PW
+                        onClick={() => { setNotifyDialog({ id: u.id, name: `${u.first_name} ${u.last_name}` }); setNotifyMessage(""); }}
+                        title="Warn about invalid name">
+                        <Bell className="w-3.5 h-3.5" />
                       </Button>
                     </div>
                   </td>
@@ -192,8 +240,19 @@ export default function AdminUsers() {
                 <div>
                   <div className="font-semibold text-base">{selected.first_name} {selected.last_name}</div>
                   <div className="text-muted-foreground">@{selected.username}</div>
+                  {selected.is_suspended && (
+                    <div className="text-xs text-amber-600 font-medium mt-0.5 flex items-center gap-1">
+                      <ShieldAlert className="w-3 h-3" /> Suspended
+                    </div>
+                  )}
                 </div>
               </div>
+              {selected.is_suspended && selected.suspension_reason && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                  <p className="text-xs font-medium text-amber-800 dark:text-amber-400 mb-1">Suspension Reason</p>
+                  <p className="text-sm text-foreground">{selected.suspension_reason}</p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div><span className="text-muted-foreground">Email:</span> <span>{selected.email}</span></div>
                 <div><span className="text-muted-foreground">Phone:</span> <span>{selected.phone || "—"}</span></div>
@@ -203,16 +262,21 @@ export default function AdminUsers() {
                 <div><span className="text-muted-foreground">Joined:</span> <span>{selected.created_at ? new Date(selected.created_at).toLocaleDateString() : "—"}</span></div>
               </div>
               {selected.bio && <p className="text-muted-foreground text-xs bg-muted rounded-lg p-3">{selected.bio}</p>}
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button variant="outline" className="flex-1" onClick={() => { setSelected(null); openEditDialog(selected); }}>
-                  <Edit className="w-4 h-4 mr-1.5" /> Edit Details
+                  <Edit className="w-4 h-4 mr-1.5" /> Edit
                 </Button>
-                <Button
-                  className="flex-1"
-                  variant={selected.is_active ? "destructive" : "default"}
-                  onClick={() => toggleActive(selected.id, selected.is_active)}
-                  disabled={actionLoading === selected.id}>
-                  {selected.is_active ? "Deactivate" : "Activate"}
+                {selected.is_suspended ? (
+                  <Button className="flex-1" onClick={() => handleUnsuspend(selected.id)} disabled={actionLoading === selected.id}>
+                    <ShieldOff className="w-4 h-4 mr-1.5" /> Unsuspend
+                  </Button>
+                ) : (
+                  <Button variant="destructive" className="flex-1" onClick={() => { setSelected(null); setSuspendDialog({ id: selected.id, name: `${selected.first_name} ${selected.last_name}` }); setSuspendReason(""); }}>
+                    <ShieldAlert className="w-4 h-4 mr-1.5" /> Suspend
+                  </Button>
+                )}
+                <Button variant="outline" onClick={() => { setSelected(null); setNotifyDialog({ id: selected.id, name: `${selected.first_name} ${selected.last_name}` }); setNotifyMessage(""); }}>
+                  <Bell className="w-4 h-4 mr-1.5" /> Warn Name
                 </Button>
                 <Button variant="outline" onClick={() => { setSelected(null); setResetDialog({ id: selected.id, name: `${selected.first_name} ${selected.last_name}` }); setNewPassword(""); }}>
                   <KeyRound className="w-4 h-4 mr-1.5" /> Reset PW
@@ -263,7 +327,48 @@ export default function AdminUsers() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Suspend User Dialog */}
+      <Dialog open={!!suspendDialog} onOpenChange={() => { setSuspendDialog(null); setSuspendReason(""); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-amber-600" /> Suspend Account</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-1">
+            <p className="text-sm text-muted-foreground">Suspend <strong>{suspendDialog?.name}</strong>'s account. They will see a suspension notice and can only browse in read-only mode.</p>
+            <div className="space-y-1.5">
+              <Label>Reason for suspension *</Label>
+              <Textarea value={suspendReason} onChange={(e) => setSuspendReason(e.target.value)} placeholder="e.g., Invalid/fake name provided, suspicious activity..." className="resize-none" rows={3} />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => { setSuspendDialog(null); setSuspendReason(""); }}>Cancel</Button>
+            <Button variant="destructive" className="flex-1" onClick={handleSuspend} disabled={suspending || !suspendReason.trim()}>
+              {suspending ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <ShieldAlert className="w-4 h-4 mr-1.5" />}
+              Suspend Account
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Notify Invalid Name Dialog */}
+      <Dialog open={!!notifyDialog} onOpenChange={() => { setNotifyDialog(null); setNotifyMessage(""); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Bell className="w-4 h-4" /> Warn About Invalid Name</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-1">
+            <p className="text-sm text-muted-foreground">Send a notification to <strong>{notifyDialog?.name}</strong> warning them to update their name to a real name or business name. Failure to comply may result in account suspension.</p>
+            <div className="space-y-1.5">
+              <Label>Custom message (optional)</Label>
+              <Textarea value={notifyMessage} onChange={(e) => setNotifyMessage(e.target.value)} placeholder="Leave empty to use default warning message..." className="resize-none" rows={3} />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => { setNotifyDialog(null); setNotifyMessage(""); }}>Cancel</Button>
+            <Button className="flex-1" onClick={handleNotifyInvalidName} disabled={notifying}>
+              {notifying ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Bell className="w-4 h-4 mr-1.5" />}
+              Send Warning
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-

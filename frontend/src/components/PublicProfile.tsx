@@ -347,7 +347,7 @@ const PublicProfile = () => {
         <CardContent className="pt-0 pb-6">
           <div className="flex flex-col md:flex-row gap-6 -mt-20 relative z-10 px-1">
             {/* Avatar with gradient ring */}
-            <div className="relative flex-shrink-0">
+            <div className="relative flex-shrink-0 self-start">
               {isNuruOfficial ? (
                 <NuruOfficialAvatarRing>
                   <Avatar className="w-32 h-32 border-4 border-background shadow-xl">
@@ -382,7 +382,7 @@ const PublicProfile = () => {
                     </Tooltip>
                   )}
                 </h1>
-                {isNuruOfficial && <NuruOfficialBadge size="md" />}
+                {isNuruOfficial && <span className="hidden md:inline-flex"><NuruOfficialBadge size="md" /></span>}
                 {user.is_vendor && (
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-semibold text-primary">
                     <Briefcase className="w-3 h-3" /> Vendor

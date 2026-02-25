@@ -42,6 +42,8 @@ export interface User {
   bio?: string;
   location?: string;
   is_active?: boolean;
+  is_suspended?: boolean;
+  suspension_reason?: string | null;
   is_identity_verified?: boolean;
   is_email_verified?: boolean;
   is_phone_verified?: boolean;

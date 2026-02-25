@@ -72,3 +72,9 @@ def validate_username(username: str) -> bool:
         return False
     pattern = r'^[A-Za-z0-9_]+$'
     return re.fullmatch(pattern, username) is not None
+
+
+def validate_name(name: str) -> dict:
+    """Proxy to name_validation module for convenience."""
+    from utils.name_validation import validate_name as _validate
+    return _validate(name)

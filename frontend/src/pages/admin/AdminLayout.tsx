@@ -7,6 +7,7 @@ import {
   Package, Briefcase, Newspaper, Sparkles, Users2,
   BookOpen, CreditCard, Tag, UserCog, BadgeCheck, AlertTriangle,
   BarChart3, MessageCircle, PanelLeftClose, PanelLeft, FileCheck,
+  Ticket, Flag,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -16,12 +17,14 @@ import nuruLogo from "@/assets/nuru-logo.png";
 const navItems = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/admin" },
   { label: "Users", icon: Users, to: "/admin/users" },
+  { label: "Name Flags", icon: Flag, to: "/admin/name-flags" },
   { label: "KYC Verification", icon: ShieldCheck, to: "/admin/kyc" },
   { label: "Identity Verification", icon: BadgeCheck, to: "/admin/user-verifications" },
   { label: "Services", icon: Briefcase, to: "/admin/services" },
   { label: "Service Categories", icon: Tag, to: "/admin/service-categories" },
   { label: "Events", icon: CalendarDays, to: "/admin/events" },
   { label: "Event Types", icon: Package, to: "/admin/event-types" },
+  { label: "Ticketed Events", icon: Ticket, to: "/admin/ticketed-events" },
   { label: "Posts / Feed", icon: Newspaper, to: "/admin/posts" },
   { label: "Moments", icon: Sparkles, to: "/admin/moments" },
   { label: "Content Appeals", icon: AlertTriangle, to: "/admin/appeals" },

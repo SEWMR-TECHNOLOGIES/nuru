@@ -65,6 +65,24 @@ export const authApi = {
   },
 
   /**
+   * Validate a name (public endpoint for registration)
+   */
+  validateName: async (name: string) => {
+    const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://api.nuru.tz/api/v1";
+    try {
+      const res = await fetch(`${BASE_URL}/users/validate-name?name=${encodeURIComponent(name)}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        credentials: "omit",
+      });
+      const json = await res.json();
+      return { success: true, data: json.data ?? { valid: true, reason: null } };
+    } catch {
+      return { success: true, data: { valid: true, reason: null } };
+    }
+  },
+
+  /**
    * Request password reset
    */
   forgotPassword: (email: string) => post("/auth/forgot-password", { email }),

@@ -14,7 +14,7 @@ from models.enums import (
     CardTypeEnum, ChecklistItemStatusEnum,
     UploadFileTypeEnum, PriorityLevelEnum, SocialProviderEnum,
     PhotoLibraryPrivacyEnum,
-    TicketStatusEnum, TicketOrderStatusEnum,
+    TicketStatusEnum, TicketOrderStatusEnum, TicketApprovalStatusEnum,
     EventShareDurationEnum, ServiceMediaTypeEnum, BusinessPhoneStatusEnum,
     WAMessageDirectionEnum, WAMessageStatusEnum,
     IssueStatusEnum, IssuePriorityEnum,
@@ -29,7 +29,7 @@ from models.users import (
     User, UserProfile, UserIdentityVerification, UserVerificationOTP,
     UserBlock, UserSocialAccount, UserTwoFactorSecret, UserPrivacySetting,
     UserCircle, UserFollower, UserSetting, UserActivityLog, UserSession,
-    PasswordResetToken, Achievement, UserAchievement,
+    PasswordResetToken, Achievement, UserAchievement, NameValidationFlag,
 )
 from models.nuru_cards import NuruCard, NuruCardOrder
 from models.communities import Community, CommunityMember, CommunityPost, CommunityPostImage, CommunityPostGlow

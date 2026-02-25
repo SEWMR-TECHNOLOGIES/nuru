@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import {
   Users, UserCheck, Edit2, Trash2, Loader2, FileText, Mail, Shield,
-  Plus, MapPin, CalendarDays, Clock, Wallet, ChevronRight, CheckCircle2
+  Plus, MapPin, CalendarDays, Clock, Wallet, ChevronRight, CheckCircle2, Info
 } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import TicketIcon from '@/assets/icons/ticket-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -364,6 +365,34 @@ const MyEvents = () => {
                   {EVENT_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                 </SelectContent>
               </Select>
+
+              {/* Ticket approval status label with hover tooltip */}
+              {event.sells_tickets && (() => {
+                const approvalStatus = event.ticket_approval_status || 'pending';
+                const tooltipMessages: Record<string, string> = {
+                  pending: 'This is a ticketed event and is under review. It will be visible to the public once approved by the Nuru team.',
+                  approved: 'This ticketed event has been approved and is live on the marketplace.',
+                  rejected: `This ticketed event was not approved.${event.ticket_rejection_reason ? ` Reason: ${event.ticket_rejection_reason}` : ' Contact support for details.'}`,
+                  removed: `This ticketed event was removed from the marketplace.${event.ticket_removed_reason ? ` Reason: ${event.ticket_removed_reason}` : ''}`,
+                };
+                return (
+                  <div className="relative group/ticket">
+                    <Badge className={`h-7 text-[11px] font-medium border-0 gap-1 cursor-help ${
+                      approvalStatus === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
+                      approvalStatus === 'rejected' ? 'bg-destructive/10 text-destructive' :
+                      approvalStatus === 'removed' ? 'bg-muted text-muted-foreground' :
+                      'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+                    }`}>
+                      <img src={TicketIcon} alt="" className="w-3 h-3 dark:invert" />
+                      {approvalStatus.charAt(0).toUpperCase() + approvalStatus.slice(1)}
+                      <Info className="w-3 h-3 ml-0.5 opacity-60" />
+                    </Badge>
+                    <div className="absolute bottom-full left-0 mb-2 w-64 p-3 rounded-lg bg-popover text-popover-foreground text-xs leading-relaxed shadow-lg border border-border opacity-0 pointer-events-none group-hover/ticket:opacity-100 group-hover/ticket:pointer-events-auto transition-opacity z-50">
+                      {tooltipMessages[approvalStatus] || tooltipMessages.pending}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <button
                 onClick={() => navigate(`/event-management/${event.id}`)}

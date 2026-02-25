@@ -54,6 +54,8 @@ def build_user_payload(db, user):
         "website": profile.website_url if profile else None,
         "social_links": profile.social_links if profile else {},
         "is_active": user.is_active,
+        "is_suspended": getattr(user, "is_suspended", False),
+        "suspension_reason": getattr(user, "suspension_reason", None),
         "is_identity_verified": user.is_identity_verified,
         "is_phone_verified": user.is_phone_verified,
         "is_email_verified": user.is_email_verified,

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import SuspensionModal from "@/components/SuspensionModal";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
@@ -15,6 +16,7 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [suspensionInfo, setSuspensionInfo] = useState<{ open: boolean; reason?: string | null }>({ open: false });
   const [formData, setFormData] = useState({
     credential: "",
     password: "",
@@ -61,7 +63,13 @@ const Login = () => {
         toast({ title: "Welcome back!", description: response.message });
         navigate("/", { replace: true });
       } else {
-        showApiErrorsShadcn(response, toast, "Login Failed");
+        // Check if suspended
+        const data = (response as any).data;
+        if (data?.suspended) {
+          setSuspensionInfo({ open: true, reason: data.suspension_reason });
+        } else {
+          showApiErrorsShadcn(response, toast, "Login Failed");
+        }
       }
     } catch (err) {
       toast({ title: "Error", description: "Unable to reach server. Try again later.", variant: "destructive" });
@@ -95,6 +103,18 @@ const Login = () => {
   };
 
   useMeta({ title: "Sign In", description: "Sign in to your Nuru account to manage events." });
+
+  // Show premium full-screen suspension modal instead of the login form
+  if (suspensionInfo.open) {
+    return (
+      <SuspensionModal
+        open={true}
+        reason={suspensionInfo.reason}
+        variant="fullscreen"
+        onClose={() => setSuspensionInfo({ open: false })}
+      />
+    );
+  }
 
   return (
     <Layout>

@@ -336,7 +336,7 @@ const UserProfile = () => {
         <CardContent className="pt-0 pb-6">
           <div className="flex flex-col md:flex-row gap-6 -mt-20 relative z-10 px-1">
             {/* Avatar with camera button */}
-            <div className="relative flex-shrink-0 group">
+            <div className="relative flex-shrink-0 self-start group rounded-full overflow-hidden">
               {isNuruOfficial ? (
                 <NuruOfficialAvatarRing>
                   <Avatar className="w-32 h-32 border-4 border-background shadow-xl">
@@ -356,7 +356,7 @@ const UserProfile = () => {
               {/* Camera overlay */}
               <button
                 onClick={() => avatarInputRef.current?.click()}
-                className="absolute inset-1 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                 title="Change avatar"
               >
                 <SvgIcon src={CameraIcon} alt="Camera" className="w-6 h-6" forceWhite />
@@ -423,7 +423,7 @@ const UserProfile = () => {
                         </Tooltip>
                       )}
                     </h1>
-                    {isNuruOfficial && <NuruOfficialBadge size="md" />}
+                    {isNuruOfficial && <span className="hidden md:inline-flex"><NuruOfficialBadge size="md" /></span>}
                   </div>
                   {currentUser.username && (
                     <p className="text-muted-foreground text-sm mb-2">@{currentUser.username}</p>

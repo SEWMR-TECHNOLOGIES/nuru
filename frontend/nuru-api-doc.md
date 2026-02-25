@@ -15620,3 +15620,75 @@ All OTP inputs across the platform now use consistent styling: `w-12 h-14 text-x
 `DELETE /admin/issue-categories/{id}` — Delete a category (fails if issues exist)
 
 ---
+
+### Ticketed Event Approval System (2026-02-25)
+
+**Overview:** All events with `sells_tickets = true` must go through admin approval before tickets appear in public browsing. This prevents fraudulent or non-existent events from selling tickets. Organizers see real-time status updates, and admins manage approvals from a dedicated dashboard.
+
+#### Database Changes
+
+**New Enum:**
+```sql
+CREATE TYPE ticket_approval_status_enum AS ENUM ('pending', 'approved', 'rejected', 'removed');
+```
+
+**New Columns on `events` table:**
+```sql
+ALTER TABLE events ADD COLUMN ticket_approval_status ticket_approval_status_enum DEFAULT 'pending';
+ALTER TABLE events ADD COLUMN ticket_rejection_reason TEXT;
+ALTER TABLE events ADD COLUMN ticket_removed_reason TEXT;
+ALTER TABLE events ADD COLUMN ticket_approved_by UUID;
+ALTER TABLE events ADD COLUMN ticket_approved_at TIMESTAMP;
+ALTER TABLE events ADD COLUMN ticket_removed_at TIMESTAMP;
+```
+
+#### Status Flow
+- **pending** - Default when organizer enables `sells_tickets`. Event is not visible in public ticket browsing.
+- **approved** - Admin approves. Event becomes visible in `/tickets` browse page and right sidebar.
+- **rejected** - Admin rejects with a reason. Organizer sees the reason and can edit and resubmit.
+- **removed** - Admin removes from marketplace (soft delete). Event still exists but shows "Removed" label. Not permanently deleted.
+
+#### Admin Endpoints (Admin Auth Required)
+
+`GET /admin/ticketed-events` - List all ticketed events with approval status
+- Query: `?page=1&limit=20&status=pending|approved|rejected|removed&search=keyword`
+- Response: `{ success, data: { items: [...], total, page, pages } }`
+
+`PUT /admin/ticketed-events/{event_id}/approve` - Approve a ticketed event
+- Response: `{ success, message: "Event approved for ticket sales" }`
+- Side effect: Sends in-app notification to organizer (`ticket_event_approved`)
+
+`PUT /admin/ticketed-events/{event_id}/reject` - Reject a ticketed event
+- Body: `{ "reason": "Event details are incomplete or unverifiable" }`
+- Response: `{ success, message: "Event rejected" }`
+- Side effect: Sends in-app notification to organizer (`ticket_event_rejected`) with the reason
+
+`PUT /admin/ticketed-events/{event_id}/remove` - Remove a ticketed event from marketplace
+- Body: `{ "reason": "Reported as fraudulent" }`
+- Response: `{ success, message: "Event removed from ticket marketplace" }`
+- Side effect: Sends in-app notification to organizer (`ticket_event_removed`) with the reason
+
+`DELETE /admin/ticketed-events/{event_id}` - Permanently delete a ticketed event (hard delete)
+- Response: `{ success, message: "Event permanently deleted" }`
+
+#### Public Endpoint Changes
+
+`GET /ticketing/events` - Now only returns events where `ticket_approval_status = 'approved'`
+
+Right sidebar ticketed events section also filters to `approved` only, with preference-based randomization and fallback for new users.
+
+#### Organizer Experience
+- When `sells_tickets` is enabled, `ticket_approval_status` defaults to `pending`
+- Organizer sees colored status banners in their ticket management:
+  - **Pending** (yellow): "Your event is under review for ticket approval"
+  - **Approved** (green): "Your event is approved for ticket sales"
+  - **Rejected** (red): "Your event was not approved" with the rejection reason displayed
+  - **Removed** (gray): "This event has been removed from the ticket marketplace" with the removal reason
+- Organizers receive in-app notifications on every status change
+
+#### Notification Types Added
+- `ticket_event_approved`
+- `ticket_event_rejected`
+- `ticket_event_removed`
+
+---

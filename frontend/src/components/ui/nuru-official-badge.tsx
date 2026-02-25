@@ -67,7 +67,7 @@ export const NuruOfficialCoverOverlay = () => (
     <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-[hsl(45,96%,64%/0.3)] to-transparent" />
 
     {/* Official banner - positioned right to avoid avatar overlap */}
-    <div className="absolute bottom-4 right-4 md:right-6 flex items-center gap-2 bg-black/40 backdrop-blur-md rounded-full px-3 py-1.5 border border-[hsl(45,96%,64%/0.3)]">
+    <div className="hidden md:flex absolute bottom-4 right-4 md:right-6 items-center gap-2 bg-black/40 backdrop-blur-md rounded-full px-3 py-1.5 border border-[hsl(45,96%,64%/0.3)]">
       <img src={NuruLogo} alt="" className="w-4 h-4" />
       <span className="text-[10px] font-semibold tracking-widest text-[hsl(45,96%,80%)]">OFFICIAL ACCOUNT</span>
     </div>

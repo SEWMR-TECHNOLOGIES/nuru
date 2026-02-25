@@ -93,6 +93,13 @@ const Register = () => {
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
   const usernameCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Name validation
+  const [firstNameError, setFirstNameError] = useState<string | null>(null);
+  const [lastNameError, setLastNameError] = useState<string | null>(null);
+  const [firstNameChecking, setFirstNameChecking] = useState(false);
+  const [lastNameChecking, setLastNameChecking] = useState(false);
+  const nameCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [otp, setOtp] = useState("");
   const { toast } = useToast();
 
@@ -107,6 +114,34 @@ const Register = () => {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear name errors on type
+    if (field === "firstName") setFirstNameError(null);
+    if (field === "lastName") setLastNameError(null);
+  };
+
+  const validateNameOnBlur = (field: "firstName" | "lastName") => {
+    const name = formData[field].trim();
+    if (!name || name.length < 2) return;
+    
+    const setError = field === "firstName" ? setFirstNameError : setLastNameError;
+    const setChecking = field === "firstName" ? setFirstNameChecking : setLastNameChecking;
+
+    if (nameCheckTimer.current) clearTimeout(nameCheckTimer.current);
+    setChecking(true);
+    nameCheckTimer.current = setTimeout(async () => {
+      try {
+        const res = await api.auth.validateName(name);
+        if (res.success && res.data && !res.data.valid) {
+          setError(res.data.reason || "Please use your real name");
+        } else {
+          setError(null);
+        }
+      } catch {
+        setError(null);
+      } finally {
+        setChecking(false);
+      }
+    }, 300);
   };
 
   // Username availability check with debounce
@@ -262,6 +297,10 @@ const Register = () => {
         toast({ title: "Required", description: "Please enter your first and last name.", variant: "destructive" });
         return;
       }
+      if (firstNameError || lastNameError) {
+        toast({ title: "Invalid name", description: "Please fix the name errors before continuing.", variant: "destructive" });
+        return;
+      }
       setCurrentStep(2);
     } else if (currentStep === 2) {
       if (!formData.username.trim() || formData.username.length < 3) {
@@ -366,26 +405,48 @@ const Register = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">First name</label>
-                    <Input
-                      type="text"
-                      placeholder="First name"
-                      value={formData.firstName}
-                      onChange={e => handleInputChange("firstName", e.target.value)}
-                      className="h-12 rounded-xl"
-                      autoComplete="off"
-                      autoFocus
-                    />
+                    <div className="relative">
+                      <Input
+                        type="text"
+                        placeholder="First name"
+                        value={formData.firstName}
+                        onChange={e => handleInputChange("firstName", e.target.value)}
+                        onBlur={() => validateNameOnBlur("firstName")}
+                        className={`h-12 rounded-xl ${firstNameError ? "border-destructive" : ""}`}
+                        autoComplete="off"
+                        autoFocus
+                      />
+                      {firstNameChecking && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
+                        </div>
+                      )}
+                    </div>
+                    {firstNameError && (
+                      <p className="text-xs text-destructive mt-1.5">{firstNameError}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">Last name</label>
-                    <Input
-                      type="text"
-                      placeholder="Last name"
-                      value={formData.lastName}
-                      onChange={e => handleInputChange("lastName", e.target.value)}
-                      className="h-12 rounded-xl"
-                      autoComplete="off"
-                    />
+                    <div className="relative">
+                      <Input
+                        type="text"
+                        placeholder="Last name"
+                        value={formData.lastName}
+                        onChange={e => handleInputChange("lastName", e.target.value)}
+                        onBlur={() => validateNameOnBlur("lastName")}
+                        className={`h-12 rounded-xl ${lastNameError ? "border-destructive" : ""}`}
+                        autoComplete="off"
+                      />
+                      {lastNameChecking && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
+                        </div>
+                      )}
+                    </div>
+                    {lastNameError && (
+                      <p className="text-xs text-destructive mt-1.5">{lastNameError}</p>
+                    )}
                   </div>
                 </div>
               </motion.div>

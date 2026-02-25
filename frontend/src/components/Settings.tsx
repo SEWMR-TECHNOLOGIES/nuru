@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Lock, Globe, Moon, Loader2 } from 'lucide-react';
+import { User, Lock, Globe, Moon, Loader2, MousePointerClick } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import BellIcon from '@/assets/icons/bell-icon.svg';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +13,8 @@ import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useSettings } from '@/data/useSettings';
 import { toast } from 'sonner';
 
+const HINTS_KEY = 'nuru_sidebar_hints';
+
 const Settings = () => {
   const navigate = useNavigate();
   useWorkspaceMeta({
@@ -20,6 +23,7 @@ const Settings = () => {
   });
 
   const { settings, loading, updating, updateNotifications, updatePrivacy, updatePreferences } = useSettings();
+  const [sidebarHints, setSidebarHints] = useState(() => localStorage.getItem(HINTS_KEY) !== 'false');
 
   // Backend uses flat fields: email_notifications, push_notifications, sms_notifications
   const handleNotificationToggle = async (field: string, value: boolean) => {
@@ -248,6 +252,21 @@ const Settings = () => {
               />
             </div>
             <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Sidebar Hints</Label>
+                <p className="text-sm text-muted-foreground">Show helpful descriptions when you hover over sidebar items on desktop</p>
+              </div>
+              <Switch 
+                checked={sidebarHints}
+                onCheckedChange={(v) => {
+                  localStorage.setItem(HINTS_KEY, v ? 'true' : 'false');
+                  setSidebarHints(v);
+                  window.dispatchEvent(new Event('sidebar-hints-changed'));
+                  toast.success(v ? 'Sidebar hints enabled' : 'Sidebar hints disabled');
+                }}
+              />
+            </div>
             <div className="space-y-2">
               <Label>Language</Label>
               <Button variant="outline" className="w-full justify-between" disabled={updating}>

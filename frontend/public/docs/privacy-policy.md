@@ -12,7 +12,7 @@ Nuru Workspace ("Nuru", "we", "us", or "our") respects your privacy. This Privac
 
 We collect information you provide when creating and using your account:
 
-- Full name and display name
+- Full legal name or registered business name (required; placeholder or fake names are not permitted)
 - Phone number
 - Email address
 - Profile photo and bio
@@ -64,6 +64,8 @@ We use your information to:
 - Process NFC Card issuance and management
 - Resolve disputes between Users
 - Improve platform security and prevent fraud
+- Conduct periodic account reviews to verify user identity and name accuracy
+- Detect and prevent spam accounts, fake registrations, and policy violations
 - Analyse usage patterns to improve our services
 - Send important service announcements
 - Comply with legal obligations

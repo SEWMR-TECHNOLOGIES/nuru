@@ -210,6 +210,13 @@ class TicketOrderStatusEnum(enum.Enum):
     refunded = "refunded"
 
 
+class TicketApprovalStatusEnum(enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+    removed = "removed"
+
+
 class EventShareDurationEnum(enum.Enum):
     timed = "timed"          # until a specific date/time
     lifetime = "lifetime"    # user decides when to remove

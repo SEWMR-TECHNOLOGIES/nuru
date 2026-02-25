@@ -28,7 +28,8 @@ CREATE TYPE notification_type AS ENUM (
     'booking_accepted', 'booking_rejected', 'rsvp_received', 'committee_invite', 'moment_view',
     'moment_reaction', 'comment', 'mention', 'circle_add', 'expense_recorded',
     'content_removed', 'post_removed', 'moment_removed', 'identity_verified', 'kyc_approved',
-    'password_changed', 'password_reset'
+    'password_changed', 'password_reset',
+    'ticket_event_approved', 'ticket_event_rejected', 'ticket_event_removed'
 );
 CREATE TYPE upload_file_type AS ENUM ('image', 'pdf', 'video', 'doc');
 CREATE TYPE priority_level AS ENUM ('low', 'medium', 'high', 'critical');
@@ -162,9 +163,27 @@ CREATE TABLE IF NOT EXISTS users (
     phone text,
     password_hash text,
     is_active boolean DEFAULT true,
+    is_suspended boolean DEFAULT false,
+    suspension_reason text,
     is_identity_verified boolean DEFAULT false,
     is_phone_verified boolean DEFAULT false,
     is_email_verified boolean DEFAULT false,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
+);
+
+-- Name validation flags (tracks flagged/invalid user names for admin review)
+CREATE TABLE IF NOT EXISTS name_validation_flags (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    flagged_first_name text,
+    flagged_last_name text,
+    flag_reason text NOT NULL,
+    is_resolved boolean DEFAULT false,
+    resolved_by text,
+    resolved_at timestamp,
+    admin_notified boolean DEFAULT false,
+    user_notified boolean DEFAULT false,
     created_at timestamp DEFAULT now(),
     updated_at timestamp DEFAULT now()
 );
@@ -2046,8 +2065,19 @@ DO $$ BEGIN
   CREATE TYPE business_phone_status_enum AS ENUM ('pending', 'verified');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- Event sells_tickets flag
+-- Ticket Approval Status Enum
+DO $$ BEGIN
+  CREATE TYPE ticket_approval_status_enum AS ENUM ('pending', 'approved', 'rejected', 'removed');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Event sells_tickets flag and ticket approval columns
 ALTER TABLE events ADD COLUMN IF NOT EXISTS sells_tickets BOOLEAN DEFAULT FALSE;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS ticket_approval_status ticket_approval_status_enum DEFAULT 'pending';
+ALTER TABLE events ADD COLUMN IF NOT EXISTS ticket_rejection_reason TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS ticket_removed_reason TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS ticket_approved_by UUID;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS ticket_approved_at TIMESTAMP;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS ticket_removed_at TIMESTAMP;
 
 -- Event Ticket Classes
 CREATE TABLE IF NOT EXISTS event_ticket_classes (

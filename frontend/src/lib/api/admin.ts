@@ -92,8 +92,22 @@ export const adminApi = {
   getUserDetail:    (id: string) => aGet<any>(`/admin/users/${id}`),
   activateUser:     (id: string) => aPut<any>(`/admin/users/${id}/activate`),
   deactivateUser:   (id: string) => aPut<any>(`/admin/users/${id}/deactivate`),
+  suspendUser:      (id: string, reason: string) => aPut<any>(`/admin/users/${id}/suspend`, { reason }),
+  unsuspendUser:    (id: string) => aPut<any>(`/admin/users/${id}/unsuspend`),
+  notifyInvalidName:(id: string, message?: string) => aPost<any>(`/admin/users/${id}/notify-invalid-name`, { message }),
   resetUserPassword:(id: string, new_password: string) => aPut<any>(`/admin/users/${id}/reset-password`, { new_password }),
   updateUser: (id: string, data: any) => aPut<any>(`/admin/users/${id}`, data),
+
+  // Name Validation Flags
+  getNameFlags: (params?: { page?: number; limit?: number; status?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set("page", String(params.page));
+    if (params?.limit) qs.set("limit", String(params.limit));
+    if (params?.status) qs.set("status", params.status);
+    return aGet<any>(`/admin/name-flags${qs.toString() ? `?${qs}` : ""}`);
+  },
+  resolveNameFlag: (id: string) => aPut<any>(`/admin/name-flags/${id}/resolve`),
+  deleteNameFlag: (id: string) => aDel<any>(`/admin/name-flags/${id}`),
 
   // Admin Accounts
   getAdmins:        ()                           => aGet<any>("/admin/admins"),
@@ -340,4 +354,18 @@ export const adminApi = {
     if (params?.q)              qs.set("q", params.q);
     return aGet<any>(`/admin/agreements/acceptances${qs.toString() ? `?${qs}` : ""}`);
   },
+
+  // Ticketed Events Approval
+  getTicketedEvents: (params?: any) => {
+    const qs = new URLSearchParams();
+    if (params?.page)   qs.set("page",   params.page);
+    if (params?.limit)  qs.set("limit",  params.limit);
+    if (params?.status) qs.set("status", params.status);
+    if (params?.q)      qs.set("q",      params.q);
+    return aGet<any>(`/admin/ticketed-events${qs.toString() ? `?${qs}` : ""}`);
+  },
+  approveTicketedEvent:  (id: string) => aPut<any>(`/admin/ticketed-events/${id}/approve`),
+  rejectTicketedEvent:   (id: string, reason: string) => aPut<any>(`/admin/ticketed-events/${id}/reject`, { reason }),
+  removeTicketedEvent:   (id: string, reason: string) => aPut<any>(`/admin/ticketed-events/${id}/remove`, { reason }),
+  deleteTicketedEvent:   (id: string) => aDel<any>(`/admin/ticketed-events/${id}`),
 };

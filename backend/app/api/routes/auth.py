@@ -68,7 +68,19 @@ async def signin(request: Request, response: Response, db: Session = Depends(get
     if not verify_password(password, user.password_hash):
         return standard_response(False, "Invalid credentials. Please try again.")
     if not user.is_active:
-        return standard_response(False, "Your account has been suspended. Contact support.")
+        return standard_response(False, "Your account has been deactivated. Contact support at support@nuru.tz")
+
+    # Check suspension
+    if getattr(user, 'is_suspended', False):
+        return {
+            "success": False,
+            "message": "Account suspended",
+            "errors": [],
+            "data": {
+                "suspended": True,
+                "suspension_reason": getattr(user, 'suspension_reason', None),
+            }
+        }
 
     # Generate tokens
     access_token = create_access_token({"uid": str(user.id)})

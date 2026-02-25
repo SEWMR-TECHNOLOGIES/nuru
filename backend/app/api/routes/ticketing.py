@@ -9,6 +9,7 @@ from core.database import get_db
 from models import (
     User, Event, EventTicketClass, EventTicket, EventImage,
     TicketStatusEnum, TicketOrderStatusEnum, PaymentStatusEnum,
+    TicketApprovalStatusEnum,
 )
 from utils.auth import get_current_user, get_optional_user
 from utils.helpers import standard_response
@@ -40,7 +41,10 @@ def get_ticket_classes(
     except (ValueError, TypeError):
         return standard_response(False, "Invalid event ID")
 
-    event = db.query(Event).filter(Event.id == eid, Event.is_public == True, Event.sells_tickets == True).first()
+    event = db.query(Event).filter(
+        Event.id == eid, Event.is_public == True, Event.sells_tickets == True,
+        Event.ticket_approval_status == TicketApprovalStatusEnum.approved,
+    ).first()
     if not event:
         return standard_response(False, "Event not found or does not sell tickets")
 
@@ -130,6 +134,9 @@ def get_my_ticket_classes(
     return standard_response(True, "Ticket classes retrieved", {
         "event_id": event_id,
         "event_name": event.name,
+        "ticket_approval_status": event.ticket_approval_status.value if event.ticket_approval_status and hasattr(event.ticket_approval_status, 'value') else "pending",
+        "ticket_rejection_reason": event.ticket_rejection_reason,
+        "ticket_removed_reason": event.ticket_removed_reason,
         "ticket_classes": result,
     })
 
@@ -167,9 +174,11 @@ async def create_ticket_class(
     if not quantity or int(quantity) < 1:
         return standard_response(False, "Quantity must be at least 1")
 
-    # Mark event as selling tickets
+    # Mark event as selling tickets (approval stays pending until admin approves)
     event.sells_tickets = True
     event.is_public = True
+    if not event.ticket_approval_status or (hasattr(event.ticket_approval_status, 'value') and event.ticket_approval_status.value == 'pending'):
+        pass  # Keep pending
 
     tc = EventTicketClass(
         event_id=eid,
@@ -683,6 +692,7 @@ def get_ticketed_events(
     query = db.query(Event).filter(
         Event.sells_tickets == True,
         Event.is_public == True,
+        Event.ticket_approval_status == TicketApprovalStatusEnum.approved,
     )
 
     # Live search filter

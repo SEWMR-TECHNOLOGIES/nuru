@@ -27,6 +27,8 @@ const normalizeUserPayload = (raw: any): User | null => {
     is_email_verified: raw.is_email_verified,
     is_phone_verified: raw.is_phone_verified,
     is_active: raw.is_active,
+    is_suspended: raw.is_suspended ?? false,
+    suspension_reason: raw.suspension_reason ?? null,
     is_identity_verified: raw.is_identity_verified,
     is_vendor: raw.is_vendor ?? roles.is_vendor ?? false,
     follower_count: raw.follower_count ?? stats.followers ?? 0,

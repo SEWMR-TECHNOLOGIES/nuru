@@ -30,9 +30,10 @@ If you do not agree, do not use the platform.
 ## 2. Eligibility
 
 - You must be at least 18 years old.
-- You must provide accurate information during registration.
+- You must provide accurate information during registration, including your real legal name or registered business name.
 - You are responsible for maintaining the confidentiality of your account credentials.
 - You may not create multiple accounts for fraudulent purposes.
+- Placeholder, sample, or fake names (e.g., "Test User", "Demo", "Admin") are strictly prohibited.
 
 ---
 
@@ -50,14 +51,25 @@ If you do not agree, do not use the platform.
 
 Users must:
 
-- Provide accurate and up-to-date information
+- Provide their real legal name or registered business name during registration and maintain accurate information at all times
 - Use the platform in compliance with applicable laws
 - Not commit fraud or misrepresent their identity
 - Not misuse payment systems or contribution features
 - Not use the platform to harass, threaten, or harm other Users
 - Maintain the security of their login credentials
+- Respond promptly to requests from Nuru to verify account information
 
 Nuru may suspend or terminate accounts for violations of these Terms.
+
+---
+
+## 4.1 Account Reviews and Compliance
+
+- Nuru conducts periodic reviews of user accounts to ensure compliance with these Terms, including verification that account names are real and accurate.
+- Accounts found to be using fake, misleading, or placeholder names may be flagged, notified, and suspended if corrections are not made within a reasonable timeframe.
+- Nuru reserves the right to conduct multiple rounds of account reviews to prevent spam, fraud, and policy violations.
+- Users who receive a name compliance notification must update their account within 7 days or risk suspension.
+- Suspended users may contact support@nuru.tz to resolve their account status.
 
 ---
 

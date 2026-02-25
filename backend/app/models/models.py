@@ -37,6 +37,7 @@ from models.enums import (
     BusinessPhoneStatusEnum,
     IssueStatusEnum,
     IssuePriorityEnum,
+    TicketApprovalStatusEnum,
 )
 
 from models.page_views import PageView  # noqa: F401
@@ -177,6 +178,8 @@ class User(Base):
     phone = Column(Text)
     password_hash = Column(Text)
     is_active = Column(Boolean, default=True)
+    is_suspended = Column(Boolean, default=False)
+    suspension_reason = Column(Text)
     is_identity_verified = Column(Boolean, default=False)
     is_phone_verified = Column(Boolean, default=False)
     is_email_verified = Column(Boolean, default=False)
@@ -198,6 +201,7 @@ class User(Base):
     sessions = relationship("UserSession", back_populates="user")
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user")
     user_achievements = relationship("UserAchievement", back_populates="user")
+    name_validation_flags = relationship("NameValidationFlag", back_populates="user")
     nuru_cards = relationship("NuruCard", back_populates="user")
     nuru_card_orders = relationship("NuruCardOrder", back_populates="user")
     community_memberships = relationship("CommunityMember", back_populates="user")
@@ -521,7 +525,27 @@ class UserAchievement(Base):
     achievement = relationship("Achievement", back_populates="user_achievements")
 
 
-# ──────────────────────────────────────────────
+class NameValidationFlag(Base):
+    __tablename__ = 'name_validation_flags'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    flagged_first_name = Column(Text)
+    flagged_last_name = Column(Text)
+    flag_reason = Column(Text, nullable=False)
+    is_resolved = Column(Boolean, default=False)
+    resolved_by = Column(Text)
+    resolved_at = Column(DateTime)
+    admin_notified = Column(Boolean, default=False)
+    user_notified = Column(Boolean, default=False)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    user = relationship("User", back_populates="name_validation_flags")
+
+
+
 # Nuru Cards
 # ──────────────────────────────────────────────
 
@@ -1163,6 +1187,12 @@ class Event(Base):
     cover_image_url = Column(Text)
     is_public = Column(Boolean, default=False)
     sells_tickets = Column(Boolean, default=False)
+    ticket_approval_status = Column(Enum(TicketApprovalStatusEnum, name="ticket_approval_status_enum"), default=TicketApprovalStatusEnum.pending)
+    ticket_rejection_reason = Column(Text)
+    ticket_removed_reason = Column(Text)
+    ticket_approved_by = Column(UUID(as_uuid=True))
+    ticket_approved_at = Column(DateTime)
+    ticket_removed_at = Column(DateTime)
     theme_color = Column(String(7))
     dress_code = Column(String(100))
     special_instructions = Column(Text)

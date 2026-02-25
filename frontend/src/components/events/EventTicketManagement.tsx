@@ -33,6 +33,9 @@ const STATUS_STYLES: Record<string, string> = {
 const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProps) => {
   const [tickets, setTickets] = useState<any[]>([]);
   const [ticketClasses, setTicketClasses] = useState<any[]>([]);
+  const [approvalStatus, setApprovalStatus] = useState<string>("pending");
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+  const [removedReason, setRemovedReason] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<any>(null);
@@ -65,7 +68,11 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
     try {
       const res = await ticketingApi.getMyTicketClasses(eventId);
       if (res.success && res.data) {
-        setTicketClasses((res.data as any).ticket_classes || []);
+        const d = res.data as any;
+        setTicketClasses(d.ticket_classes || []);
+        setApprovalStatus(d.ticket_approval_status || "pending");
+        setRejectionReason(d.ticket_rejection_reason || null);
+        setRemovedReason(d.ticket_removed_reason || null);
       }
     } catch { /* silent */ }
   };
@@ -224,6 +231,44 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
 
   return (
     <div className="space-y-4">
+      {/* Ticket Approval Status Banner */}
+      {approvalStatus === "pending" && (
+        <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+          <Clock className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold text-amber-800 dark:text-amber-300 text-sm">Pending Approval</p>
+            <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">Your ticketed event is under review. Tickets will be visible to the public once approved by an administrator.</p>
+          </div>
+        </div>
+      )}
+      {approvalStatus === "rejected" && (
+        <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+          <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold text-red-800 dark:text-red-300 text-sm">Rejected</p>
+            <p className="text-xs text-red-700 dark:text-red-400 mt-0.5">Your ticketed event was not approved.{rejectionReason ? ` Reason: ${rejectionReason}` : ''}</p>
+          </div>
+        </div>
+      )}
+      {approvalStatus === "removed" && (
+        <div className="flex items-start gap-3 p-4 rounded-xl bg-muted border border-border">
+          <AlertTriangle className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold text-foreground text-sm">Removed</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Your ticketed event has been removed by an administrator.{removedReason ? ` Reason: ${removedReason}` : ''}</p>
+          </div>
+        </div>
+      )}
+      {approvalStatus === "approved" && (
+        <div className="flex items-start gap-3 p-4 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+          <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold text-green-800 dark:text-green-300 text-sm">Approved</p>
+            <p className="text-xs text-green-700 dark:text-green-400 mt-0.5">Your tickets are live and visible on the public tickets page.</p>
+          </div>
+        </div>
+      )}
+
       {/* Scan Ticket Button */}
       {isCreator && (
         <Button

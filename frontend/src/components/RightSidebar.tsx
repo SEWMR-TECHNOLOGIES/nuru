@@ -45,6 +45,8 @@ interface UpcomingEvent {
   cover_image?: string;
   status?: string;
   role: 'creator' | 'committee' | 'guest';
+  sells_tickets?: boolean;
+  ticket_approval_status?: string;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -234,8 +236,12 @@ const MyTicketsSection = ({ navigate }: { navigate: (path: string) => void }) =>
   );
 };
 
-const RightSidebar = () => {
-  const navigate = useNavigate();
+const RightSidebar = ({ onNavigate }: { onNavigate?: () => void } = {}) => {
+  const rawNavigate = useNavigate();
+  const navigate = useCallback((path: string) => {
+    rawNavigate(path);
+    onNavigate?.();
+  }, [rawNavigate, onNavigate]);
   const { events, loading: eventsLoading } = useEvents();
   const { services, loading: servicesLoading } = useServices();
   const { suggestions, loading: suggestionsLoading } = useFollowSuggestions(3);
@@ -305,7 +311,7 @@ const RightSidebar = () => {
     const map = new Map<string, UpcomingEvent>();
 
     for (const ev of (events || [])) {
-      map.set(ev.id, { id: ev.id, title: ev.title, start_date: ev.start_date, cover_image: ev.cover_image, status: ev.status, role: 'creator' });
+      map.set(ev.id, { id: ev.id, title: ev.title, start_date: ev.start_date, cover_image: ev.cover_image, status: ev.status, role: 'creator', sells_tickets: (ev as any).sells_tickets, ticket_approval_status: (ev as any).ticket_approval_status });
     }
     for (const ev of committeeEvents) {
       if (!map.has(ev.id)) {
@@ -326,6 +332,8 @@ const RightSidebar = () => {
       .filter((ev) => {
         if (ev.start_date && new Date(ev.start_date) < now) return false;
         if (ev.status?.toLowerCase() === 'cancelled') return false;
+        // Hide ticketed events that aren't approved from sidebar
+        if (ev.sells_tickets && ev.ticket_approval_status !== 'approved') return false;
         return true;
       })
       .sort((a, b) => {
