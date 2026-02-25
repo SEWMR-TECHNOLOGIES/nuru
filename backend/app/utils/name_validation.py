@@ -20,7 +20,7 @@ BLOCKED_NAMES = {
     "yyy", "zzz",
     "abc", "xyz", "qwerty", "asdf", "asdfgh", "qwer", "zxcv",
     "foo", "bar", "baz", "foobar",
-    "john", "jane", "johndoe", "janedoe", "doe",
+    "johndoe", "janedoe",
     "placeholder", "default", "noname", "no_name", "n/a", "na",
     "noreply", "noemail", "nobody",
     "account", "profile", "myname", "yourname", "thename",
@@ -30,6 +30,14 @@ BLOCKED_NAMES = {
     "jina", "majina", "mtu",  # Swahili for name/names/person
 }
 
+# Blocked first+last name combinations (lowercase)
+BLOCKED_NAME_COMBOS = {
+    ("john", "doe"),
+    ("jane", "doe"),
+    ("juan", "perez"),
+    ("fulano", "tal"),
+}
+
 # Patterns that indicate fake names
 FAKE_PATTERNS = [
     r'^(.)\1{2,}$',           # Repeated single char: aaa, bbb
@@ -37,8 +45,8 @@ FAKE_PATTERNS = [
     r'^[0-9]+$',              # All digits
     r'^[^a-zA-Z]+$',          # No letters at all
     r'^(.{1,2})\1{2,}$',     # Repeated short patterns: abababab
-    r'^[qwertasdfgzxcvb]{4,}$',  # Keyboard smash (left hand)
-    r'^[yuiophjklnm]{4,}$',      # Keyboard smash (right hand)
+    r'^[qwertasdfgzxcvb]{5,}$',  # Keyboard smash (left hand) - min 5 to avoid short real names
+    r'^[yuiophjklnm]{5,}$',      # Keyboard smash (right hand) - min 5 to avoid short real names
     r'^test\d*$',             # test123, test1, etc.
     r'^user\d*$',             # user123, user1, etc.
     r'^sample\d*$',           # sample123
@@ -52,25 +60,14 @@ FAKE_PATTERNS = [
 
 def validate_name(name: str) -> dict:
     """
-    Validates a first or last name.
+    Validates a first or last name individually.
     Returns: {"valid": bool, "reason": str | None}
-    
-    Accepts:
-    - Real personal names (any language/script)
-    - Business names (e.g., "Serengeti Studios", "Mama Lishe")
-    
-    Rejects:
-    - Common placeholder/sample names
-    - Keyboard smashes
-    - Names that are too short or all digits
-    - Repeated character patterns
     """
     if not name or not name.strip():
         return {"valid": False, "reason": "Name is required"}
     
     clean = name.strip()
     
-    # Length check
     if len(clean) < 2:
         return {"valid": False, "reason": "Name must be at least 2 characters"}
     
@@ -91,5 +88,30 @@ def validate_name(name: str) -> dict:
     # Must contain at least one letter
     if not re.search(r'[a-zA-Z\u00C0-\u024F\u0400-\u04FF\u0600-\u06FF\u0900-\u097F\u4E00-\u9FFF]', clean):
         return {"valid": False, "reason": "Name must contain at least one letter"}
+    
+    return {"valid": True, "reason": None}
+
+
+def validate_name_combo(first_name: str, last_name: str) -> dict:
+    """
+    Validates a first+last name combination.
+    Returns: {"valid": bool, "reason": str | None}
+    
+    Call this AFTER individual validate_name() checks pass.
+    Rejects known fake combos like "John Doe" or "Jane Doe".
+    """
+    if not first_name or not last_name:
+        return {"valid": True, "reason": None}
+    
+    combo = (
+        first_name.strip().lower().replace(" ", ""),
+        last_name.strip().lower().replace(" ", ""),
+    )
+    
+    if combo in BLOCKED_NAME_COMBOS:
+        return {
+            "valid": False,
+            "reason": f"'{first_name.strip()} {last_name.strip()}' appears to be a placeholder name. Please use your real name",
+        }
     
     return {"valid": True, "reason": None}

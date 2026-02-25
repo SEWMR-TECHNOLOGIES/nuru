@@ -98,7 +98,20 @@ const Register = () => {
   const [lastNameError, setLastNameError] = useState<string | null>(null);
   const [firstNameChecking, setFirstNameChecking] = useState(false);
   const [lastNameChecking, setLastNameChecking] = useState(false);
+  const [firstNameValid, setFirstNameValid] = useState(false);
+  const [lastNameValid, setLastNameValid] = useState(false);
   const nameCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Common real names the backend may incorrectly flag (until redeployed)
+  const REAL_NAME_ALLOWLIST = useMemo(() => new Set([
+    "john", "jane", "doe", "juan", "jose", "maria", "mohammed", "ali",
+    "chen", "wang", "kim", "lee", "james", "mary", "david", "sarah",
+  ]), []);
+
+  // Blocked first+last name combos (client-side mirror of backend)
+  const BLOCKED_NAME_COMBOS = useMemo(() => [
+    ["john", "doe"], ["jane", "doe"], ["juan", "perez"], ["fulano", "tal"],
+  ], []);
 
   const [otp, setOtp] = useState("");
   const { toast } = useToast();
@@ -114,9 +127,14 @@ const Register = () => {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear name errors on type
-    if (field === "firstName") setFirstNameError(null);
-    if (field === "lastName") setLastNameError(null);
+    // Clear name errors/valid on type
+    if (field === "firstName") { setFirstNameError(null); setFirstNameValid(false); }
+    if (field === "lastName") { setLastNameError(null); setLastNameValid(false); }
+  };
+
+  const checkNameCombo = (firstName: string, lastName: string) => {
+    const combo = [firstName.trim().toLowerCase(), lastName.trim().toLowerCase()];
+    return BLOCKED_NAME_COMBOS.some(([f, l]) => combo[0] === f && combo[1] === l);
   };
 
   const validateNameOnBlur = (field: "firstName" | "lastName") => {
@@ -125,19 +143,36 @@ const Register = () => {
     
     const setError = field === "firstName" ? setFirstNameError : setLastNameError;
     const setChecking = field === "firstName" ? setFirstNameChecking : setLastNameChecking;
+    const setValid = field === "firstName" ? setFirstNameValid : setLastNameValid;
 
     if (nameCheckTimer.current) clearTimeout(nameCheckTimer.current);
     setChecking(true);
+    setValid(false);
     nameCheckTimer.current = setTimeout(async () => {
       try {
         const res = await api.auth.validateName(name);
-        if (res.success && res.data && !res.data.valid) {
+        const isAllowlisted = REAL_NAME_ALLOWLIST.has(name.trim().toLowerCase());
+        console.log("[name-validation]", { name, res, isAllowlisted, valid: res?.data?.valid });
+        if (res.success && res.data && !res.data.valid && !isAllowlisted) {
           setError(res.data.reason || "Please use your real name");
+          setValid(false);
         } else {
-          setError(null);
+          // Check combo after individual validation passes
+          const fn = field === "firstName" ? name : formData.firstName;
+          const ln = field === "lastName" ? name : formData.lastName;
+          if (fn.trim() && ln.trim() && checkNameCombo(fn, ln)) {
+            setFirstNameError(`'${formData.firstName.trim()} ${formData.lastName.trim()}' appears to be a placeholder name`);
+            setLastNameError(`'${formData.firstName.trim()} ${formData.lastName.trim()}' appears to be a placeholder name`);
+            setFirstNameValid(false);
+            setLastNameValid(false);
+          } else {
+            setError(null);
+            setValid(true);
+          }
         }
       } catch {
         setError(null);
+        setValid(true);
       } finally {
         setChecking(false);
       }
@@ -421,6 +456,11 @@ const Register = () => {
                           <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
                         </div>
                       )}
+                      {!firstNameChecking && firstNameValid && !firstNameError && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <CheckCircle2 className="w-5 h-5 text-green-500" />
+                        </div>
+                      )}
                     </div>
                     {firstNameError && (
                       <p className="text-xs text-destructive mt-1.5">{firstNameError}</p>
@@ -441,6 +481,11 @@ const Register = () => {
                       {lastNameChecking && (
                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
                           <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
+                        </div>
+                      )}
+                      {!lastNameChecking && lastNameValid && !lastNameError && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <CheckCircle2 className="w-5 h-5 text-green-500" />
                         </div>
                       )}
                     </div>
