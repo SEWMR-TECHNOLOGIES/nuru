@@ -83,9 +83,20 @@ export const authApi = {
   },
 
   /**
-   * Request password reset
+   * Request password reset (email)
    */
   forgotPassword: (email: string) => post("/auth/forgot-password", { email }),
+
+  /**
+   * Request password reset (phone — SMS OTP)
+   */
+  forgotPasswordPhone: (phone: string) => post("/auth/forgot-password-phone", { phone }),
+
+  /**
+   * Verify reset OTP (phone) — returns reset_token
+   */
+  verifyResetOtp: (phone: string, otp_code: string) =>
+    post<{ reset_token: string }>("/auth/verify-reset-otp", { phone, otp_code }),
 
   /**
    * Reset password with token

@@ -200,8 +200,22 @@ const CreateEvent: React.FC = () => {
     setPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
+  // ── Inline validation helpers ──
+  const guestsNum = formData.expectedGuests ? parseInt(formData.expectedGuests, 10) : null;
+  const budgetNum = formData.budget ? parseInt(formData.budget, 10) : null;
+  const guestsError = guestsNum !== null && guestsNum < 1 ? "Expected guests must be at least 1" : null;
+  const budgetError = budgetNum !== null && budgetNum < 0 ? "Budget cannot be negative" : null;
+  const titleTooLong = formData.title.length > 100;
+  const descTooLong = formData.description.length > 2000;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (guestsError || budgetError || titleTooLong || descTooLong) {
+      toast.error("Please fix the highlighted errors before submitting.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -385,8 +399,13 @@ const CreateEvent: React.FC = () => {
                   placeholder="e.g., Sarah & John's Wedding"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className={cn(titleTooLong && "border-destructive focus-visible:ring-destructive")}
                   required
+                  autoComplete="off"
                 />
+                {titleTooLong && (
+                  <p className="text-xs text-destructive mt-1">Title must be under 100 characters ({formData.title.length}/100)</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Location</label>
@@ -395,6 +414,7 @@ const CreateEvent: React.FC = () => {
                   value={formData.location}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                   required
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -448,8 +468,12 @@ const CreateEvent: React.FC = () => {
                 placeholder="Describe your event..."
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className={cn(descTooLong && "border-destructive focus-visible:ring-destructive")}
                 rows={4}
               />
+              {descTooLong && (
+                <p className="text-xs text-destructive mt-1">Description must be under 2,000 characters ({formData.description.length}/2,000)</p>
+              )}
             </div>
 
             {/* Date, Time, Guests */}
@@ -495,7 +519,11 @@ const CreateEvent: React.FC = () => {
                   placeholder="50"
                   value={formData.expectedGuests}
                   onChange={(v) => setFormData({ ...formData, expectedGuests: v })}
+                  className={cn(guestsError && "border-destructive focus-visible:ring-destructive")}
                 />
+                {guestsError && (
+                  <p className="text-xs text-destructive mt-1">{guestsError}</p>
+                )}
               </div>
             </div>
 
@@ -518,7 +546,11 @@ const CreateEvent: React.FC = () => {
                 placeholder="e.g., 5,000,000"
                 value={formData.budget}
                 onChange={(v) => setFormData({ ...formData, budget: v })}
+                className={cn(budgetError && "border-destructive focus-visible:ring-destructive")}
               />
+              {budgetError && (
+                <p className="text-xs text-destructive mt-1">{budgetError}</p>
+              )}
             </div>
           </CardContent>
         </Card>
