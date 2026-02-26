@@ -1,10 +1,12 @@
 
 import hashlib
 import re
+import traceback
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Cookie, Request, Depends, Response, HTTPException
 from sqlalchemy.orm import Session
-from models import PasswordResetToken, User
+from models import PasswordResetToken, User, UserVerificationOTP
+from models.enums import OTPVerificationTypeEnum
 from core.database import get_db
 from utils.auth import (
     generate_reset_token,
@@ -17,9 +19,9 @@ from utils.auth import (
     verify_refresh_token
 )
 from utils.user_payload import build_user_payload
-from utils.notification_service import send_password_reset_email
+from utils.notification_service import send_password_reset_email, send_verification_sms
 from utils.validation_functions import validate_tanzanian_phone
-from utils.helpers import standard_response
+from utils.helpers import standard_response, generate_otp, get_expiry, mask_phone
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -267,3 +269,113 @@ async def reset_password(request: Request, db: Session = Depends(get_db)):
         pass
 
     return standard_response(True, "Password reset successfully")
+
+
+# ──────────────────────────────────────────────
+# Forgot Password (Phone / SMS OTP)
+# ──────────────────────────────────────────────
+@router.post("/forgot-password-phone")
+async def forgot_password_phone(request: Request, db: Session = Depends(get_db)):
+    """Sends a password-reset OTP via SMS for phone-only accounts."""
+    payload = await request.json()
+    phone = payload.get("phone", "").strip()
+
+    if not phone:
+        return standard_response(False, "Phone number is required.")
+
+    # Normalize to Tanzanian format
+    try:
+        phone = validate_tanzanian_phone(phone)
+    except ValueError:
+        return standard_response(False, "Please enter a valid Tanzanian phone number.")
+
+    user = db.query(User).filter(User.phone == phone).first()
+
+    # Always return success to prevent enumeration
+    if not user:
+        return standard_response(True, "If this phone number is registered, a reset code has been sent.")
+
+    if not user.is_active:
+        return standard_response(True, "If this phone number is registered, a reset code has been sent.")
+
+    code = generate_otp()
+    expires_at = get_expiry(minutes=10)
+
+    otp_entry = UserVerificationOTP(
+        user_id=user.id,
+        otp_code=code,
+        verification_type=OTPVerificationTypeEnum.phone,
+        expires_at=expires_at,
+    )
+    db.add(otp_entry)
+    db.commit()
+
+    try:
+        await send_verification_sms(user.phone, code, user.first_name)
+    except Exception:
+        print(traceback.format_exc())
+        # Still return success to prevent enumeration
+        pass
+
+    masked = mask_phone(user.phone)
+    return standard_response(True, f"If this phone number is registered, a reset code has been sent to {masked}.")
+
+
+# ──────────────────────────────────────────────
+# Verify Reset OTP (Phone)
+# ──────────────────────────────────────────────
+@router.post("/verify-reset-otp")
+async def verify_reset_otp(request: Request, db: Session = Depends(get_db)):
+    """Verifies an SMS OTP for password reset and returns a one-time reset token."""
+    payload = await request.json()
+
+    phone = payload.get("phone", "").strip()
+    otp_code = payload.get("otp_code", "").strip()
+
+    if not phone or not otp_code:
+        return standard_response(False, "Phone number and OTP code are required.")
+
+    try:
+        phone = validate_tanzanian_phone(phone)
+    except ValueError:
+        return standard_response(False, "Invalid phone number format.")
+
+    user = db.query(User).filter(User.phone == phone).first()
+    if not user:
+        return standard_response(False, "Invalid OTP or phone number.")
+
+    otp_entry = (
+        db.query(UserVerificationOTP)
+        .filter(
+            UserVerificationOTP.user_id == user.id,
+            UserVerificationOTP.verification_type == OTPVerificationTypeEnum.phone,
+            UserVerificationOTP.is_used == False,
+        )
+        .order_by(UserVerificationOTP.created_at.desc())
+        .first()
+    )
+
+    if not otp_entry:
+        return standard_response(False, "No active OTP found. Please request a new code.")
+
+    if otp_entry.expires_at < datetime.utcnow():
+        return standard_response(False, "OTP has expired. Please request a new code.")
+
+    if otp_entry.otp_code != otp_code:
+        return standard_response(False, "Incorrect OTP code. Please try again.")
+
+    # Mark OTP as used
+    otp_entry.is_used = True
+
+    # Generate a password-reset token (same as email flow)
+    raw_token, token_hash = generate_reset_token()
+
+    reset = PasswordResetToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=datetime.utcnow() + timedelta(minutes=10),
+    )
+    db.add(reset)
+    db.commit()
+
+    return standard_response(True, "OTP verified successfully.", {"reset_token": raw_token})
