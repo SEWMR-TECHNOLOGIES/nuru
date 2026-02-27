@@ -3278,6 +3278,239 @@ Emily Davis,emily@example.com,+254712345680,Pending,0,,None,No
 
 ---
 
+# 🎨 MODULE 4B: INVITATION CARD TEMPLATES
+
+Allows users to upload custom PDF invitation card templates. The system overlays guest name and QR code onto the PDF when generating invitation cards. Each event can optionally be assigned a custom card template — if none is set, the default Nuru digital card is used.
+
+**How it works:**
+- Users upload PDF card designs with predefined placeholder areas for guest name and QR code
+- When uploading, users specify the X/Y coordinates (as % of page) and styling for name and QR placeholders
+- When a guest downloads their invitation card, the system fills in their name and QR code on the PDF
+- Templates are per-user and can be reused across multiple events
+
+---
+
+## 4B.1 List My Card Templates
+
+```
+GET /card-templates
+Authorization: Bearer {access_token}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "name": "Elegant Wedding Card",
+      "description": "Green botanical design with gold text",
+      "pdf_url": "https://storage.nuru.com/card-templates/uuid.pdf",
+      "thumbnail_url": "https://storage.nuru.com/card-templates/uuid-thumb.jpg",
+      "name_placeholder_x": 50,
+      "name_placeholder_y": 35,
+      "name_font_size": 16,
+      "name_font_color": "#2D5016",
+      "qr_placeholder_x": 50,
+      "qr_placeholder_y": 75,
+      "qr_size": 80,
+      "is_active": true,
+      "created_at": "2026-02-20T10:00:00Z",
+      "updated_at": "2026-02-20T10:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+## 4B.2 Get Card Template
+
+```
+GET /card-templates/{templateId}
+Authorization: Bearer {access_token}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": { "id": "uuid", "name": "Elegant Wedding Card", "..." : "..." }
+}
+```
+
+---
+
+## 4B.3 Upload Card Template
+
+```
+POST /card-templates
+Authorization: Bearer {access_token}
+Content-Type: multipart/form-data
+```
+
+**Form Fields:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| pdf | file | Yes | — | PDF file of the card design (max 10MB) |
+| name | string | Yes | — | Template name |
+| description | string | No | — | Description of the design |
+| name_placeholder_x | number | No | 50 | X position of guest name (% from left) |
+| name_placeholder_y | number | No | 35 | Y position of guest name (% from top) |
+| name_font_size | number | No | 16 | Font size for guest name (pt) |
+| name_font_color | string | No | #000000 | Color for guest name text |
+| qr_placeholder_x | number | No | 50 | X position of QR code (% from left) |
+| qr_placeholder_y | number | No | 75 | Y position of QR code (% from top) |
+| qr_size | number | No | 80 | QR code size in pixels |
+
+**Success Response (201 Created):**
+```json
+{
+  "success": true,
+  "message": "Card template uploaded successfully",
+  "data": { "id": "uuid", "name": "Elegant Wedding Card", "pdf_url": "...", "..." : "..." }
+}
+```
+
+---
+
+## 4B.4 Update Card Template
+
+```
+PUT /card-templates/{templateId}
+Authorization: Bearer {access_token}
+Content-Type: application/json
+```
+
+**Request Body (all fields optional):**
+```json
+{
+  "name": "Updated Name",
+  "description": "Updated description",
+  "name_placeholder_x": 48,
+  "name_placeholder_y": 33,
+  "name_font_size": 18,
+  "name_font_color": "#1A3A0A",
+  "qr_placeholder_x": 50,
+  "qr_placeholder_y": 78,
+  "qr_size": 90,
+  "is_active": true
+}
+```
+
+---
+
+## 4B.5 Delete Card Template
+
+```
+DELETE /card-templates/{templateId}
+Authorization: Bearer {access_token}
+```
+
+**Success Response (200 OK):**
+```json
+{ "success": true, "message": "Card template deleted successfully" }
+```
+
+---
+
+## 4B.6 Assign Card Template to Event
+
+Sets (or removes) a custom card template for an event. Pass `null` to revert to the default Nuru card.
+
+```
+PUT /events/{eventId}/card-template
+Authorization: Bearer {access_token}
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{ "card_template_id": "uuid-or-null" }
+```
+
+**Success Response (200 OK):**
+```json
+{ "success": true, "message": "Card template assigned to event" }
+```
+
+---
+
+## 4B.7 Get Event Card Template
+
+```
+GET /events/{eventId}/card-template
+Authorization: Bearer {access_token}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": { "id": "uuid", "name": "Elegant Wedding Card", "pdf_url": "...", "..." : "..." }
+}
+```
+
+Returns `null` in data if no custom template is assigned.
+
+---
+
+## 4B.8 Download Filled Invitation Card
+
+Generates a PDF with the guest's name and QR code overlaid on the custom card template. Falls back to the default Nuru digital card if no template is assigned.
+
+```
+GET /events/{eventId}/invitation-card/{attendeeId}/download
+Authorization: Bearer {access_token}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "pdf_url": "https://storage.nuru.com/filled-cards/event-uuid/attendee-uuid.pdf"
+  }
+}
+```
+
+---
+
+## Updated: 3.1.3 GET /user-events/{eventId}/invitation-card
+
+Now includes `card_template` field in the response when a custom template is assigned to the event:
+
+```json
+{
+  "success": true,
+  "data": {
+    "event": { "..." : "..." },
+    "guest": { "..." : "..." },
+    "organizer": { "..." : "..." },
+    "invitation_code": "ABC123",
+    "qr_code_data": "nuru://event/uuid/checkin/uuid",
+    "rsvp_deadline": "2025-08-01T23:59:59",
+    "card_template": {
+      "id": "uuid",
+      "pdf_url": "https://storage.nuru.com/card-templates/uuid.pdf",
+      "name_placeholder_x": 50,
+      "name_placeholder_y": 35,
+      "name_font_size": 16,
+      "name_font_color": "#2D5016",
+      "qr_placeholder_x": 50,
+      "qr_placeholder_y": 75,
+      "qr_size": 80
+    }
+  }
+}
+```
+
+When `card_template` is `null`, the frontend renders the default Nuru themed card.
+
+---
+
 # 👨‍👩‍👧‍👦 MODULE 5: EVENT COMMITTEE
 
 ## Committee Permission Enforcement

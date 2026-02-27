@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2, Images, ChevronDown } from 'lucide-react';
+import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2, Images, ChevronDown, FileText, ChevronRight } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
@@ -32,12 +32,16 @@ import { formatPrice } from '@/utils/formatPrice';
 import { getEventCountdown } from '@/utils/getEventCountdown';
 import { EventManagementSkeleton } from '@/components/ui/EventManagementSkeleton';
 import { eventsApi, showCaughtError } from '@/lib/api';
+import { Skeleton } from '@/components/ui/skeleton';
 import { servicesApi } from '@/lib/api/services';
 import { photoLibrariesApi } from '@/lib/api/photoLibraries';
+import { cardTemplatesApi, InvitationCardTemplate } from '@/lib/api/cardTemplates';
 import { toast } from 'sonner';
 import { useEventPermissions } from '@/hooks/useEventPermissions';
 import ShareEventToFeed from '@/components/ShareEventToFeed';
 import EventTicketManagement from '@/components/events/EventTicketManagement';
+import EventGuestCheckIn from '@/components/events/EventGuestCheckIn';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const EventManagement = () => {
   const { id } = useParams();
@@ -74,6 +78,11 @@ const EventManagement = () => {
   // Photo libraries created by service providers for this event
   const [eventPhotoLibraries, setEventPhotoLibraries] = useState<any[]>([]);
 
+  // Card template state
+  const [allTemplates, setAllTemplates] = useState<InvitationCardTemplate[]>([]);
+  const [assignedTemplateId, setAssignedTemplateId] = useState<string | null>(null);
+  const [templateLoading, setTemplateLoading] = useState(false);
+  const [assigningTemplate, setAssigningTemplate] = useState(false);
   const loadEventServices = async () => {
     if (!id) return;
     setServicesLoading(true);
@@ -97,10 +106,39 @@ const EventManagement = () => {
     } catch { /* silent */ }
   };
 
+  const loadCardTemplates = async () => {
+    if (!id) return;
+    setTemplateLoading(true);
+    try {
+      const [allRes, eventRes] = await Promise.all([
+        cardTemplatesApi.getAll(),
+        cardTemplatesApi.getEventTemplate(id),
+      ]);
+      if (allRes.success && allRes.data) setAllTemplates(allRes.data);
+      if (eventRes.success && eventRes.data) setAssignedTemplateId(eventRes.data.id);
+    } catch { /* silent */ }
+    finally { setTemplateLoading(false); }
+  };
+
+  const handleAssignTemplate = async (templateId: string) => {
+    if (!id) return;
+    setAssigningTemplate(true);
+    try {
+      const value = templateId === 'none' ? null : templateId;
+      const res = await cardTemplatesApi.assignToEvent(id, value);
+      if (res.success) {
+        setAssignedTemplateId(value);
+        toast.success(value ? 'Card template assigned' : 'Card template removed');
+      } else { showCaughtError(res); }
+    } catch (err: any) { showCaughtError(err); }
+    finally { setAssigningTemplate(false); }
+  };
+
   useEffect(() => {
     if (id) {
       loadEventServices();
       loadEventPhotoLibraries();
+      loadCardTemplates();
     }
   }, [id]);
 
@@ -202,6 +240,11 @@ const EventManagement = () => {
   const expectedGuests = apiEvent?.expected_guests || 0;
   const eventBudget = apiEvent?.budget ? formatPrice(apiEvent.budget) : '';
   const eventDescription = apiEvent?.description || '';
+  const isEventEnded = (() => {
+    const dateStr = (apiEvent as any)?.end_date || apiEvent?.start_date;
+    if (!dateStr) return false;
+    return new Date(dateStr) < new Date();
+  })();
 
   return (
     <div>
@@ -243,7 +286,7 @@ const EventManagement = () => {
               </span>
             );
           })()}
-          <span className="flex items-center gap-2"><SvgIcon src={LocationIcon} alt="Location" className="w-4 h-4 flex-shrink-0" /><span className="truncate">{eventLocation}</span></span>
+          <span className="flex items-start gap-2 break-words min-w-0"><SvgIcon src={LocationIcon} alt="Location" className="w-4 h-4 flex-shrink-0 mt-0.5" /><span className="break-words">{eventLocation}</span></span>
           <span className="flex items-center gap-2"><Users className="w-4 h-4 flex-shrink-0" /><span className="truncate">{expectedGuests} expected</span></span>
           <span className="flex items-center gap-2"><UserCheck className="w-4 h-4 flex-shrink-0" /><span className="truncate">{apiEvent?.confirmed_guest_count || 0} confirmed</span></span>
         </div>
@@ -311,6 +354,7 @@ const EventManagement = () => {
             { value: 'guests', label: 'Guests' },
             { value: 'rsvp', label: 'RSVP' },
             ...((apiEvent as any)?.sells_tickets ? [{ value: 'tickets', label: 'Tickets' }] : []),
+            ...(isCreator && !isEventEnded ? [{ value: 'check-in', label: 'Check-In' }] : []),
           ]}
         />
 
@@ -358,6 +402,56 @@ const EventManagement = () => {
             <Card className="w-full"><CardContent className="p-5"><div className="flex items-center justify-between"><div className="flex-1"><p className="text-xs text-muted-foreground">Confirmed Guests</p><p className="text-base font-semibold text-green-600 mt-1">{apiEvent?.confirmed_guest_count || 0}</p></div><div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center"><UserCheck className="w-4 h-4 text-green-600" /></div></div></CardContent></Card>
           </div>
           <Card><CardContent className="p-4"><p className="text-[10px] text-muted-foreground mb-1">Event Description</p><p className="text-sm text-muted-foreground">{eventDescription}</p></CardContent></Card>
+
+          {/* Invitation Card Template */}
+          {isCreator && (
+            <Card>
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center">
+                      <FileText className="w-4 h-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">Invitation Card Template</p>
+                      <p className="text-xs text-muted-foreground">Custom PDF design for guest invitation cards</p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => navigate('/card-templates')} className="text-xs gap-1 text-muted-foreground">
+                    Manage <ChevronRight className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+                {templateLoading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-10 w-full rounded-md" />
+                  </div>
+                ) : allTemplates.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border p-4 text-center">
+                    <p className="text-sm text-muted-foreground mb-2">No templates yet. Create one to personalise your invitation cards.</p>
+                    <Button size="sm" variant="outline" onClick={() => navigate('/card-templates')}>
+                      <Plus className="w-3.5 h-3.5 mr-1.5" />Create Template
+                    </Button>
+                  </div>
+                ) : (
+                  <Select
+                    value={assignedTemplateId || 'none'}
+                    onValueChange={handleAssignTemplate}
+                    disabled={assigningTemplate}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Default (Nuru card)</SelectItem>
+                      {allTemplates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="checklist" className="space-y-6">
@@ -621,6 +715,20 @@ const EventManagement = () => {
         {(apiEvent as any)?.sells_tickets && (
           <TabsContent value="tickets" className="space-y-4">
             <EventTicketManagement eventId={id!} isCreator={isCreator} />
+          </TabsContent>
+        )}
+
+        {isCreator && !isEventEnded && (
+          <TabsContent value="check-in" className="space-y-4">
+            <EventGuestCheckIn
+              eventId={id!}
+              isCreator={isCreator}
+              eventTitle={eventTitle}
+              eventDate={eventDate}
+              eventLocation={eventLocation}
+              guestCount={eventGuestCount}
+              confirmedCount={apiEvent?.confirmed_guest_count || 0}
+            />
           </TabsContent>
         )}
       </Tabs>

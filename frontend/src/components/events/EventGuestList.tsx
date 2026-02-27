@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { 
   UserPlus, Send, Search, Filter, CheckCircle, Clock, X,
-  QrCode, Mail, Phone, MoreVertical, Trash, Loader2, BookUser
+  QrCode, Mail, Phone, MoreVertical, Trash, Loader2, BookUser, Download
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,7 @@ import { showCaughtError } from '@/lib/api';
 import UserSearchInput from './UserSearchInput';
 import ContributorSearchInput from './ContributorSearchInput';
 import GuestListSkeletonLoader from './GuestListSkeletonLoader';
+import InvitationCard from '@/components/InvitationCard';
 import type { EventGuest } from '@/lib/api/types';
 import type { SearchedUser } from '@/hooks/useUserSearch';
 import type { UserContributor } from '@/lib/api/contributors';
@@ -55,6 +56,7 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
   const [selectedUser, setSelectedUser] = useState<SearchedUser | null>(null);
   const [selectedContributor, setSelectedContributor] = useState<UserContributor | null>(null);
   const [guestSourceTab, setGuestSourceTab] = useState<string>('user');
+  const [cardGuestId, setCardGuestId] = useState<string | null>(null);
 
   const [newGuest, setNewGuest] = useState({
     plus_ones: 0,
@@ -274,14 +276,19 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
                             <Send className="w-4 h-4 mr-2" />Send Invitation
                           </DropdownMenuItem>
                         )}
-                        {canCheckin && !guest.checked_in && guest.rsvp_status === 'confirmed' && (
+                         {canCheckin && !guest.checked_in && guest.rsvp_status === 'confirmed' && (
                           <DropdownMenuItem onClick={() => handleCheckin(guest.id)}><CheckCircle className="w-4 h-4 mr-2" />Check In</DropdownMenuItem>
-                        )}
-                        {canManage && (
-                          <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteGuest(guest.id)}>
-                            <Trash className="w-4 h-4 mr-2" />Remove
+                         )}
+                         {guest.rsvp_status === 'confirmed' && (
+                          <DropdownMenuItem onClick={() => setCardGuestId(guest.id)}>
+                            <Download className="w-4 h-4 mr-2" />Download Card
                           </DropdownMenuItem>
-                        )}
+                         )}
+                         {canManage && (
+                           <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteGuest(guest.id)}>
+                             <Trash className="w-4 h-4 mr-2" />Remove
+                           </DropdownMenuItem>
+                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -389,6 +396,17 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Guest Invitation Card Dialog */}
+      {cardGuestId && (
+        <InvitationCard
+          eventId={eventId}
+          guestId={cardGuestId}
+          open={!!cardGuestId}
+          onClose={() => setCardGuestId(null)}
+          isOrganizer
+        />
+      )}
     </div>
   );
 };

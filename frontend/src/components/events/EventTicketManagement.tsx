@@ -33,10 +33,11 @@ const STATUS_STYLES: Record<string, string> = {
 const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProps) => {
   const [tickets, setTickets] = useState<any[]>([]);
   const [ticketClasses, setTicketClasses] = useState<any[]>([]);
-  const [approvalStatus, setApprovalStatus] = useState<string>("pending");
+  const [approvalStatus, setApprovalStatus] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [removedReason, setRemovedReason] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [classesLoading, setClassesLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<any>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -65,6 +66,7 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
   };
 
   const loadClasses = async () => {
+    setClassesLoading(true);
     try {
       const res = await ticketingApi.getMyTicketClasses(eventId);
       if (res.success && res.data) {
@@ -75,6 +77,7 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
         setRemovedReason(d.ticket_removed_reason || null);
       }
     } catch { /* silent */ }
+    finally { setClassesLoading(false); }
   };
 
   useEffect(() => {
@@ -155,9 +158,28 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
   }, []);
 
   const startCameraScanner = useCallback(async () => {
+    // Check if mediaDevices API is available (requires HTTPS or secure context)
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast.error('Camera access requires a secure connection (HTTPS). Please use HTTPS or a supported browser.');
+      return;
+    }
+    // Request camera permission first
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      stream.getTracks().forEach(track => track.stop());
+    } catch (permErr: any) {
+      if (permErr.name === 'NotAllowedError') {
+        toast.error('Camera permission denied. Please allow camera access in your browser settings.');
+      } else if (permErr.name === 'NotFoundError') {
+        toast.error('No camera found on this device.');
+      } else {
+        toast.error('Could not access camera: ' + (permErr.message || 'Unknown error'));
+      }
+      return;
+    }
+
     setScanMode('camera');
-    // Wait for DOM to render
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 400));
     if (!cameraRef.current) return;
     try {
       const { Html5Qrcode } = await import('html5-qrcode');
@@ -167,7 +189,6 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
         { facingMode: 'environment' },
         { fps: 10, qrbox: { width: 250, height: 250 } },
         (decodedText) => {
-          // Extract ticket code from URL or use directly
           let code = decodedText;
           const match = decodedText.match(/\/ticket\/([A-Z0-9-]+)/i);
           if (match) code = match[1];
@@ -175,7 +196,6 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
           try { scanner.stop(); } catch {}
           scannerRef.current = null;
           setScanMode('manual');
-          // Auto-lookup
           setScanLoading(true);
           setScanError(null);
           setScannedTicket(null);
@@ -188,10 +208,10 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
             }
           }).catch(() => setScanError('Failed to look up ticket')).finally(() => setScanLoading(false));
         },
-        () => {} // ignore errors during scanning
+        () => {}
       );
-    } catch (err) {
-      toast.error('Camera not available');
+    } catch {
+      toast.error('Failed to start camera scanner. Please try again.');
       setScanMode('manual');
     }
   }, []);
@@ -232,7 +252,15 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
   return (
     <div className="space-y-4">
       {/* Ticket Approval Status Banner */}
-      {approvalStatus === "pending" && (
+      {classesLoading ? (
+        <div className="flex items-start gap-3 p-4 rounded-xl border border-border">
+          <Skeleton className="w-5 h-5 rounded-full shrink-0" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-3 w-full" />
+          </div>
+        </div>
+      ) : approvalStatus === "pending" ? (
         <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
           <Clock className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
           <div>
@@ -240,8 +268,7 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
             <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">Your ticketed event is under review. Tickets will be visible to the public once approved by an administrator.</p>
           </div>
         </div>
-      )}
-      {approvalStatus === "rejected" && (
+      ) : approvalStatus === "rejected" ? (
         <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
           <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
           <div>
@@ -249,8 +276,7 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
             <p className="text-xs text-red-700 dark:text-red-400 mt-0.5">Your ticketed event was not approved.{rejectionReason ? ` Reason: ${rejectionReason}` : ''}</p>
           </div>
         </div>
-      )}
-      {approvalStatus === "removed" && (
+      ) : approvalStatus === "removed" ? (
         <div className="flex items-start gap-3 p-4 rounded-xl bg-muted border border-border">
           <AlertTriangle className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
           <div>
@@ -258,8 +284,7 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
             <p className="text-xs text-muted-foreground mt-0.5">Your ticketed event has been removed by an administrator.{removedReason ? ` Reason: ${removedReason}` : ''}</p>
           </div>
         </div>
-      )}
-      {approvalStatus === "approved" && (
+      ) : approvalStatus === "approved" ? (
         <div className="flex items-start gap-3 p-4 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
           <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
           <div>
@@ -267,7 +292,7 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
             <p className="text-xs text-green-700 dark:text-green-400 mt-0.5">Your tickets are live and visible on the public tickets page.</p>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Scan Ticket Button */}
       {isCreator && (

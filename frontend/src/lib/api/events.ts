@@ -85,8 +85,8 @@ export const eventsApi = {
   getCommitteeEvents: (params?: { page?: number; limit?: number }) =>
     get<{ events: any[]; pagination: PaginatedResponse<Event>["pagination"] }>(`/user-events/committee${buildQueryString(params)}`),
 
-  getInvitationCard: (eventId: string) =>
-    get<{ event: any; guest: any; organizer: any; invitation_code: string; qr_code_data: string; rsvp_deadline?: string }>(`/user-events/${eventId}/invitation-card`),
+  getInvitationCard: (eventId: string, guestId?: string) =>
+    get<{ event: any; guest: any; organizer: any; invitation_code: string; qr_code_data: string; rsvp_deadline?: string }>(`/user-events/${eventId}/invitation-card${buildQueryString(guestId ? { guest_id: guestId, attendee_id: guestId, guestId, attendeeId: guestId } : undefined)}`),
 
   /**
    * Get current user's permissions for an event

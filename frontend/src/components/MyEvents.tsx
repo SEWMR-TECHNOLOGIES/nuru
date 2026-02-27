@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Users, UserCheck, Edit2, Trash2, Loader2, FileText, Mail, Shield,
-  Plus, MapPin, CalendarDays, Clock, Wallet, ChevronRight, CheckCircle2, Info
+  Plus, MapPin, CalendarDays, Clock, ChevronRight, CheckCircle2, Info
 } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
@@ -20,6 +20,7 @@ import { formatPrice } from '@/utils/formatPrice';
 import { getEventCountdown } from '@/utils/getEventCountdown';
 import { Skeleton } from '@/components/ui/skeleton';
 import { eventsApi } from '@/lib/api/events';
+import { cardTemplatesApi } from '@/lib/api/cardTemplates';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
 import { generateEventReportHtml } from '@/utils/generateEventReport';
@@ -67,6 +68,14 @@ const MyEvents = () => {
   const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
   const [reportHtml, setReportHtml] = useState('');
   const [eventsTabValue, setEventsTabValue] = useState('my-events');
+  const [templateCount, setTemplateCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    cardTemplatesApi.getAll().then(res => {
+      if (res.success && res.data) setTemplateCount(res.data.length);
+      else setTemplateCount(0);
+    }).catch(() => setTemplateCount(0));
+  }, []);
 
   const events = fetchedEvents.map((e: any) =>
     localStatusOverrides[e.id] ? { ...e, status: localStatusOverrides[e.id] } : e
@@ -478,6 +487,32 @@ const MyEvents = () => {
             </Card>
           ))}
         </div>
+      )}
+
+      {/* ── Card Templates Promo ── */}
+      {templateCount !== null && (
+        <Card
+          className="overflow-hidden border-border/60 cursor-pointer hover:shadow-md transition-all"
+          onClick={() => navigate('/card-templates')}
+        >
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="font-semibold text-foreground text-sm mb-1">
+                  {templateCount > 0
+                    ? 'Manage Your Card Templates'
+                    : 'Create Custom Invitation Cards'}
+                </h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {templateCount > 0
+                    ? `You have ${templateCount} template${templateCount !== 1 ? 's' : ''}. Manage your PDF invitation designs.`
+                    : 'Upload your PDF card design so guest names and QR codes are placed automatically.'}
+                </p>
+              </div>
+              <Button size="sm" variant="outline">Open</Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* ── Tabs ── */}

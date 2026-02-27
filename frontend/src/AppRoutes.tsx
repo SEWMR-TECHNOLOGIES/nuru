@@ -44,6 +44,7 @@ import ServiceEventsPage from "@/components/ServiceEventsPage";
 import ServicePhotoLibraries from "@/components/ServicePhotoLibraries";
 import PhotoLibraryDetail from "@/components/PhotoLibraryDetail";
 import SharedPhotoLibrary from "@/components/SharedPhotoLibrary";
+import CardTemplatesPage from "@/components/CardTemplatesPage";
 
 import Index from "@/pages/Index";
 import Contact from "@/pages/Contact";
@@ -182,6 +183,7 @@ function InnerRoutes() {
           <Route path="/services/events/:serviceId" element={<ServiceEventsPage />} />
           <Route path="/services/photo-libraries/:serviceId" element={<ServicePhotoLibraries />} />
           <Route path="/photo-library/:libraryId" element={<PhotoLibraryDetail />} />
+          <Route path="/card-templates" element={<CardTemplatesPage />} />
         </Route>
 
         {/* Public Pages */}

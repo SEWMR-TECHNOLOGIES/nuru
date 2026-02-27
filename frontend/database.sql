@@ -2369,6 +2369,33 @@ INSERT INTO issue_categories (name, description, icon, display_order) VALUES
 ('Other', 'Any issue not covered by the categories above', 'HelpCircle', 16);
 
 -- ============================================================
+-- Invitation Card Templates (Custom PDF cards per user/event)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS invitation_card_templates (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name text NOT NULL,
+    description text,
+    pdf_url text NOT NULL,
+    thumbnail_url text,
+    name_placeholder_x numeric NOT NULL DEFAULT 50,
+    name_placeholder_y numeric NOT NULL DEFAULT 35,
+    name_font_size numeric NOT NULL DEFAULT 16,
+    name_font_color text NOT NULL DEFAULT '#000000',
+    qr_placeholder_x numeric NOT NULL DEFAULT 50,
+    qr_placeholder_y numeric NOT NULL DEFAULT 75,
+    qr_size numeric NOT NULL DEFAULT 80,
+    is_active boolean DEFAULT true,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_card_templates_user ON invitation_card_templates(user_id);
+
+-- Add card_template_id to events table
+ALTER TABLE events ADD COLUMN IF NOT EXISTS card_template_id uuid REFERENCES invitation_card_templates(id) ON DELETE SET NULL;
+
+-- ============================================================
 -- Agreement Versioning & User Acceptance
 -- ============================================================
 CREATE TYPE agreement_type_enum AS ENUM ('vendor_agreement', 'organiser_agreement');
