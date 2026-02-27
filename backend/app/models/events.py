@@ -57,6 +57,7 @@ class Event(Base):
     theme_color = Column(String(7))
     dress_code = Column(String(100))
     special_instructions = Column(Text)
+    card_template_id = Column(UUID(as_uuid=True), ForeignKey('invitation_card_templates.id', ondelete='SET NULL'), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -84,6 +85,7 @@ class Event(Base):
     photo_libraries = relationship("ServicePhotoLibrary", back_populates="event")
     ticket_classes = relationship("EventTicketClass", back_populates="event")
     tickets = relationship("EventTicket", back_populates="event")
+    card_template = relationship("InvitationCardTemplate", back_populates="events")
 
 
 class EventTypeService(Base):

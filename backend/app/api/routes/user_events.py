@@ -491,9 +491,15 @@ def get_committee_events(
 @router.get("/{event_id}/invitation-card")
 def get_invitation_card(
     event_id: str,
+    guest_id: str = None,
+    attendee_id: str = None,
+    guestId: str = None,
+    attendeeId: str = None,
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
-    """Returns all data needed to render and print a digital invitation card with QR code."""
+    """Returns all data needed to render and print a digital invitation card with QR code.
+    Organizers can pass guest id via guest_id/attendee_id (or legacy guestId/attendeeId)."""
+    target_guest_id = guest_id or attendee_id or guestId or attendeeId
     try:
         eid = uuid.UUID(event_id)
     except ValueError:
@@ -503,15 +509,64 @@ def get_invitation_card(
     if not event:
         return standard_response(False, "Event not found")
 
-    invitation = db.query(EventInvitation).filter(
-        EventInvitation.event_id == eid, EventInvitation.invited_user_id == current_user.id
-    ).first()
-    if not invitation:
-        return standard_response(False, "You do not have an invitation for this event")
+    # If guest_id/attendee_id is provided, organizer is requesting a specific guest's card
+    if target_guest_id:
+        # Verify requester is the organizer or has manage_guests permission
+        is_organizer = (event.organizer_id == current_user.id)
+        if not is_organizer:
+            committee = db.query(EventCommitteeMember).filter(
+                EventCommitteeMember.event_id == eid,
+                EventCommitteeMember.user_id == current_user.id,
+            ).first()
+            role = db.query(CommitteeRole).filter(CommitteeRole.id == committee.role_id).first() if committee else None
+            if not role or not role.can_manage_guests:
+                return standard_response(False, "You do not have permission to view guest cards")
 
-    attendee = db.query(EventAttendee).filter(
-        EventAttendee.event_id == eid, EventAttendee.attendee_id == current_user.id
-    ).first()
+        try:
+            gid = uuid.UUID(target_guest_id)
+        except ValueError:
+            return standard_response(False, "Invalid guest ID format")
+
+        attendee = db.query(EventAttendee).filter(EventAttendee.id == gid, EventAttendee.event_id == eid).first()
+        if not attendee:
+            return standard_response(False, "Guest not found")
+
+        guest_user = db.query(User).filter(User.id == attendee.attendee_id).first()
+        invitation = db.query(EventInvitation).filter(
+            EventInvitation.event_id == eid, EventInvitation.invited_user_id == attendee.attendee_id
+        ).first()
+
+        current_rsvp = (
+            attendee.rsvp_status.value if hasattr(attendee.rsvp_status, "value")
+            else attendee.rsvp_status
+        )
+        if str(current_rsvp).lower() != RSVPStatusEnum.confirmed.value:
+            return standard_response(False, "Only confirmed guests can have invitation cards")
+
+        guest_name = f"{guest_user.first_name} {guest_user.last_name}" if guest_user else (attendee.guest_name if hasattr(attendee, 'guest_name') else "Guest")
+    else:
+        # Default: fetch current user's own card
+        invitation = db.query(EventInvitation).filter(
+            EventInvitation.event_id == eid, EventInvitation.invited_user_id == current_user.id
+        ).first()
+        if not invitation:
+            return standard_response(False, "You do not have an invitation for this event")
+
+        attendee = db.query(EventAttendee).filter(
+            EventAttendee.event_id == eid, EventAttendee.attendee_id == current_user.id
+        ).first()
+
+        current_rsvp = (
+            attendee.rsvp_status.value if attendee and hasattr(attendee.rsvp_status, "value")
+            else attendee.rsvp_status if attendee
+            else invitation.rsvp_status.value if hasattr(invitation.rsvp_status, "value")
+            else invitation.rsvp_status
+        )
+        if str(current_rsvp).lower() != RSVPStatusEnum.confirmed.value:
+            return standard_response(False, "Only confirmed guests can print/download invitation cards")
+
+        guest_name = f"{current_user.first_name} {current_user.last_name}"
+        guest_user = current_user
 
     event_type = db.query(EventType).filter(EventType.id == event.event_type_id).first()
     vc = db.query(EventVenueCoordinate).filter(EventVenueCoordinate.event_id == eid).first()
@@ -538,7 +593,7 @@ def get_invitation_card(
             "special_instructions": event.special_instructions,
         },
         "guest": {
-            "name": f"{current_user.first_name} {current_user.last_name}",
+            "name": guest_name,
             "attendee_id": str(attendee.id) if attendee else None,
             "rsvp_status": (attendee.rsvp_status.value if hasattr(attendee.rsvp_status, "value") else attendee.rsvp_status) if attendee else (invitation.rsvp_status.value if hasattr(invitation.rsvp_status, "value") else invitation.rsvp_status),
             "meal_preference": attendee.meal_preference if attendee else None,
@@ -548,6 +603,18 @@ def get_invitation_card(
         },
         "invitation_code": invitation.invitation_code,
         "qr_code_data": qr_data,
+        "card_template": {
+            "id": str(event.card_template.id),
+            "name": event.card_template.name,
+            "pdf_url": event.card_template.pdf_url,
+            "name_placeholder_x": float(event.card_template.name_placeholder_x) if event.card_template.name_placeholder_x is not None else 50,
+            "name_placeholder_y": float(event.card_template.name_placeholder_y) if event.card_template.name_placeholder_y is not None else 35,
+            "name_font_size": float(event.card_template.name_font_size) if event.card_template.name_font_size is not None else 16,
+            "name_font_color": event.card_template.name_font_color or "#000000",
+            "qr_placeholder_x": float(event.card_template.qr_placeholder_x) if event.card_template.qr_placeholder_x is not None else 50,
+            "qr_placeholder_y": float(event.card_template.qr_placeholder_y) if event.card_template.qr_placeholder_y is not None else 75,
+            "qr_size": float(event.card_template.qr_size) if event.card_template.qr_size is not None else 80,
+        } if event.card_template else None,
         "rsvp_deadline": settings.rsvp_deadline.isoformat() if settings and settings.rsvp_deadline else None,
     })
 

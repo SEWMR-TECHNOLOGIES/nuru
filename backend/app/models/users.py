@@ -72,6 +72,7 @@ class User(Base):
     file_uploads = relationship("FileUpload", back_populates="user")
     content_appeals = relationship("ContentAppeal", back_populates="user")
     issues = relationship("Issue", back_populates="user")
+    card_templates = relationship("InvitationCardTemplate", back_populates="user")
 
     # Self-referential / multi-FK relationships
     blocks_made = relationship("UserBlock", back_populates="blocker", foreign_keys="[UserBlock.blocker_id]")

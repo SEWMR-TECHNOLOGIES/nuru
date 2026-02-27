@@ -1,22 +1,32 @@
-# Nuru – A Brighter Way to Plan
+# Nuru – Plan Smarter
 
-**Nuru** is an innovative event management platform that simplifies how people plan and execute events. From weddings and corporate gatherings to celebrations and memorials, Nuru connects event organizers with trusted service providers, making planning effortless and stress-free.
+**Nuru** is a modern event management platform designed to simplify planning and execution of all kinds of events. Whether it’s a wedding, corporate gathering, celebration, or even a solemn event like a burial, Nuru connects organizers with trusted service providers and ensures smooth coordination.
 
-## What Nuru Offers
-- **All-in-One Marketplace:** Discover and book services like MCs, caterers, decorators, photographers, DJs, transport, and more.
-- **Seamless Booking & Payments:** Book multiple services in one place with secure payment options.
-- **Ratings & Reviews:** Choose reliable vendors with verified feedback from past users.
-- **Pre-Designed Event Packages:** Save time with curated bundles for weddings, parties, and corporate events.
-- **Budget & Expense Management:** Track spending and stay within budget for every event.
-- **Team Collaboration & Notifications:** Coordinate with service providers and event teams with real-time updates.
-- **Digital Invitations & Attendee Info:** Create and send invitations, share schedules, and provide interactive event maps.
+## Features
 
-## Who Can Use Nuru
-- **Event Organizers:** Individuals or teams planning any type of event.
-- **Service Providers:** Freelancers or businesses offering event-related services.
-- **Attendees:** Access event details, schedules, and participate in polls or contributions.
+- **Event Planning Made Easy:** Discover, book, and manage all essential services in one platform.
+- **Verified Service Providers:** Find reliable vendors for catering, photography, decorations, DJs, security, and more.
+- **Interactive Invitations:** Create and send digital invites, track RSVPs, and manage guest lists.
+- **Team & Task Management:** Collaborate with your event team, assign tasks, and track progress.
+- **Budget & Expense Tracking:** Monitor your spending and keep your event on budget.
+- **Nuru Card (NFC):** Streamlined guest check-ins using smart NFC cards.
+- **Public Event Feed:** Explore events shared by other users, like, comment, and engage.
+- **Secure Payments (UI Only):** Book services and handle payments within the platform (mocked for frontend).
 
-## Why Nuru
-Nuru makes event planning **faster, smarter, and more reliable** by eliminating endless vendor searches, providing transparent ratings, and streamlining bookings. Whether it’s a small gathering or a large corporate event, Nuru ensures a smoother, stress-free experience for everyone involved.
+## Pages Included
 
-**Tagline:** *Nuru – A Brighter Way to Plan*
+- Landing Page
+- Contact Page
+- FAQs
+- Registration Page
+- Login Page
+- Privacy Policy
+- Terms & Conditions
+
+## Purpose
+
+This repository contains the **frontend UI for Nuru** built with a modern design approach. All pages are fully responsive and visually implemented with placeholder/mock data. Backend logic is not included.
+
+---
+
+**Nuru – Plan Smarter**

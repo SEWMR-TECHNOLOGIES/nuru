@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import pytz
 
 from api.routes import all_routers
+from api.routes.card_templates import router as card_templates_router
 
 app = FastAPI(
     title="Nuru API",
@@ -43,6 +44,11 @@ def root():
 
 for router in all_routers:
     app.include_router(router, prefix=API_PREFIX)
+
+# Ensure card-templates routes are always mounted (safety fallback)
+registered_paths = {route.path for route in app.router.routes}
+if f"{API_PREFIX}/card-templates" not in registered_paths:
+    app.include_router(card_templates_router, prefix=API_PREFIX)
 
 # ------------------------------------------------------------------
 # Error handling

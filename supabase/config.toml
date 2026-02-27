@@ -1,0 +1,13 @@
+project_id = "lmfprculxhspqxppscbn"
+
+[functions.nuru-chat]
+verify_jwt = false
+
+[functions.og-meta]
+verify_jwt = false
+
+[functions.whatsapp-webhook]
+verify_jwt = false
+
+[functions.whatsapp-send]
+verify_jwt = false

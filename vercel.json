@@ -1,0 +1,35 @@
+{
+  "rewrites": [
+    {
+      "source": "/shared/post/:id",
+      "missing": [
+        {
+          "type": "query",
+          "key": "r"
+        }
+      ],
+      "destination": "https://lmfprculxhspqxppscbn.supabase.co/functions/v1/og-meta?id=:id"
+    },
+    {
+      "source": "/rsvp/:code",
+      "missing": [
+        {
+          "type": "query",
+          "key": "r"
+        }
+      ],
+      "destination": "https://lmfprculxhspqxppscbn.supabase.co/functions/v1/og-meta?id=:code&type=rsvp"
+    },
+    {
+      "source": "/shared/photo-library/:token",
+      "missing": [
+        {
+          "type": "query",
+          "key": "r"
+        }
+      ],
+      "destination": "https://lmfprculxhspqxppscbn.supabase.co/functions/v1/og-meta?id=:token&type=photo-library"
+    },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
