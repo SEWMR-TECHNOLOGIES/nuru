@@ -1,13 +1,11 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { RefreshCw, Star, Loader2, Check, Plus } from "lucide-react";
 import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
-import SvgIcon from '@/components/ui/svg-icon';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { servicesApi, showApiErrors, showCaughtError } from "@/lib/api";
-import { toast } from "sonner";
+import { servicesApi } from "@/lib/api";
 
 interface RecommendedService {
   id: string;
@@ -53,14 +51,12 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
   const [recommendations, setRecommendations] = useState<RecommendedService[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetched, setFetched] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchRecommendations = useCallback(async () => {
-    if (!eventTypeId) {
-      toast.error("Please select an event type first");
-      return;
-    }
+  const fetchRecommendations = useCallback(async (silent = false) => {
+    if (!eventTypeId) return;
 
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const params: Record<string, any> = {
         event_type_id: eventTypeId,
@@ -74,43 +70,52 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
         }
       }
 
-      // Try with location first, fallback to all if no results
       if (location) params.location = location;
       const response = await servicesApi.search(params);
       if (response.success && response.data?.services) {
         if (response.data.services.length > 0) {
           setRecommendations(response.data.services);
         } else if (location) {
-          // No results for this location — retry without location filter
+          // Fallback without location
           const { location: _, ...fallbackParams } = params;
           const fallback = await servicesApi.search(fallbackParams);
           if (fallback.success && fallback.data?.services) {
             setRecommendations(fallback.data.services);
-            if (fallback.data.services.length === 0) {
-              toast.info("No service providers found for this event type yet");
+            // If still empty, try without budget filter too
+            if (fallback.data.services.length === 0 && params.max_price) {
+              const { max_price: __, ...broadParams } = fallbackParams;
+              const broad = await servicesApi.search(broadParams);
+              if (broad.success && broad.data?.services) {
+                setRecommendations(broad.data.services);
+              }
             }
           }
-        } else {
-          setRecommendations([]);
-          toast.info("No service providers found for this event type yet");
+        } else if (params.max_price) {
+          // No results with budget — try without budget
+          const { max_price: _, ...noBudgetParams } = params;
+          const fallback = await servicesApi.search(noBudgetParams);
+          if (fallback.success && fallback.data?.services) {
+            setRecommendations(fallback.data.services);
+          }
         }
-      } else {
-        showApiErrors(response, "Failed to fetch recommendations");
       }
-    } catch (err: any) {
-      showCaughtError(err, "Failed to fetch recommendations");
+    } catch {
+      // Silent — no toast
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
       setFetched(true);
     }
   }, [eventTypeId, location, budget]);
 
+  // Debounced effect: only re-fetch after 800ms of no changes
   useEffect(() => {
-    if (eventTypeId) {
-      setFetched(false);
-      fetchRecommendations();
-    }
-  }, [eventTypeId, fetchRecommendations]);
+    if (!eventTypeId) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchRecommendations(fetched); // silent if already fetched once
+    }, 800);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [eventTypeId, location, budget, fetchRecommendations, fetched]);
 
   const getServiceImage = (service: RecommendedService): string | undefined => {
     if (service.primary_image) {
@@ -133,7 +138,7 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-base md:text-lg">Service Providers</CardTitle>
-          <Button type="button" variant="outline" size="sm" onClick={fetchRecommendations} disabled={loading || !eventTypeId}>
+          <Button type="button" variant="outline" size="sm" onClick={() => fetchRecommendations(false)} disabled={loading || !eventTypeId}>
             {loading ? (
               <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Finding...</>
             ) : (

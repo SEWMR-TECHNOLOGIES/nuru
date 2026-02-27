@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, CheckCircle2, Loader2 } from "lucide-react";
+import { Eye, EyeOff, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +30,35 @@ const ResetPassword = () => {
     password: "",
     password_confirmation: "",
   });
+  const [resendEmail, setResendEmail] = useState("");
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown(c => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
+  const handleResend = useCallback(async () => {
+    if (!resendEmail.trim() || resendCooldown > 0) return;
+    setResendLoading(true);
+    try {
+      const isPhone = /^0[67]\d{8}$/.test(resendEmail.replace(/\s/g, ""));
+      if (isPhone) {
+        await api.auth.forgotPasswordPhone(resendEmail.replace(/\s/g, ""));
+      } else {
+        await api.auth.forgotPassword(resendEmail.trim());
+      }
+      toast({ title: "Sent!", description: "A new reset link has been sent. Check your email or phone." });
+      setResendCooldown(60);
+    } catch {
+      toast({ title: "Error", description: "Unable to resend. Please try again.", variant: "destructive" });
+    } finally {
+      setResendLoading(false);
+    }
+  }, [resendEmail, resendCooldown, toast]);
 
   useMeta({ title: "Reset Password", description: "Set a new password for your Nuru account." });
 
@@ -151,6 +180,36 @@ const ResetPassword = () => {
               <Link to="/login" className="block w-full mt-4 text-sm text-center text-muted-foreground hover:text-foreground transition-colors">
                 Back to sign in
               </Link>
+
+              {/* Resend reset link */}
+              <div className="mt-6 pt-6 border-t border-border">
+                <p className="text-sm text-muted-foreground mb-3 text-center">Didn't receive the link or it expired?</p>
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    placeholder="Email or phone number"
+                    value={resendEmail}
+                    onChange={e => setResendEmail(e.target.value)}
+                    className="h-10 rounded-xl text-sm"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleResend}
+                    disabled={resendLoading || resendCooldown > 0 || !resendEmail.trim()}
+                    className="shrink-0 h-10 rounded-xl"
+                  >
+                    {resendLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : resendCooldown > 0 ? (
+                      `${resendCooldown}s`
+                    ) : (
+                      <><RefreshCw className="w-4 h-4 mr-1" /> Resend</>
+                    )}
+                  </Button>
+                </div>
+              </div>
             </>
           )}
         </motion.div>
