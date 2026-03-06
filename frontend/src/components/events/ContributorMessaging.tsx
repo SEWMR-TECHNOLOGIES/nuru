@@ -3,7 +3,9 @@
  * Supports: No Contribution, Partial Contribution, Completed Contribution cases
  */
 import { useState, useMemo } from 'react';
-import { MessageSquare, Send, Users, Loader2, ChevronDown, Eye, Edit3, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { Send, Users, Loader2, ChevronDown, Eye, Edit3, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import SvgIcon from '@/components/ui/svg-icon';
+import ChatIcon from '@/assets/icons/chat-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -42,40 +44,26 @@ const DEFAULT_TEMPLATES: MessageTemplate[] = [
     case: 'no_contribution',
     label: 'Reminder - No Contribution',
     template: `{event_title}
-
 Habari {name},
-
 Tunakukumbusha kutoa mchango wako kwa ajili ya {event_name}.
-
-Namba ya malipo: {payment}
-
-Asante.`,
+Namba ya malipo: {payment}`,
   },
   {
     id: 'partial_default',
     case: 'partial',
     label: 'Reminder - Partial Contribution',
     template: `{event_title}
-
 Habari {name},
-
 Tunakukumbusha kumalizia mchango wako kwa ajili ya {event_name}.
-
-Namba ya malipo: {payment}
-
-Asante.`,
+Namba ya malipo: {payment}`,
   },
   {
     id: 'completed_default',
     case: 'completed',
     label: 'Thank You - Completed',
     template: `{event_title}
-
 Habari {name},
-
-Asante kwa kukamilisha mchango wako kwa ajili ya {event_name}. Tunathamini sana ushiriki wako.
-
-Asante sana.`,
+Asante kwa kukamilisha mchango wako kwa ajili ya {event_name}. Tunathamini sana ushiriki wako.`,
   },
 ];
 
@@ -223,7 +211,7 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
       <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-4 md:p-5 border-b border-primary/10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
-            <MessageSquare className="w-5 h-5 text-primary" />
+            <SvgIcon src={ChatIcon} alt="Messages" className="w-5 h-5 text-primary" />
           </div>
           <div>
             <h3 className="font-semibold text-base">Contributor Messaging</h3>

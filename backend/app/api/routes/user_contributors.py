@@ -1329,7 +1329,7 @@ def send_bulk_contributor_message(event_id: str, body: dict = Body(...), db: Ses
         return standard_response(False, "Event not found")
 
     # Permission: must be event creator or committee member with contribution permissions
-    is_creator = str(event.user_id) == str(current_user.id)
+    is_creator = str(event.organizer_id) == str(current_user.id)
     if not is_creator:
         member = db.query(EventCommitteeMember).filter(
             EventCommitteeMember.event_id == eid,
@@ -1394,6 +1394,12 @@ def send_bulk_contributor_message(event_id: str, body: dict = Body(...), db: Ses
                 # Remove the entire line containing {payment}
                 lines = resolved.split("\n")
                 resolved = "\n".join(line for line in lines if "{payment}" not in line)
+
+        # Append inquiry/contact line with organizer phone
+        organizer = db.query(User).filter(User.id == event.organizer_id).first()
+        organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
+        if organizer_phone:
+            resolved += f"\nKwa maulizo, wasiliana nasi kupitia: {organizer_phone}\nAsante."
 
         resolved = resolved.strip()
 

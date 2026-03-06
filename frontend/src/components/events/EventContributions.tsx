@@ -3,7 +3,7 @@ import readXlsxFile from 'read-excel-file';
 import { format } from 'date-fns';
 import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import { 
-  DollarSign, Plus, Search, Filter, MoreVertical, Edit, Trash, Send, Download, TrendingUp, Users, Clock, Loader2, Eye, ChevronLeft, ChevronRight, UserPlus, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, ShieldCheck, UserCheck, CalendarIcon, MessageSquare
+  DollarSign, Plus, Search, Filter, MoreVertical, Edit, Trash, Send, Download, TrendingUp, Users, Clock, Loader2, Eye, ChevronLeft, ChevronRight, UserPlus, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, ShieldCheck, UserCheck, CalendarIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,6 +37,8 @@ import { eventsApi } from '@/lib/api/events';
 import type { EventContributorSummary } from '@/lib/api/contributors';
 import type { EventPermissions } from '@/hooks/useEventPermissions';
 import ContributorMessaging from './ContributorMessaging';
+import SvgIcon from '@/components/ui/svg-icon';
+import ChatIcon from '@/assets/icons/chat-icon.svg';
 
 interface EventContributionsProps {
   eventId: string;
@@ -714,7 +716,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
           )}
           {canManage && eventContributors.length > 0 && (
             <Button variant="outline" size="sm" onClick={() => setMessagingOpen(!messagingOpen)}>
-              <MessageSquare className="w-4 h-4 mr-2" />{messagingOpen ? 'Hide' : ''} Messaging
+              <SvgIcon src={ChatIcon} alt="Messages" className="w-4 h-4 mr-2" />{messagingOpen ? 'Hide' : ''} Messaging
             </Button>
           )}
         </div>
