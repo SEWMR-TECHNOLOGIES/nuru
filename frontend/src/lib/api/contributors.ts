@@ -205,4 +205,13 @@ export const contributorsApi = {
       date_to?: string;
       is_filtered: boolean;
     }>(`/user-contributors/events/${eventId}/contribution-report${buildQueryString(params)}`),
+
+  /** Send bulk reminder SMS to contributors by case type */
+  sendBulkReminder: (eventId: string, data: {
+    case_type: 'no_contribution' | 'partial' | 'completed';
+    message_template: string;
+    payment_info?: string;
+    contributor_ids: string[];
+  }) =>
+    post<{ sent: number; failed: number; errors: string[] }>(`/user-contributors/events/${eventId}/bulk-message`, data),
 };

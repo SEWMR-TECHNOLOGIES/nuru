@@ -54,12 +54,12 @@ const EventGuestCheckIn = ({ eventId, isCreator: _isCreator, eventTitle, eventDa
     }
   }, []);
 
-  // Extract attendee ID from QR URL or use raw code
+  // Extract attendee ID from QR code value
   const extractGuestId = (code: string): string => {
-    // QR format: https://nuru.tz/event/{eventId}/checkin/{attendeeId}
+    // Support legacy QR format: https://nuru.tz/event/{eventId}/checkin/{attendeeId}
     const match = code.match(/\/checkin\/([a-f0-9-]+)/i);
     if (match) return match[1];
-    // Could also be just the attendee ID
+    // Current format: raw attendee ID directly in QR
     return code.trim();
   };
 

@@ -67,11 +67,10 @@ const InvitationCard = ({ eventId, open, onClose, isOrganizer = false, guestId }
   const canDownload = isOrganizer ? isConfirmedGuest : isConfirmedGuest;
 
   const buildQrValue = () => {
-    if (data?.guest?.attendee_id)
-      return `https://nuru.tz/event/${data.event?.id}/checkin/${data.guest.attendee_id}`;
-    if (data?.invitation_code)
-      return `https://nuru.tz/event/${data.event?.id}/rsvp/${data.invitation_code}`;
-    return `https://nuru.tz/event/${data?.event?.id}`;
+    // QR encodes raw attendee ID for check-in verification (not a URL)
+    if (data?.guest?.attendee_id) return data.guest.attendee_id;
+    if (data?.invitation_code) return data.invitation_code;
+    return data?.event?.id || '';
   };
 
   const buildCardProps = (): CardTemplateProps => ({

@@ -1,0 +1,475 @@
+/**
+ * ContributorMessaging - Premium messaging section for sending targeted SMS to contributors
+ * Supports: No Contribution, Partial Contribution, Completed Contribution cases
+ */
+import { useState, useMemo } from 'react';
+import { MessageSquare, Send, Users, Loader2, ChevronDown, Eye, Edit3, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { toast } from 'sonner';
+import { contributorsApi } from '@/lib/api/contributors';
+import { showCaughtError } from '@/lib/api';
+import { formatPrice } from '@/utils/formatPrice';
+import type { EventContributorSummary } from '@/lib/api/contributors';
+
+interface ContributorMessagingProps {
+  eventId: string;
+  eventTitle?: string;
+  eventContributors: EventContributorSummary[];
+  paymentInfo?: string;
+}
+
+type ContributorCase = 'no_contribution' | 'partial' | 'completed';
+
+interface MessageTemplate {
+  id: string;
+  case: ContributorCase;
+  label: string;
+  template: string;
+}
+
+const DEFAULT_TEMPLATES: MessageTemplate[] = [
+  {
+    id: 'no_contribution_default',
+    case: 'no_contribution',
+    label: 'Reminder - No Contribution',
+    template: `{event_title}
+
+Habari {name},
+
+Tunakukumbusha kutoa mchango wako kwa ajili ya {event_name}.
+
+Namba ya malipo: {payment}
+
+Asante.`,
+  },
+  {
+    id: 'partial_default',
+    case: 'partial',
+    label: 'Reminder - Partial Contribution',
+    template: `{event_title}
+
+Habari {name},
+
+Tunakukumbusha kumalizia mchango wako kwa ajili ya {event_name}.
+
+Namba ya malipo: {payment}
+
+Asante.`,
+  },
+  {
+    id: 'completed_default',
+    case: 'completed',
+    label: 'Thank You - Completed',
+    template: `{event_title}
+
+Habari {name},
+
+Asante kwa kukamilisha mchango wako kwa ajili ya {event_name}. Tunathamini sana ushiriki wako.
+
+Asante sana.`,
+  },
+];
+
+const CASE_CONFIG: Record<ContributorCase, { label: string; description: string; icon: React.ReactNode; color: string }> = {
+  no_contribution: {
+    label: 'No Contribution',
+    description: 'Contributors with pledges but no payment yet',
+    icon: <AlertCircle className="w-4 h-4" />,
+    color: 'text-destructive',
+  },
+  partial: {
+    label: 'Partial Contribution',
+    description: 'Contributors who have paid but not completed their pledge',
+    icon: <Clock className="w-4 h-4" />,
+    color: 'text-yellow-600',
+  },
+  completed: {
+    label: 'Completed',
+    description: 'Contributors who have fully paid their pledge',
+    icon: <CheckCircle2 className="w-4 h-4" />,
+    color: 'text-green-600',
+  },
+};
+
+const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, paymentInfo = '' }: ContributorMessagingProps) => {
+  const [selectedCase, setSelectedCase] = useState<ContributorCase>('no_contribution');
+  const [messageText, setMessageText] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ sent: number; failed: number; errors: string[] } | null>(null);
+  const [resultOpen, setResultOpen] = useState(false);
+  const [customPaymentInfo, setCustomPaymentInfo] = useState(paymentInfo);
+
+  // Filter contributors by case
+  const filteredContributors = useMemo(() => {
+    return eventContributors.filter(ec => {
+      const pledge = ec.pledge_amount || 0;
+      const paid = ec.total_paid || 0;
+      const hasPhone = !!ec.contributor?.phone;
+
+      if (!hasPhone) return false;
+
+      switch (selectedCase) {
+        case 'no_contribution':
+          return pledge > 0 && paid === 0;
+        case 'partial':
+          return pledge > 0 && paid > 0 && paid < pledge;
+        case 'completed':
+          return pledge > 0 && paid >= pledge;
+        default:
+          return false;
+      }
+    });
+  }, [eventContributors, selectedCase]);
+
+  // Get default template for selected case
+  const defaultTemplate = DEFAULT_TEMPLATES.find(t => t.case === selectedCase);
+
+  // Set template when case changes
+  const handleCaseChange = (value: ContributorCase) => {
+    setSelectedCase(value);
+    const template = DEFAULT_TEMPLATES.find(t => t.case === value);
+    if (template) {
+      setMessageText(template.template);
+    }
+    setIsEditing(false);
+    setSendResult(null);
+  };
+
+  // Initialize message on first render
+  useState(() => {
+    if (defaultTemplate) {
+      setMessageText(defaultTemplate.template);
+    }
+  });
+
+  // Resolve template variables for preview
+  const resolveTemplate = (template: string, contributor: EventContributorSummary): string => {
+    const name = contributor.contributor?.name || 'Contributor';
+    let resolved = template
+      .replace(/\{name\}/g, name)
+      .replace(/\{event_name\}/g, eventTitle)
+      .replace(/\{event_title\}/g, (eventTitle || '').toUpperCase());
+
+    // Handle {payment} - if not present in template, payment line is already excluded
+    if (resolved.includes('{payment}')) {
+      if (customPaymentInfo) {
+        resolved = resolved.replace(/\{payment\}/g, customPaymentInfo);
+      } else {
+        // Remove the entire line containing {payment}
+        resolved = resolved.split('\n').filter(line => !line.includes('{payment}')).join('\n');
+      }
+    }
+
+    return resolved.trim();
+  };
+
+  const handleSend = async () => {
+    if (filteredContributors.length === 0) {
+      toast.error('No contributors to message in this category');
+      return;
+    }
+
+    if (!messageText.trim()) {
+      toast.error('Message template cannot be empty');
+      return;
+    }
+
+    setSending(true);
+    setSendResult(null);
+
+    try {
+      const response = await contributorsApi.sendBulkReminder(eventId, {
+        case_type: selectedCase,
+        message_template: messageText,
+        payment_info: customPaymentInfo || undefined,
+        contributor_ids: filteredContributors.map(ec => ec.id),
+      });
+
+      if (response.success) {
+        const result = response.data;
+        setSendResult(result);
+        setResultOpen(true);
+        if (result.failed === 0) {
+          toast.success(`Messages sent to ${result.sent} contributor${result.sent !== 1 ? 's' : ''}`);
+        } else {
+          toast.warning(`Sent: ${result.sent}, Failed: ${result.failed}`);
+        }
+      } else {
+        toast.error(response.message || 'Failed to send messages');
+      }
+    } catch (err) {
+      showCaughtError(err, 'Failed to send messages');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const caseConfig = CASE_CONFIG[selectedCase];
+  const sampleContributor = filteredContributors[0];
+
+  return (
+    <Card className="border-primary/20 overflow-hidden">
+      <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-4 md:p-5 border-b border-primary/10">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
+            <MessageSquare className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-base">Contributor Messaging</h3>
+            <p className="text-xs text-muted-foreground">Send targeted reminders based on contribution status</p>
+          </div>
+        </div>
+      </div>
+
+      <CardContent className="p-4 md:p-5 space-y-5">
+        {/* Case Selector */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {(Object.entries(CASE_CONFIG) as [ContributorCase, typeof CASE_CONFIG['no_contribution']][]).map(([key, config]) => {
+            const count = eventContributors.filter(ec => {
+              const pledge = ec.pledge_amount || 0;
+              const paid = ec.total_paid || 0;
+              const hasPhone = !!ec.contributor?.phone;
+              if (!hasPhone) return false;
+              if (key === 'no_contribution') return pledge > 0 && paid === 0;
+              if (key === 'partial') return pledge > 0 && paid > 0 && paid < pledge;
+              if (key === 'completed') return pledge > 0 && paid >= pledge;
+              return false;
+            }).length;
+
+            return (
+              <button
+                key={key}
+                onClick={() => handleCaseChange(key)}
+                className={`p-3 rounded-xl border-2 text-left transition-all duration-200 ${
+                  selectedCase === key
+                    ? 'border-primary bg-primary/5 shadow-sm'
+                    : 'border-border hover:border-primary/30 hover:bg-muted/50'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={config.color}>{config.icon}</span>
+                  <span className="text-sm font-medium">{config.label}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">{config.description}</p>
+                  <Badge variant="secondary" className="ml-2 text-xs">{count}</Badge>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <Separator />
+
+        {/* Payment Info */}
+        <div className="space-y-2">
+          <Label className="text-xs font-medium">Payment Information (used for {'{payment}'} variable)</Label>
+          <Input
+            value={customPaymentInfo}
+            onChange={e => setCustomPaymentInfo(e.target.value)}
+            placeholder="e.g. M-Pesa: 0712345678 (John Doe)"
+            className="text-sm"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Leave empty to omit the payment line from the message entirely.
+          </p>
+        </div>
+
+        {/* Message Template */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-medium">Message Template</Label>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={() => setIsEditing(!isEditing)}
+            >
+              <Edit3 className="w-3 h-3" />
+              {isEditing ? 'Done Editing' : 'Customize'}
+            </Button>
+          </div>
+
+          {isEditing ? (
+            <div className="space-y-2">
+              <Textarea
+                value={messageText}
+                onChange={e => setMessageText(e.target.value)}
+                rows={8}
+                className="text-sm font-mono leading-relaxed"
+                placeholder="Write your message template..."
+              />
+              <div className="flex flex-wrap gap-1">
+                <span className="text-[11px] text-muted-foreground">Variables:</span>
+                {['{name}', '{event_name}', '{event_title}', '{payment}'].map(v => (
+                  <Badge key={v} variant="outline" className="text-[10px] cursor-pointer hover:bg-primary/10"
+                    onClick={() => setMessageText(prev => prev + ' ' + v)}
+                  >
+                    {v}
+                  </Badge>
+                ))}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                onClick={() => {
+                  if (defaultTemplate) setMessageText(defaultTemplate.template);
+                }}
+              >
+                Reset to Default
+              </Button>
+            </div>
+          ) : (
+            <div className="bg-muted/50 rounded-lg p-4 border">
+              <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed text-foreground/80">
+                {messageText || 'No template selected'}
+              </pre>
+            </div>
+          )}
+        </div>
+
+        {/* Preview & Send */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Button
+            variant="outline"
+            className="flex-1 gap-2"
+            onClick={() => setPreviewOpen(true)}
+            disabled={filteredContributors.length === 0}
+          >
+            <Eye className="w-4 h-4" />
+            Preview ({filteredContributors.length} recipient{filteredContributors.length !== 1 ? 's' : ''})
+          </Button>
+          <Button
+            className="flex-1 gap-2"
+            onClick={handleSend}
+            disabled={sending || filteredContributors.length === 0 || !messageText.trim()}
+          >
+            {sending ? (
+              <><Loader2 className="w-4 h-4 animate-spin" />Sending...</>
+            ) : (
+              <><Send className="w-4 h-4" />Send to {filteredContributors.length} Contributor{filteredContributors.length !== 1 ? 's' : ''}</>
+            )}
+          </Button>
+        </div>
+
+        {filteredContributors.length === 0 && (
+          <p className="text-xs text-muted-foreground text-center italic">
+            No contributors with phone numbers match this category.
+          </p>
+        )}
+      </CardContent>
+
+      {/* Preview Dialog */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5" />
+              Message Preview
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Users className="w-4 h-4" />
+              <span>{filteredContributors.length} recipient{filteredContributors.length !== 1 ? 's' : ''} ({caseConfig.label})</span>
+            </div>
+
+            {sampleContributor && (
+              <div className="space-y-2">
+                <Label className="text-xs">Sample message for: <strong>{sampleContributor.contributor?.name}</strong></Label>
+                <div className="bg-muted/50 rounded-lg p-4 border">
+                  <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed">
+                    {resolveTemplate(messageText, sampleContributor)}
+                  </pre>
+                </div>
+              </div>
+            )}
+
+            <Separator />
+
+            <div>
+              <Label className="text-xs mb-2 block">All recipients:</Label>
+              <ScrollArea className="h-[200px]">
+                <div className="space-y-1">
+                  {filteredContributors.map(ec => (
+                    <div key={ec.id} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/50">
+                      <div>
+                        <p className="text-sm font-medium">{ec.contributor?.name}</p>
+                        <p className="text-xs text-muted-foreground">{ec.contributor?.phone}</p>
+                      </div>
+                      <div className="text-right text-xs">
+                        <p>Pledged: {formatPrice(ec.pledge_amount)}</p>
+                        <p>Paid: {formatPrice(ec.total_paid)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewOpen(false)}>Close</Button>
+            <Button onClick={() => { setPreviewOpen(false); handleSend(); }} disabled={sending}>
+              <Send className="w-4 h-4 mr-2" />Confirm & Send
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Result Dialog */}
+      <Dialog open={resultOpen} onOpenChange={setResultOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Send Results</DialogTitle>
+          </DialogHeader>
+          {sendResult && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Card>
+                  <CardContent className="p-3 text-center">
+                    <p className="text-2xl font-bold text-green-600">{sendResult.sent}</p>
+                    <p className="text-xs text-muted-foreground">Sent</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-3 text-center">
+                    <p className="text-2xl font-bold text-destructive">{sendResult.failed}</p>
+                    <p className="text-xs text-muted-foreground">Failed</p>
+                  </CardContent>
+                </Card>
+              </div>
+              {sendResult.errors.length > 0 && (
+                <div className="bg-destructive/5 rounded-lg p-3 border border-destructive/20">
+                  <p className="text-xs font-medium text-destructive mb-1">Errors:</p>
+                  {sendResult.errors.slice(0, 5).map((err, i) => (
+                    <p key={i} className="text-xs text-destructive/80">{err}</p>
+                  ))}
+                  {sendResult.errors.length > 5 && (
+                    <p className="text-xs text-muted-foreground mt-1">...and {sendResult.errors.length - 5} more</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setResultOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+};
+
+export default ContributorMessaging;

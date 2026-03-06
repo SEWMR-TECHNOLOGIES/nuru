@@ -789,7 +789,7 @@ const PostDetail = () => {
                   <SmartMedia
                     src={postImages[0]}
                     alt="Post"
-                    className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30"
+                    className="w-full max-h-[500px] object-contain rounded-xl md:rounded-2xl bg-muted/30"
                     isVideo={isVideoUrl(postImages[0], 0)}
                   />
                 ) : (
@@ -799,8 +799,8 @@ const PostDetail = () => {
                       src={media}
                       alt={`Post ${idx + 1}`}
                       className={isVideoUrl(media, idx)
-                        ? "w-40 h-32 md:w-48 md:h-40 flex-shrink-0 rounded-lg"
-                        : "w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg"
+                        ? "w-40 h-32 md:w-48 md:h-40 flex-shrink-0 rounded-xl"
+                        : "w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-xl"
                       }
                       isVideo={isVideoUrl(media, idx)}
                     />

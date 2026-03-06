@@ -1301,3 +1301,111 @@ def get_contribution_report(
         "date_to": date_to,
         "is_filtered": bool(date_from or date_to),
     })
+
+
+# ──────────────────────────────────────────────
+# Bulk Messaging by Contribution Status
+# ──────────────────────────────────────────────
+
+@router.post("/events/{event_id}/bulk-message")
+def send_bulk_contributor_message(event_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """
+    Send bulk SMS to contributors filtered by contribution status.
+    Body: {
+        case_type: "no_contribution" | "partial" | "completed",
+        message_template: str,
+        payment_info?: str,
+        contributor_ids: [ec_id, ...]
+    }
+    Template variables: {name}, {event_name}, {event_title}, {payment}
+    """
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID")
+
+    event = db.query(Event).filter(Event.id == eid).first()
+    if not event:
+        return standard_response(False, "Event not found")
+
+    # Permission: must be event creator or committee member with contribution permissions
+    is_creator = str(event.user_id) == str(current_user.id)
+    if not is_creator:
+        member = db.query(EventCommitteeMember).filter(
+            EventCommitteeMember.event_id == eid,
+            EventCommitteeMember.user_id == current_user.id,
+            EventCommitteeMember.status == "active"
+        ).first()
+        if not member:
+            return standard_response(False, "Not authorized", status_code=403)
+
+    case_type = body.get("case_type", "")
+    message_template = (body.get("message_template") or "").strip()
+    payment_info = (body.get("payment_info") or "").strip()
+    contributor_ids = body.get("contributor_ids", [])
+
+    if not message_template:
+        return standard_response(False, "Message template is required")
+    if not contributor_ids:
+        return standard_response(False, "No contributors selected")
+    if len(contributor_ids) > 1000:
+        return standard_response(False, "Maximum 1000 recipients per batch")
+
+    # Fetch event contributors with their contributor details
+    ec_uuids = []
+    for cid in contributor_ids:
+        try:
+            ec_uuids.append(uuid.UUID(cid))
+        except ValueError:
+            continue
+
+    ecs = db.query(EventContributor).options(
+        joinedload(EventContributor.contributor),
+        joinedload(EventContributor.contributions)
+    ).filter(
+        EventContributor.event_id == eid,
+        EventContributor.id.in_(ec_uuids)
+    ).all()
+
+    sent = 0
+    failed = 0
+    errors = []
+
+    from utils.sms import _send, SMS_SIGNATURE
+
+    for ec in ecs:
+        contributor = ec.contributor
+        if not contributor or not contributor.phone:
+            failed += 1
+            errors.append(f"{contributor.name if contributor else 'Unknown'}: No phone number")
+            continue
+
+        # Resolve template
+        name = contributor.name or "Contributor"
+        resolved = message_template
+        resolved = resolved.replace("{name}", name)
+        resolved = resolved.replace("{event_name}", event.name or "")
+        resolved = resolved.replace("{event_title}", (event.name or "").upper())
+
+        if "{payment}" in resolved:
+            if payment_info:
+                resolved = resolved.replace("{payment}", payment_info)
+            else:
+                # Remove the entire line containing {payment}
+                lines = resolved.split("\n")
+                resolved = "\n".join(line for line in lines if "{payment}" not in line)
+
+        resolved = resolved.strip()
+
+        try:
+            _send(contributor.phone, resolved)
+            sent += 1
+        except Exception as e:
+            failed += 1
+            errors.append(f"{name}: {str(e)}")
+
+    return standard_response(True, f"Sent {sent}, Failed {failed}", {
+        "sent": sent,
+        "failed": failed,
+        "errors": errors[:20],  # Limit error details
+    })

@@ -330,7 +330,7 @@ const Moment = ({ post }: MomentProps) => {
                 <SmartMedia
                   src={allImages[0]}
                   alt={title || 'Post image'}
-                  className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30"
+                  className="w-full max-h-[500px] object-contain rounded-xl md:rounded-2xl bg-muted/30"
                   isVideo={isVideoUrl(allImages[0], 0)}
                 />
               ) : (
@@ -340,8 +340,8 @@ const Moment = ({ post }: MomentProps) => {
                     src={imgUrl}
                     alt={`Post ${idx + 1}`}
                     className={isVideoUrl(imgUrl, idx)
-                      ? "w-40 h-32 md:w-48 md:h-40 flex-shrink-0 rounded-lg"
-                      : "w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg"
+                      ? "w-40 h-32 md:w-48 md:h-40 flex-shrink-0 rounded-xl"
+                      : "w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-xl"
                     }
                     isVideo={isVideoUrl(imgUrl, idx)}
                     compact
