@@ -271,9 +271,9 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        {canSendInvites && !guest.invitation_sent && (
+                        {canSendInvites && (
                           <DropdownMenuItem onClick={() => { setSelectedGuest(guest); setInviteDialogOpen(true); }}>
-                            <Send className="w-4 h-4 mr-2" />Send Invitation
+                            <Send className="w-4 h-4 mr-2" />{guest.invitation_sent ? 'Resend Invitation' : 'Send Invitation'}
                           </DropdownMenuItem>
                         )}
                          {canCheckin && !guest.checked_in && guest.rsvp_status === 'confirmed' && (

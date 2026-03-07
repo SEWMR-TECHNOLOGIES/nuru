@@ -220,8 +220,9 @@ export const generateExpenseReportHtml = (
     </tr>
   `).join('');
 
-  const categoryRows = (summary.category_breakdown || []).map(c => `
+  const categoryRows = (summary.category_breakdown || []).map((c, i) => `
     <tr>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${i + 1}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #eee">${c.category}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${c.count}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">${fmt(c.total)}</td>
@@ -241,7 +242,7 @@ export const generateExpenseReportHtml = (
   const catSection = categoryRows
     ? `<h3 style="font-size:14px;margin-bottom:8px">Category Summary</h3>
       <table style="margin-bottom:24px">
-        <thead><tr><th>Category</th><th style="text-align:center">Items</th><th style="text-align:right">Total</th></tr></thead>
+        <thead><tr><th style="text-align:center">S/N</th><th>Category</th><th style="text-align:center">Items</th><th style="text-align:right">Total</th></tr></thead>
         <tbody>${categoryRows}</tbody>
       </table>`
     : '';

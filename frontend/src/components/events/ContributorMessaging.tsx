@@ -3,17 +3,18 @@
  * Supports: No Contribution, Partial Contribution, Completed Contribution cases
  */
 import { useState, useMemo } from 'react';
-import { Send, Users, Loader2, ChevronDown, Eye, Edit3, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { Send, Users, Loader2, Eye, Edit3, CheckCircle2, Clock, AlertCircle, Search } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import ChatIcon from '@/assets/icons/chat-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
@@ -97,9 +98,11 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
   const [sendResult, setSendResult] = useState<{ sent: number; failed: number; errors: string[] } | null>(null);
   const [resultOpen, setResultOpen] = useState(false);
   const [customPaymentInfo, setCustomPaymentInfo] = useState(paymentInfo);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Filter contributors by case
-  const filteredContributors = useMemo(() => {
+  const caseFiltered = useMemo(() => {
     return eventContributors.filter(ec => {
       const pledge = ec.pledge_amount || 0;
       const paid = ec.total_paid || 0;
@@ -117,8 +120,41 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
         default:
           return false;
       }
-    });
+    }).sort((a, b) => (a.contributor?.name || '').localeCompare(b.contributor?.name || ''));
   }, [eventContributors, selectedCase]);
+
+  // Search filter
+  const filteredContributors = useMemo(() => {
+    if (!searchQuery.trim()) return caseFiltered;
+    const q = searchQuery.toLowerCase();
+    return caseFiltered.filter(ec => 
+      (ec.contributor?.name || '').toLowerCase().includes(q) ||
+      (ec.contributor?.phone || '').includes(q)
+    );
+  }, [caseFiltered, searchQuery]);
+
+  // Selected contributors to send to
+  const sendTargets = useMemo(() => {
+    if (selectedIds.size === 0) return filteredContributors;
+    return filteredContributors.filter(ec => selectedIds.has(ec.id));
+  }, [filteredContributors, selectedIds]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredContributors.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredContributors.map(ec => ec.id)));
+    }
+  };
 
   // Get default template for selected case
   const defaultTemplate = DEFAULT_TEMPLATES.find(t => t.case === selectedCase);
@@ -132,6 +168,8 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
     }
     setIsEditing(false);
     setSendResult(null);
+    setSearchQuery('');
+    setSelectedIds(new Set());
   };
 
   // Initialize message on first render
@@ -163,8 +201,8 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
   };
 
   const handleSend = async () => {
-    if (filteredContributors.length === 0) {
-      toast.error('No contributors to message in this category');
+    if (sendTargets.length === 0) {
+      toast.error('No contributors selected to message');
       return;
     }
 
@@ -181,7 +219,7 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
         case_type: selectedCase,
         message_template: messageText,
         payment_info: customPaymentInfo || undefined,
-        contributor_ids: filteredContributors.map(ec => ec.id),
+        contributor_ids: sendTargets.map(ec => ec.id),
       });
 
       if (response.success) {
@@ -204,7 +242,8 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
   };
 
   const caseConfig = CASE_CONFIG[selectedCase];
-  const sampleContributor = filteredContributors[0];
+  const sampleContributor = sendTargets[0];
+  
 
   return (
     <Card className="border-primary/20 overflow-hidden">
@@ -256,6 +295,61 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
               </button>
             );
           })}
+        </div>
+
+        <Separator />
+
+        {/* Search & Select Contributors */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-medium">Select Recipients ({sendTargets.length} of {filteredContributors.length})</Label>
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={toggleSelectAll}>
+              {selectedIds.size === filteredContributors.length && filteredContributors.length > 0 ? 'Deselect All' : 'Select All'}
+            </Button>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search contributors..."
+              className="pl-9 text-sm"
+            />
+          </div>
+          {filteredContributors.length > 0 && (
+            <ScrollArea className="h-[160px]">
+              <div className="space-y-1">
+                {filteredContributors.map(ec => {
+                  const isSelected = selectedIds.size === 0 || selectedIds.has(ec.id);
+                  return (
+                    <button
+                      key={ec.id}
+                      onClick={() => toggleSelect(ec.id)}
+                      className={`w-full flex items-center justify-between py-2 px-3 rounded-lg text-left transition-colors ${
+                        selectedIds.size > 0 && selectedIds.has(ec.id)
+                          ? 'bg-primary/10 border border-primary/20'
+                          : selectedIds.size > 0
+                            ? 'opacity-50 hover:opacity-75'
+                            : 'hover:bg-muted/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Checkbox checked={isSelected} className="pointer-events-none" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{ec.contributor?.name}</p>
+                          <p className="text-xs text-muted-foreground">{ec.contributor?.phone}</p>
+                        </div>
+                      </div>
+                      <div className="text-right text-xs flex-shrink-0 ml-2">
+                        <p>Pledged: {formatPrice(ec.pledge_amount)}</p>
+                        <p>Paid: {formatPrice(ec.total_paid)}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          )}
         </div>
 
         <Separator />
@@ -334,25 +428,25 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
             variant="outline"
             className="flex-1 gap-2"
             onClick={() => setPreviewOpen(true)}
-            disabled={filteredContributors.length === 0}
+            disabled={sendTargets.length === 0}
           >
             <Eye className="w-4 h-4" />
-            Preview ({filteredContributors.length} recipient{filteredContributors.length !== 1 ? 's' : ''})
+            Preview ({sendTargets.length} recipient{sendTargets.length !== 1 ? 's' : ''})
           </Button>
           <Button
             className="flex-1 gap-2"
             onClick={handleSend}
-            disabled={sending || filteredContributors.length === 0 || !messageText.trim()}
+            disabled={sending || sendTargets.length === 0 || !messageText.trim()}
           >
             {sending ? (
               <><Loader2 className="w-4 h-4 animate-spin" />Sending...</>
             ) : (
-              <><Send className="w-4 h-4" />Send to {filteredContributors.length} Contributor{filteredContributors.length !== 1 ? 's' : ''}</>
+              <><Send className="w-4 h-4" />Send to {sendTargets.length} Contributor{sendTargets.length !== 1 ? 's' : ''}</>
             )}
           </Button>
         </div>
 
-        {filteredContributors.length === 0 && (
+        {sendTargets.length === 0 && (
           <p className="text-xs text-muted-foreground text-center italic">
             No contributors with phone numbers match this category.
           </p>
@@ -371,7 +465,7 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Users className="w-4 h-4" />
-              <span>{filteredContributors.length} recipient{filteredContributors.length !== 1 ? 's' : ''} ({caseConfig.label})</span>
+              <span>{sendTargets.length} recipient{sendTargets.length !== 1 ? 's' : ''} ({caseConfig.label})</span>
             </div>
 
             {sampleContributor && (
@@ -391,7 +485,7 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
               <Label className="text-xs mb-2 block">All recipients:</Label>
               <ScrollArea className="h-[200px]">
                 <div className="space-y-1">
-                  {filteredContributors.map(ec => (
+                  {sendTargets.map(ec => (
                     <div key={ec.id} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/50">
                       <div>
                         <p className="text-sm font-medium">{ec.contributor?.name}</p>

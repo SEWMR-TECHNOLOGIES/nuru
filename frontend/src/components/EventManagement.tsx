@@ -407,48 +407,20 @@ const EventManagement = () => {
           {isCreator && (
             <Card>
               <CardContent className="p-5">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center">
                       <FileText className="w-4 h-4 text-primary" />
                     </div>
                     <div>
                       <p className="text-sm font-semibold">Invitation Card Template</p>
-                      <p className="text-xs text-muted-foreground">Custom PDF design for guest invitation cards</p>
+                      <p className="text-xs text-muted-foreground">Nuru picks the best design for your event type automatically</p>
                     </div>
                   </div>
                   <Button variant="ghost" size="sm" onClick={() => navigate('/card-templates')} className="text-xs gap-1 text-muted-foreground">
-                    Manage <ChevronRight className="w-3.5 h-3.5" />
+                    Browse <ChevronRight className="w-3.5 h-3.5" />
                   </Button>
                 </div>
-                {templateLoading ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-10 w-full rounded-md" />
-                  </div>
-                ) : allTemplates.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border p-4 text-center">
-                    <p className="text-sm text-muted-foreground mb-2">No templates yet. Create one to personalise your invitation cards.</p>
-                    <Button size="sm" variant="outline" onClick={() => navigate('/card-templates')}>
-                      <Plus className="w-3.5 h-3.5 mr-1.5" />Create Template
-                    </Button>
-                  </div>
-                ) : (
-                  <Select
-                    value={assignedTemplateId || 'none'}
-                    onValueChange={handleAssignTemplate}
-                    disabled={assigningTemplate}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a template" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Default (Nuru card)</SelectItem>
-                      {allTemplates.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
               </CardContent>
             </Card>
           )}

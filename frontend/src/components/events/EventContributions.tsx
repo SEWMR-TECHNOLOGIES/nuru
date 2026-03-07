@@ -671,13 +671,24 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
   return (
     <div className="space-y-6">
       <ConfirmDialog />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Row 1: Event Budget | Total Raised | Budget Shortfall */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {eventBudget ? (
           <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Event Budget</p><p className="text-base font-semibold">{formatPrice(eventBudget)}</p></div><div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center"><DollarSign className="w-3.5 h-3.5 text-blue-600" /></div></div></CardContent></Card>
         ) : null}
-        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Total Pledged</p><p className="text-base font-semibold text-yellow-600">{formatPrice(summary.total_pledged)}</p></div><div className="w-7 h-7 bg-yellow-100 rounded-lg flex items-center justify-center"><TrendingUp className="w-3.5 h-3.5 text-yellow-600" /></div></div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Total Raised</p><p className="text-base font-semibold text-green-600">{formatPrice(summary.total_paid)}</p></div><div className="w-7 h-7 bg-green-100 rounded-lg flex items-center justify-center"><DollarSign className="w-3.5 h-3.5 text-green-600" /></div></div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Pending Pledge</p><p className="text-base font-semibold text-orange-600">{formatPrice(Math.max(0, summary.total_pledged - summary.total_paid))}</p></div><div className="w-7 h-7 bg-orange-100 rounded-lg flex items-center justify-center"><TrendingUp className="w-3.5 h-3.5 text-orange-600" /></div></div></CardContent></Card>
+        {eventBudget ? (
+          <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Budget Shortfall</p><p className="text-base font-semibold text-destructive">{formatPrice(Math.max(0, eventBudget - summary.total_paid))}</p></div><div className="w-7 h-7 bg-red-100 rounded-lg flex items-center justify-center"><DollarSign className="w-3.5 h-3.5 text-red-600" /></div></div></CardContent></Card>
+        ) : null}
+      </div>
+
+      {/* Row 2: Total Pledged | Outstanding Pledge | Unpledged */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Total Pledged</p><p className="text-base font-semibold text-yellow-600">{formatPrice(summary.total_pledged)}</p></div><div className="w-7 h-7 bg-yellow-100 rounded-lg flex items-center justify-center"><TrendingUp className="w-3.5 h-3.5 text-yellow-600" /></div></div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Outstanding Pledge</p><p className="text-base font-semibold text-orange-600">{formatPrice(Math.max(0, summary.total_pledged - summary.total_paid))}</p></div><div className="w-7 h-7 bg-orange-100 rounded-lg flex items-center justify-center"><Clock className="w-3.5 h-3.5 text-orange-600" /></div></div></CardContent></Card>
+        {eventBudget ? (
+          <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Unpledged</p><p className="text-base font-semibold text-purple-600">{formatPrice(Math.max(0, eventBudget - summary.total_pledged))}</p></div><div className="w-7 h-7 bg-purple-100 rounded-lg flex items-center justify-center"><TrendingUp className="w-3.5 h-3.5 text-purple-600" /></div></div></CardContent></Card>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -685,7 +696,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
           <Card><CardContent className="p-4">
             <div className="flex items-center justify-between mb-2"><span className="text-xs font-medium">Budget vs Raised</span><span className="text-xs text-muted-foreground">{formatPrice(summary.total_paid)} / {formatPrice(eventBudget)}</span></div>
             <Progress value={eventBudget > 0 ? (summary.total_paid / eventBudget * 100) : 0} className="h-3" />
-            <p className="text-xs text-muted-foreground mt-1">{eventBudget > 0 ? Math.min(summary.total_paid / eventBudget * 100, 100).toFixed(1) : 0}% of budget raised</p>
+            <p className="text-xs text-muted-foreground mt-1">Budget coverage: <span className="text-green-600 font-semibold">{eventBudget > 0 ? Math.min(summary.total_paid / eventBudget * 100, 100).toFixed(1) : 0}%</span> of event budget raised so far.</p>
           </CardContent></Card>
         )}
 
@@ -714,7 +725,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
               <UserPlus className="w-4 h-4 mr-2" />Add Contributor
             </Button>
           )}
-          {canManage && eventContributors.length > 0 && (
+          {isCreator && eventContributors.length > 0 && (
             <Button variant="outline" size="sm" onClick={() => setMessagingOpen(!messagingOpen)}>
               <SvgIcon src={ChatIcon} alt="Messages" className="w-4 h-4 mr-2" />{messagingOpen ? 'Hide' : ''} Messaging
             </Button>
@@ -723,7 +734,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
       </div>
 
       {/* Contributor Messaging */}
-      {canManage && messagingOpen && (
+      {isCreator && messagingOpen && (
         <ContributorMessaging
           eventId={eventId}
           eventTitle={eventTitle}

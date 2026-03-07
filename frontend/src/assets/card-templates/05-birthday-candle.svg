@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 680" width="480" height="680">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0e1810"/>
+      <stop offset="100%" stop-color="#0a1208"/>
+    </linearGradient>
+    <linearGradient id="candleBody" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#e8d8b8"/>
+      <stop offset="40%" stop-color="#f5eed8"/>
+      <stop offset="100%" stop-color="#d8c8a0"/>
+    </linearGradient>
+    <radialGradient id="flameCore" cx="50%" cy="70%" r="55%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="30%" stop-color="#fff8c0"/>
+      <stop offset="70%" stop-color="#f8a820"/>
+      <stop offset="100%" stop-color="#e06010"/>
+    </radialGradient>
+    <radialGradient id="flameOuter" cx="50%" cy="80%" r="60%">
+      <stop offset="0%" stop-color="#f8c040" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#e05010" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f8d060" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#f8a820" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d4a030"/>
+      <stop offset="50%" stop-color="#e8c050"/>
+      <stop offset="100%" stop-color="#b88020"/>
+    </linearGradient>
+    <filter id="candleGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="18" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="flameBlur">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="480" height="680" fill="url(#bg)"/>
+
+  <!-- Warm glow behind candle -->
+  <circle cx="240" cy="220" r="130" fill="url(#glow)" filter="url(#candleGlow)"/>
+  <circle cx="240" cy="240" r="80" fill="#f8a82008"/>
+
+  <!-- Thin gold border -->
+  <rect x="28" y="28" width="424" height="624" fill="none" stroke="url(#gold)" stroke-width="0.7" opacity="0.4"/>
+
+  <!-- SINGLE CANDLE - tall elegant pillar -->
+  <!-- Wax drips subtle -->
+  <path d="M228,140 Q224,148 222,158 L222,330 L258,330 L258,158 Q256,148 252,140 Z"
+        fill="url(#candleBody)"/>
+  <!-- Candle top curved -->
+  <ellipse cx="240" cy="140" rx="18" ry="5" fill="#e8d8b8"/>
+  <!-- Candle base ellipse -->
+  <ellipse cx="240" cy="330" rx="18" ry="5" fill="#c8b888"/>
+  <!-- Candle holder/base plate -->
+  <rect x="218" y="328" width="44" height="6" rx="3" fill="#8a7830"/>
+  <rect x="210" y="334" width="60" height="5" rx="2.5" fill="#6a5820"/>
+  <!-- Wick -->
+  <line x1="240" y1="140" x2="240" y2="128" stroke="#3a2810" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Flame glow halo -->
+  <ellipse cx="240" cy="110" rx="28" ry="38" fill="url(#flameOuter)" filter="url(#flameBlur)"/>
+  <!-- Flame body -->
+  <path d="M240,128 Q228,115 232,98 Q236,82 240,68 Q244,82 248,98 Q252,115 240,128 Z"
+        fill="url(#flameCore)"/>
+  <!-- Flame inner bright -->
+  <path d="M240,126 Q234,116 236,104 Q238,92 240,82 Q242,92 244,104 Q246,116 240,126 Z"
+        fill="#fff8e0" opacity="0.8"/>
+  <!-- Candle wax highlight -->
+  <line x1="232" y1="150" x2="232" y2="320" stroke="#f8f0d8" stroke-width="2" opacity="0.25"/>
+  <!-- Subtle wax drip left -->
+  <path d="M222,180 Q218,188 220,195 Q224,192 222,180 Z" fill="#e0d0a8" opacity="0.6"/>
+
+  <!-- TEXT -->
+  <text x="240" y="385" font-family="'Palatino Linotype',Palatino,serif"
+        font-size="9.5" fill="#6a9050" letter-spacing="6" text-anchor="middle">WITH JOY WE CELEBRATE</text>
+
+  <text x="240" y="455" font-family="Georgia,serif"
+        font-size="52" fill="#f0ead8" font-style="italic" text-anchor="middle" id="honoree">Naomi</text>
+
+  <text x="240" y="480" font-family="'Palatino Linotype',Palatino,serif"
+        font-size="10" fill="#5a7840" letter-spacing="4" text-anchor="middle" id="milestone">FIFTY GLORIOUS YEARS</text>
+
+  <!-- Rule -->
+  <line x1="140" y1="496" x2="340" y2="496" stroke="#8a9868" stroke-width="0.5" opacity="0.3"/>
+
+  <text x="240" y="522" font-family="'Palatino Linotype',Palatino,serif"
+        font-size="11.5" fill="#a0a880" letter-spacing="2" text-anchor="middle" id="date">Sunday · 9 November · 2025</text>
+
+  <text x="240" y="542" font-family="'Palatino Linotype',Palatino,serif"
+        font-size="10.5" fill="#708058" letter-spacing="1" text-anchor="middle" id="time">from six in the evening</text>
+
+  <text x="240" y="568" font-family="Georgia,serif"
+        font-size="13" fill="#c8d8a8" font-style="italic" text-anchor="middle" id="venue">The Fernwood House</text>
+
+  <text x="240" y="585" font-family="'Palatino Linotype',Palatino,serif"
+        font-size="9.5" fill="#4a6030" letter-spacing="1" text-anchor="middle" id="address">88 Arbour Close · Richmond</text>
+
+  <!-- QR -->
+  <rect x="204" y="608" width="72" height="52" rx="2" fill="none" stroke="#6a9050" stroke-width="0.6" opacity="0.3"/>
+  <rect x="207" y="611" width="66" height="46" rx="1" fill="#0e1810"/>
+  <g fill="#8ab068" opacity="0.4">
+    <rect x="210" y="614" width="12" height="12" rx="1"/>
+    <rect x="212" y="616" width="8" height="8" rx="0.4" fill="#0e1810"/>
+    <rect x="214" y="618" width="4" height="4" fill="#8ab068"/>
+    <rect x="250" y="614" width="12" height="12" rx="1"/>
+    <rect x="252" y="616" width="8" height="8" rx="0.4" fill="#0e1810"/>
+    <rect x="254" y="618" width="4" height="4" fill="#8ab068"/>
+    <rect x="210" y="644" width="12" height="8" rx="1"/>
+    <rect x="228" y="614" width="4" height="4"/>
+    <rect x="234" y="618" width="4" height="4"/>
+    <rect x="228" y="624" width="4" height="4"/>
+    <rect x="236" y="628" width="4" height="4"/>
+    <rect x="228" y="632" width="4" height="4"/>
+    <rect x="240" y="636" width="8" height="4"/>
+    <rect x="250" y="630" width="4" height="4"/>
+    <rect x="256" y="634" width="4" height="4"/>
+    <rect x="250" y="640" width="10" height="4"/>
+  </g>
+  <text x="240" y="672" font-family="'Palatino Linotype',Palatino,serif"
+        font-size="8" fill="#6a9050" letter-spacing="2" text-anchor="middle">SCAN TO RSVP</text>
+</svg>
