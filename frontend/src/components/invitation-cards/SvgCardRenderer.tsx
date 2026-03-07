@@ -107,21 +107,19 @@ const SvgCardRenderer = ({ template, data, className }: SvgCardRendererProps) =>
  * We find the QR placeholder rect position from the SVG and overlay our canvas.
  */
 const QrOverlay = ({ svgHtml, qrValue }: { svgHtml: string; qrValue: string }) => {
-  // Parse the QR placeholder rect position from the SVG
-  // Look for the "SCAN" text to find QR area, or find the QR placeholder rect
   const qrPos = useMemo(() => {
-    // Find the QR placeholder rect - typically: <rect x="204" y="556" width="72" height="72"
-    // or similar positioned rect near the bottom of the SVG near "SCAN" text
-    const rectRegex = /<rect\s+x="(\d+)"\s+y="(\d+)"\s+width="(\d+)"\s+height="(\d+)"[^>]*(?:stroke[^>]*opacity[^>]*)\/>/g;
+    // Find all rect elements with stroke and opacity (QR container border rects)
+    // Match rects like: <rect x="204" y="556" width="72" height="72" ... stroke ... opacity .../>
+    const rectRegex = /<rect\s+x="(\d+)"\s+y="(\d+)"\s+width="(\d+)"\s+height="(\d+)"[^>]*stroke[^>]*opacity[^>]*\/>/g;
     let bestMatch: { x: number; y: number; w: number; h: number } | null = null;
     let match;
 
-    // Find rect elements that look like QR containers (60-80px wide, positioned in lower half)
     while ((match = rectRegex.exec(svgHtml)) !== null) {
       const x = parseInt(match[1]);
       const y = parseInt(match[2]);
       const w = parseInt(match[3]);
       const h = parseInt(match[4]);
+      // QR containers are 60-80px wide, positioned in lower portion of the card
       if (w >= 60 && w <= 80 && h >= 50 && h <= 80 && y > 400) {
         bestMatch = { x, y, w, h };
         break;
@@ -133,15 +131,20 @@ const QrOverlay = ({ svgHtml, qrValue }: { svgHtml: string; qrValue: string }) =
 
   if (!qrPos) return null;
 
-  // Convert SVG coordinates to percentage positions
   const svgWidth = 480;
   const svgHeight = 680;
-  const left = ((qrPos.x + 3) / svgWidth) * 100;
-  const top = ((qrPos.y + 3) / svgHeight) * 100;
-  const width = ((qrPos.w - 6) / svgWidth) * 100;
-  const height = ((qrPos.h - 6) / svgHeight) * 100;
 
-  // Determine background color from SVG (dark or light template)
+  // Use the inner fill rect area (inset by 3px from the stroke border)
+  const innerX = qrPos.x + 3;
+  const innerY = qrPos.y + 3;
+  const innerW = qrPos.w - 6;
+  const innerH = qrPos.h - 6;
+
+  const left = (innerX / svgWidth) * 100;
+  const top = (innerY / svgHeight) * 100;
+  const width = (innerW / svgWidth) * 100;
+  const height = (innerH / svgHeight) * 100;
+
   const isDark = svgHtml.includes('stop-color="#08') || svgHtml.includes('stop-color="#0d') ||
     svgHtml.includes('stop-color="#0e') || svgHtml.includes('stop-color="#0a') ||
     svgHtml.includes('stop-color="#1a') || svgHtml.includes('stop-color="#14');
@@ -154,6 +157,9 @@ const QrOverlay = ({ svgHtml, qrValue }: { svgHtml: string; qrValue: string }) =
         top: `${top}%`,
         width: `${width}%`,
         height: `${height}%`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       }}
     >
       <QRCodeCanvas

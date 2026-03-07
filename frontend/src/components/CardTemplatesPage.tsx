@@ -20,13 +20,13 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const PREVIEW_DATA = {
-  guestName: "Your Guest",
-  secondName: "Partner",
-  eventTitle: "Your Event",
-  date: "Saturday, 15 March 2025",
-  time: "Six o'clock in the evening",
-  venue: "The Grand Venue",
-  address: "123 Celebration Avenue",
+  guestName: "Mgeni Wako",
+  secondName: "Mwenzi",
+  eventTitle: "Tukio Lako",
+  date: "Jumamosi, 15 Machi 2025",
+  time: "Saa kumi na mbili jioni",
+  venue: "Serena Hotel Dar es Salaam",
+  address: "Ohio Street · Dar es Salaam",
   qrValue: "NURU-PREVIEW-001",
 };
 

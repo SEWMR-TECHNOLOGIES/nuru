@@ -5,7 +5,6 @@
       <stop offset="50%" stop-color="#081e28"/>
       <stop offset="100%" stop-color="#041418"/>
     </linearGradient>
-    <!-- Magnolia petal gradients -->
     <radialGradient id="magPetal1" cx="35%" cy="25%" r="65%">
       <stop offset="0%" stop-color="#f8f2e8"/>
       <stop offset="50%" stop-color="#e8d8c0"/>
@@ -24,13 +23,11 @@
       <stop offset="0%" stop-color="#fdf8f0"/>
       <stop offset="100%" stop-color="#e8d8b8"/>
     </radialGradient>
-    <!-- Gold -->
     <linearGradient id="tealGold" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#d8c870"/>
       <stop offset="50%" stop-color="#e8d880"/>
       <stop offset="100%" stop-color="#b0a040"/>
     </linearGradient>
-    <!-- Teal accent -->
     <linearGradient id="tealAccent" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#408898"/>
       <stop offset="100%" stop-color="#2a6878"/>
@@ -50,7 +47,6 @@
 
   <rect width="480" height="680" fill="url(#bg)"/>
 
-  <!-- Subtle atmospheric glow -->
   <radialGradient id="aura" cx="50%" cy="35%" r="55%">
     <stop offset="0%" stop-color="#1a4050" stop-opacity="0.5"/>
     <stop offset="100%" stop-color="#061820" stop-opacity="0"/>
@@ -61,7 +57,7 @@
   <rect x="26" y="26" width="428" height="628" fill="none" stroke="#408898" stroke-width="1" opacity="0.2"/>
   <rect x="30" y="30" width="420" height="620" fill="none" stroke="#d8c870" stroke-width="0.5" opacity="0.25"/>
 
-  <!-- Corner ticks - ultra minimal -->
+  <!-- Corner ticks -->
   <g stroke="#d8c870" stroke-width="1" opacity="0.35" fill="none">
     <path d="M26,50 L26,26 L50,26"/>
     <path d="M430,26 L454,26 L454,50"/>
@@ -69,34 +65,21 @@
     <path d="M430,654 L454,654 L454,630"/>
   </g>
 
-  <!-- ===== SINGLE MAGNOLIA BLOOM - centre top ===== -->
+  <!-- SINGLE MAGNOLIA BLOOM -->
   <g transform="translate(240, 195)" filter="url(#magGlow)">
-
-    <!-- Background glow -->
     <circle cx="0" cy="0" r="85" fill="#e8d8b808"/>
-
-    <!-- Outer large petals (6 petals, opening gracefully) -->
-    <!-- Each petal: elongated egg shape, angled outward -->
-    <!-- Petal 1 - top -->
     <path d="M0,-90 Q18,-68 14,-42 Q8,-28 0,-22 Q-8,-28 -14,-42 Q-18,-68 0,-90 Z"
           fill="url(#magPetal1)"/>
-    <!-- Petal 2 - top-right -->
     <path d="M0,-90 Q18,-68 14,-42 Q8,-28 0,-22 Q-8,-28 -14,-42 Q-18,-68 0,-90 Z"
           fill="url(#magPetal2)" transform="rotate(60)"/>
-    <!-- Petal 3 - bottom-right -->
     <path d="M0,-90 Q18,-68 14,-42 Q8,-28 0,-22 Q-8,-28 -14,-42 Q-18,-68 0,-90 Z"
           fill="url(#magPetal1)" transform="rotate(120)"/>
-    <!-- Petal 4 - bottom -->
     <path d="M0,-90 Q18,-68 14,-42 Q8,-28 0,-22 Q-8,-28 -14,-42 Q-18,-68 0,-90 Z"
           fill="url(#magPetalDeep)" transform="rotate(180)"/>
-    <!-- Petal 5 - bottom-left -->
     <path d="M0,-90 Q18,-68 14,-42 Q8,-28 0,-22 Q-8,-28 -14,-42 Q-18,-68 0,-90 Z"
           fill="url(#magPetal2)" transform="rotate(240)"/>
-    <!-- Petal 6 - top-left -->
     <path d="M0,-90 Q18,-68 14,-42 Q8,-28 0,-22 Q-8,-28 -14,-42 Q-18,-68 0,-90 Z"
           fill="url(#magPetal1)" transform="rotate(300)"/>
-
-    <!-- Inner shorter petals (offset 30°) - cupping inward -->
     <path d="M0,-62 Q12,-46 9,-28 Q5,-18 0,-14 Q-5,-18 -9,-28 Q-12,-46 0,-62 Z"
           fill="url(#petalInner)" transform="rotate(30)"/>
     <path d="M0,-62 Q12,-46 9,-28 Q5,-18 0,-14 Q-5,-18 -9,-28 Q-12,-46 0,-62 Z"
@@ -109,12 +92,9 @@
           fill="url(#petalInner)" transform="rotate(270)"/>
     <path d="M0,-62 Q12,-46 9,-28 Q5,-18 0,-14 Q-5,-18 -9,-28 Q-12,-46 0,-62 Z"
           fill="url(#petalInner)" transform="rotate(330)"/>
-
-    <!-- Stamen column -->
     <ellipse cx="0" cy="0" r="14" fill="#d8c080"/>
     <ellipse cx="0" cy="0" r="9" fill="#c8a828"/>
     <ellipse cx="0" cy="0" r="5" fill="#e8d060"/>
-    <!-- Stamen tip dots -->
     <g fill="#8a6020" opacity="0.7">
       <circle cx="0" cy="-11" r="1.5"/>
       <circle cx="8" cy="-8" r="1.5"/>
@@ -126,30 +106,25 @@
       <circle cx="-8" cy="-8" r="1.5"/>
     </g>
     <circle cx="0" cy="0" r="3" fill="#f0d840"/>
-
-    <!-- Two leaves peeking behind the bloom -->
     <path d="M-30,40 Q-55,60 -62,85 Q-50,75 -38,60 Q-30,48 -25,38 Z"
           fill="#1a4830" opacity="0.8" filter="url(#leafShadow)"/>
     <path d="M28,42 Q52,58 60,82 Q48,72 36,58 Q28,46 24,36 Z"
           fill="#1a4830" opacity="0.8"/>
-    <!-- Leaf veins -->
     <path d="M-30,40 Q-48,62 -58,82" stroke="#285838" stroke-width="0.8" fill="none" opacity="0.6"/>
     <path d="M28,42 Q48,60 56,80" stroke="#285838" stroke-width="0.8" fill="none" opacity="0.6"/>
-
-    <!-- Stem -->
     <path d="M0,14 Q2,40 0,70" stroke="#2a4020" stroke-width="2" fill="none" stroke-linecap="round"/>
   </g>
 
   <!-- TEXT -->
   <text x="240" y="332" font-family="'Palatino Linotype',Palatino,serif"
-        font-size="9" fill="#6898a8" letter-spacing="6" text-anchor="middle">IN CELEBRATION OF</text>
+        font-size="9" fill="#6898a8" letter-spacing="6" text-anchor="middle">TUNASHEREHEKEA</text>
 
   <text x="240" y="400" font-family="Georgia,serif"
         font-size="50" fill="#f0ead8" font-style="italic" text-anchor="middle"
-        filter="url(#textGlow)" id="milestone">Twenty-Five</text>
+        filter="url(#textGlow)" id="milestone">Miaka Ishirini</text>
 
   <text x="240" y="428" font-family="'Palatino Linotype',Palatino,serif"
-        font-size="10" fill="#5888a0" letter-spacing="5" text-anchor="middle">YEARS OF MARRIAGE</text>
+        font-size="10" fill="#5888a0" letter-spacing="5" text-anchor="middle">YA NDOA</text>
 
   <!-- Rule with teal-gold element -->
   <g opacity="0.4">
@@ -159,19 +134,19 @@
   </g>
 
   <text x="240" y="476" font-family="Georgia,serif"
-        font-size="22" fill="#e8d898" font-style="italic" text-anchor="middle" id="couple">Audrey &amp; Robert</text>
+        font-size="22" fill="#e8d898" font-style="italic" text-anchor="middle" id="couple">Saida &amp; Hamisi</text>
 
   <text x="240" y="502" font-family="'Palatino Linotype',Palatino,serif"
-        font-size="11" fill="#9ab8c0" letter-spacing="2" text-anchor="middle" id="date">Saturday · 18 October · 2025</text>
+        font-size="11" fill="#9ab8c0" letter-spacing="2" text-anchor="middle" id="date">Jumamosi · 18 Oktoba · 2025</text>
 
   <text x="240" y="522" font-family="'Palatino Linotype',Palatino,serif"
-        font-size="10.5" fill="#507888" letter-spacing="1" text-anchor="middle" id="time">from seven in the evening</text>
+        font-size="10.5" fill="#507888" letter-spacing="1" text-anchor="middle" id="time">kuanzia saa moja jioni</text>
 
   <text x="240" y="550" font-family="Georgia,serif"
-        font-size="13" fill="#c8d8d8" font-style="italic" text-anchor="middle" id="venue">The Magnolia Grand Hotel</text>
+        font-size="13" fill="#c8d8d8" font-style="italic" text-anchor="middle" id="venue">Sea Cliff Hotel</text>
 
   <text x="240" y="567" font-family="'Palatino Linotype',Palatino,serif"
-        font-size="9.5" fill="#385868" letter-spacing="1.5" text-anchor="middle" id="address">Ballroom Level · 12 Harbour Drive</text>
+        font-size="9.5" fill="#385868" letter-spacing="1.5" text-anchor="middle" id="address">Toure Drive · Masaki · Dar es Salaam</text>
 
   <!-- QR -->
   <rect x="204" y="592" width="72" height="58" rx="1" fill="none" stroke="#408898" stroke-width="0.6" opacity="0.3"/>

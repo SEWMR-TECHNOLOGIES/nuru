@@ -47,56 +47,46 @@
   <!-- Thin gold border -->
   <rect x="28" y="28" width="424" height="624" fill="none" stroke="url(#gold)" stroke-width="0.7" opacity="0.4"/>
 
-  <!-- SINGLE CANDLE - tall elegant pillar -->
-  <!-- Wax drips subtle -->
+  <!-- SINGLE CANDLE -->
   <path d="M228,140 Q224,148 222,158 L222,330 L258,330 L258,158 Q256,148 252,140 Z"
         fill="url(#candleBody)"/>
-  <!-- Candle top curved -->
   <ellipse cx="240" cy="140" rx="18" ry="5" fill="#e8d8b8"/>
-  <!-- Candle base ellipse -->
   <ellipse cx="240" cy="330" rx="18" ry="5" fill="#c8b888"/>
-  <!-- Candle holder/base plate -->
   <rect x="218" y="328" width="44" height="6" rx="3" fill="#8a7830"/>
   <rect x="210" y="334" width="60" height="5" rx="2.5" fill="#6a5820"/>
-  <!-- Wick -->
   <line x1="240" y1="140" x2="240" y2="128" stroke="#3a2810" stroke-width="1.5" stroke-linecap="round"/>
-  <!-- Flame glow halo -->
   <ellipse cx="240" cy="110" rx="28" ry="38" fill="url(#flameOuter)" filter="url(#flameBlur)"/>
-  <!-- Flame body -->
   <path d="M240,128 Q228,115 232,98 Q236,82 240,68 Q244,82 248,98 Q252,115 240,128 Z"
         fill="url(#flameCore)"/>
-  <!-- Flame inner bright -->
   <path d="M240,126 Q234,116 236,104 Q238,92 240,82 Q242,92 244,104 Q246,116 240,126 Z"
         fill="#fff8e0" opacity="0.8"/>
-  <!-- Candle wax highlight -->
   <line x1="232" y1="150" x2="232" y2="320" stroke="#f8f0d8" stroke-width="2" opacity="0.25"/>
-  <!-- Subtle wax drip left -->
   <path d="M222,180 Q218,188 220,195 Q224,192 222,180 Z" fill="#e0d0a8" opacity="0.6"/>
 
   <!-- TEXT -->
   <text x="240" y="385" font-family="'Palatino Linotype',Palatino,serif"
-        font-size="9.5" fill="#6a9050" letter-spacing="6" text-anchor="middle">WITH JOY WE CELEBRATE</text>
+        font-size="9.5" fill="#6a9050" letter-spacing="6" text-anchor="middle">KWA FURAHA TUNASHEREHEKEA</text>
 
   <text x="240" y="455" font-family="Georgia,serif"
-        font-size="52" fill="#f0ead8" font-style="italic" text-anchor="middle" id="honoree">Naomi</text>
+        font-size="52" fill="#f0ead8" font-style="italic" text-anchor="middle" id="honoree">Mwanaisha</text>
 
   <text x="240" y="480" font-family="'Palatino Linotype',Palatino,serif"
-        font-size="10" fill="#5a7840" letter-spacing="4" text-anchor="middle" id="milestone">FIFTY GLORIOUS YEARS</text>
+        font-size="10" fill="#5a7840" letter-spacing="4" text-anchor="middle" id="milestone">MIAKA HAMSINI YA UTUKUFU</text>
 
   <!-- Rule -->
   <line x1="140" y1="496" x2="340" y2="496" stroke="#8a9868" stroke-width="0.5" opacity="0.3"/>
 
   <text x="240" y="522" font-family="'Palatino Linotype',Palatino,serif"
-        font-size="11.5" fill="#a0a880" letter-spacing="2" text-anchor="middle" id="date">Sunday · 9 November · 2025</text>
+        font-size="11.5" fill="#a0a880" letter-spacing="2" text-anchor="middle" id="date">Jumapili · 9 Novemba · 2025</text>
 
   <text x="240" y="542" font-family="'Palatino Linotype',Palatino,serif"
-        font-size="10.5" fill="#708058" letter-spacing="1" text-anchor="middle" id="time">from six in the evening</text>
+        font-size="10.5" fill="#708058" letter-spacing="1" text-anchor="middle" id="time">kuanzia saa kumi na mbili jioni</text>
 
   <text x="240" y="568" font-family="Georgia,serif"
-        font-size="13" fill="#c8d8a8" font-style="italic" text-anchor="middle" id="venue">The Fernwood House</text>
+        font-size="13" fill="#c8d8a8" font-style="italic" text-anchor="middle" id="venue">Zanzibar Serena Inn</text>
 
   <text x="240" y="585" font-family="'Palatino Linotype',Palatino,serif"
-        font-size="9.5" fill="#4a6030" letter-spacing="1" text-anchor="middle" id="address">88 Arbour Close · Richmond</text>
+        font-size="9.5" fill="#4a6030" letter-spacing="1" text-anchor="middle" id="address">Kelele Square · Stone Town</text>
 
   <!-- QR -->
   <rect x="204" y="608" width="72" height="52" rx="2" fill="none" stroke="#6a9050" stroke-width="0.6" opacity="0.3"/>

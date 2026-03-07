@@ -92,7 +92,7 @@ const PrintableTicket = ({ ticket, open, onClose }: PrintableTicketProps) => {
   <div class="ticket-footer">
     <span class="status status-${ticket.status || 'confirmed'}">${ticket.status || 'Confirmed'}</span>
     ${ticket.total_amount ? `<span class="amount">${ticket.currency || 'TZS'} ${ticket.total_amount.toLocaleString()}</span>` : ''}
-    <img src="https://nuru.lovable.app/logo.png" alt="Nuru" class="logo" />
+    <img src="https://nuru.tz/logo.png" alt="Nuru" class="logo" />
   </div>
 </div>
 </body></html>`;
@@ -152,7 +152,7 @@ const PrintableTicket = ({ ticket, open, onClose }: PrintableTicketProps) => {
           <div className="flex flex-col items-center gap-2">
             <div ref={qrRef} className="p-2 bg-muted/30 rounded-xl border border-border">
               <QRCodeCanvas
-                value={`https://nuru.lovable.app/ticket/${ticket.ticket_code}`}
+                value={`https://nuru.tz/ticket/${ticket.ticket_code}`}
                 size={90}
                 level="H"
                 fgColor="#1a1a2e"

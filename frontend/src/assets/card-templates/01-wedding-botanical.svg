@@ -44,7 +44,7 @@
         font-size="10" fill="#b8a070" letter-spacing="5" text-anchor="middle">TOGETHER WITH THEIR FAMILIES</text>
 
   <text x="240" y="295" font-family="'Garamond','EB Garamond',Georgia,serif"
-        font-size="48" fill="#3a3028" font-style="italic" text-anchor="middle" id="bride">Sophia</text>
+        font-size="48" fill="#3a3028" font-style="italic" text-anchor="middle" id="bride">Neema</text>
 
   <!-- Thin ornamental rule with & -->
   <line x1="130" y1="315" x2="210" y2="315" stroke="#c8a84a" stroke-width="0.6" opacity="0.5"/>
@@ -52,7 +52,7 @@
   <line x1="270" y1="315" x2="350" y2="315" stroke="#c8a84a" stroke-width="0.6" opacity="0.5"/>
 
   <text x="240" y="368" font-family="'Garamond','EB Garamond',Georgia,serif"
-        font-size="48" fill="#3a3028" font-style="italic" text-anchor="middle" id="groom">Oliver</text>
+        font-size="48" fill="#3a3028" font-style="italic" text-anchor="middle" id="groom">Baraka</text>
 
   <text x="240" y="400" font-family="'Garamond','EB Garamond',Georgia,serif"
         font-size="9" fill="#9a8860" letter-spacing="5" text-anchor="middle">ARE MARRIED</text>
@@ -60,13 +60,13 @@
   <!-- Thin full rule -->
   <line x1="80" y1="418" x2="400" y2="418" stroke="#c8a84a" stroke-width="0.5" opacity="0.3"/>
 
-  <text x="240" y="443" font-family="Georgia,serif" font-size="12" fill="#6a5a40" letter-spacing="2" text-anchor="middle" id="date">Saturday, the Fourteenth of June</text>
-  <text x="240" y="462" font-family="Georgia,serif" font-size="12" fill="#6a5a40" letter-spacing="2" text-anchor="middle" id="year">Two Thousand and Twenty-Five</text>
+  <text x="240" y="443" font-family="Georgia,serif" font-size="12" fill="#6a5a40" letter-spacing="2" text-anchor="middle" id="date">Jumamosi, Tarehe Kumi na Nne Juni</text>
+  <text x="240" y="462" font-family="Georgia,serif" font-size="12" fill="#6a5a40" letter-spacing="2" text-anchor="middle" id="year">Mwaka Elfu Mbili Ishirini na Tano</text>
 
-  <text x="240" y="490" font-family="Georgia,serif" font-size="11" fill="#9a8860" letter-spacing="1" text-anchor="middle" id="time">at half past five in the evening</text>
+  <text x="240" y="490" font-family="Georgia,serif" font-size="11" fill="#9a8860" letter-spacing="1" text-anchor="middle" id="time">saa kumi na moja jioni</text>
 
-  <text x="240" y="516" font-family="Georgia,serif" font-size="12" fill="#5a4a30" text-anchor="middle" id="venue">The Rosewood Estate</text>
-  <text x="240" y="533" font-family="Georgia,serif" font-size="10" fill="#9a8860" text-anchor="middle" id="address">44 Meadow Lane · Surrey</text>
+  <text x="240" y="516" font-family="Georgia,serif" font-size="12" fill="#5a4a30" text-anchor="middle" id="venue">Serena Hotel Dar es Salaam</text>
+  <text x="240" y="533" font-family="Georgia,serif" font-size="10" fill="#9a8860" text-anchor="middle" id="address">Ohio Street · Dar es Salaam</text>
 
   <!-- QR Code placeholder -->
   <rect x="204" y="556" width="72" height="72" rx="2" fill="none" stroke="#c8a84a" stroke-width="0.8" opacity="0.5"/>
