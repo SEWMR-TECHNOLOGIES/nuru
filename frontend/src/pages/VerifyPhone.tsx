@@ -7,11 +7,14 @@ import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
 import { authApi, showApiErrorsShadcn } from "@/lib/api";
+import { formatPhoneDisplay } from "@/components/ui/country-phone-input";
+import { MessageCircle, Phone } from "lucide-react";
 
 const VerifyPhone = () => {
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
+  const [otpChannel, setOtpChannel] = useState<"sms" | "whatsapp" | null>(null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
@@ -71,6 +74,11 @@ const VerifyPhone = () => {
     setResendLoading(true);
     try {
       const data = await authApi.requestOtp({ user_id: userId, verification_type: "phone" });
+      if (data.success) {
+        const msg = (data.message || "").toLowerCase();
+        if (msg.includes("whatsapp")) setOtpChannel("whatsapp");
+        else setOtpChannel("sms");
+      }
       toast({
         title: data.success ? "OTP Sent" : "Failed to send",
         description: data.message,
@@ -88,18 +96,43 @@ const VerifyPhone = () => {
     description: "Enter the OTP sent to your phone to activate your Nuru account."
   });
 
+  const displayPhone = phone ? formatPhoneDisplay(phone.replace(/[^\d]/g, "")) : "your phone";
+
   return (
     <Layout>
       <div className="min-h-screen flex items-center justify-center p-4 bg-background">
         <Card className="max-w-md w-full shadow-xl">
           <CardHeader className="text-center space-y-2">
+            <div className="flex justify-center mb-2">
+              {otpChannel === "whatsapp" ? (
+                <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
+                  <MessageCircle className="w-6 h-6 text-green-600" />
+                </div>
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center">
+                  <Phone className="w-6 h-6 text-blue-600" />
+                </div>
+              )}
+            </div>
             <CardTitle className="text-2xl font-bold">Verify Your Phone</CardTitle>
             <p className="text-muted-foreground text-sm">
-              Enter the 6-digit code sent to <strong>{phone ?? "your phone"}</strong>
+              Enter the 6-digit code sent {otpChannel === "whatsapp" ? "via WhatsApp" : otpChannel === "sms" ? "via SMS" : ""} to <strong>{displayPhone}</strong>
             </p>
           </CardHeader>
 
           <CardContent className="space-y-6">
+            {otpChannel && (
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${
+                otpChannel === "whatsapp" ? "bg-green-500/10 text-green-700 dark:text-green-400" : "bg-blue-500/10 text-blue-700 dark:text-blue-400"
+              }`}>
+                {otpChannel === "whatsapp" ? <MessageCircle className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
+                {otpChannel === "whatsapp"
+                  ? "Check your WhatsApp for the verification code"
+                  : "Check your SMS messages for the verification code"
+                }
+              </div>
+            )}
+
             <div className="flex justify-center">
               <InputOTP
                 maxLength={6}

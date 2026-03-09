@@ -2,7 +2,7 @@ import { useState } from "react";
 import SuspensionModal from "@/components/SuspensionModal";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, ArrowLeft, Phone, Mail } from "lucide-react";
+import { Eye, EyeOff, ArrowLeft, Phone, Mail, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -12,6 +12,7 @@ import { useMeta } from "@/hooks/useMeta";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, showApiErrorsShadcn } from "@/lib/api";
 import nuruLogo from "@/assets/nuru-logo.png";
+import { CountryPhoneInput, formatPhoneDisplay } from "@/components/ui/country-phone-input";
 
 type ForgotStep = "choose" | "email" | "phone" | "otp";
 
@@ -28,6 +29,7 @@ const Login = () => {
     forgotPhone: "",
     otp: "",
   });
+  const [resetOtpChannel, setResetOtpChannel] = useState<"sms" | "whatsapp" | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -39,6 +41,7 @@ const Login = () => {
   const resetForgotState = () => {
     setShowForgotPassword(false);
     setForgotStep("choose");
+    setResetOtpChannel(null);
     setFormData(prev => ({ ...prev, forgotEmail: "", forgotPhone: "", otp: "" }));
   };
 
@@ -125,6 +128,9 @@ const Login = () => {
     try {
       const response = await api.auth.forgotPasswordPhone(formData.forgotPhone);
       if (response.success) {
+        const msg = (response.message || "").toLowerCase();
+        if (msg.includes("whatsapp")) setResetOtpChannel("whatsapp");
+        else setResetOtpChannel("sms");
         toast({ title: "Code sent", description: response.message || "Check your phone for the reset code." });
         setForgotStep("otp");
       } else {
@@ -168,7 +174,10 @@ const Login = () => {
     try {
       const response = await api.auth.forgotPasswordPhone(formData.forgotPhone);
       if (response.success) {
-        toast({ title: "Code resent", description: "A new code has been sent to your phone." });
+        const msg = (response.message || "").toLowerCase();
+        if (msg.includes("whatsapp")) setResetOtpChannel("whatsapp");
+        else setResetOtpChannel("sms");
+        toast({ title: "Code resent", description: response.message || "A new code has been sent." });
       } else {
         showApiErrorsShadcn(response, toast, "Resend Failed");
       }
@@ -212,7 +221,7 @@ const Login = () => {
             onClick={() => setForgotStep("phone")}
           >
             <Phone className="w-5 h-5" />
-            Reset via phone (SMS)
+            Reset via phone
           </Button>
         </div>
       );
@@ -248,13 +257,11 @@ const Login = () => {
         <form onSubmit={handleForgotPhone} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">Phone number</label>
-            <Input
-              type="tel"
-              placeholder="0712 345 678"
+            <CountryPhoneInput
               value={formData.forgotPhone}
-              onChange={e => handleInputChange("forgotPhone", e.target.value)}
-              className="h-12 rounded-xl"
-              required
+              onChange={(fullNumber) => handleInputChange("forgotPhone", fullNumber)}
+              autoDetect
+              autoFocus
             />
             <p className="text-xs text-muted-foreground mt-1">We'll send a 6-digit code to this number</p>
           </div>
@@ -274,9 +281,27 @@ const Login = () => {
       <form onSubmit={handleVerifyOtp} className="space-y-5">
         <div>
           <label className="block text-sm font-medium text-foreground mb-2">Enter verification code</label>
-          <p className="text-xs text-muted-foreground mb-4">
-            A 6-digit code was sent to your phone number
+          <p className="text-xs text-muted-foreground mb-3">
+            {resetOtpChannel === "whatsapp"
+              ? `A 6-digit code was sent via WhatsApp to ${formatPhoneDisplay(formData.forgotPhone)}`
+              : resetOtpChannel === "sms"
+              ? `A 6-digit code was sent via SMS to ${formatPhoneDisplay(formData.forgotPhone)}`
+              : "A 6-digit code was sent to your phone number"
+            }
           </p>
+
+          {resetOtpChannel && (
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium mb-4 ${
+              resetOtpChannel === "whatsapp" ? "bg-green-500/10 text-green-700 dark:text-green-400" : "bg-blue-500/10 text-blue-700 dark:text-blue-400"
+            }`}>
+              {resetOtpChannel === "whatsapp" ? <MessageCircle className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
+              {resetOtpChannel === "whatsapp"
+                ? "Check your WhatsApp messages"
+                : "Check your SMS messages"
+              }
+            </div>
+          )}
+
           <div className="flex justify-center">
             <InputOTP
               maxLength={6}

@@ -7,6 +7,55 @@ def validate_email(email: str) -> bool:
     pattern = r'^[\w\.-]+@[\w\.-]+\.\w+$'
     return re.match(pattern, email) is not None
 
+
+def validate_phone_number(phone: str) -> str:
+    """
+    Validates and normalises any phone number into international format (without +).
+    
+    Accepts:
+        - Local Tanzanian: 0653750805, 653750805
+        - International with prefix: +255653750805, 255653750805
+        - Any international number: +1234567890, 447911123456
+    
+    Returns normalised number (digits only, with country code).
+    Raises ValueError if invalid.
+    """
+    phone = phone.strip().replace(" ", "").replace("-", "")
+
+    # Remove leading +
+    if phone.startswith("+"):
+        phone = phone[1:]
+
+    # Handle Tanzanian local format (starts with 0 and 10 digits)
+    if phone.startswith("0") and len(phone) == 10:
+        digit_after_zero = phone[1]
+        if digit_after_zero in ("6", "7"):
+            phone = "255" + phone[1:]
+        else:
+            raise ValueError("Invalid Tanzanian phone number")
+
+    # Handle short Tanzanian number (9 digits starting with 6 or 7)
+    if len(phone) == 9 and phone[0] in ("6", "7"):
+        phone = "255" + phone
+
+    # Must be all digits
+    if not phone.isdigit():
+        raise ValueError("Phone number must contain only digits")
+
+    # Minimum 7 digits (some small countries), maximum 15 (E.164 standard)
+    if len(phone) < 7 or len(phone) > 15:
+        raise ValueError("Phone number must be between 7 and 15 digits")
+
+    return phone
+
+
+def is_tanzanian_number(phone: str) -> bool:
+    """Check if a normalised phone number is Tanzanian."""
+    cleaned = phone.replace("+", "").replace(" ", "").replace("-", "")
+    return cleaned.startswith("255") and len(cleaned) == 12
+
+
+# Keep backward compatibility
 def validate_tanzanian_phone(phone: str) -> str:
     """
     Validates and formats a Tanzanian phone number into international format (without +).

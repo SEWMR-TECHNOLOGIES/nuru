@@ -49,6 +49,12 @@ serve(async (req) => {
       case "expense_recorded":
         result = await sendTemplate(phone, "expense_recorded", buildExpenseComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
         break;
+      case "otp_verification":
+        result = await sendTemplate(phone, "otp_verification", buildOtpComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        break;
+      case "check_whatsapp":
+        result = await checkWhatsAppNumber(phone, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        break;
       case "text":
         result = await sendTextMessage(phone, params?.message || "", WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
         break;
@@ -163,6 +169,17 @@ function buildExpenseComponents(params: {
       { type: "text", text: params.amount || "an amount" },
       { type: "text", text: params.category || "General" },
       { type: "text", text: params.event_name || "an event" },
+    ],
+  }];
+}
+
+// ── OTP verification template ─────────────────────────
+// Template body: "Your Nuru verification code is {{1}}. This code expires in 10 minutes. Do not share it with anyone."
+function buildOtpComponents(params: { otp_code?: string }) {
+  return [{
+    type: "body",
+    parameters: [
+      { type: "text", text: params.otp_code || "000000" },
     ],
   }];
 }
@@ -302,4 +319,38 @@ async function sendTextMessage(phone: string, text: string, token: string, phone
   }
 
   return { message_id: data.messages?.[0]?.id };
+}
+
+// ── Check if a phone number is registered on WhatsApp ──
+async function checkWhatsAppNumber(
+  phone: string,
+  accessToken: string,
+  phoneNumberId: string
+) {
+  const url = `${GRAPH_API}/${phoneNumberId}/contacts`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      blocking: "wait",
+      contacts: [`+${phone}`],
+      force_check: true,
+    }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    console.error(`WhatsApp contacts API error [${res.status}]:`, JSON.stringify(data));
+    return { is_whatsapp: false };
+  }
+
+  const contacts = data.contacts || [];
+  const isValid = contacts.length > 0 && contacts[0]?.status === "valid";
+
+  return { is_whatsapp: isValid, wa_id: contacts[0]?.wa_id || null };
 }

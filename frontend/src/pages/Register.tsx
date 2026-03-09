@@ -1,9 +1,11 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Check, CheckCircle2, Loader2, User, AtSign, Lock, Phone, ChevronRight, ChevronLeft, PartyPopper } from "lucide-react";
+import { Eye, EyeOff, Check, CheckCircle2, Loader2, User, AtSign, Lock, Phone, ChevronRight, ChevronLeft, PartyPopper, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CountryPhoneInput, isTanzanianNumber, formatPhoneDisplay } from "@/components/ui/country-phone-input";
+import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { useToast } from "@/hooks/use-toast";
@@ -114,6 +116,8 @@ const Register = () => {
   ], []);
 
   const [otp, setOtp] = useState("");
+  const [countryCode, setCountryCode] = useState("TZ");
+  const [otpChannel, setOtpChannel] = useState<"sms" | "whatsapp" | null>(null);
   const { toast } = useToast();
 
   const totalSteps = 5; // 4 form steps + 1 success
@@ -228,17 +232,15 @@ const Register = () => {
     return suggestions.slice(0, 5);
   };
 
-  // Tanzanian phone validation
-  const isValidTzPhone = (phone: string) => {
-    const cleaned = phone.replace(/[\s-+]/g, "");
-    return /^(0|255)\d{9}$/.test(cleaned) || /^\d{9}$/.test(cleaned);
+  // Phone validation — now supports international numbers
+  const isValidPhone = (phone: string) => {
+    const cleaned = phone.replace(/[^\d]/g, "");
+    // Must have at least country code + some digits (minimum ~7 digits total)
+    return cleaned.length >= 7 && cleaned.length <= 15;
   };
 
   const formatPhoneForApi = (phone: string) => {
-    let cleaned = phone.replace(/[\s-+]/g, "");
-    if (cleaned.startsWith("0")) cleaned = "255" + cleaned.slice(1);
-    if (cleaned.length === 9) cleaned = "255" + cleaned;
-    return cleaned;
+    return phone.replace(/[^\d]/g, "");
   };
 
   const handleSignup = async (): Promise<string | null> => {
@@ -314,6 +316,12 @@ const Register = () => {
     setResendLoading(true);
     try {
       const response = await api.auth.requestOtp({ user_id: uid, verification_type: "phone" });
+      if (response.success) {
+        // Detect channel from backend response message
+        const msg = (response.message || "").toLowerCase();
+        if (msg.includes("whatsapp")) setOtpChannel("whatsapp");
+        else setOtpChannel("sms");
+      }
       toast({
         title: response.success ? "Code Sent" : "Failed",
         description: response.message,
@@ -362,8 +370,8 @@ const Register = () => {
         toast({ title: "Required", description: "Phone number is required.", variant: "destructive" });
         return;
       }
-      if (!isValidTzPhone(formData.phone)) {
-        toast({ title: "Invalid phone", description: "Please enter a valid Tanzanian phone number.", variant: "destructive" });
+      if (!isValidPhone(formData.phone)) {
+        toast({ title: "Invalid phone", description: "Please enter a valid phone number.", variant: "destructive" });
         return;
       }
 
@@ -666,16 +674,18 @@ const Register = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">Phone number</label>
-                  <Input
-                    type="tel"
-                    placeholder="0712 345 678"
+                  <CountryPhoneInput
                     value={formData.phone}
-                    onChange={e => handleInputChange("phone", e.target.value)}
-                    className="h-12 rounded-xl"
-                    autoComplete="off"
+                    onChange={(fullNumber, code) => {
+                      handleInputChange("phone", fullNumber);
+                      setCountryCode(code);
+                    }}
+                    autoDetect
                     autoFocus
                   />
-                  <p className="text-xs text-muted-foreground mt-1.5">Tanzanian phone numbers only</p>
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    We support phone numbers from any country
+                  </p>
                 </div>
               </motion.div>
             )}
@@ -691,13 +701,41 @@ const Register = () => {
               >
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <Phone className="w-5 h-5 text-primary" />
+                    {otpChannel === "whatsapp" ? (
+                      <MessageCircle className="w-5 h-5 text-primary" />
+                    ) : (
+                      <Phone className="w-5 h-5 text-primary" />
+                    )}
                   </div>
                   <div>
                     <h1 className="text-2xl font-bold text-foreground">Enter verification code</h1>
-                    <p className="text-sm text-muted-foreground">Sent to {formData.phone}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {otpChannel === "whatsapp"
+                        ? `Sent via WhatsApp to ${formatPhoneDisplay(formData.phone)}`
+                        : otpChannel === "sms"
+                        ? `Sent via SMS to ${formatPhoneDisplay(formData.phone)}`
+                        : `Sent to ${formatPhoneDisplay(formData.phone)}`
+                      }
+                    </p>
                   </div>
                 </div>
+
+                {otpChannel && (
+                  <div className={cn(
+                    "flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium",
+                    otpChannel === "whatsapp" ? "bg-green-500/10 text-green-700 dark:text-green-400" : "bg-blue-500/10 text-blue-700 dark:text-blue-400"
+                  )}>
+                    {otpChannel === "whatsapp" ? (
+                      <MessageCircle className="w-4 h-4" />
+                    ) : (
+                      <Phone className="w-4 h-4" />
+                    )}
+                    {otpChannel === "whatsapp"
+                      ? "Check your WhatsApp for the verification code"
+                      : "Check your SMS messages for the verification code"
+                    }
+                  </div>
+                )}
 
                 <div>
                   <InputOTP
