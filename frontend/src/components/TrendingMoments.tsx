@@ -197,21 +197,6 @@ const TrendingMoments = () => {
           ))}
         </div>
 
-        {/* Bottom CTA */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          viewport={{ once: true }}
-          className="text-center mt-14"
-        >
-          <Link
-            to="/register"
-            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full bg-foreground text-background font-medium hover:bg-foreground/90 transition-colors group"
-          >
-            Share your moments
-          </Link>
-        </motion.div>
       </div>
     </section>
   );

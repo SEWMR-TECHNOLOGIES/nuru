@@ -12,11 +12,41 @@ const Index = () => {
   });
 
   const features = [
-    { label: "Planning Tools", href: "/features/event-planning", desc: "Timelines, budgets, and task management" },
-    { label: "Verified Vendors", href: "/features/service-providers", desc: "Trusted professionals for every need" },
-    { label: "Digital Invitations", href: "/features/invitations", desc: "Beautiful invites with RSVP tracking" },
-    { label: "NFC Guest Access", href: "/features/nfc-cards", desc: "Tap-to-check-in technology" },
-    { label: "Secure Payments", href: "/features/payments", desc: "Safe transactions, multiple options" },
+    { 
+      label: "Planning Tools", 
+      href: "/features/event-planning", 
+      desc: "Timelines, budgets, and task management",
+      number: "01",
+      detail: "Stay on top of every detail with smart checklists, budget tracking, and collaborative task boards"
+    },
+    { 
+      label: "Verified Vendors", 
+      href: "/features/service-providers", 
+      desc: "Trusted professionals for every need",
+      number: "02",
+      detail: "Browse rated vendors, compare packages, and book directly through the platform"
+    },
+    { 
+      label: "Digital Invitations", 
+      href: "/features/invitations", 
+      desc: "Beautiful invites with RSVP tracking",
+      number: "03",
+      detail: "Send stunning invitations via SMS, email, or link. Track opens and responses in real time"
+    },
+    { 
+      label: "NFC Guest Access", 
+      href: "/features/nfc-cards", 
+      desc: "Tap-to-check-in technology",
+      number: "04",
+      detail: "Issue smart cards for seamless check-in, cashless payments, and VIP access control"
+    },
+    { 
+      label: "Secure Payments", 
+      href: "/features/payments", 
+      desc: "Safe transactions, multiple options",
+      number: "05",
+      detail: "Collect contributions, sell tickets, and pay vendors through M-Pesa, cards, and bank transfers"
+    },
   ];
 
   const eventTypes = [
@@ -283,39 +313,93 @@ const Index = () => {
         />
       </section>
 
-      {/* Features Section */}
-      <section className="py-24 lg:py-32 px-6 lg:px-16">
-        <div className="max-w-6xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
-            viewport={{ once: true }}
-            className="mb-16"
-          >
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground max-w-lg">
-              Tools built for the moments that matter
-            </h2>
-          </motion.div>
+      {/* Features Section - Redesigned */}
+      <section className="py-28 lg:py-40 px-6 lg:px-16 relative overflow-hidden">
+        {/* Subtle background texture */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/[0.03] rounded-full blur-[100px]" />
+          <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-accent/[0.04] rounded-full blur-[80px]" />
+        </div>
 
-          <div className="space-y-1">
+        <div className="max-w-7xl mx-auto relative">
+          {/* Header */}
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-20 mb-20 lg:mb-28">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              viewport={{ once: true }}
+            >
+              <span className="text-sm tracking-[0.2em] uppercase text-muted-foreground mb-4 block font-medium">
+                Platform features
+              </span>
+              <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground leading-[1.05] tracking-tight">
+                Everything you need,
+                <br />
+                <span className="text-muted-foreground">nothing you don't</span>
+              </h2>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              viewport={{ once: true }}
+              className="flex items-end"
+            >
+              <p className="text-muted-foreground text-lg lg:text-xl leading-relaxed max-w-md">
+                Five powerful tools designed to take your event from concept to celebration. Each one built with real organizers in mind.
+              </p>
+            </motion.div>
+          </div>
+
+          {/* Feature Cards - Bento Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
             {features.map((item, index) => (
               <motion.div
                 key={item.label}
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: index * 0.08 }}
+                transition={{ 
+                  duration: 0.6, 
+                  delay: index * 0.1,
+                  ease: [0.22, 1, 0.36, 1]
+                }}
                 viewport={{ once: true }}
+                className={`group ${index === 0 ? 'lg:row-span-2' : ''} ${index === 4 ? 'md:col-span-2 lg:col-span-1' : ''}`}
               >
                 <Link
                   to={item.href}
-                  className="group flex items-center justify-between py-6 border-b border-border hover:border-foreground transition-colors"
+                  className={`relative block h-full rounded-3xl border border-border/60 bg-gradient-to-br from-muted/30 via-transparent to-transparent overflow-hidden transition-all duration-500 hover:border-foreground/15 hover:shadow-xl hover:shadow-primary/[0.03] ${index === 0 ? 'p-10 lg:p-12' : 'p-8 lg:p-10'}`}
                 >
-                  <div>
-                    <span className="text-xl font-medium text-foreground block mb-1">{item.label}</span>
-                    <span className="text-sm text-muted-foreground">{item.desc}</span>
+                  {/* Large faded number */}
+                  <span className={`absolute top-6 right-6 font-bold text-foreground/[0.04] group-hover:text-foreground/[0.08] transition-colors duration-700 ${index === 0 ? 'text-[120px] lg:text-[160px]' : 'text-[100px]'}`}>
+                    {item.number}
+                  </span>
+
+                  {/* Hover glow */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.04] to-accent/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+
+                  <div className="relative flex flex-col h-full justify-between gap-6">
+                    <div>
+                      <h3 className={`font-bold text-foreground tracking-tight mb-3 ${index === 0 ? 'text-2xl lg:text-3xl' : 'text-xl lg:text-2xl'}`}>
+                        {item.label}
+                      </h3>
+                      <p className={`text-muted-foreground leading-relaxed ${index === 0 ? 'text-base lg:text-lg' : 'text-sm lg:text-base'}`}>
+                        {item.detail}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors duration-300">
+                      <span>Learn more</span>
+                      <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" />
+                    </div>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-foreground group-hover:translate-x-1 transition-all" />
+
+                  {/* Bottom accent line */}
+                  <div className="absolute bottom-0 left-0 right-0 h-[2px]">
+                    <div className="h-full bg-gradient-to-r from-primary/50 via-accent/40 to-transparent scale-x-0 group-hover:scale-x-100 transition-transform duration-700 origin-left" />
+                  </div>
                 </Link>
               </motion.div>
             ))}
@@ -323,8 +407,6 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Trending Moments - only renders if public posts exist */}
-      <TrendingMoments />
 
       {/* Statement Section */}
       <section className="py-24 lg:py-32 px-6 lg:px-16 bg-foreground text-background">
@@ -342,105 +424,145 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Final CTA - Enhanced */}
-      <section className="py-32 lg:py-40 px-6 lg:px-16 relative overflow-hidden">
-        {/* Decorative background elements */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          whileInView={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 1 }}
-          viewport={{ once: true }}
-          className="absolute inset-0 pointer-events-none"
-        >
-          <svg viewBox="0 0 1000 600" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
-            <defs>
-              <linearGradient id="ctaGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.08" />
-                <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
-              </linearGradient>
-              <linearGradient id="ctaGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity="0.1" />
-                <stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <circle cx="150" cy="100" r="200" fill="url(#ctaGrad1)" />
-            <circle cx="850" cy="500" r="250" fill="url(#ctaGrad2)" />
-          </svg>
-        </motion.div>
+      {/* Final CTA - Immersive Journey Section */}
+      <section className="relative overflow-hidden">
+        {/* Dark cinematic background */}
+        <div className="bg-foreground text-background relative">
+          {/* Animated grain texture overlay */}
+          <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")', backgroundSize: '128px 128px' }} />
+          
+          {/* Radial glow accents */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
+          <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-accent/8 rounded-full blur-[100px] pointer-events-none" />
 
-        <div className="max-w-5xl mx-auto relative">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            viewport={{ once: true }}
-            className="text-center"
-          >
-            
-            <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold text-foreground leading-tight mb-6">
-              Ready to bring your
-              <br />
-              <span className="text-muted-foreground">event to life?</span>
-            </h2>
-            
-            <p className="text-lg text-muted-foreground max-w-lg mx-auto mb-12">
-              Join thousands of organizers who trust Nuru to create meaningful moments.
-            </p>
-
-            {/* Enhanced Action Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-14 max-w-4xl mx-auto">
-              {[
-                { action: "Plan", desc: "Organize every detail with precision", gradient: "from-primary/8 to-primary/3" },
-                { action: "Invite", desc: "Reach your guests with style", gradient: "from-accent/15 to-accent/5" },
-                { action: "Gather", desc: "Bring people together seamlessly", gradient: "from-primary/6 to-accent/8" },
-                { action: "Remember", desc: "Preserve the moments forever", gradient: "from-accent/10 to-primary/5" },
-              ].map((item, index) => (
-                <motion.div
-                  key={item.action}
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ 
-                    duration: 0.5, 
-                    delay: 0.3 + index * 0.1,
-                    ease: [0.22, 1, 0.36, 1]
-                  }}
-                  viewport={{ once: true }}
-                  whileHover={{ 
-                    y: -6,
-                    transition: { duration: 0.3 }
-                  }}
-                  className="group"
-                >
-                  <div className={`relative bg-gradient-to-br ${item.gradient} backdrop-blur-sm border border-border/50 rounded-3xl p-6 md:p-8 text-center overflow-hidden transition-all duration-500 group-hover:border-foreground/15 group-hover:shadow-lg`}>
-                    {/* Subtle shine effect */}
-                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
-                      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-foreground/10 to-transparent" />
-                    </div>
-                    
-                    <div className="relative">
-                      <h4 className="font-bold text-foreground text-xl md:text-2xl mb-2 tracking-tight">{item.action}</h4>
-                      <p className="text-xs md:text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.8 }}
-              viewport={{ once: true }}
-            >
-              <Link
-                to="/register"
-                className="inline-flex items-center gap-3 bg-foreground text-background px-10 py-4 rounded-full font-medium text-lg hover:bg-foreground/90 transition-colors group"
+          {/* Top section - Statement */}
+          <div className="pt-32 lg:pt-40 pb-20 px-6 lg:px-16">
+            <div className="max-w-6xl mx-auto">
+              <motion.div
+                initial={{ opacity: 0 }}
+                whileInView={{ opacity: 1 }}
+                transition={{ duration: 1 }}
+                viewport={{ once: true }}
+                className="text-center mb-6"
               >
-                Start planning
-                <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </Link>
-            </motion.div>
-          </motion.div>
+                <span className="inline-block text-sm tracking-[0.3em] uppercase text-background/40 mb-8 font-medium">
+                  Your journey starts here
+                </span>
+              </motion.div>
+
+              <motion.h2
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                viewport={{ once: true }}
+                className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-center leading-[0.95] tracking-tight mb-8"
+              >
+                <span className="block text-background">From idea</span>
+                <span className="block bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
+                  to unforgettable
+                </span>
+              </motion.h2>
+
+              <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                viewport={{ once: true }}
+                className="text-background/50 text-lg md:text-xl max-w-xl mx-auto text-center leading-relaxed"
+              >
+                Every great celebration follows a path. Nuru walks it with you, from the first spark to the last goodbye.
+              </motion.p>
+            </div>
+          </div>
+
+          {/* Journey Steps - Horizontal timeline on desktop, vertical on mobile */}
+          <div className="px-6 lg:px-16 pb-12">
+            <div className="max-w-6xl mx-auto">
+              {/* Connecting line */}
+              <div className="hidden md:block relative mb-0">
+                <motion.div
+                  initial={{ scaleX: 0 }}
+                  whileInView={{ scaleX: 1 }}
+                  transition={{ duration: 1.5, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                  viewport={{ once: true }}
+                  className="absolute top-[60px] left-[12.5%] right-[12.5%] h-px bg-gradient-to-r from-transparent via-background/20 to-transparent origin-left"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-4">
+                {[
+                  { 
+                    step: "01", 
+                    action: "Dream", 
+                    swahili: "Ota",
+                    desc: "Envision your perfect event. We'll help shape it into reality",
+                  },
+                  { 
+                    step: "02", 
+                    action: "Plan", 
+                    swahili: "Panga",
+                    desc: "Organize budgets, timelines, and vendors in one clear dashboard",
+                  },
+                  { 
+                    step: "03", 
+                    action: "Gather", 
+                    swahili: "Kusanya",
+                    desc: "Send stunning invites, manage RSVPs, collect contributions seamlessly",
+                  },
+                  { 
+                    step: "04", 
+                    action: "Celebrate", 
+                    swahili: "Sherehekea",
+                    desc: "Check-in guests, capture moments, and create memories that last",
+                  }
+                ].map((item, index) => (
+                  <motion.div
+                    key={item.action}
+                    initial={{ opacity: 0, y: 40 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ 
+                      duration: 0.7, 
+                      delay: 0.4 + index * 0.15,
+                      ease: [0.22, 1, 0.36, 1]
+                    }}
+                    viewport={{ once: true }}
+                    className="group relative"
+                  >
+                    <div className="relative p-8 rounded-3xl border border-background/[0.06] bg-background/[0.03] backdrop-blur-sm hover:bg-background/[0.07] hover:border-background/[0.12] transition-all duration-700 h-full">
+                      {/* Step number with glow */}
+                      <div className="relative mb-6">
+                        <div className="absolute -inset-2 bg-primary/10 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                        <span className="text-5xl font-bold text-background/[0.08] group-hover:text-background/[0.15] transition-colors duration-500">
+                          {item.step}
+                        </span>
+                      </div>
+
+                      {/* Content */}
+                      <div>
+                        <div className="flex items-baseline gap-3 mb-3">
+                          <h4 className="text-2xl md:text-3xl font-bold text-background tracking-tight">
+                            {item.action}
+                          </h4>
+                          <span className="text-sm text-primary/60 italic font-medium">
+                            {item.swahili}
+                          </span>
+                        </div>
+                        <p className="text-background/40 text-sm leading-relaxed group-hover:text-background/60 transition-colors duration-500">
+                          {item.desc}
+                        </p>
+                      </div>
+
+                      {/* Bottom accent line */}
+                      <div className="absolute bottom-0 left-8 right-8 h-px">
+                        <div className="h-full bg-gradient-to-r from-primary/40 via-accent/30 to-transparent scale-x-0 group-hover:scale-x-100 transition-transform duration-700 origin-left" />
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          </div>
+
         </div>
       </section>
     </Layout>
