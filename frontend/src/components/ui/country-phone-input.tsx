@@ -4,6 +4,43 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { ChevronDown, Search, X } from "lucide-react";
 
+// ── Cross-platform flag rendering (uses Twemoji SVGs for Windows compat) ──
+function countryCodeToTwemojiUrl(code: string): string {
+  // Convert country code to regional indicator Unicode codepoints for Twemoji
+  const codePoints = code
+    .toUpperCase()
+    .split("")
+    .map(c => (0x1f1e6 + c.charCodeAt(0) - 65).toString(16))
+    .join("-");
+  return `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/${codePoints}.svg`;
+}
+
+function CountryFlag({ code, size = 20 }: { code: string; size?: number }) {
+  const [useFallback, setUseFallback] = useState(false);
+  const emoji = code
+    .toUpperCase()
+    .split("")
+    .map(c => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65))
+    .join("");
+
+  if (useFallback) {
+    return <span className="leading-none" style={{ fontSize: size }}>{emoji}</span>;
+  }
+
+  return (
+    <img
+      src={countryCodeToTwemojiUrl(code)}
+      alt={`${code} flag`}
+      width={size}
+      height={size}
+      className="inline-block"
+      style={{ width: size, height: size }}
+      onError={() => setUseFallback(true)}
+      loading="lazy"
+    />
+  );
+}
+
 // ── Country data (ISO 3166-1, sorted by name) ─────────────────────────────
 export interface CountryData {
   code: string;   // ISO 3166-1 alpha-2
@@ -304,7 +341,7 @@ const CountryPhoneInput = React.forwardRef<HTMLInputElement, CountryPhoneInputPr
               disabled && "opacity-50 cursor-not-allowed"
             )}
           >
-            <span className="text-lg leading-none">{selectedCountry.flag}</span>
+            <CountryFlag code={selectedCountry.code} size={22} />
             <span className="text-foreground font-medium">{selectedCountry.dialCode}</span>
             <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform", dropdownOpen && "rotate-180")} />
           </button>
@@ -362,7 +399,7 @@ const CountryPhoneInput = React.forwardRef<HTMLInputElement, CountryPhoneInputPr
                     c.code === selectedCountry.code && "bg-primary/5 text-primary font-medium"
                   )}
                 >
-                  <span className="text-lg leading-none">{c.flag}</span>
+                  <CountryFlag code={c.code} size={22} />
                   <span className="flex-1 truncate text-foreground">{c.name}</span>
                   <span className="text-muted-foreground text-xs">{c.dialCode}</span>
                 </button>

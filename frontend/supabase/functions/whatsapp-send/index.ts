@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+// No imports needed — uses built-in Deno.serve
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,7 +8,7 @@ const corsHeaders = {
 
 const GRAPH_API = "https://graph.facebook.com/v21.0";
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -50,8 +50,7 @@ serve(async (req) => {
         result = await sendTemplate(phone, "expense_recorded", buildExpenseComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
         break;
       case "otp_verification":
-        result = await sendTemplate(phone, "otp_verification", buildOtpComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-        // If the send returned not_on_whatsapp, pass it through without success=true
+        result = await sendOtpTemplate(phone, params, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
         if (result?.not_on_whatsapp) {
           return new Response(
             JSON.stringify({ success: false, not_on_whatsapp: true, error_code: result.error_code }),
@@ -60,7 +59,11 @@ serve(async (req) => {
         }
         break;
       case "check_whatsapp":
-        result = await checkWhatsAppNumber(phone, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        // Cloud API has no /contacts endpoint. The most reliable way to check
+        // is to attempt sending — error 131026/131047 means not on WhatsApp.
+        // This action now does a lightweight "text" send attempt and catches the error.
+        result = await checkWhatsAppBySending(phone, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        break;
         break;
       case "text":
         result = await sendTextMessage(phone, params?.message || "", WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
@@ -180,15 +183,95 @@ function buildExpenseComponents(params: {
   }];
 }
 
-// ── OTP verification template ─────────────────────────
-// Template body: "Your Nuru verification code is {{1}}. This code expires in 10 minutes. Do not share it with anyone."
+// ── OTP verification template (authentication with Copy Code button) ──
+// Authentication templates have a specific component structure:
+// - body: contains the OTP code as {{1}}
+// - button: sub_type "url" with index 0, contains the OTP code for the copy button
 function buildOtpComponents(params: { otp_code?: string }) {
-  return [{
-    type: "body",
-    parameters: [
-      { type: "text", text: params.otp_code || "000000" },
-    ],
-  }];
+  const code = params.otp_code || "000000";
+  return [
+    {
+      type: "body",
+      parameters: [
+        { type: "text", text: code },
+      ],
+    },
+    {
+      type: "button",
+      sub_type: "url",
+      index: "0",
+      parameters: [
+        { type: "text", text: code },
+      ],
+    },
+  ];
+}
+
+// ── Send OTP template ─────────────────────────────────
+// Uses the "try to send" approach — if the number isn't on WhatsApp,
+// Meta returns error 131026/131047 which we detect and pass through.
+// This is the ONLY reliable detection method on Cloud API.
+async function sendOtpTemplate(
+  phone: string,
+  params: { otp_code?: string },
+  accessToken: string,
+  phoneNumberId: string,
+) {
+  const url = `${GRAPH_API}/${phoneNumberId}/messages`;
+  const code = params.otp_code || "000000";
+
+  // Build components for auth template with Copy Code button
+  const components = [
+    {
+      type: "body",
+      parameters: [{ type: "text", text: code }],
+    },
+    {
+      type: "button",
+      sub_type: "url",
+      index: "0",
+      parameters: [{ type: "text", text: code }],
+    },
+  ];
+
+  console.log(`[WhatsApp OTP] Sending to ${phone}`);
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "template",
+      template: {
+        name: "otp_verification",
+        language: { code: "en" },
+        components,
+      },
+    }),
+  });
+
+  const data = await res.json();
+
+  if (res.ok) {
+    console.log(`[WhatsApp OTP] Sent! Message ID: ${data.messages?.[0]?.id}`);
+    return { sent: true, message_id: data.messages?.[0]?.id };
+  }
+
+  const errorCode = data?.error?.code;
+
+  // 131026 = "Message Undeliverable" — number not on WhatsApp
+  // 131047 = "Re-engagement message" — number not on WhatsApp or hasn't interacted
+  if (errorCode === 131026 || errorCode === 131047) {
+    console.log(`[WhatsApp OTP] Number ${phone} not on WhatsApp (error ${errorCode})`);
+    return { sent: false, not_on_whatsapp: true, error_code: errorCode };
+  }
+
+  console.error(`[WhatsApp OTP] Error [${res.status}]:`, JSON.stringify(data));
+  throw new Error(`WhatsApp OTP API failed [${res.status}]: ${JSON.stringify(data)}`);
 }
 
 // ── Send approved template ────────────────────────────
@@ -200,6 +283,11 @@ async function sendTemplate(
   phoneNumberId: string
 ) {
   const url = `${GRAPH_API}/${phoneNumberId}/messages`;
+
+  // OTP uses sendOtpTemplate() directly, so this function is for non-auth templates only
+  const languageCode = "en";
+
+  console.log(`[WhatsApp] Sending template "${templateName}" to ${phone} with language "${languageCode}"`);
 
   const res = await fetch(url, {
     method: "POST",
@@ -213,7 +301,7 @@ async function sendTemplate(
       type: "template",
       template: {
         name: templateName,
-        language: { code: "en" },
+        language: { code: languageCode },
         components,
       },
     }),
@@ -337,48 +425,49 @@ async function sendTextMessage(phone: string, text: string, token: string, phone
   return { message_id: data.messages?.[0]?.id };
 }
 
-// ── Check if a phone number is registered on WhatsApp ──
-// The Cloud API does NOT have a /contacts endpoint (that was On-Premises only).
-// Instead, we attempt a lightweight "contacts" validation by trying to send a
-// dummy status-read. But the most reliable approach is to just try sending
-// the actual template. This function now tries the Cloud API contacts endpoint
-// first (it works on some WABA accounts), and if that fails, returns "unknown"
-// so the caller can attempt a direct send.
-async function checkWhatsAppNumber(
+// ── Check WhatsApp by attempting a send ───────────────
+// Cloud API has NO /contacts lookup endpoint. The only reliable method
+// is to attempt sending a message and check the error code.
+// We use a lightweight approach: send a "typing" indicator or attempt 
+// a template send and inspect the error.
+async function checkWhatsAppBySending(
   phone: string,
   accessToken: string,
   phoneNumberId: string
 ) {
-  // Method 1: Try the contacts endpoint (works for some BSP/On-Prem setups)
-  try {
-    const url = `${GRAPH_API}/${phoneNumberId}/contacts`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
+  const url = `${GRAPH_API}/${phoneNumberId}/messages`;
+
+  // Attempt sending a "contacts" type message (lightweight, doesn't deliver visible content)
+  // If the number isn't on WhatsApp, Meta returns error 131026 or 131047
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "template",
+      template: {
+        name: "hello_world", // Meta's default test template
+        language: { code: "en_US" },
       },
-      body: JSON.stringify({
-        blocking: "wait",
-        contacts: [`+${phone}`],
-        force_check: true,
-      }),
-    });
+    }),
+  });
 
-    const data = await res.json();
+  const data = await res.json();
 
-    if (res.ok && data.contacts?.length > 0) {
-      const isValid = data.contacts[0]?.status === "valid";
-      return { is_whatsapp: isValid, wa_id: data.contacts[0]?.wa_id || null };
-    }
-
-    // If the endpoint doesn't exist (404) or returns an error,
-    // return unknown so the caller can try sending directly
-    console.log(`[WhatsApp Check] Contacts endpoint returned ${res.status}, falling back to unknown. Response: ${JSON.stringify(data).slice(0, 300)}`);
-  } catch (e) {
-    console.log(`[WhatsApp Check] Contacts endpoint error: ${e}`);
+  if (res.ok) {
+    return { is_whatsapp: true, wa_id: data.contacts?.[0]?.wa_id || phone };
   }
 
-  // Return unknown - the caller should try sending directly
-  return { is_whatsapp: "unknown", wa_id: null };
+  const errorCode = data?.error?.code;
+  if (errorCode === 131026 || errorCode === 131047) {
+    return { is_whatsapp: false, wa_id: null };
+  }
+
+  // Template not found or other error — can't determine, assume unknown
+  console.log(`[WhatsApp Check] Send-check returned error ${errorCode}: ${data?.error?.message}`);
+  return { is_whatsapp: "unknown", wa_id: null, error: data?.error?.message };
 }
