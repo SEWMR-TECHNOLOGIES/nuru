@@ -12,7 +12,7 @@ import { useMeta } from "@/hooks/useMeta";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, showApiErrorsShadcn } from "@/lib/api";
 import nuruLogo from "@/assets/nuru-logo.png";
-import { CountryPhoneInput, formatPhoneDisplay } from "@/components/ui/country-phone-input";
+import { CountryPhoneInput, maskPhoneDisplay } from "@/components/ui/country-phone-input";
 
 type ForgotStep = "choose" | "email" | "phone" | "otp";
 
@@ -283,9 +283,9 @@ const Login = () => {
           <label className="block text-sm font-medium text-foreground mb-2">Enter verification code</label>
           <p className="text-xs text-muted-foreground mb-3">
             {resetOtpChannel === "whatsapp"
-              ? `A 6-digit code was sent via WhatsApp to ${formatPhoneDisplay(formData.forgotPhone)}`
+              ? `A 6-digit code was sent via WhatsApp to ${maskPhoneDisplay(formData.forgotPhone)}`
               : resetOtpChannel === "sms"
-              ? `A 6-digit code was sent via SMS to ${formatPhoneDisplay(formData.forgotPhone)}`
+              ? `A 6-digit code was sent via SMS to ${maskPhoneDisplay(formData.forgotPhone)}`
               : "A 6-digit code was sent to your phone number"
             }
           </p>

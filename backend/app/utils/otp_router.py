@@ -1,11 +1,11 @@
 # utils/otp_router.py
 # Determines the best channel (WhatsApp or SMS) to send OTP and dispatches accordingly.
-# WhatsApp OTP is sent via the whatsapp-send edge function.
+# Strategy: Try sending via WhatsApp first. If the number is not on WhatsApp
+# (API returns not_on_whatsapp), fall back to SMS for TZ numbers or return error for intl.
 
 import os
 import requests
 from utils.validation_functions import is_tanzanian_number
-from utils.whatsapp_check import check_whatsapp_number
 
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
@@ -21,11 +21,14 @@ class OtpDeliveryResult:
         self.message = message
 
 
-def _send_otp_via_whatsapp(phone: str, otp_code: str) -> bool:
-    """Send OTP via WhatsApp using the whatsapp-send edge function."""
+def _send_otp_via_whatsapp(phone: str, otp_code: str) -> dict:
+    """
+    Send OTP via WhatsApp using the whatsapp-send edge function.
+    Returns dict with keys: success, not_on_whatsapp
+    """
     if not WHATSAPP_SEND_URL or not SUPABASE_ANON_KEY:
         print("[OTP WhatsApp] Missing SUPABASE_URL or SUPABASE_ANON_KEY")
-        return False
+        return {"success": False, "not_on_whatsapp": False}
 
     try:
         resp = requests.post(
@@ -42,26 +45,35 @@ def _send_otp_via_whatsapp(phone: str, otp_code: str) -> bool:
             },
             timeout=15,
         )
-        if resp.ok:
-            data = resp.json()
-            return data.get("success", False)
+
+        data = resp.json() if resp.ok or resp.status_code < 500 else {}
+        print(f"[OTP WhatsApp] Response ({resp.status_code}): {str(data)[:300]}")
+
+        if data.get("success"):
+            return {"success": True, "not_on_whatsapp": False}
+        elif data.get("not_on_whatsapp"):
+            return {"success": False, "not_on_whatsapp": True}
         else:
-            print(f"[OTP WhatsApp] Edge function error ({resp.status_code}): {resp.text[:200]}")
-            return False
+            return {"success": False, "not_on_whatsapp": False}
+
     except Exception as e:
         print(f"[OTP WhatsApp] Error sending to {phone}: {e}")
-        return False
+        return {"success": False, "not_on_whatsapp": False}
 
 
 def route_and_send_otp(phone: str, otp_code: str, send_sms_fn) -> OtpDeliveryResult:
     """
     Determine the best delivery channel and send OTP.
 
-    Logic:
-        1. Check if the number is on WhatsApp
-        2. If YES → send via WhatsApp (edge function)
-        3. If NO and Tanzanian → send via SMS
-        4. If NO and international → return error (number not on WhatsApp)
+    Strategy (Cloud API compatible):
+        1. Try sending OTP via WhatsApp directly
+        2. If WhatsApp send succeeds → done (channel=whatsapp)
+        3. If WhatsApp returns "not_on_whatsapp":
+           - TZ number → fall back to SMS
+           - International → return error (must have WhatsApp)
+        4. If WhatsApp fails for other reasons:
+           - TZ number → fall back to SMS
+           - International → return error
 
     Args:
         phone: Normalised international number without + (e.g., "255712345678")
@@ -72,68 +84,64 @@ def route_and_send_otp(phone: str, otp_code: str, send_sms_fn) -> OtpDeliveryRes
         OtpDeliveryResult with channel, success, and user-facing message
     """
     is_tz = is_tanzanian_number(phone)
-    is_on_whatsapp = check_whatsapp_number(phone)
 
-    if is_on_whatsapp:
-        # Send via WhatsApp
-        try:
-            success = _send_otp_via_whatsapp(phone, otp_code)
-            if success:
+    # Step 1: Try sending via WhatsApp directly
+    try:
+        wa_result = _send_otp_via_whatsapp(phone, otp_code)
+
+        if wa_result["success"]:
+            return OtpDeliveryResult(
+                channel="whatsapp",
+                success=True,
+                message="Verification code sent via WhatsApp. Please check your WhatsApp messages."
+            )
+
+        if wa_result["not_on_whatsapp"]:
+            # Number is not on WhatsApp
+            if is_tz:
+                # Fall back to SMS for Tanzanian numbers
+                sms_ok = send_sms_fn(phone, otp_code)
                 return OtpDeliveryResult(
-                    channel="whatsapp",
-                    success=True,
-                    message="Verification code sent via WhatsApp. Please check your WhatsApp messages."
+                    channel="sms",
+                    success=sms_ok,
+                    message="Verification code sent via SMS." if sms_ok else "Failed to send verification code via SMS."
                 )
             else:
-                # WhatsApp send failed, try SMS if Tanzanian
-                if is_tz:
-                    sms_ok = send_sms_fn(phone, otp_code)
-                    return OtpDeliveryResult(
-                        channel="sms",
-                        success=sms_ok,
-                        message="Verification code sent via SMS." if sms_ok else "Failed to send verification code."
-                    )
+                # International number not on WhatsApp
                 return OtpDeliveryResult(
                     channel="whatsapp",
                     success=False,
-                    message="Failed to send verification code via WhatsApp. Please try again."
+                    message="The provided number is not registered on WhatsApp. International numbers must have WhatsApp to receive verification codes."
                 )
-        except Exception as e:
-            print(f"[OTP Router] WhatsApp send error: {e}")
-            if is_tz:
+
+        # WhatsApp failed for other reasons (API error, config issue, etc.)
+        if is_tz:
+            sms_ok = send_sms_fn(phone, otp_code)
+            return OtpDeliveryResult(
+                channel="sms",
+                success=sms_ok,
+                message="Verification code sent via SMS." if sms_ok else "Failed to send verification code."
+            )
+        return OtpDeliveryResult(
+            channel="whatsapp",
+            success=False,
+            message="Failed to send verification code via WhatsApp. Please try again."
+        )
+
+    except Exception as e:
+        print(f"[OTP Router] Error: {e}")
+        if is_tz:
+            try:
                 sms_ok = send_sms_fn(phone, otp_code)
                 return OtpDeliveryResult(
                     channel="sms",
                     success=sms_ok,
                     message="Verification code sent via SMS." if sms_ok else "Failed to send verification code."
                 )
-            return OtpDeliveryResult(
-                channel="whatsapp",
-                success=False,
-                message="Failed to send verification code. Please try again."
-            )
-
-    elif is_tz:
-        # Not on WhatsApp but Tanzanian → send via SMS
-        try:
-            success = send_sms_fn(phone, otp_code)
-            return OtpDeliveryResult(
-                channel="sms",
-                success=success,
-                message="Verification code sent via SMS." if success else "Failed to send verification code via SMS."
-            )
-        except Exception as e:
-            print(f"[OTP Router] SMS send error: {e}")
-            return OtpDeliveryResult(
-                channel="sms",
-                success=False,
-                message="Failed to send verification code. Please try again."
-            )
-
-    else:
-        # International number not on WhatsApp
+            except Exception as sms_e:
+                print(f"[OTP Router] SMS fallback error: {sms_e}")
         return OtpDeliveryResult(
             channel="whatsapp",
             success=False,
-            message="The provided number is not registered on WhatsApp. International numbers must have WhatsApp to receive verification codes."
+            message="Failed to send verification code. Please try again."
         )

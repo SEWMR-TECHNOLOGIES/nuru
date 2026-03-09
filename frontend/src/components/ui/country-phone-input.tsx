@@ -396,4 +396,35 @@ export function formatPhoneDisplay(fullNumber: string): string {
   return `+${fullNumber}`;
 }
 
+// ── Utility: mask phone number for display (e.g. +255 7** *** *89) ─────────
+export function maskPhoneDisplay(fullNumber: string): string {
+  if (!fullNumber) return "";
+  const cleaned = fullNumber.replace(/[^\d]/g, "");
+  if (cleaned.length < 6) return "***";
+  // Find country code
+  const sorted = [...COUNTRIES].sort((a, b) => b.dialCode.length - a.dialCode.length);
+  let dialCode = "";
+  let local = cleaned;
+  for (const c of sorted) {
+    const code = c.dialCode.replace("+", "");
+    if (cleaned.startsWith(code)) {
+      dialCode = code;
+      local = cleaned.slice(code.length);
+      break;
+    }
+  }
+  if (!dialCode) {
+    dialCode = cleaned.slice(0, 3);
+    local = cleaned.slice(3);
+  }
+  // Show first digit and last 2 digits of local number, mask rest
+  if (local.length <= 3) return `+${dialCode} ${"*".repeat(local.length)}`;
+  const first = local[0];
+  const last2 = local.slice(-2);
+  const masked = first + "*".repeat(local.length - 3) + last2;
+  // Format in groups of 3
+  const groups = masked.match(/.{1,3}/g) || [masked];
+  return `+${dialCode} ${groups.join(" ")}`;
+}
+
 export { CountryPhoneInput };

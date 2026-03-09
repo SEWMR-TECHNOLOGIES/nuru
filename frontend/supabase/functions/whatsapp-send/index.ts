@@ -51,6 +51,13 @@ serve(async (req) => {
         break;
       case "otp_verification":
         result = await sendTemplate(phone, "otp_verification", buildOtpComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        // If the send returned not_on_whatsapp, pass it through without success=true
+        if (result?.not_on_whatsapp) {
+          return new Response(
+            JSON.stringify({ success: false, not_on_whatsapp: true, error_code: result.error_code }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
         break;
       case "check_whatsapp":
         result = await checkWhatsAppNumber(phone, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
@@ -215,11 +222,20 @@ async function sendTemplate(
   const data = await res.json();
 
   if (!res.ok) {
+    const errorCode = data?.error?.code;
+    const errorSubCode = data?.error?.error_subcode;
     console.error(`WhatsApp template API error [${res.status}]:`, JSON.stringify(data));
+    
+    // Error 131026 = "Message Undeliverable" — recipient not on WhatsApp
+    // Error 131047 = "Re-engagement message" — number not on WhatsApp or hasn't messaged
+    if (errorCode === 131026 || errorSubCode === 131026 || errorCode === 131047) {
+      return { sent: false, not_on_whatsapp: true, error_code: errorCode };
+    }
+    
     throw new Error(`WhatsApp template API failed [${res.status}]: ${JSON.stringify(data)}`);
   }
 
-  return { message_id: data.messages?.[0]?.id };
+  return { sent: true, message_id: data.messages?.[0]?.id };
 }
 
 // ── Send interactive invite with Confirm / Decline buttons ──
@@ -322,35 +338,47 @@ async function sendTextMessage(phone: string, text: string, token: string, phone
 }
 
 // ── Check if a phone number is registered on WhatsApp ──
+// The Cloud API does NOT have a /contacts endpoint (that was On-Premises only).
+// Instead, we attempt a lightweight "contacts" validation by trying to send a
+// dummy status-read. But the most reliable approach is to just try sending
+// the actual template. This function now tries the Cloud API contacts endpoint
+// first (it works on some WABA accounts), and if that fails, returns "unknown"
+// so the caller can attempt a direct send.
 async function checkWhatsAppNumber(
   phone: string,
   accessToken: string,
   phoneNumberId: string
 ) {
-  const url = `${GRAPH_API}/${phoneNumberId}/contacts`;
+  // Method 1: Try the contacts endpoint (works for some BSP/On-Prem setups)
+  try {
+    const url = `${GRAPH_API}/${phoneNumberId}/contacts`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        blocking: "wait",
+        contacts: [`+${phone}`],
+        force_check: true,
+      }),
+    });
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      blocking: "wait",
-      contacts: [`+${phone}`],
-      force_check: true,
-    }),
-  });
+    const data = await res.json();
 
-  const data = await res.json();
+    if (res.ok && data.contacts?.length > 0) {
+      const isValid = data.contacts[0]?.status === "valid";
+      return { is_whatsapp: isValid, wa_id: data.contacts[0]?.wa_id || null };
+    }
 
-  if (!res.ok) {
-    console.error(`WhatsApp contacts API error [${res.status}]:`, JSON.stringify(data));
-    return { is_whatsapp: false };
+    // If the endpoint doesn't exist (404) or returns an error,
+    // return unknown so the caller can try sending directly
+    console.log(`[WhatsApp Check] Contacts endpoint returned ${res.status}, falling back to unknown. Response: ${JSON.stringify(data).slice(0, 300)}`);
+  } catch (e) {
+    console.log(`[WhatsApp Check] Contacts endpoint error: ${e}`);
   }
 
-  const contacts = data.contacts || [];
-  const isValid = contacts.length > 0 && contacts[0]?.status === "valid";
-
-  return { is_whatsapp: isValid, wa_id: contacts[0]?.wa_id || null };
+  // Return unknown - the caller should try sending directly
+  return { is_whatsapp: "unknown", wa_id: null };
 }

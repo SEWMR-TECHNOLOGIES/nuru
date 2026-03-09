@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
 import { authApi, showApiErrorsShadcn } from "@/lib/api";
-import { formatPhoneDisplay } from "@/components/ui/country-phone-input";
+import { maskPhoneDisplay } from "@/components/ui/country-phone-input";
 import { MessageCircle, Phone } from "lucide-react";
 
 const VerifyPhone = () => {
@@ -96,7 +96,7 @@ const VerifyPhone = () => {
     description: "Enter the OTP sent to your phone to activate your Nuru account."
   });
 
-  const displayPhone = phone ? formatPhoneDisplay(phone.replace(/[^\d]/g, "")) : "your phone";
+  const displayPhone = phone ? maskPhoneDisplay(phone.replace(/[^\d]/g, "")) : "your phone";
 
   return (
     <Layout>

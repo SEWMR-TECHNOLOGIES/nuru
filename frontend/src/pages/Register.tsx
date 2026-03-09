@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Check, CheckCircle2, Loader2, User, AtSign, Lock, Phone, ChevronRight, ChevronLeft, PartyPopper, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CountryPhoneInput, isTanzanianNumber, formatPhoneDisplay } from "@/components/ui/country-phone-input";
+import { CountryPhoneInput, isTanzanianNumber, maskPhoneDisplay } from "@/components/ui/country-phone-input";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -711,10 +711,10 @@ const Register = () => {
                     <h1 className="text-2xl font-bold text-foreground">Enter verification code</h1>
                     <p className="text-sm text-muted-foreground">
                       {otpChannel === "whatsapp"
-                        ? `Sent via WhatsApp to ${formatPhoneDisplay(formData.phone)}`
+                        ? `Sent via WhatsApp to ${maskPhoneDisplay(formData.phone)}`
                         : otpChannel === "sms"
-                        ? `Sent via SMS to ${formatPhoneDisplay(formData.phone)}`
-                        : `Sent to ${formatPhoneDisplay(formData.phone)}`
+                        ? `Sent via SMS to ${maskPhoneDisplay(formData.phone)}`
+                        : `Sent to ${maskPhoneDisplay(formData.phone)}`
                       }
                     </p>
                   </div>
