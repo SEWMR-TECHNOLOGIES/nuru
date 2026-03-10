@@ -6,8 +6,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const GRAPH_API = "https://graph.facebook.com/v21.0";
-
 function generateOtp(length = 6): string {
   const digits = "0123456789";
   let otp = "";
@@ -26,15 +24,7 @@ Deno.serve(async (req) => {
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
-  const WHATSAPP_PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
-
-  if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
-    return new Response(
-      JSON.stringify({ success: false, error: "WhatsApp not configured" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
+  const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || "";
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -52,7 +42,7 @@ Deno.serve(async (req) => {
     const cleanPhone = phone.replace(/[^\d]/g, "");
     const otpPurpose = purpose || "phone_verification";
 
-    // Invalidate any previous unused codes for this phone + purpose
+    // Invalidate previous unused codes for this phone + purpose
     await supabase
       .from("otp_codes")
       .update({ is_used: true })
@@ -62,7 +52,7 @@ Deno.serve(async (req) => {
 
     // Generate new OTP
     const code = generateOtp(6);
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 min
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     // Store in database
     const { error: insertError } = await supabase.from("otp_codes").insert({
@@ -81,27 +71,42 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Determine if TZ number
-    const isTanzanian = cleanPhone.startsWith("255");
-
-    // Send via WhatsApp (all numbers)
-    const whatsappResult = await sendWhatsAppOtp(
-      cleanPhone,
-      code,
-      WHATSAPP_ACCESS_TOKEN,
-      WHATSAPP_PHONE_NUMBER_ID
-    );
-
     const channels: string[] = [];
 
-    if (whatsappResult.sent) {
-      channels.push("whatsapp");
-      console.log(`[send-otp] WhatsApp OTP sent to ${cleanPhone}`);
-    } else {
-      console.log(`[send-otp] WhatsApp failed for ${cleanPhone}:`, whatsappResult.error || "not on whatsapp");
+    // ── Send via WhatsApp using the whatsapp-send edge function ──
+    // This reuses the exact same proven logic used for invitations, reminders, etc.
+    try {
+      const waRes = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+          "apikey": SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
+          action: "otp_verification",
+          phone: cleanPhone,
+          params: { otp_code: code },
+        }),
+      });
+
+      const waData = await waRes.json();
+      console.log("[send-otp] whatsapp-send response:", JSON.stringify(waData));
+
+      if (waData.success && !waData.not_on_whatsapp) {
+        channels.push("whatsapp");
+        console.log(`[send-otp] WhatsApp OTP sent to ${cleanPhone}`);
+      } else if (waData.not_on_whatsapp) {
+        console.log(`[send-otp] ${cleanPhone} not on WhatsApp`);
+      } else {
+        console.log(`[send-otp] WhatsApp failed for ${cleanPhone}:`, waData.error || "unknown");
+      }
+    } catch (e) {
+      console.error("[send-otp] WhatsApp send error:", e);
     }
 
-    // For TZ numbers: also send via SMS through backend (call the Nuru API)
+    // For TZ numbers: also trigger SMS via backend API
+    const isTanzanian = cleanPhone.startsWith("255");
     if (isTanzanian && user_id) {
       try {
         const NURU_API = Deno.env.get("NURU_API_BASE_URL") || "https://api.nuru.tz/api/v1";
@@ -110,7 +115,7 @@ Deno.serve(async (req) => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             user_id,
-            verification_type: otpPurpose === "password_reset" ? "phone" : "phone",
+            verification_type: "phone",
           }),
         });
         const smsData = await smsRes.json();
@@ -132,7 +137,7 @@ Deno.serve(async (req) => {
         success: true,
         message: channelMsg,
         channels,
-        whatsapp_sent: whatsappResult.sent,
+        whatsapp_sent: channels.includes("whatsapp"),
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -144,61 +149,3 @@ Deno.serve(async (req) => {
     );
   }
 });
-
-// Send OTP via WhatsApp template
-async function sendWhatsAppOtp(
-  phone: string,
-  code: string,
-  accessToken: string,
-  phoneNumberId: string
-): Promise<{ sent: boolean; error?: string; not_on_whatsapp?: boolean }> {
-  const url = `${GRAPH_API}/${phoneNumberId}/messages`;
-
-  const components = [
-    {
-      type: "body",
-      parameters: [{ type: "text", text: code }],
-    },
-    {
-      type: "button",
-      sub_type: "url",
-      index: "0",
-      parameters: [{ type: "text", text: code }],
-    },
-  ];
-
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: phone,
-        type: "template",
-        template: {
-          name: "otp_verification",
-          language: { code: "en" },
-          components,
-        },
-      }),
-    });
-
-    const data = await res.json();
-
-    if (res.ok) {
-      return { sent: true };
-    }
-
-    const errorCode = data?.error?.code;
-    if (errorCode === 131026 || errorCode === 131047) {
-      return { sent: false, not_on_whatsapp: true, error: `Error ${errorCode}` };
-    }
-
-    return { sent: false, error: `API error ${res.status}: ${data?.error?.message || "unknown"}` };
-  } catch (e) {
-    return { sent: false, error: e instanceof Error ? e.message : "Network error" };
-  }
-}
