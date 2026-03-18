@@ -75,9 +75,14 @@ export async function request<T>(
     };
   } catch (error) {
     // Network error or other fetch failure
+    const message = error instanceof TypeError && error.message === "Failed to fetch"
+      ? "Unable to connect. Please check your internet connection and try again."
+      : error instanceof Error
+        ? `Request failed: ${error.message}`
+        : "Something went wrong. Please try again.";
     return {
       success: false,
-      message: "Unable to connect. Please check your internet connection and try again.",
+      message,
       data: null as T,
     };
   }
@@ -164,9 +169,14 @@ export async function postFormData<T>(endpoint: string, formData: FormData): Pro
       data: json as T,
     };
   } catch (error) {
+    const message = error instanceof TypeError && error.message === "Failed to fetch"
+      ? "Unable to connect. Please check your internet connection and try again."
+      : error instanceof Error
+        ? `Upload failed: ${error.message}`
+        : "Something went wrong. Please try again.";
     return {
       success: false,
-      message: "Unable to connect. Please check your internet connection and try again.",
+      message,
       data: null as T,
     };
   }
@@ -206,9 +216,14 @@ export async function putFormData<T>(endpoint: string, formData: FormData): Prom
       data: json as T,
     };
   } catch (error) {
+    const message = error instanceof TypeError && error.message === "Failed to fetch"
+      ? "Unable to connect. Please check your internet connection and try again."
+      : error instanceof Error
+        ? `Upload failed: ${error.message}`
+        : "Something went wrong. Please try again.";
     return {
       success: false,
-      message: "Unable to connect. Please check your internet connection and try again.",
+      message,
       data: null as T,
     };
   }

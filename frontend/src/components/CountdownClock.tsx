@@ -23,7 +23,7 @@ const CountdownClock = ({ targetDate, compact = false }: CountdownClockProps) =>
 
   if (timeLeft.isToday) {
     return (
-      <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">🎉 Today!</span>
+      <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">Today!</span>
     );
   }
 

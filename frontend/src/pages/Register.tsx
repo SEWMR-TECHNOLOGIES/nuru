@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Check, CheckCircle2, Loader2, User, AtSign, Lock, Phone, ChevronRight, ChevronLeft, PartyPopper, MessageCircle } from "lucide-react";
+import { Eye, EyeOff, Check, CheckCircle2, Loader2, User, AtSign, Lock, Phone, ChevronRight, ChevronLeft, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CountryPhoneInput, isTanzanianNumber, maskPhoneDisplay } from "@/components/ui/country-phone-input";
@@ -35,11 +35,11 @@ const WelcomeScreen = ({ firstName, onContinue }: { firstName: string; onContinu
         transition={{ delay: 0.2, type: "spring", stiffness: 260, damping: 18 }}
         className="w-20 h-20 bg-primary rounded-full flex items-center justify-center mx-auto shadow-lg"
       >
-        <PartyPopper className="w-10 h-10 text-primary-foreground" />
+        <CheckCircle2 className="w-10 h-10 text-primary-foreground" />
       </motion.div>
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-        <h1 className="text-3xl font-bold text-foreground mb-2">Welcome, {firstName}! 🎉</h1>
-        <p className="text-muted-foreground">Your account is verified. Taking you to your workspace…</p>
+        <h1 className="text-3xl font-bold text-foreground mb-2">Welcome, {firstName}!</h1>
+        <p className="text-muted-foreground">Your account is verified. Taking you to your workspace.</p>
       </motion.div>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}>
         <div className="flex justify-center gap-1.5 mt-2">

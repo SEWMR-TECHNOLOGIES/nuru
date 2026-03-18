@@ -4,7 +4,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import SvgIcon from '@/components/ui/svg-icon';
 import MenuIcon from '@/assets/icons/menu-icon.svg';
 import PanelRightIcon from '@/assets/icons/panel-right-icon.svg';
-import { PanelLeft, PanelRight } from 'lucide-react';
+import { PanelLeft, PanelRight, Check } from 'lucide-react';
 
 const ONBOARDING_KEY = 'nuru_onboarding_seen';
 
@@ -160,7 +160,7 @@ const MobileOnboarding = forwardRef<MobileOnboardingRef, MobileOnboardingProps>(
                     transition={{ delay: 0.2, type: 'spring', stiffness: 200, damping: 15 }}
                     className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center mb-6"
                   >
-                    <span className="text-3xl">✨</span>
+                    <Check className="w-7 h-7 text-white" />
                   </motion.div>
                   <h2 className="text-xl font-bold text-white mb-2">Quick Tour</h2>
                   <p className="text-white/70 text-sm mb-8 leading-relaxed">
@@ -284,14 +284,14 @@ const MobileOnboarding = forwardRef<MobileOnboardingRef, MobileOnboardingProps>(
                   transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
                   className="flex flex-col items-center text-center"
                 >
-                  <motion.span
+                  <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     transition={{ type: 'spring', stiffness: 200, damping: 12 }}
-                    className="text-4xl mb-4"
+                    className="w-14 h-14 rounded-full bg-white/15 flex items-center justify-center mb-4"
                   >
-                    🎉
-                  </motion.span>
+                    <Check className="w-7 h-7 text-white" />
+                  </motion.div>
                   <h3 className="text-lg font-bold text-white mb-1">You're all set!</h3>
                   <p className="text-white/60 text-sm">Enjoy exploring Nuru.</p>
                 </motion.div>

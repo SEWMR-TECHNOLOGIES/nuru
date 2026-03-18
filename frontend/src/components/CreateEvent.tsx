@@ -631,7 +631,7 @@ const CreateEvent: React.FC = () => {
                 <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
                   <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                   <p className="text-muted-foreground mb-2">Click to upload or drag and drop</p>
-                  <p className="text-sm text-muted-foreground">PNG, JPG, or WEBP (max. 0.5MB per file)</p>
+                  <p className="text-sm text-muted-foreground">PNG, JPG, or WEBP (max. 5MB per file)</p>
                   <label htmlFor="event-image-upload">
                     <Button
                       type="button"

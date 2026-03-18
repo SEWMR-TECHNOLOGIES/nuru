@@ -200,14 +200,14 @@ const Index = () => {
               transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
               className="mb-6"
             >
-              <h1 className="text-[clamp(3rem,10vw,7rem)] font-bold leading-[0.95] tracking-tight text-foreground">
+              <h1 className="text-[clamp(3rem,10vw,7rem)] font-heading font-bold leading-[0.95] tracking-tight text-foreground">
                 Every moment
               </h1>
               <motion.span
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.6, delay: 0.3 }}
-                className="text-[clamp(3rem,10vw,7rem)] font-bold leading-[0.95] tracking-tight text-muted-foreground/60 block"
+                className="text-[clamp(3rem,10vw,7rem)] font-heading font-bold leading-[0.95] tracking-tight text-muted-foreground/60 block"
               >
                 deserves care.
               </motion.span>
@@ -333,7 +333,7 @@ const Index = () => {
               <span className="text-sm tracking-[0.2em] uppercase text-muted-foreground mb-4 block font-medium">
                 Platform features
               </span>
-              <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground leading-[1.05] tracking-tight">
+              <h2 className="text-4xl sm:text-5xl lg:text-6xl font-heading font-bold text-foreground leading-[1.05] tracking-tight">
                 Everything you need,
                 <br />
                 <span className="text-muted-foreground">nothing you don't</span>
@@ -455,7 +455,7 @@ const Index = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
                 viewport={{ once: true }}
-                className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-center leading-[0.95] tracking-tight mb-8"
+                className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-heading font-bold text-center leading-[0.95] tracking-tight mb-8"
               >
                 <span className="block text-background">From idea</span>
                 <span className="block bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">

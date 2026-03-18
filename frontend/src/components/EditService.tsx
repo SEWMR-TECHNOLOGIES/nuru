@@ -176,6 +176,10 @@ const EditService = () => {
     const files = e.target.files;
     if (files) {
       Array.from(files).forEach(file => {
+        if (file.size > 5 * 1024 * 1024) {
+          toast({ title: "File too large", description: `${file.name}: ${(file.size / (1024 * 1024)).toFixed(1)}MB exceeds the 5MB limit`, variant: "destructive" });
+          return;
+        }
         const reader = new FileReader();
         reader.onloadend = () => {
           setImages(prev => [...prev, reader.result as string]);

@@ -19,7 +19,7 @@ export interface SearchedUser {
 export const useUserSearch = () => {
   const [results, setResults] = useState<SearchedUser[]>([]);
   const [loading, setLoading] = useState(false);
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const search = useCallback((query: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);

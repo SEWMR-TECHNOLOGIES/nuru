@@ -148,7 +148,9 @@ async def _upload_image(file: UploadFile, target_folder: str) -> dict:
         return {"success": False, "url": None, "error": f"File '{file.filename}' has invalid format."}
     content = await file.read()
     if len(content) > MAX_IMAGE_SIZE:
-        return {"success": False, "url": None, "error": f"File '{file.filename}' exceeds maximum size."}
+        file_mb = round(len(content) / (1024 * 1024), 1)
+        max_mb = round(MAX_IMAGE_SIZE / (1024 * 1024), 1)
+        return {"success": False, "url": None, "error": f"File '{file.filename}' is too large ({file_mb}MB). Maximum allowed size is {max_mb}MB."}
     unique_name = f"{uuid.uuid4().hex}.{ext}"
     async with httpx.AsyncClient() as client:
         try:

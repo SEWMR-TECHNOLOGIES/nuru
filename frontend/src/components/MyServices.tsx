@@ -83,7 +83,7 @@ const MyServices = () => {
     let success = 0;
     for (const file of Array.from(files)) {
       if (!file.type.startsWith('image/')) { toast.error(`${file.name}: only images allowed`); continue; }
-      if (file.size > 512 * 1024) { toast.error(`${file.name}: max 0.5MB per file`); continue; }
+      if (file.size > 5 * 1024 * 1024) { toast.error(`${file.name}: File is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Maximum allowed is 5MB`); continue; }
       try {
         const form = new FormData();
         form.append('images', file);
@@ -620,7 +620,7 @@ const MyServices = () => {
                         <Upload className="w-7 h-7 text-primary" />
                       </div>
                       <p className="font-semibold text-foreground mb-1">Click to upload photos</p>
-                      <p className="text-xs text-muted-foreground">PNG, JPG or WebP · Max 0.5MB per file</p>
+                      <p className="text-xs text-muted-foreground">PNG, JPG or WebP · Max 5MB per file</p>
                     </>
                   )}
                   <input

@@ -92,7 +92,13 @@ const AddService = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-    const filesArray = Array.from(files);
+    const filesArray = Array.from(files).filter(file => {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name}: File is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Maximum allowed is 5MB`);
+        return false;
+      }
+      return true;
+    });
     setImages(prev => [...prev, ...filesArray]);
     setPreviews(prev => [...prev, ...filesArray.map(f => URL.createObjectURL(f))]);
   };
@@ -458,7 +464,7 @@ const AddService = () => {
                 <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
                   <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                   <p className="text-muted-foreground mb-2">Click to upload or drag and drop</p>
-                  <p className="text-sm text-muted-foreground">PNG, JPG, or WEBP (max. 0.5MB per file)</p>
+                  <p className="text-sm text-muted-foreground">PNG, JPG, or WEBP (max. 5MB per file)</p>
                   <label htmlFor="image-upload">
                     <Button type="button" variant="outline" className="mt-4" onClick={() => document.getElementById('image-upload')?.click()}>
                       Choose Files
