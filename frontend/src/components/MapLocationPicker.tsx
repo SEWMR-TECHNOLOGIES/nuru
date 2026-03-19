@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { Navigation, Loader2, Search, X } from "lucide-react";
-import SvgIcon from '@/components/ui/svg-icon';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,19 +15,25 @@ import { toast } from "sonner";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-// Custom marker icon
+// Google Maps–style red drop pin SVG
+const pinSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none">
+  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#EA4335"/>
+  <circle cx="12" cy="9" r="2.5" fill="white"/>
+</svg>`;
 
-// Custom marker using the project's location icon
-const locationIconSvg = `data:image/svg+xml;base64,${btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="#e11d48"/></svg>`)}`;
+const pinDataUrl = `data:image/svg+xml;base64,${btoa(pinSvg)}`;
 
 const DefaultIcon = L.icon({
-  iconUrl: locationIconSvg,
-  iconSize: [32, 32],
-  iconAnchor: [16, 32],
-  popupAnchor: [0, -32],
+  iconUrl: pinDataUrl,
+  iconSize: [40, 40],
+  iconAnchor: [20, 40],
+  popupAnchor: [0, -40],
 });
 
 L.Marker.prototype.options.icon = DefaultIcon;
+
+// Shadow for the center pin (small ellipse below the pin)
+const centerPinShadow = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="6" viewBox="0 0 20 6"><ellipse cx="10" cy="3" rx="8" ry="3" fill="rgba(0,0,0,0.25)"/></svg>`;
 
 export interface LocationData {
   latitude: number;
@@ -51,80 +56,119 @@ const MapLocationPicker = ({ value, onChange, label = "Location", placeholder = 
   const [searching, setSearching] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(value || null);
   const [isLocating, setIsLocating] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
   
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reverseGeocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Reverse-geocode a lat/lng
+  const reverseGeocode = async (lat: number, lng: number): Promise<LocationData> => {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`
+      );
+      const data = await res.json();
+      const name =
+        data.address?.road ||
+        data.address?.city ||
+        data.address?.town ||
+        data.address?.village ||
+        data.address?.county ||
+        "Selected location";
+      return { latitude: lat, longitude: lng, name, address: data.display_name };
+    } catch {
+      return { latitude: lat, longitude: lng, name: "Selected location" };
+    }
+  };
 
   // Initialize map when dialog opens
   useEffect(() => {
     if (!open || !mapRef.current) return;
 
-    // Small delay for dialog animation
     const timer = setTimeout(() => {
       if (!mapRef.current || mapInstanceRef.current) return;
 
-      const defaultCenter: [number, number] = selectedLocation 
-        ? [selectedLocation.latitude, selectedLocation.longitude] 
+      const defaultCenter: [number, number] = selectedLocation
+        ? [selectedLocation.latitude, selectedLocation.longitude]
         : [-6.7924, 39.2083]; // Dar es Salaam default
 
       const map = L.map(mapRef.current, {
         center: defaultCenter,
         zoom: selectedLocation ? 15 : 12,
-        zoomControl: true,
+        zoomControl: false,
       });
 
+      // Zoom controls bottom-right
+      L.control.zoom({ position: "bottomright" }).addTo(map);
+
+      // CartoDB Voyager tiles — beautiful free tiles
       L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-        subdomains: 'abcd',
+        subdomains: "abcd",
         maxZoom: 19,
       }).addTo(map);
 
-      // Add marker if location exists
+      // Place marker if value already exists
       if (selectedLocation) {
         markerRef.current = L.marker([selectedLocation.latitude, selectedLocation.longitude])
           .addTo(map)
           .bindPopup(selectedLocation.name);
       }
 
-      // Click to place marker
+      // On map move → update the center pin's location and reverse-geocode
+      const handleMove = () => {
+        setIsPanning(true);
+        if (reverseGeocodeTimerRef.current) clearTimeout(reverseGeocodeTimerRef.current);
+      };
+
+      const handleMoveEnd = () => {
+        const center = map.getCenter();
+        const lat = center.lat;
+        const lng = center.lng;
+
+        // Place / move the marker to center
+        if (markerRef.current) {
+          markerRef.current.setLatLng([lat, lng]);
+        } else {
+          markerRef.current = L.marker([lat, lng]).addTo(map);
+        }
+
+        setIsPanning(false);
+
+        // Debounced reverse geocode
+        reverseGeocodeTimerRef.current = setTimeout(async () => {
+          const loc = await reverseGeocode(lat, lng);
+          setSelectedLocation(loc);
+        }, 300);
+      };
+
+      // Click to place marker immediately
       map.on("click", async (e: L.LeafletMouseEvent) => {
         const { lat, lng } = e.latlng;
-        placeMarker(map, lat, lng);
-        
-        // Reverse geocode
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`
-          );
-          const data = await res.json();
-          const name = data.address?.city || data.address?.town || data.address?.village || data.address?.county || "Selected location";
-          setSelectedLocation({
-            latitude: lat,
-            longitude: lng,
-            name,
-            address: data.display_name,
-          });
-        } catch {
-          setSelectedLocation({
-            latitude: lat,
-            longitude: lng,
-            name: "Selected location",
-          });
+        if (markerRef.current) {
+          markerRef.current.setLatLng([lat, lng]);
+        } else {
+          markerRef.current = L.marker([lat, lng]).addTo(map);
         }
+        map.setView([lat, lng], map.getZoom());
+        const loc = await reverseGeocode(lat, lng);
+        setSelectedLocation(loc);
       });
+
+      map.on("move", handleMove);
+      map.on("moveend", handleMoveEnd);
 
       mapInstanceRef.current = map;
 
-      // Fix blank tiles when map is inside a dialog
-      setTimeout(() => {
-        map.invalidateSize();
-      }, 300);
+      setTimeout(() => map.invalidateSize(), 300);
     }, 200);
 
     return () => {
       clearTimeout(timer);
+      if (reverseGeocodeTimerRef.current) clearTimeout(reverseGeocodeTimerRef.current);
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -132,15 +176,6 @@ const MapLocationPicker = ({ value, onChange, label = "Location", placeholder = 
       }
     };
   }, [open]);
-
-  const placeMarker = (map: L.Map, lat: number, lng: number) => {
-    if (markerRef.current) {
-      markerRef.current.setLatLng([lat, lng]);
-    } else {
-      markerRef.current = L.marker([lat, lng]).addTo(map);
-    }
-    map.setView([lat, lng], 15);
-  };
 
   // Search with debounce
   useEffect(() => {
@@ -171,7 +206,7 @@ const MapLocationPicker = ({ value, onChange, label = "Location", placeholder = 
     const lat = parseFloat(result.lat);
     const lng = parseFloat(result.lon);
     const name = result.display_name?.split(",")[0] || "Selected";
-    
+
     setSelectedLocation({
       latitude: lat,
       longitude: lng,
@@ -180,9 +215,14 @@ const MapLocationPicker = ({ value, onChange, label = "Location", placeholder = 
     });
 
     if (mapInstanceRef.current) {
-      placeMarker(mapInstanceRef.current, lat, lng);
+      if (markerRef.current) {
+        markerRef.current.setLatLng([lat, lng]);
+      } else {
+        markerRef.current = L.marker([lat, lng]).addTo(mapInstanceRef.current);
+      }
+      mapInstanceRef.current.setView([lat, lng], 16);
     }
-    
+
     setSearchResults([]);
     setSearchQuery(name);
   };
@@ -197,27 +237,19 @@ const MapLocationPicker = ({ value, onChange, label = "Location", placeholder = 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
-        
+
         if (mapInstanceRef.current) {
-          placeMarker(mapInstanceRef.current, latitude, longitude);
+          if (markerRef.current) {
+            markerRef.current.setLatLng([latitude, longitude]);
+          } else {
+            markerRef.current = L.marker([latitude, longitude]).addTo(mapInstanceRef.current);
+          }
+          mapInstanceRef.current.setView([latitude, longitude], 16);
         }
 
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
-          );
-          const data = await res.json();
-          const name = data.address?.city || data.address?.town || data.address?.village || "Current location";
-          setSelectedLocation({
-            latitude,
-            longitude,
-            name,
-            address: data.display_name,
-          });
-          setSearchQuery(name);
-        } catch {
-          setSelectedLocation({ latitude, longitude, name: "Current location" });
-        }
+        const loc = await reverseGeocode(latitude, longitude);
+        setSelectedLocation(loc);
+        setSearchQuery(loc.name);
         setIsLocating(false);
       },
       () => {
@@ -269,7 +301,7 @@ const MapLocationPicker = ({ value, onChange, label = "Location", placeholder = 
         <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Pick Location</DialogTitle>
-            <DialogDescription>Search for a place or tap on the map</DialogDescription>
+            <DialogDescription>Search, tap, or drag the map to place the pin</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 flex-1 overflow-hidden flex flex-col">
@@ -324,12 +356,29 @@ const MapLocationPicker = ({ value, onChange, label = "Location", placeholder = 
               </div>
             )}
 
-            {/* Map */}
-            <div 
-              ref={mapRef} 
-              className="rounded-lg border border-border overflow-hidden z-0"
-              style={{ height: '280px', width: '100%' }}
-            />
+            {/* Map with center pin overlay */}
+            <div className="relative rounded-lg border border-border overflow-hidden">
+              <div
+                ref={mapRef}
+                className="z-0"
+                style={{ height: "300px", width: "100%" }}
+              />
+              {/* Floating center pin — visible while panning (marker hides during drag) */}
+              <div
+                className="pointer-events-none absolute inset-0 flex items-center justify-center z-[1000]"
+                style={{ transition: "transform 0.15s ease" }}
+              >
+                <div className="flex flex-col items-center" style={{ transform: isPanning ? "translateY(-8px)" : "translateY(0)" }}>
+                  <img src={pinDataUrl} alt="" className="w-10 h-10" style={{ marginBottom: "-4px", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.3))" }} />
+                  <img src={`data:image/svg+xml;base64,${btoa(centerPinShadow)}`} alt="" className="w-5 h-1.5" style={{ opacity: isPanning ? 0.4 : 0.6 }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Hint text */}
+            <p className="text-xs text-muted-foreground text-center">
+              Drag the map to move the pin to your exact location
+            </p>
 
             {/* Selected location info */}
             {selectedLocation && (

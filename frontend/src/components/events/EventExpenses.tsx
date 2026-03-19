@@ -430,7 +430,7 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-muted-foreground">Money Raised</p>
+                  <p className="text-xs text-muted-foreground">Money Collected</p>
                   <p className="text-base font-semibold text-primary mt-1">{formatPrice(totalRaised)}</p>
                   <p className="text-xs text-muted-foreground mt-1">Total contributions</p>
                 </div>
@@ -446,7 +446,7 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-muted-foreground">Money Raised</p>
+                  <p className="text-xs text-muted-foreground">Money Collected</p>
                   <p className="text-base font-semibold text-primary mt-1">{formatPrice(totalRaised)}</p>
                   <p className="text-xs text-muted-foreground mt-1">Total contributions</p>
                 </div>
@@ -477,7 +477,7 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
               <div>
                 <p className="text-xs text-muted-foreground">Remaining Balance</p>
                 <p className={cn("text-base font-semibold mt-1", remaining < 0 ? "text-destructive" : "text-primary")}>{formatPrice(remaining)}</p>
-                <p className="text-xs text-muted-foreground mt-1">Raised − Expenses</p>
+                <p className="text-xs text-muted-foreground mt-1">Collected − Expenses</p>
               </div>
             </div>
           </CardContent>

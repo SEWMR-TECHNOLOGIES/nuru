@@ -441,7 +441,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
         null, null, null, null, null,
       ],
       [
-        { value: 'Total Raised:', fontWeight: 'bold' as const },
+        { value: 'Total Collected:', fontWeight: 'bold' as const },
         { value: `${currency} ${summary.total_paid.toLocaleString()}` },
         null,
         { value: 'Total Pledged:', fontWeight: 'bold' as const },
@@ -671,12 +671,12 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
   return (
     <div className="space-y-6">
       <ConfirmDialog />
-      {/* Row 1: Event Budget | Total Raised | Budget Shortfall */}
+      {/* Row 1: Event Budget | Total Collected | Budget Shortfall */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {eventBudget ? (
           <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Event Budget</p><p className="text-base font-semibold">{formatPrice(eventBudget)}</p></div><div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center"><DollarSign className="w-3.5 h-3.5 text-blue-600" /></div></div></CardContent></Card>
         ) : null}
-        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Total Raised</p><p className="text-base font-semibold text-green-600">{formatPrice(summary.total_paid)}</p></div><div className="w-7 h-7 bg-green-100 rounded-lg flex items-center justify-center"><DollarSign className="w-3.5 h-3.5 text-green-600" /></div></div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Total Collected</p><p className="text-base font-semibold text-green-600">{formatPrice(summary.total_paid)}</p></div><div className="w-7 h-7 bg-green-100 rounded-lg flex items-center justify-center"><DollarSign className="w-3.5 h-3.5 text-green-600" /></div></div></CardContent></Card>
         {eventBudget ? (
           <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Budget Shortfall</p><p className="text-base font-semibold text-destructive">{formatPrice(Math.max(0, eventBudget - summary.total_paid))}</p></div><div className="w-7 h-7 bg-red-100 rounded-lg flex items-center justify-center"><DollarSign className="w-3.5 h-3.5 text-red-600" /></div></div></CardContent></Card>
         ) : null}
