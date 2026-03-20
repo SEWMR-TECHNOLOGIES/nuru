@@ -1,5 +1,6 @@
 /**
  * Nuru Cards Data Hooks
+ * Uses initialLoad pattern to prevent skeleton re-renders.
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -11,17 +12,22 @@ import { throwApiError } from "@/lib/api/showApiErrors";
 // CARD TYPES
 // ============================================================================
 
+let _cardTypesCache: NuruCardType[] = [];
+let _cardTypesHasLoaded = false;
+
 export const useNuruCardTypes = () => {
-  const [cardTypes, setCardTypes] = useState<NuruCardType[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [cardTypes, setCardTypes] = useState<NuruCardType[]>(_cardTypesCache);
+  const [loading, setLoading] = useState(!_cardTypesHasLoaded);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCardTypes = useCallback(async () => {
-    setLoading(true);
+    if (!_cardTypesHasLoaded) setLoading(true);
     setError(null);
     try {
       const response = await nuruCardsApi.getCardTypes();
       if (response.success) {
+        _cardTypesCache = response.data;
+        _cardTypesHasLoaded = true;
         setCardTypes(response.data);
       } else {
         setError(response.message || "Failed to fetch card types");
@@ -44,20 +50,25 @@ export const useNuruCardTypes = () => {
 // SINGLE CARD (primary user card)
 // ============================================================================
 
+let _nuruCardCache: NuruCard | null = null;
+let _nuruCardHasLoaded = false;
+
 export const useNuruCard = () => {
-  const [card, setCard] = useState<NuruCard | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [card, setCard] = useState<NuruCard | null>(_nuruCardCache);
+  const [loading, setLoading] = useState(!_nuruCardHasLoaded);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCard = useCallback(async () => {
-    setLoading(true);
+    if (!_nuruCardHasLoaded) setLoading(true);
     setError(null);
     try {
       const response = await nuruCardsApi.getMyCards();
       if (response.success && response.data.length > 0) {
-        // Get the primary/first card
+        _nuruCardCache = response.data[0];
+        _nuruCardHasLoaded = true;
         setCard(response.data[0]);
       } else {
+        _nuruCardHasLoaded = true;
         setCard(null);
       }
     } catch (err) {
@@ -105,17 +116,22 @@ export const useNuruCard = () => {
 // MY CARDS
 // ============================================================================
 
+let _myCardsCache: NuruCard[] = [];
+let _myCardsHasLoaded = false;
+
 export const useMyCards = () => {
-  const [cards, setCards] = useState<NuruCard[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [cards, setCards] = useState<NuruCard[]>(_myCardsCache);
+  const [loading, setLoading] = useState(!_myCardsHasLoaded);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCards = useCallback(async () => {
-    setLoading(true);
+    if (!_myCardsHasLoaded) setLoading(true);
     setError(null);
     try {
       const response = await nuruCardsApi.getMyCards();
       if (response.success) {
+        _myCardsCache = response.data;
+        _myCardsHasLoaded = true;
         setCards(response.data);
       } else {
         setError(response.message || "Failed to fetch cards");
@@ -190,18 +206,22 @@ export const useMyCards = () => {
 // SINGLE CARD
 // ============================================================================
 
+const _singleCardCache = new Map<string, NuruCard>();
+
 export const useCard = (cardId: string | null) => {
-  const [card, setCard] = useState<NuruCard | null>(null);
-  const [loading, setLoading] = useState(true);
+  const cached = cardId ? _singleCardCache.get(cardId) : null;
+  const [card, setCard] = useState<NuruCard | null>(cached || null);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCard = useCallback(async () => {
     if (!cardId) return;
-    setLoading(true);
+    if (!_singleCardCache.has(cardId)) setLoading(true);
     setError(null);
     try {
       const response = await nuruCardsApi.getCard(cardId);
       if (response.success) {
+        _singleCardCache.set(cardId, response.data);
         setCard(response.data);
       } else {
         setError(response.message || "Failed to fetch card");
@@ -281,19 +301,23 @@ export const useCardCheckIn = () => {
 // CHECK-IN HISTORY
 // ============================================================================
 
+const _checkinHistoryCache = new Map<string, { checkins: any[]; pagination: any }>();
+
 export const useCheckInHistory = (cardId: string | null) => {
-  const [checkins, setCheckins] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = cardId ? _checkinHistoryCache.get(cardId) : null;
+  const [checkins, setCheckins] = useState<any[]>(cached?.checkins || []);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState<any>(null);
+  const [pagination, setPagination] = useState<any>(cached?.pagination || null);
 
   const fetchHistory = useCallback(async (params?: { page?: number; limit?: number }) => {
     if (!cardId) return;
-    setLoading(true);
+    if (!_checkinHistoryCache.has(cardId)) setLoading(true);
     setError(null);
     try {
       const response = await nuruCardsApi.getCheckInHistory(cardId, params);
       if (response.success) {
+        _checkinHistoryCache.set(cardId, { checkins: response.data.checkins, pagination: response.data.pagination });
         setCheckins(response.data.checkins);
         setPagination(response.data.pagination);
       } else {
@@ -317,18 +341,23 @@ export const useCheckInHistory = (cardId: string | null) => {
 // CARD ANALYTICS
 // ============================================================================
 
+const _cardAnalyticsCache = new Map<string, any>();
+
 export const useCardAnalytics = (cardId: string | null, startDate?: string, endDate?: string) => {
-  const [analytics, setAnalytics] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = `${cardId || ''}|${startDate || ''}|${endDate || ''}`;
+  const cached = cardId ? _cardAnalyticsCache.get(cacheKey) : null;
+  const [analytics, setAnalytics] = useState<any>(cached || null);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
 
   const fetchAnalytics = useCallback(async () => {
     if (!cardId) return;
-    setLoading(true);
+    if (!_cardAnalyticsCache.has(cacheKey)) setLoading(true);
     setError(null);
     try {
       const response = await nuruCardsApi.getTapAnalytics(cardId, { start_date: startDate, end_date: endDate });
       if (response.success) {
+        _cardAnalyticsCache.set(cacheKey, response.data);
         setAnalytics(response.data);
       } else {
         setError(response.message || "Failed to fetch analytics");
@@ -338,7 +367,7 @@ export const useCardAnalytics = (cardId: string | null, startDate?: string, endD
     } finally {
       setLoading(false);
     }
-  }, [cardId, startDate, endDate]);
+  }, [cacheKey, cardId, startDate, endDate]);
 
   useEffect(() => {
     if (cardId) fetchAnalytics();
@@ -351,18 +380,23 @@ export const useCardAnalytics = (cardId: string | null, startDate?: string, endD
 // PREMIUM BENEFITS
 // ============================================================================
 
+let _benefitsCache: { benefits: any[]; pricing: any } | null = null;
+let _benefitsHasLoaded = false;
+
 export const usePremiumBenefits = () => {
-  const [benefits, setBenefits] = useState<any[]>([]);
-  const [pricing, setPricing] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [benefits, setBenefits] = useState<any[]>(_benefitsCache?.benefits || []);
+  const [pricing, setPricing] = useState<any>(_benefitsCache?.pricing || null);
+  const [loading, setLoading] = useState(!_benefitsHasLoaded);
   const [error, setError] = useState<string | null>(null);
 
   const fetchBenefits = useCallback(async () => {
-    setLoading(true);
+    if (!_benefitsHasLoaded) setLoading(true);
     setError(null);
     try {
       const response = await nuruCardsApi.getPremiumBenefits();
       if (response.success) {
+        _benefitsCache = { benefits: response.data.benefits, pricing: response.data.pricing };
+        _benefitsHasLoaded = true;
         setBenefits(response.data.benefits);
         setPricing(response.data.pricing);
       } else {
@@ -398,18 +432,22 @@ export const usePremiumBenefits = () => {
 // EVENT CHECK-IN STATS (for organizers)
 // ============================================================================
 
+const _checkInStatsCache = new Map<string, any>();
+
 export const useEventCheckInStats = (eventId: string | null) => {
-  const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const cached = eventId ? _checkInStatsCache.get(eventId) : null;
+  const [stats, setStats] = useState<any>(cached || null);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
 
   const fetchStats = useCallback(async () => {
     if (!eventId) return;
-    setLoading(true);
+    if (!_checkInStatsCache.has(eventId)) setLoading(true);
     setError(null);
     try {
       const response = await nuruCardsApi.getEventCheckInStats(eventId);
       if (response.success) {
+        _checkInStatsCache.set(eventId, response.data);
         setStats(response.data);
       } else {
         setError(response.message || "Failed to fetch stats");

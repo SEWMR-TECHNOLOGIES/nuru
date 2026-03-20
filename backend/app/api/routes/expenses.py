@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from models import (
     Event, EventExpense, EventCommitteeMember, CommitteePermission,
-    User, UserProfile, Currency,
+    User, UserProfile, Currency, UserService,
 )
 from utils.auth import get_current_user
 from utils.helpers import standard_response, format_price
@@ -79,6 +79,19 @@ def _expense_to_dict(expense: EventExpense, db: Session) -> dict:
         if recorder:
             recorder_name = f"{recorder.first_name} {recorder.last_name}"
 
+    # Vendor details
+    vendor_info = None
+    if expense.vendor_id:
+        vs = expense.vendor
+        if vs:
+            vendor_info = {
+                "id": str(vs.id),
+                "title": vs.title,
+                "category_name": vs.category.name if vs.category else None,
+                "location": vs.location,
+                "is_verified": vs.is_verified,
+            }
+
     return {
         "id": str(expense.id),
         "event_id": str(expense.event_id),
@@ -88,6 +101,8 @@ def _expense_to_dict(expense: EventExpense, db: Session) -> dict:
         "payment_method": expense.payment_method,
         "payment_reference": expense.payment_reference,
         "vendor_name": expense.vendor_name,
+        "vendor_id": str(expense.vendor_id) if expense.vendor_id else None,
+        "vendor": vendor_info,
         "receipt_url": expense.receipt_url,
         "expense_date": expense.expense_date.isoformat() if expense.expense_date else None,
         "notes": expense.notes,
@@ -184,6 +199,7 @@ class ExpenseCreate(BaseModel):
     payment_method: Optional[str] = None
     payment_reference: Optional[str] = None
     vendor_name: Optional[str] = None
+    vendor_id: Optional[str] = None
     expense_date: Optional[str] = None
     notes: Optional[str] = None
     notify_committee: Optional[bool] = False
@@ -223,6 +239,7 @@ def add_expense(
         payment_method=body.payment_method,
         payment_reference=body.payment_reference,
         vendor_name=body.vendor_name,
+        vendor_id=uuid.UUID(body.vendor_id) if body.vendor_id else None,
         expense_date=exp_date,
         notes=body.notes,
     )
@@ -317,6 +334,7 @@ class ExpenseUpdate(BaseModel):
     payment_method: Optional[str] = None
     payment_reference: Optional[str] = None
     vendor_name: Optional[str] = None
+    vendor_id: Optional[str] = None
     expense_date: Optional[str] = None
     notes: Optional[str] = None
 
@@ -358,6 +376,8 @@ def update_expense(
         expense.payment_reference = body.payment_reference
     if body.vendor_name is not None:
         expense.vendor_name = body.vendor_name
+    if body.vendor_id is not None:
+        expense.vendor_id = uuid.UUID(body.vendor_id) if body.vendor_id else None
     if body.notes is not None:
         expense.notes = body.notes
     if body.expense_date:
@@ -454,6 +474,7 @@ def get_expense_report(
             "description": e.description,
             "amount": float(e.amount) if e.amount else 0,
             "vendor_name": e.vendor_name,
+            "vendor_id": str(e.vendor_id) if e.vendor_id else None,
             "expense_date": e.expense_date.isoformat() if e.expense_date else None,
             "payment_method": e.payment_method,
             "recorded_by_name": recorder_name,

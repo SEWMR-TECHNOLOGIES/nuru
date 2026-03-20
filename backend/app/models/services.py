@@ -55,6 +55,8 @@ class UserService(Base):
     photo_libraries = relationship("ServicePhotoLibrary", back_populates="user_service")
     intro_media = relationship("ServiceIntroMedia", back_populates="user_service")
     business_phone = relationship("ServiceBusinessPhone", back_populates="services")
+    budget_items = relationship("EventBudgetItem", back_populates="vendor", foreign_keys="[EventBudgetItem.vendor_id]")
+    expense_items = relationship("EventExpense", back_populates="vendor", foreign_keys="[EventExpense.vendor_id]")
 
 
 class UserServiceImage(Base):

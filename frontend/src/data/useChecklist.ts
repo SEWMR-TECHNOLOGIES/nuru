@@ -1,5 +1,6 @@
 /**
  * Event Checklist Data Hook
+ * Uses initialLoad pattern to prevent skeleton re-renders on background refetch.
  */
 
 import { useState, useCallback, useEffect } from "react";
@@ -8,21 +9,25 @@ import { templatesApi } from "@/lib/api/templates";
 import type { ChecklistItem, EventTemplate } from "@/lib/api/templates";
 import { throwApiError } from "@/lib/api/showApiErrors";
 
+const _checklistCache = new Map<string, { items: ChecklistItem[]; summary: any }>();
+
 export const useEventChecklist = (eventId: string | null) => {
-  const [items, setItems] = useState<ChecklistItem[]>([]);
+  const cached = eventId ? _checklistCache.get(eventId) : null;
+  const [items, setItems] = useState<ChecklistItem[]>(cached?.items || []);
   const [summary, setSummary] = useState<{
     total: number; completed: number; in_progress: number; pending: number; progress_percentage: number;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
+  } | null>(cached?.summary || null);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
 
   const fetchChecklist = useCallback(async () => {
     if (!eventId) return;
-    setLoading(true);
+    if (!_checklistCache.has(eventId)) setLoading(true);
     setError(null);
     try {
       const response = await eventsApi.getChecklist(eventId);
       if (response.success) {
+        _checklistCache.set(eventId, { items: response.data.items, summary: response.data.summary });
         setItems(response.data.items);
         setSummary(response.data.summary);
       } else {
@@ -82,15 +87,20 @@ export const useEventChecklist = (eventId: string | null) => {
   return { items, summary, loading, error, refetch: fetchChecklist, addItem, updateItem, deleteItem, applyTemplate };
 };
 
+let _templatesCache: EventTemplate[] = [];
+let _templatesHasLoaded = false;
+
 export const useEventTemplates = (eventTypeId?: string) => {
-  const [templates, setTemplates] = useState<EventTemplate[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [templates, setTemplates] = useState<EventTemplate[]>(_templatesCache);
+  const [loading, setLoading] = useState(!_templatesHasLoaded);
 
   const fetchTemplates = useCallback(async () => {
-    setLoading(true);
+    if (!_templatesHasLoaded) setLoading(true);
     try {
       const response = await templatesApi.getAll(eventTypeId);
       if (response.success) {
+        _templatesCache = response.data;
+        _templatesHasLoaded = true;
         setTemplates(response.data);
       }
     } catch {

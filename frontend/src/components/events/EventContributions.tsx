@@ -71,7 +71,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
     refetch: refetchEC, addToEvent, updateEventContributor, removeFromEvent, recordPayment, getPaymentHistory 
   } = useEventContributors(eventId);
 
-  usePolling(() => { refetchEC(); }, 15000);
+  
   const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -142,6 +142,10 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
   const [addingAsGuests, setAddingAsGuests] = useState(false);
   const [guestBatchDialogOpen, setGuestBatchDialogOpen] = useState(false);
   const [messagingOpen, setMessagingOpen] = useState(false);
+
+  // Pause polling when any dialog is open to prevent form disruption
+  const anyDialogOpen = addContributorDialogOpen || paymentDialogOpen || editPledgeDialogOpen || thankYouDialogOpen || reportDateDialogOpen || reportPreviewOpen || historyDialogOpen || bulkDialogOpen || guestBatchDialogOpen;
+  usePolling(() => { refetchEC(); }, 15000, !anyDialogOpen);
 
   const fetchPending = async () => {
     if (!isCreator) return;

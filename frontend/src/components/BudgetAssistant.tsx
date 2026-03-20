@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Download, Loader2, Send } from 'lucide-react';
+import { Download, Loader2, Send, Import } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogPortal, DialogOverlay } from '@/components/ui/dialog';
@@ -24,11 +24,18 @@ interface EventContext {
   budget: string;
 }
 
+export interface BudgetAssistantItem {
+  category: string;
+  item_name: string;
+  estimated_cost: number;
+}
+
 interface BudgetAssistantProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   eventContext: EventContext;
   onSaveBudget: (amount: string) => void;
+  onImportItems?: (items: BudgetAssistantItem[]) => void;
 }
 
 interface ChatMessage {
@@ -69,11 +76,35 @@ BUDGET FORMAT (when generating):
 - Costs must be realistic for Tanzania in TZS.`;
 };
 
+/** Parse a markdown budget table into structured items */
+const parseBudgetTable = (content: string): BudgetAssistantItem[] => {
+  const items: BudgetAssistantItem[] = [];
+  const lines = content.split('\n');
+  for (const line of lines) {
+    if (!line.includes('|')) continue;
+    const cells = line.split('|').map(c => c.trim()).filter(Boolean);
+    if (cells.length < 3) continue;
+    // Skip header/separator rows
+    if (cells[0].includes('---') || cells[0].toLowerCase() === 'category') continue;
+    // Skip TOTAL row
+    if (cells[0].replace(/\*/g, '').trim().toLowerCase() === 'total') continue;
+    const category = cells[0].replace(/\*/g, '').trim();
+    const description = cells[1].replace(/\*/g, '').trim();
+    const costStr = cells[2].replace(/\*/g, '').replace(/[^\d]/g, '');
+    const cost = parseInt(costStr);
+    if (category && description && cost > 0) {
+      items.push({ category, item_name: description, estimated_cost: cost });
+    }
+  }
+  return items;
+};
+
 const BudgetAssistant: React.FC<BudgetAssistantProps> = ({
   open,
   onOpenChange,
   eventContext,
   onSaveBudget,
+  onImportItems,
 }) => {
   const { data: currentUser } = useCurrentUser();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -363,7 +394,7 @@ const BudgetAssistant: React.FC<BudgetAssistantProps> = ({
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              className="px-4 py-2.5 border-t border-border flex gap-2 flex-shrink-0 bg-muted/30"
+              className="px-4 py-2.5 border-t border-border flex gap-2 flex-wrap flex-shrink-0 bg-muted/30"
             >
               <Button
                 variant="outline"
@@ -374,6 +405,27 @@ const BudgetAssistant: React.FC<BudgetAssistantProps> = ({
                 <Download className="w-3.5 h-3.5" />
                 Download PDF
               </Button>
+              {onImportItems && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && m.content.includes('|'));
+                    if (!lastAssistant) { toast.error('No budget table found'); return; }
+                    const parsed = parseBudgetTable(lastAssistant.content);
+                    if (parsed.length === 0) { toast.error('Could not parse budget items'); return; }
+                    onImportItems(parsed);
+                    onOpenChange(false);
+                  }}
+                  className="flex-1 h-9 rounded-xl text-xs gap-1.5"
+                >
+                  <Import className="w-3.5 h-3.5" />
+                  Import Items ({(() => {
+                    const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && m.content.includes('|'));
+                    return lastAssistant ? parseBudgetTable(lastAssistant.content).length : 0;
+                  })()})
+                </Button>
+              )}
               {extractedTotal && (
                 <Button
                   size="sm"

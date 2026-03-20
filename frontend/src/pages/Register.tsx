@@ -156,7 +156,6 @@ const Register = () => {
       try {
         const res = await api.auth.validateName(name);
         const isAllowlisted = REAL_NAME_ALLOWLIST.has(name.trim().toLowerCase());
-        console.log("[name-validation]", { name, res, isAllowlisted, valid: res?.data?.valid });
         if (res.success && res.data && !res.data.valid && !isAllowlisted) {
           setError(res.data.reason || "Please use your real name");
           setValid(false);

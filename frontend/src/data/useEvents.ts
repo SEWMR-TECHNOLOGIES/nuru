@@ -1,8 +1,9 @@
 /**
  * Events Data Hooks
+ * All hooks use initialLoad ref pattern to prevent skeleton re-renders on background refetch.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { eventsApi, EventQueryParams, GuestQueryParams, ContributionQueryParams } from "@/lib/api/events";
 import { throwApiError } from "@/lib/api/showApiErrors";
 import type { 
@@ -54,19 +55,25 @@ export const useEvents = (initialParams?: EventQueryParams) => {
 };
 
 // ============================================================================
-// SINGLE EVENT
+// SINGLE EVENT (with initialLoad ref)
 // ============================================================================
 
+// Module-level cache for single events
+const _eventCache = new Map<string, Event>();
+
 export const useEvent = (eventId: string | null) => {
-  const [event, setEvent] = useState<Event | null>(null);
-  const [loading, setLoading] = useState(true);
+  const cached = eventId ? _eventCache.get(eventId) : null;
+  const [event, setEvent] = useState<Event | null>(cached || null);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
 
   const fetchEvent = useCallback(async () => {
     if (!eventId) return;
+    if (!_eventCache.has(eventId)) setLoading(true);
     try {
       const response = await eventsApi.getById(eventId);
       if (response.success) {
+        _eventCache.set(eventId, response.data);
         setEvent(response.data);
       } else {
         setError(response.message || "Failed to fetch event");
@@ -86,21 +93,26 @@ export const useEvent = (eventId: string | null) => {
 };
 
 // ============================================================================
-// EVENT GUESTS
+// EVENT GUESTS (with initialLoad ref)
 // ============================================================================
 
+const _guestsCache = new Map<string, { guests: EventGuest[]; summary: any; pagination: any }>();
+
 export const useEventGuests = (eventId: string | null, initialParams?: GuestQueryParams) => {
-  const [guests, setGuests] = useState<EventGuest[]>([]);
-  const [summary, setSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const cached = eventId ? _guestsCache.get(eventId) : null;
+  const [guests, setGuests] = useState<EventGuest[]>(cached?.guests || []);
+  const [summary, setSummary] = useState<any>(cached?.summary || null);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState<any>(null);
+  const [pagination, setPagination] = useState<any>(cached?.pagination || null);
 
   const fetchGuests = useCallback(async (params?: GuestQueryParams) => {
     if (!eventId) return;
+    if (!_guestsCache.has(eventId)) setLoading(true);
     try {
       const response = await eventsApi.getGuests(eventId, params || initialParams);
       if (response.success) {
+        _guestsCache.set(eventId, { guests: response.data.guests, summary: response.data.summary, pagination: response.data.pagination });
         setGuests(response.data.guests);
         setSummary(response.data.summary);
         setPagination(response.data.pagination);
@@ -204,19 +216,24 @@ export const useEventGuests = (eventId: string | null, initialParams?: GuestQuer
 };
 
 // ============================================================================
-// EVENT COMMITTEE
+// EVENT COMMITTEE (with initialLoad ref)
 // ============================================================================
 
+const _committeeCache = new Map<string, CommitteeMember[]>();
+
 export const useEventCommittee = (eventId: string | null) => {
-  const [members, setMembers] = useState<CommitteeMember[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = eventId ? _committeeCache.get(eventId) : null;
+  const [members, setMembers] = useState<CommitteeMember[]>(cached || []);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCommittee = useCallback(async () => {
     if (!eventId) return;
+    if (!_committeeCache.has(eventId)) setLoading(true);
     try {
       const response = await eventsApi.getCommittee(eventId);
       if (response.success) {
+        _committeeCache.set(eventId, response.data);
         setMembers(response.data);
       } else {
         setError(response.message || "Failed to fetch committee");
@@ -278,21 +295,26 @@ export const useEventCommittee = (eventId: string | null) => {
 };
 
 // ============================================================================
-// EVENT CONTRIBUTIONS
+// EVENT CONTRIBUTIONS (with initialLoad ref)
 // ============================================================================
 
+const _contributionsCache = new Map<string, { contributions: EventContribution[]; summary: any; pagination: any }>();
+
 export const useEventContributions = (eventId: string | null, initialParams?: ContributionQueryParams) => {
-  const [contributions, setContributions] = useState<EventContribution[]>([]);
-  const [summary, setSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const cached = eventId ? _contributionsCache.get(eventId) : null;
+  const [contributions, setContributions] = useState<EventContribution[]>(cached?.contributions || []);
+  const [summary, setSummary] = useState<any>(cached?.summary || null);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState<any>(null);
+  const [pagination, setPagination] = useState<any>(cached?.pagination || null);
 
   const fetchContributions = useCallback(async (params?: ContributionQueryParams) => {
     if (!eventId) return;
+    if (!_contributionsCache.has(eventId)) setLoading(true);
     try {
       const response = await eventsApi.getContributions(eventId, params || initialParams);
       if (response.success) {
+        _contributionsCache.set(eventId, { contributions: response.data.contributions, summary: response.data.summary, pagination: response.data.pagination });
         setContributions(response.data.contributions);
         setSummary(response.data.summary);
         setPagination(response.data.pagination);
@@ -370,21 +392,25 @@ export const useEventContributions = (eventId: string | null, initialParams?: Co
 };
 
 // ============================================================================
-// EVENT SCHEDULE
+// EVENT SCHEDULE (with initialLoad ref)
 // ============================================================================
 
+const _scheduleCache = new Map<string, EventScheduleItem[]>();
+
 export const useEventSchedule = (eventId: string | null) => {
-  const [schedule, setSchedule] = useState<EventScheduleItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = eventId ? _scheduleCache.get(eventId) : null;
+  const [schedule, setSchedule] = useState<EventScheduleItem[]>(cached || []);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
 
   const fetchSchedule = useCallback(async () => {
     if (!eventId) return;
-    setLoading(true);
+    if (!_scheduleCache.has(eventId)) setLoading(true);
     setError(null);
     try {
       const response = await eventsApi.getSchedule(eventId);
       if (response.success) {
+        _scheduleCache.set(eventId, response.data);
         setSchedule(response.data);
       } else {
         setError(response.message || "Failed to fetch schedule");
@@ -446,22 +472,27 @@ export const useEventSchedule = (eventId: string | null) => {
 };
 
 // ============================================================================
-// EVENT BUDGET
+// EVENT BUDGET (with initialLoad ref)
 // ============================================================================
 
+const _budgetCache = new Map<string, { items: EventBudgetItem[]; summary: any }>();
+
 export const useEventBudget = (eventId: string | null) => {
-  const [items, setItems] = useState<EventBudgetItem[]>([]);
-  const [summary, setSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const cached = eventId ? _budgetCache.get(eventId) : null;
+  const [items, setItems] = useState<EventBudgetItem[]>(cached?.items || []);
+  const [summary, setSummary] = useState<any>(cached?.summary || null);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
+  const initialLoadDone = useRef(!!cached);
 
   const fetchBudget = useCallback(async () => {
     if (!eventId) return;
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     setError(null);
     try {
       const response = await eventsApi.getBudget(eventId);
       if (response.success) {
+        _budgetCache.set(eventId, { items: response.data.items, summary: response.data.summary });
         setItems(response.data.items);
         setSummary(response.data.summary);
       } else {
@@ -471,6 +502,7 @@ export const useEventBudget = (eventId: string | null) => {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
+      initialLoadDone.current = true;
     }
   }, [eventId]);
 

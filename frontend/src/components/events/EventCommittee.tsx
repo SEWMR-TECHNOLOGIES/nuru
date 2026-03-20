@@ -88,7 +88,7 @@ const AVAILABLE_PERMISSIONS = [
 const EventCommittee = ({ eventId, permissions, eventTitle }: EventCommitteeProps) => {
   const canManageCommittee = permissions?.can_manage_committee || permissions?.is_creator;
   const { members, loading, error, addMember, updateMember, removeMember, refetch } = useEventCommittee(eventId);
-  usePolling(refetch, 15000);
+  
   const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -110,6 +110,10 @@ const EventCommittee = ({ eventId, permissions, eventTitle }: EventCommitteeProp
   const [editCustomRole, setEditCustomRole] = useState('');
   const [editPermissions, setEditPermissions] = useState<string[]>([]);
   const [reportOpen, setReportOpen] = useState(false);
+
+  // Pause polling when any dialog is open to prevent form disruption
+  const anyDialogOpen = addDialogOpen || editDialogOpen || reportOpen;
+  usePolling(refetch, 15000, !anyDialogOpen);
 
   const formatPhoneDisplay = (phone?: string | null): string => {
     if (!phone) return '';
@@ -333,7 +337,7 @@ const EventCommittee = ({ eventId, permissions, eventTitle }: EventCommitteeProp
   };
 
   if (loading) return <CommitteeSkeletonLoader />;
-  if (error) return <div className="p-6 text-center text-red-500">{error}</div>;
+  if (error) return <div className="p-6 text-center text-destructive">{error}</div>;
 
   return (
     <div className="space-y-6">

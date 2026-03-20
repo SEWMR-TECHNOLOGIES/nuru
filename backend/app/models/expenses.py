@@ -21,6 +21,7 @@ class EventExpense(Base):
     payment_method = Column(Text)
     payment_reference = Column(Text)
     vendor_name = Column(Text)
+    vendor_id = Column(UUID(as_uuid=True), ForeignKey('user_services.id', ondelete='SET NULL'), nullable=True)
     receipt_url = Column(Text)
     expense_date = Column(DateTime, server_default=func.now())
     notes = Column(Text)
@@ -30,3 +31,4 @@ class EventExpense(Base):
     # Relationships
     event = relationship("Event", back_populates="expenses")
     recorder = relationship("User", back_populates="recorded_expenses", foreign_keys=[recorded_by])
+    vendor = relationship("UserService", back_populates="expense_items", foreign_keys=[vendor_id])

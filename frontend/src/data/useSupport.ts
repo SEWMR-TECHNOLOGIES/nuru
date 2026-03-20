@@ -1,5 +1,6 @@
 /**
  * Support Data Hooks
+ * Uses initialLoad pattern to prevent skeleton re-renders.
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -64,18 +65,22 @@ export const useMyTickets = (initialParams?: { page?: number; limit?: number; st
   return { tickets, summary, loading, error, pagination, refetch: fetchTickets, createTicket };
 };
 
+const _ticketCache = new Map<string, SupportTicket>();
+
 export const useTicket = (ticketId: string | null) => {
-  const [ticket, setTicket] = useState<SupportTicket | null>(null);
-  const [loading, setLoading] = useState(true);
+  const cached = ticketId ? _ticketCache.get(ticketId) : null;
+  const [ticket, setTicket] = useState<SupportTicket | null>(cached || null);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
 
   const fetchTicket = useCallback(async () => {
     if (!ticketId) return;
-    setLoading(true);
+    if (!_ticketCache.has(ticketId)) setLoading(true);
     setError(null);
     try {
       const response = await supportApi.getTicket(ticketId);
       if (response.success) {
+        _ticketCache.set(ticketId, response.data);
         setTicket(response.data);
       } else {
         setError(response.message || "Failed to fetch ticket");
@@ -154,17 +159,22 @@ export const useTicket = (ticketId: string | null) => {
 // FAQs
 // ============================================================================
 
+let _faqCategoriesCache: FAQCategory[] = [];
+let _faqCategoriesHasLoaded = false;
+
 export const useFAQCategories = () => {
-  const [categories, setCategories] = useState<FAQCategory[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState<FAQCategory[]>(_faqCategoriesCache);
+  const [loading, setLoading] = useState(!_faqCategoriesHasLoaded);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCategories = useCallback(async () => {
-    setLoading(true);
+    if (!_faqCategoriesHasLoaded) setLoading(true);
     setError(null);
     try {
       const response = await supportApi.getFAQCategories();
       if (response.success) {
+        _faqCategoriesCache = response.data;
+        _faqCategoriesHasLoaded = true;
         setCategories(response.data);
       } else {
         setError(response.message || "Failed to fetch categories");
@@ -183,17 +193,22 @@ export const useFAQCategories = () => {
   return { categories, loading, error, refetch: fetchCategories };
 };
 
+let _faqsCache: FAQ[] = [];
+let _faqsHasLoaded = false;
+
 export const useFAQs = (category?: string, search?: string) => {
-  const [faqs, setFaqs] = useState<FAQ[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [faqs, setFaqs] = useState<FAQ[]>(_faqsCache);
+  const [loading, setLoading] = useState(!_faqsHasLoaded);
   const [error, setError] = useState<string | null>(null);
 
   const fetchFAQs = useCallback(async () => {
-    setLoading(true);
+    if (!_faqsHasLoaded) setLoading(true);
     setError(null);
     try {
       const response = await supportApi.getFAQs({ category, search });
       if (response.success) {
+        _faqsCache = response.data;
+        _faqsHasLoaded = true;
         setFaqs(response.data);
       } else {
         setError(response.message || "Failed to fetch FAQs");
@@ -213,7 +228,6 @@ export const useFAQs = (category?: string, search?: string) => {
     try {
       const response = await supportApi.rateFAQ(faqId, { helpful });
       if (response.success) {
-        // Update local state
         setFaqs(prev => prev.map(faq => 
           faq.id === faqId 
             ? { 
@@ -325,17 +339,22 @@ export const useLiveChat = () => {
 // CONTACT
 // ============================================================================
 
+let _contactInfoCache: any = null;
+let _contactInfoHasLoaded = false;
+
 export const useContactInfo = () => {
-  const [info, setInfo] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [info, setInfo] = useState<any>(_contactInfoCache);
+  const [loading, setLoading] = useState(!_contactInfoHasLoaded);
   const [error, setError] = useState<string | null>(null);
 
   const fetchInfo = useCallback(async () => {
-    setLoading(true);
+    if (!_contactInfoHasLoaded) setLoading(true);
     setError(null);
     try {
       const response = await supportApi.getContactInfo();
       if (response.success) {
+        _contactInfoCache = response.data;
+        _contactInfoHasLoaded = true;
         setInfo(response.data);
       } else {
         setError(response.message || "Failed to fetch contact info");

@@ -11,7 +11,6 @@ export function useAuthSync() {
       if (!event.key) return;
 
       if (event.key === "logout") {
-        console.log("Detected logout in another tab");
 
         queryClient.setQueryData(["currentUser"], null);
 
@@ -19,7 +18,6 @@ export function useAuthSync() {
       }
 
       if (event.key === "login") {
-        console.log("Detected login in another tab");
 
         // Refresh current user data
         queryClient.invalidateQueries({ queryKey: ["currentUser"] });

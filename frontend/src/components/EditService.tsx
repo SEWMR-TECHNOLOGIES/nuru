@@ -312,8 +312,8 @@ const EditService = () => {
   };
 
   if (loading) return <ServiceDetailLoadingSkeleton />;
-  if (error) return <p className="text-red-500">{error}</p>;
-  if (!service) return <p className="text-red-500">Service not found</p>;
+  if (error) return <p className="text-destructive">{error}</p>;
+  if (!service) return <p className="text-destructive">Service not found</p>;
 
 
   return (

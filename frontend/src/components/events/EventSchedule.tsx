@@ -8,6 +8,8 @@ import {
   Trash,
   GripVertical
 } from 'lucide-react';
+import DeleteOverlay from '@/components/ui/DeleteOverlay';
+import { useDeleteTracker } from '@/hooks/useDeleteTracker';
 import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
@@ -42,6 +44,7 @@ const EventSchedule = ({ eventId }: EventScheduleProps) => {
   const { schedule, loading, error, addItem, updateItem, deleteItem, refetch } = useEventSchedule(eventId);
   
   const { confirm, ConfirmDialog } = useConfirmDialog();
+  const { trackDelete, isDeleting } = useDeleteTracker();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<EventScheduleItem | null>(null);
@@ -121,12 +124,14 @@ const EventSchedule = ({ eventId }: EventScheduleProps) => {
     });
     if (!confirmed) return;
     
-    try {
-      await deleteItem(itemId);
-      toast.success('Schedule item deleted');
-    } catch (err: any) {
-      showCaughtError(err, 'Failed to delete item');
-    }
+    await trackDelete(itemId, async () => {
+      try {
+        await deleteItem(itemId);
+        toast.success('Schedule item deleted');
+      } catch (err: any) {
+        showCaughtError(err, 'Failed to delete item');
+      }
+    });
   };
 
   const openEditDialog = (item: EventScheduleItem) => {
@@ -164,7 +169,7 @@ const EventSchedule = ({ eventId }: EventScheduleProps) => {
   }
 
   if (error) {
-    return <div className="p-6 text-center text-red-500">{error}</div>;
+    return <div className="p-6 text-center text-destructive">{error}</div>;
   }
 
   return (
@@ -201,7 +206,8 @@ const EventSchedule = ({ eventId }: EventScheduleProps) => {
               {schedule
                 .sort((a, b) => a.display_order - b.display_order || a.start_time.localeCompare(b.start_time))
                 .map((item, index) => (
-                  <div key={item.id} className="flex gap-4">
+                  <div key={item.id} className="flex gap-4 relative">
+                    <DeleteOverlay visible={isDeleting(item.id)} />
                     {/* Time Column */}
                     <div className="w-24 flex-shrink-0 text-right">
                       <p className="font-semibold text-primary">{formatTime(item.start_time)}</p>

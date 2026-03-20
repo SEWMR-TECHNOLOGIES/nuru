@@ -1,18 +1,23 @@
 import { useState } from "react";
 import { api, EventType } from "@/lib/api";
 
+let _eventTypesCache: EventType[] = [];
+let _eventTypesHasLoaded = false;
+
 export const useEventTypes = () => {
-  const [eventTypes, setEventTypes] = useState<EventType[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [eventTypes, setEventTypes] = useState<EventType[]>(_eventTypesCache);
+  const [loading, setLoading] = useState(!_eventTypesHasLoaded);
   const [error, setError] = useState<string | null>(null);
 
   const fetchEventTypes = async () => {
-    setLoading(true);
+    if (!_eventTypesHasLoaded) setLoading(true);
     setError(null);
 
     try {
       const response = await api.references.getEventTypes();
       if (response.success) {
+        _eventTypesCache = response.data;
+        _eventTypesHasLoaded = true;
         setEventTypes(response.data);
       } else {
         setError(response.message || "Failed to fetch event types");

@@ -49,7 +49,6 @@ const TrendingMoments = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log('TrendingMoments: Fetching data...');
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID || 'lmfprculxhspqxppscbn'}.supabase.co`;
     const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtZnByY3VseGhzcHF4cHBzY2JuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk5NTUyMjAsImV4cCI6MjA3NTUzMTIyMH0.1ecxgLKtqHGLQpZpbNsWil6gxkuKH7RtecR6D0aCLJs';
 
@@ -64,14 +63,13 @@ const TrendingMoments = () => {
     })
       .then(res => res.json())
       .then(res => {
-        console.log('TrendingMoments: Response', res);
         const posts = res?.data || [];
         if (Array.isArray(posts) && posts.length > 0) {
           setPosts(posts);
         }
       })
       .catch(err => {
-        console.error('TrendingMoments: Fetch error', err);
+        // silent - trending is non-critical
       })
       .finally(() => setLoading(false));
   }, []);

@@ -1,6 +1,7 @@
 /**
  * Data hooks for user contributors and event contributors
  * FIXED: Auto-pagination to load all contributors (not just first 50)
+ * Uses initialLoad pattern to prevent skeleton re-renders.
  */
 import { useState, useEffect, useCallback } from "react";
 import { contributorsApi, UserContributor, EventContributorSummary, ContributorPayment } from "@/lib/api/contributors";
@@ -10,18 +11,21 @@ import { throwApiError } from "@/lib/api/showApiErrors";
 // EVENT CONTRIBUTORS
 // ============================================================================
 
+const _eventContributorsCache = new Map<string, { contributors: EventContributorSummary[]; summary: any; pagination: any }>();
+
 export const useEventContributors = (eventId: string | null) => {
-  const [eventContributors, setEventContributors] = useState<EventContributorSummary[]>([]);
-  const [summary, setSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const cached = eventId ? _eventContributorsCache.get(eventId) : null;
+  const [eventContributors, setEventContributors] = useState<EventContributorSummary[]>(cached?.contributors || []);
+  const [summary, setSummary] = useState<any>(cached?.summary || null);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState<any>(null);
+  const [pagination, setPagination] = useState<any>(cached?.pagination || null);
 
   const fetchEventContributors = useCallback(async (params?: { page?: number; limit?: number; search?: string }) => {
     if (!eventId) return;
+    if (!_eventContributorsCache.has(eventId)) setLoading(true);
     try {
       // Fetch ALL event contributors in a single request (limit=1000)
-      // This avoids multi-page pagination bugs caused by stateless serverless backends
       const response = await contributorsApi.getEventContributors(eventId, {
         ...params,
         page: 1,
@@ -40,6 +44,7 @@ export const useEventContributors = (eventId: string | null) => {
           paid_count: contributors.filter(c => (c.total_paid || 0) > 0).length,
         };
 
+        _eventContributorsCache.set(eventId, { contributors, summary: enrichedSummary, pagination: response.data.pagination });
         setEventContributors(contributors);
         setSummary(enrichedSummary);
         setPagination(response.data.pagination);

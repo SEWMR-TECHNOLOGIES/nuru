@@ -76,18 +76,22 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
 // POSTS
 // ============================================================================
 
+const _postCache = new Map<string, FeedPost>();
+
 export const usePost = (postId: string | null) => {
-  const [post, setPost] = useState<FeedPost | null>(null);
-  const [loading, setLoading] = useState(true);
+  const cached = postId ? _postCache.get(postId) : null;
+  const [post, setPost] = useState<FeedPost | null>(cached || null);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
 
   const fetchPost = useCallback(async () => {
     if (!postId) return;
-    setLoading(true);
+    if (!_postCache.has(postId)) setLoading(true);
     setError(null);
     try {
       const response = await socialApi.getPost(postId);
       if (response.success) {
+        _postCache.set(postId, response.data);
         setPost(response.data);
       } else {
         setError(response.message || "Failed to fetch post");
@@ -134,21 +138,26 @@ export const usePost = (postId: string | null) => {
   return { post, loading, error, refetch: fetchPost, glowPost, unglowPost };
 };
 
+const _commentsCache = new Map<string, { comments: any[]; pagination: any }>();
+
 export const usePostComments = (postId: string | null) => {
-  const [comments, setComments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = postId ? _commentsCache.get(postId) : null;
+  const [comments, setComments] = useState<any[]>(cached?.comments || []);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState<any>(null);
+  const [pagination, setPagination] = useState<any>(cached?.pagination || null);
 
   const fetchComments = useCallback(async (params?: { page?: number; limit?: number }) => {
     if (!postId) return;
-    setLoading(true);
+    if (!_commentsCache.has(postId)) setLoading(true);
     setError(null);
     try {
       const response = await socialApi.getComments(postId, params);
       if (response.success) {
         const data = response.data as any;
-        setComments(data?.comments || data?.items || (Array.isArray(data) ? data : []));
+        const items = data?.comments || data?.items || (Array.isArray(data) ? data : []);
+        _commentsCache.set(postId, { comments: items, pagination: data?.pagination });
+        setComments(items);
         setPagination(data?.pagination);
       } else {
         setError(response.message || "Failed to fetch comments");
@@ -779,20 +788,25 @@ export const useConversations = () => {
   return { conversations, unreadCount, loading, error, refetch: fetchConversations, clearUnread };
 };
 
+const _messagesCache = new Map<string, any[]>();
+
 export const useConversationMessages = (conversationId: string | null) => {
-  const [messages, setMessages] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = conversationId ? _messagesCache.get(conversationId) : null;
+  const [messages, setMessages] = useState<any[]>(cached || []);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
 
   const fetchMessages = useCallback(async () => {
     if (!conversationId) return;
-    setLoading(true);
+    if (!_messagesCache.has(conversationId)) setLoading(true);
     setError(null);
     try {
       const response = await socialApi.getMessages(conversationId);
       if (response.success) {
         const data = response.data as any;
-        setMessages(Array.isArray(data) ? data : data?.items || data?.messages || []);
+        const items = Array.isArray(data) ? data : data?.items || data?.messages || [];
+        _messagesCache.set(conversationId, items);
+        setMessages(items);
       } else {
         setError(response.message || "Failed to fetch messages");
       }
@@ -809,8 +823,12 @@ export const useConversationMessages = (conversationId: string | null) => {
 
   // FIX: Wrapped in useCallback for stability
   const appendMessage = useCallback((msg: any) => {
-    setMessages(prev => [...prev, msg]);
-  }, []);
+    setMessages(prev => {
+      const updated = [...prev, msg];
+      if (conversationId) _messagesCache.set(conversationId, updated);
+      return updated;
+    });
+  }, [conversationId]);
 
   return { messages, loading, error, refetch: fetchMessages, setMessages, appendMessage };
 };

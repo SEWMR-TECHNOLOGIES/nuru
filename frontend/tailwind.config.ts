@@ -23,10 +23,11 @@ export default {
         tablet: "1024px",
       },
       fontFamily: {
-        sans: ["Inter", "sans-serif"], // Default font for public pages
+        sans: ["Inter", "sans-serif"],
+        heading: ["Inter", "sans-serif"],
         inter: ["Inter", "sans-serif"],
-        literata: ["Literata", "serif"],
-        nunito: ["Nunito", "sans-serif"],
+        literata: ["Inter", "serif"],
+        nunito: ["Inter", "sans-serif"],
         mono: ["Space Mono", "monospace"],
       },
       colors: {

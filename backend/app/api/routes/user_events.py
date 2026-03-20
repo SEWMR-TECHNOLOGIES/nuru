@@ -49,6 +49,29 @@ router = APIRouter(prefix="/user-events", tags=["User Events"])
 # Shared Helpers
 # ──────────────────────────────────────────────
 
+def _vendor_summary(vendor) -> dict | None:
+    """Return a compact vendor summary for budget items and expenses."""
+    if not vendor:
+        return None
+    primary_image = None
+    if hasattr(vendor, 'images') and vendor.images:
+        for img in vendor.images:
+            if getattr(img, 'is_primary', False):
+                primary_image = img.image_url if hasattr(img, 'image_url') else getattr(img, 'url', None)
+                break
+        if not primary_image and vendor.images:
+            first_img = vendor.images[0]
+            primary_image = first_img.image_url if hasattr(first_img, 'image_url') else getattr(first_img, 'url', None)
+    return {
+        "id": str(vendor.id),
+        "title": vendor.title,
+        "category_name": vendor.category.name if vendor.category else None,
+        "service_type_name": vendor.service_type.name if vendor.service_type else None,
+        "location": vendor.location,
+        "primary_image": primary_image,
+        "is_verified": vendor.is_verified,
+    }
+
 def _currency_code(db: Session, currency_id) -> str | None:
     if not currency_id:
         return None
@@ -675,7 +698,7 @@ def get_event(event_id: str, db: Session = Depends(get_db), current_user: User =
 
     # Budget
     budget_items = db.query(EventBudgetItem).filter(EventBudgetItem.event_id == eid).all()
-    data["budget_items"] = [{"id": str(bi.id), "category": bi.category, "item_name": bi.item_name, "estimated_cost": float(bi.estimated_cost) if bi.estimated_cost else None, "actual_cost": float(bi.actual_cost) if bi.actual_cost else None, "vendor_name": bi.vendor_name, "status": bi.status, "notes": bi.notes} for bi in budget_items]
+    data["budget_items"] = [{"id": str(bi.id), "category": bi.category, "item_name": bi.item_name, "estimated_cost": float(bi.estimated_cost) if bi.estimated_cost else None, "actual_cost": float(bi.actual_cost) if bi.actual_cost else None, "vendor_name": bi.vendor_name, "vendor_id": str(bi.vendor_id) if bi.vendor_id else None, "vendor": _vendor_summary(bi.vendor) if bi.vendor_id else None, "status": bi.status, "notes": bi.notes} for bi in budget_items]
 
     return standard_response(True, "Event retrieved successfully", data)
 
@@ -2668,13 +2691,13 @@ def get_budget(event_id: str, db: Session = Depends(get_db), current_user: User 
     if err:
         return err
 
-    items = db.query(EventBudgetItem).filter(EventBudgetItem.event_id == eid).all()
+    items = db.query(EventBudgetItem).filter(EventBudgetItem.event_id == eid).order_by(EventBudgetItem.category, EventBudgetItem.item_name).all()
     total_estimated = sum(float(bi.estimated_cost) for bi in items if bi.estimated_cost)
     total_actual = sum(float(bi.actual_cost) for bi in items if bi.actual_cost)
 
     return standard_response(True, "Budget retrieved successfully", {
-        "items": [{"id": str(bi.id), "category": bi.category, "item_name": bi.item_name, "estimated_cost": float(bi.estimated_cost) if bi.estimated_cost else None, "actual_cost": float(bi.actual_cost) if bi.actual_cost else None, "vendor_name": bi.vendor_name, "status": bi.status, "notes": bi.notes} for bi in items],
-        "summary": {"total_estimated": total_estimated, "total_actual": total_actual},
+        "items": [{"id": str(bi.id), "category": bi.category, "item_name": bi.item_name, "estimated_cost": float(bi.estimated_cost) if bi.estimated_cost else None, "actual_cost": float(bi.actual_cost) if bi.actual_cost else None, "vendor_name": bi.vendor_name, "vendor_id": str(bi.vendor_id) if bi.vendor_id else None, "vendor": _vendor_summary(bi.vendor) if bi.vendor_id else None, "status": bi.status, "notes": bi.notes, "created_at": bi.created_at.isoformat() if bi.created_at else None} for bi in items],
+        "summary": {"total_estimated": total_estimated, "total_actual": total_actual, "variance": total_estimated - total_actual, "currency": "TZS"},
     })
 
 
@@ -2690,7 +2713,7 @@ def add_budget_item(event_id: str, body: dict = Body(...), db: Session = Depends
         return err
 
     now = datetime.now(EAT)
-    bi = EventBudgetItem(id=uuid.uuid4(), event_id=eid, category=body.get("category"), item_name=body.get("item_name", ""), estimated_cost=body.get("estimated_cost"), actual_cost=body.get("actual_cost"), vendor_name=body.get("vendor_name"), status=body.get("status", "pending"), notes=body.get("notes"), created_at=now, updated_at=now)
+    bi = EventBudgetItem(id=uuid.uuid4(), event_id=eid, category=body.get("category"), item_name=body.get("item_name", ""), estimated_cost=body.get("estimated_cost"), actual_cost=body.get("actual_cost"), vendor_name=body.get("vendor_name"), vendor_id=body.get("vendor_id") or None, status=body.get("status", "pending"), notes=body.get("notes"), created_at=now, updated_at=now)
     db.add(bi)
     db.commit()
 
@@ -2717,6 +2740,7 @@ def update_budget_item(event_id: str, item_id: str, body: dict = Body(...), db: 
         if field in body: setattr(bi, field, body[field])
     if "estimated_cost" in body: bi.estimated_cost = body["estimated_cost"]
     if "actual_cost" in body: bi.actual_cost = body["actual_cost"]
+    if "vendor_id" in body: bi.vendor_id = body["vendor_id"] or None
     bi.updated_at = datetime.now(EAT)
     db.commit()
 

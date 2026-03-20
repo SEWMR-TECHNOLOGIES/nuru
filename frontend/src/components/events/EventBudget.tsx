@@ -1,0 +1,766 @@
+import { useState, useMemo, useRef, useEffect } from 'react';
+import {
+  Plus, Search, MoreVertical, Edit, Trash, Download, Loader2, ChevronRight, ChevronLeft,
+  TrendingUp, TrendingDown, DollarSign, CheckCircle2, Clock, AlertCircle,
+  BarChart3, FileText, Sparkles
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
+import { Skeleton } from '@/components/ui/skeleton';
+import DeleteOverlay from '@/components/ui/DeleteOverlay';
+import { cn } from '@/lib/utils';
+import { usePolling } from '@/hooks/usePolling';
+import { useDeleteTracker } from '@/hooks/useDeleteTracker';
+import { toast } from 'sonner';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { showCaughtError } from '@/lib/api';
+import { formatPrice } from '@/utils/formatPrice';
+import { useEventBudget } from '@/data/useEvents';
+import { generateBudgetReportHtml } from '@/utils/generateBudgetItemsReport';
+import ReportPreviewDialog from '@/components/ReportPreviewDialog';
+import BudgetAssistant from '@/components/BudgetAssistant';
+import type { BudgetAssistantItem } from '@/components/BudgetAssistant';
+import type { EventPermissions } from '@/hooks/useEventPermissions';
+import type { EventBudgetItem } from '@/lib/api/types';
+import writeXlsxFile from 'write-excel-file';
+import ServiceProviderSearch from '@/components/events/ServiceProviderSearch';
+import aiIcon from '@/assets/icons/ai-icon.svg';
+
+// Module-level import state so it survives unmount/remount
+let _importProgress: { current: number; total: number } | null = null;
+let _importAbort = false;
+const _importListeners = new Set<(p: { current: number; total: number } | null) => void>();
+const _broadcastImport = (p: { current: number; total: number } | null) => {
+  _importProgress = p;
+  _importListeners.forEach(fn => fn(p));
+};
+
+interface EventBudgetProps {
+  eventId: string;
+  eventTitle?: string;
+  eventBudget?: number;
+  eventType?: string;
+  eventTypeName?: string;
+  eventLocation?: string;
+  expectedGuests?: string;
+  permissions?: EventPermissions;
+}
+
+const BUDGET_CATEGORIES = [
+  'Venue', 'Catering', 'Decorations', 'Entertainment', 'Photography',
+  'Transport', 'Printing', 'Gifts & Favors', 'Equipment Rental',
+  'Marketing', 'Staffing', 'Audio & Visual', 'Flowers', 'Invitations',
+  'Security', 'Miscellaneous'
+];
+
+const STATUS_OPTIONS = [
+  { value: 'pending', label: 'Pending', color: 'bg-amber-500', textColor: 'text-amber-700', bgColor: 'bg-amber-50' },
+  { value: 'deposit_paid', label: 'Deposit Paid', color: 'bg-blue-500', textColor: 'text-blue-700', bgColor: 'bg-blue-50' },
+  { value: 'paid', label: 'Paid', color: 'bg-green-500', textColor: 'text-green-700', bgColor: 'bg-green-50' },
+];
+
+const ITEMS_PER_PAGE = 10;
+
+const getStatusStyle = (status: string) => STATUS_OPTIONS.find(s => s.value === status) || STATUS_OPTIONS[0];
+
+const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeName, eventLocation, expectedGuests, permissions }: EventBudgetProps) => {
+  const canManage = permissions?.can_manage_budget || permissions?.is_creator;
+  const canView = permissions?.can_view_budget || permissions?.can_manage_budget || permissions?.is_creator;
+
+  const { items, summary, loading, refetch, addItem, updateItem, deleteItem } = useEventBudget(eventId);
+  const { trackDelete, isDeleting } = useDeleteTracker();
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
+
+  // Module-level import state - survives navigation
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(_importProgress);
+
+  useEffect(() => {
+    const handler = (p: { current: number; total: number } | null) => setImportProgress(p);
+    _importListeners.add(handler);
+    setImportProgress(_importProgress);
+    return () => { _importListeners.delete(handler); };
+  }, []);
+
+  // Stop polling when dialogs are open
+  usePolling(refetch, 30000, !dialogOpen && !reportOpen && !aiAssistantOpen);
+
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [editingItem, setEditingItem] = useState<EventBudgetItem | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Form state
+  const [formCategory, setFormCategory] = useState('');
+  const [formItemName, setFormItemName] = useState('');
+  const [formEstimatedCost, setFormEstimatedCost] = useState('');
+  const [formActualCost, setFormActualCost] = useState('');
+  const [formVendorName, setFormVendorName] = useState('');
+  const [formStatus, setFormStatus] = useState<'pending' | 'deposit_paid' | 'paid'>('pending');
+  const [formNotes, setFormNotes] = useState('');
+
+  const { ConfirmDialog, confirm } = useConfirmDialog();
+
+  // Filtered items
+  const filtered = useMemo(() => {
+    let result = [...items];
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(i =>
+        i.item_name.toLowerCase().includes(q) ||
+        i.category.toLowerCase().includes(q) ||
+        (i.vendor_name || '').toLowerCase().includes(q)
+      );
+    }
+    if (categoryFilter !== 'all') result = result.filter(i => i.category === categoryFilter);
+    if (statusFilter !== 'all') result = result.filter(i => i.status === statusFilter);
+    return result;
+  }, [items, search, categoryFilter, statusFilter]);
+
+  // Pagination
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  // Reset page when filters change
+  useEffect(() => { setCurrentPage(1); }, [search, categoryFilter, statusFilter]);
+
+  // Category breakdown
+  const categoryBreakdown = useMemo(() => {
+    const map = new Map<string, { estimated: number; actual: number; count: number }>();
+    items.forEach(i => {
+      const existing = map.get(i.category) || { estimated: 0, actual: 0, count: 0 };
+      existing.estimated += i.estimated_cost || 0;
+      existing.actual += i.actual_cost || 0;
+      existing.count += 1;
+      map.set(i.category, existing);
+    });
+    return Array.from(map.entries()).map(([category, data]) => ({ category, ...data })).sort((a, b) => b.estimated - a.estimated);
+  }, [items]);
+
+  // Summary computed
+  const totalEstimated = items.reduce((s, i) => s + (i.estimated_cost || 0), 0);
+  const totalActual = items.reduce((s, i) => s + (i.actual_cost || 0), 0);
+  const variance = totalEstimated - totalActual;
+  const paidItems = items.filter(i => i.status === 'paid').length;
+  const pendingItems = items.filter(i => i.status === 'pending').length;
+  const budgetUtilization = eventBudget && eventBudget > 0 ? Math.min(100, (totalEstimated / eventBudget) * 100) : 0;
+
+  const resetForm = () => {
+    setFormCategory('');
+    setFormItemName('');
+    setFormEstimatedCost('');
+    setFormActualCost('');
+    setFormVendorName('');
+    setFormStatus('pending');
+    setFormNotes('');
+    setEditingItem(null);
+  };
+
+  const openAdd = () => {
+    resetForm();
+    setDialogOpen(true);
+  };
+
+  const openEdit = (item: EventBudgetItem) => {
+    setEditingItem(item);
+    setFormCategory(item.category);
+    setFormItemName(item.item_name);
+    setFormEstimatedCost(item.estimated_cost ? String(item.estimated_cost) : '');
+    setFormActualCost(item.actual_cost ? String(item.actual_cost) : '');
+    setFormVendorName(item.vendor_name || '');
+    setFormStatus(item.status);
+    setFormNotes(item.notes || '');
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!formCategory || !formItemName) {
+      toast.error('Category and item name are required');
+      return;
+    }
+    setSaving(true);
+    try {
+      const data = {
+        category: formCategory,
+        item_name: formItemName,
+        estimated_cost: formEstimatedCost ? parseFloat(formEstimatedCost) : null,
+        actual_cost: formActualCost ? parseFloat(formActualCost) : null,
+        vendor_name: formVendorName || null,
+        status: formStatus as 'pending' | 'deposit_paid' | 'paid',
+        notes: formNotes || null,
+      };
+      if (editingItem) {
+        await updateItem(editingItem.id, data);
+        toast.success('Budget item updated');
+      } else {
+        await addItem(data);
+        toast.success('Budget item added');
+      }
+      setDialogOpen(false);
+      resetForm();
+    } catch (err) {
+      showCaughtError(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (item: EventBudgetItem) => {
+    const yes = await confirm({
+      title: 'Delete Budget Item',
+      description: `Remove "${item.item_name}" from the budget? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!yes) return;
+    await trackDelete(item.id, async () => {
+      try {
+        await deleteItem(item.id);
+        toast.success('Budget item deleted');
+      } catch (err) {
+        showCaughtError(err);
+      }
+    });
+  };
+
+  const handleQuickStatusChange = async (item: EventBudgetItem, newStatus: 'pending' | 'deposit_paid' | 'paid') => {
+    try {
+      await updateItem(item.id, { status: newStatus });
+      toast.success(`Status updated to ${getStatusStyle(newStatus).label}`);
+    } catch (err) {
+      showCaughtError(err);
+    }
+  };
+
+  const handleImportAiItems = async (aiItems: BudgetAssistantItem[]) => {
+    _importAbort = false;
+    _broadcastImport({ current: 0, total: aiItems.length });
+    let success = 0;
+    for (const item of aiItems) {
+      if (_importAbort) break;
+      try {
+        await addItem({
+          category: item.category,
+          item_name: item.item_name,
+          estimated_cost: item.estimated_cost,
+          status: 'pending',
+        });
+        success++;
+        _broadcastImport({ current: success, total: aiItems.length });
+      } catch (err) {
+        // continue importing remaining items
+      }
+    }
+    _broadcastImport(null);
+    if (success > 0) {
+      toast.success(`Imported ${success} of ${aiItems.length} budget items`);
+    } else {
+      toast.error('Failed to import budget items');
+    }
+  };
+
+  // Report generation
+  const reportHtml = useMemo(() => {
+    if (!reportOpen) return '';
+    return generateBudgetReportHtml(
+      eventTitle || 'Event',
+      items,
+      {
+        total_estimated: totalEstimated,
+        total_actual: totalActual,
+        variance,
+        event_budget: eventBudget,
+        category_breakdown: categoryBreakdown,
+      }
+    );
+  }, [reportOpen, eventTitle, items, totalEstimated, totalActual, variance, eventBudget, categoryBreakdown]);
+
+  const handleExportExcel = async () => {
+    const headerRow = [
+      { value: 'S/N', fontWeight: 'bold' as const },
+      { value: 'Category', fontWeight: 'bold' as const },
+      { value: 'Item', fontWeight: 'bold' as const },
+      { value: 'Vendor', fontWeight: 'bold' as const },
+      { value: 'Estimated Cost', fontWeight: 'bold' as const },
+      { value: 'Actual Cost', fontWeight: 'bold' as const },
+      { value: 'Variance', fontWeight: 'bold' as const },
+      { value: 'Status', fontWeight: 'bold' as const },
+      { value: 'Notes', fontWeight: 'bold' as const },
+    ];
+    const dataRows = items.map((item, i) => [
+      { value: i + 1 },
+      { value: item.category },
+      { value: item.item_name },
+      { value: item.vendor_name || '' },
+      { value: item.estimated_cost || 0 },
+      { value: item.actual_cost || 0 },
+      { value: (item.estimated_cost || 0) - (item.actual_cost || 0) },
+      { value: getStatusStyle(item.status).label },
+      { value: item.notes || '' },
+    ]);
+    const totalRow = [
+      { value: '', fontWeight: 'bold' as const },
+      { value: 'TOTAL', fontWeight: 'bold' as const },
+      { value: '' }, { value: '' },
+      { value: totalEstimated, fontWeight: 'bold' as const },
+      { value: totalActual, fontWeight: 'bold' as const },
+      { value: variance, fontWeight: 'bold' as const },
+      { value: '' }, { value: '' },
+    ];
+    await writeXlsxFile([headerRow, ...dataRows, totalRow] as any, {
+      fileName: `${(eventTitle || 'event').replace(/\s+/g, '_')}_budget.xlsx`,
+    });
+  };
+
+  if (!canView) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <AlertCircle className="w-12 h-12 text-muted-foreground mb-4" />
+        <p className="text-muted-foreground">You don't have permission to view the budget.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
+        </div>
+        <Skeleton className="h-12 rounded-xl" />
+        {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <ConfirmDialog />
+
+      {/* Non-blocking import progress indicator */}
+      {importProgress && (
+        <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border border-border rounded-xl p-3 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              <span className="text-sm font-medium">
+                Importing budget items... {importProgress.current}/{importProgress.total}
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-muted-foreground"
+              onClick={() => { _importAbort = true; }}
+            >
+              Cancel
+            </Button>
+          </div>
+          <Progress value={(importProgress.current / importProgress.total) * 100} className="h-1.5" />
+        </div>
+      )}
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <DollarSign className="w-4 h-4 text-blue-600" />
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Estimated</p>
+            <p className="text-lg font-bold text-foreground mt-0.5">{formatPrice(totalEstimated)}</p>
+            {eventBudget && eventBudget > 0 && (
+              <div className="mt-2">
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
+                  <span>of {formatPrice(eventBudget)}</span>
+                  <span>{budgetUtilization.toFixed(0)}%</span>
+                </div>
+                <Progress value={budgetUtilization} className="h-1.5" />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Actual Spent</p>
+            <p className="text-lg font-bold text-foreground mt-0.5">{formatPrice(totalActual)}</p>
+            <p className="text-[11px] text-muted-foreground mt-1">{paidItems} of {items.length} paid</p>
+          </CardContent>
+        </Card>
+
+        <Card className={cn(
+          "border-0 shadow-sm",
+          variance >= 0
+            ? "bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20"
+            : "bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20"
+        )}>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", variance >= 0 ? "bg-green-500/10" : "bg-red-500/10")}>
+                {variance >= 0 ? <TrendingDown className="w-4 h-4 text-green-600" /> : <TrendingUp className="w-4 h-4 text-red-600" />}
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Variance</p>
+            <p className={cn("text-lg font-bold mt-0.5", variance >= 0 ? "text-green-700" : "text-red-700")}>
+              {variance >= 0 ? '-' : '+'}{formatPrice(Math.abs(variance))}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-1">{variance >= 0 ? 'Under budget' : 'Over budget'}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                <Clock className="w-4 h-4 text-amber-600" />
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Pending</p>
+            <p className="text-lg font-bold text-foreground mt-0.5">{pendingItems}</p>
+            <p className="text-[11px] text-muted-foreground mt-1">{items.length} total items</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Category Breakdown - no progress bars, grid layout like expenses */}
+      {categoryBreakdown.length > 0 && (
+        <Card className="border shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-semibold">Category Breakdown</span>
+              </div>
+              <span className="text-xs text-muted-foreground">{categoryBreakdown.length} categories</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+              {categoryBreakdown.map(cat => {
+                const displayAmount = totalActual > 0 ? cat.actual : cat.estimated;
+                return (
+                  <div key={cat.category} className="flex items-center justify-between p-2 rounded-md bg-muted/30">
+                    <div>
+                      <p className="text-xs font-medium text-foreground">{cat.category}</p>
+                      <p className="text-[10px] text-muted-foreground">{cat.count} item{cat.count !== 1 ? 's' : ''}</p>
+                    </div>
+                    <p className="text-xs font-semibold text-foreground">{formatPrice(displayAmount)}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Actions Bar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {canManage && (
+          <Button size="sm" onClick={openAdd} className="gap-1.5">
+            <Plus className="w-4 h-4" />
+            Add Item
+          </Button>
+        )}
+        {canManage && (
+          <Button size="sm" variant="outline" onClick={() => setAiAssistantOpen(true)} className="gap-1.5">
+            <img src={aiIcon} alt="" className="w-4 h-4 dark:invert" />
+            AI Budget
+          </Button>
+        )}
+        {items.length > 0 && (
+          <Button size="sm" variant="outline" onClick={() => setReportOpen(true)} className="gap-1.5">
+            <FileText className="w-4 h-4" />
+            Report
+          </Button>
+        )}
+        <div className="flex-1" />
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Search items..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8 h-9 w-44 text-sm"
+            autoComplete="off"
+          />
+        </div>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="h-9 w-32 text-xs">
+            <SelectValue placeholder="Category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Categories</SelectItem>
+            {BUDGET_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="h-9 w-28 text-xs">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            {STATUS_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Budget Items List - scrollable */}
+      {filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-muted/60 flex items-center justify-center mb-4">
+            <DollarSign className="w-7 h-7 text-muted-foreground" />
+          </div>
+          <h3 className="text-sm font-semibold mb-1">
+            {items.length === 0 ? 'No budget items yet' : 'No matching items'}
+          </h3>
+          <p className="text-xs text-muted-foreground max-w-xs">
+            {items.length === 0
+              ? 'Start planning your event budget by adding your first item.'
+              : 'Try adjusting your search or filters.'}
+          </p>
+          {items.length === 0 && canManage && (
+            <Button size="sm" className="mt-4 gap-1.5" onClick={openAdd}>
+              <Plus className="w-4 h-4" />
+              Add First Item
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="max-h-[50vh] overflow-y-auto space-y-2 pr-1">
+          {paginated.map((item) => {
+            const statusStyle = getStatusStyle(item.status);
+            const itemVariance = (item.estimated_cost || 0) - (item.actual_cost || 0);
+            return (
+              <Card key={item.id} className="border shadow-sm hover:shadow-md transition-shadow relative">
+                <DeleteOverlay visible={isDeleting(item.id)} />
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    {/* Status indicator */}
+                    <div className={cn("w-1 self-stretch rounded-full flex-shrink-0", statusStyle.color)} />
+
+                    <div className="flex-1 min-w-0">
+                      {/* Top row: name + actions */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">{item.item_name}</p>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 font-medium">
+                              {item.category}
+                            </Badge>
+                            {item.vendor_name && (
+                              <span className="text-[11px] text-muted-foreground">{item.vendor_name}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {/* Quick status toggle */}
+                          {canManage && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium", statusStyle.textColor, statusStyle.bgColor)}>
+                                  {statusStyle.label}
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-36">
+                                {STATUS_OPTIONS.map(s => (
+                                  <DropdownMenuItem
+                                    key={s.value}
+                                    onClick={() => handleQuickStatusChange(item, s.value as 'pending' | 'deposit_paid' | 'paid')}
+                                    className="text-xs gap-2"
+                                  >
+                                    <span className={cn("w-2 h-2 rounded-full", s.color)} />
+                                    {s.label}
+                                    {s.value === item.status && <CheckCircle2 className="w-3 h-3 ml-auto text-primary" />}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                          {!canManage && (
+                            <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium", statusStyle.textColor, statusStyle.bgColor)}>
+                              {statusStyle.label}
+                            </span>
+                          )}
+                          {canManage && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                  <MoreVertical className="w-3.5 h-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-36">
+                                <DropdownMenuItem onClick={() => openEdit(item)} className="text-xs gap-2">
+                                  <Edit className="w-3.5 h-3.5" /> Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDelete(item)} className="text-xs gap-2 text-destructive">
+                                  <Trash className="w-3.5 h-3.5" /> Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bottom row: costs */}
+                      <div className="flex items-center gap-4 mt-2.5 text-xs">
+                        <div>
+                          <span className="text-muted-foreground">Est: </span>
+                          <span className="font-semibold">{formatPrice(item.estimated_cost || 0)}</span>
+                        </div>
+                        {item.actual_cost != null && item.actual_cost > 0 && (
+                          <>
+                            <div>
+                              <span className="text-muted-foreground">Actual: </span>
+                              <span className="font-semibold">{formatPrice(item.actual_cost)}</span>
+                            </div>
+                            <div className={cn("font-medium", itemVariance >= 0 ? "text-green-600" : "text-red-600")}>
+                              {itemVariance >= 0 ? '▼' : '▲'} {formatPrice(Math.abs(itemVariance))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Notes */}
+                      {item.notes && (
+                        <p className="text-[11px] text-muted-foreground mt-1.5 line-clamp-1">{item.notes}</p>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-2">
+          <p className="text-xs text-muted-foreground">{filtered.length} item{filtered.length !== 1 ? 's' : ''}</p>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="icon" className="h-8 w-8" disabled={currentPage <= 1} onClick={() => setCurrentPage(p => p - 1)}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <span className="text-xs px-2">{currentPage} / {totalPages}</span>
+            <Button variant="outline" size="icon" className="h-8 w-8" disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)}>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) resetForm(); setDialogOpen(open); }}>
+        <DialogContent className="sm:max-w-[480px] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingItem ? 'Edit Budget Item' : 'Add Budget Item'}</DialogTitle>
+            <DialogDescription>
+              {editingItem ? 'Update the details of this budget item.' : 'Add a new item to your event budget.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Category *</Label>
+                <Select value={formCategory} onValueChange={setFormCategory}>
+                  <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                  <SelectContent>
+                    {BUDGET_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Status</Label>
+                <Select value={formStatus} onValueChange={(v) => setFormStatus(v as 'pending' | 'deposit_paid' | 'paid')}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Item Name *</Label>
+              <Input value={formItemName} onChange={(e) => setFormItemName(e.target.value)} placeholder="e.g. Main hall booking" autoComplete="off" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Estimated Cost</Label>
+                <FormattedNumberInput value={formEstimatedCost} onChange={setFormEstimatedCost} prefix="TZS " placeholder="TZS 0" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Actual Cost</Label>
+                <FormattedNumberInput value={formActualCost} onChange={setFormActualCost} prefix="TZS " placeholder="TZS 0" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Vendor / Supplier</Label>
+              <ServiceProviderSearch
+                value={formVendorName}
+                onChange={setFormVendorName}
+                placeholder="Search or type vendor name"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Notes</Label>
+              <Textarea value={formNotes} onChange={(e) => setFormNotes(e.target.value)} placeholder="Optional notes..." className="resize-none min-h-[60px]" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {editingItem ? 'Update' : 'Add Item'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Report Preview */}
+      <ReportPreviewDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        title="Budget Report"
+        html={reportHtml}
+        onDownloadExcel={handleExportExcel}
+      />
+
+      {/* AI Budget Assistant */}
+      <BudgetAssistant
+        open={aiAssistantOpen}
+        onOpenChange={setAiAssistantOpen}
+        eventContext={{
+          eventType: eventType || '',
+          eventTypeName: eventTypeName,
+          title: eventTitle || '',
+          location: eventLocation || '',
+          expectedGuests: expectedGuests || '',
+          budget: eventBudget ? String(eventBudget) : '',
+        }}
+        onSaveBudget={() => {}}
+        onImportItems={handleImportAiItems}
+      />
+    </div>
+  );
+};
+
+export default EventBudget;

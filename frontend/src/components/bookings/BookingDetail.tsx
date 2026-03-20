@@ -77,7 +77,7 @@ const BookingDetail = () => {
             <ChevronLeft className="w-5 h-5" />
           </Button>
         </div>
-        <div className="text-center py-12 text-red-500">{error || 'Booking not found'}</div>
+        <div className="text-center py-12 text-destructive">{error || 'Booking not found'}</div>
       </div>
     );
   }

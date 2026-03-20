@@ -1,5 +1,6 @@
 /**
  * Bookings Data Hooks
+ * Uses initialLoad pattern to prevent skeleton re-renders.
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -173,21 +174,25 @@ export const useIncomingBookings = (initialParams?: BookingQueryParams) => {
 };
 
 // ============================================================================
-// SINGLE BOOKING
+// SINGLE BOOKING (with initialLoad)
 // ============================================================================
 
+const _bookingCache = new Map<string, BookingRequest>();
+
 export const useBooking = (bookingId: string | null) => {
-  const [booking, setBooking] = useState<BookingRequest | null>(null);
-  const [loading, setLoading] = useState(true);
+  const cached = bookingId ? _bookingCache.get(bookingId) : null;
+  const [booking, setBooking] = useState<BookingRequest | null>(cached || null);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
 
   const fetchBooking = useCallback(async () => {
     if (!bookingId) return;
-    setLoading(true);
+    if (!_bookingCache.has(bookingId)) setLoading(true);
     setError(null);
     try {
       const response = await bookingsApi.getById(bookingId);
       if (response.success) {
+        _bookingCache.set(bookingId, response.data);
         setBooking(response.data);
       } else {
         setError(response.message || "Failed to fetch booking");
@@ -207,20 +212,25 @@ export const useBooking = (bookingId: string | null) => {
 };
 
 // ============================================================================
-// BOOKING CALENDAR
+// BOOKING CALENDAR (with initialLoad)
 // ============================================================================
 
+const _bookingCalendarCache = new Map<string, any[]>();
+
 export const useBookingCalendar = (startDate: string, endDate: string, serviceId?: string) => {
-  const [bookings, setBookings] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = `${startDate}|${endDate}|${serviceId || ''}`;
+  const cached = _bookingCalendarCache.get(cacheKey);
+  const [bookings, setBookings] = useState<any[]>(cached || []);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCalendar = useCallback(async () => {
-    setLoading(true);
+    if (!_bookingCalendarCache.has(cacheKey)) setLoading(true);
     setError(null);
     try {
       const response = await bookingsApi.getCalendar({ start_date: startDate, end_date: endDate, service_id: serviceId });
       if (response.success) {
+        _bookingCalendarCache.set(cacheKey, response.data.bookings);
         setBookings(response.data.bookings);
       } else {
         setError(response.message || "Failed to fetch calendar");
@@ -230,7 +240,7 @@ export const useBookingCalendar = (startDate: string, endDate: string, serviceId
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate, serviceId]);
+  }, [cacheKey, startDate, endDate, serviceId]);
 
   useEffect(() => {
     fetchCalendar();

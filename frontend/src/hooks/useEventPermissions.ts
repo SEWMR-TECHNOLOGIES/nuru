@@ -41,15 +41,20 @@ const CREATOR_PERMISSIONS: EventPermissions = {
   can_manage_expenses: true,
 };
 
+const _permissionsCache = new Map<string, EventPermissions>();
+
 export const useEventPermissions = (eventId: string | null) => {
-  const [permissions, setPermissions] = useState<EventPermissions>(ALL_PERMISSIONS);
-  const [loading, setLoading] = useState(true);
+  const cached = eventId ? _permissionsCache.get(eventId) : null;
+  const [permissions, setPermissions] = useState<EventPermissions>(cached || ALL_PERMISSIONS);
+  const [loading, setLoading] = useState(!cached);
 
   const fetchPermissions = useCallback(async () => {
     if (!eventId) return;
+    if (!_permissionsCache.has(eventId)) setLoading(true);
     try {
       const res = await eventsApi.getMyPermissions(eventId);
       if (res.success) {
+        _permissionsCache.set(eventId, res.data);
         setPermissions(res.data);
       }
     } catch {

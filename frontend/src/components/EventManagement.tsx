@@ -23,6 +23,7 @@ import EventGuestList from './events/EventGuestList';
 import EventCommittee from './events/EventCommittee';
 import EventContributions from './events/EventContributions';
 import EventExpenses from './events/EventExpenses';
+import EventBudget from './events/EventBudget';
 import EventChecklist from './events/EventChecklist';
 import { useEventContributors } from '@/data/useContributors';
 import { useEvent } from '@/data/useEvents';
@@ -347,6 +348,7 @@ const EventManagement = () => {
           tabs={[
             { value: 'overview', label: 'Overview' },
             { value: 'checklist', label: 'Checklist' },
+            { value: 'budget', label: 'Budget' },
             { value: 'services', label: 'Services' },
             { value: 'committee', label: 'Committee' },
             { value: 'contributions', label: 'Contributions' },
@@ -428,6 +430,19 @@ const EventManagement = () => {
 
         <TabsContent value="checklist" className="space-y-6">
           <EventChecklist eventId={id!} eventTypeId={apiEvent?.event_type_id} permissions={permissions} />
+        </TabsContent>
+
+        <TabsContent value="budget" className="space-y-6">
+          <EventBudget
+            eventId={id!}
+            eventTitle={eventTitle}
+            eventBudget={apiEvent?.budget ? parseFloat(String(apiEvent.budget).replace(/[^0-9]/g, '')) : undefined}
+            eventType={apiEvent?.event_type_id || ''}
+            eventTypeName={apiEvent?.event_type?.name}
+            eventLocation={apiEvent?.location || ''}
+            expectedGuests={apiEvent?.expected_guests ? String(apiEvent.expected_guests) : ''}
+            permissions={permissions}
+          />
         </TabsContent>
 
         <TabsContent value="services" className="space-y-4">

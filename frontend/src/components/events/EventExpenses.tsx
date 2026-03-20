@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { format } from 'date-fns';
 import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import {
-  Receipt, Plus, Search, MoreVertical, Edit, Trash, Download, Loader2, Eye, ChevronLeft, ChevronRight, CalendarIcon
+  Receipt, Plus, Search, MoreVertical, Edit, Trash, Download, Loader2, Eye,
+  ChevronLeft, ChevronRight, CalendarIcon, DollarSign, TrendingDown, AlertCircle,
+  CheckCircle2, Clock
 } from 'lucide-react';
+import DeleteOverlay from '@/components/ui/DeleteOverlay';
+import { useDeleteTracker } from '@/hooks/useDeleteTracker';
 import SvgIcon from '@/components/ui/svg-icon';
 import bellIcon from '@/assets/icons/bell-icon.svg';
 import { Button } from '@/components/ui/button';
@@ -30,6 +34,7 @@ import { generateExpenseReportHtml } from '@/utils/generatePdf';
 import ReportPreviewDialog from '@/components/ReportPreviewDialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { EventPermissions } from '@/hooks/useEventPermissions';
+import ServiceProviderSearch from './ServiceProviderSearch';
 
 interface EventExpensesProps {
   eventId: string;
@@ -56,15 +61,21 @@ const PAYMENT_METHODS = [
 
 const ITEMS_PER_PAGE = 10;
 
+// Module-level cache so expenses survive tab switches
+const _expensesCache = new Map<string, { expenses: any[]; summary: any }>();
+
 const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, permissions }: EventExpensesProps) => {
   const canManage = permissions?.can_manage_expenses || permissions?.is_creator;
   const canView = permissions?.can_view_expenses || permissions?.can_manage_expenses || permissions?.is_creator;
 
   const { confirm, ConfirmDialog } = useConfirmDialog();
+  const { trackDelete, isDeleting } = useDeleteTracker();
 
-  const [expenses, setExpenses] = useState<any[]>([]);
-  const [summary, setSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const cached = _expensesCache.get(eventId);
+  const [expenses, setExpenses] = useState<any[]>(cached?.expenses || []);
+  const [summary, setSummary] = useState<any>(cached?.summary || null);
+  const [loading, setLoading] = useState(!cached);
+  const initialLoadDone = useRef(!!cached);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [customCategory, setCustomCategory] = useState('');
@@ -101,19 +112,24 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
   const [reportToOpen, setReportToOpen] = useState(false);
 
   const fetchExpenses = async () => {
+    if (!initialLoadDone.current) setLoading(true);
     try {
       const res = await eventsApi.getExpenses(eventId, { limit: 100 });
       if (res.success) {
+        _expensesCache.set(eventId, { expenses: res.data.expenses || [], summary: res.data.summary || null });
         setExpenses(res.data.expenses || []);
         setSummary(res.data.summary || null);
       }
     } catch { /* silent */ }
-    finally { setLoading(false); }
+    finally { setLoading(false); initialLoadDone.current = true; }
   };
 
+  // Pause polling when any dialog is open to prevent form disruption
+  const anyDialogOpen = addDialogOpen || editDialogOpen || reportDateDialogOpen || reportPreviewOpen;
+
   // Initial fetch
-  useState(() => { fetchExpenses(); });
-  usePolling(fetchExpenses, 15000);
+  useEffect(() => { fetchExpenses(); }, []);
+  usePolling(fetchExpenses, 15000, !anyDialogOpen);
 
   const resetForm = () => {
     setForm({
@@ -192,19 +208,20 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
       destructive: true,
     });
     if (!confirmed) return;
-    try {
-      const res = await eventsApi.deleteExpense(eventId, expenseId);
-      if (res.success) {
-        toast.success('Expense deleted');
-        fetchExpenses();
-      } else {
-        toast.error(res.message || 'Failed');
-      }
-    } catch (err: any) { showCaughtError(err, 'Failed to delete'); }
+    await trackDelete(expenseId, async () => {
+      try {
+        const res = await eventsApi.deleteExpense(eventId, expenseId);
+        if (res.success) {
+          toast.success('Expense deleted');
+          fetchExpenses();
+        } else {
+          toast.error(res.message || 'Failed');
+        }
+      } catch (err: any) { showCaughtError(err, 'Failed to delete'); }
+    });
   };
 
   const openEditDialog = (expense: any) => {
-    // Blur active element to prevent aria-hidden focus conflict
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
@@ -269,13 +286,13 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
 
   const totalExpenses = summary?.total_expenses || 0;
   const remaining = totalRaised - totalExpenses;
-  const currency = summary?.currency || 'TZS';
+  const expenseCount = summary?.count || 0;
 
   if (!canView) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        <Receipt className="w-10 h-10 mx-auto mb-3 opacity-30" />
-        <p className="text-sm">You don't have permission to view expenses.</p>
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <AlertCircle className="w-12 h-12 text-muted-foreground mb-4" />
+        <p className="text-muted-foreground">You don't have permission to view expenses.</p>
       </div>
     );
   }
@@ -284,9 +301,10 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 rounded-lg" />)}
+          {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
         </div>
-        <Skeleton className="h-64 rounded-lg" />
+        <Skeleton className="h-12 rounded-xl" />
+        {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}
       </div>
     );
   }
@@ -338,7 +356,6 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
                 {(() => {
                   const allCats = new Set(DEFAULT_EXPENSE_CATEGORIES);
                   expenses.forEach(e => { if (e.category) allCats.add(e.category); });
-                  // If current category is a custom one not in defaults, add it
                   if (form.category && !allCats.has(form.category)) allCats.add(form.category);
                   return Array.from(allCats).sort().map(c => <SelectItem key={c} value={c}>{c}</SelectItem>);
                 })()}
@@ -348,7 +365,7 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
           )}
         </div>
         <div className="space-y-1.5">
-          <Label>Amount ({currency}) *</Label>
+          <Label>Amount (TZS) *</Label>
           <FormattedNumberInput value={form.amount} onChange={v => setForm(f => ({ ...f, amount: v }))} placeholder="0" />
         </div>
       </div>
@@ -361,7 +378,11 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label>Vendor / Supplier</Label>
-          <Input value={form.vendor_name} onChange={e => setForm(f => ({ ...f, vendor_name: e.target.value }))} placeholder="Vendor name" />
+          <ServiceProviderSearch
+            value={form.vendor_name}
+            onChange={(name) => setForm(f => ({ ...f, vendor_name: name }))}
+            placeholder="Search or type vendor name"
+          />
         </div>
         <div className="space-y-1.5">
           <Label>Payment Method</Label>
@@ -420,83 +441,77 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <ConfirmDialog />
 
-      {/* Summary Cards */}
+      {/* Summary Cards - matching budget page style */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {eventBudget != null && eventBudget > 0 && (
-          <Card>
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">Money Collected</p>
-                  <p className="text-base font-semibold text-primary mt-1">{formatPrice(totalRaised)}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Total contributions</p>
-                </div>
-                <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <Receipt className="w-4 h-4 text-primary" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        {!eventBudget && (
-          <Card>
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">Money Collected</p>
-                  <p className="text-base font-semibold text-primary mt-1">{formatPrice(totalRaised)}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Total contributions</p>
-                </div>
-                <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <Receipt className="w-4 h-4 text-primary" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">Total Expenses</p>
-                <p className="text-base font-semibold text-destructive mt-1">{formatPrice(totalExpenses)}</p>
-                <p className="text-xs text-muted-foreground mt-1">{summary?.count || 0} expense{(summary?.count || 0) !== 1 ? 's' : ''} recorded</p>
-              </div>
-              <div className="w-9 h-9 bg-destructive/10 rounded-lg flex items-center justify-center">
-                <Receipt className="w-4 h-4 text-destructive" />
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <DollarSign className="w-4 h-4 text-blue-600" />
               </div>
             </div>
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Money Collected</p>
+            <p className="text-lg font-bold text-foreground mt-0.5">{formatPrice(totalRaised)}</p>
+            <p className="text-[11px] text-muted-foreground mt-1">Total contributions</p>
           </CardContent>
         </Card>
-        <Card className={remaining < 0 ? 'border-destructive/30' : 'border-primary/20'}>
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">Remaining Balance</p>
-                <p className={cn("text-base font-semibold mt-1", remaining < 0 ? "text-destructive" : "text-primary")}>{formatPrice(remaining)}</p>
-                <p className="text-xs text-muted-foreground mt-1">Collected − Expenses</p>
+
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+                <Receipt className="w-4 h-4 text-red-600" />
               </div>
             </div>
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Total Expenses</p>
+            <p className="text-lg font-bold text-foreground mt-0.5">{formatPrice(totalExpenses)}</p>
+            <p className="text-[11px] text-muted-foreground mt-1">{expenseCount} expense{expenseCount !== 1 ? 's' : ''} recorded</p>
+          </CardContent>
+        </Card>
+
+        <Card className={cn(
+          "border-0 shadow-sm",
+          remaining >= 0
+            ? "bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20"
+            : "bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20"
+        )}>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", remaining >= 0 ? "bg-emerald-500/10" : "bg-red-500/10")}>
+                {remaining >= 0 ? <TrendingDown className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-red-600" />}
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Remaining Balance</p>
+            <p className={cn("text-lg font-bold mt-0.5", remaining >= 0 ? "text-emerald-700" : "text-red-700")}>
+              {formatPrice(remaining)}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-1">Collected − Expenses</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Category Breakdown */}
+      {/* Category Breakdown - matching budget page grid style */}
       {summary?.category_breakdown && summary.category_breakdown.length > 0 && (
-        <Card>
+        <Card className="border shadow-sm">
           <CardContent className="p-4">
-            <p className="text-xs font-medium text-muted-foreground mb-3">Expense Breakdown by Category</p>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-semibold">Expense Breakdown by Category</span>
+              </div>
+              <span className="text-xs text-muted-foreground">{summary.category_breakdown.length} categories</span>
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
               {summary.category_breakdown.map((cat: any) => (
                 <div key={cat.category} className="flex items-center justify-between p-2 rounded-md bg-muted/30">
                   <div>
-                    <p className="text-xs font-medium">{cat.category}</p>
+                    <p className="text-xs font-medium text-foreground">{cat.category}</p>
                     <p className="text-[10px] text-muted-foreground">{cat.count} item{cat.count !== 1 ? 's' : ''}</p>
                   </div>
-                  <p className="text-xs font-semibold">{formatPrice(cat.total)}</p>
+                  <p className="text-xs font-semibold text-foreground">{formatPrice(cat.total)}</p>
                 </div>
               ))}
             </div>
@@ -504,127 +519,170 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
         </Card>
       )}
 
-      {/* Actions */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search expenses..." value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }} className="pl-9" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Dialog open={reportDateDialogOpen} onOpenChange={setReportDateDialogOpen}>
+      {/* Actions Bar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {canManage && (
+          <Dialog open={addDialogOpen} onOpenChange={v => { setAddDialogOpen(v); if (!v) resetForm(); }}>
             <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Download className="w-4 h-4 mr-2" /> Report
+              <Button size="sm" onClick={resetForm} className="gap-1.5">
+                <Plus className="w-4 h-4" />
+                Record Expense
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[400px]">
-              <DialogHeader><DialogTitle>Expense Report</DialogTitle><DialogDescription>Generate a filtered expense report.</DialogDescription></DialogHeader>
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">Optionally filter by date range, or leave blank for all expenses.</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label>From</Label>
-                    <Popover open={reportFromOpen} onOpenChange={setReportFromOpen}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-xs", !reportDateFrom && "text-muted-foreground")}>
-                          <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-                          {reportDateFrom ? format(reportDateFrom, 'dd MMM yyyy') : 'Start'}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={reportDateFrom} onSelect={d => { setReportDateFrom(d); setReportFromOpen(false); }} className="p-3 pointer-events-auto" /></PopoverContent>
-                    </Popover>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>To</Label>
-                    <Popover open={reportToOpen} onOpenChange={setReportToOpen}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-xs", !reportDateTo && "text-muted-foreground")}>
-                          <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-                          {reportDateTo ? format(reportDateTo, 'dd MMM yyyy') : 'End'}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={reportDateTo} onSelect={d => { setReportDateTo(d); setReportToOpen(false); }} className="p-3 pointer-events-auto" /></PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-                {(reportDateFrom || reportDateTo) && (
-                  <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setReportDateFrom(undefined); setReportDateTo(undefined); }}>
-                    Clear dates
-                  </Button>
-                )}
-                <DialogFooter>
-                  <Button onClick={handleDownloadReport} disabled={reportLoading}>
-                    {reportLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
-                    Generate Report
-                  </Button>
-                </DialogFooter>
-              </div>
+            <DialogContent className="sm:max-w-[500px]" onOpenAutoFocus={e => e.preventDefault()}>
+              <DialogHeader><DialogTitle>Record Expense</DialogTitle><DialogDescription>Fill in the details to record a new expense.</DialogDescription></DialogHeader>
+              {renderExpenseFormFields(handleAdd, 'Record Expense')}
             </DialogContent>
           </Dialog>
-          {canManage && (
-            <Dialog open={addDialogOpen} onOpenChange={v => { setAddDialogOpen(v); if (!v) resetForm(); }}>
-              <DialogTrigger asChild>
-                <Button size="sm" onClick={resetForm}>
-                  <Plus className="w-4 h-4 mr-2" /> Record Expense
+        )}
+        <Dialog open={reportDateDialogOpen} onOpenChange={setReportDateDialogOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <Download className="w-4 h-4" /> Report
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader><DialogTitle>Expense Report</DialogTitle><DialogDescription>Generate a filtered expense report.</DialogDescription></DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">Optionally filter by date range, or leave blank for all expenses.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>From</Label>
+                  <Popover open={reportFromOpen} onOpenChange={setReportFromOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-xs", !reportDateFrom && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                        {reportDateFrom ? format(reportDateFrom, 'dd MMM yyyy') : 'Start'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={reportDateFrom} onSelect={d => { setReportDateFrom(d); setReportFromOpen(false); }} className="p-3 pointer-events-auto" /></PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>To</Label>
+                  <Popover open={reportToOpen} onOpenChange={setReportToOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-xs", !reportDateTo && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                        {reportDateTo ? format(reportDateTo, 'dd MMM yyyy') : 'End'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={reportDateTo} onSelect={d => { setReportDateTo(d); setReportToOpen(false); }} className="p-3 pointer-events-auto" /></PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+              {(reportDateFrom || reportDateTo) && (
+                <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setReportDateFrom(undefined); setReportDateTo(undefined); }}>
+                  Clear dates
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]" onOpenAutoFocus={e => e.preventDefault()}>
-                <DialogHeader><DialogTitle>Record Expense</DialogTitle><DialogDescription>Fill in the details to record a new expense.</DialogDescription></DialogHeader>
-                {renderExpenseFormFields(handleAdd, 'Record Expense')}
-              </DialogContent>
-            </Dialog>
-          )}
+              )}
+              <DialogFooter>
+                <Button onClick={handleDownloadReport} disabled={reportLoading}>
+                  {reportLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
+                  Generate Report
+                </Button>
+              </DialogFooter>
+            </div>
+          </DialogContent>
+        </Dialog>
+        <div className="flex-1" />
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Search expenses..."
+            value={searchQuery}
+            onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            className="pl-8 h-9 w-44 text-sm"
+            autoComplete="off"
+          />
         </div>
       </div>
 
-      {/* Expense List */}
+      {/* Expense List - scrollable */}
       {filtered.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          <Receipt className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm font-medium">No expenses recorded yet</p>
-          {canManage && <p className="text-xs mt-1">Click "Record Expense" to track event spending</p>}
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-muted/60 flex items-center justify-center mb-4">
+            <Receipt className="w-7 h-7 text-muted-foreground" />
+          </div>
+          <h3 className="text-sm font-semibold mb-1">No expenses recorded yet</h3>
+          <p className="text-xs text-muted-foreground max-w-xs">
+            {canManage ? 'Click "Record Expense" to start tracking event spending.' : 'No expenses have been recorded for this event.'}
+          </p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {paginated.map(expense => (
-            <Card key={expense.id} className="hover:bg-muted/30 transition-colors">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-medium">{expense.description}</p>
-                      <Badge variant="secondary" className="text-[10px]">{expense.category}</Badge>
+        <div className="max-h-[50vh] overflow-y-auto space-y-2 pr-1">
+          {paginated.map(expense => {
+            const paymentLabel = PAYMENT_METHODS.find(m => m.id === expense.payment_method)?.name || expense.payment_method;
+            return (
+              <Card key={expense.id} className="border shadow-sm hover:shadow-md transition-shadow relative">
+                <DeleteOverlay visible={isDeleting(expense.id)} />
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    {/* Category color indicator */}
+                    <div className="w-1 self-stretch rounded-full flex-shrink-0 bg-red-500" />
+
+                    <div className="flex-1 min-w-0">
+                      {/* Top row */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">{expense.description}</p>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 font-medium">
+                              {expense.category}
+                            </Badge>
+                            {expense.vendor_name && (
+                              <span className="text-[11px] text-muted-foreground">{expense.vendor_name}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <span className="text-sm font-bold text-red-600 whitespace-nowrap">{formatPrice(expense.amount)}</span>
+                          {canManage && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                  <MoreVertical className="w-3.5 h-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-36">
+                                <DropdownMenuItem onClick={() => openEditDialog(expense)} className="text-xs gap-2">
+                                  <Edit className="w-3.5 h-3.5" /> Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDelete(expense.id)} className="text-xs gap-2 text-destructive">
+                                  <Trash className="w-3.5 h-3.5" /> Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Details row */}
+                      <div className="flex items-center gap-3 mt-2 text-[11px] text-muted-foreground flex-wrap">
+                        {expense.expense_date && (
+                          <span className="flex items-center gap-1">
+                            <CalendarIcon className="w-3 h-3" />
+                            {formatDateMedium(expense.expense_date)}
+                          </span>
+                        )}
+                        {expense.payment_method && (
+                          <span className="capitalize">{paymentLabel}</span>
+                        )}
+                        {expense.recorded_by_name && (
+                          <span>by {expense.recorded_by_name}</span>
+                        )}
+                      </div>
+
+                      {/* Notes */}
+                      {expense.notes && (
+                        <p className="text-[11px] text-muted-foreground mt-1.5 line-clamp-1">{expense.notes}</p>
+                      )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground flex-wrap">
-                      {expense.vendor_name && <span>{expense.vendor_name}</span>}
-                      <span>{expense.expense_date ? formatDateMedium(expense.expense_date) : '—'}</span>
-                      {expense.payment_method && <span className="capitalize">{expense.payment_method.replace('_', ' ')}</span>}
-                      {expense.recorded_by_name && <span>by {expense.recorded_by_name}</span>}
-                    </div>
-                    {expense.notes && <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{expense.notes}</p>}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-destructive whitespace-nowrap">{formatPrice(expense.amount)}</p>
-                    {canManage && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="w-4 h-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openEditDialog(expense)}>
-                            <Edit className="w-4 h-4 mr-2" /> Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(expense.id)}>
-                            <Trash className="w-4 h-4 mr-2" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -644,7 +702,7 @@ const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, perm
         </div>
       )}
 
-      {/* Edit Dialog - programmatic open from dropdown */}
+      {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={v => { setEditDialogOpen(v); if (!v) setEditingExpense(null); }}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader><DialogTitle>Edit Expense</DialogTitle><DialogDescription>Update the expense details below.</DialogDescription></DialogHeader>

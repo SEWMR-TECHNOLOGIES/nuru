@@ -159,7 +159,7 @@ const MyBookingsTab = () => {
   }
 
   if (error) {
-    return <div className="text-center py-8 text-red-500">{error}</div>;
+    return <div className="text-center py-8 text-destructive">{error}</div>;
   }
 
   return (
@@ -350,7 +350,7 @@ const IncomingBookingsTab = () => {
   }
 
   if (error) {
-    return <div className="text-center py-8 text-red-500">{error}</div>;
+    return <div className="text-center py-8 text-destructive">{error}</div>;
   }
 
   return (

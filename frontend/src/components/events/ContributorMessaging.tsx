@@ -2,7 +2,7 @@
  * ContributorMessaging - Premium messaging section for sending targeted SMS to contributors
  * Supports: No Contribution, Partial Contribution, Completed Contribution cases
  */
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Send, Users, Loader2, Eye, Edit3, CheckCircle2, Clock, AlertCircle, Search } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import ChatIcon from '@/assets/icons/chat-icon.svg';
@@ -173,11 +173,11 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
   };
 
   // Initialize message on first render
-  useState(() => {
+  useEffect(() => {
     if (defaultTemplate) {
       setMessageText(defaultTemplate.template);
     }
-  });
+  }, []);
 
   // Resolve template variables for preview
   const resolveTemplate = (template: string, contributor: EventContributorSummary): string => {

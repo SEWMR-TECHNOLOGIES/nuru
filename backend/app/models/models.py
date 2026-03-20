@@ -1000,6 +1000,8 @@ class UserService(Base):
     photo_libraries = relationship("ServicePhotoLibrary", back_populates="user_service")
     intro_media = relationship("ServiceIntroMedia", back_populates="user_service")
     business_phone = relationship("ServiceBusinessPhone", back_populates="services")
+    budget_items = relationship("EventBudgetItem", back_populates="vendor", foreign_keys="[EventBudgetItem.vendor_id]")
+    expense_items = relationship("EventExpense", back_populates="vendor", foreign_keys="[EventExpense.vendor_id]")
 
 
 class UserServiceImage(Base):
@@ -1641,6 +1643,7 @@ class EventBudgetItem(Base):
     estimated_cost = Column(Numeric)
     actual_cost = Column(Numeric)
     vendor_name = Column(Text)
+    vendor_id = Column(UUID(as_uuid=True), ForeignKey('user_services.id', ondelete='SET NULL'), nullable=True)
     status = Column(Text, default='pending')
     notes = Column(Text)
     created_at = Column(DateTime, server_default=func.now())
@@ -1648,6 +1651,7 @@ class EventBudgetItem(Base):
 
     # Relationships
     event = relationship("Event", back_populates="budget_items")
+    vendor = relationship("UserService", back_populates="budget_items", foreign_keys=[vendor_id])
 
 
 # ──────────────────────────────────────────────

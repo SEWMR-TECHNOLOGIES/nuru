@@ -44,7 +44,7 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
   const canSendInvites = permissions?.can_send_invitations || permissions?.is_creator;
   const canCheckin = permissions?.can_check_in_guests || permissions?.is_creator;
   const { guests, summary, loading, error, refetch, addGuest, deleteGuest, sendInvitation, checkinGuest } = useEventGuests(eventId);
-  usePolling(refetch, 15000);
+  
   const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -63,6 +63,10 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
     dietary_requirements: '',
     notes: ''
   });
+
+  // Pause polling when any dialog is open to prevent form disruption
+  const anyDialogOpen = addDialogOpen || inviteDialogOpen || !!cardGuestId;
+  usePolling(refetch, 15000, !anyDialogOpen);
 
   const resetDialog = () => {
     setSelectedUser(null);
@@ -200,7 +204,7 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
   };
 
   if (loading) return <GuestListSkeletonLoader />;
-  if (error) return <div className="p-6 text-center text-red-500">{error}</div>;
+  if (error) return <div className="p-6 text-center text-destructive">{error}</div>;
 
   return (
     <div className="space-y-6">

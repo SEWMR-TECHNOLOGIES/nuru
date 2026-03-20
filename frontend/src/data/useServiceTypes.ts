@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { api, ServiceType } from "@/lib/api";
 
+const _serviceTypesCache = new Map<string, ServiceType[]>();
+
 export const useServiceTypes = () => {
   const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
   const [loading, setLoading] = useState(false);
@@ -9,12 +11,19 @@ export const useServiceTypes = () => {
   const fetchServiceTypes = async (categoryId: string) => {
     if (!categoryId) return;
 
+    if (_serviceTypesCache.has(categoryId)) {
+      setServiceTypes(_serviceTypesCache.get(categoryId) || []);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
       const response = await api.references.getServiceTypesByCategory(categoryId);
       if (response.success) {
+        _serviceTypesCache.set(categoryId, response.data);
         setServiceTypes(response.data);
       } else {
         setError(response.message || "Failed to fetch service types");
