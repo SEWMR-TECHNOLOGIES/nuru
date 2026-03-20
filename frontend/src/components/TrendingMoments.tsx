@@ -118,7 +118,7 @@ const TrendingMoments = () => {
               className="break-inside-avoid"
             >
               <Link
-                to={`/shared/post/${post.id}`}
+                to={`/post/${post.id}`}
                 className="group block relative rounded-2xl overflow-hidden bg-card border border-border hover:border-foreground/15 transition-all duration-500 hover:shadow-xl hover:-translate-y-1"
               >
                 {/* Image */}

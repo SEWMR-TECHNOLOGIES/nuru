@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { encodeId } from '@/utils/shortId';
 import VideoPlayer from '@/components/VideoPlayer';
 import SmartMedia from '@/components/SmartMedia';
 import ImageLightbox, { useLightbox } from '@/components/ui/image-lightbox';
@@ -158,8 +159,8 @@ const Moment = ({ post }: MomentProps) => {
   // For event shares, use event images if post has none
   const eventImages = sharedEvent?.images?.length ? sharedEvent.images : (sharedEvent?.cover_image ? [sharedEvent.cover_image] : []);
 
-  // Use /shared/post/ URL for sharing
-  const shareUrl = `${window.location.origin}/shared/post/${post.id}`;
+  // Use short URL for sharing
+  const shareUrl = `${window.location.origin}/s/${encodeId(post.id)}`;
   const shareTitle = isEventShare ? (sharedEvent?.title || 'Event') : (title || text?.slice(0, 50) || 'Check this out');
 
 

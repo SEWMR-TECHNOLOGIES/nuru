@@ -5,13 +5,27 @@ const BOT_UA_REGEX = /bot|crawler|spider|crawling|facebookexternalhit|Facebot|Tw
 const siteUrl = "https://nuru.tz";
 const siteName = "Nuru";
 
-function escapeHtml(str: string): string {
-  return str
+function escapeHtml(str: unknown): string {
+  const s = String(str ?? '');
+  return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+/** Decode base64url short ID back to UUID */
+function decodeShortId(short: string): string {
+  try {
+    const base64 = short.replace(/-/g, '+').replace(/_/g, '/');
+    const binary = atob(base64);
+    const hex = Array.from(binary, c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+    if (hex.length !== 32) return short;
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  } catch {
+    return short;
+  }
 }
 
 function buildHtmlPage(title: string, description: string, image: string, canonicalUrl: string): string {
@@ -40,7 +54,7 @@ function buildHtmlPage(title: string, description: string, image: string, canoni
 }
 
 // ── Post OG handler ─────────────────────────────────
-async function handlePost(postId: string, apiBase: string) {
+async function handlePost(postId: string, apiBase: string, shortPath?: string) {
   let post: any = null;
   try {
     const res = await fetch(`${apiBase}/posts/${postId}/public`);
@@ -50,10 +64,13 @@ async function handlePost(postId: string, apiBase: string) {
     console.error("Failed to fetch post:", e);
   }
 
-  const title = post?.content?.slice(0, 60) || "Shared on Nuru";
-  const description = post?.content?.slice(0, 160) || "Check out this moment on Nuru – your all-in-one event planning platform.";
-  const image = post?.images?.[0] || `${siteUrl}/logo.png`;
-  const canonicalUrl = `${siteUrl}/shared/post/${postId}`;
+  const authorName = post?.author?.name || '';
+  const title = (post?.content?.slice(0, 60) || (authorName ? `${authorName} on Nuru` : "Shared on Nuru"));
+  const description = post?.content?.slice(0, 160) || `${authorName ? authorName + ' shared something on' : 'Check out this moment on'} Nuru – your all-in-one event planning platform.`;
+  // images can be strings or {url, media_type} objects
+  const firstImg = post?.images?.[0];
+  const image = (typeof firstImg === 'string' ? firstImg : firstImg?.url) || `${siteUrl}/logo.png`;
+  const canonicalUrl = shortPath ? `${siteUrl}${shortPath}` : `${siteUrl}/shared/post/${postId}`;
 
   return buildHtmlPage(title, description, image, canonicalUrl);
 }
@@ -85,7 +102,6 @@ async function handleRsvp(code: string, apiBase: string) {
 async function handlePhotoLibrary(token: string, apiBase: string) {
   let library: any = null;
   try {
-    // Use the public shared endpoint (no auth required for public libraries)
     const res = await fetch(`${apiBase}/photo-libraries/shared/${token}`);
     const json = await res.json();
     if (json.success && json.data) library = json.data;
@@ -98,7 +114,6 @@ async function handlePhotoLibrary(token: string, apiBase: string) {
   const photoCount = library?.photo_count || 0;
   const title = (eventName ? `${libraryName}` : libraryName).slice(0, 60);
   const description = `View ${photoCount} photo${photoCount !== 1 ? "s" : ""} from ${eventName || "this event"} on Nuru – your all-in-one event planning platform.`;
-  // Use first photo or event cover as OG image
   const image = library?.photos?.[0]?.url || library?.event?.cover_image_url || `${siteUrl}/logo.png`;
   const canonicalUrl = `${siteUrl}/shared/photo-library/${token}`;
 
@@ -110,38 +125,37 @@ serve(async (req) => {
   const url = new URL(req.url);
   const userAgent = req.headers.get("user-agent") || "";
 
-  // Determine resource type and ID
   let resourceType: "post" | "rsvp" | "photo-library" | null = null;
   let resourceId: string | null = null;
+  let shortPath: string | undefined;
 
-  // Check query params first
+  // Check query params
   const idParam = url.searchParams.get("id");
+  const shortParam = url.searchParams.get("short");
   const typeParam = url.searchParams.get("type");
 
-  if (idParam) {
+  if (shortParam) {
+    // Short URL: decode base64url to UUID
+    resourceType = "post";
+    resourceId = decodeShortId(shortParam);
+    shortPath = `/s/${shortParam}`;
+  } else if (idParam) {
     if (typeParam === "rsvp") resourceType = "rsvp";
     else if (typeParam === "photo-library") resourceType = "photo-library";
     else resourceType = "post";
     resourceId = idParam;
   }
 
-  // Check path patterns
+  // Check path patterns as fallback
   if (!resourceId) {
     const postMatch = url.pathname.match(/\/shared\/post\/([a-f0-9-]+)/i);
-    if (postMatch) {
-      resourceType = "post";
-      resourceId = postMatch[1];
-    }
+    if (postMatch) { resourceType = "post"; resourceId = postMatch[1]; }
+    const shortMatch = url.pathname.match(/\/s\/([A-Za-z0-9_-]+)/i);
+    if (shortMatch) { resourceType = "post"; resourceId = decodeShortId(shortMatch[1]); shortPath = `/s/${shortMatch[1]}`; }
     const rsvpMatch = url.pathname.match(/\/rsvp\/([A-Z0-9]+)/i);
-    if (rsvpMatch) {
-      resourceType = "rsvp";
-      resourceId = rsvpMatch[1];
-    }
+    if (rsvpMatch) { resourceType = "rsvp"; resourceId = rsvpMatch[1]; }
     const photoLibraryMatch = url.pathname.match(/\/shared\/photo-library\/([A-Za-z0-9_-]+)/i);
-    if (photoLibraryMatch) {
-      resourceType = "photo-library";
-      resourceId = photoLibraryMatch[1];
-    }
+    if (photoLibraryMatch) { resourceType = "photo-library"; resourceId = photoLibraryMatch[1]; }
   }
 
   if (!resourceType || !resourceId) {
@@ -155,6 +169,9 @@ serve(async (req) => {
       redirectPath = `${siteUrl}/rsvp/${resourceId}?r=1`;
     } else if (resourceType === "photo-library") {
       redirectPath = `${siteUrl}/shared/photo-library/${resourceId}?r=1`;
+    } else if (shortPath) {
+      // Short URL for real users: redirect to the SPA short route
+      redirectPath = `${siteUrl}${shortPath}?r=1`;
     } else {
       redirectPath = `${siteUrl}/shared/post/${resourceId}?r=1`;
     }
@@ -175,7 +192,7 @@ serve(async (req) => {
   } else if (resourceType === "photo-library") {
     html = await handlePhotoLibrary(resourceId, API_BASE);
   } else {
-    html = await handlePost(resourceId, API_BASE);
+    html = await handlePost(resourceId, API_BASE, shortPath);
   }
 
   return new Response(html, {

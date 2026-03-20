@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import ShareMenu from '@/components/ShareMenu';
 import { VerifiedUserBadge } from '@/components/ui/verified-badge';
 import { useNavigate } from 'react-router-dom';
+import { encodeId } from '@/utils/shortId';
 import {
   Popover,
   PopoverContent,
@@ -73,7 +74,7 @@ const Post = ({ post }: PostProps) => {
   const hostedBy = post.event?.hostedBy;
   const date = post.event?.date;
 
-  const shareUrl = `${window.location.origin}/shared/post/${post.id}`;
+  const shareUrl = `${window.location.origin}/s/${encodeId(post.id)}`;
   const shareTitle = title;
 
   // Share logic moved to ShareMenu component

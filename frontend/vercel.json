@@ -1,6 +1,16 @@
 {
   "rewrites": [
     {
+      "source": "/s/:shortId",
+      "missing": [
+        {
+          "type": "query",
+          "key": "r"
+        }
+      ],
+      "destination": "https://lmfprculxhspqxppscbn.supabase.co/functions/v1/og-meta?short=:shortId&type=post"
+    },
+    {
       "source": "/shared/post/:id",
       "missing": [
         {

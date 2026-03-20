@@ -314,8 +314,20 @@ const PublicServiceDetail = () => {
         {/* Quick stats */}
         <div className="bg-card border border-border rounded-2xl p-5 grid grid-cols-2 gap-y-5 gap-x-4">
           <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Experience</p>
-            <p className="text-2xl font-bold text-foreground">{service.years_experience || 0}<span className="text-sm font-normal text-muted-foreground ml-1">yrs</span></p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">On Nuru</p>
+            <p className="text-2xl font-bold text-foreground">
+              {(() => {
+                const created = (service as any).created_at;
+                if (!created) return <><span className="text-sm font-normal text-muted-foreground">New</span></>;
+                const days = Math.floor((Date.now() - new Date(created).getTime()) / 86400000);
+                if (days < 1) return <><span className="text-sm font-normal text-muted-foreground">Today</span></>;
+                if (days < 30) return <>{days}<span className="text-sm font-normal text-muted-foreground ml-1">days</span></>;
+                const months = Math.floor(days / 30);
+                if (months < 12) return <>{months}<span className="text-sm font-normal text-muted-foreground ml-1">{months === 1 ? 'month' : 'months'}</span></>;
+                const years = Math.floor(months / 12);
+                return <>{years}<span className="text-sm font-normal text-muted-foreground ml-1">{years === 1 ? 'year' : 'years'}</span></>;
+              })()}
+            </p>
           </div>
           <div className="space-y-1">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Events Done</p>

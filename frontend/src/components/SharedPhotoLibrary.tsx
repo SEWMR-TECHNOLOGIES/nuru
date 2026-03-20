@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { downloadFile } from '@/utils/downloadFile';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Globe, Lock, X, ZoomIn, Download, ChevronLeft, ChevronRight, Camera } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -320,17 +321,13 @@ const SharedPhotoLibrary = () => {
               <span className="text-white/40 text-xs hidden sm:inline truncate max-w-[200px]">{library.name}</span>
             </div>
             <div className="flex items-center gap-2">
-              <a
-                href={photos[lightboxIdx].url}
-                download={photos[lightboxIdx].original_name || `photo-${lightboxIdx + 1}.jpg`}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
                 className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors inline-flex"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); downloadFile(photos[lightboxIdx].url, photos[lightboxIdx].original_name || `photo-${lightboxIdx + 1}.jpg`); }}
                 title="Download photo"
               >
                 <Download className="w-5 h-5" />
-              </a>
+              </button>
               <button className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors" onClick={() => setLightboxIdx(null)}>
                 <X className="w-5 h-5" />
               </button>

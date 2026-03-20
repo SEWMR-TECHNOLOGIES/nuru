@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { encodeId } from '@/utils/shortId';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Heart, MessageCircle, Send, MoreHorizontal, Loader2, Bookmark, Flag, ChevronDown, CornerDownRight, AlertTriangle } from 'lucide-react';
@@ -457,7 +458,7 @@ const PostDetail = () => {
   };
 
   const handleShare = (platform: string) => {
-    const shareUrl = `${window.location.origin}/shared/post/${id}`;
+    const shareUrl = `${window.location.origin}/s/${id ? encodeId(id) : ''}`;
     const shareTitle = post?.title || post?.content?.slice(0, 50) || 'Check this out';
     let url = '';
     switch (platform) {
@@ -850,7 +851,7 @@ const PostDetail = () => {
                 </button>
               </PopoverTrigger>
               <PopoverContent className="w-48 p-2" align="start">
-                <ShareMenu shareUrl={`${window.location.origin}/shared/post/${id}`} shareTitle={post?.title || post?.content?.slice(0, 50) || 'Check this out'} onClose={() => setShareOpen(false)} />
+                <ShareMenu shareUrl={`${window.location.origin}/s/${id ? encodeId(id) : ''}`} shareTitle={post?.title || post?.content?.slice(0, 50) || 'Check this out'} onClose={() => setShareOpen(false)} />
               </PopoverContent>
             </Popover>
           </div>

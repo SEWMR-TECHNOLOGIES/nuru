@@ -180,7 +180,7 @@ const EchoDrawer = ({ postId, commentCount, open, onOpenChange, onCommentCountCh
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="flex flex-col" style={{ maxHeight: '70dvh' }}>
+      <DrawerContent className="flex flex-col" style={{ maxHeight: '70dvh' }} onClick={(e) => e.stopPropagation()}>
         <DrawerHeader className="border-b border-border py-2.5 px-4 flex-shrink-0">
           <DrawerTitle className="text-sm flex items-center gap-2">
             <MessageCircle className="w-4 h-4" />

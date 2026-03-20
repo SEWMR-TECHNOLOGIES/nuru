@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { downloadFile } from '@/utils/downloadFile';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, Upload, Trash2, Globe, Lock,
@@ -372,17 +373,13 @@ const PhotoLibraryDetail = () => {
                   >
                     <ZoomIn className="w-4 h-4 text-foreground" />
                   </button>
-                  <a
-                    href={photo.url}
-                    download={photo.original_name || `photo-${idx + 1}.jpg`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); downloadFile(photo.url, photo.original_name || `photo-${idx + 1}.jpg`); }}
                     className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors shadow inline-flex"
                     title="Download"
                   >
                     <Download className="w-4 h-4 text-foreground" />
-                  </a>
+                  </button>
                   {isOwner && (
                     <button
                       onClick={() => setDeletePhotoId(photo.id)}
@@ -410,17 +407,13 @@ const PhotoLibraryDetail = () => {
         >
           {/* Top controls */}
           <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
-            <a
+            <button
               className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors inline-flex"
-              href={photos[lightboxIdx]?.url}
-              download={photos[lightboxIdx]?.original_name || `photo-${lightboxIdx + 1}.jpg`}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); downloadFile(photos[lightboxIdx]?.url, photos[lightboxIdx]?.original_name || `photo-${lightboxIdx + 1}.jpg`); }}
               title="Download photo"
             >
               <Download className="w-5 h-5" />
-            </a>
+            </button>
             <button
               onClick={() => setLightboxIdx(null)}
               className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"

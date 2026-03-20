@@ -69,6 +69,7 @@ import VerifyEmail from "@/pages/VerifyEmail";
 import VerifyPhone from "@/pages/VerifyPhone";
 import ResetPassword from "@/pages/ResetPassword";
 import GuestPost from "@/pages/GuestPost";
+import ShortLinkRedirect from "@/pages/ShortLinkRedirect";
 import RSVPConfirmation from "@/pages/RSVPConfirmation";
 import ChangePassword from "@/pages/ChangePassword";
 import TicketVerification from "@/pages/TicketVerification";
@@ -201,6 +202,7 @@ function InnerRoutes() {
         <Route path="/cancellation-policy" element={<CancellationPolicy />} />
         <Route path="/cookie-policy" element={<CookiePolicy />} />
         <Route path="/shared/post/:id" element={<GuestPost />} />
+        <Route path="/s/:shortId" element={<ShortLinkRedirect />} />
         <Route path="/shared/photo-library/:token" element={<SharedPhotoLibrary />} />
         <Route path="/rsvp/:code" element={<RSVPConfirmation />} />
         <Route path="/ticket/:code" element={<TicketVerification />} />

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Download } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { downloadFile } from '@/utils/downloadFile';
 
 interface ImageLightboxProps {
   images: string[];
@@ -64,12 +65,7 @@ const ImageLightbox = ({ images, initialIndex = 0, open, onClose }: ImageLightbo
   }, [images.length]);
 
   const handleDownload = () => {
-    const a = document.createElement('a');
-    a.href = images[currentIndex];
-    a.download = `image-${currentIndex + 1}`;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    a.click();
+    downloadFile(images[currentIndex], `image-${currentIndex + 1}`);
   };
 
   if (!open && !exiting) return null;

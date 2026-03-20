@@ -351,7 +351,7 @@ const ServiceDetail = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 { label: 'Category', value: (typeof (service as any).category === 'string' ? (service as any).category : null) || (service as any).service_category?.name || (service as any).category?.name || service.service_type?.name || (service as any).service_type_name || '—', icon: Briefcase },
-                { label: 'Experience', value: `${service.years_experience || 0} yrs`, icon: Award },
+                { label: 'On Nuru', value: (() => { const created = (service as any).created_at; if (!created) return 'New'; const days = Math.floor((Date.now() - new Date(created).getTime()) / 86400000); if (days < 1) return 'Today'; if (days < 30) return `${days}d`; const months = Math.floor(days / 30); if (months < 12) return `${months}mo`; return `${Math.floor(months / 12)}yr`; })(), icon: Award },
                 { label: 'Location', value: service.location || '—', icon: Briefcase, svgIcon: locationIcon },
                 { label: 'Availability', value: service.availability || 'available', icon: Briefcase, svgIcon: calendarIcon },
               ].map(m => (
@@ -456,7 +456,21 @@ const ServiceDetail = () => {
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <Award className="w-5 h-5 text-primary shrink-0" />
-                <span className="text-muted-foreground">{service.years_experience || 0} years experience</span>
+                <span className="text-muted-foreground">
+                  {(() => {
+                    const created = (service as any).created_at;
+                    if (!created) return 'Member of Nuru';
+                    const diff = Date.now() - new Date(created).getTime();
+                    const days = Math.floor(diff / 86400000);
+                    if (days < 1) return 'Joined Nuru today';
+                    if (days === 1) return '1 day on Nuru';
+                    if (days < 30) return `${days} days on Nuru`;
+                    const months = Math.floor(days / 30);
+                    if (months < 12) return `${months} ${months === 1 ? 'month' : 'months'} on Nuru`;
+                    const years = Math.floor(months / 12);
+                    return `${years} ${years === 1 ? 'year' : 'years'} on Nuru`;
+                  })()}
+                </span>
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <Users className="w-5 h-5 text-blue-500 shrink-0" />

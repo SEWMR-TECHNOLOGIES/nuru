@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { encodeId } from '@/utils/shortId';
 import VideoPlayer from '@/components/VideoPlayer';
 import SmartMedia from '@/components/SmartMedia';
 import ImageLightbox, { useLightbox } from '@/components/ui/image-lightbox';
@@ -342,7 +343,7 @@ const MomentDetail = () => {
   const [appealSubmitted, setAppealSubmitted] = useState(false);
   const lightbox = useLightbox();
 
-  const shareUrl = `${window.location.origin}/shared/post/${id}`;
+  const shareUrl = `${window.location.origin}/s/${id ? encodeId(id) : ''}`;
   const shareTitle = post?.title || post?.content?.slice(0, 50) || 'Check out this moment on Nuru';
 
   // Share logic moved to ShareMenu component
