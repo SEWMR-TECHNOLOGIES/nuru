@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import VideoPlayer from '@/components/VideoPlayer';
 import SmartMedia from '@/components/SmartMedia';
+import ImageLightbox, { useLightbox } from '@/components/ui/image-lightbox';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Heart, Send, X, Loader2, CornerDownRight, ChevronDown, AlertTriangle } from 'lucide-react';
@@ -339,6 +340,7 @@ const MomentDetail = () => {
   const [appealReason, setAppealReason] = useState("");
   const [submittingAppeal, setSubmittingAppeal] = useState(false);
   const [appealSubmitted, setAppealSubmitted] = useState(false);
+  const lightbox = useLightbox();
 
   const shareUrl = `${window.location.origin}/shared/post/${id}`;
   const shareTitle = post?.title || post?.content?.slice(0, 50) || 'Check out this moment on Nuru';
@@ -725,35 +727,48 @@ const MomentDetail = () => {
             {postImages.length > 0 ? (
               <div className={`px-3 md:px-4 ${postImages.length > 1 ? 'flex gap-2 overflow-x-auto py-1' : ''}`}>
                 {postImages.length === 1 ? (
-                  <SmartMedia
-                    src={postImages[0]}
-                    alt="Post"
-                    className="w-full max-h-[500px] object-contain rounded-xl md:rounded-2xl bg-muted/30"
-                    isVideo={isVideoUrl(postImages[0], 0)}
-                  />
+                  isVideoUrl(postImages[0], 0) ? (
+                    <SmartMedia src={postImages[0]} alt="Post" className="w-full max-h-[500px] object-contain rounded-xl md:rounded-2xl bg-muted/30" isVideo={true} />
+                  ) : (
+                    <img
+                      src={postImages[0]}
+                      alt="Post"
+                      className="w-full max-h-[500px] object-contain rounded-xl md:rounded-2xl bg-muted/30 cursor-pointer hover:opacity-95 transition-opacity"
+                      onClick={() => lightbox.openLightbox(postImages.filter((_: string, i: number) => !isVideoUrl(_, i)), 0)}
+                    />
+                  )
                 ) : (
                   postImages.map((media: string, idx: number) => (
-                    <SmartMedia
-                      key={idx}
-                      src={media}
-                      alt={`Post ${idx + 1}`}
-                      className={isVideoUrl(media, idx)
-                        ? "w-40 h-32 md:w-48 md:h-40 flex-shrink-0 rounded-xl"
-                        : "w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-xl"
-                      }
-                      isVideo={isVideoUrl(media, idx)}
-                    />
+                    isVideoUrl(media, idx) ? (
+                      <SmartMedia key={idx} src={media} alt={`Post ${idx + 1}`} className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 rounded-xl" isVideo={true} />
+                    ) : (
+                      <img
+                        key={idx}
+                        src={media}
+                        alt={`Post ${idx + 1}`}
+                        className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => {
+                          const imageOnly = postImages.filter((_: string, i: number) => !isVideoUrl(_, i));
+                          const imgIdx = imageOnly.indexOf(media);
+                          lightbox.openLightbox(imageOnly, imgIdx >= 0 ? imgIdx : 0);
+                        }}
+                      />
+                    )
                   ))
                 )}
               </div>
             ) : postImage ? (
               <div className="px-3 md:px-4">
-                <SmartMedia
-                  src={postImage}
-                  alt={postTitle || 'Moment image'}
-                  className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30"
-                  isVideo={isVideoUrl(postImage, 0)}
-                />
+                {isVideoUrl(postImage, 0) ? (
+                  <SmartMedia src={postImage} alt={postTitle || 'Moment image'} className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30" isVideo={true} />
+                ) : (
+                  <img
+                    src={postImage}
+                    alt={postTitle || 'Moment image'}
+                    className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30 cursor-pointer hover:opacity-95 transition-opacity"
+                    onClick={() => lightbox.openLightbox([postImage], 0)}
+                  />
+                )}
               </div>
             ) : null}
 
@@ -872,6 +887,12 @@ const MomentDetail = () => {
           </div>
         )}
       </div>
+      <ImageLightbox
+        images={lightbox.images}
+        initialIndex={lightbox.index}
+        open={lightbox.open}
+        onClose={lightbox.closeLightbox}
+      />
     </>
   );
 };

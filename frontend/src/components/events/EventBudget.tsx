@@ -176,7 +176,11 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
 
   const openEdit = (item: EventBudgetItem) => {
     setEditingItem(item);
-    setFormCategory(item.category);
+    // Match category case-insensitively to BUDGET_CATEGORIES list
+    const matchedCategory = BUDGET_CATEGORIES.find(
+      c => c.toLowerCase() === (item.category || '').toLowerCase()
+    ) || item.category || '';
+    setFormCategory(matchedCategory);
     setFormItemName(item.item_name);
     setFormEstimatedCost(item.estimated_cost ? String(item.estimated_cost) : '');
     setFormActualCost(item.actual_cost ? String(item.actual_cost) : '');
@@ -685,6 +689,9 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
                   <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                   <SelectContent>
                     {BUDGET_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {formCategory && !BUDGET_CATEGORIES.some(c => c.toLowerCase() === formCategory.toLowerCase()) && (
+                      <SelectItem key={formCategory} value={formCategory}>{formCategory}</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>

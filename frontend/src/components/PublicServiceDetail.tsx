@@ -613,7 +613,21 @@ const PublicServiceDetail = () => {
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <Award className="w-5 h-5 text-primary shrink-0" />
-                <span className="text-muted-foreground">{service.years_experience || 0} years of professional experience</span>
+                <span className="text-muted-foreground">
+                  {(() => {
+                    const created = (service as any).created_at;
+                    if (!created) return 'Member of Nuru';
+                    const diff = Date.now() - new Date(created).getTime();
+                    const days = Math.floor(diff / 86400000);
+                    if (days < 1) return 'Joined Nuru today';
+                    if (days === 1) return '1 day on Nuru';
+                    if (days < 30) return `${days} days on Nuru`;
+                    const months = Math.floor(days / 30);
+                    if (months < 12) return `${months} ${months === 1 ? 'month' : 'months'} on Nuru`;
+                    const years = Math.floor(months / 12);
+                    return `${years} ${years === 1 ? 'year' : 'years'} on Nuru`;
+                  })()}
+                </span>
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <img src={calendarIcon} alt="time" className="w-5 h-5 dark:invert opacity-70" />

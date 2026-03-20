@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import ImageLightbox, { useLightbox } from '@/components/ui/image-lightbox';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Heart, MessageCircle, MapPin } from 'lucide-react';
 import { VerifiedUserBadge } from '@/components/ui/verified-badge';
@@ -38,6 +39,7 @@ const GuestPost = () => {
   const [post, setPost] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const guestLightbox = useLightbox();
 
   useEffect(() => {
     if (userIsLoggedIn && id) {
@@ -174,7 +176,15 @@ const GuestPost = () => {
                   return isVideoMedia(postImages[0]) ? (
                     <video src={url} controls className="w-full max-h-[500px] rounded-lg bg-muted/30" />
                   ) : (
-                    <img src={url} alt="Post" className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30" />
+                    <img
+                      src={url}
+                      alt="Post"
+                      className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30 cursor-pointer hover:opacity-95 transition-opacity"
+                      onClick={() => {
+                        const allUrls = postImages.map(getImageUrl).filter((u): u is string => !!u && !isVideoMedia(postImages[postImages.indexOf(postImages.find(p => getImageUrl(p) === u)!)]));
+                        guestLightbox.openLightbox(allUrls, 0);
+                      }}
+                    />
                   );
                 })()
               ) : (
@@ -185,7 +195,18 @@ const GuestPost = () => {
                     return isVideoMedia(img) ? (
                       <video key={idx} src={url} muted playsInline preload="metadata" className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg" />
                     ) : (
-                      <img key={idx} src={url} alt={`Post ${idx + 1}`} className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg" />
+                      <img
+                        key={idx}
+                        src={url}
+                        alt={`Post ${idx + 1}`}
+                        className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => {
+                          const allUrls = postImages.map(getImageUrl).filter((u): u is string => !!u);
+                          const imageOnlyUrls = allUrls.filter((_, i) => !isVideoMedia(postImages[i]));
+                          const imgIdx = imageOnlyUrls.indexOf(url);
+                          guestLightbox.openLightbox(imageOnlyUrls, imgIdx >= 0 ? imgIdx : 0);
+                        }}
+                      />
                     );
                   })}
                 </div>
@@ -230,6 +251,12 @@ const GuestPost = () => {
           </div>
         </div>
       </div>
+      <ImageLightbox
+        images={guestLightbox.images}
+        initialIndex={guestLightbox.index}
+        open={guestLightbox.open}
+        onClose={guestLightbox.closeLightbox}
+      />
     </div>
   );
 };

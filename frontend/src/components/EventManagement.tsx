@@ -349,10 +349,10 @@ const EventManagement = () => {
             { value: 'overview', label: 'Overview' },
             { value: 'checklist', label: 'Checklist' },
             { value: 'budget', label: 'Budget' },
+            { value: 'expenses', label: 'Expenses' },
             { value: 'services', label: 'Services' },
             { value: 'committee', label: 'Committee' },
             { value: 'contributions', label: 'Contributions' },
-            { value: 'expenses', label: 'Expenses' },
             { value: 'guests', label: 'Guests' },
             { value: 'rsvp', label: 'RSVP' },
             ...((apiEvent as any)?.sells_tickets ? [{ value: 'tickets', label: 'Tickets' }] : []),
@@ -441,6 +441,16 @@ const EventManagement = () => {
             eventTypeName={apiEvent?.event_type?.name}
             eventLocation={apiEvent?.location || ''}
             expectedGuests={apiEvent?.expected_guests ? String(apiEvent.expected_guests) : ''}
+            permissions={permissions}
+          />
+        </TabsContent>
+
+        <TabsContent value="expenses" className="space-y-6">
+          <EventExpenses
+            eventId={id!}
+            eventTitle={eventTitle}
+            eventBudget={apiEvent?.budget ? parseFloat(String(apiEvent.budget).replace(/[^0-9]/g, '')) : undefined}
+            totalRaised={contributionSummary?.total_paid || 0}
             permissions={permissions}
           />
         </TabsContent>
@@ -681,15 +691,6 @@ const EventManagement = () => {
           <EventContributions eventId={id!} eventTitle={eventTitle} eventBudget={apiEvent?.budget ? parseFloat(String(apiEvent.budget).replace(/[^0-9]/g, '')) : undefined} eventEndDate={apiEvent?.start_date} isCreator={isCreator} permissions={permissions} />
         </TabsContent>
 
-        <TabsContent value="expenses" className="space-y-6">
-          <EventExpenses
-            eventId={id!}
-            eventTitle={eventTitle}
-            eventBudget={apiEvent?.budget ? parseFloat(String(apiEvent.budget).replace(/[^0-9]/g, '')) : undefined}
-            totalRaised={contributionSummary?.total_paid || 0}
-            permissions={permissions}
-          />
-        </TabsContent>
 
         <TabsContent value="guests" className="space-y-6">
           <EventGuestList eventId={id!} permissions={permissions} />

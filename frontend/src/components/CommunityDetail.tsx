@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import ImageLightbox, { useLightbox } from '@/components/ui/image-lightbox';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Users, Crown, Plus, Loader2, Heart, Send, X, Search, Trash2, Camera } from 'lucide-react';
 import { VerifiedUserBadge } from '@/components/ui/verified-badge';
@@ -41,6 +42,7 @@ const CommunityDetail = () => {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
+  const communityLightbox = useLightbox();
 
   // Creator post form
   const [postContent, setPostContent] = useState('');
@@ -476,7 +478,8 @@ const CommunityDetail = () => {
                         <img
                           src={images[0]}
                           alt=""
-                          className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30"
+                          className="w-full max-h-[500px] object-contain rounded-lg bg-muted/30 cursor-pointer hover:opacity-95 transition-opacity"
+                          onClick={() => communityLightbox.openLightbox(images, 0)}
                         />
                       ) : (
                         images.map((img: string, idx: number) => (
@@ -484,7 +487,8 @@ const CommunityDetail = () => {
                             key={idx}
                             src={img}
                             alt={`Post ${idx + 1}`}
-                            className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg"
+                            className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => communityLightbox.openLightbox(images, idx)}
                           />
                         ))
                       )}
@@ -529,6 +533,12 @@ const CommunityDetail = () => {
           </Card>
         )}
       </div>
+      <ImageLightbox
+        images={communityLightbox.images}
+        initialIndex={communityLightbox.index}
+        open={communityLightbox.open}
+        onClose={communityLightbox.closeLightbox}
+      />
     </div>
   );
 };

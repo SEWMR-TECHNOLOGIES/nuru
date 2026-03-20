@@ -1,5 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Heart, MessageCircle, MoreHorizontal } from 'lucide-react';
+import ImageLightbox, { useLightbox } from '@/components/ui/image-lightbox';
+import InlineFeedEchoes, { InlineFeedEchoesRef } from '@/components/InlineFeedEchoes';
+import EchoDrawer from '@/components/EchoDrawer';
+import { useIsMobile } from '@/hooks/use-mobile';
 import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import { Button } from '@/components/ui/button';
@@ -44,8 +48,13 @@ interface PostProps {
 const Post = ({ post }: PostProps) => {
   const [liked, setLiked] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [echoDrawerOpen, setEchoDrawerOpen] = useState(false);
+  const [echoCount, setEchoCount] = useState(post.comments || 0);
   const navigate = useNavigate();
   const toggleLike = () => setLiked(!liked);
+  const lightbox = useLightbox();
+  const isMobile = useIsMobile();
+  const echoRef = useRef<InlineFeedEchoesRef>(null);
 
 
   // Resolve fields from either event or content (event preferred)
@@ -110,7 +119,8 @@ const Post = ({ post }: PostProps) => {
           <img
             src={image}
             alt={title || 'Post image'}
-            className="w-full h-48 md:h-64 object-cover rounded-lg"
+            className="w-full h-48 md:h-64 object-cover rounded-lg cursor-pointer hover:opacity-95 transition-opacity"
+            onClick={(e) => { e.stopPropagation(); lightbox.openLightbox([image], 0); }}
           />
         </div>
       )}
@@ -157,13 +167,13 @@ const Post = ({ post }: PostProps) => {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              const scrollContainer = document.querySelector('.flex-1.overflow-y-auto');
-              if (scrollContainer) {
-                sessionStorage.setItem('feedScrollPosition', scrollContainer.scrollTop.toString());
+              if (isMobile) {
+                setEchoDrawerOpen(true);
+              } else {
+                echoRef.current?.toggle();
               }
-              navigate(`/post/${post.id}`, { state: { post } });
             }}
-            className="flex items-center justify-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 rounded-lg bg-gray-200/20 text-muted-foreground hover:bg-gray-200/30 hover:text-foreground transition-colors text-xs md:text-sm min-w-[60px] md:min-w-[80px]"
+            className="flex items-center justify-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 rounded-lg bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors text-xs md:text-sm min-w-[60px] md:min-w-[80px]"
           >
             <MessageCircle className="w-4 h-4 flex-shrink-0" />
             <span className="hidden sm:inline whitespace-nowrap">Echo</span>
@@ -195,10 +205,36 @@ const Post = ({ post }: PostProps) => {
             {(post.likes + (liked ? 1 : 0)) === 1 ? 'Glow' : 'Glows'}
           </span>
           <span>
-            {post.comments} {post.comments === 1 ? 'Echo' : 'Echoes'}
+            {echoCount} {echoCount === 1 ? 'Echo' : 'Echoes'}
           </span>
         </div>
       </div>
+
+      {/* Desktop inline echoes */}
+      {!isMobile && (
+        <InlineFeedEchoes
+          ref={echoRef}
+          postId={post.id}
+          commentCount={echoCount}
+          onCommentCountChange={(delta) => setEchoCount(c => c + delta)}
+        />
+      )}
+
+      {/* Mobile echo drawer */}
+      <EchoDrawer
+        postId={post.id}
+        commentCount={echoCount}
+        open={echoDrawerOpen}
+        onOpenChange={setEchoDrawerOpen}
+        onCommentCountChange={(delta) => setEchoCount(c => c + delta)}
+      />
+
+      <ImageLightbox
+        images={lightbox.images}
+        initialIndex={lightbox.index}
+        open={lightbox.open}
+        onClose={lightbox.closeLightbox}
+      />
     </div>
   );
 };

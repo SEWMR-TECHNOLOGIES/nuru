@@ -1,6 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import VideoPlayer from '@/components/VideoPlayer';
 import SmartMedia from '@/components/SmartMedia';
+import ImageLightbox, { useLightbox } from '@/components/ui/image-lightbox';
+import InlineFeedEchoes, { InlineFeedEchoesRef } from '@/components/InlineFeedEchoes';
+import EchoDrawer from '@/components/EchoDrawer';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Heart, MessageCircle, Bookmark } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
@@ -84,6 +88,11 @@ const Moment = ({ post }: MomentProps) => {
   const [shareOpen, setShareOpen] = useState(false);
   const [saved, setSaved] = useState(post.has_saved || false);
   const [saving, setSaving] = useState(false);
+  const [echoCount, setEchoCount] = useState(post.comments);
+  const [echoDrawerOpen, setEchoDrawerOpen] = useState(false);
+  const lightbox = useLightbox();
+  const isMobile = useIsMobile();
+  const echoRef = useRef<InlineFeedEchoesRef>(null);
 
   // Feed ranking: viewport tracking for view/dwell signals
   const viewTrackingRef = usePostViewTracking(post.id);
@@ -327,25 +336,46 @@ const Moment = ({ post }: MomentProps) => {
           {allImages.length > 0 && (
             <div className={`px-3 md:px-4 ${allImages.length > 1 ? 'flex gap-2 overflow-x-auto py-1' : ''}`}>
               {allImages.length === 1 ? (
-                <SmartMedia
-                  src={allImages[0]}
-                  alt={title || 'Post image'}
-                  className="w-full max-h-[500px] object-contain rounded-xl md:rounded-2xl bg-muted/30"
-                  isVideo={isVideoUrl(allImages[0], 0)}
-                />
+                isVideoUrl(allImages[0], 0) ? (
+                  <SmartMedia
+                    src={allImages[0]}
+                    alt={title || 'Post image'}
+                    className="w-full max-h-[500px] object-contain rounded-xl md:rounded-2xl bg-muted/30"
+                    isVideo={true}
+                  />
+                ) : (
+                  <img
+                    src={allImages[0]}
+                    alt={title || 'Post image'}
+                    className="w-full max-h-[500px] object-contain rounded-xl md:rounded-2xl bg-muted/30 cursor-pointer hover:opacity-95 transition-opacity"
+                    onClick={(e) => { e.stopPropagation(); lightbox.openLightbox(allImages.filter((_, i) => !isVideoUrl(_, i)), 0); }}
+                  />
+                )
               ) : (
                 allImages.map((imgUrl, idx) => (
-                  <SmartMedia
-                    key={idx}
-                    src={imgUrl}
-                    alt={`Post ${idx + 1}`}
-                    className={isVideoUrl(imgUrl, idx)
-                      ? "w-40 h-32 md:w-48 md:h-40 flex-shrink-0 rounded-xl"
-                      : "w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-xl"
-                    }
-                    isVideo={isVideoUrl(imgUrl, idx)}
-                    compact
-                  />
+                  isVideoUrl(imgUrl, idx) ? (
+                    <SmartMedia
+                      key={idx}
+                      src={imgUrl}
+                      alt={`Post ${idx + 1}`}
+                      className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 rounded-xl"
+                      isVideo={true}
+                      compact
+                    />
+                  ) : (
+                    <img
+                      key={idx}
+                      src={imgUrl}
+                      alt={`Post ${idx + 1}`}
+                      className="w-40 h-32 md:w-48 md:h-40 flex-shrink-0 object-cover rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const imageOnly = allImages.filter((_, i) => !isVideoUrl(_, i));
+                        const imgIdx = imageOnly.indexOf(imgUrl);
+                        lightbox.openLightbox(imageOnly, imgIdx >= 0 ? imgIdx : 0);
+                      }}
+                    />
+                  )
                 ))
               )}
             </div>
@@ -375,11 +405,15 @@ const Moment = ({ post }: MomentProps) => {
             <span className="hidden sm:inline whitespace-nowrap">{glowed ? 'Glowed' : 'Glow'}</span>
           </button>
 
-          {/* Echo */}
+          {/* Echo - drawer on mobile, inline toggle on desktop */}
           <button
             onClick={(e) => {
               e.stopPropagation();
-              handlePostClick();
+              if (isMobile) {
+                setEchoDrawerOpen(true);
+              } else {
+                echoRef.current?.toggle();
+              }
             }}
             className="flex items-center justify-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 rounded-lg bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors text-xs md:text-sm min-w-[60px] md:min-w-[80px]"
           >
@@ -407,9 +441,36 @@ const Moment = ({ post }: MomentProps) => {
         {/* Counts */}
         <div className="flex items-center gap-3 md:gap-4 text-xs md:text-sm text-muted-foreground">
           <span>{glowCount} {glowCount === 1 ? 'Glow' : 'Glows'}</span>
-          <span>{post.comments} {post.comments === 1 ? 'Echo' : 'Echoes'}</span>
+          <span>{echoCount} {echoCount === 1 ? 'Echo' : 'Echoes'}</span>
         </div>
       </div>
+
+      {/* Desktop inline echoes */}
+      {!isMobile && (
+        <InlineFeedEchoes
+          ref={echoRef}
+          postId={post.id}
+          commentCount={echoCount}
+          onCommentCountChange={(delta) => setEchoCount(c => c + delta)}
+        />
+      )}
+
+      {/* Mobile echo drawer */}
+      <EchoDrawer
+        postId={post.id}
+        commentCount={echoCount}
+        open={echoDrawerOpen}
+        onOpenChange={setEchoDrawerOpen}
+        onCommentCountChange={(delta) => setEchoCount(c => c + delta)}
+      />
+
+      {/* Image Lightbox */}
+      <ImageLightbox
+        images={lightbox.images}
+        initialIndex={lightbox.index}
+        open={lightbox.open}
+        onClose={lightbox.closeLightbox}
+      />
     </div>
   );
 };
