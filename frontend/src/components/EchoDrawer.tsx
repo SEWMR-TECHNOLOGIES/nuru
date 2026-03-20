@@ -180,8 +180,8 @@ const EchoDrawer = ({ postId, commentCount, open, onOpenChange, onCommentCountCh
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[85vh]">
-        <DrawerHeader className="border-b border-border pb-3">
+      <DrawerContent className="max-h-[80dvh] flex flex-col">
+        <DrawerHeader className="border-b border-border pb-3 flex-shrink-0">
           <DrawerTitle className="text-base flex items-center gap-2">
             <MessageCircle className="w-4 h-4" />
             Echoes
@@ -192,7 +192,7 @@ const EchoDrawer = ({ postId, commentCount, open, onOpenChange, onCommentCountCh
         </DrawerHeader>
 
         {/* Comments list */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 min-h-[200px] max-h-[55vh]">
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 min-h-0">
           {loading && (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
@@ -212,8 +212,8 @@ const EchoDrawer = ({ postId, commentCount, open, onOpenChange, onCommentCountCh
           ))}
         </div>
 
-        {/* Input */}
-        <div className="border-t border-border px-4 py-3">
+        {/* Input - fixed at bottom */}
+        <div className="border-t border-border px-4 py-3 flex-shrink-0 pb-[env(safe-area-inset-bottom,12px)]">
           {replyTo && (
             <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
               <CornerDownRight className="w-3 h-3" />

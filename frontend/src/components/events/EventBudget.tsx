@@ -102,6 +102,8 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
   const [editingItem, setEditingItem] = useState<EventBudgetItem | null>(null);
   const [saving, setSaving] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [customCategoryMode, setCustomCategoryMode] = useState(false);
+  const [customCategory, setCustomCategory] = useState('');
 
   // Form state
   const [formCategory, setFormCategory] = useState('');
@@ -167,6 +169,8 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
     setFormStatus('pending');
     setFormNotes('');
     setEditingItem(null);
+    setCustomCategoryMode(false);
+    setCustomCategory('');
   };
 
   const openAdd = () => {
@@ -511,10 +515,14 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
           <SelectTrigger className="h-9 w-32 text-xs">
             <SelectValue placeholder="Category" />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {BUDGET_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-          </SelectContent>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {(() => {
+                const allCats = new Set(BUDGET_CATEGORIES);
+                items.forEach(i => { if (i.category) allCats.add(i.category); });
+                return Array.from(allCats).sort().map(c => <SelectItem key={c} value={c}>{c}</SelectItem>);
+              })()}
+            </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="h-9 w-28 text-xs">
@@ -685,15 +693,55 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Category *</Label>
-                <Select value={formCategory} onValueChange={setFormCategory}>
-                  <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                  <SelectContent>
-                    {BUDGET_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    {formCategory && !BUDGET_CATEGORIES.some(c => c.toLowerCase() === formCategory.toLowerCase()) && (
-                      <SelectItem key={formCategory} value={formCategory}>{formCategory}</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                {customCategoryMode ? (
+                  <div className="flex gap-2">
+                    <Input
+                      value={customCategory}
+                      onChange={e => setCustomCategory(e.target.value)}
+                      placeholder="Enter custom category"
+                      className="flex-1"
+                      autoFocus
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && customCategory.trim()) {
+                          setFormCategory(customCategory.trim());
+                          setCustomCategoryMode(false);
+                          setCustomCategory('');
+                        }
+                      }}
+                    />
+                    <Button variant="outline" size="sm" onClick={() => {
+                      if (customCategory.trim()) {
+                        setFormCategory(customCategory.trim());
+                      }
+                      setCustomCategoryMode(false);
+                      setCustomCategory('');
+                    }}>Set</Button>
+                    <Button variant="ghost" size="sm" onClick={() => {
+                      setCustomCategoryMode(false);
+                      setCustomCategory('');
+                    }}>✕</Button>
+                  </div>
+                ) : (
+                  <Select value={formCategory} onValueChange={v => {
+                    if (v === '__custom__') {
+                      setCustomCategoryMode(true);
+                      setCustomCategory('');
+                    } else {
+                      setFormCategory(v);
+                    }
+                  }}>
+                    <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                    <SelectContent>
+                      {(() => {
+                        const allCats = new Set(BUDGET_CATEGORIES);
+                        items.forEach(i => { if (i.category) allCats.add(i.category); });
+                        if (formCategory && !allCats.has(formCategory)) allCats.add(formCategory);
+                        return Array.from(allCats).sort().map(c => <SelectItem key={c} value={c}>{c}</SelectItem>);
+                      })()}
+                      <SelectItem value="__custom__">+ Add custom category</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Status</Label>
