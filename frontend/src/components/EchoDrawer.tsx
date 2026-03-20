@@ -180,9 +180,9 @@ const EchoDrawer = ({ postId, commentCount, open, onOpenChange, onCommentCountCh
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[80dvh] flex flex-col">
-        <DrawerHeader className="border-b border-border pb-3 flex-shrink-0">
-          <DrawerTitle className="text-base flex items-center gap-2">
+      <DrawerContent className="flex flex-col" style={{ maxHeight: '70dvh' }}>
+        <DrawerHeader className="border-b border-border py-2.5 px-4 flex-shrink-0">
+          <DrawerTitle className="text-sm flex items-center gap-2">
             <MessageCircle className="w-4 h-4" />
             Echoes
             {localCount > 0 && (
@@ -191,29 +191,8 @@ const EchoDrawer = ({ postId, commentCount, open, onOpenChange, onCommentCountCh
           </DrawerTitle>
         </DrawerHeader>
 
-        {/* Comments list */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 min-h-0">
-          {loading && (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-            </div>
-          )}
-
-          {!loading && comments.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">No echoes yet</p>
-              <p className="text-xs mt-1">Be the first to echo</p>
-            </div>
-          )}
-
-          {comments.map((comment) => (
-            <EchoComment key={comment.id} comment={comment} postId={postId} onReply={handleReply} />
-          ))}
-        </div>
-
-        {/* Input - fixed at bottom */}
-        <div className="border-t border-border px-4 py-3 flex-shrink-0 pb-[env(safe-area-inset-bottom,12px)]">
+        {/* Input - always visible right after header */}
+        <div className="border-b border-border px-3 py-2.5 flex-shrink-0">
           {replyTo && (
             <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
               <CornerDownRight className="w-3 h-3" />
@@ -221,7 +200,7 @@ const EchoDrawer = ({ postId, commentCount, open, onOpenChange, onCommentCountCh
               <button onClick={() => { setReplyTo(null); setInput(''); }} className="ml-auto text-destructive hover:text-destructive/80 text-[10px] font-medium">Cancel</button>
             </div>
           )}
-          <div className="flex gap-2.5 items-center">
+          <div className="flex gap-2 items-center">
             {currentUser && (
               <MiniAvatar
                 src={(currentUser as any).avatar}
@@ -229,11 +208,8 @@ const EchoDrawer = ({ postId, commentCount, open, onOpenChange, onCommentCountCh
                 size="md"
               />
             )}
-            <form
-              onSubmit={handleSubmit}
-              className="flex-1 flex items-center gap-2"
-            >
-              <div className="flex-1 border border-border rounded-full px-4 py-2 bg-muted/20 focus-within:border-primary/40 transition-colors">
+            <form onSubmit={handleSubmit} className="flex-1 flex items-center gap-2">
+              <div className="flex-1 border border-border rounded-full px-3.5 py-2 bg-muted/20 focus-within:border-primary/40 transition-colors">
                 <input
                   ref={inputRef}
                   type="text"
@@ -253,6 +229,27 @@ const EchoDrawer = ({ postId, commentCount, open, onOpenChange, onCommentCountCh
               </button>
             </form>
           </div>
+        </div>
+
+        {/* Comments list - scrollable below input */}
+        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3 min-h-0 overscroll-y-contain pb-[env(safe-area-inset-bottom,8px)]">
+          {loading && (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {!loading && comments.length === 0 && (
+            <div className="text-center py-6 text-muted-foreground">
+              <MessageCircle className="w-7 h-7 mx-auto mb-1.5 opacity-40" />
+              <p className="text-sm">No echoes yet</p>
+              <p className="text-xs mt-0.5">Be the first to echo</p>
+            </div>
+          )}
+
+          {comments.map((comment) => (
+            <EchoComment key={comment.id} comment={comment} postId={postId} onReply={handleReply} />
+          ))}
         </div>
       </DrawerContent>
     </Drawer>
