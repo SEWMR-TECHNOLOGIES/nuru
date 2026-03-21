@@ -110,7 +110,6 @@ export const generateBudgetReportHtml = (
     ${budgetCard}
     <div class="summary-card"><div class="label">Total Estimated</div><div class="value">${fmt(summary.total_estimated)}</div></div>
     <div class="summary-card"><div class="label">Total Actual</div><div class="value">${fmt(summary.total_actual)}</div></div>
-    <div class="summary-card"><div class="label">${overallLabel}</div><div class="value">${fmt(summary.overall_budget)}</div></div>
   </div>
 
   <h3 style="font-size:14px;margin-bottom:8px">Category Summary</h3>
@@ -134,7 +133,7 @@ export const generateBudgetReportHtml = (
     <tbody>${rows}</tbody>
     <tfoot>
       <tr>
-        <td colspan="4">Total (${items.length} items)</td>
+        <td colspan="4">${overallLabel} (${items.length} items)</td>
         <td style="text-align:right">${fmt(summary.overall_budget)}</td>
         <td></td>
       </tr>

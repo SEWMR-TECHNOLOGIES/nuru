@@ -386,6 +386,20 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {eventBudget ? (
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                  <DollarSign className="w-4 h-4 text-purple-600" />
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Event Budget</p>
+              <p className="text-lg font-bold text-foreground mt-0.5">{formatPrice(eventBudget)}</p>
+            </CardContent>
+          </Card>
+        ) : null}
+
         <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
@@ -393,7 +407,7 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
                 <DollarSign className="w-4 h-4 text-blue-600" />
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Total Estimate</p>
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Total Estimated</p>
             <p className="text-lg font-bold text-foreground mt-0.5">{formatPrice(totalEstimated)}</p>
           </CardContent>
         </Card>
@@ -407,21 +421,6 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
             </div>
             <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Total Actual</p>
             <p className="text-lg font-bold text-foreground mt-0.5">{formatPrice(totalActual)}</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-sm bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                <BarChart3 className="w-4 h-4 text-amber-600" />
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">
-              {includesEstimates ? 'Overall Budget (incl. estimates)' : 'Overall Event Budget'}
-            </p>
-            <p className="text-lg font-bold text-foreground mt-0.5">{formatPrice(overallBudget)}</p>
-            <p className="text-[11px] text-muted-foreground mt-1">{pendingItems} pending · {items.length} total</p>
           </CardContent>
         </Card>
       </div>
@@ -630,6 +629,14 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {/* Grand Total Row */}
+      {items.length > 0 && (
+        <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-muted/50 border font-semibold text-sm">
+          <span>{includesEstimates ? 'Overall Event Budget (includes estimates)' : 'Overall Event Budget'} · {items.length} items</span>
+          <span>{formatPrice(overallBudget)}</span>
         </div>
       )}
 
