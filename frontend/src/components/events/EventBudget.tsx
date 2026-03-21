@@ -141,15 +141,16 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
 
   // Category breakdown
   const categoryBreakdown = useMemo(() => {
-    const map = new Map<string, { estimated: number; actual: number; count: number }>();
+    const map = new Map<string, { estimated: number; actual: number; effective: number; count: number }>();
     items.forEach(i => {
-      const existing = map.get(i.category) || { estimated: 0, actual: 0, count: 0 };
+      const existing = map.get(i.category) || { estimated: 0, actual: 0, effective: 0, count: 0 };
       existing.estimated += i.estimated_cost || 0;
       existing.actual += i.actual_cost || 0;
+      existing.effective += (i.actual_cost && i.actual_cost > 0) ? i.actual_cost : (i.estimated_cost || 0);
       existing.count += 1;
       map.set(i.category, existing);
     });
-    return Array.from(map.entries()).map(([category, data]) => ({ category, ...data })).sort((a, b) => b.estimated - a.estimated);
+    return Array.from(map.entries()).map(([category, data]) => ({ category, ...data })).sort((a, b) => a.category.localeCompare(b.category));
   }, [items]);
 
   // Effective cost per item: actual if > 0, else estimate
@@ -439,8 +440,8 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
               {categoryBreakdown.map(cat => {
-                const effective = cat.actual > 0 ? cat.actual : cat.estimated;
-                const isEst = !(cat.actual > 0);
+                const effective = cat.effective;
+                const isEst = cat.effective !== cat.actual;
                 return (
                   <div key={cat.category} className="flex items-center justify-between p-2 rounded-md bg-muted/30">
                     <div>

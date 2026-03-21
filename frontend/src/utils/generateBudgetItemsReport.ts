@@ -11,7 +11,7 @@ interface BudgetReportSummary {
   overall_budget: number;
   includes_estimates: boolean;
   event_budget?: number;
-  category_breakdown: Array<{ category: string; estimated: number; actual: number; count: number }>;
+  category_breakdown: Array<{ category: string; estimated: number; actual: number; effective: number; count: number }>;
 }
 
 const getEffectiveCost = (item: EventBudgetItem) =>
@@ -55,8 +55,9 @@ export const generateBudgetReportHtml = (
       </tr>`;
   }).join('');
 
-  const catRows = summary.category_breakdown.map((c, i) => {
-    const effective = c.actual > 0 ? c.actual : c.estimated;
+  const sortedCategories = [...summary.category_breakdown].sort((a, b) => a.category.localeCompare(b.category));
+  const catRows = sortedCategories.map((c, i) => {
+    const effective = c.effective;
     return `
     <tr>
       <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${i + 1}</td>
