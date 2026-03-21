@@ -1,5 +1,6 @@
 import requests
 from services.SewmrSmsClient import SewmrSmsClient
+from utils.otp_router import route_and_send_otp, OtpDeliveryResult
 
 async def send_verification_sms(phone: str, code: str, first_name: str = ""):
     """
@@ -81,3 +82,42 @@ def send_password_reset_email(to_email: str, token: str, first_name: str = ""):
 
     if not result.get("success"):
         raise Exception(result.get("message", "Failed to send reset email"))
+
+
+def _send_sms_sync(phone: str, otp_code: str, message_template: str = "") -> bool:
+    """
+    Synchronous SMS sender compatible with route_and_send_otp's send_sms_fn callback.
+    Returns True on success, False on failure.
+    """
+    client = SewmrSmsClient()
+    message = message_template or f"Your Nuru verification code is {otp_code}"
+    try:
+        result = client.send_quick_sms(message=message, recipients=[phone])
+        return bool(result.get("success"))
+    except Exception as e:
+        print(f"[SMS sync] Failed to send to {phone}: {e}")
+        return False
+
+
+def send_otp_with_routing(phone: str, code: str, first_name: str = "", context: str = "verification") -> OtpDeliveryResult:
+    """
+    Send OTP using WhatsApp-first routing with SMS fallback.
+    This is the single entry point all OTP sends should use.
+
+    Args:
+        phone: Normalised phone number (e.g. "255712345678")
+        code: The OTP code
+        first_name: User's first name for personalised SMS
+        context: "verification" | "business_phone" | "password_reset"
+    """
+    if context == "business_phone":
+        msg = f"Hello {first_name}, use the code {code} to verify your business phone number on Nuru. "
+    elif context == "password_reset":
+        msg = f"Hello {first_name}, use the code {code} to reset your Nuru password. "
+    else:
+        msg = f"Hello {first_name}, use the verification code {code} to activate your account. "
+
+    def sms_fn(ph: str, otp: str) -> bool:
+        return _send_sms_sync(ph, otp, msg)
+
+    return route_and_send_otp(phone, code, sms_fn)

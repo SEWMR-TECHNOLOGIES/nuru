@@ -19,7 +19,7 @@ from utils.auth import (
     verify_refresh_token
 )
 from utils.user_payload import build_user_payload
-from utils.notification_service import send_password_reset_email, send_verification_sms
+from utils.notification_service import send_password_reset_email, send_verification_sms, send_otp_with_routing
 from utils.validation_functions import validate_tanzanian_phone
 from utils.helpers import standard_response, generate_otp, get_expiry, mask_phone
 
@@ -311,11 +311,11 @@ async def forgot_password_phone(request: Request, db: Session = Depends(get_db))
     db.commit()
 
     try:
-        await send_verification_sms(user.phone, code, user.first_name)
+        result = send_otp_with_routing(user.phone, code, user.first_name, context="password_reset")
+        if not result.success:
+            print(f"[forgot-password-phone] OTP delivery failed: {result.message}")
     except Exception:
         print(traceback.format_exc())
-        # Still return success to prevent enumeration
-        pass
 
     masked = mask_phone(user.phone)
     return standard_response(True, f"If this phone number is registered, a reset code has been sent to {masked}.")

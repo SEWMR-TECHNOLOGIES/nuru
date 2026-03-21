@@ -15,7 +15,7 @@ from models import (
 )
 from utils.auth import get_current_user
 from utils.helpers import standard_response, generate_otp, get_expiry, mask_email, mask_phone
-from utils.notification_service import send_verification_email, send_verification_sms
+from utils.notification_service import send_verification_email, send_verification_sms, send_otp_with_routing
 from utils.sms import sms_welcome_registered
 from utils.validation_functions import validate_email, validate_tanzanian_phone, validate_password_strength, validate_username
 from utils.name_validation import validate_name
@@ -214,9 +214,12 @@ async def request_otp(request: Request, db: Session = Depends(get_db)):
 
     try:
         if verification_type == "phone":
-            await send_verification_sms(user.phone, code, user.first_name)
+            result = send_otp_with_routing(user.phone, code, user.first_name, context="verification")
+            if not result.success:
+                print(f"[activate] OTP delivery issue: {result.message}")
             masked = mask_phone(user.phone)
-            message = f"We have sent a verification code to your phone number {masked}. Please check and enter the code to activate your account."
+            channel_info = f" via {result.channel.replace('whatsapp', 'WhatsApp').upper()}" if result.success else ""
+            message = f"We have sent a verification code to your phone number {masked}{channel_info}. Please check and enter the code to activate your account."
         else:
             send_verification_email(user.email, code, user.first_name)
             masked = mask_email(user.email)

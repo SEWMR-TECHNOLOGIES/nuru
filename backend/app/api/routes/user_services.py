@@ -27,7 +27,7 @@ from models import (
 )
 from utils.auth import get_current_user
 from utils.helpers import format_price, standard_response, generate_otp, get_expiry
-from utils.notification_service import send_business_phone_otp
+from utils.notification_service import send_business_phone_otp, send_otp_with_routing
 
 EAT = pytz.timezone("Africa/Nairobi")
 
@@ -837,11 +837,13 @@ async def add_business_phone(
     db.add(phone)
     db.commit()
 
-    # Send OTP via SMS
+    # Send OTP via WhatsApp first, SMS fallback
     try:
-        await send_business_phone_otp(phone_number, code, current_user.first_name)
+        result = send_otp_with_routing(phone_number, code, current_user.first_name, context="business_phone")
+        if not result.success:
+            print(f"[business-phone] OTP delivery issue: {result.message}")
     except Exception as e:
-        print(f"Failed to send business phone OTP: {e}")
+        print(f"[business-phone] OTP routing error: {e}")
 
     return standard_response(True, "Business phone added. Verification code sent.", {
         "id": str(phone.id),
@@ -936,9 +938,11 @@ async def resend_business_phone_otp(
     db.commit()
 
     try:
-        await send_business_phone_otp(phone.phone_number, code, current_user.first_name)
+        result = send_otp_with_routing(phone.phone_number, code, current_user.first_name, context="business_phone")
+        if not result.success:
+            print(f"[business-phone-resend] OTP delivery issue: {result.message}")
     except Exception as e:
-        print(f"Failed to resend business phone OTP: {e}")
+        print(f"[business-phone-resend] OTP routing error: {e}")
 
     return standard_response(True, "Verification code resent", {
         "id": str(phone.id),
