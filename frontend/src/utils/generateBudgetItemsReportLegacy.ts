@@ -1,6 +1,5 @@
 /**
  * Generate a branded HTML report for event budget items
- * New format: single "Budget" column (actual if > 0, else estimate)
  */
 import nuruLogoUrl from '@/assets/nuru-logo.png';
 import type { EventBudgetItem } from '@/lib/api/types';
@@ -8,17 +7,10 @@ import type { EventBudgetItem } from '@/lib/api/types';
 interface BudgetReportSummary {
   total_estimated: number;
   total_actual: number;
-  overall_budget: number;
-  includes_estimates: boolean;
+  variance: number;
   event_budget?: number;
   category_breakdown: Array<{ category: string; estimated: number; actual: number; count: number }>;
 }
-
-const getEffectiveCost = (item: EventBudgetItem) =>
-  (item.actual_cost && item.actual_cost > 0) ? item.actual_cost : (item.estimated_cost || 0);
-
-const isEstimate = (item: EventBudgetItem) =>
-  !(item.actual_cost && item.actual_cost > 0) && (item.estimated_cost || 0) > 0;
 
 export const generateBudgetReportHtml = (
   eventTitle: string,
@@ -42,32 +34,33 @@ export const generateBudgetReportHtml = (
   };
 
   const rows = sorted.map((item, i) => {
-    const cost = getEffectiveCost(item);
-    const isEst = isEstimate(item);
+    const est = item.estimated_cost || 0;
+    const act = item.actual_cost || 0;
+    const v = est - act;
+    const vColor = v >= 0 ? '#16a34a' : '#dc2626';
     return `
       <tr>
         <td style="padding:8px;border-bottom:1px solid #eee">${i + 1}</td>
         <td style="padding:8px;border-bottom:1px solid #eee">${item.category}</td>
         <td style="padding:8px;border-bottom:1px solid #eee">${item.item_name}</td>
         <td style="padding:8px;border-bottom:1px solid #eee">${item.vendor_name || '&mdash;'}</td>
-        <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${fmt(cost)}${isEst ? ' <span style="color:#92400e;font-size:10px">est.</span>' : ''}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${fmt(est)}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${fmt(act)}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;color:${vColor}">${v >= 0 ? '-' : '+'}${fmt(Math.abs(v))}</td>
         <td style="padding:8px;border-bottom:1px solid #eee;text-align:center"><span style="padding:2px 8px;border-radius:12px;font-size:11px;background:${item.status === 'paid' ? '#dcfce7' : item.status === 'deposit_paid' ? '#dbeafe' : '#fef3c7'};color:${item.status === 'paid' ? '#166534' : item.status === 'deposit_paid' ? '#1e40af' : '#92400e'}">${statusLabel(item.status)}</span></td>
       </tr>`;
   }).join('');
 
-  const catRows = summary.category_breakdown.map((c, i) => {
-    const effective = c.actual > 0 ? c.actual : c.estimated;
-    return `
+  const catRows = summary.category_breakdown.map((c, i) => `
     <tr>
       <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${i + 1}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #eee">${c.category}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${c.count}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">${fmt(effective)}</td>
-    </tr>`;
-  }).join('');
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">${fmt(c.estimated)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">${fmt(c.actual)}</td>
+    </tr>`).join('');
 
-  const overallLabel = summary.includes_estimates ? 'Overall Event Budget (includes estimates)' : 'Overall Event Budget';
-
+  const varianceColor = summary.variance >= 0 ? '#16a34a' : '#dc2626';
   const budgetCard = summary.event_budget
     ? `<div class="summary-card"><div class="label">Event Budget</div><div class="value">${fmt(summary.event_budget)}</div></div>`
     : '';
@@ -110,12 +103,12 @@ export const generateBudgetReportHtml = (
     ${budgetCard}
     <div class="summary-card"><div class="label">Total Estimated</div><div class="value">${fmt(summary.total_estimated)}</div></div>
     <div class="summary-card"><div class="label">Total Actual</div><div class="value">${fmt(summary.total_actual)}</div></div>
-    <div class="summary-card"><div class="label">${overallLabel}</div><div class="value">${fmt(summary.overall_budget)}</div></div>
+    <div class="summary-card"><div class="label">Variance</div><div class="value" style="color:${varianceColor}">${summary.variance >= 0 ? '-' : '+'}${fmt(Math.abs(summary.variance))}</div></div>
   </div>
 
   <h3 style="font-size:14px;margin-bottom:8px">Category Summary</h3>
   <table style="margin-bottom:24px">
-    <thead><tr><th style="text-align:center">S/N</th><th>Category</th><th style="text-align:center">Items</th><th style="text-align:right">Budget</th></tr></thead>
+    <thead><tr><th style="text-align:center">S/N</th><th>Category</th><th style="text-align:center">Items</th><th style="text-align:right">Estimated</th><th style="text-align:right">Actual</th></tr></thead>
     <tbody>${catRows}</tbody>
   </table>
 
@@ -127,7 +120,9 @@ export const generateBudgetReportHtml = (
         <th>Category</th>
         <th>Item</th>
         <th>Vendor</th>
-        <th style="text-align:right">Budget</th>
+        <th style="text-align:right">Estimated</th>
+        <th style="text-align:right">Actual</th>
+        <th style="text-align:right">Variance</th>
         <th style="text-align:center">Status</th>
       </tr>
     </thead>
@@ -135,7 +130,9 @@ export const generateBudgetReportHtml = (
     <tfoot>
       <tr>
         <td colspan="4">Total (${items.length} items)</td>
-        <td style="text-align:right">${fmt(summary.overall_budget)}</td>
+        <td style="text-align:right">${fmt(summary.total_estimated)}</td>
+        <td style="text-align:right">${fmt(summary.total_actual)}</td>
+        <td style="text-align:right;color:${varianceColor}">${summary.variance >= 0 ? '-' : '+'}${fmt(Math.abs(summary.variance))}</td>
         <td></td>
       </tr>
     </tfoot>

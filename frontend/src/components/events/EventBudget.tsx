@@ -1,8 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Plus, Search, MoreVertical, Edit, Trash, Download, Loader2, ChevronRight, ChevronLeft,
-  TrendingUp, TrendingDown, DollarSign, CheckCircle2, Clock, AlertCircle,
-  BarChart3, FileText, Sparkles
+  Plus, Search, MoreVertical, Edit, Trash, Loader2, ChevronRight, ChevronLeft,
+  DollarSign, CheckCircle2, Clock, AlertCircle,
+  BarChart3, FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -152,13 +152,18 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
     return Array.from(map.entries()).map(([category, data]) => ({ category, ...data })).sort((a, b) => b.estimated - a.estimated);
   }, [items]);
 
+  // Effective cost per item: actual if > 0, else estimate
+  const getEffectiveCost = (item: EventBudgetItem) =>
+    (item.actual_cost && item.actual_cost > 0) ? item.actual_cost : (item.estimated_cost || 0);
+  const isItemEstimate = (item: EventBudgetItem) =>
+    !(item.actual_cost && item.actual_cost > 0) && (item.estimated_cost || 0) > 0;
+
   // Summary computed
   const totalEstimated = items.reduce((s, i) => s + (i.estimated_cost || 0), 0);
   const totalActual = items.reduce((s, i) => s + (i.actual_cost || 0), 0);
-  const variance = totalEstimated - totalActual;
-  const paidItems = items.filter(i => i.status === 'paid').length;
+  const overallBudget = items.reduce((s, i) => s + getEffectiveCost(i), 0);
+  const includesEstimates = items.some(i => isItemEstimate(i));
   const pendingItems = items.filter(i => i.status === 'pending').length;
-  const budgetUtilization = eventBudget && eventBudget > 0 ? Math.min(100, (totalEstimated / eventBudget) * 100) : 0;
 
   const resetForm = () => {
     setFormCategory('');
@@ -289,12 +294,13 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
       {
         total_estimated: totalEstimated,
         total_actual: totalActual,
-        variance,
+        overall_budget: overallBudget,
+        includes_estimates: includesEstimates,
         event_budget: eventBudget,
         category_breakdown: categoryBreakdown,
       }
     );
-  }, [reportOpen, eventTitle, items, totalEstimated, totalActual, variance, eventBudget, categoryBreakdown]);
+  }, [reportOpen, eventTitle, items, totalEstimated, totalActual, overallBudget, includesEstimates, eventBudget, categoryBreakdown]);
 
   const handleExportExcel = async () => {
     const headerRow = [
@@ -302,9 +308,8 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
       { value: 'Category', fontWeight: 'bold' as const },
       { value: 'Item', fontWeight: 'bold' as const },
       { value: 'Vendor', fontWeight: 'bold' as const },
-      { value: 'Estimated Cost', fontWeight: 'bold' as const },
-      { value: 'Actual Cost', fontWeight: 'bold' as const },
-      { value: 'Variance', fontWeight: 'bold' as const },
+      { value: 'Budget', fontWeight: 'bold' as const },
+      { value: 'Type', fontWeight: 'bold' as const },
       { value: 'Status', fontWeight: 'bold' as const },
       { value: 'Notes', fontWeight: 'bold' as const },
     ];
@@ -313,9 +318,8 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
       { value: item.category },
       { value: item.item_name },
       { value: item.vendor_name || '' },
-      { value: item.estimated_cost || 0 },
-      { value: item.actual_cost || 0 },
-      { value: (item.estimated_cost || 0) - (item.actual_cost || 0) },
+      { value: getEffectiveCost(item) },
+      { value: isItemEstimate(item) ? 'Estimate' : 'Actual' },
       { value: getStatusStyle(item.status).label },
       { value: item.notes || '' },
     ]);
@@ -323,9 +327,8 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
       { value: '', fontWeight: 'bold' as const },
       { value: 'TOTAL', fontWeight: 'bold' as const },
       { value: '' }, { value: '' },
-      { value: totalEstimated, fontWeight: 'bold' as const },
-      { value: totalActual, fontWeight: 'bold' as const },
-      { value: variance, fontWeight: 'bold' as const },
+      { value: overallBudget, fontWeight: 'bold' as const },
+      { value: includesEstimates ? 'Includes estimates' : 'All actual' },
       { value: '' }, { value: '' },
     ];
     await writeXlsxFile([headerRow, ...dataRows, totalRow] as any, {
@@ -382,7 +385,7 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
@@ -390,17 +393,8 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
                 <DollarSign className="w-4 h-4 text-blue-600" />
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Estimated</p>
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Total Estimate</p>
             <p className="text-lg font-bold text-foreground mt-0.5">{formatPrice(totalEstimated)}</p>
-            {eventBudget && eventBudget > 0 && (
-              <div className="mt-2">
-                <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
-                  <span>of {formatPrice(eventBudget)}</span>
-                  <span>{budgetUtilization.toFixed(0)}%</span>
-                </div>
-                <Progress value={budgetUtilization} className="h-1.5" />
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -411,29 +405,8 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Actual Spent</p>
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Total Actual</p>
             <p className="text-lg font-bold text-foreground mt-0.5">{formatPrice(totalActual)}</p>
-            <p className="text-[11px] text-muted-foreground mt-1">{paidItems} of {items.length} paid</p>
-          </CardContent>
-        </Card>
-
-        <Card className={cn(
-          "border-0 shadow-sm",
-          variance >= 0
-            ? "bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20"
-            : "bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20"
-        )}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", variance >= 0 ? "bg-green-500/10" : "bg-red-500/10")}>
-                {variance >= 0 ? <TrendingDown className="w-4 h-4 text-green-600" /> : <TrendingUp className="w-4 h-4 text-red-600" />}
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Variance</p>
-            <p className={cn("text-lg font-bold mt-0.5", variance >= 0 ? "text-green-700" : "text-red-700")}>
-              {variance >= 0 ? '-' : '+'}{formatPrice(Math.abs(variance))}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-1">{variance >= 0 ? 'Under budget' : 'Over budget'}</p>
           </CardContent>
         </Card>
 
@@ -441,12 +414,14 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                <Clock className="w-4 h-4 text-amber-600" />
+                <BarChart3 className="w-4 h-4 text-amber-600" />
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Pending</p>
-            <p className="text-lg font-bold text-foreground mt-0.5">{pendingItems}</p>
-            <p className="text-[11px] text-muted-foreground mt-1">{items.length} total items</p>
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">
+              {includesEstimates ? 'Overall Budget (incl. estimates)' : 'Overall Event Budget'}
+            </p>
+            <p className="text-lg font-bold text-foreground mt-0.5">{formatPrice(overallBudget)}</p>
+            <p className="text-[11px] text-muted-foreground mt-1">{pendingItems} pending · {items.length} total</p>
           </CardContent>
         </Card>
       </div>
@@ -464,14 +439,18 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
               {categoryBreakdown.map(cat => {
-                const displayAmount = totalActual > 0 ? cat.actual : cat.estimated;
+                const effective = cat.actual > 0 ? cat.actual : cat.estimated;
+                const isEst = !(cat.actual > 0);
                 return (
                   <div key={cat.category} className="flex items-center justify-between p-2 rounded-md bg-muted/30">
                     <div>
                       <p className="text-xs font-medium text-foreground">{cat.category}</p>
                       <p className="text-[10px] text-muted-foreground">{cat.count} item{cat.count !== 1 ? 's' : ''}</p>
                     </div>
-                    <p className="text-xs font-semibold text-foreground">{formatPrice(displayAmount)}</p>
+                    <div className="text-right">
+                      <p className="text-xs font-semibold text-foreground">{formatPrice(effective)}</p>
+                      {isEst && <p className="text-[9px] text-amber-600">est.</p>}
+                    </div>
                   </div>
                 );
               })}
@@ -560,7 +539,8 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
         <div className="max-h-[50vh] overflow-y-auto space-y-2 pr-1">
           {paginated.map((item) => {
             const statusStyle = getStatusStyle(item.status);
-            const itemVariance = (item.estimated_cost || 0) - (item.actual_cost || 0);
+            const cost = getEffectiveCost(item);
+            const isEst = isItemEstimate(item);
             return (
               <Card key={item.id} className="border shadow-sm hover:shadow-md transition-shadow relative">
                 <DeleteOverlay visible={isDeleting(item.id)} />
@@ -632,23 +612,12 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
                         </div>
                       </div>
 
-                      {/* Bottom row: costs */}
-                      <div className="flex items-center gap-4 mt-2.5 text-xs">
+                      {/* Bottom row: cost */}
+                      <div className="flex items-center gap-3 mt-2.5 text-xs">
                         <div>
-                          <span className="text-muted-foreground">Est: </span>
-                          <span className="font-semibold">{formatPrice(item.estimated_cost || 0)}</span>
+                          <span className="font-semibold">{formatPrice(cost)}</span>
+                          {isEst && <span className="text-amber-600 ml-1.5 text-[10px]">estimate</span>}
                         </div>
-                        {item.actual_cost != null && item.actual_cost > 0 && (
-                          <>
-                            <div>
-                              <span className="text-muted-foreground">Actual: </span>
-                              <span className="font-semibold">{formatPrice(item.actual_cost)}</span>
-                            </div>
-                            <div className={cn("font-medium", itemVariance >= 0 ? "text-green-600" : "text-red-600")}>
-                              {itemVariance >= 0 ? '▼' : '▲'} {formatPrice(Math.abs(itemVariance))}
-                            </div>
-                          </>
-                        )}
                       </div>
 
                       {/* Notes */}
