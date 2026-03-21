@@ -2,7 +2,7 @@ import { useState } from "react";
 import SuspensionModal from "@/components/SuspensionModal";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, ArrowLeft, Phone, Mail, MessageCircle } from "lucide-react";
+import { Eye, EyeOff, ChevronLeft, Phone, Mail, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -446,7 +446,7 @@ const Login = () => {
                 }} 
                 className="w-full mt-4 text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-1"
               >
-                <ArrowLeft className="w-3.5 h-3.5" />
+                <ChevronLeft className="w-3.5 h-3.5" />
                 {forgotStep === "choose" ? "Back to sign in" : "Back"}
               </button>
             </>
