@@ -218,7 +218,8 @@ async def request_otp(request: Request, db: Session = Depends(get_db)):
             if not result.success:
                 print(f"[activate] OTP delivery issue: {result.message}")
             masked = mask_phone(user.phone)
-            channel_info = f" via {result.channel.replace('whatsapp', 'WhatsApp').upper()}" if result.success else ""
+            channel_label = "WhatsApp" if result.channel == "whatsapp" else "SMS"
+            channel_info = f" via {channel_label}" if result.success else ""
             message = f"We have sent a verification code to your phone number {masked}{channel_info}. Please check and enter the code to activate your account."
         else:
             send_verification_email(user.email, code, user.first_name)

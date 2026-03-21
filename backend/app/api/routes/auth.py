@@ -310,15 +310,19 @@ async def forgot_password_phone(request: Request, db: Session = Depends(get_db))
     db.add(otp_entry)
     db.commit()
 
+    channel_label = ""
     try:
         result = send_otp_with_routing(user.phone, code, user.first_name, context="password_reset")
-        if not result.success:
+        if result.success:
+            channel_label = "WhatsApp" if result.channel == "whatsapp" else "SMS"
+        else:
             print(f"[forgot-password-phone] OTP delivery failed: {result.message}")
     except Exception:
         print(traceback.format_exc())
 
     masked = mask_phone(user.phone)
-    return standard_response(True, f"If this phone number is registered, a reset code has been sent to {masked}.")
+    channel_info = f" via {channel_label}" if channel_label else ""
+    return standard_response(True, f"If this phone number is registered, a reset code has been sent{channel_info} to {masked}.")
 
 
 # ──────────────────────────────────────────────
