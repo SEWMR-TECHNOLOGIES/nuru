@@ -8,7 +8,6 @@ import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import { Button } from '@/components/ui/button';
 import ShareMenu from '@/components/ShareMenu';
-import { VerifiedUserBadge } from '@/components/ui/verified-badge';
 import { useNavigate } from 'react-router-dom';
 import { encodeId } from '@/utils/shortId';
 import {
@@ -103,7 +102,7 @@ const Post = ({ post }: PostProps) => {
           <div>
             <h3 className="font-semibold text-sm md:text-base text-foreground flex items-center gap-1.5">
               {post.author.name}
-              {post.author.is_verified && <VerifiedUserBadge size="xs" />}
+
             </h3>
             <p className="text-xs md:text-sm text-muted-foreground">{post.author.timeAgo}</p>
           </div>

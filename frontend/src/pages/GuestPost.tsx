@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import ImageLightbox, { useLightbox } from '@/components/ui/image-lightbox';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Heart, MessageCircle, MapPin } from 'lucide-react';
-import { VerifiedUserBadge } from '@/components/ui/verified-badge';
 import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import { Button } from '@/components/ui/button';
@@ -157,7 +156,7 @@ const GuestPost = () => {
             <div>
               <h3 className="font-semibold text-foreground text-sm md:text-base flex items-center gap-1.5">
                 {authorName}
-                {authorVerified && <VerifiedUserBadge size="xs" />}
+
               </h3>
               <p className="text-xs text-muted-foreground">
                 {postTimeAgo}

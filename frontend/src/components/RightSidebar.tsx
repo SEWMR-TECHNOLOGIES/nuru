@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Users, Loader2 } from 'lucide-react';
-import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import { useNavigate } from 'react-router-dom';
 import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
@@ -441,10 +440,7 @@ const RightSidebar = ({ onNavigate }: { onNavigate?: () => void } = {}) => {
                       <span className="text-sm font-semibold text-muted-foreground">{initials}</span>
                     )}
                   </div>
-                  <p className="text-xs font-medium text-foreground capitalize line-clamp-2 flex items-center gap-1">{title} {service.verified && <VerifiedServiceBadge size="xs" />}</p>
-                  {service.provider?.name && (
-                    <p className="text-[10px] text-muted-foreground truncate">{service.provider.name}</p>
-                  )}
+                  <p className="text-xs font-medium text-foreground capitalize line-clamp-2 flex items-center gap-1">{title}</p>
                 </div>
               );
             })}

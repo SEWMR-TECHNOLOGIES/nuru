@@ -14,7 +14,6 @@ import TicketIcon from '@/assets/icons/ticket-icon.svg';
 import CustomCalendarIcon from '@/assets/icons/calendar-icon.svg';
 import CustomLocationIcon from '@/assets/icons/location-icon.svg';
 import CustomClockIcon from '@/assets/icons/clock-icon.svg';
-import { VerifiedUserBadge } from '@/components/ui/verified-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -198,7 +197,7 @@ const Moment = ({ post }: MomentProps) => {
           <div>
             <h3 className="font-semibold text-sm md:text-base text-foreground flex items-center gap-1.5">
               {post.author.name}
-              {post.author.is_verified && <VerifiedUserBadge size="xs" />}
+
             </h3>
             <p className="text-xs md:text-sm text-muted-foreground">{post.author.timeAgo}</p>
           </div>

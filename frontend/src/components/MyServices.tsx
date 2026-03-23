@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { formatPrice } from '@/utils/formatPrice';
 import { Star, CheckCircle, Users, Plus, Edit, Loader2, Camera, MapPin, ChevronRight, BookOpen, Upload, Trash2, X, Music } from 'lucide-react';
-import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import SvgIcon from '@/components/ui/svg-icon';
 import CalendarSVG from '@/assets/icons/calendar-icon.svg';
 import PhotosSVG from '@/assets/icons/photos-icon.svg';
@@ -380,7 +379,7 @@ const MyServices = () => {
                     <div>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <h3 className="text-xl font-bold">{service.title}</h3>
-                        {isVerified && <VerifiedServiceBadge size="sm" />}
+
                       </div>
                       <div className="flex items-center gap-2 flex-wrap mt-2">
                         <Badge variant="secondary">{getCategoryName(service)}</Badge>

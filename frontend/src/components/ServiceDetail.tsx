@@ -5,7 +5,6 @@ import {
   Award, Briefcase, X, TrendingUp,
   ArrowUpRight, Shield, Edit, Eye, DollarSign, Users, Music
 } from 'lucide-react';
-import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import SvgIcon from '@/components/ui/svg-icon';
 import calendarIcon from '@/assets/icons/calendar-icon.svg';
 import locationIcon from '@/assets/icons/location-icon.svg';
@@ -229,7 +228,7 @@ const ServiceDetail = () => {
                 <Badge className="bg-amber-500/90 text-white border-0 text-xs">Pending Review</Badge>
               )}
             </div>
-            <h1 className="text-3xl font-bold text-white flex items-center gap-2">{service.title} {isVerified && <VerifiedServiceBadge size="md" className="brightness-200" />}</h1>
+            <h1 className="text-3xl font-bold text-white flex items-center gap-2">{service.title}</h1>
             {service.location && (
               <p className="text-white/80 text-sm mt-1.5 flex items-center gap-1">
                 <img src={locationIcon} alt="location" className="w-3.5 h-3.5 dark:invert" />{service.location}

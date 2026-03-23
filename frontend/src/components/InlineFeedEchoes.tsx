@@ -3,7 +3,6 @@ import { Send, Loader2, ChevronDown, CornerDownRight, Heart } from 'lucide-react
 import { socialApi } from '@/lib/api/social';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { getTimeAgo } from '@/utils/getTimeAgo';
-import { VerifiedUserBadge } from '@/components/ui/verified-badge';
 import { toast } from 'sonner';
 
 const getInitials = (name: string) => {
@@ -165,7 +164,7 @@ const InlineEchoItem = ({
           <div className="bg-muted/40 rounded-2xl px-3 py-1.5 inline-block max-w-full">
             <span className="font-semibold text-[11px] text-foreground flex items-center gap-1">
               {name}
-              {verified && <VerifiedUserBadge size="xs" />}
+
             </span>
             {comment.content && (
               <p className="text-xs text-foreground break-words whitespace-pre-wrap leading-relaxed">{comment.content}</p>

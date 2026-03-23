@@ -16,7 +16,6 @@ import ImageLightbox, { useLightbox } from '@/components/ui/image-lightbox';
 import CustomCalendarIcon from '@/assets/icons/calendar-icon.svg';
 import CustomLocationIcon from '@/assets/icons/location-icon.svg';
 import CustomClockIcon from '@/assets/icons/clock-icon.svg';
-import { VerifiedUserBadge } from '@/components/ui/verified-badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { socialApi } from '@/lib/api/social';
@@ -229,7 +228,7 @@ const EchoItem = ({
           <div className="bg-muted/50 rounded-2xl px-3 py-2 inline-block max-w-full">
             <div className="flex items-center gap-2">
               <span className="font-semibold text-xs md:text-sm">{cName}</span>
-              {cVerified && <VerifiedUserBadge size="xs" />}
+
             </div>
             {comment.content && (
               <p className="text-xs md:text-sm break-words whitespace-pre-wrap mt-0.5">{comment.content}</p>
@@ -639,7 +638,7 @@ const PostDetail = () => {
             <div className="min-w-0">
               <h3 className="font-semibold text-foreground text-sm md:text-base truncate flex items-center gap-1.5">
                 {authorName}
-                {authorVerified && <VerifiedUserBadge size="xs" />}
+
               </h3>
               <p className="text-xs md:text-sm text-muted-foreground">
                 {postTimeAgo}

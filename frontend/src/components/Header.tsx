@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { User, LogOut, Bookmark, Search } from 'lucide-react';
-import { VerifiedUserBadge } from '@/components/ui/verified-badge';
 import SvgIcon from '@/components/ui/svg-icon';
 import CameraIcon from '@/assets/icons/camera-icon.svg';
 import SettingsIcon from '@/assets/icons/settings-icon.svg';
@@ -160,7 +159,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
                 <div className="flex flex-col">
                   <span className="font-semibold text-foreground flex items-center gap-1">
                     {`${currentUser.first_name.charAt(0).toUpperCase()}${currentUser.first_name.slice(1)} ${currentUser.last_name.charAt(0).toUpperCase()}${currentUser.last_name.slice(1)}`}
-                    {currentUser.is_identity_verified && <VerifiedUserBadge size="xs" />}
+
                   </span>
                   <span className="text-sm text-muted-foreground">@{currentUser.username}</span>
                 </div>

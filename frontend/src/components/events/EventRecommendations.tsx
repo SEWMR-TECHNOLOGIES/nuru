@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { RefreshCw, Star, Loader2, Check, Plus } from "lucide-react";
-import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -203,7 +202,7 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
                       </div>
                     </div>
                     <div className="p-3 space-y-1.5">
-                      <h4 className="font-medium text-sm leading-tight line-clamp-2 flex items-center gap-1">{service.title || service.name} {isVerified(service) && <VerifiedServiceBadge size="xs" />}</h4>
+                      <h4 className="font-medium text-sm leading-tight line-clamp-2 flex items-center gap-1">{service.title || service.name}</h4>
                       {service.service_category?.name && (
                         <p className="text-xs text-muted-foreground">{service.service_category.name}</p>
                       )}

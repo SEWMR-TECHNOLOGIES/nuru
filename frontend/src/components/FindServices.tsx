@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Star, Loader2, SlidersHorizontal, X, ChevronRight, MapPin, SearchX, LocateFixed } from 'lucide-react';
-import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import SvgIcon from '@/components/ui/svg-icon';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
@@ -546,9 +545,6 @@ const FindServices = () => {
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="font-semibold text-foreground text-[15px] leading-tight line-clamp-1 flex items-center gap-1.5">
                       {provider.title}
-                      {provider.verification_status === 'verified' && (
-                        <VerifiedServiceBadge size="sm" />
-                      )}
                     </h3>
                     {(provider.rating ?? 0) > 0 && (
                       <div className="flex items-center gap-1 flex-shrink-0">

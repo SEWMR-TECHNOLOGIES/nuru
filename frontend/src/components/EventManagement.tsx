@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2, Images, ChevronDown, FileText, ChevronRight } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
-import { VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
@@ -627,7 +626,7 @@ const EventManagement = () => {
                         <div className="min-w-0">
                           <p className="text-xs font-medium text-foreground truncate flex items-center gap-1">
                             {service.service?.title || 'Unnamed Service'}
-                            {(service.service?.verification_status === 'verified' || service.service?.verified) && <VerifiedServiceBadge size="xs" />}
+
                           </p>
                           {service.service?.provider_name && (
                             <p className="text-[11px] text-muted-foreground truncate">{service.service.provider_name}</p>
@@ -749,7 +748,7 @@ const EventManagement = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium truncate">{service.title}</span>
-                        {(service.verification_status === 'verified' || service.verified) && <VerifiedServiceBadge size="xs" />}
+
                       </div>
                       <div className="flex items-center gap-1.5 text-sm text-muted-foreground flex-wrap">
                         <span className="truncate">{service.category_name || service.category || service.service_type_name}</span>

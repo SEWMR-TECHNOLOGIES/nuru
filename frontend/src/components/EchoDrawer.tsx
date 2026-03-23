@@ -3,7 +3,6 @@ import { MessageCircle, Send, Loader2, Heart, CornerDownRight } from 'lucide-rea
 import { socialApi } from '@/lib/api/social';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { getTimeAgo } from '@/utils/getTimeAgo';
-import { VerifiedUserBadge } from '@/components/ui/verified-badge';
 import { toast } from 'sonner';
 import {
   Drawer,
@@ -78,7 +77,7 @@ const EchoComment = ({ comment, postId, onReply }: { comment: any; postId: strin
         <div className="bg-muted/40 rounded-2xl px-3.5 py-2 inline-block max-w-full">
           <span className="font-semibold text-xs text-foreground flex items-center gap-1">
             {name}
-            {verified && <VerifiedUserBadge size="xs" />}
+
           </span>
           {comment.content && (
             <p className="text-sm text-foreground break-words whitespace-pre-wrap leading-relaxed mt-0.5">{comment.content}</p>

@@ -4,7 +4,6 @@ import {
   Users, UserPlus, UserMinus, Loader2, 
   Link as LinkIcon, Briefcase, Star
 } from 'lucide-react';
-import { VerifiedUserBadge, VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { NuruOfficialBadge, NuruOfficialCoverOverlay, NuruOfficialAvatarRing } from '@/components/ui/nuru-official-badge';
 import SvgIcon from '@/components/ui/svg-icon';
@@ -369,7 +368,7 @@ const PublicProfile = () => {
               <div className="flex items-center gap-3 mb-1 flex-wrap">
                 <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
                   {fullName}
-                  {user.is_identity_verified && <VerifiedUserBadge size="md" />}
+
                   {['mpinzile', 'mangowi'].includes(user.username?.toLowerCase()) && (
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -615,9 +614,6 @@ const PublicProfile = () => {
                           <div className="p-3">
                             <div className="flex items-center gap-1.5">
                               <h3 className="font-medium text-sm text-foreground truncate">{service.title}</h3>
-                              {service.verification_status === 'verified' && (
-                                <VerifiedServiceBadge size="xs" />
-                              )}
                             </div>
                             <p className="text-xs text-muted-foreground mt-0.5">{service.service_category?.name}</p>
                           </div>

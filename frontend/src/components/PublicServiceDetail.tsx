@@ -5,7 +5,6 @@ import {
   Award, Briefcase, X, MessageSquare,
   ArrowUpRight, Shield, Users, Loader2, Music
 } from 'lucide-react';
-import { VerifiedServiceBadge, VerifiedServiceBadgeWithLabel } from '@/components/ui/verified-badge';
 import SvgIcon from '@/components/ui/svg-icon';
 import calendarIcon from '@/assets/icons/calendar-icon.svg';
 import locationIcon from '@/assets/icons/location-icon.svg';
@@ -252,7 +251,7 @@ const PublicServiceDetail = () => {
                 {(service as any).service_category?.name || (service as any).category?.name || 'Service'}
               </Badge>
             </div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-white leading-tight flex items-center gap-2">{service.title} {isVerified && <VerifiedServiceBadge size="md" className="brightness-200" />}</h1>
+            <h1 className="text-3xl sm:text-4xl font-bold text-white leading-tight flex items-center gap-2">{service.title}</h1>
             {service.location && (
               <p className="text-white/80 text-sm mt-1.5 flex items-center gap-1">
                 <img src={locationIcon} alt="location" className="w-3.5 h-3.5 dark:invert" />{service.location}
@@ -296,7 +295,7 @@ const PublicServiceDetail = () => {
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-xs text-muted-foreground mb-0.5">Service Provider</p>
-              <p className="font-semibold text-foreground truncate flex items-center gap-1.5">{ownerName} {isVerified && <VerifiedServiceBadge size="sm" />}</p>
+              <p className="font-semibold text-foreground truncate flex items-center gap-1.5">{ownerName}</p>
             </div>
           </div>
         )}

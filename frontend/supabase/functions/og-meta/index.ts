@@ -28,6 +28,39 @@ function decodeShortId(short: string): string {
   }
 }
 
+/**
+ * Optimize image URL for OG previews.
+ * - For Supabase storage URLs: use transform API to resize
+ * - For external URLs: use wsrv.nl image proxy to resize and convert
+ * - For video URLs: return fallback logo
+ */
+function optimizeImageForOG(imageUrl: string, fallback: string): string {
+  if (!imageUrl || imageUrl === fallback) return fallback;
+
+  // Detect video files — can't use as og:image
+  const videoExts = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.m4v'];
+  const lowerUrl = imageUrl.toLowerCase().split('?')[0];
+  if (videoExts.some(ext => lowerUrl.endsWith(ext))) {
+    return fallback;
+  }
+
+  // Check if it's a Supabase storage URL — use built-in transform
+  if (imageUrl.includes('supabase') && imageUrl.includes('/storage/')) {
+    // Add render/image transform params
+    const separator = imageUrl.includes('?') ? '&' : '?';
+    return `${imageUrl}${separator}width=1200&height=630&resize=contain`;
+  }
+
+  // For external images, use wsrv.nl proxy to resize (free, fast CDN)
+  // This ensures the image loads quickly for social crawlers
+  try {
+    const encoded = encodeURIComponent(imageUrl);
+    return `https://wsrv.nl/?url=${encoded}&w=1200&h=630&fit=contain&output=jpg&q=80`;
+  } catch {
+    return imageUrl;
+  }
+}
+
 function buildHtmlPage(title: string, description: string, image: string, canonicalUrl: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -39,6 +72,8 @@ function buildHtmlPage(title: string, description: string, image: string, canoni
   <meta property="og:title" content="${escapeHtml(title)}" />
   <meta property="og:description" content="${escapeHtml(description)}" />
   <meta property="og:image" content="${escapeHtml(image)}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
   <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
   <meta property="og:site_name" content="${siteName}" />
   <meta name="twitter:card" content="summary_large_image" />
@@ -55,9 +90,13 @@ function buildHtmlPage(title: string, description: string, image: string, canoni
 
 // ── Post OG handler ─────────────────────────────────
 async function handlePost(postId: string, apiBase: string, shortPath?: string) {
+  const fallbackImage = `${siteUrl}/logo.png`;
   let post: any = null;
   try {
-    const res = await fetch(`${apiBase}/posts/${postId}/public`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`${apiBase}/posts/${postId}/public`, { signal: controller.signal });
+    clearTimeout(timeout);
     const json = await res.json();
     if (json.success && json.data) post = json.data;
   } catch (e) {
@@ -67,9 +106,28 @@ async function handlePost(postId: string, apiBase: string, shortPath?: string) {
   const authorName = post?.author?.name || '';
   const title = (post?.content?.slice(0, 60) || (authorName ? `${authorName} on Nuru` : "Shared on Nuru"));
   const description = post?.content?.slice(0, 160) || `${authorName ? authorName + ' shared something on' : 'Check out this moment on'} Nuru – your all-in-one event planning platform.`;
-  // images can be strings or {url, media_type} objects
-  const firstImg = post?.images?.[0];
-  const image = (typeof firstImg === 'string' ? firstImg : firstImg?.url) || `${siteUrl}/logo.png`;
+  
+  // Extract first non-video image for OG preview
+  let rawImage = '';
+  const images = post?.images;
+  if (Array.isArray(images)) {
+    for (const img of images) {
+      const url = typeof img === 'string' ? img : img?.url || img?.image_url || '';
+      const mediaType = (typeof img === 'object' && img?.media_type) || '';
+      // Skip videos
+      if (mediaType.startsWith('video/')) continue;
+      const lowerUrl = url.toLowerCase();
+      if (['.mp4', '.mov', '.webm', '.avi'].some(ext => lowerUrl.endsWith(ext))) continue;
+      if (url) { rawImage = url; break; }
+    }
+    // If all media are videos, try to get first image anyway
+    if (!rawImage && images.length > 0) {
+      const firstImg = images[0];
+      rawImage = typeof firstImg === 'string' ? firstImg : firstImg?.url || firstImg?.image_url || '';
+    }
+  }
+  
+  const image = optimizeImageForOG(rawImage, fallbackImage);
   const canonicalUrl = shortPath ? `${siteUrl}${shortPath}` : `${siteUrl}/shared/post/${postId}`;
 
   return buildHtmlPage(title, description, image, canonicalUrl);
@@ -77,9 +135,13 @@ async function handlePost(postId: string, apiBase: string, shortPath?: string) {
 
 // ── RSVP OG handler ─────────────────────────────────
 async function handleRsvp(code: string, apiBase: string) {
+  const fallbackImage = `${siteUrl}/logo.png`;
   let rsvpData: any = null;
   try {
-    const res = await fetch(`${apiBase}/rsvp/${code}`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`${apiBase}/rsvp/${code}`, { signal: controller.signal });
+    clearTimeout(timeout);
     const json = await res.json();
     if (json.success && json.data) rsvpData = json.data;
   } catch (e) {
@@ -92,7 +154,8 @@ async function handleRsvp(code: string, apiBase: string) {
   const title = `You're Invited: ${eventName}`.slice(0, 60);
   const description = event?.description?.slice(0, 160) ||
     `${guestName}, you've been invited to ${eventName} on Nuru. RSVP now!`;
-  const image = event?.image_url || `${siteUrl}/logo.png`;
+  const rawImage = event?.image_url || '';
+  const image = optimizeImageForOG(rawImage, fallbackImage);
   const canonicalUrl = `${siteUrl}/rsvp/${code}`;
 
   return buildHtmlPage(title, description, image, canonicalUrl);
@@ -100,9 +163,13 @@ async function handleRsvp(code: string, apiBase: string) {
 
 // ── Photo Library OG handler ─────────────────────────────────
 async function handlePhotoLibrary(token: string, apiBase: string) {
+  const fallbackImage = `${siteUrl}/logo.png`;
   let library: any = null;
   try {
-    const res = await fetch(`${apiBase}/photo-libraries/shared/${token}`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`${apiBase}/photo-libraries/shared/${token}`, { signal: controller.signal });
+    clearTimeout(timeout);
     const json = await res.json();
     if (json.success && json.data) library = json.data;
   } catch (e) {
@@ -114,7 +181,8 @@ async function handlePhotoLibrary(token: string, apiBase: string) {
   const photoCount = library?.photo_count || 0;
   const title = (eventName ? `${libraryName}` : libraryName).slice(0, 60);
   const description = `View ${photoCount} photo${photoCount !== 1 ? "s" : ""} from ${eventName || "this event"} on Nuru – your all-in-one event planning platform.`;
-  const image = library?.photos?.[0]?.url || library?.event?.cover_image_url || `${siteUrl}/logo.png`;
+  const rawImage = library?.photos?.[0]?.url || library?.event?.cover_image_url || '';
+  const image = optimizeImageForOG(rawImage, fallbackImage);
   const canonicalUrl = `${siteUrl}/shared/photo-library/${token}`;
 
   return buildHtmlPage(title, description, image, canonicalUrl);

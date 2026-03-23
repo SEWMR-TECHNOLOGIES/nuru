@@ -6,7 +6,6 @@ import {
 } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { authApi } from "@/lib/api/auth";
-import { VerifiedUserBadge } from '@/components/ui/verified-badge';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { NuruOfficialBadge, NuruOfficialCoverOverlay, NuruOfficialAvatarRing } from '@/components/ui/nuru-official-badge';
 import SvgIcon from '@/components/ui/svg-icon';
@@ -410,7 +409,7 @@ const UserProfile = () => {
                   <div className="flex items-center gap-3 mb-2 flex-wrap">
                     <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
                       {fullName}
-                      {isVerified && <VerifiedUserBadge size="md" />}
+
                       {['mpinzile', 'mangowi'].includes(currentUser.username?.toLowerCase()) && (
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -526,7 +525,7 @@ const UserProfile = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
                           <span className="font-medium text-sm truncate">{name}</span>
-                          {user.is_verified && <CheckCircle className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />}
+                          {/* Verification badge removed */}
                         </div>
                         {user.username && (
                           <p className="text-xs text-muted-foreground truncate">@{user.username}</p>

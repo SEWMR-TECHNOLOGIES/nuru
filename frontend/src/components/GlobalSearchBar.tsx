@@ -1,7 +1,6 @@
 import { useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, X, Loader2, Calendar, Star, MapPin, ChevronRight } from 'lucide-react';
-import { VerifiedUserBadge, VerifiedServiceBadge } from '@/components/ui/verified-badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -97,7 +96,7 @@ const GlobalSearchBar = ({ className, autoFocus, onNavigate, fullScreen }: Globa
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           <span className="font-medium text-sm text-foreground truncate">{person.full_name}</span>
-          {person.is_verified && <VerifiedUserBadge size="xs" />}
+
         </div>
         <span className="text-xs text-muted-foreground">@{person.username}</span>
       </div>
@@ -164,7 +163,7 @@ const GlobalSearchBar = ({ className, autoFocus, onNavigate, fullScreen }: Globa
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <span className="font-medium text-sm text-foreground truncate">{service.title}</span>
-            {(service.verified || service.verification_status === 'verified') && <VerifiedServiceBadge size="xs" />}
+
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             {(service.category_name || service.service_category?.name) && <span>{service.category_name || service.service_category?.name}</span>}
