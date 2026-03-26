@@ -64,6 +64,17 @@ async def update_profile(
             if existing:
                 errors["username"] = "Username is already taken"
 
+    # Validate phone if provided
+    if phone and phone.strip():
+        try:
+            normalized_phone = validate_tanzanian_phone(phone.strip())
+            if normalized_phone != (current_user.phone or ''):
+                existing_phone = db.query(User).filter(User.phone == normalized_phone, User.id != current_user.id).first()
+                if existing_phone:
+                    errors["phone"] = "This phone number is already registered to another account"
+        except ValueError as e:
+            errors["phone"] = str(e)
+
     if errors:
         return standard_response(False, "Validation failed", {"errors": errors})
 
@@ -77,8 +88,8 @@ async def update_profile(
     if phone and phone.strip():
         try:
             current_user.phone = validate_tanzanian_phone(phone.strip())
-        except ValueError as e:
-            return standard_response(False, str(e))
+        except ValueError:
+            pass  # Already validated above
 
     # Get or create profile
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
