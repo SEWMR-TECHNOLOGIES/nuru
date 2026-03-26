@@ -35,7 +35,7 @@ import { eventsApi, showCaughtError } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import { servicesApi } from '@/lib/api/services';
 import { photoLibrariesApi } from '@/lib/api/photoLibraries';
-import { cardTemplatesApi, InvitationCardTemplate } from '@/lib/api/cardTemplates';
+
 import { toast } from 'sonner';
 import { useEventPermissions } from '@/hooks/useEventPermissions';
 import ShareEventToFeed from '@/components/ShareEventToFeed';
@@ -78,11 +78,6 @@ const EventManagement = () => {
   // Photo libraries created by service providers for this event
   const [eventPhotoLibraries, setEventPhotoLibraries] = useState<any[]>([]);
 
-  // Card template state
-  const [allTemplates, setAllTemplates] = useState<InvitationCardTemplate[]>([]);
-  const [assignedTemplateId, setAssignedTemplateId] = useState<string | null>(null);
-  const [templateLoading, setTemplateLoading] = useState(false);
-  const [assigningTemplate, setAssigningTemplate] = useState(false);
   const loadEventServices = async () => {
     if (!id) return;
     setServicesLoading(true);
@@ -106,39 +101,11 @@ const EventManagement = () => {
     } catch { /* silent */ }
   };
 
-  const loadCardTemplates = async () => {
-    if (!id) return;
-    setTemplateLoading(true);
-    try {
-      const [allRes, eventRes] = await Promise.all([
-        cardTemplatesApi.getAll(),
-        cardTemplatesApi.getEventTemplate(id),
-      ]);
-      if (allRes.success && allRes.data) setAllTemplates(allRes.data);
-      if (eventRes.success && eventRes.data) setAssignedTemplateId(eventRes.data.id);
-    } catch { /* silent */ }
-    finally { setTemplateLoading(false); }
-  };
-
-  const handleAssignTemplate = async (templateId: string) => {
-    if (!id) return;
-    setAssigningTemplate(true);
-    try {
-      const value = templateId === 'none' ? null : templateId;
-      const res = await cardTemplatesApi.assignToEvent(id, value);
-      if (res.success) {
-        setAssignedTemplateId(value);
-        toast.success(value ? 'Card template assigned' : 'Card template removed');
-      } else { showCaughtError(res); }
-    } catch (err: any) { showCaughtError(err); }
-    finally { setAssigningTemplate(false); }
-  };
 
   useEffect(() => {
     if (id) {
       loadEventServices();
       loadEventPhotoLibraries();
-      loadCardTemplates();
     }
   }, [id]);
 
@@ -404,27 +371,6 @@ const EventManagement = () => {
           </div>
           <Card><CardContent className="p-4"><p className="text-[10px] text-muted-foreground mb-1">Event Description</p><p className="text-sm text-muted-foreground">{eventDescription}</p></CardContent></Card>
 
-          {/* Invitation Card Template */}
-          {isCreator && (
-            <Card>
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center">
-                      <FileText className="w-4 h-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold">Invitation Card Template</p>
-                      <p className="text-xs text-muted-foreground">Nuru picks the best design for your event type automatically</p>
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => navigate('/card-templates')} className="text-xs gap-1 text-muted-foreground">
-                    Browse <ChevronRight className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </TabsContent>
 
         <TabsContent value="checklist" className="space-y-6">

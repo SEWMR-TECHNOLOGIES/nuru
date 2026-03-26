@@ -28,7 +28,6 @@ import { showCaughtError } from '@/lib/api';
 import UserSearchInput from './UserSearchInput';
 import ContributorSearchInput from './ContributorSearchInput';
 import GuestListSkeletonLoader from './GuestListSkeletonLoader';
-import InvitationCard from '@/components/InvitationCard';
 import type { EventGuest } from '@/lib/api/types';
 import type { SearchedUser } from '@/hooks/useUserSearch';
 import type { UserContributor } from '@/lib/api/contributors';
@@ -56,7 +55,7 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
   const [selectedUser, setSelectedUser] = useState<SearchedUser | null>(null);
   const [selectedContributor, setSelectedContributor] = useState<UserContributor | null>(null);
   const [guestSourceTab, setGuestSourceTab] = useState<string>('user');
-  const [cardGuestId, setCardGuestId] = useState<string | null>(null);
+  
 
   const [newGuest, setNewGuest] = useState({
     plus_ones: 0,
@@ -65,7 +64,7 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
   });
 
   // Pause polling when any dialog is open to prevent form disruption
-  const anyDialogOpen = addDialogOpen || inviteDialogOpen || !!cardGuestId;
+  const anyDialogOpen = addDialogOpen || inviteDialogOpen;
   usePolling(refetch, 15000, !anyDialogOpen);
 
   const resetDialog = () => {
@@ -283,11 +282,6 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
                          {canCheckin && !guest.checked_in && guest.rsvp_status === 'confirmed' && (
                           <DropdownMenuItem onClick={() => handleCheckin(guest.id)}><CheckCircle className="w-4 h-4 mr-2" />Check In</DropdownMenuItem>
                          )}
-                         {guest.rsvp_status === 'confirmed' && (
-                          <DropdownMenuItem onClick={() => setCardGuestId(guest.id)}>
-                            <Download className="w-4 h-4 mr-2" />Download Card
-                          </DropdownMenuItem>
-                         )}
                          {canManage && (
                            <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteGuest(guest.id)}>
                              <Trash className="w-4 h-4 mr-2" />Remove
@@ -401,16 +395,6 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
         </DialogContent>
       </Dialog>
 
-      {/* Guest Invitation Card Dialog */}
-      {cardGuestId && (
-        <InvitationCard
-          eventId={eventId}
-          guestId={cardGuestId}
-          open={!!cardGuestId}
-          onClose={() => setCardGuestId(null)}
-          isOrganizer
-        />
-      )}
     </div>
   );
 };

@@ -6,6 +6,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Brute-force protection: max 5 verification attempts per phone per 15 minutes
+const MAX_ATTEMPTS = 5;
+const ATTEMPT_WINDOW_MINUTES = 15;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -28,6 +32,27 @@ Deno.serve(async (req) => {
 
     const cleanPhone = phone.replace(/[^\d]/g, "");
     const otpPurpose = purpose || "phone_verification";
+
+    // ── Brute-force protection: count recent failed attempts ──
+    // We track attempts by checking how many OTPs were marked used (failed verifications
+    // don't mark as used, but we can count total verification requests).
+    // Simple approach: check if there are too many recent OTP records for this phone
+    const windowStart = new Date(Date.now() - ATTEMPT_WINDOW_MINUTES * 60 * 1000).toISOString();
+    const { count: recentAttempts, error: countError } = await supabase
+      .from("otp_codes")
+      .select("id", { count: "exact", head: true })
+      .eq("phone", cleanPhone)
+      .eq("purpose", otpPurpose)
+      .gte("created_at", windowStart);
+
+    // If there are many OTP records and still trying, likely brute forcing
+    // We'll use a simple counter approach - after MAX_ATTEMPTS wrong codes, lock out
+    if (!countError && (recentAttempts ?? 0) > MAX_ATTEMPTS * 2) {
+      return new Response(
+        JSON.stringify({ success: false, message: "Too many attempts. Please request a new code." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "900" } }
+      );
+    }
 
     // Look up the latest valid OTP
     const { data: otpRecords, error } = await supabase
@@ -57,7 +82,24 @@ Deno.serve(async (req) => {
 
     const record = otpRecords[0];
 
+    // Track attempt count on the record itself
+    const currentAttempts = record.attempts ?? 0;
+    if (currentAttempts >= MAX_ATTEMPTS) {
+      // Too many wrong attempts on this OTP — invalidate it
+      await supabase.from("otp_codes").update({ is_used: true }).eq("id", record.id);
+      return new Response(
+        JSON.stringify({ success: false, message: "Too many incorrect attempts. Please request a new code." }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (record.code !== code) {
+      // Increment attempt counter
+      await supabase
+        .from("otp_codes")
+        .update({ attempts: currentAttempts + 1 })
+        .eq("id", record.id);
+
       return new Response(
         JSON.stringify({ success: false, message: "Invalid verification code" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

@@ -166,7 +166,7 @@ const EventGuestCheckIn = ({ eventId, isCreator: _isCreator, eventTitle, eventDa
             </div>
             <div>
               <h2 className="text-lg font-bold text-foreground">Guest Check-In</h2>
-              <p className="text-xs text-muted-foreground">Scan invitation QR codes to check in guests</p>
+              <p className="text-xs text-muted-foreground">Scan QR codes or enter invitation codes to check in guests</p>
             </div>
           </div>
 
@@ -175,7 +175,7 @@ const EventGuestCheckIn = ({ eventId, isCreator: _isCreator, eventTitle, eventDa
             className="w-full h-12 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground font-semibold rounded-xl shadow-lg shadow-primary/20 text-base gap-3"
           >
             <SvgIcon src={ScanIcon} alt="Scan" className="w-5 h-5" style={{ filter: 'brightness(0) invert(1)' }} />
-            Scan Invitation Card
+            Check In Guest
           </Button>
         </div>
       </div>
@@ -256,7 +256,7 @@ const EventGuestCheckIn = ({ eventId, isCreator: _isCreator, eventTitle, eventDa
           <DialogHeader className="p-5 pb-0">
             <DialogTitle className="flex items-center gap-2 text-base">
               <SvgIcon src={ScanIcon} alt="Scan" className="w-4 h-4" />
-              Scan Invitation Card
+              Check In Guest
             </DialogTitle>
           </DialogHeader>
 
@@ -276,10 +276,10 @@ const EventGuestCheckIn = ({ eventId, isCreator: _isCreator, eventTitle, eventDa
                 </div>
               ) : (
                 <>
-                  <p className="text-xs text-muted-foreground">Scan the QR code on the guest's invitation card or enter the attendee ID</p>
+                  <p className="text-xs text-muted-foreground">Scan a QR code or enter the invitation code sent via SMS/WhatsApp</p>
                   <div className="flex gap-2">
                     <Input
-                      placeholder="Scan or enter code..."
+                      placeholder="Enter QR code or invitation code..."
                       value={scanCode}
                       onChange={(e) => setScanCode(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleScanLookup()}
@@ -305,99 +305,149 @@ const EventGuestCheckIn = ({ eventId, isCreator: _isCreator, eventTitle, eventDa
           )}
 
           {scanError && (
-            <div className="px-5 pb-5 text-center space-y-4">
-              <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-                <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
-                  <AlertTriangle className="w-8 h-8 text-destructive" />
+            <div className="px-5 pb-5 space-y-4">
+              <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center">
+                <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+                  <motion.div
+                    initial={{ rotate: -10 }}
+                    animate={{ rotate: [0, -5, 5, -3, 3, 0] }}
+                    transition={{ duration: 0.5, delay: 0.2 }}
+                  >
+                    <AlertTriangle className="w-10 h-10 text-destructive" />
+                  </motion.div>
                 </div>
+                <h3 className="text-lg font-bold text-destructive mb-1">Unable to Check In</h3>
+                <p className="text-sm text-muted-foreground max-w-xs mx-auto">{scanError}</p>
               </motion.div>
-              <div>
-                <p className="text-sm text-destructive font-semibold">Check-in Failed</p>
-                <p className="text-xs text-muted-foreground mt-1">{scanError}</p>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={resetScan} className="flex-1 gap-2 h-11">
+                  <Scan className="w-4 h-4" />
+                  Try Again
+                </Button>
+                <Button size="sm" onClick={() => { resetScan(); startCameraScanner(); }} className="flex-1 gap-2 h-11">
+                  <SvgIcon src={CameraIcon} alt="Camera" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
+                  Scan QR
+                </Button>
               </div>
-              <Button variant="outline" size="sm" onClick={resetScan} className="gap-2">
-                <Scan className="w-3.5 h-3.5" />
-                Try Again
-              </Button>
             </div>
           )}
 
           {scannedGuest && (
             <div className="divide-y divide-border">
-              {/* Success Banner */}
-              <div className={`px-5 py-5 text-center ${
+              {/* Success / Already Checked In Banner */}
+              <div className={`px-6 py-8 text-center ${
                 scannedGuest.checked_in && !checkInDone
-                  ? 'bg-amber-500/10'
-                  : 'bg-emerald-500/10'
+                  ? 'bg-gradient-to-b from-amber-500/10 to-amber-500/5'
+                  : 'bg-gradient-to-b from-emerald-500/10 to-emerald-500/5'
               }`}>
                 <AnimatePresence mode="wait">
                   {scannedGuest.checked_in && !checkInDone ? (
-                    <motion.div key="already" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="space-y-2">
-                      <div className="w-16 h-16 rounded-full bg-amber-500/15 flex items-center justify-center mx-auto">
-                        <ShieldCheck className="w-8 h-8 text-amber-500" />
-                      </div>
-                      <p className="text-amber-600 dark:text-amber-400 font-bold text-base">Already Checked In</p>
-                      <p className="text-muted-foreground text-xs">
-                        {scannedGuest.checked_in_at
-                          ? `Checked in at ${new Date(scannedGuest.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                          : 'This guest has already been checked in'
-                        }
-                      </p>
-                    </motion.div>
-                  ) : (
-                    <motion.div key="success" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="space-y-2">
+                    <motion.div key="already" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="space-y-3">
                       <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.1 }}
-                        className="w-16 h-16 rounded-full bg-emerald-500/15 flex items-center justify-center mx-auto"
+                        transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+                        className="w-20 h-20 rounded-full bg-amber-500/15 flex items-center justify-center mx-auto ring-4 ring-amber-500/10"
                       >
-                        <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                        <ShieldCheck className="w-10 h-10 text-amber-500" />
                       </motion.div>
-                      <p className="text-emerald-600 dark:text-emerald-400 font-bold text-base">Checked In Successfully</p>
-                      <p className="text-xs text-muted-foreground">Guest may proceed to the event</p>
+                      <div>
+                        <p className="text-amber-600 dark:text-amber-400 font-bold text-lg">Already Checked In</p>
+                        <p className="text-muted-foreground text-sm mt-1">
+                          {scannedGuest.checked_in_at
+                            ? `Checked in at ${new Date(scannedGuest.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                            : 'This guest was previously checked in'
+                          }
+                        </p>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <motion.div key="success" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="space-y-3">
+                      <motion.div
+                        initial={{ scale: 0, rotate: -180 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.1 }}
+                        className="w-20 h-20 rounded-full bg-emerald-500/15 flex items-center justify-center mx-auto ring-4 ring-emerald-500/10"
+                      >
+                        <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+                      </motion.div>
+                      <div>
+                        <motion.p
+                          initial={{ y: 10, opacity: 0 }}
+                          animate={{ y: 0, opacity: 1 }}
+                          transition={{ delay: 0.3 }}
+                          className="text-emerald-600 dark:text-emerald-400 font-bold text-lg"
+                        >
+                          Welcome In! 🎉
+                        </motion.p>
+                        <motion.p
+                          initial={{ y: 10, opacity: 0 }}
+                          animate={{ y: 0, opacity: 1 }}
+                          transition={{ delay: 0.4 }}
+                          className="text-sm text-muted-foreground mt-1"
+                        >
+                          Guest has been checked in successfully
+                        </motion.p>
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
 
-              {/* Guest Info */}
-              <div className="px-5 py-4 flex items-center gap-3">
-                <Avatar className="w-12 h-12 ring-2 ring-border">
-                  <AvatarFallback className="bg-primary/10 text-primary font-bold">{getInitials(scannedGuest.name)}</AvatarFallback>
+              {/* Guest Info Card */}
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="px-5 py-5 flex items-center gap-4"
+              >
+                <Avatar className="w-14 h-14 ring-2 ring-primary/20">
+                  <AvatarFallback className="bg-primary/10 text-primary text-lg font-bold">{getInitials(scannedGuest.name)}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-foreground truncate text-base">{scannedGuest.name || 'Guest'}</p>
+                  <p className="font-bold text-foreground truncate text-lg">{scannedGuest.name || 'Guest'}</p>
                   {scannedGuest.table_number && (
-                    <Badge variant="secondary" className="text-[10px] mt-1">Table {scannedGuest.table_number}</Badge>
+                    <Badge variant="secondary" className="text-xs mt-1">🪑 Table {scannedGuest.table_number}</Badge>
                   )}
                 </div>
-              </div>
+              </motion.div>
 
               {/* Event Details */}
               {(eventTitle || eventDate || eventLocation) && (
-                <div className="px-5 py-3 space-y-1.5">
-                  {eventTitle && <p className="font-medium text-sm text-foreground">{eventTitle}</p>}
-                  {eventDate && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-2">
-                      <Calendar className="w-3 h-3" />{eventDate}
-                    </p>
-                  )}
-                  {eventLocation && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-2">
-                      <MapPin className="w-3 h-3" />{eventLocation}
-                    </p>
-                  )}
-                </div>
+                <motion.div
+                  initial={{ y: 10, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                  className="px-5 py-4 bg-muted/30"
+                >
+                  <div className="space-y-2">
+                    {eventTitle && <p className="font-semibold text-sm text-foreground">{eventTitle}</p>}
+                    {eventDate && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-2">
+                        <Calendar className="w-3.5 h-3.5" />{eventDate}
+                      </p>
+                    )}
+                    {eventLocation && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-2">
+                        <MapPin className="w-3.5 h-3.5" />{eventLocation}
+                      </p>
+                    )}
+                  </div>
+                </motion.div>
               )}
 
-              {/* Actions */}
-              <div className="px-5 py-4 text-center">
-                <Button variant="outline" size="sm" onClick={resetScan} className="gap-2">
-                  <Scan className="w-3.5 h-3.5" />
-                  Scan Another Guest
+              {/* Action Button */}
+              <motion.div
+                initial={{ y: 10, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.4 }}
+                className="px-5 py-5"
+              >
+                <Button onClick={resetScan} className="w-full h-11 gap-2 font-semibold">
+                  <Scan className="w-4 h-4" />
+                  Scan Next Guest
                 </Button>
-              </div>
+              </motion.div>
             </div>
           )}
         </DialogContent>

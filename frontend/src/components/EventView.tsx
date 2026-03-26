@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ChevronLeft, Clock, Users, CheckCircle, XCircle, Loader2, Printer, Camera, Images, Edit2, FileText } from 'lucide-react';
+import { ChevronLeft, Clock, Users, CheckCircle, XCircle, Loader2, Camera, Images, Edit2, FileText } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
@@ -14,7 +14,6 @@ import { photoLibrariesApi } from '@/lib/api/photoLibraries';
 import type { PhotoLibrary } from '@/lib/api/photoLibraries';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
-import InvitationCard from './InvitationCard';
 import EventTicketPurchase from './EventTicketPurchase';
 import ReportPreviewDialog from '@/components/ReportPreviewDialog';
 import { generateEventReportHtml } from '@/utils/generateEventReport';
@@ -28,7 +27,7 @@ const EventView = () => {
   const [loading, setLoading] = useState(true);
   const [respondingStatus, setRespondingStatus] = useState<string | null>(null);
   const [rsvpStatus, setRsvpStatus] = useState<string>('pending');
-  const [showInvitationCard, setShowInvitationCard] = useState(false);
+  
   const [hasInvitation, setHasInvitation] = useState(false);
   const [photoLibraries, setPhotoLibraries] = useState<PhotoLibrary[]>([]);
   const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
@@ -233,10 +232,6 @@ const EventView = () => {
                       <Button size="sm" variant="outline" onClick={() => handleRSVP('declined')} disabled={!!respondingStatus} className="gap-1.5 text-destructive hover:text-destructive">
                         {respondingStatus === 'declined' ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
                         Cancel RSVP
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setShowInvitationCard(true)} className="gap-1.5">
-                        <Printer className="w-4 h-4" />
-                        Invitation Card
                       </Button>
                     </>
                   )}
@@ -450,15 +445,6 @@ const EventView = () => {
             </CardContent>
           </Card>
         </motion.div>
-      )}
-
-      {/* Invitation Card Dialog */}
-      {showInvitationCard && id && (
-        <InvitationCard
-          eventId={id}
-          open={showInvitationCard}
-          onClose={() => setShowInvitationCard(false)}
-        />
       )}
 
       <ReportPreviewDialog

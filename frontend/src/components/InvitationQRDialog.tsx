@@ -42,7 +42,7 @@ const InvitationQRDialog = ({ eventId, open, onClose }: InvitationQRDialogProps)
   }, [open, eventId]);
 
   const formattedDate = eventDate
-    ? new Date(eventDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+    ? new Date(eventDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
     : '';
 
   return (

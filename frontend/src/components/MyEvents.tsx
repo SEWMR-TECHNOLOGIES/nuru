@@ -68,7 +68,7 @@ const MyEvents = () => {
   const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
   const [reportHtml, setReportHtml] = useState('');
   const [eventsTabValue, setEventsTabValue] = useState('my-events');
-  const templateCount = 10; // Built-in SVG templates
+  
 
   const events = fetchedEvents.map((e: any) =>
     localStatusOverrides[e.id] ? { ...e, status: localStatusOverrides[e.id] } : e
@@ -482,25 +482,6 @@ const MyEvents = () => {
         </div>
       )}
 
-      {/* ── Card Templates Promo ── */}
-      <Card
-        className="overflow-hidden border-border/60 cursor-pointer hover:shadow-md transition-all"
-        onClick={() => navigate('/card-templates')}
-      >
-        <CardContent className="p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <h3 className="font-semibold text-foreground text-sm mb-1">
-                Invitation Card Templates
-              </h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                {templateCount} premium designs. Guest names and QR codes are placed automatically.
-              </p>
-            </div>
-            <Button size="sm" variant="outline">Browse</Button>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* ── Tabs ── */}
       <Tabs value={eventsTabValue} onValueChange={setEventsTabValue} className="w-full">

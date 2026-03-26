@@ -73,14 +73,21 @@ const PrivacyPolicy = () => {
       ]
     },
     {
+      title: "Third-Party Services",
+      content: [
+        "We use ipapi.co to detect your approximate country based on your IP address. This is used solely to pre-select your country code when entering a phone number. Your IP address is sent to ipapi.co for this purpose — no other personal data is shared. You can review ipapi.co's privacy policy at ipapi.co/privacy.",
+        "We use third-party payment processors to handle transactions securely. Your payment details are processed directly by these providers and are not stored on our servers.",
+        "We use cloud infrastructure providers to host and deliver the platform reliably.",
+        "We do not sell your personal data to third parties",
+        "We do not share your data with advertisers for targeted advertising"
+      ]
+    },
+    {
       title: "Data Sharing",
       content: [
-        "We do not sell your personal data to third parties",
-        "We share data with payment providers to process transactions",
         "Event participants receive necessary information for coordination (e.g., guest lists, RSVP status)",
         "Vendors and Organisers receive relevant data to facilitate bookings",
-        "We may share data with law enforcement when required by law or court order",
-        "We do not share your data with advertisers for targeted advertising"
+        "We may share data with law enforcement when required by law or court order"
       ]
     },
     {

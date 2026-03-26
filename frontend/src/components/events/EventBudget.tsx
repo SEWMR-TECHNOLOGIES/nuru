@@ -304,36 +304,43 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
   }, [reportOpen, eventTitle, items, totalEstimated, totalActual, overallBudget, includesEstimates, eventBudget, categoryBreakdown]);
 
   const handleExportExcel = async () => {
+    const writeXlsxFile = (await import('write-excel-file')).default;
     const headerRow = [
-      { value: 'S/N', fontWeight: 'bold' as const },
-      { value: 'Category', fontWeight: 'bold' as const },
-      { value: 'Item', fontWeight: 'bold' as const },
-      { value: 'Vendor', fontWeight: 'bold' as const },
-      { value: 'Budget', fontWeight: 'bold' as const },
-      { value: 'Type', fontWeight: 'bold' as const },
-      { value: 'Status', fontWeight: 'bold' as const },
-      { value: 'Notes', fontWeight: 'bold' as const },
+      { value: 'S/N', type: String, fontWeight: 'bold' as const },
+      { value: 'Category', type: String, fontWeight: 'bold' as const },
+      { value: 'Item', type: String, fontWeight: 'bold' as const },
+      { value: 'Vendor', type: String, fontWeight: 'bold' as const },
+      { value: 'Budget', type: String, fontWeight: 'bold' as const },
+      { value: 'Type', type: String, fontWeight: 'bold' as const },
+      { value: 'Status', type: String, fontWeight: 'bold' as const },
+      { value: 'Notes', type: String, fontWeight: 'bold' as const },
     ];
     const dataRows = items.map((item, i) => [
-      { value: i + 1 },
-      { value: item.category },
-      { value: item.item_name },
-      { value: item.vendor_name || '' },
-      { value: getEffectiveCost(item) },
-      { value: isItemEstimate(item) ? 'Estimate' : 'Actual' },
-      { value: getStatusStyle(item.status).label },
-      { value: item.notes || '' },
+      { value: String(i + 1), type: String },
+      { value: item.category || '', type: String },
+      { value: item.item_name || '', type: String },
+      { value: item.vendor_name || '', type: String },
+      { value: Number(getEffectiveCost(item)) || 0, type: Number },
+      { value: isItemEstimate(item) ? 'Estimate' : 'Actual', type: String },
+      { value: getStatusStyle(item.status).label || '', type: String },
+      { value: item.notes || '', type: String },
     ]);
     const totalRow = [
-      { value: '', fontWeight: 'bold' as const },
-      { value: 'TOTAL', fontWeight: 'bold' as const },
-      { value: '' }, { value: '' },
-      { value: overallBudget, fontWeight: 'bold' as const },
-      { value: includesEstimates ? 'Includes estimates' : 'All actual' },
-      { value: '' }, { value: '' },
+      { value: '', type: String },
+      { value: 'TOTAL', type: String, fontWeight: 'bold' as const },
+      { value: '', type: String },
+      { value: '', type: String },
+      { value: overallBudget || 0, type: Number, fontWeight: 'bold' as const },
+      { value: includesEstimates ? 'Includes estimates' : 'All actual', type: String },
+      { value: '', type: String },
+      { value: '', type: String },
     ];
     await writeXlsxFile([headerRow, ...dataRows, totalRow] as any, {
       fileName: `${(eventTitle || 'event').replace(/\s+/g, '_')}_budget.xlsx`,
+      columns: [
+        { width: 6 }, { width: 18 }, { width: 25 }, { width: 18 },
+        { width: 15 }, { width: 12 }, { width: 12 }, { width: 25 },
+      ],
     });
   };
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Clock, CheckCircle, XCircle, HelpCircle, Loader2, Printer, Timer, QrCode } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, HelpCircle, Loader2, Timer, QrCode } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
@@ -10,7 +10,6 @@ import { useNavigate } from 'react-router-dom';
 import { eventsApi } from '@/lib/api/events';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
-import InvitationCard from './InvitationCard';
 import InvitationQRDialog from './InvitationQRDialog';
 import { getEventCountdown } from '@/utils/getEventCountdown';
 
@@ -33,7 +32,7 @@ const InvitedEvents = () => {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  
   const [qrEventId, setQrEventId] = useState<string | null>(null);
   const [respondingAction, setRespondingAction] = useState<{ eventId: string; status: string } | null>(null);
 
@@ -264,19 +263,6 @@ const InvitedEvents = () => {
                           variant="outline"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedEventId(event.id);
-                          }}
-                        >
-                          <Printer className="w-4 h-4 mr-1" />
-                          Invitation Card
-                        </Button>
-                      )}
-                      {rsvpStatus === 'confirmed' && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
                             setQrEventId(event.id);
                           }}
                           className="gap-1.5"
@@ -293,14 +279,6 @@ const InvitedEvents = () => {
           );
         })}
       </div>
-
-      {selectedEventId && (
-        <InvitationCard
-          eventId={selectedEventId}
-          open={!!selectedEventId}
-          onClose={() => setSelectedEventId(null)}
-        />
-      )}
 
       {qrEventId && (
         <InvitationQRDialog
