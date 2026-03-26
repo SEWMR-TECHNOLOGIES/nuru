@@ -121,7 +121,8 @@ async def signup(request: Request, db: Session = Depends(get_db)):
     if not validate_password_strength(password):
         return standard_response(False, "Your password must be strong: at least 8 characters long, include one uppercase letter, one lowercase letter, one number, and one special symbol. This ensures your account remains secure.")
 
-    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    from utils.auth import hash_password
+    password_hash = hash_password(password)
 
     user = User(
         first_name=first_name,

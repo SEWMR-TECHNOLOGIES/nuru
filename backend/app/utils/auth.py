@@ -1,6 +1,7 @@
 import hashlib
 import secrets
 import jwt
+import bcrypt
 from datetime import datetime, timedelta
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -59,7 +60,6 @@ def get_optional_user(
 ) -> Optional[User]:
     """
     Like get_current_user but returns None instead of raising 401 when no auth is provided.
-    Used for publicly accessible endpoints that may serve richer data to authenticated users.
     """
     user = None
 
@@ -79,13 +79,44 @@ def get_optional_user(
     return user if (user and user.is_active) else None
 
 
+def hash_password(plain_password: str) -> str:
+    """Hash a password using bcrypt."""
+    return bcrypt.hashpw(plain_password.encode(), bcrypt.gensalt()).decode()
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return hashlib.sha256(plain_password.encode()).hexdigest() == hashed_password
+    """
+    Verify password against hash. Supports both:
+    - bcrypt hashes (new, starts with $2b$)
+    - Legacy SHA-256 hashes (old users)
+    If a legacy SHA-256 hash matches, returns True so the caller can
+    migrate the hash to bcrypt.
+    """
+    # Try bcrypt first (new hashes start with $2b$ or $2a$)
+    if hashed_password.startswith(('$2b$', '$2a$', '$2y$')):
+        try:
+            return bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
+        except (ValueError, TypeError):
+            return False
+
+    # Fallback: legacy SHA-256 hash
+    sha256_hash = hashlib.sha256(plain_password.encode()).hexdigest()
+    return sha256_hash == hashed_password
+
+
+def migrate_password_if_needed(db: Session, user: User, plain_password: str):
+    """
+    If user still has a legacy SHA-256 hash, upgrade it to bcrypt.
+    Call this after successful password verification.
+    """
+    if not user.password_hash.startswith(('$2b$', '$2a$', '$2y$')):
+        user.password_hash = hash_password(plain_password)
+        db.commit()
+
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
-    # Default to 24 hours if ACCESS_TOKEN_EXPIRE_MINUTES is too short
-    default_minutes = max(ACCESS_TOKEN_EXPIRE_MINUTES, 1440)  # At least 24 hours
+    default_minutes = max(ACCESS_TOKEN_EXPIRE_MINUTES, 1440)
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=default_minutes))
     to_encode.update({"exp": expire})
     token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -100,9 +131,7 @@ def get_user_by_credential(db: Session, credential: str):
 
 
 def create_refresh_token(data: dict, expires_delta: timedelta = None):
-    """
-    Create a JWT refresh token.
-    """
+    """Create a JWT refresh token."""
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
     to_encode.update({"exp": expire})
@@ -111,9 +140,7 @@ def create_refresh_token(data: dict, expires_delta: timedelta = None):
 
 
 def verify_refresh_token(token: str):
-    """
-    Verify a refresh token. Returns payload if valid, else None.
-    """
+    """Verify a refresh token. Returns payload if valid, else None."""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload

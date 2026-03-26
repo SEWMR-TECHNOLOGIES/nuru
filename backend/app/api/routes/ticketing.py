@@ -681,6 +681,7 @@ def get_ticketed_events(
     limit: int = 10,
     search: str = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_optional_user),
 ):
     """Get all public events that sell tickets."""
     from sqlalchemy import func as sa_func

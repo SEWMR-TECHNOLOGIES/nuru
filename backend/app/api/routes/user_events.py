@@ -260,12 +260,14 @@ def get_my_permissions(
         return standard_response(False, "Event not found")
 
     is_creator = str(event.organizer_id) == str(current_user.id)
+    print(f"[my-permissions] user_id={current_user.id} event_id={event_id} is_creator={is_creator}")
+
     if is_creator:
         # Creator has all permissions
         perms = {field: True for field in PERMISSION_FIELDS}
-        return standard_response(True, "Permissions retrieved", {
-            "is_creator": True, "role": "creator", **perms,
-        })
+        payload = {"is_creator": True, "role": "creator", **perms}
+        print(f"[my-permissions] payload={payload}")
+        return standard_response(True, "Permissions retrieved", payload)
 
     cm = db.query(EventCommitteeMember).filter(
         EventCommitteeMember.event_id == eid,
@@ -273,9 +275,9 @@ def get_my_permissions(
     ).first()
     if not cm:
         perms = {field: False for field in PERMISSION_FIELDS}
-        return standard_response(True, "Permissions retrieved", {
-            "is_creator": False, "role": None, **perms,
-        })
+        payload = {"is_creator": False, "role": None, **perms}
+        print(f"[my-permissions] payload={payload}")
+        return standard_response(True, "Permissions retrieved", payload)
 
     role_obj = db.query(CommitteeRole).filter(CommitteeRole.id == cm.role_id).first() if cm.role_id else None
     perm_row = db.query(CommitteePermission).filter(CommitteePermission.committee_member_id == cm.id).first()
@@ -296,11 +298,13 @@ def get_my_permissions(
     if perms.get("can_manage_expenses"):
         perms["can_view_expenses"] = True
 
-    return standard_response(True, "Permissions retrieved", {
+    payload = {
         "is_creator": False,
         "role": role_obj.role_name if role_obj else "member",
         **perms,
-    })
+    }
+    print(f"[my-permissions] payload={payload}")
+    return standard_response(True, "Permissions retrieved", payload)
 
 
 # ──────────────────────────────────────────────
@@ -671,10 +675,16 @@ def get_event(event_id: str, db: Session = Depends(get_db), current_user: User =
         inv = db.query(EventInvitation).filter(EventInvitation.event_id == eid, EventInvitation.invited_user_id == current_user.id).first()
         is_invited = inv is not None
 
+    viewer_role = "creator" if is_owner else ("committee" if is_committee else ("guest" if is_invited else "public"))
+    print(f"[get-event] user_id={current_user.id} event_id={event_id} role={viewer_role} public={event.is_public}")
+
     if not is_owner and not is_committee and not is_invited and not event.is_public:
         return standard_response(False, "You do not have permission to view this event")
 
     data = _event_summary(db, event)
+    data["viewer_role"] = viewer_role
+    data["is_creator"] = is_owner
+    data["is_committee"] = is_committee
 
     # Guests
     attendees = db.query(EventAttendee).filter(EventAttendee.event_id == eid).all()

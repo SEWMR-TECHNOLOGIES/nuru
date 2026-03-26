@@ -13,6 +13,8 @@ from utils.auth import (
     get_current_user,
     is_token_expired,
     verify_password,
+    hash_password,
+    migrate_password_if_needed,
     create_access_token,
     create_refresh_token,
     get_user_by_credential,
@@ -69,6 +71,10 @@ async def signin(request: Request, response: Response, db: Session = Depends(get
         return standard_response(False, "Invalid credentials. Please try again.")
     if not verify_password(password, user.password_hash):
         return standard_response(False, "Invalid credentials. Please try again.")
+
+    # Migrate legacy SHA-256 hash to bcrypt on successful login
+    migrate_password_if_needed(db, user, password)
+
     if not user.is_active:
         return standard_response(False, "Your account has been deactivated. Contact support at support@nuru.tz")
 
@@ -252,8 +258,8 @@ async def reset_password(request: Request, db: Session = Depends(get_db)):
     if not user:
         return standard_response(False, "User not found")
 
-    # Update password
-    user.password_hash = hashlib.sha256(password.encode()).hexdigest()
+    # Update password using bcrypt
+    user.password_hash = hash_password(password)
 
     # Mark token used
     reset.is_used = True
@@ -287,7 +293,8 @@ async def forgot_password_phone(request: Request, db: Session = Depends(get_db))
     try:
         phone = validate_tanzanian_phone(phone)
     except ValueError:
-        return standard_response(False, "Please enter a valid Tanzanian phone number.")
+        # Return same generic message to prevent enumeration via format validation
+        return standard_response(True, "If this phone number is registered, a reset code has been sent.")
 
     user = db.query(User).filter(User.phone == phone).first()
 
@@ -320,9 +327,8 @@ async def forgot_password_phone(request: Request, db: Session = Depends(get_db))
     except Exception:
         print(traceback.format_exc())
 
-    masked = mask_phone(user.phone)
-    channel_info = f" via {channel_label}" if channel_label else ""
-    return standard_response(True, f"If this phone number is registered, a reset code has been sent{channel_info} to {masked}.")
+    # Generic response — don't reveal channel or masked phone to prevent enumeration
+    return standard_response(True, "If this phone number is registered, a reset code has been sent.")
 
 
 # ──────────────────────────────────────────────
