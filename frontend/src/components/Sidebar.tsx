@@ -1,12 +1,7 @@
 import { useState, useEffect } from 'react'
 import { 
   Search, 
-  HelpCircle, 
   Briefcase,
-  User,
-  Users,
-  UsersRound,
-  BookUser,
   AlertTriangle,
   LucideIcon,
   Sparkles,
@@ -24,6 +19,11 @@ import TicketIcon from '@/assets/icons/ticket-icon.svg'
 import AddSquareIcon from '@/assets/icons/add-square-icon.svg'
 import IssueIcon from '@/assets/icons/issue-icon.svg'
 import SettingsIcon from '@/assets/icons/settings-icon.svg'
+import CircleIcon from '@/assets/icons/circle-icon.svg'
+import CommunitiesIcon from '@/assets/icons/communities-icon.svg'
+import UserProfileIcon from '@/assets/icons/user-profile-icon.svg'
+import ContributorsIcon from '@/assets/icons/contributors-icon.svg'
+import HelpIcon from '@/assets/icons/help-icon.svg'
 import {
   HoverCard,
   HoverCardContent,
@@ -71,12 +71,12 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
     { lucideIcon: Search, label: 'Find Services', path: '/find-services', hint: 'Search and browse verified service providers like DJs, caterers, photographers, and decorators for your events.' },
     { lucideIcon: Briefcase, label: 'My Services', path: '/my-services', hint: 'Manage your listed services, view bookings, track ratings, and respond to client reviews.' },
     { customIcon: CardIcon, label: 'Nuru Pass', path: '/nuru-cards', hint: 'Order your Nuru Pass for seamless tap-to-check-in at events, with QR code backup and NFC support.' },
-    { lucideIcon: Users, label: 'My Circle', path: '/circle', hint: 'View and manage the people you follow, your followers, and pending connection requests.' },
-    { lucideIcon: BookUser, label: 'Contributors', path: '/my-contributors', hint: 'See a list of people who have contributed to your events and track their contributions.' },
-    { lucideIcon: UsersRound, label: 'Communities', path: '/communities', hint: 'Browse, join, and participate in community groups based on shared interests or professions.' },
+    { customIcon: CircleIcon, label: 'My Circle', path: '/circle', hint: 'View and manage the people you follow, your followers, and pending connection requests.' },
+    { customIcon: ContributorsIcon, label: 'Contributors', path: '/my-contributors', hint: 'See a list of people who have contributed to your events and track their contributions.' },
+    { customIcon: CommunitiesIcon, label: 'Communities', path: '/communities', hint: 'Browse, join, and participate in community groups based on shared interests or professions.' },
     { customIcon: IssueIcon, label: 'My Issues', path: '/my-issues', hint: 'Submit new issues and track the status of previously reported problems or disputes.' },
     { lucideIcon: AlertTriangle, label: 'Removed Content', path: '/removed-content', hint: 'View posts or moments that were removed, check the reason, and submit an appeal if needed.' },
-    { lucideIcon: HelpCircle, label: 'Help', path: '/help', hint: 'Browse help categories, read FAQs, or contact support for assistance.' },
+    { customIcon: HelpIcon, label: 'Help', path: '/help', hint: 'Browse help categories, read FAQs, or contact support for assistance.' },
     { customIcon: SettingsIcon, label: 'Settings', path: '/settings', hint: 'Manage your notification preferences, privacy controls, theme, and account settings.' },
   ]
 
@@ -229,7 +229,7 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
       {/* Profile Section */}
       <div className="mt-auto pt-4 border-t border-sidebar-border">
         <NavLink to="/profile" className={linkClass} onClick={onNavigate} title="Your Profile">
-          <User className="w-5 h-5" />
+          <SvgIcon src={UserProfileIcon} className="w-5 h-5" />
           <span className="md:hidden lg:inline">Your Profile</span>
         </NavLink>
       </div>

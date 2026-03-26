@@ -1928,7 +1928,7 @@ def checkin_guest(event_id: str, guest_id: str, body: dict = Body(default={}), d
 
 @router.post("/{event_id}/guests/checkin-qr")
 def checkin_guest_qr(event_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Check in a guest using QR/invitation code."""
+    """Check in a guest using QR/invitation code or attendee ID."""
     try:
         eid = uuid.UUID(event_id)
     except ValueError:
@@ -1939,22 +1939,48 @@ def checkin_guest_qr(event_id: str, body: dict = Body(...), db: Session = Depend
     if err:
         return err
 
-    code = body.get("code", "").strip()
+    # Validate event timing
+    now = datetime.now(EAT)
+    if hasattr(event, 'start_date') and event.start_date:
+        from datetime import date as date_type, timedelta
+        event_date = event.start_date if isinstance(event.start_date, date_type) else (event.start_date.date() if hasattr(event.start_date, 'date') else None)
+        if event_date:
+            today = now.date()
+            if event_date < today:
+                return standard_response(False, "Cannot check in — this event has already ended")
+            if event_date > today + timedelta(days=1):
+                return standard_response(False, "Cannot check in — this event hasn't started yet")
+
+    # Accept both "code" and "qr_code" field names for compatibility
+    code = (body.get("code") or body.get("qr_code") or "").strip()
     if not code:
         return standard_response(False, "QR code is required")
 
-    inv = db.query(EventInvitation).filter(EventInvitation.event_id == eid, EventInvitation.invitation_code == code).first()
-    if not inv:
-        return standard_response(False, "Invalid QR code")
+    att = None
 
-    att = db.query(EventAttendee).filter(EventAttendee.invitation_id == inv.id).first()
+    # Try 1: code is an attendee UUID
+    try:
+        att_id = uuid.UUID(code)
+        att = db.query(EventAttendee).filter(EventAttendee.id == att_id, EventAttendee.event_id == eid).first()
+    except ValueError:
+        pass
+
+    # Try 2: code is an invitation code
     if not att:
-        return standard_response(False, "Guest not found for this code")
+        inv = db.query(EventInvitation).filter(EventInvitation.event_id == eid, EventInvitation.invitation_code == code).first()
+        if inv:
+            att = db.query(EventAttendee).filter(EventAttendee.invitation_id == inv.id).first()
+
+    if not att:
+        return standard_response(False, "Guest not found for this event")
 
     if att.checked_in:
-        return standard_response(False, "Guest already checked in")
+        name = _resolve_guest_name(db, att)
+        return standard_response(False, "Guest already checked in", {
+            "guest_id": str(att.id), "name": name, "checked_in": True,
+            "checked_in_at": att.checked_in_at.isoformat() if att.checked_in_at else None
+        })
 
-    now = datetime.now(EAT)
     att.checked_in = True
     att.checked_in_at = now
     att.rsvp_status = RSVPStatusEnum.confirmed
@@ -1962,7 +1988,7 @@ def checkin_guest_qr(event_id: str, body: dict = Body(...), db: Session = Depend
     db.commit()
 
     name = _resolve_guest_name(db, att)
-    return standard_response(True, "Guest checked in successfully", {"guest_id": str(att.id), "name": name, "checked_in": True})
+    return standard_response(True, "Guest checked in successfully", {"guest_id": str(att.id), "name": name, "checked_in": True, "checked_in_at": now.isoformat()})
 
 
 @router.post("/{event_id}/guests/{guest_id}/undo-checkin")

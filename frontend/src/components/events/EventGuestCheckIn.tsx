@@ -82,7 +82,14 @@ const EventGuestCheckIn = ({ eventId, isCreator: _isCreator, eventTitle, eventDa
         setRecentCheckins(prev => [{ name: d.name || 'Guest', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }, ...prev].slice(0, 10));
         toast.success(`${d.name || 'Guest'} checked in!`);
       } else {
-        setScanError((res as any).message || 'Guest not found for this event');
+        // Check if already checked in (backend returns data with checked_in flag)
+        const resData = (res as any).data;
+        if (resData && resData.checked_in) {
+          setScannedGuest(resData);
+          setCheckInDone(false); // Not a new check-in
+        } else {
+          setScanError((res as any).message || 'Guest not found for this event');
+        }
       }
     } catch (err: any) {
       const msg = err?.message || err?.response?.data?.message || 'Failed to verify guest';

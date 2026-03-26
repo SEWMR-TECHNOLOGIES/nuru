@@ -268,7 +268,7 @@ const ServiceVerification = () => {
                       <CardTitle className="text-lg">
                         {index + 1}. {item.title}
                       </CardTitle>
-                      {item.required && (
+                      {item.required && item.status !== "verified" && item.status !== "pending" && (
                         <Badge variant="outline" className="text-xs flex-shrink-0">
                           Required
                         </Badge>
