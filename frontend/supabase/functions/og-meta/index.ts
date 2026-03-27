@@ -105,7 +105,7 @@ async function handlePost(postId: string, apiBase: string, shortPath?: string) {
 
   const authorName = post?.author?.name || '';
   const title = (post?.content?.slice(0, 60) || (authorName ? `${authorName} on Nuru` : "Shared on Nuru"));
-  const description = post?.content?.slice(0, 160) || `${authorName ? authorName + ' shared something on' : 'Check out this moment on'} Nuru – your all-in-one event planning platform.`;
+  const description = post?.content?.slice(0, 160) || `${authorName ? authorName + ' shared something on' : 'Check out this moment on'} Nuru – your all-in-one event planning workspace.`;
   
   // Extract first non-video image for OG preview
   let rawImage = '';
@@ -180,7 +180,7 @@ async function handlePhotoLibrary(token: string, apiBase: string) {
   const eventName = library?.event?.name || "";
   const photoCount = library?.photo_count || 0;
   const title = (eventName ? `${libraryName}` : libraryName).slice(0, 60);
-  const description = `View ${photoCount} photo${photoCount !== 1 ? "s" : ""} from ${eventName || "this event"} on Nuru – your all-in-one event planning platform.`;
+  const description = `View ${photoCount} photo${photoCount !== 1 ? "s" : ""} from ${eventName || "this event"} on Nuru – your all-in-one event planning workspace.`;
   const rawImage = library?.photos?.[0]?.url || library?.event?.cover_image_url || '';
   const image = optimizeImageForOG(rawImage, fallbackImage);
   const canonicalUrl = `${siteUrl}/shared/photo-library/${token}`;

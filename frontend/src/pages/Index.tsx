@@ -7,7 +7,7 @@ import TrendingMoments from "@/components/TrendingMoments";
 
 const Index = () => {
   useMeta({
-    title: "Nuru | Event Planning Platform",
+    title: "Nuru | Event Planning Workspace",
     description: "Plan, organize, and manage events with verified providers in one platform."
   });
 

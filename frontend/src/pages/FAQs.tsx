@@ -54,7 +54,7 @@ const FAQs = () => {
 
   useMeta({
     title: "FAQs | Nuru",
-    description: "Frequently asked questions about Nuru event planning platform."
+    description: "Frequently asked questions about Nuru event planning workspace."
   });
 
   return (

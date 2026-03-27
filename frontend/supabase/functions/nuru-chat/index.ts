@@ -33,7 +33,7 @@ const jsonRes = (cors: Record<string, string>, data: unknown, status = 200) =>
   });
 
 const SYSTEM_PROMPT = (firstName?: string) =>
-  `You are Nuru AI Assistant — a concise, friendly guide for Nuru, Tanzania's event planning platform.${firstName ? ` Chatting with ${firstName}.` : ""}
+  `You are Nuru AI Assistant — a concise, friendly guide for Nuru, Tanzania's event planning workspace.${firstName ? ` Chatting with ${firstName}.` : ""}
 
 RESPONSE RULES (CRITICAL):
 - Keep answers SHORT: 2-4 sentences for simple questions, max 6 for complex ones.

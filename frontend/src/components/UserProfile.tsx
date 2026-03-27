@@ -2,7 +2,8 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { 
   CheckCircle, Edit, Loader2, 
   Mail, Phone, User as UserIcon, Shield, ShieldCheck, ShieldAlert,
-  Upload, FileText, AlertCircle, Clock, ImagePlus, Users, X, SendHorizonal
+  Upload, FileText, AlertCircle, Clock, ImagePlus, Users, X, SendHorizonal,
+  Image as ImageIcon
 } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { authApi } from "@/lib/api/auth";
@@ -29,6 +30,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useNavigate } from "react-router-dom";
 import { useWorkspaceMeta } from "@/hooks/useWorkspaceMeta";
 import { profileApi } from "@/lib/api/profile";
+import { socialApi } from "@/lib/api/social";
 import { showCaughtError } from "@/lib/api";
 import { toast } from "sonner";
 import { formatDateMedium } from "@/utils/formatDate";
@@ -69,7 +71,11 @@ const UserProfile = () => {
   });
 
   const [isEditing, setIsEditing] = useState(false);
-  const [activeProfileTab, setActiveProfileTab] = useState("verification");
+  const [activeProfileTab, setActiveProfileTab] = useState("moments");
+  
+  // Moments/Posts state
+  const [myPosts, setMyPosts] = useState<any[]>([]);
+  const [postsLoading, setPostsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [verificationStep, setVerificationStep] = useState<"idle" | "form" | "submitted" | "verified" | "rejected">("idle");
@@ -130,6 +136,22 @@ const UserProfile = () => {
       }
     }
   }, [currentUser]);
+
+  // Fetch user's posts/moments — use same endpoint as MyMoments (/posts/user/:id)
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    setPostsLoading(true);
+    socialApi.getUserPosts(currentUser.id, { limit: 30 })
+      .then(res => {
+        if (res.success && res.data) {
+          const data = res.data as any;
+          const postsList = data?.posts || data?.items || (Array.isArray(data) ? data : []);
+          setMyPosts(postsList);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setPostsLoading(false));
+  }, [currentUser?.id]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -549,10 +571,63 @@ const UserProfile = () => {
           activeTab={activeProfileTab}
           onTabChange={setActiveProfileTab}
           tabs={[
+            { value: 'moments', label: 'My Moments', icon: <ImageIcon className="w-4 h-4" /> },
             { value: 'verification', label: 'Identity Verification', icon: <Shield className="w-4 h-4" /> },
             { value: 'contact', label: 'Contact Info', icon: <UserIcon className="w-4 h-4" /> },
           ]}
         />
+
+        <TabsContent value="moments">
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg">My Moments</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Your shared posts and moments
+              </p>
+            </CardHeader>
+            <CardContent>
+              {postsLoading ? (
+                <div className="grid grid-cols-3 gap-3">
+                  {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="aspect-square rounded-xl" />)}
+                </div>
+              ) : myPosts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <ImageIcon className="w-12 h-12 text-muted-foreground/30 mb-4" />
+                  <p className="font-semibold text-foreground mb-1">No moments yet</p>
+                  <p className="text-sm text-muted-foreground">Share your first moment to see it here</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {myPosts.map((post: any) => {
+                    const images = post.images || [];
+                    const firstImage = images[0]?.image_url || images[0]?.url || (typeof images[0] === 'string' ? images[0] : null);
+                    const content = post.content || '';
+                    return (
+                      <div
+                        key={post.id}
+                        className="aspect-square rounded-xl overflow-hidden bg-muted/30 border border-border/50 cursor-pointer hover:opacity-90 transition-opacity relative group"
+                        onClick={() => navigate('/my-posts')}
+                      >
+                        {firstImage ? (
+                          <img src={firstImage} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center p-3">
+                            <p className="text-xs text-muted-foreground text-center line-clamp-4">{content}</p>
+                          </div>
+                        )}
+                        {/* Hover overlay */}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <span className="text-white text-xs font-medium">View</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
 
         <TabsContent value="verification">
           <Card className="border-0 shadow-sm">
