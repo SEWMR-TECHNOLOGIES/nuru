@@ -893,10 +893,18 @@ def get_user_public_posts(
     limit = max(1, min(limit, 50))
     offset = (page - 1) * limit
 
-    query = db.query(UserFeed).filter(
-        UserFeed.user_id == uid,
-        UserFeed.is_public == True
-    ).order_by(UserFeed.created_at.desc())
+    # If viewing own profile, show all active posts; otherwise only public
+    if str(uid) == str(current_user.id):
+        query = db.query(UserFeed).filter(
+            UserFeed.user_id == uid,
+            UserFeed.is_active == True,
+        ).order_by(UserFeed.created_at.desc())
+    else:
+        query = db.query(UserFeed).filter(
+            UserFeed.user_id == uid,
+            UserFeed.is_active == True,
+            UserFeed.is_public == True,
+        ).order_by(UserFeed.created_at.desc())
 
     total = query.count()
     posts = query.offset(offset).limit(limit).all()

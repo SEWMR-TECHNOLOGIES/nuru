@@ -200,6 +200,20 @@ def _post_dict(db, post, current_user_id=None):
 
 
 # ──────────────────────────────────────────────
+# MY POSTS — must be before /{post_id} wildcard
+# ──────────────────────────────────────────────
+
+@router.get("/me")
+def get_my_posts(page: int = 1, limit: int = 30, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Get current user's own posts (all visibility levels)."""
+    page = max(1, page)
+    limit = max(1, min(limit, 50))
+    query = db.query(UserFeed).filter(UserFeed.user_id == current_user.id, UserFeed.is_active == True).order_by(UserFeed.created_at.desc())
+    items, pagination = paginate(query, page, limit)
+    return standard_response(True, "Your posts retrieved", {"posts": [_post_dict(db, p, current_user.id) for p in items], "pagination": pagination})
+
+
+# ──────────────────────────────────────────────
 # MY REMOVED POSTS — must be before /{post_id} wildcard
 # ──────────────────────────────────────────────
 
