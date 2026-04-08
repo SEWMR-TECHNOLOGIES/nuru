@@ -1,4 +1,5 @@
 # Notification helper - creates in-app notifications
+# Copy aligned with Nuru Copywriting Master Document.
 # Usage: create_notification(db, recipient_id, sender_id, type, message, reference_id, reference_type)
 
 import uuid
@@ -75,7 +76,7 @@ def notify_committee_invite(db, recipient_id, sender_id, event_id, event_title, 
 
 
 def notify_contribution(db, recipient_id, sender_id, event_id, event_title, amount, currency="TZS"):
-    """Notify event owner about a contribution."""
+    """Notify event owner about a new contribution."""
     return create_notification(
         db, recipient_id, sender_id,
         "contribution_received",
@@ -83,6 +84,18 @@ def notify_contribution(db, recipient_id, sender_id, event_id, event_title, amou
         reference_id=event_id,
         reference_type="event",
         message_data={"event_title": event_title, "amount": float(amount), "currency": currency},
+    )
+
+
+def notify_contribution_pending(db, recipient_id, sender_id, event_id, event_title, contributor_name, amount, currency="TZS"):
+    """Notify event creator about a pending contribution needing confirmation."""
+    return create_notification(
+        db, recipient_id, sender_id,
+        "contribution_received",
+        f"recorded a contribution of {currency} {amount:,.0f} for {contributor_name} in {event_title}. Please confirm.",
+        reference_id=event_id,
+        reference_type="event",
+        message_data={"event_title": event_title, "contributor_name": contributor_name, "amount": float(amount), "currency": currency},
     )
 
 
@@ -126,7 +139,7 @@ def notify_booking(db, recipient_id, sender_id, event_id, event_title, service_n
     return create_notification(
         db, recipient_id, sender_id,
         "booking_request",
-        f"booked your {service_name} service for {event_title}",
+        f"booked your {service_name} for {event_title}",
         reference_id=event_id,
         reference_type="event",
         message_data={"event_title": event_title, "service_name": service_name},
@@ -138,7 +151,19 @@ def notify_booking_accepted(db, recipient_id, sender_id, event_id, event_title, 
     return create_notification(
         db, recipient_id, sender_id,
         "booking_accepted",
-        f"accepted your booking for {service_name} at {event_title}",
+        f"confirmed your booking for {service_name} at {event_title}",
+        reference_id=event_id,
+        reference_type="event",
+        message_data={"event_title": event_title, "service_name": service_name},
+    )
+
+
+def notify_booking_rejected(db, recipient_id, sender_id, event_id, event_title, service_name):
+    """Notify event organizer their booking was declined."""
+    return create_notification(
+        db, recipient_id, sender_id,
+        "booking_rejected",
+        f"declined your booking for {service_name} at {event_title}",
         reference_id=event_id,
         reference_type="event",
         message_data={"event_title": event_title, "service_name": service_name},
@@ -175,4 +200,28 @@ def notify_circle_accepted(db, recipient_id, sender_id, sender_name):
         "accepted your circle request",
         reference_type="circle",
         message_data={"sender_name": sender_name},
+    )
+
+
+def notify_rsvp_confirmed(db, recipient_id, sender_id, event_id, event_title, guest_name):
+    """Notify event organizer that a guest confirmed attendance."""
+    return create_notification(
+        db, recipient_id, sender_id,
+        "rsvp_update",
+        f"{guest_name} confirmed attendance for {event_title}",
+        reference_id=event_id,
+        reference_type="event",
+        message_data={"event_title": event_title, "guest_name": guest_name},
+    )
+
+
+def notify_rsvp_declined(db, recipient_id, sender_id, event_id, event_title, guest_name):
+    """Notify event organizer that a guest declined."""
+    return create_notification(
+        db, recipient_id, sender_id,
+        "rsvp_update",
+        f"{guest_name} is not attending {event_title}",
+        reference_id=event_id,
+        reference_type="event",
+        message_data={"event_title": event_title, "guest_name": guest_name},
     )

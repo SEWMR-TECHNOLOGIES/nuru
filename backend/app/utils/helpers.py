@@ -120,15 +120,16 @@ def standard_response(
 
 def format_phone_display(phone: str) -> str:
     """
-    Convert international format (e.g. 255764413212) to local display (0764413212).
-    If the phone starts with '255', replace the prefix with '0'.
+    Convert international format to local display.
+    For TZ numbers (255...): replace prefix with '0' (e.g. 0764413212).
+    For other numbers: return with + prefix (e.g. +254712345678).
     """
     if not phone:
         return ""
     phone = phone.strip().lstrip("+")
-    if phone.startswith("255"):
+    if phone.startswith("255") and len(phone) == 12:
         return "0" + phone[3:]
-    return phone
+    return "+" + phone
 
 
 # ─────────────────────────────────────────────────────────────────────────────

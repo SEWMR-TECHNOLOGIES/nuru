@@ -22,7 +22,7 @@ from utils.auth import (
 )
 from utils.user_payload import build_user_payload
 from utils.notification_service import send_password_reset_email, send_verification_sms, send_otp_with_routing
-from utils.validation_functions import validate_tanzanian_phone
+from utils.validation_functions import validate_phone_number
 from utils.helpers import standard_response, generate_otp, get_expiry, mask_phone
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -59,8 +59,8 @@ async def signin(request: Request, response: Response, db: Session = Depends(get
     # Normalize phone if it looks like one
     normalized_credential = credential
     try:
-        if re.fullmatch(r'(\+?255|0)?[67]\d{8}', credential) or credential.replace("+", "").isdigit():
-            normalized_credential = validate_tanzanian_phone(credential)
+        if credential.replace("+", "").replace(" ", "").replace("-", "").isdigit():
+            normalized_credential = validate_phone_number(credential)
     except ValueError:
         pass
 
@@ -289,9 +289,9 @@ async def forgot_password_phone(request: Request, db: Session = Depends(get_db))
     if not phone:
         return standard_response(False, "Phone number is required.")
 
-    # Normalize to Tanzanian format
+    # Normalize phone to international format
     try:
-        phone = validate_tanzanian_phone(phone)
+        phone = validate_phone_number(phone)
     except ValueError:
         # Return same generic message to prevent enumeration via format validation
         return standard_response(True, "If this phone number is registered, a reset code has been sent.")
@@ -346,7 +346,7 @@ async def verify_reset_otp(request: Request, db: Session = Depends(get_db)):
         return standard_response(False, "Phone number and OTP code are required.")
 
     try:
-        phone = validate_tanzanian_phone(phone)
+        phone = validate_phone_number(phone)
     except ValueError:
         return standard_response(False, "Invalid phone number format.")
 

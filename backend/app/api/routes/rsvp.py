@@ -11,7 +11,7 @@ from sqlalchemy import func as sql_func
 from core.database import SessionLocal
 from models import (
     EventInvitation, EventAttendee, EventGuestPlusOne,
-    Event, EventImage, EventSetting,
+    Event, EventImage, EventSetting, EventVenueCoordinate,
     User, UserContributor,
     RSVPStatusEnum, GuestTypeEnum,
 )
@@ -164,8 +164,8 @@ def get_rsvp_details(code: str):
             parts = [organizer.first_name, organizer.last_name]
             organizer_name = " ".join(p for p in parts if p)
 
-        # Event settings for plus-ones config
         settings = db.query(EventSetting).filter(EventSetting.event_id == event.id).first()
+        vc = db.query(EventVenueCoordinate).filter(EventVenueCoordinate.event_id == event.id).first()
 
         # Existing attendee record (if already responded)
         attendee = None
@@ -215,6 +215,9 @@ def get_rsvp_details(code: str):
                 "end_date": event.end_date.isoformat() if event.end_date else None,
                 "end_time": event.end_time.strftime("%H:%M") if event.end_time else None,
                 "location": event.location,
+                "venue": vc.venue_name if vc else None,
+                "venue_address": vc.formatted_address if vc else None,
+                "venue_coordinates": {"latitude": float(vc.latitude), "longitude": float(vc.longitude)} if vc and vc.latitude and float(vc.latitude) != 0 else None,
                 "dress_code": event.dress_code,
                 "special_instructions": event.special_instructions,
                 "image_url": event_image,

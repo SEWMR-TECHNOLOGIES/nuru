@@ -17,7 +17,7 @@ from utils.auth import get_current_user
 from utils.helpers import standard_response, generate_otp, get_expiry, mask_email, mask_phone
 from utils.notification_service import send_verification_email, send_verification_sms, send_otp_with_routing
 from utils.sms import sms_welcome_registered
-from utils.validation_functions import validate_email, validate_tanzanian_phone, validate_password_strength, validate_username
+from utils.validation_functions import validate_email, validate_phone_number, validate_password_strength, validate_username
 from utils.name_validation import validate_name
 from utils.user_payload import build_user_payload
 
@@ -108,9 +108,9 @@ async def signup(request: Request, db: Session = Depends(get_db)):
             return standard_response(False, f"The email '{email}' is already associated with another account. Please use a different one.")
 
     if not phone:
-        return standard_response(False, "Your phone number allows us to verify your account and send important notifications. Please provide a valid Tanzanian number.")
+        return standard_response(False, "Your phone number allows us to verify your account and send important notifications. Please provide a valid phone number.")
     try:
-        formatted_phone = validate_tanzanian_phone(phone)
+        formatted_phone = validate_phone_number(phone)
     except ValueError as e:
         return standard_response(False, str(e))
     if db.query(User).filter(User.phone == formatted_phone).first():

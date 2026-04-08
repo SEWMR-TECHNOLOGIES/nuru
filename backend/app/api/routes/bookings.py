@@ -254,13 +254,20 @@ def respond_to_booking(booking_id: str, body: dict = Body(...), db: Session = De
                 from utils.notify import notify_booking_accepted
                 notify_booking_accepted(db, b.requester_user_id, current_user.id, b.event_id, event_name, service_name)
                 db.commit()
-                # SMS
+                # WhatsApp first
+                if requester and requester.phone:
+                    try:
+                        from utils.whatsapp import wa_booking_accepted
+                        wa_booking_accepted(requester.phone, requester.first_name, f"{current_user.first_name} {current_user.last_name}", service_name, event_name)
+                    except Exception:
+                        pass
+                # SMS fallback
                 if requester and requester.phone:
                     from utils.sms import _send
-                    _send(requester.phone, f"Hello {requester.first_name}, {current_user.first_name} {current_user.last_name} has accepted your booking for {service_name} at {event_name}. Open Nuru app for details.")
+                    _send(requester.phone, f"Hello {requester.first_name}, {current_user.first_name} {current_user.last_name} has confirmed your booking for {service_name} at {event_name}. Open Nuru for details.")
             elif new_status == "rejected":
-                from utils.notify import create_notification
-                create_notification(db, b.requester_user_id, current_user.id, "booking_rejected", f"declined your booking for {service_name} at {event_name}", reference_id=b.event_id, reference_type="event")
+                from utils.notify import notify_booking_rejected
+                notify_booking_rejected(db, b.requester_user_id, current_user.id, b.event_id, event_name, service_name)
                 db.commit()
         except Exception:
             pass

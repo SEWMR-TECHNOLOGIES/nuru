@@ -805,8 +805,8 @@ async def add_business_phone(
 
     # Validate and standardize to 255 format
     try:
-        from utils.validation_functions import validate_tanzanian_phone
-        phone_number = validate_tanzanian_phone(raw_phone)
+        from utils.validation_functions import validate_phone_number
+        phone_number = validate_phone_number(raw_phone)
     except ValueError as e:
         return standard_response(False, str(e))
 

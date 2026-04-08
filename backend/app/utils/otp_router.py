@@ -107,11 +107,18 @@ def route_and_send_otp(phone: str, otp_code: str, send_sms_fn) -> OtpDeliveryRes
                     message="Verification code sent via SMS." if sms_ok else "Failed to send verification code via SMS."
                 )
             else:
-                # International number not on WhatsApp
+                # International number not on WhatsApp — still try SMS as last resort
+                sms_ok = send_sms_fn(phone, otp_code)
+                if sms_ok:
+                    return OtpDeliveryResult(
+                        channel="sms",
+                        success=True,
+                        message="Verification code sent via SMS."
+                    )
                 return OtpDeliveryResult(
                     channel="whatsapp",
                     success=False,
-                    message="The provided number is not registered on WhatsApp. International numbers must have WhatsApp to receive verification codes."
+                    message="We couldn't reach this number via WhatsApp or SMS. Please ensure the number is correct and try again."
                 )
 
         # WhatsApp failed for other reasons (API error, config issue, etc.)

@@ -21,7 +21,7 @@ from models import (
 )
 from utils.auth import get_current_user
 from utils.helpers import standard_response, format_phone_display
-from utils.validation_functions import validate_tanzanian_phone
+from utils.validation_functions import validate_phone_number
 
 EAT = pytz.timezone("Africa/Nairobi")
 
@@ -163,7 +163,7 @@ def create_contributor(body: dict = Body(...), db: Session = Depends(get_db), cu
     phone = (body.get("phone") or "").strip() or None
     if phone:
         try:
-            phone = validate_tanzanian_phone(phone)
+            phone = validate_phone_number(phone)
         except ValueError as e:
             return standard_response(False, str(e))
 
@@ -228,7 +228,7 @@ def update_contributor(contributor_id: str, body: dict = Body(...), db: Session 
         phone_val = (body["phone"] or "").strip() or None
         if phone_val:
             try:
-                phone_val = validate_tanzanian_phone(phone_val)
+                phone_val = validate_phone_number(phone_val)
             except ValueError as e:
                 return standard_response(False, str(e))
             if phone_val != c.phone:
@@ -422,7 +422,7 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
         inline_phone = (body.get("phone") or "").strip() or None
         if inline_phone:
             try:
-                inline_phone = validate_tanzanian_phone(inline_phone)
+                inline_phone = validate_phone_number(inline_phone)
             except ValueError as e:
                 return standard_response(False, str(e))
 
@@ -485,9 +485,22 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
         joinedload(EventContributor.contributions),
     ).filter(EventContributor.id == ec.id).first()
 
-    # Send SMS when contributor is added with a pledge amount
+    # Send WhatsApp (primary) + SMS (fallback) when contributor is added with a pledge amount
     pledge_val = float(body.get("pledge_amount", 0))
     if pledge_val > 0 and contributor.phone:
+        try:
+            from utils.whatsapp import wa_contribution_target_set
+            currency = _currency_code(db, event)
+            organizer = db.query(User).filter(User.id == event.organizer_id).first()
+            organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
+            wa_contribution_target_set(
+                contributor.phone, contributor.name,
+                event.name, pledge_val, 0, currency,
+                organizer_phone=organizer_phone
+            )
+        except Exception:
+            pass
+        # SMS fallback
         try:
             from utils.sms import sms_contribution_target_set
             currency = _currency_code(db, event)
@@ -532,9 +545,22 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
     ec.updated_at = datetime.now(EAT)
     db.commit()
 
-    # Send SMS when pledge target is set/changed (use contributor.phone directly)
+    # Send WhatsApp (primary) + SMS (fallback) when pledge target is changed
     new_pledge = float(ec.pledge_amount or 0)
     if new_pledge > 0 and new_pledge != old_pledge and ec.contributor and ec.contributor.phone:
+        try:
+            from utils.whatsapp import wa_contribution_target_set
+            total_paid = sum(float(c.amount or 0) for c in ec.contributions)
+            currency = _currency_code(db, event)
+            organizer = db.query(User).filter(User.id == event.organizer_id).first()
+            organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
+            wa_contribution_target_set(
+                ec.contributor.phone, ec.contributor.name,
+                event.name, new_pledge, total_paid, currency,
+                organizer_phone=organizer_phone
+            )
+        except Exception:
+            pass
         try:
             from utils.sms import sms_contribution_target_set
             total_paid = sum(float(c.amount or 0) for c in ec.contributions)
@@ -644,9 +670,25 @@ def record_payment(event_id: str, ec_id: str, body: dict = Body(...), db: Sessio
     db.add(contribution)
     db.commit()
 
-    # Send SMS to contributor
+    # Send WhatsApp (primary) + SMS (fallback) to contributor
     contributor = ec.contributor
     if contributor and contributor.phone:
+        try:
+            from utils.whatsapp import wa_contribution_recorded
+            total_paid = sum(float(c.amount or 0) for c in ec.contributions)
+            pledge = float(ec.pledge_amount or 0)
+            currency = _currency_code(db, event)
+            organizer = db.query(User).filter(User.id == event.organizer_id).first()
+            organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
+            recorder_name = f"{current_user.first_name} {current_user.last_name}" if not is_creator else None
+            wa_contribution_recorded(
+                contributor.phone, contributor.name,
+                event.name, float(amount), pledge, total_paid, currency,
+                organizer_phone=organizer_phone,
+                recorder_name=recorder_name,
+            )
+        except Exception:
+            pass
         try:
             from utils.sms import sms_contribution_recorded
             total_paid = sum(float(c.amount or 0) for c in ec.contributions)
@@ -695,17 +737,26 @@ def send_thank_you_sms(event_id: str, ec_id: str, body: dict = Body(default={}),
 
     contributor = ec.contributor
     if not contributor or not contributor.phone:
-        return standard_response(False, "Contributor has no phone number for SMS")
+        return standard_response(False, "Contributor has no phone number")
 
     custom_message = (body.get("custom_message") or "").strip()
+    organizer_phone = format_phone_display(current_user.phone) if current_user.phone else None
+
+    # WhatsApp first
+    try:
+        from utils.whatsapp import wa_thank_you
+        wa_thank_you(contributor.phone, contributor.name, event.name, custom_message, organizer_phone=organizer_phone)
+    except Exception:
+        pass
+
+    # SMS fallback
     try:
         from utils.sms import sms_thank_you
-        organizer_phone = format_phone_display(current_user.phone) if current_user.phone else None
         sms_thank_you(contributor.phone, contributor.name, event.name, custom_message, organizer_phone=organizer_phone)
     except Exception as e:
-        return standard_response(False, f"Failed to send SMS: {str(e)}")
+        return standard_response(False, f"We couldn't send the message. Please try again.")
 
-    return standard_response(True, "Thank you sent successfully", {"sent": True})
+    return standard_response(True, "Thank you sent", {"sent": True})
 
 
 # ══════════════════════════════════════════════
@@ -766,7 +817,7 @@ def bulk_add_contributors(event_id: str, body: dict = Body(...), db: Session = D
 
         # Validate & format phone
         try:
-            phone = validate_tanzanian_phone(phone_raw)
+            phone = validate_phone_number(phone_raw)
         except ValueError:
             errors_list.append({"row": row_num, "message": f"Invalid phone for {name}: {phone_raw}"})
             continue
@@ -1106,15 +1157,15 @@ def reject_contributions(event_id: str, body: dict = Body(...), db: Session = De
             recorder = db.query(User).filter(User.id == c.recorded_by).first() if c.recorded_by else None
             recorder_name = f"{recorder.first_name} {recorder.last_name}" if recorder else "a committee member"
 
-            # Send rejection SMS to contributor
+            # Send rejection notification to contributor
             if ec and ec.contributor and ec.contributor.phone:
                 try:
                     from utils.sms import _send
                     msg = (
                         f"Hello {ec.contributor.name}, "
-                        f"your contribution record of {currency} {float(c.amount):,.0f} for {event.name} "
-                        f"recorded by {recorder_name} has been removed by the event organizer "
-                        f"because the amount could not be verified. "
+                        f"a contribution record of {currency} {float(c.amount):,.0f} for {event.name} "
+                        f"recorded by {recorder_name} could not be verified by the event organizer "
+                        f"and has been removed. "
                         f"If you believe this is an error, please contact the organizer directly."
                     )
                     _send(ec.contributor.phone, msg)

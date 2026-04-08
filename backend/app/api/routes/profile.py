@@ -17,7 +17,7 @@ from models import User, UserProfile, UserIdentityVerification, IdentityDocument
 from utils.auth import get_current_user
 from utils.helpers import standard_response
 from utils.user_payload import build_user_payload
-from utils.validation_functions import validate_username, validate_tanzanian_phone
+from utils.validation_functions import validate_username, validate_phone_number
 
 EAT = pytz.timezone("Africa/Nairobi")
 router = APIRouter(prefix="/users", tags=["Users - Profile"])
@@ -67,7 +67,7 @@ async def update_profile(
     # Validate phone if provided
     if phone and phone.strip():
         try:
-            normalized_phone = validate_tanzanian_phone(phone.strip())
+            normalized_phone = validate_phone_number(phone.strip())
             if normalized_phone != (current_user.phone or ''):
                 existing_phone = db.query(User).filter(User.phone == normalized_phone, User.id != current_user.id).first()
                 if existing_phone:
@@ -87,7 +87,7 @@ async def update_profile(
         current_user.username = username.strip()
     if phone and phone.strip():
         try:
-            current_user.phone = validate_tanzanian_phone(phone.strip())
+            current_user.phone = validate_phone_number(phone.strip())
         except ValueError:
             pass  # Already validated above
 

@@ -31,7 +31,7 @@ from models import (
 from utils.auth import get_current_user
 from utils.helpers import format_price, standard_response, format_phone_display
 from api.routes.rsvp import generate_rsvp_code
-from utils.validation_functions import validate_tanzanian_phone
+from utils.validation_functions import validate_phone_number
 from utils.sms import (
     sms_guest_added, sms_committee_invite, sms_contribution_recorded,
     sms_contribution_target_set, sms_thank_you, sms_booking_notification,
@@ -2399,7 +2399,7 @@ def record_contribution(event_id: str, body: dict = Body(...), db: Session = Dep
     contributor_phone = body.get("contributor_phone")
     if contributor_phone:
         try:
-            contributor_phone = validate_tanzanian_phone(contributor_phone)
+            contributor_phone = validate_phone_number(contributor_phone)
         except ValueError as e:
             return standard_response(False, str(e))
 
