@@ -1,10 +1,12 @@
 import { motion } from "framer-motion";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface FeatureStatementProps {
   statement: string;
 }
 
 const FeatureStatement = ({ statement }: FeatureStatementProps) => {
+  const { t } = useLanguage();
   return (
     <section className="py-24 lg:py-32 px-6 lg:px-16 bg-foreground text-background">
       <div className="max-w-4xl mx-auto">

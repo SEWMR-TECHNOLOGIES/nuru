@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { servicesApi } from "@/lib/api";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface RecommendedService {
   id: string;
@@ -47,6 +48,7 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
   selectedServiceIds = [],
   onToggleService,
 }) => {
+  const { t } = useLanguage();
   const [recommendations, setRecommendations] = useState<RecommendedService[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetched, setFetched] = useState(false);
@@ -141,7 +143,7 @@ const EventRecommendations: React.FC<EventRecommendationsProps> = ({
             {loading ? (
               <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Finding...</>
             ) : (
-              <><RefreshCw className="w-4 h-4 mr-2" />{fetched ? "Refresh" : "Find Providers"}</>
+              <><RefreshCw className="w-4 h-4 mr-2" />{fetched ? t("refresh") : "Find Providers"}</>
             )}
           </Button>
         </div>

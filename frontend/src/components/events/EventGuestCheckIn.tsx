@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { eventsApi } from "@/lib/api/events";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface EventGuestCheckInProps {
   eventId: string;
@@ -24,6 +25,7 @@ interface EventGuestCheckInProps {
 }
 
 const EventGuestCheckIn = ({ eventId, isCreator: _isCreator, eventTitle, eventDate, eventLocation, guestCount = 0, confirmedCount = 0 }: EventGuestCheckInProps) => {
+  const { t } = useLanguage();
   const [scanOpen, setScanOpen] = useState(false);
   const [scanMode, setScanMode] = useState<'manual' | 'camera'>('manual');
   const [scanCode, setScanCode] = useState("");

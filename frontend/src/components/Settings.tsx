@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Lock, Globe, Moon, Loader2, MousePointerClick } from 'lucide-react';
+import { User, Lock, Moon, Loader2, MousePointerClick } from 'lucide-react';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 import SvgIcon from '@/components/ui/svg-icon';
 import BellIcon from '@/assets/icons/bell-icon.svg';
+import LanguageIcon from '@/assets/icons/language-icon.svg';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -17,49 +20,47 @@ const HINTS_KEY = 'nuru_sidebar_hints';
 
 const Settings = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   useWorkspaceMeta({
-    title: 'Settings',
+    title: t('settings'),
     description: 'Manage your account settings, notifications, privacy, and preferences.'
   });
 
   const { settings, loading, updating, updateNotifications, updatePrivacy, updatePreferences } = useSettings();
   const [sidebarHints, setSidebarHints] = useState(() => localStorage.getItem(HINTS_KEY) !== 'false');
 
-  // Backend uses flat fields: email_notifications, push_notifications, sms_notifications
   const handleNotificationToggle = async (field: string, value: boolean) => {
     try {
       await updateNotifications({ [field]: value });
-      toast.success('Settings updated');
+      toast.success(t('settings_updated'));
     } catch {
-      toast.error('Failed to update settings');
+      toast.error(t('failed_update_settings'));
     }
   };
 
-  // Backend uses flat fields on privacy: show_online_status, show_last_seen, show_read_receipts
-  // and on settings: private_profile
   const handlePrivacyToggle = async (field: string, value: boolean) => {
     try {
       await updatePrivacy({ [field]: value });
-      toast.success('Settings updated');
+      toast.success(t('settings_updated'));
     } catch {
-      toast.error('Failed to update settings');
+      toast.error(t('failed_update_settings'));
     }
   };
 
   const handlePreferenceChange = async (key: string, value: any) => {
     try {
       await updatePreferences({ [key]: value });
-      toast.success('Settings updated');
+      toast.success(t('settings_updated'));
     } catch {
-      toast.error('Failed to update settings');
+      toast.error(t('failed_update_settings'));
     }
   };
 
   if (loading) {
     return (
-      <div className="space-y-6 max-w-3xl">
-        <h1 className="text-xl md:text-2xl font-semibold">Settings</h1>
-        <div className="space-y-6">
+    <div className="space-y-6">
+      <h1 className="text-xl md:text-2xl font-semibold">{t('settings')}</h1>
+      <div className="space-y-6">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
               <CardHeader>
@@ -96,24 +97,24 @@ const Settings = () => {
   const security = settings?.security as any;
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <h1 className="text-xl md:text-2xl font-semibold">Settings</h1>
+    <div className="space-y-6">
+      <h1 className="text-xl md:text-2xl font-semibold">{t('settings')}</h1>
       
       <div className="space-y-6">
         {/* Notification Settings */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <img src={BellIcon} alt="Notifications" className="w-5 h-5" />
-              <CardTitle>Notifications</CardTitle>
+              <img src={BellIcon} alt={t('notifications')} className="w-5 h-5" />
+              <CardTitle>{t('notifications')}</CardTitle>
             </div>
-            <CardDescription>Choose what notifications you receive</CardDescription>
+            <CardDescription>{t('choose_notifications')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Email Notifications</Label>
-                <p className="text-sm text-muted-foreground">Receive email about your account activity</p>
+                <Label>{t('email_notifications')}</Label>
+                <p className="text-sm text-muted-foreground">{t('receive_email_activity')}</p>
               </div>
               <Switch 
                 checked={notif?.email_notifications ?? true}
@@ -124,8 +125,8 @@ const Settings = () => {
             <Separator />
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Push Notifications</Label>
-                <p className="text-sm text-muted-foreground">Enable push notifications</p>
+                <Label>{t('push_notifications')}</Label>
+                <p className="text-sm text-muted-foreground">{t('enable_push')}</p>
               </div>
               <Switch 
                 checked={notif?.push_notifications ?? true}
@@ -136,8 +137,8 @@ const Settings = () => {
             <Separator />
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>SMS Notifications</Label>
-                <p className="text-sm text-muted-foreground">Receive SMS for important updates</p>
+                <Label>{t('sms_notifications')}</Label>
+                <p className="text-sm text-muted-foreground">{t('receive_sms_updates')}</p>
               </div>
               <Switch 
                 checked={notif?.sms_notifications ?? false}
@@ -153,15 +154,15 @@ const Settings = () => {
           <CardHeader>
             <div className="flex items-center gap-2">
               <Lock className="w-5 h-5" />
-              <CardTitle>Privacy & Security</CardTitle>
+              <CardTitle>{t('privacy_security')}</CardTitle>
             </div>
-            <CardDescription>Control your privacy and security settings</CardDescription>
+            <CardDescription>{t('control_privacy')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Private Profile</Label>
-                <p className="text-sm text-muted-foreground">Only approved followers can see your content</p>
+                <Label>{t('private_profile')}</Label>
+                <p className="text-sm text-muted-foreground">{t('private_profile_desc')}</p>
               </div>
               <Switch 
                 checked={privacy?.private_profile ?? false}
@@ -172,8 +173,8 @@ const Settings = () => {
             <Separator />
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Show Online Status</Label>
-                <p className="text-sm text-muted-foreground">Show when you're online</p>
+                <Label>{t('show_online_status')}</Label>
+                <p className="text-sm text-muted-foreground">{t('show_online_desc')}</p>
               </div>
               <Switch 
                 checked={privacy?.show_online_status ?? true}
@@ -184,8 +185,8 @@ const Settings = () => {
             <Separator />
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Show Last Seen</Label>
-                <p className="text-sm text-muted-foreground">Let others see when you were last active</p>
+                <Label>{t('show_last_seen')}</Label>
+                <p className="text-sm text-muted-foreground">{t('show_last_seen_desc')}</p>
               </div>
               <Switch 
                 checked={privacy?.show_last_seen ?? true}
@@ -196,8 +197,8 @@ const Settings = () => {
             <Separator />
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Read Receipts</Label>
-                <p className="text-sm text-muted-foreground">Show when you've read messages</p>
+                <Label>{t('read_receipts')}</Label>
+                <p className="text-sm text-muted-foreground">{t('read_receipts_desc')}</p>
               </div>
               <Switch 
                 checked={privacy?.show_read_receipts ?? true}
@@ -208,18 +209,18 @@ const Settings = () => {
             <Separator />
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Two-Factor Authentication</Label>
-                <p className="text-sm text-muted-foreground">Add an extra layer of security</p>
+                <Label>{t('two_factor_auth')}</Label>
+                <p className="text-sm text-muted-foreground">{t('two_factor_desc')}</p>
               </div>
               <Button variant="outline" size="sm" disabled={updating}>
-                {security?.two_factor_enabled ? 'Disable' : 'Enable'}
+                {security?.two_factor_enabled ? t('disable') : t('enable')}
               </Button>
             </div>
             <Separator />
             <div className="space-y-2">
-              <Label>Change Password</Label>
+              <Label>{t('change_password')}</Label>
               <Button variant="outline" className="w-full" disabled={updating} onClick={() => navigate('/change-password')}>
-                Update Password
+                {t('update_password')}
               </Button>
             </div>
           </CardContent>
@@ -229,16 +230,16 @@ const Settings = () => {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Globe className="w-5 h-5" />
-              <CardTitle>Preferences</CardTitle>
+              <SvgIcon src={LanguageIcon} alt={t('preferences')} className="w-5 h-5" />
+              <CardTitle>{t('preferences')}</CardTitle>
             </div>
-            <CardDescription>Set your language, theme, and regional preferences</CardDescription>
+            <CardDescription>{t('set_preferences')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Dark Mode</Label>
-                <p className="text-sm text-muted-foreground">Use dark theme</p>
+                <Label>{t('dark_mode')}</Label>
+                <p className="text-sm text-muted-foreground">{t('use_dark_theme')}</p>
               </div>
               <Switch 
                 checked={localStorage.getItem('nuru-ui-theme') === 'dark' || document.documentElement.classList.contains('dark')}
@@ -254,8 +255,8 @@ const Settings = () => {
             <Separator />
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Sidebar Hints</Label>
-                <p className="text-sm text-muted-foreground">Show helpful descriptions when you hover over sidebar items on desktop</p>
+                <Label>{t('sidebar_hints')}</Label>
+                <p className="text-sm text-muted-foreground">{t('sidebar_hints_desc')}</p>
               </div>
               <Switch 
                 checked={sidebarHints}
@@ -263,26 +264,24 @@ const Settings = () => {
                   localStorage.setItem(HINTS_KEY, v ? 'true' : 'false');
                   setSidebarHints(v);
                   window.dispatchEvent(new Event('sidebar-hints-changed'));
-                  toast.success(v ? 'Sidebar hints enabled' : 'Sidebar hints disabled');
+                  toast.success(v ? t('sidebar_hints_enabled') : t('sidebar_hints_disabled'));
                 }}
               />
             </div>
             <div className="space-y-2">
-              <Label>Language</Label>
-              <Button variant="outline" className="w-full justify-between" disabled={updating}>
-                {prefs?.language === 'en' ? 'English' : prefs?.language || 'English'}
-              </Button>
+              <Label>{t('language')}</Label>
+              <LanguageSwitcher variant="full" />
             </div>
             <Separator />
             <div className="space-y-2">
-              <Label>Time Zone</Label>
+              <Label>{t('time_zone')}</Label>
               <Button variant="outline" className="w-full justify-between" disabled={updating}>
                 {prefs?.timezone || 'Africa/Nairobi'}
               </Button>
             </div>
             <Separator />
             <div className="space-y-2">
-              <Label>Currency</Label>
+              <Label>{t('currency')}</Label>
               <Button variant="outline" className="w-full justify-between" disabled={updating}>
                 {prefs?.currency || 'TZS'}
               </Button>

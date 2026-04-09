@@ -49,6 +49,7 @@ import { showCaughtError } from '@/lib/api';
 import { formatPrice } from '@/utils/formatPrice';
 import type { BookingRequest } from '@/lib/api/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const BookingListSkeleton = () => (
   <div className="space-y-4">
@@ -85,6 +86,7 @@ const BookingListSkeleton = () => (
 );
 
 const BookingList = () => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'my' | 'incoming'>('my');
   

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, MessageCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface TrendingPostImage {
   url: string;

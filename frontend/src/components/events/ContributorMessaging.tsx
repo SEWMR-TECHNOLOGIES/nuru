@@ -22,6 +22,7 @@ import { contributorsApi } from '@/lib/api/contributors';
 import { showCaughtError } from '@/lib/api';
 import { formatPrice } from '@/utils/formatPrice';
 import type { EventContributorSummary } from '@/lib/api/contributors';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface ContributorMessagingProps {
   eventId: string;
@@ -90,6 +91,7 @@ const CASE_CONFIG: Record<ContributorCase, { label: string; description: string;
 };
 
 const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, paymentInfo = '' }: ContributorMessagingProps) => {
+  const { t } = useLanguage();
   const [selectedCase, setSelectedCase] = useState<ContributorCase>('no_contribution');
   const [messageText, setMessageText] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -250,7 +252,7 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
       <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-4 md:p-5 border-b border-primary/10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
-            <SvgIcon src={ChatIcon} alt="Messages" className="w-5 h-5 text-primary" />
+            <SvgIcon src={ChatIcon} alt={t("messages")} className="w-5 h-5 text-primary" />
           </div>
           <div>
             <h3 className="font-semibold text-base">Contributor Messaging</h3>

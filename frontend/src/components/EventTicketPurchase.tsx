@@ -11,6 +11,7 @@ import { ticketingApi, TicketClass } from "@/lib/api/ticketing";
 import { formatPrice } from "@/utils/formatPrice";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface EventTicketPurchaseProps {
   eventId: string;
@@ -18,6 +19,7 @@ interface EventTicketPurchaseProps {
 }
 
 const EventTicketPurchase = ({ eventId, eventName }: EventTicketPurchaseProps) => {
+  const { t } = useLanguage();
   const [classes, setClasses] = useState<TicketClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClass, setSelectedClass] = useState<TicketClass | null>(null);

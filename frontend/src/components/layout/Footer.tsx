@@ -1,7 +1,9 @@
 import { Link } from "react-router-dom";
 import nuruLogo from "@/assets/nuru-logo.png";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const Footer = () => {
+  const { t } = useLanguage();
   const currentYear = new Date().getFullYear();
 
   return (

@@ -4,8 +4,10 @@ import FeatureGrid from "@/components/features/FeatureGrid";
 import FeatureStatement from "@/components/features/FeatureStatement";
 import illustrationImg from "@/assets/illustration-service-providers.jpg";
 import { useMeta } from "@/hooks/useMeta";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const ServiceProviders = () => {
+  const { t } = useLanguage();
   const providerTypes = [
     { title: "Photographers", description: "Capture every precious moment beautifully" },
     { title: "Caterers", description: "Culinary experiences for every palate" },
@@ -16,24 +18,24 @@ const ServiceProviders = () => {
   ];
 
   const benefits = [
-    { title: "Verified profiles", description: "Every provider is vetted for quality and reliability" },
+    { title: "Verified profiles", description: "Every vendor is vetted for quality and reliability" },
     { title: "Genuine reviews", description: "Read feedback from past clients to make informed decisions" },
-    { title: "Direct messaging", description: "Chat with providers to discuss your needs and get quotes" },
-    { title: "Secure bookings", description: "Book with confidence through our protected platform" }
+    { title: "Direct messaging", description: "Chat with vendors to discuss needs and get quotes" },
+    { title: "Secure bookings", description: "Book with confidence through our protected payment system" }
   ];
 
   useMeta({
-    title: "Verified Service Providers",
-    description: "Browse and book trusted, top-rated service providers for catering, DJs, photographers, and more."
+    title: "Trusted Vendors",
+    description: "Find verified vendors people already trust. Browse portfolios, read reviews, and book with confidence."
   });
 
   return (
     <Layout>
       <FeatureHero
-        title="Find the right people for your event"
-        description="Connect with trusted, verified professionals who bring your vision to life."
+        title="Work with vendors you can trust"
+        description="Find verified vendors, see real activity, and keep bookings connected to your event."
         imageSrc={illustrationImg}
-        imageAlt="Service Providers"
+        imageAlt="Trusted Vendors"
         imagePosition="left"
       />
 
@@ -46,13 +48,13 @@ const ServiceProviders = () => {
 
       <FeatureGrid
         title="Why choose our network"
-        subtitle="Every provider meets our quality standards for professionalism and service."
+        subtitle="Every vendor meets our quality standards for professionalism and service."
         items={benefits}
         variant="minimal"
       />
 
       <FeatureStatement
-        statement="Great events are made by great people. We connect you with the professionals who make visions reality."
+        statement="Great events are made by great people. Find vendors people already trust and book with more confidence."
       />
     </Layout>
   );

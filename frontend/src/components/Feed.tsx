@@ -10,6 +10,7 @@ import { getTimeAgo } from '@/utils/getTimeAgo';
 import { Loader2, TrendingUp } from 'lucide-react';
 import { feedSessionId } from '@/hooks/useFeedTracking';
 import { socialApi } from '@/lib/api/social';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const SCROLL_KEY = 'feedScrollPosition';
 
@@ -17,6 +18,7 @@ const getScrollContainer = () =>
   document.querySelector('.flex-1.overflow-y-auto') as HTMLElement | null;
 
 const Feed = () => {
+  const { t } = useLanguage();
   const { items: apiPosts, loading, error, refetch, loadMore, pagination } = useFeed({
     limit: 15,
     mode: 'ranked',

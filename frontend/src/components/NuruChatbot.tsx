@@ -9,6 +9,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import nuruLogo from '@/assets/nuru-logo.png';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -57,6 +58,7 @@ function extractQuickReplies(content: string): string[] {
 
 
 const NuruChatbot = () => {
+  const { t } = useLanguage();
   const { data: currentUser } = useCurrentUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');

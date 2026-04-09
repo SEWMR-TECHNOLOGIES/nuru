@@ -9,8 +9,10 @@ import { useMeta } from "@/hooks/useMeta";
 import { authApi, showApiErrorsShadcn } from "@/lib/api";
 import { maskPhoneDisplay } from "@/components/ui/country-phone-input";
 import { MessageCircle, Phone } from "lucide-react";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 const VerifyPhone = () => {
+  const { t } = useLanguage();
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
@@ -24,11 +26,7 @@ const VerifyPhone = () => {
 
   useEffect(() => {
     if (!userId) {
-      toast({
-        title: "Missing information",
-        description: "We need your account info to verify. Please sign in and try again.",
-        variant: "destructive"
-      });
+      toast({ title: t('error'), description: "We need your account info to verify.", variant: "destructive" });
       navigate("/login");
       return;
     }
@@ -37,11 +35,10 @@ const VerifyPhone = () => {
 
   const handleVerify = async () => {
     if (!otp || otp.length < 6) {
-      toast({ title: "Enter code", description: "Please enter the 6-digit verification code.", variant: "destructive" });
+      toast({ title: t('enter_verification_code'), variant: "destructive" });
       return;
     }
     if (!userId) {
-      toast({ title: "Missing user", description: "Please sign in again.", variant: "destructive" });
       navigate("/login");
       return;
     }
@@ -49,28 +46,22 @@ const VerifyPhone = () => {
     setLoading(true);
     try {
       const data = await authApi.verifyOtp({ user_id: userId, verification_type: "phone", otp_code: otp });
-
       if (data.success) {
-        toast({ title: "Phone verified!", description: data.message });
+        toast({ title: t('success'), description: data.message });
         localStorage.removeItem("userId");
         navigate("/login");
       } else {
         showApiErrorsShadcn(data, toast, "Verification failed");
       }
     } catch (err) {
-      toast({ title: "Error", description: "Unable to verify. Try again.", variant: "destructive" });
+      toast({ title: t('error'), description: "Unable to verify. Try again.", variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
   const resendOtp = async () => {
-    if (!userId) {
-      toast({ title: "Missing user", description: "Please sign in again to request a code.", variant: "destructive" });
-      navigate("/login");
-      return;
-    }
-
+    if (!userId) { navigate("/login"); return; }
     setResendLoading(true);
     try {
       const data = await authApi.requestOtp({ user_id: userId, verification_type: "phone" });
@@ -80,21 +71,18 @@ const VerifyPhone = () => {
         else setOtpChannel("sms");
       }
       toast({
-        title: data.success ? "OTP Sent" : "Failed to send",
+        title: data.success ? t('success') : t('error'),
         description: data.message,
         variant: data.success ? "default" : "destructive"
       });
     } catch (err) {
-      toast({ title: "Error", description: "Could not resend OTP.", variant: "destructive" });
+      toast({ title: t('error'), description: "Could not resend OTP.", variant: "destructive" });
     } finally {
       setResendLoading(false);
     }
   };
 
-  useMeta({
-    title: "Verify Your Phone | Nuru",
-    description: "Enter the OTP sent to your phone to activate your Nuru account."
-  });
+  useMeta({ title: t('verify_your_phone'), description: "Enter the OTP sent to your phone." });
 
   const displayPhone = phone ? maskPhoneDisplay(phone.replace(/[^\d]/g, "")) : "your phone";
 
@@ -114,9 +102,9 @@ const VerifyPhone = () => {
                 </div>
               )}
             </div>
-            <CardTitle className="text-2xl font-bold">Verify Your Phone</CardTitle>
+            <CardTitle className="text-2xl font-bold">{t('verify_your_phone')}</CardTitle>
             <p className="text-muted-foreground text-sm">
-              Enter the 6-digit code sent {otpChannel === "whatsapp" ? "via WhatsApp" : otpChannel === "sms" ? "via SMS" : ""} to <strong>{displayPhone}</strong>
+              {t('enter_6_digit_code')} {otpChannel === "whatsapp" ? "via WhatsApp" : otpChannel === "sms" ? "via SMS" : ""} <strong>{displayPhone}</strong>
             </p>
           </CardHeader>
 
@@ -126,19 +114,12 @@ const VerifyPhone = () => {
                 otpChannel === "whatsapp" ? "bg-green-500/10 text-green-700 dark:text-green-400" : "bg-blue-500/10 text-blue-700 dark:text-blue-400"
               }`}>
                 {otpChannel === "whatsapp" ? <MessageCircle className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
-                {otpChannel === "whatsapp"
-                  ? "Check your WhatsApp for the verification code"
-                  : "Check your SMS messages for the verification code"
-                }
+                {otpChannel === "whatsapp" ? t('check_whatsapp_code') : t('check_sms_code')}
               </div>
             )}
 
             <div className="flex justify-center">
-              <InputOTP
-                maxLength={6}
-                value={otp}
-                onChange={(value) => setOtp(value)}
-              >
+              <InputOTP maxLength={6} value={otp} onChange={(value) => setOtp(value)}>
                 <InputOTPGroup className="gap-2 justify-center">
                   <InputOTPSlot index={0} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
                   <InputOTPSlot index={1} className="w-12 h-14 text-xl font-semibold rounded-xl border-2" />
@@ -152,22 +133,16 @@ const VerifyPhone = () => {
 
             <div className="flex justify-between items-center">
               <Button onClick={resendOtp} disabled={resendLoading} variant="outline">
-                {resendLoading ? "Sending..." : "Resend OTP"}
+                {resendLoading ? t('sending') : t('resend_otp')}
               </Button>
               <Button onClick={handleVerify} disabled={loading || otp.length < 6}>
-                {loading ? "Verifying..." : "Verify"}
+                {loading ? t('verifying') : t('verify')}
               </Button>
             </div>
 
             <div className="text-center text-sm text-muted-foreground">
-              <button
-                className="underline"
-                onClick={() => {
-                  localStorage.removeItem("userId");
-                  navigate("/login");
-                }}
-              >
-                Back to sign in
+              <button className="underline" onClick={() => { localStorage.removeItem("userId"); navigate("/login"); }}>
+                {t('back_to_sign_in')}
               </button>
             </div>
           </CardContent>

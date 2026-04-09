@@ -49,6 +49,21 @@ Deno.serve(async (req) => {
       case "expense_recorded":
         result = await sendTemplate(phone, "expense_recorded", buildExpenseComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
         break;
+      case "contribution_recorded":
+        result = await sendTemplate(phone, "contribution_recorded", buildContributionRecordedComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        break;
+      case "contribution_target":
+        result = await sendTemplate(phone, "contribution_target", buildContributionTargetComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        break;
+      case "thank_you_contribution":
+        result = await sendTemplate(phone, "thank_you_contribution", buildThankYouComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        break;
+      case "booking_notification":
+        result = await sendTemplate(phone, "booking_notification", buildBookingNotificationComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        break;
+      case "booking_accepted":
+        result = await sendTemplate(phone, "booking_accepted", buildBookingAcceptedComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        break;
       case "otp_verification":
         result = await sendOtpTemplate(phone, params, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
         if (result?.not_on_whatsapp) {
@@ -59,11 +74,7 @@ Deno.serve(async (req) => {
         }
         break;
       case "check_whatsapp":
-        // Cloud API has no /contacts endpoint. The most reliable way to check
-        // is to attempt sending — error 131026/131047 means not on WhatsApp.
-        // This action now does a lightweight "text" send attempt and catches the error.
         result = await checkWhatsAppBySending(phone, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-        break;
         break;
       case "text":
         result = await sendTextMessage(phone, params?.message || "", WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
@@ -90,22 +101,6 @@ Deno.serve(async (req) => {
 });
 
 // ── Template component builders ───────────────────────
-
-function buildInviteComponents(params: {
-  guest_name?: string; event_name?: string; event_date?: string;
-  organizer_name?: string; rsvp_code?: string;
-}) {
-  return [{
-    type: "body",
-    parameters: [
-      { type: "text", text: params.guest_name || "Guest" },
-      { type: "text", text: params.event_name || "an event" },
-      { type: "text", text: params.event_date || "TBA" },
-      { type: "text", text: params.organizer_name || "the organizer" },
-      { type: "text", text: params.rsvp_code ? `https://nuru.tz/rsvp/${params.rsvp_code}` : "https://nuru.tz" },
-    ],
-  }];
-}
 
 // Template with quick-reply buttons for invitations (used outside 24h window)
 function buildInviteTemplateWithButtons(params: {
@@ -183,10 +178,91 @@ function buildExpenseComponents(params: {
   }];
 }
 
+// ── NEW: Contribution recorded template ──
+// Template body: "Hello {{1}}, {{2}} has recorded your contribution of {{3}} for {{4}}. Target: {{5}} | Paid: {{6}} | Balance: {{7}}"
+function buildContributionRecordedComponents(params: {
+  contributor_name?: string; recorder_name?: string; amount?: string;
+  event_name?: string; target?: string; total_paid?: string; balance?: string;
+}) {
+  return [{
+    type: "body",
+    parameters: [
+      { type: "text", text: params.contributor_name || "Contributor" },
+      { type: "text", text: params.recorder_name || "The organizer" },
+      { type: "text", text: params.amount || "0" },
+      { type: "text", text: params.event_name || "an event" },
+      { type: "text", text: params.target || "N/A" },
+      { type: "text", text: params.total_paid || "0" },
+      { type: "text", text: params.balance || "0" },
+    ],
+  }];
+}
+
+// ── NEW: Contribution target set template ──
+// Template body: "Hello {{1}}, your expected contribution for {{2}} is {{3}}. Paid so far: {{4}} | Still pending: {{5}}"
+function buildContributionTargetComponents(params: {
+  contributor_name?: string; event_name?: string; target?: string;
+  total_paid?: string; balance?: string;
+}) {
+  return [{
+    type: "body",
+    parameters: [
+      { type: "text", text: params.contributor_name || "Contributor" },
+      { type: "text", text: params.event_name || "an event" },
+      { type: "text", text: params.target || "0" },
+      { type: "text", text: params.total_paid || "0" },
+      { type: "text", text: params.balance || "0" },
+    ],
+  }];
+}
+
+// ── NEW: Thank you contribution template ──
+// Template body: "Hello {{1}}, thank you for your contribution to {{2}}. {{3}}"
+function buildThankYouComponents(params: {
+  contributor_name?: string; event_name?: string; custom_message?: string;
+}) {
+  return [{
+    type: "body",
+    parameters: [
+      { type: "text", text: params.contributor_name || "Contributor" },
+      { type: "text", text: params.event_name || "an event" },
+      { type: "text", text: params.custom_message || "We appreciate your support!" },
+    ],
+  }];
+}
+
+// ── NEW: Booking notification template ──
+// Template body: "Hello {{1}}, {{2}} has booked your service for {{3}}. Open Nuru to see the details."
+function buildBookingNotificationComponents(params: {
+  provider_name?: string; client_name?: string; event_name?: string;
+}) {
+  return [{
+    type: "body",
+    parameters: [
+      { type: "text", text: params.provider_name || "Provider" },
+      { type: "text", text: params.client_name || "A client" },
+      { type: "text", text: params.event_name || "an event" },
+    ],
+  }];
+}
+
+// ── NEW: Booking accepted template ──
+// Template body: "Hello {{1}}, {{2}} has confirmed your booking for {{3}} at {{4}}. Open Nuru to see the details."
+function buildBookingAcceptedComponents(params: {
+  client_name?: string; vendor_name?: string; service_name?: string; event_name?: string;
+}) {
+  return [{
+    type: "body",
+    parameters: [
+      { type: "text", text: params.client_name || "Client" },
+      { type: "text", text: params.vendor_name || "The vendor" },
+      { type: "text", text: params.service_name || "a service" },
+      { type: "text", text: params.event_name || "an event" },
+    ],
+  }];
+}
+
 // ── OTP verification template (authentication with Copy Code button) ──
-// Authentication templates have a specific component structure:
-// - body: contains the OTP code as {{1}}
-// - button: sub_type "url" with index 0, contains the OTP code for the copy button
 function buildOtpComponents(params: { otp_code?: string }) {
   const code = params.otp_code || "000000";
   return [
@@ -208,9 +284,6 @@ function buildOtpComponents(params: { otp_code?: string }) {
 }
 
 // ── Send OTP template ─────────────────────────────────
-// Uses the "try to send" approach — if the number isn't on WhatsApp,
-// Meta returns error 131026/131047 which we detect and pass through.
-// This is the ONLY reliable detection method on Cloud API.
 async function sendOtpTemplate(
   phone: string,
   params: { otp_code?: string },
@@ -220,7 +293,6 @@ async function sendOtpTemplate(
   const url = `${GRAPH_API}/${phoneNumberId}/messages`;
   const code = params.otp_code || "000000";
 
-  // Build components for auth template with Copy Code button
   const components = [
     {
       type: "body",
@@ -263,8 +335,6 @@ async function sendOtpTemplate(
 
   const errorCode = data?.error?.code;
 
-  // 131026 = "Message Undeliverable" — number not on WhatsApp
-  // 131047 = "Re-engagement message" — number not on WhatsApp or hasn't interacted
   if (errorCode === 131026 || errorCode === 131047) {
     console.log(`[WhatsApp OTP] Number ${phone} not on WhatsApp (error ${errorCode})`);
     return { sent: false, not_on_whatsapp: true, error_code: errorCode };
@@ -283,8 +353,6 @@ async function sendTemplate(
   phoneNumberId: string
 ) {
   const url = `${GRAPH_API}/${phoneNumberId}/messages`;
-
-  // OTP uses sendOtpTemplate() directly, so this function is for non-auth templates only
   const languageCode = "en";
 
   console.log(`[WhatsApp] Sending template "${templateName}" to ${phone} with language "${languageCode}"`);
@@ -314,8 +382,6 @@ async function sendTemplate(
     const errorSubCode = data?.error?.error_subcode;
     console.error(`WhatsApp template API error [${res.status}]:`, JSON.stringify(data));
     
-    // Error 131026 = "Message Undeliverable" — recipient not on WhatsApp
-    // Error 131047 = "Re-engagement message" — number not on WhatsApp or hasn't messaged
     if (errorCode === 131026 || errorSubCode === 131026 || errorCode === 131047) {
       return { sent: false, not_on_whatsapp: true, error_code: errorCode };
     }
@@ -324,77 +390,6 @@ async function sendTemplate(
   }
 
   return { sent: true, message_id: data.messages?.[0]?.id };
-}
-
-// ── Send interactive invite with Confirm / Decline buttons ──
-async function sendInteractiveInvite(
-  phone: string,
-  params: {
-    guest_name?: string; event_name?: string; event_date?: string;
-    organizer_name?: string; rsvp_code?: string;
-  },
-  accessToken: string,
-  phoneNumberId: string
-) {
-  const url = `${GRAPH_API}/${phoneNumberId}/messages`;
-  const guestName = params.guest_name || "Guest";
-  const eventName = params.event_name || "an event";
-  const eventDate = params.event_date || "TBA";
-  const organizer = params.organizer_name || "the organizer";
-  const rsvpCode = params.rsvp_code || "";
-
-  const bodyText =
-    `Hi ${guestName}! 🎉\n\n` +
-    `You're invited to *${eventName}*\n` +
-    `📅 ${eventDate}\n` +
-    `🎩 Hosted by ${organizer}\n\n` +
-    `Please confirm your attendance below:`;
-
-  const payload: Record<string, unknown> = {
-    messaging_product: "whatsapp",
-    to: phone,
-    type: "interactive",
-    interactive: {
-      type: "button",
-      body: { text: bodyText },
-      action: {
-        buttons: [
-          {
-            type: "reply",
-            reply: { id: `rsvp_confirm_${rsvpCode}`, title: "Confirm" },
-          },
-          {
-            type: "reply",
-            reply: { id: `rsvp_decline_${rsvpCode}`, title: "Decline" },
-          },
-        ],
-      },
-    },
-  };
-
-  // Add footer with RSVP link if code exists
-  if (rsvpCode) {
-    (payload.interactive as Record<string, unknown>).footer = {
-      text: `Or visit: nuru.tz/rsvp/${rsvpCode}`,
-    };
-  }
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const data = await res.json();
-  if (!res.ok) {
-    console.error(`WhatsApp interactive API error [${res.status}]:`, JSON.stringify(data));
-    throw new Error(`WhatsApp interactive API failed [${res.status}]: ${JSON.stringify(data)}`);
-  }
-
-  return { message_id: data.messages?.[0]?.id };
 }
 
 // ── Send plain text (fallback) ────────────────────────
@@ -426,10 +421,6 @@ async function sendTextMessage(phone: string, text: string, token: string, phone
 }
 
 // ── Check WhatsApp by attempting a send ───────────────
-// Cloud API has NO /contacts lookup endpoint. The only reliable method
-// is to attempt sending a message and check the error code.
-// We use a lightweight approach: send a "typing" indicator or attempt 
-// a template send and inspect the error.
 async function checkWhatsAppBySending(
   phone: string,
   accessToken: string,
@@ -437,8 +428,6 @@ async function checkWhatsAppBySending(
 ) {
   const url = `${GRAPH_API}/${phoneNumberId}/messages`;
 
-  // Attempt sending a "contacts" type message (lightweight, doesn't deliver visible content)
-  // If the number isn't on WhatsApp, Meta returns error 131026 or 131047
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -450,7 +439,7 @@ async function checkWhatsAppBySending(
       to: phone,
       type: "template",
       template: {
-        name: "hello_world", // Meta's default test template
+        name: "hello_world",
         language: { code: "en_US" },
       },
     }),
@@ -467,7 +456,6 @@ async function checkWhatsAppBySending(
     return { is_whatsapp: false, wa_id: null };
   }
 
-  // Template not found or other error — can't determine, assume unknown
   console.log(`[WhatsApp Check] Send-check returned error ${errorCode}: ${data?.error?.message}`);
   return { is_whatsapp: "unknown", wa_id: null, error: data?.error?.message };
 }

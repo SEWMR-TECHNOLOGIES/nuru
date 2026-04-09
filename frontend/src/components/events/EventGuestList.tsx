@@ -32,6 +32,7 @@ import type { EventGuest } from '@/lib/api/types';
 import type { SearchedUser } from '@/hooks/useUserSearch';
 import type { UserContributor } from '@/lib/api/contributors';
 import type { EventPermissions } from '@/hooks/useEventPermissions';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface EventGuestListProps {
   eventId: string;
@@ -39,6 +40,7 @@ interface EventGuestListProps {
 }
 
 const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
+  const { t } = useLanguage();
   const canManage = permissions?.can_manage_guests || permissions?.is_creator;
   const canSendInvites = permissions?.can_send_invitations || permissions?.is_creator;
   const canCheckin = permissions?.can_check_in_guests || permissions?.is_creator;
@@ -226,7 +228,7 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
             <Input placeholder="Search guests..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40"><Filter className="w-4 h-4 mr-2" /><SelectValue placeholder="Filter" /></SelectTrigger>
+            <SelectTrigger className="w-40"><Filter className="w-4 h-4 mr-2" /><SelectValue placeholder={t("filter")} /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="confirmed">Confirmed</SelectItem>
@@ -300,7 +302,7 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
       {/* Add Guest Dialog */}
       <Dialog open={addDialogOpen} onOpenChange={(open) => { setAddDialogOpen(open); if (!open) resetDialog(); }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add Guest</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("add_guest")}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <Tabs value={guestSourceTab} onValueChange={(v) => { setGuestSourceTab(v); resetDialog(); }}>
               <TabsList className="w-full">

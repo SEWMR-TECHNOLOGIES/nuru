@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 type RemovedItem = {
   id: string;
@@ -231,6 +232,7 @@ let _cachedPosts: any[] | null = null;
 let _cachedMoments: any[] | null = null;
 
 export default function RemovedContent() {
+  const { t } = useLanguage();
   const [posts, setPosts] = useState<RemovedItem[]>(_cachedPosts as any || []);
   const [moments, setMoments] = useState<RemovedItem[]>(_cachedMoments as any || []);
   const [loading, setLoading] = useState(!_cachedPosts);
@@ -281,7 +283,7 @@ export default function RemovedContent() {
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <AlertTriangle className="w-5 h-5 text-destructive" />
-          <h1 className="text-xl font-bold text-foreground">Removed Content</h1>
+          <h1 className="text-xl font-bold text-foreground">{t("removed_content")}</h1>
         </div>
         <p className="text-sm text-muted-foreground">
           Content removed by our team. You have <strong>7 days</strong> from removal to submit an appeal before it's permanently deleted.

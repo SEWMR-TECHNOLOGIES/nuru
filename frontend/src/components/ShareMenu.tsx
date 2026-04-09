@@ -4,6 +4,7 @@ import XIcon from '@/assets/icons/x-icon.svg';
 import CopyIcon from '@/assets/icons/copy-icon.svg';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface ShareMenuProps {
   shareUrl: string;
@@ -19,6 +20,7 @@ const platforms = [
 ] as const;
 
 const ShareMenu = ({ shareUrl, shareTitle, onClose }: ShareMenuProps) => {
+  const { t } = useLanguage();
   const handleShare = (platform: string) => {
     let url = '';
     switch (platform) {

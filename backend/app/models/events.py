@@ -86,6 +86,7 @@ class Event(Base):
     ticket_classes = relationship("EventTicketClass", back_populates="event")
     tickets = relationship("EventTicket", back_populates="event")
     card_template = relationship("InvitationCardTemplate", back_populates="events")
+    meetings = relationship("EventMeeting", back_populates="event", cascade="all, delete-orphan")
 
 
 class EventTypeService(Base):

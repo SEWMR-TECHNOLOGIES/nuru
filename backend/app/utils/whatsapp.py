@@ -1,12 +1,12 @@
 # WhatsApp notification helpers
 # Sends outbound WhatsApp messages via the Supabase edge function (whatsapp-send)
 # WhatsApp is the PRIMARY channel for all event communications.
-# Copy aligned with Nuru Copywriting Master Document.
+# ALL messages now use Meta-approved templates via the edge function.
 
 import os
 import requests
 
-WHATSAPP_SIGNATURE = "\n— Nuru: Keep your event together"
+WHATSAPP_SIGNATURE = "\n-- Nuru: Keep your event together"
 
 # The edge function URL for sending WhatsApp messages
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
@@ -55,7 +55,7 @@ def _send_whatsapp(action: str, phone: str, params: dict):
 
 
 def _send_whatsapp_text(phone: str, message: str):
-    """Send a plain text WhatsApp message. Used for contribution/pledge notifications."""
+    """Send a plain text WhatsApp message. Only used as fallback within 24h window."""
     _send_whatsapp("text", phone, {"message": message})
 
 
@@ -103,75 +103,68 @@ def wa_expense_recorded(phone: str, recipient_name: str, recorder_name: str, amo
 
 # ──────────────────────────────────────────────
 # CONTRIBUTION / PLEDGE WhatsApp Messages
-# WhatsApp is the primary channel; SMS is the fallback.
+# Now using Meta-approved templates instead of plain text
 # ──────────────────────────────────────────────
 
 def wa_contribution_recorded(phone: str, contributor_name: str, event_title: str, amount: float, target: float, total_paid: float, currency: str = "TZS", organizer_phone: str = None, recorder_name: str = None):
-    """Notify contributor via WhatsApp that their payment has been recorded."""
+    """Notify contributor via WhatsApp that their payment has been recorded (template)."""
     balance = max(0, target - total_paid)
-    if recorder_name:
-        msg = (
-            f"Hello {contributor_name}, {recorder_name} has recorded your contribution of {currency} {amount:,.0f} "
-            f"for {event_title}.\n"
-        )
-    else:
-        msg = (
-            f"Hello {contributor_name}, your contribution of {currency} {amount:,.0f} "
-            f"for {event_title} has been recorded.\n"
-        )
-    if target > 0:
-        msg += f"Target: {currency} {target:,.0f} | Paid: {currency} {total_paid:,.0f} | Balance: {currency} {balance:,.0f}"
-    else:
-        msg += f"Total paid: {currency} {total_paid:,.0f}"
-    if organizer_phone:
-        msg += f"\nFor inquiries, contact the organizer at {organizer_phone}."
-    msg += WHATSAPP_SIGNATURE
-    _send_whatsapp_text(phone, msg)
+    _send_whatsapp("contribution_recorded", phone, {
+        "contributor_name": contributor_name,
+        "recorder_name": recorder_name or "The organizer",
+        "amount": f"{currency} {amount:,.0f}",
+        "event_name": event_title,
+        "target": f"{currency} {target:,.0f}" if target > 0 else "N/A",
+        "total_paid": f"{currency} {total_paid:,.0f}",
+        "balance": f"{currency} {balance:,.0f}" if target > 0 else "N/A",
+    })
 
 
 def wa_contribution_target_set(phone: str, contributor_name: str, event_title: str, target: float, total_paid: float = 0, currency: str = "TZS", organizer_phone: str = None):
-    """Notify contributor via WhatsApp when a pledge target is set or updated."""
+    """Notify contributor via WhatsApp when a pledge target is set or updated (template)."""
     balance = max(0, target - total_paid)
-    msg = (
-        f"Hello {contributor_name}, your expected contribution for {event_title} "
-        f"is {currency} {target:,.0f}.\n"
-    )
-    if total_paid > 0:
-        msg += f"Paid so far: {currency} {total_paid:,.0f} | Still pending: {currency} {balance:,.0f}"
-    else:
-        msg += f"Your contribution is still pending."
-    if organizer_phone:
-        msg += f"\nFor inquiries, contact the organizer at {organizer_phone}."
-    msg += WHATSAPP_SIGNATURE
-    _send_whatsapp_text(phone, msg)
+    _send_whatsapp("contribution_target", phone, {
+        "contributor_name": contributor_name,
+        "event_name": event_title,
+        "target": f"{currency} {target:,.0f}",
+        "total_paid": f"{currency} {total_paid:,.0f}",
+        "balance": f"{currency} {balance:,.0f}",
+    })
 
 
 def wa_thank_you(phone: str, contributor_name: str, event_title: str, custom_message: str = "", organizer_phone: str = None):
-    """Send thank you message via WhatsApp to a contributor."""
-    msg = f"Hello {contributor_name}, thank you for your contribution to {event_title}."
-    if custom_message:
-        msg += f" {custom_message}"
-    if organizer_phone:
-        msg += f"\nFor inquiries, contact the organizer at {organizer_phone}."
-    msg += WHATSAPP_SIGNATURE
-    _send_whatsapp_text(phone, msg)
+    """Send thank you message via WhatsApp to a contributor (template)."""
+    _send_whatsapp("thank_you_contribution", phone, {
+        "contributor_name": contributor_name,
+        "event_name": event_title,
+        "custom_message": custom_message or "We appreciate your support!",
+    })
 
 
 def wa_booking_notification(phone: str, provider_name: str, event_title: str, client_name: str):
-    """Notify service provider via WhatsApp they've been booked for an event."""
-    msg = (
-        f"Hello {provider_name}, {client_name} has booked your service for {event_title}. "
-        f"Open Nuru to see the details."
-    )
-    msg += WHATSAPP_SIGNATURE
-    _send_whatsapp_text(phone, msg)
+    """Notify service provider via WhatsApp they've been booked for an event (template)."""
+    _send_whatsapp("booking_notification", phone, {
+        "provider_name": provider_name,
+        "client_name": client_name,
+        "event_name": event_title,
+    })
 
 
 def wa_booking_accepted(phone: str, client_name: str, vendor_name: str, service_name: str, event_title: str):
-    """Notify event organizer via WhatsApp that their vendor booking was accepted."""
-    msg = (
-        f"Hello {client_name}, {vendor_name} has confirmed your booking for {service_name} "
-        f"at {event_title}. Open Nuru to see the details."
-    )
-    msg += WHATSAPP_SIGNATURE
-    _send_whatsapp_text(phone, msg)
+    """Notify event organizer via WhatsApp that their vendor booking was accepted (template)."""
+    _send_whatsapp("booking_accepted", phone, {
+        "client_name": client_name,
+        "vendor_name": vendor_name,
+        "service_name": service_name,
+        "event_name": event_title,
+    })
+
+
+def wa_meeting_invitation(phone: str, event_name: str, meeting_title: str, scheduled_time: str, meeting_link: str):
+    """Invite participant to an event meeting via WhatsApp."""
+    _send_whatsapp("meeting_invitation", phone, {
+        "event_name": event_name,
+        "meeting_title": meeting_title,
+        "scheduled_time": scheduled_time,
+        "meeting_link": meeting_link,
+    })

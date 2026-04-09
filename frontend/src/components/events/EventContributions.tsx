@@ -39,6 +39,7 @@ import type { EventPermissions } from '@/hooks/useEventPermissions';
 import ContributorMessaging from './ContributorMessaging';
 import SvgIcon from '@/components/ui/svg-icon';
 import ChatIcon from '@/assets/icons/chat-icon.svg';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface EventContributionsProps {
   eventId: string;
@@ -63,6 +64,7 @@ const PAYMENT_METHODS = [
 const ITEMS_PER_PAGE = 10;
 
 const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, isCreator = true, permissions }: EventContributionsProps) => {
+  const { t } = useLanguage();
   const canManage = permissions?.can_manage_contributions || permissions?.is_creator;
   const canView = permissions?.can_view_contributions || permissions?.is_creator;
   // New contributor-based hooks
@@ -675,7 +677,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
           )}
           {isCreator && eventContributors.length > 0 && (
             <Button variant="outline" size="sm" onClick={() => setMessagingOpen(!messagingOpen)}>
-              <SvgIcon src={ChatIcon} alt="Messages" className="w-4 h-4 mr-2" />{messagingOpen ? 'Hide' : ''} Messaging
+              <SvgIcon src={ChatIcon} alt={t("messages")} className="w-4 h-4 mr-2" />{messagingOpen ? 'Hide' : ''} Messaging
             </Button>
           )}
         </div>

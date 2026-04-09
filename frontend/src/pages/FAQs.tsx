@@ -6,8 +6,10 @@ import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const FAQs = () => {
+  const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState("");
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
@@ -38,7 +40,7 @@ const FAQs = () => {
     },
     {
       question: "What is the NFC-Ready Nuru Card?",
-      answer: "Our NFC-enabled technology allows seamless guest check-ins. Guests tap their phone to automatically check in, view event details, and access digital programs. Modern and contactless."
+      answer: "Our NFC-enabled technology allows instant guest check-ins. Guests tap their phone to check in, view event details, and access digital programs. No queues, no paper lists."
     },
     {
       question: "How do I track RSVPs?",
@@ -145,7 +147,7 @@ const FAQs = () => {
               animate={{ opacity: 1 }}
               className="text-center py-16"
             >
-              <p className="text-muted-foreground text-lg mb-2">No results found</p>
+              <p className="text-muted-foreground text-lg mb-2">{t("no_results")}</p>
               <p className="text-sm text-muted-foreground">Try different search terms</p>
             </motion.div>
           )}

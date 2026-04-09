@@ -14,6 +14,7 @@ import SvgIcon from '@/components/ui/svg-icon';
 import closeIcon from '@/assets/icons/close-icon.svg';
 import aiIcon from '@/assets/icons/ai-icon.svg';
 import { generateBudgetReportHtml } from '@/utils/generateBudgetReport';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface EventContext {
   eventType: string;
@@ -106,6 +107,7 @@ const BudgetAssistant: React.FC<BudgetAssistantProps> = ({
   onSaveBudget,
   onImportItems,
 }) => {
+  const { t } = useLanguage();
   const { data: currentUser } = useCurrentUser();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -295,7 +297,7 @@ const BudgetAssistant: React.FC<BudgetAssistantProps> = ({
                 </div>
               </div>
               <DialogPrimitive.Close className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-background/10 transition-colors">
-                <img src={closeIcon} alt="Close" className="w-4 h-4 invert" />
+                <img src={closeIcon} alt={t("close")} className="w-4 h-4 invert" />
               </DialogPrimitive.Close>
             </div>
           </div>

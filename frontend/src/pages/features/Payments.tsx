@@ -4,27 +4,29 @@ import FeatureGrid from "@/components/features/FeatureGrid";
 import FeatureStatement from "@/components/features/FeatureStatement";
 import illustrationImg from "@/assets/illustration-payments.jpg";
 import { useMeta } from "@/hooks/useMeta";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const Payments = () => {
+  const { t } = useLanguage();
   const paymentMethods = [
     { title: "Cards accepted", description: "Visa, Mastercard, and all major credit cards" },
     { title: "Mobile money", description: "M-Pesa, Tigo Pesa, and local providers" },
     { title: "Bank transfers", description: "Direct deposits for larger transactions" },
     { title: "Digital wallets", description: "Apple Pay, Google Pay, and more" },
     { title: "PayPal", description: "International payments made simple" },
-    { title: "Cash tracking", description: "Record offline payments seamlessly" }
+    { title: "Cash tracking", description: "Record offline payments and keep everything in one place" }
   ];
 
   const features = [
     { title: "Instant confirmations", description: "Automatic receipts and booking confirmations" },
     { title: "Split payments", description: "Let multiple people contribute to one booking" },
     { title: "Refund management", description: "Easy handling of cancellations and refunds" },
-    { title: "Financial reports", description: "Track all transactions in one dashboard" }
+    { title: "Financial reports", description: "Track all transactions in one clear view" }
   ];
 
   useMeta({
     title: "Secure Payments",
-    description: "Book and pay with confidence using Nuru's protected payment system with multiple options."
+    description: "Pay and get paid with confidence. Multiple payment options with escrow protection."
   });
 
   return (
@@ -45,14 +47,14 @@ const Payments = () => {
       />
 
       <FeatureGrid
-        title="Smart payment features"
-        subtitle="Tools designed to make financial management simple for event organizers."
+        title="Clear payment features"
+        subtitle="Tools designed to make financial tracking simple for event organizers."
         items={features}
         variant="minimal"
       />
 
       <FeatureStatement
-        statement="Trust is the foundation of every transaction. Our secure payment system protects both organizers and guests."
+        statement="Trust is the foundation of every transaction. Funds are held securely until service delivery is confirmed."
       />
     </Layout>
   );

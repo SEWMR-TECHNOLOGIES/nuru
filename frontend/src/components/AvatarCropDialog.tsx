@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Loader2, ZoomIn, RotateCw } from "lucide-react";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface AvatarCropDialogProps {
   open: boolean;
@@ -49,6 +50,7 @@ async function getCroppedImg(imageSrc: string, pixelCrop: Area): Promise<Blob> {
 }
 
 const AvatarCropDialog = ({ open, onClose, imageSrc, onCropComplete, saving }: AvatarCropDialogProps) => {
+  const { t } = useLanguage();
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);

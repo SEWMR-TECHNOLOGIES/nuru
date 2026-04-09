@@ -27,6 +27,7 @@ import { generateEventReportHtml } from '@/utils/generateEventReport';
 import ReportPreviewDialog from '@/components/ReportPreviewDialog';
 import InvitedEvents from './InvitedEvents';
 import CommitteeEvents from './CommitteeEvents';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const EVENT_STATUSES = [
   { value: 'draft', label: 'Draft' },
@@ -53,6 +54,7 @@ const cornerConfig: Record<string, string> = {
 };
 
 const MyEvents = () => {
+  const { t } = useLanguage();
   useWorkspaceMeta({
     title: 'My Events',
     description: 'Manage all your events including weddings, birthdays, memorials, and celebrations.'
@@ -448,7 +450,7 @@ const MyEvents = () => {
       {/* ── Page Header ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">My Events</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t("my_events")}</h1>
           <p className="text-muted-foreground mt-1">Plan, manage, and track all your events in one place</p>
         </div>
         <Button size="lg" className="shadow-md" onClick={() => navigate('/create-event')}>

@@ -13,12 +13,13 @@ import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
 import { api, showApiErrorsShadcn } from "@/lib/api";
 import nuruLogo from "@/assets/nuru-logo.png";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 // ── Welcome Screen ──────────────────────────────────────────────────────────
 const WelcomeScreen = ({ firstName, onContinue }: { firstName: string; onContinue: () => void }) => {
   useEffect(() => {
-    const t = setTimeout(onContinue, 3000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(onContinue, 3000);
+    return () => clearTimeout(timer);
   }, [onContinue]);
 
   return (
@@ -74,6 +75,7 @@ const STEP_META = [
 ];
 
 const Register = () => {
+  const { t } = useLanguage();
   const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -262,7 +264,7 @@ const Register = () => {
         return null;
       }
     } catch (err) {
-      toast({ title: "Error", description: "Unable to reach server. Try again later.", variant: "destructive" });
+      toast({ title: t("error"), description: "Unable to reach server. Try again later.", variant: "destructive" });
       return null;
     }
   };
@@ -301,7 +303,7 @@ const Register = () => {
 
       return true;
     } catch (err) {
-      toast({ title: "Error", description: "Unable to verify. Try again later.", variant: "destructive" });
+      toast({ title: t("error"), description: "Unable to verify. Try again later.", variant: "destructive" });
       return false;
     } finally {
       setIsSubmitting(false);
@@ -327,7 +329,7 @@ const Register = () => {
         variant: response.success ? "default" : "destructive"
       });
     } catch (err) {
-      toast({ title: "Error", description: "Unable to resend code.", variant: "destructive" });
+      toast({ title: t("error"), description: "Unable to resend code.", variant: "destructive" });
     } finally {
       setResendLoading(false);
     }

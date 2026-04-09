@@ -18,6 +18,7 @@ import { useFollowSuggestions, useCircles } from '@/data/useSocial';
 import { eventsApi } from '@/lib/api/events';
 import { ticketingApi } from '@/lib/api/ticketing';
 import { formatPrice } from '@/utils/formatPrice';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 // Loading skeleton for sidebar cards
 const SidebarCardSkeleton = ({ title, count = 3 }: { title: string; count?: number }) => (
@@ -56,6 +57,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 // ── Ticket-Selling Events Section ──
 const TicketEventsSection = ({ navigate }: { navigate: (path: string) => void }) => {
+  const { t } = useLanguage();
   const [ticketEvents, setTicketEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const loadedRef = useRef(false);
@@ -236,6 +238,7 @@ const MyTicketsSection = ({ navigate }: { navigate: (path: string) => void }) =>
 };
 
 const RightSidebar = ({ onNavigate }: { onNavigate?: () => void } = {}) => {
+  const { t } = useLanguage();
   const rawNavigate = useNavigate();
   const navigate = useCallback((path: string) => {
     rawNavigate(path);
@@ -511,7 +514,7 @@ const RightSidebar = ({ onNavigate }: { onNavigate?: () => void } = {}) => {
                   ) : addedUserIds.has(user.id) ? (
                     "Sent ✓"
                   ) : (
-                    "Add"
+                    t("add")
                   )}
                 </Button>
               </div>

@@ -100,6 +100,8 @@ class User(Base):
     live_chat_messages = relationship("LiveChatMessage", back_populates="sender")
     service_review_helpfuls = relationship("ServiceReviewHelpful", back_populates="user")
     recorded_expenses = relationship("EventExpense", back_populates="recorder", foreign_keys="[EventExpense.recorded_by]")
+    created_meetings = relationship("EventMeeting", back_populates="creator", foreign_keys="[EventMeeting.created_by]")
+    meeting_participations = relationship("EventMeetingParticipant", back_populates="user", foreign_keys="[EventMeetingParticipant.user_id]")
 
 
 class UserProfile(Base):

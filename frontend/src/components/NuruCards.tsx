@@ -17,8 +17,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { QRCodeSVG } from 'qrcode.react';
 import { nuruCardsApi } from '@/lib/api/nuruCards';
 import html2canvas from 'html2canvas';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const NuruCards = () => {
+  const { t } = useLanguage();
   useWorkspaceMeta({
     title: 'Nuru Cards',
     description: 'Get your Nuru Card for seamless event check-ins and exclusive benefits.'
@@ -242,7 +244,7 @@ const NuruCards = () => {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold mb-2">Nuru Cards</h1>
-          <p className="text-muted-foreground">Get your Nuru Card for seamless event check-ins</p>
+          <p className="text-muted-foreground">Get your Nuru Card for instant event check-ins</p>
         </div>
 
         {/* Hero */}
@@ -251,7 +253,7 @@ const NuruCards = () => {
             <div className="w-16 h-16 rounded-full bg-nuru-yellow/20 flex items-center justify-center mx-auto mb-4">
               <CreditCard className="w-8 h-8 text-primary" />
             </div>
-            <h2 className="text-2xl font-bold mb-2">Experience Seamless Event Check-ins</h2>
+            <h2 className="text-2xl font-bold mb-2">Tap and Walk In</h2>
             <p className="text-muted-foreground mb-6">Skip the queues and check in instantly with your Nuru Card.</p>
             <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground flex-wrap">
               {['Instant Check-in', 'Secure & Verified', 'Digital Convenience'].map(t => (

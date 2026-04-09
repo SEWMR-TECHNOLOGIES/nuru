@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 export interface TicketClass {
   id?: string;
@@ -47,6 +48,7 @@ const EventTicketing = ({
   onPublicChange,
   onDeleteTicketClass,
 }: EventTicketingProps) => {
+  const { t } = useLanguage();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [form, setForm] = useState<TicketClass>({
@@ -185,15 +187,15 @@ const EventTicketing = ({
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogContent className="max-w-sm">
               <DialogHeader>
-                <DialogTitle>{editingIndex !== null ? "Edit" : "Add"} Ticket Class</DialogTitle>
-                <DialogDescription>Set the name, price, and availability</DialogDescription>
+                <DialogTitle>{editingIndex !== null ? t("edit") : t("add")} Ticket Class</DialogTitle>
+                <DialogDescription>{t('set_name_price')}</DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4 py-2">
                 <div className="space-y-2">
-                  <Label>Class Name *</Label>
+                  <Label>{t('class_name')} *</Label>
                   <Input
-                    placeholder="e.g., VIP, Regular, Early Bird"
+                    placeholder={t('class_name_placeholder')}
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     autoComplete="off"
@@ -201,9 +203,9 @@ const EventTicketing = ({
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Description</Label>
+                  <Label>{t('description')}</Label>
                   <Textarea
-                    placeholder="What's included in this ticket?"
+                    placeholder={t('ticket_desc_placeholder')}
                     value={form.description}
                     onChange={(e) => setForm({ ...form, description: e.target.value })}
                     rows={2}
@@ -213,7 +215,7 @@ const EventTicketing = ({
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Price (TZS) *</Label>
+                    <Label>{t('price_tzs')} *</Label>
                     <Input
                       placeholder="50,000"
                       value={form.price}
@@ -222,7 +224,7 @@ const EventTicketing = ({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Available Qty *</Label>
+                    <Label>{t('available_qty')} *</Label>
                     <Input
                       placeholder="100"
                       value={form.quantity}
@@ -238,7 +240,7 @@ const EventTicketing = ({
                   Cancel
                 </Button>
                 <Button type="button" className="flex-1" onClick={saveTicketClass}>
-                  {editingIndex !== null ? "Update" : "Add"} Class
+                  {editingIndex !== null ? "Update" : t("add")} Class
                 </Button>
               </div>
             </DialogContent>

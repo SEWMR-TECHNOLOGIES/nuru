@@ -36,8 +36,10 @@ import { toast } from "sonner";
 import { formatDateMedium } from "@/utils/formatDate";
 import { useQueryClient } from "@tanstack/react-query";
 import AvatarCropDialog from "@/components/AvatarCropDialog";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const UserProfile = () => {
+  const { t } = useLanguage();
   const { data: currentUser, isLoading: userLoading } = useCurrentUser();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -402,7 +404,7 @@ const UserProfile = () => {
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Bio</label>
                     <Textarea value={editData.bio} onChange={(e) => setEditData(prev => ({ ...prev, bio: e.target.value }))} rows={3} placeholder="Tell us about yourself..." />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-medium text-muted-foreground mb-1 block">Email</label>
                       <Input type="email" value={editData.email} onChange={(e) => setEditData(prev => ({ ...prev, email: e.target.value }))} placeholder="your@email.com" />
@@ -482,10 +484,10 @@ const UserProfile = () => {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Events", value: currentUser.event_count ?? 0 },
-          { label: "Services", value: currentUser.service_count ?? 0 },
-          { label: "Followers", value: currentUser.follower_count ?? 0, action: () => openSocialDialog("followers") },
-          { label: "Following", value: currentUser.following_count ?? 0, action: () => openSocialDialog("following") },
+          { label: t("events"), value: currentUser.event_count ?? 0 },
+          { label: t("services"), value: currentUser.service_count ?? 0 },
+          { label: t("followers"), value: currentUser.follower_count ?? 0, action: () => openSocialDialog("followers") },
+          { label: t("following"), value: currentUser.following_count ?? 0, action: () => openSocialDialog("following") },
         ].map(stat => (
           <Card
             key={stat.label}
@@ -523,7 +525,7 @@ const UserProfile = () => {
               <div className="flex flex-col items-center justify-center py-10 text-center">
                 <Users className="w-10 h-10 text-muted-foreground/40 mb-3" />
                 <p className="text-sm text-muted-foreground">
-                  {socialDialog.type === "followers" ? "No followers yet" : "Not following anyone yet"}
+                  {socialDialog.type === "followers" ? t('no_followers_yet') : t('not_following_anyone')}
                 </p>
               </div>
             ) : (
@@ -580,7 +582,7 @@ const UserProfile = () => {
         <TabsContent value="moments">
           <Card className="border-0 shadow-sm">
             <CardHeader>
-              <CardTitle className="text-lg">My Moments</CardTitle>
+              <CardTitle className="text-lg">{t("my_moments")}</CardTitle>
               <p className="text-sm text-muted-foreground">
                 Your shared posts and moments
               </p>
@@ -605,7 +607,7 @@ const UserProfile = () => {
                     return (
                       <div
                         key={post.id}
-                        className="aspect-square rounded-xl overflow-hidden bg-muted/30 border border-border/50 cursor-pointer hover:opacity-90 transition-opacity relative group"
+                        className="aspect-square rounded-xl overflow-hidden bg-muted/30 border border-border/50 cursor-pointer active:scale-95 transition-all relative group"
                         onClick={() => navigate('/my-posts')}
                       >
                         {firstImage ? (
@@ -615,9 +617,9 @@ const UserProfile = () => {
                             <p className="text-xs text-muted-foreground text-center line-clamp-4">{content}</p>
                           </div>
                         )}
-                        {/* Hover overlay */}
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <span className="text-white text-xs font-medium">View</span>
+                        {/* Tap/hover overlay */}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 active:opacity-100 transition-opacity flex items-center justify-center">
+                          <span className="text-white text-xs font-medium">{t("view")}</span>
                         </div>
                       </div>
                     );
@@ -718,7 +720,7 @@ const UserProfile = () => {
                         </div>
                         <label className="cursor-pointer">
                           <Button variant="outline" size="sm" asChild>
-                            <span>{verifyFiles[slot.key] ? "Change" : "Upload"}</span>
+                            <span>{verifyFiles[slot.key] ? "Change" : t("upload")}</span>
                           </Button>
                           <input
                             type="file"

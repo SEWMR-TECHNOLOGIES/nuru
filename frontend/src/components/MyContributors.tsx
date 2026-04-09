@@ -13,10 +13,12 @@ import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
 import ContributorListSkeleton from '@/components/ui/ContributorListSkeleton';
 import type { UserContributor } from '@/lib/api/contributors';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const ITEMS_PER_PAGE = 10;
 
 const MyContributors = () => {
+  const { t } = useLanguage();
   useWorkspaceMeta({ title: 'My Contributors', description: 'Manage your contributor address book' });
   const { contributors, loading, create, update, remove } = useUserContributors();
   const { confirm, ConfirmDialog } = useConfirmDialog();
@@ -95,24 +97,24 @@ const MyContributors = () => {
     <div className="space-y-4">
       <ConfirmDialog />
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-bold">My Contributors</h1>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add</Button>
+        <h1 className="text-xl font-bold">{t("my_contributors")}</h1>
+        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />{t("add")}</Button>
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Your personal address book of contributors. Add them to any event quickly.
+        {t('contributor_address_book')}
       </p>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input placeholder="Search contributors..." value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} className="pl-9" />
+        <Input placeholder={t('search_contributors')} value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} className="pl-9" />
       </div>
 
       {filtered.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <Users className="w-10 h-10 mx-auto mb-3 opacity-40" />
-          <p className="font-medium">{search ? 'No contributors found' : 'No contributors yet'}</p>
-          <p className="text-sm mt-1">{search ? 'Try a different search term' : 'Add your first contributor to get started'}</p>
+          <p className="font-medium">{search ? t('no_contributors_found') : t('no_contributors_yet')}</p>
+          <p className="text-sm mt-1">{search ? t('try_different_search') : t('add_first_contributor')}</p>
         </div>
       ) : (
         <Card>
@@ -138,7 +140,7 @@ const MyContributors = () => {
             {totalPages > 1 && (
               <div className="flex items-center justify-between p-4 border-t">
                 <p className="text-sm text-muted-foreground">
-                  Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} of {filtered.length}
+                  {t('showing')} {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} {t('of_total')} {filtered.length}
                 </p>
                 <div className="flex items-center gap-1">
                   <Button variant="outline" size="icon" className="h-8 w-8" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}><ChevronLeft className="w-4 h-4" /></Button>
@@ -160,17 +162,17 @@ const MyContributors = () => {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{editTarget ? 'Edit Contributor' : 'Add Contributor'}</DialogTitle>
+            <DialogTitle>{editTarget ? t('edit_contributor') : t('add_contributor')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div><Label>Name *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Full name" /></div>
-            <div><Label>Phone</Label><Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="0712 345 678" /></div>
-            <div><Label>Email</Label><Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@example.com" /></div>
-            <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional notes" rows={2} /></div>
+            <div><Label>{t('name')} *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder={t('full_name_placeholder')} /></div>
+            <div><Label>{t('phone')}</Label><Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="0712 345 678" /></div>
+            <div><Label>{t('email')}</Label><Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@example.com" /></div>
+            <div><Label>{t('notes')}</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder={t('optional_notes')} rows={2} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={submitting}>{submitting && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}{editTarget ? 'Save Changes' : 'Add Contributor'}</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>{t("cancel")}</Button>
+            <Button onClick={handleSubmit} disabled={submitting}>{submitting && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}{editTarget ? t('save_changes') : t('add_contributor')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

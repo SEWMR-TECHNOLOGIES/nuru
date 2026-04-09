@@ -4,8 +4,10 @@ import { ChevronRight } from "lucide-react";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
 import TrendingMoments from "@/components/TrendingMoments";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const Index = () => {
+  const { t } = useLanguage();
   useMeta({
     title: "Nuru | Event Planning Workspace",
     description: "Plan, organize, and manage events with verified providers in one platform."
@@ -38,7 +40,7 @@ const Index = () => {
       href: "/features/nfc-cards", 
       desc: "Tap-to-check-in technology",
       number: "04",
-      detail: "Issue smart cards for seamless check-in, cashless payments, and VIP access control"
+      detail: "Issue smart cards for instant check-in, cashless payments, and VIP access control"
     },
     { 
       label: "Secure Payments", 
@@ -507,7 +509,7 @@ const Index = () => {
                     step: "03", 
                     action: "Gather", 
                     swahili: "Kusanya",
-                    desc: "Send stunning invites, manage RSVPs, collect contributions seamlessly",
+                    desc: "Send invites, track RSVPs, and collect contributions in one place",
                   },
                   { 
                     step: "04", 

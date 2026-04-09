@@ -6,6 +6,7 @@ import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useNavigate } from 'react-router-dom';
 import { post, get } from '@/lib/api/helpers';
 import { toast } from 'sonner';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 type ChatMsg = {
   id: string;
@@ -16,6 +17,7 @@ type ChatMsg = {
 };
 
 const LiveChat = () => {
+  const { t } = useLanguage();
   useWorkspaceMeta({
     title: 'Live Chat - Support',
     description: 'Chat with our support team for instant help with your Nuru account.'
@@ -244,7 +246,7 @@ const LiveChat = () => {
           <div className="flex items-end gap-2">
             <div className="flex items-end gap-2 bg-transparent rounded-lg px-3 py-2 flex-1 border border-border">
               <textarea
-                placeholder="Type your message..."
+                placeholder={t('type_your_message')}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={onKeyDown}

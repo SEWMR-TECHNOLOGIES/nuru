@@ -6,16 +6,18 @@ import { useToast } from "@/hooks/use-toast";
 import { useWorkspaceMeta } from "@/hooks/useWorkspaceMeta";
 import { api, showApiErrorsShadcn } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
-const PASSWORD_RULES = [
-  { label: "At least 8 characters", test: (p: string) => p.length >= 8 },
-  { label: "One uppercase letter", test: (p: string) => /[A-Z]/.test(p) },
-  { label: "One lowercase letter", test: (p: string) => /[a-z]/.test(p) },
-  { label: "One number", test: (p: string) => /\d/.test(p) },
-  { label: "One special character", test: (p: string) => /[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\/~`]/.test(p) },
+const PASSWORD_RULES_KEYS = [
+  { key: "at_least_8_chars", test: (p: string) => p.length >= 8 },
+  { key: "one_uppercase", test: (p: string) => /[A-Z]/.test(p) },
+  { key: "one_lowercase", test: (p: string) => /[a-z]/.test(p) },
+  { key: "one_number", test: (p: string) => /\d/.test(p) },
+  { key: "one_special_char", test: (p: string) => /[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\/~`]/.test(p) },
 ];
 
 const ChangePassword = () => {
+  const { t } = useLanguage();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [showCurrent, setShowCurrent] = useState(false);
@@ -30,11 +32,11 @@ const ChangePassword = () => {
     confirm_password: "",
   });
 
-  useWorkspaceMeta({ title: "Change Password", description: "Update your account password." });
+  useWorkspaceMeta({ title: t('change_password'), description: "Update your account password." });
 
   const passwordChecks = useMemo(
-    () => PASSWORD_RULES.map(r => ({ ...r, passed: r.test(formData.new_password) })),
-    [formData.new_password]
+    () => PASSWORD_RULES_KEYS.map(r => ({ ...r, label: t(r.key), passed: r.test(formData.new_password) })),
+    [formData.new_password, t]
   );
   const allPassed = passwordChecks.every(c => c.passed);
   const passwordsMatch = formData.new_password === formData.confirm_password && formData.confirm_password.length > 0;
@@ -43,15 +45,15 @@ const ChangePassword = () => {
     e.preventDefault();
 
     if (!formData.current_password) {
-      toast({ title: "Missing field", description: "Enter your current password.", variant: "destructive" });
+      toast({ title: t('missing_fields'), description: t('enter_current_password'), variant: "destructive" });
       return;
     }
     if (!allPassed) {
-      toast({ title: "Weak password", description: "Please meet all password requirements.", variant: "destructive" });
+      toast({ title: t('error'), variant: "destructive" });
       return;
     }
     if (formData.new_password !== formData.confirm_password) {
-      toast({ title: "Mismatch", description: "New passwords do not match.", variant: "destructive" });
+      toast({ title: t('passwords_dont_match'), variant: "destructive" });
       return;
     }
 
@@ -65,12 +67,12 @@ const ChangePassword = () => {
       if (response.success) {
         setIsSuccess(true);
         setFormData({ current_password: "", new_password: "", confirm_password: "" });
-        toast({ title: "Success", description: response.message || "Password changed successfully." });
+        toast({ title: t('success'), description: response.message || t('password_changed_success') });
       } else {
         showApiErrorsShadcn(response, toast, "Change Failed");
       }
     } catch {
-      toast({ title: "Error", description: "Unable to change password. Try again.", variant: "destructive" });
+      toast({ title: t('error'), description: "Unable to change password. Try again.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -83,10 +85,10 @@ const ChangePassword = () => {
           <div className="w-14 h-14 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
             <ShieldCheck className="w-7 h-7 text-primary" />
           </div>
-          <h2 className="text-xl font-semibold text-foreground">Password Updated</h2>
-          <p className="text-sm text-muted-foreground">Your password has been changed successfully. Keep it safe!</p>
+          <h2 className="text-xl font-semibold text-foreground">{t('password_updated')}</h2>
+          <p className="text-sm text-muted-foreground">{t('password_changed_success')}</p>
           <Button onClick={() => navigate('/settings')} className="w-full rounded-full h-11 bg-foreground text-background hover:bg-foreground/90">
-            Back to Settings
+            {t('back_to_settings')}
           </Button>
         </div>
       </div>
@@ -95,11 +97,10 @@ const ChangePassword = () => {
 
   return (
     <div className="w-full">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Change Password</h1>
-          <p className="text-sm text-muted-foreground">Secure your account with a new password</p>
+          <h1 className="text-xl font-semibold text-foreground">{t('change_password')}</h1>
+          <p className="text-sm text-muted-foreground">{t('secure_account_new')}</p>
         </div>
         <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate(-1)}>
           <ChevronLeft className="w-5 h-5" />
@@ -108,13 +109,12 @@ const ChangePassword = () => {
 
       <div className="bg-card border border-border rounded-2xl p-5 md:p-6">
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Current Password */}
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Current Password</label>
+            <label className="block text-sm font-medium text-foreground mb-1.5">{t('current_password')}</label>
             <div className="relative">
               <Input
                 type={showCurrent ? "text" : "password"}
-                placeholder="Enter current password"
+                placeholder={t('enter_current_password')}
                 value={formData.current_password}
                 onChange={e => setFormData(prev => ({ ...prev, current_password: e.target.value }))}
                 className="h-11 pr-12 rounded-xl"
@@ -127,13 +127,12 @@ const ChangePassword = () => {
             </div>
           </div>
 
-          {/* New Password */}
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">New Password</label>
+            <label className="block text-sm font-medium text-foreground mb-1.5">{t('new_password')}</label>
             <div className="relative">
               <Input
                 type={showNew ? "text" : "password"}
-                placeholder="Enter new password"
+                placeholder={t('enter_new_password')}
                 value={formData.new_password}
                 onChange={e => setFormData(prev => ({ ...prev, new_password: e.target.value }))}
                 className="h-11 pr-12 rounded-xl"
@@ -148,7 +147,7 @@ const ChangePassword = () => {
             {formData.new_password.length > 0 && (
               <ul className="mt-3 space-y-1.5">
                 {passwordChecks.map(c => (
-                  <li key={c.label} className={`flex items-center gap-2 text-xs transition-colors ${c.passed ? "text-green-600" : "text-muted-foreground"}`}>
+                  <li key={c.key} className={`flex items-center gap-2 text-xs transition-colors ${c.passed ? "text-green-600" : "text-muted-foreground"}`}>
                     <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 transition-colors ${c.passed ? "text-green-600" : "text-muted-foreground/30"}`} />
                     {c.label}
                   </li>
@@ -157,13 +156,12 @@ const ChangePassword = () => {
             )}
           </div>
 
-          {/* Confirm New Password */}
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Confirm New Password</label>
+            <label className="block text-sm font-medium text-foreground mb-1.5">{t('confirm_password')}</label>
             <div className="relative">
               <Input
                 type={showConfirm ? "text" : "password"}
-                placeholder="Confirm new password"
+                placeholder={t('confirm_new_password')}
                 value={formData.confirm_password}
                 onChange={e => setFormData(prev => ({ ...prev, confirm_password: e.target.value }))}
                 className="h-11 pr-12 rounded-xl"
@@ -175,7 +173,7 @@ const ChangePassword = () => {
               </button>
             </div>
             {formData.confirm_password.length > 0 && !passwordsMatch && (
-              <p className="text-xs text-destructive mt-1.5">Passwords do not match</p>
+              <p className="text-xs text-destructive mt-1.5">{t('passwords_dont_match')}</p>
             )}
             {passwordsMatch && (
               <p className="text-xs text-green-600 mt-1.5 flex items-center gap-1">
@@ -189,7 +187,7 @@ const ChangePassword = () => {
             className="w-full h-11 bg-foreground text-background hover:bg-foreground/90 rounded-full text-sm font-medium"
             disabled={isLoading || !allPassed || !passwordsMatch}
           >
-            {isLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Updating...</> : "Update Password"}
+            {isLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t('updating')}</> : t('update_password')}
           </Button>
         </form>
       </div>

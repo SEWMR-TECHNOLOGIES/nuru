@@ -225,3 +225,15 @@ def notify_rsvp_declined(db, recipient_id, sender_id, event_id, event_title, gue
         reference_type="event",
         message_data={"event_title": event_title, "guest_name": guest_name},
     )
+
+
+def notify_meeting_invitation(recipient_id, event_title, meeting_title, meeting_id, db):
+    """Notify user they've been invited to a meeting."""
+    return create_notification(
+        db, recipient_id, None,
+        "general",
+        f"You're invited to a meeting for {event_title}: {meeting_title}",
+        reference_id=meeting_id,
+        reference_type="meeting",
+        message_data={"event_title": event_title, "meeting_title": meeting_title},
+    )

@@ -16,6 +16,7 @@ import { get, put } from "@/lib/api/helpers";
 import { formatPrice } from "@/utils/formatPrice";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface EventTicketManagementProps {
   eventId: string;
@@ -31,6 +32,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProps) => {
+  const { t } = useLanguage();
   const [tickets, setTickets] = useState<any[]>([]);
   const [ticketClasses, setTicketClasses] = useState<any[]>([]);
   const [approvalStatus, setApprovalStatus] = useState<string | null>(null);

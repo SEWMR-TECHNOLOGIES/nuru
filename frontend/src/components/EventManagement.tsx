@@ -41,9 +41,12 @@ import { useEventPermissions } from '@/hooks/useEventPermissions';
 import ShareEventToFeed from '@/components/ShareEventToFeed';
 import EventTicketManagement from '@/components/events/EventTicketManagement';
 import EventGuestCheckIn from '@/components/events/EventGuestCheckIn';
+import EventMeetings from '@/components/events/EventMeetings';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const EventManagement = () => {
+  const { t } = useLanguage();
   const { id } = useParams();
   const navigate = useNavigate();
   const { data: currentUser } = useCurrentUser();
@@ -282,7 +285,7 @@ const EventManagement = () => {
       {lightboxOpen && hasImages && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={closeLightbox}>
           <div className="relative max-w-[90vw] max-h-[90vh] w-full" onClick={(e) => e.stopPropagation()}>
-            <button onClick={closeLightbox} className="absolute -top-3 -right-3 bg-white rounded-full p-2 shadow z-50" aria-label="Close">✕</button>
+            <button onClick={closeLightbox} className="absolute -top-3 -right-3 bg-white rounded-full p-2 shadow z-50" aria-label={t("close")}>✕</button>
             <img src={eventImages[lightboxIndex]} alt={`zoom ${lightboxIndex}`} className="w-full h-full object-contain rounded" style={{ maxHeight: '80vh' }} />
             {eventImages.length > 1 && (
               <>
@@ -297,12 +300,12 @@ const EventManagement = () => {
       <AlertDialog open={!!deleteServiceId} onOpenChange={() => setDeleteServiceId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Service?</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to remove this service from your event?</AlertDialogDescription>
+            <AlertDialogTitle>{t('remove')} {t('services')}?</AlertDialogTitle>
+            <AlertDialogDescription>{t('are_you_sure')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRemoveService} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove Service</AlertDialogAction>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRemoveService} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{t('remove')} {t('services')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -312,17 +315,18 @@ const EventManagement = () => {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           tabs={[
-            { value: 'overview', label: 'Overview' },
-            { value: 'checklist', label: 'Checklist' },
-            { value: 'budget', label: 'Budget' },
-            { value: 'expenses', label: 'Expenses' },
-            { value: 'services', label: 'Services' },
-            { value: 'committee', label: 'Committee' },
-            { value: 'contributions', label: 'Contributions' },
-            { value: 'guests', label: 'Guests' },
-            { value: 'rsvp', label: 'RSVP' },
-            ...((apiEvent as any)?.sells_tickets ? [{ value: 'tickets', label: 'Tickets' }] : []),
-            ...(isCreator && !isEventEnded ? [{ value: 'check-in', label: 'Check-In' }] : []),
+            { value: 'overview', label: t('overview') },
+            { value: 'checklist', label: t('checklist') },
+            { value: 'budget', label: t('budget') },
+            { value: 'expenses', label: t('expenses') },
+            { value: 'services', label: t('services') },
+            { value: 'committee', label: t('committee') },
+            { value: 'contributions', label: t('contributions') },
+            { value: 'guests', label: t('guests') },
+            { value: 'rsvp', label: t('rsvp') },
+            { value: 'meetings', label: 'Meetings' },
+            ...((apiEvent as any)?.sells_tickets ? [{ value: 'tickets', label: t('tickets') }] : []),
+            ...(isCreator && !isEventEnded ? [{ value: 'check-in', label: t('check_in') }] : []),
           ]}
         />
 
@@ -643,6 +647,10 @@ const EventManagement = () => {
 
         <TabsContent value="rsvp" className="space-y-6">
           <EventRSVP eventId={id || ''} eventTitle={eventTitle} permissions={permissions} />
+        </TabsContent>
+
+        <TabsContent value="meetings" className="space-y-6">
+          <EventMeetings eventId={id!} isCreator={isCreator} />
         </TabsContent>
 
         {(apiEvent as any)?.sells_tickets && (

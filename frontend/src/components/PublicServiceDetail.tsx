@@ -24,6 +24,7 @@ import { UserService, ServicePackage, ServiceReview } from '@/lib/api/types';
 import { showApiErrors } from '@/lib/api';
 import { messagesApi } from '@/lib/api/messages';
 import { toast } from 'sonner';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface BookedDate {
   date: string;
@@ -35,6 +36,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
 
 const PublicServiceDetail = () => {
+  const { t } = useLanguage();
   const { id } = useParams();
   const navigate = useNavigate();
 

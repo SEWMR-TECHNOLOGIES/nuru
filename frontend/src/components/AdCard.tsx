@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface AdCardProps {
   title: string;
@@ -8,6 +9,7 @@ interface AdCardProps {
 }
 
 const AdCard = ({ title, description, image, cta }: AdCardProps) => {
+  const { t } = useLanguage();
   return (
     <div className="bg-card rounded-lg border border-border overflow-hidden">
       {/* Header */}

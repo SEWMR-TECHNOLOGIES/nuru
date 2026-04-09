@@ -4,6 +4,7 @@ import { socialApi } from '@/lib/api/social';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { toast } from 'sonner';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const getInitials = (name: string) => {
   const parts = name.trim().split(/\s+/);

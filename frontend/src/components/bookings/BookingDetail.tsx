@@ -22,8 +22,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { useBooking } from '@/data/useBookings';
 import { formatPrice } from '@/utils/formatPrice';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const BookingDetail = () => {
+  const { t } = useLanguage();
   const { id } = useParams();
   const navigate = useNavigate();
   const { booking, loading, error, refetch } = useBooking(id || null);

@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: false,
-          error: "Too many verification requests. Please wait before trying again.",
+          error: "Too many requests. Please wait before trying again.",
         }),
         { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "3600" } }
       );
@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
     if (insertError) {
       console.error("[send-otp] DB insert error:", insertError);
       return new Response(
-        JSON.stringify({ success: false, error: "Failed to store OTP" }),
+        JSON.stringify({ success: false, error: "We couldn't store the code. Please try again." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

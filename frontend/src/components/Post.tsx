@@ -15,6 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 
 interface PostProps {
@@ -46,6 +47,7 @@ interface PostProps {
 }
 
 const Post = ({ post }: PostProps) => {
+  const { t } = useLanguage();
   const [liked, setLiked] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [echoDrawerOpen, setEchoDrawerOpen] = useState(false);

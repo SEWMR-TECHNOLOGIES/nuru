@@ -2,6 +2,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ShieldAlert, Mail, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface SuspensionModalProps {
   open: boolean;
@@ -12,6 +13,7 @@ interface SuspensionModalProps {
 }
 
 function SuspensionContent({ reason, onClose, variant = "dialog" }: Omit<SuspensionModalProps, "open">) {
+  const { t } = useLanguage();
   const isFullscreen = variant === "fullscreen";
 
   return (

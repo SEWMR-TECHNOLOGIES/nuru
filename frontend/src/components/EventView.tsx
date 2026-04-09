@@ -18,8 +18,10 @@ import EventTicketPurchase from './EventTicketPurchase';
 import ReportPreviewDialog from '@/components/ReportPreviewDialog';
 import { generateEventReportHtml } from '@/utils/generateEventReport';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const EventView = () => {
+  const { t } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: currentUser } = useCurrentUser();

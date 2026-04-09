@@ -16,8 +16,10 @@ import SvgIcon from '@/components/ui/svg-icon';
 import PhotosIcon from '@/assets/icons/photos-icon.svg';
 import CalendarIconSVG from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const SharedPhotoLibrary = () => {
+  const { t } = useLanguage();
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const { data: currentUser, userIsLoggedIn } = useCurrentUser();

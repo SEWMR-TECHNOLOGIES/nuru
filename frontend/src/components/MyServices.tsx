@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { showApiErrors, showCaughtError } from '@/lib/api';
 import { userServicesApi } from '@/lib/api';
 import type { ServiceReview } from '@/lib/api/types';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 // Detect if a service is photography type
 const isPhotographyService = (service: any): boolean => {
@@ -31,6 +32,7 @@ const isPhotographyService = (service: any): boolean => {
 };
 
 const MyServices = () => {
+  const { t } = useLanguage();
   useWorkspaceMeta({
     title: 'My Services',
     description: 'Manage your service offerings, track performance, and connect with event organizers.'
@@ -227,7 +229,7 @@ const MyServices = () => {
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">My Services</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t("my_services")}</h1>
           <p className="text-muted-foreground mt-1">Your professional portfolio on Nuru</p>
         </div>
         <Button size="lg" className="shadow-md" onClick={() => navigate('/services/new')}>

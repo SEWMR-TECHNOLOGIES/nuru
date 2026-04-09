@@ -267,3 +267,9 @@ class CircleRequestStatusEnum(enum.Enum):
 class AgreementTypeEnum(enum.Enum):
     vendor_agreement = "vendor_agreement"
     organiser_agreement = "organiser_agreement"
+
+
+class MeetingStatusEnum(enum.Enum):
+    scheduled = "scheduled"
+    in_progress = "in_progress"
+    ended = "ended"

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { cardTemplatesApi, InvitationCardTemplate } from "@/lib/api/cardTemplates";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface CardTemplatesManagerProps {
   templates: InvitationCardTemplate[];
@@ -26,6 +27,7 @@ const CardTemplatesManager = ({
   selectedTemplateId,
   onAssignTemplate,
 }: CardTemplatesManagerProps) => {
+  const { t } = useLanguage();
   const { toast } = useToast();
   const [uploading, setUploading] = useState(false);
   const [showUpload, setShowUpload] = useState(false);

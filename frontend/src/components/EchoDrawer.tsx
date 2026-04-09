@@ -10,6 +10,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const getInitials = (name: string) => {
   const parts = name.trim().split(/\s+/);

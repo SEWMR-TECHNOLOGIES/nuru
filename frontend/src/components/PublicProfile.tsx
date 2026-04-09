@@ -28,6 +28,7 @@ import { useCircles } from '@/data/useSocial';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
 import { formatDateMedium } from '@/utils/formatDate';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface PublicUser {
   id: string;
@@ -54,6 +55,7 @@ interface PublicUser {
 }
 
 const PublicProfile = () => {
+  const { t } = useLanguage();
   const { username } = useParams<{ username: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();

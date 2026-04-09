@@ -23,6 +23,7 @@ import { ServiceDetailLoadingSkeleton } from '@/components/ui/ServiceLoadingSkel
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserService, ServicePackage, ServiceReview } from '@/lib/api/types';
 import LocationIcon from '@/assets/icons/location-icon.svg';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface BookedDate {
   date: string;
@@ -38,6 +39,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
 
 const ServiceDetail = () => {
+  const { t } = useLanguage();
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -280,7 +282,7 @@ const ServiceDetail = () => {
       {/* ─── QUICK ACTIONS ─── */}
       <div className="flex flex-wrap gap-2 mb-6">
         <Button variant="outline" size="sm" asChild>
-          <Link to={`/services/events/${id}`}><img src={calendarIcon} alt="calendar" className="w-4 h-4 mr-1.5 inline dark:invert" />My Events</Link>
+          <Link to={`/services/events/${id}`}><img src={calendarIcon} alt="calendar" className="w-4 h-4 mr-1.5 inline dark:invert" />{t("my_events")}</Link>
         </Button>
         {isPhotography && (
           <Button variant="outline" size="sm" asChild>

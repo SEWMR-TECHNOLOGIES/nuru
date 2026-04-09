@@ -52,6 +52,7 @@ import CommitteePermissionsBadge from './CommitteePermissionsBadge';
 import ReportPreviewDialog from '@/components/ReportPreviewDialog';
 import type { SearchedUser } from '@/hooks/useUserSearch';
 import type { EventPermissions } from '@/hooks/useEventPermissions';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface EventCommitteeProps {
   eventId: string;
@@ -86,6 +87,7 @@ const AVAILABLE_PERMISSIONS = [
 ];
 
 const EventCommittee = ({ eventId, permissions, eventTitle }: EventCommitteeProps) => {
+  const { t } = useLanguage();
   const canManageCommittee = permissions?.can_manage_committee || permissions?.is_creator;
   const { members, loading, error, addMember, updateMember, removeMember, refetch } = useEventCommittee(eventId);
   

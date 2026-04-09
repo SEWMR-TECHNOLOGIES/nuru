@@ -8,16 +8,18 @@ import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
 import { api, showApiErrorsShadcn } from "@/lib/api";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
-const PASSWORD_RULES = [
-  { label: "At least 8 characters", test: (p: string) => p.length >= 8 },
-  { label: "One uppercase letter", test: (p: string) => /[A-Z]/.test(p) },
-  { label: "One lowercase letter", test: (p: string) => /[a-z]/.test(p) },
-  { label: "One number", test: (p: string) => /\d/.test(p) },
-  { label: "One special character", test: (p: string) => /[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\/~`]/.test(p) },
+const PASSWORD_RULES_KEYS = [
+  { key: "at_least_8_chars", test: (p: string) => p.length >= 8 },
+  { key: "one_uppercase", test: (p: string) => /[A-Z]/.test(p) },
+  { key: "one_lowercase", test: (p: string) => /[a-z]/.test(p) },
+  { key: "one_number", test: (p: string) => /\d/.test(p) },
+  { key: "one_special_char", test: (p: string) => /[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\/~`]/.test(p) },
 ];
 
 const ResetPassword = () => {
+  const { t } = useLanguage();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") || "";
   const navigate = useNavigate();
@@ -26,15 +28,11 @@ const ResetPassword = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [formData, setFormData] = useState({
-    password: "",
-    password_confirmation: "",
-  });
+  const [formData, setFormData] = useState({ password: "", password_confirmation: "" });
   const [resendEmail, setResendEmail] = useState("");
   const [resendLoading, setResendLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  // Cooldown timer
   useEffect(() => {
     if (resendCooldown <= 0) return;
     const timer = setTimeout(() => setResendCooldown(c => c - 1), 1000);
@@ -51,39 +49,39 @@ const ResetPassword = () => {
       } else {
         await api.auth.forgotPassword(resendEmail.trim());
       }
-      toast({ title: "Sent!", description: "A new reset link has been sent. Check your email or phone." });
+      toast({ title: t('success'), description: "A new reset link has been sent." });
       setResendCooldown(60);
     } catch {
-      toast({ title: "Error", description: "Unable to resend. Please try again.", variant: "destructive" });
+      toast({ title: t('error'), description: "Unable to resend. Please try again.", variant: "destructive" });
     } finally {
       setResendLoading(false);
     }
-  }, [resendEmail, resendCooldown, toast]);
+  }, [resendEmail, resendCooldown, toast, t]);
 
-  useMeta({ title: "Reset Password", description: "Set a new password for your Nuru account." });
+  useMeta({ title: t('reset_password'), description: "Set a new password for your Nuru account." });
 
   const passwordChecks = useMemo(
-    () => PASSWORD_RULES.map(r => ({ ...r, passed: r.test(formData.password) })),
-    [formData.password]
+    () => PASSWORD_RULES_KEYS.map(r => ({ ...r, label: t(r.key), passed: r.test(formData.password) })),
+    [formData.password, t]
   );
   const allPassed = passwordChecks.every(c => c.passed);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.password || !formData.password_confirmation) {
-      toast({ title: "Missing fields", description: "Both password fields are required.", variant: "destructive" });
+      toast({ title: t('missing_fields'), variant: "destructive" });
       return;
     }
     if (!allPassed) {
-      toast({ title: "Weak password", description: "Please meet all password requirements.", variant: "destructive" });
+      toast({ title: t('error'), description: "Please meet all password requirements.", variant: "destructive" });
       return;
     }
     if (formData.password !== formData.password_confirmation) {
-      toast({ title: "Mismatch", description: "Passwords do not match.", variant: "destructive" });
+      toast({ title: t('passwords_dont_match'), variant: "destructive" });
       return;
     }
     if (!token) {
-      toast({ title: "Invalid link", description: "Reset token is missing. Please request a new reset link.", variant: "destructive" });
+      toast({ title: t('error'), description: "Reset token is missing.", variant: "destructive" });
       return;
     }
 
@@ -96,7 +94,7 @@ const ResetPassword = () => {
         showApiErrorsShadcn(response, toast, "Reset Failed");
       }
     } catch {
-      toast({ title: "Error", description: "Unable to reset password. Try again.", variant: "destructive" });
+      toast({ title: t('error'), description: "Unable to reset password. Try again.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -114,24 +112,24 @@ const ResetPassword = () => {
           {isSuccess ? (
             <div className="text-center space-y-4">
               <CheckCircle2 className="w-16 h-16 mx-auto text-primary" />
-              <h1 className="text-2xl font-bold text-foreground">Password Reset Successfully</h1>
-              <p className="text-muted-foreground">You can now sign in with your new password.</p>
+              <h1 className="text-2xl font-bold text-foreground">{t('password_reset_success')}</h1>
+              <p className="text-muted-foreground">{t('can_sign_in_new_password')}</p>
               <Button onClick={() => navigate("/login")} className="w-full h-12 bg-foreground text-background hover:bg-foreground/90 rounded-full">
-                Go to Sign In
+                {t('go_to_sign_in')}
               </Button>
             </div>
           ) : (
             <>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Set new password</h1>
-              <p className="text-muted-foreground mb-8">Enter your new password below</p>
+              <h1 className="text-3xl font-bold text-foreground mb-2">{t('set_new_password')}</h1>
+              <p className="text-muted-foreground mb-8">{t('enter_new_password_below')}</p>
 
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">New Password</label>
+                  <label className="block text-sm font-medium text-foreground mb-2">{t('new_password')}</label>
                   <div className="relative">
                     <Input
                       type={showPassword ? "text" : "password"}
-                      placeholder="Enter new password"
+                      placeholder={t('enter_new_password')}
                       value={formData.password}
                       onChange={e => setFormData(prev => ({ ...prev, password: e.target.value }))}
                       className="h-12 pr-12 rounded-xl"
@@ -143,11 +141,10 @@ const ResetPassword = () => {
                     </button>
                   </div>
 
-                  {/* Password strength checklist */}
                   {formData.password.length > 0 && (
                     <ul className="mt-3 space-y-1">
                       {passwordChecks.map(c => (
-                        <li key={c.label} className={`flex items-center gap-2 text-xs ${c.passed ? "text-green-600" : "text-muted-foreground"}`}>
+                        <li key={c.key} className={`flex items-center gap-2 text-xs ${c.passed ? "text-green-600" : "text-muted-foreground"}`}>
                           <CheckCircle2 className={`w-3.5 h-3.5 ${c.passed ? "text-green-600" : "text-muted-foreground/40"}`} />
                           {c.label}
                         </li>
@@ -157,10 +154,10 @@ const ResetPassword = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Confirm Password</label>
+                  <label className="block text-sm font-medium text-foreground mb-2">{t('confirm_password')}</label>
                   <Input
                     type={showPassword ? "text" : "password"}
-                    placeholder="Confirm new password"
+                    placeholder={t('confirm_new_password')}
                     value={formData.password_confirmation}
                     onChange={e => setFormData(prev => ({ ...prev, password_confirmation: e.target.value }))}
                     className="h-12 rounded-xl"
@@ -168,26 +165,25 @@ const ResetPassword = () => {
                     required
                   />
                   {formData.password_confirmation.length > 0 && formData.password !== formData.password_confirmation && (
-                    <p className="text-xs text-destructive mt-1">Passwords do not match</p>
+                    <p className="text-xs text-destructive mt-1">{t('passwords_dont_match')}</p>
                   )}
                 </div>
 
                 <Button type="submit" className="w-full h-12 bg-foreground text-background hover:bg-foreground/90 rounded-full" disabled={isLoading || !allPassed}>
-                  {isLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Resetting...</> : "Reset Password"}
+                  {isLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t('resetting')}</> : t('reset_password')}
                 </Button>
               </form>
 
               <Link to="/login" className="block w-full mt-4 text-sm text-center text-muted-foreground hover:text-foreground transition-colors">
-                Back to sign in
+                {t('back_to_sign_in')}
               </Link>
 
-              {/* Resend reset link */}
               <div className="mt-6 pt-6 border-t border-border">
-                <p className="text-sm text-muted-foreground mb-3 text-center">Didn't receive the link or it expired?</p>
+                <p className="text-sm text-muted-foreground mb-3 text-center">{t('didnt_receive_link')}</p>
                 <div className="flex gap-2">
                   <Input
                     type="text"
-                    placeholder="Email or phone number"
+                    placeholder={t('email_or_phone')}
                     value={resendEmail}
                     onChange={e => setResendEmail(e.target.value)}
                     className="h-10 rounded-xl text-sm"
@@ -205,7 +201,7 @@ const ResetPassword = () => {
                     ) : resendCooldown > 0 ? (
                       `${resendCooldown}s`
                     ) : (
-                      <><RefreshCw className="w-4 h-4 mr-1" /> Resend</>
+                      <><RefreshCw className="w-4 h-4 mr-1" /> {t('resend')}</>
                     )}
                   </Button>
                 </div>

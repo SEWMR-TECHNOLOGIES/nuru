@@ -31,6 +31,7 @@ import type { ChecklistItem } from "@/lib/api/templates";
 import { toast } from "sonner";
 import { showCaughtError } from "@/lib/api";
 import type { EventPermissions } from "@/lib/api/events";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface AssignableMember {
   id: string;

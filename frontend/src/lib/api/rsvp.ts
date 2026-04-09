@@ -42,6 +42,9 @@ export interface RSVPData {
     end_date: string | null;
     end_time: string | null;
     location: string | null;
+    venue: string | null;
+    venue_address: string | null;
+    venue_coordinates: { latitude: number; longitude: number } | null;
     dress_code: string | null;
     special_instructions: string | null;
     image_url: string | null;

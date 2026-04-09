@@ -14,6 +14,7 @@ import { useServiceCategories } from '@/data/useServiceCategories';
 import { servicesApi, type ServiceQueryParams } from '@/lib/api/services';
 import { formatPrice } from '@/utils/formatPrice';
 import type { UserService } from '@/lib/api/types';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 // ── Skeleton loader ──
 const ServiceCardSkeleton = () => (
@@ -48,6 +49,7 @@ interface FindServicesCache {
 let _findServicesCache: FindServicesCache | null = null;
 
 const FindServices = () => {
+  const { t } = useLanguage();
   useWorkspaceMeta({
     title: 'Find Services',
     description: 'Discover trusted service providers for photography, catering, decoration, and more.'
@@ -335,7 +337,7 @@ const FindServices = () => {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Search by name, category, or keyword..."
+            placeholder={t('search_services_placeholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 h-11 bg-card"
@@ -370,7 +372,7 @@ const FindServices = () => {
               : 'bg-muted text-muted-foreground hover:bg-muted/80'
           }`}
         >
-          All Services
+          {t('all_services')}
         </button>
         {apiCategories.map((cat) => (
           <button
@@ -394,10 +396,10 @@ const FindServices = () => {
         <Select value={selectedLocation} onValueChange={setSelectedLocation}>
           <SelectTrigger className="w-auto min-w-[140px] h-9 bg-card text-sm">
             <MapPin className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
-            <SelectValue placeholder="Location" />
+            <SelectValue placeholder={t('location_label')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Locations</SelectItem>
+            <SelectItem value="all">{t('all_locations')}</SelectItem>
             {locations.map(loc => (
               <SelectItem key={loc.name} value={loc.name}>
                 {loc.name} {loc.count > 0 && `(${loc.count})`}
@@ -409,7 +411,7 @@ const FindServices = () => {
         <Select value={sortBy || 'relevance'} onValueChange={(v) => setSortBy(v as any)}>
           <SelectTrigger className="w-auto min-w-[140px] h-9 bg-card text-sm">
             <SlidersHorizontal className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
-            <SelectValue placeholder="Sort" />
+            <SelectValue placeholder={t("sort")} />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="relevance">Most Relevant</SelectItem>

@@ -35,12 +35,14 @@ import { useEventSchedule } from '@/data/useEvents';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
 import type { EventScheduleItem } from '@/lib/api/types';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface EventScheduleProps {
   eventId: string;
 }
 
 const EventSchedule = ({ eventId }: EventScheduleProps) => {
+  const { t } = useLanguage();
   const { schedule, loading, error, addItem, updateItem, deleteItem, refetch } = useEventSchedule(eventId);
   
   const { confirm, ConfirmDialog } = useConfirmDialog();

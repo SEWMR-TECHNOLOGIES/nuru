@@ -21,6 +21,7 @@ import { photoLibrariesApi, PhotoLibrary } from '@/lib/api/photoLibraries';
 import { showApiErrors, showCaughtError } from '@/lib/api';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import PhotosIcon from '@/assets/icons/photos-icon.svg';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const MAX_IMAGE_MB = 10;
 const STORAGE_LIMIT_MB = 200;
@@ -29,6 +30,7 @@ const STORAGE_LIMIT_MB = 200;
 const _libCache: Record<string, { library: PhotoLibrary; ts: number }> = {};
 
 const PhotoLibraryDetail = () => {
+  const { t } = useLanguage();
   const { libraryId } = useParams<{ libraryId: string }>();
   const navigate = useNavigate();
   const cached = libraryId ? _libCache[libraryId] : null;
@@ -376,7 +378,7 @@ const PhotoLibraryDetail = () => {
                   <button
                     onClick={(e) => { e.stopPropagation(); downloadFile(photo.url, photo.original_name || `photo-${idx + 1}.jpg`); }}
                     className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors shadow inline-flex"
-                    title="Download"
+                    title={t("download")}
                   >
                     <Download className="w-4 h-4 text-foreground" />
                   </button>

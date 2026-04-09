@@ -22,6 +22,7 @@ import CameraIcon from '@/assets/icons/camera-icon.svg';
 import ImageIcon from '@/assets/icons/image-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import MomentPreview from './MomentPreview';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 // Sanitize text to prevent XSS attacks
 const sanitizeText = (text: string): string => {
@@ -66,6 +67,7 @@ interface LocationData {
 }
 
 const CreatePostBox = () => {
+  const { t } = useLanguage();
   const [text, setText] = useState('');
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -320,7 +322,7 @@ const CreatePostBox = () => {
         {/* Textarea for multiline input */}
         <div className="flex flex-col gap-2 md:gap-3">
           <textarea
-            placeholder="Share a moment..."
+            placeholder={t('share_moment')}
             value={text}
             onChange={e => setText(e.target.value)}
             disabled={isSubmitting}

@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 /** Get two-letter initials from a name */
 const getInitials = (name?: string) => {
@@ -40,8 +41,9 @@ const isValidAvatar = (url?: string | null): boolean => {
 };
 
 const Messages = () => {
+  const { t } = useLanguage();
   useWorkspaceMeta({
-    title: 'Messages',
+    title: t('messages'),
     description: 'Chat with event organizers, service providers, and your community on Nuru.'
   });
 
@@ -154,12 +156,12 @@ const Messages = () => {
         if (uploadRes.success && uploadRes.data?.url) {
           uploadedUrl = uploadRes.data.url;
         } else {
-          toast.error('Failed to upload image');
+          toast.error(t('failed_upload_image'));
           setUploadingImage(false);
           return;
         }
       } catch {
-        toast.error('Failed to upload image');
+        toast.error(t('failed_upload_image'));
         setUploadingImage(false);
         return;
       }
@@ -216,7 +218,7 @@ const Messages = () => {
   const handleConfirmNewChat = async () => {
     if (!selectedNewUser) return;
     if (!initialMessage.trim()) {
-      toast.error('Please type a message to start the conversation');
+      toast.error(t('please_type_message'));
       return;
     }
 
@@ -278,8 +280,8 @@ const Messages = () => {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          <p className="text-destructive mb-4">Failed to load messages. Please try again.</p>
-          <Button onClick={() => refetchConversations()}>Retry</Button>
+          <p className="text-destructive mb-4">{t('failed_to_load_messages')}</p>
+          <Button onClick={() => refetchConversations()}>{t('retry')}</Button>
         </div>
       </div>
     );
@@ -289,15 +291,15 @@ const Messages = () => {
     <Dialog open={newChatOpen} onOpenChange={(open) => { setNewChatOpen(open); if (!open) { setInitialMessage(''); setSelectedNewUser(null); } }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>New Conversation</DialogTitle>
+          <DialogTitle>{t('new_conversation')}</DialogTitle>
         </DialogHeader>
         <div className="py-4 space-y-4">
           {!selectedNewUser ? (
             <div>
-              <p className="text-sm text-muted-foreground mb-3">Search for a person to chat with</p>
+              <p className="text-sm text-muted-foreground mb-3">{t('search_person_to_chat')}</p>
               <UserSearchInput 
                 onSelect={handleSelectUser} 
-                placeholder="Search by name, email, or phone..." 
+                placeholder={t('search_by_name_email_phone')}
                 disabled={startingChat}
                 allowRegister={false}
               />
@@ -325,11 +327,11 @@ const Messages = () => {
               
               {/* Message input */}
               <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">Say hello 👋</label>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">{t('say_hello')}</label>
                 <textarea
                   value={initialMessage}
                   onChange={(e) => setInitialMessage(e.target.value)}
-                  placeholder={`Write a message to ${selectedNewUser.first_name}...`}
+                  placeholder={`${t('write_message_to')} ${selectedNewUser.first_name}...`}
                   rows={3}
                   autoFocus
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground resize-none"
@@ -341,7 +343,7 @@ const Messages = () => {
                 disabled={!initialMessage.trim() || startingChat}
                 onClick={handleConfirmNewChat}
               >
-                {startingChat ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Starting...</> : <><Send className="w-4 h-4 mr-2" /> Start Conversation</>}
+                {startingChat ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> {t('starting')}</> : <><Send className="w-4 h-4 mr-2" /> {t('start_conversation')}</>}
               </Button>
             </div>
           )}
@@ -357,12 +359,12 @@ const Messages = () => {
         <div className="h-full flex items-center justify-center">
           <div className="text-center">
             <MessageCircle className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground mb-2">No messages yet</p>
+            <p className="text-muted-foreground mb-2">{t('no_messages_yet')}</p>
             <p className="text-sm text-muted-foreground mb-4">
-              Start a conversation with an event organizer or service provider
+              {t('start_conversation_desc')}
             </p>
             <Button onClick={() => setNewChatOpen(true)}>
-              <Plus className="w-4 h-4 mr-2" /> New Message
+              <Plus className="w-4 h-4 mr-2" /> {t('new_message')}
             </Button>
           </div>
         </div>
@@ -377,8 +379,8 @@ const Messages = () => {
       {/* Chat List */}
       <div className={`${isMobile ? (showChatList ? 'w-full' : 'hidden') : 'w-80'} bg-card border-r border-border overflow-y-auto`}>
         <div className="p-4 border-b border-border flex items-center justify-between">
-          <h2 className="font-semibold text-lg">Messages</h2>
-          <Button size="sm" className="rounded-lg p-2" aria-label="New message" onClick={() => setNewChatOpen(true)}>
+          <h2 className="font-semibold text-lg">{t('messages')}</h2>
+          <Button size="sm" className="rounded-lg p-2" aria-label={t('new_message')} onClick={() => setNewChatOpen(true)}>
             <Plus className="w-4 h-4" />
           </Button>
         </div>
@@ -432,7 +434,7 @@ const Messages = () => {
                   </div>
 
                   <p className={`text-sm truncate mt-0.5 ${conversation.unread_count > 0 ? 'font-medium text-foreground/90' : 'text-muted-foreground'}`}>
-                    {conversation.last_message?.content || 'No messages yet'}
+                    {conversation.last_message?.content || t('no_messages_yet')}
                   </p>
                 </div>
               </button>
@@ -470,7 +472,7 @@ const Messages = () => {
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-sm truncate">{headerName}</h3>
-                      <p className="text-xs text-muted-foreground">{isServiceConv ? 'Service Enquiry' : 'Chat'}</p>
+                      <p className="text-xs text-muted-foreground">{isServiceConv ? t('service_enquiry') : t('chat')}</p>
                     </div>
                     {isServiceConv && serviceTitle && (
                       <div className="flex-shrink-0 ml-auto">
@@ -496,7 +498,7 @@ const Messages = () => {
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
-                  <p className="text-muted-foreground">No messages in this conversation</p>
+                  <p className="text-muted-foreground">{t('no_messages_in_conversation')}</p>
                 </div>
               ) : (
                 messages.map((msg, idx) => {
@@ -519,8 +521,8 @@ const Messages = () => {
                     const today = new Date();
                     const yesterday = new Date();
                     yesterday.setDate(today.getDate() - 1);
-                    if (d.toDateString() === today.toDateString()) return 'Today';
-                    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+                    if (d.toDateString() === today.toDateString()) return t('today');
+                    if (d.toDateString() === yesterday.toDateString()) return t('yesterday');
                     return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
                   };
 
@@ -571,7 +573,7 @@ const Messages = () => {
             {uploadingImage && (
               <div className="px-4 py-2 border-t border-border flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Uploading image...</span>
+                <span>{t('uploading_image')}</span>
               </div>
             )}
 
@@ -583,7 +585,7 @@ const Messages = () => {
                   <button
                     onClick={removeImage}
                     className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70 transition-colors"
-                    aria-label="Remove image"
+                    aria-label={t('remove_image')}
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -593,7 +595,7 @@ const Messages = () => {
               <div className="flex items-center gap-2">
                 <div className="flex items-end gap-1 md:gap-2 bg-background rounded-2xl px-3 md:px-4 py-2 flex-1 border border-border shadow-sm">
                   <textarea
-                    placeholder="Type a message..."
+                    placeholder={t('type_a_message')}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={onKeyDown}
@@ -601,11 +603,11 @@ const Messages = () => {
                     className="flex-1 bg-transparent text-foreground text-sm outline-none placeholder:text-muted-foreground min-w-0 resize-none overflow-hidden"
                     style={{ maxHeight: '120px' }}
                     onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 120) + 'px'; }}
-                    aria-label="Type a message"
+                    aria-label={t('type_a_message')}
                   />
 
-                  <label className="p-1.5 hover:bg-muted rounded-full cursor-pointer transition-colors shrink-0" title="Attach image">
-                    <img src={CustomImageIcon} alt="Attach image" className="w-4 h-4 md:w-5 md:h-5" />
+                  <label className="p-1.5 hover:bg-muted rounded-full cursor-pointer transition-colors shrink-0" title={t('attach_image')}>
+                    <img src={CustomImageIcon} alt={t('attach_image')} className="w-4 h-4 md:w-5 md:h-5" />
                     <input
                       ref={inputFileRef}
                       type="file"
@@ -621,7 +623,7 @@ const Messages = () => {
                   className="rounded-full w-10 h-10 bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
                   onClick={handleSendMessage}
                   disabled={(!input.trim() && !imagePreview) || sending || uploadingImage}
-                  aria-label="Send message"
+                  aria-label={t('send_message_aria')}
                 >
                   {(sending || uploadingImage) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </Button>
@@ -630,7 +632,7 @@ const Messages = () => {
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center">
-            <p className="text-muted-foreground">Select a conversation to start messaging</p>
+            <p className="text-muted-foreground">{t('select_conversation')}</p>
           </div>
         )}
       </div>

@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import { socialApi } from '@/lib/api/social';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const getInitials = (name: string) => {
   const parts = name.trim().split(/\s+/);
@@ -320,6 +321,7 @@ const EchoItem = ({
 const MomentDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const currentUserQuery = useCurrentUser();
   const currentUser = currentUserQuery.data as any;
 
@@ -544,14 +546,14 @@ const MomentDetail = () => {
       <Dialog open={appealOpen} onOpenChange={open => { if (!open) { setAppealOpen(false); setAppealReason(""); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Appeal Content Removal</DialogTitle>
-            <DialogDescription>Explain why you believe this moment should be restored. Our team will review your appeal.</DialogDescription>
+            <DialogTitle>{t('appeal_removal')}</DialogTitle>
+            <DialogDescription>{t('appeal_desc')}</DialogDescription>
           </DialogHeader>
-          <Textarea rows={4} placeholder="Describe why this removal was unjustified..." value={appealReason} onChange={e => setAppealReason(e.target.value)} />
+          <Textarea rows={4} placeholder={t('appeal_placeholder')} value={appealReason} onChange={e => setAppealReason(e.target.value)} />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAppealOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setAppealOpen(false)}>{t("cancel")}</Button>
             <Button onClick={handleSubmitAppeal} disabled={submittingAppeal || !appealReason.trim()}>
-              {submittingAppeal ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null} Submit Appeal
+              {submittingAppeal ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null} {t("submit_appeal")}
             </Button>
           </DialogFooter>
         </DialogContent>

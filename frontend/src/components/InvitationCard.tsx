@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { eventsApi } from '@/lib/api/events';
 import { getRandomTemplateForEvent, SvgCardTemplate } from '@/components/invitation-cards/SvgTemplateRegistry';
 import SvgCardRenderer, { SvgCardData } from '@/components/invitation-cards/SvgCardRenderer';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface InvitationCardProps {
   eventId: string;
@@ -32,6 +33,7 @@ const formatDate = (dateStr: string) =>
   });
 
 const InvitationCard = ({ eventId, open, onClose, isOrganizer = false, guestId }: InvitationCardProps) => {
+  const { t } = useLanguage();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -150,7 +152,7 @@ const InvitationCard = ({ eventId, open, onClose, isOrganizer = false, guestId }
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-lg p-0 overflow-hidden border-0 bg-transparent shadow-none">
         <DialogHeader className="sr-only">
-          <DialogTitle>Invitation Card</DialogTitle>
+          <DialogTitle>{t("invitation_card")}</DialogTitle>
         </DialogHeader>
         {loading ? (
           <div className="flex items-center justify-center py-16 bg-card rounded-2xl">

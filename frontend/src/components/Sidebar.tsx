@@ -6,6 +6,7 @@ import {
   LucideIcon,
   Sparkles,
 } from 'lucide-react'
+import { useLanguage } from '@/lib/i18n/LanguageContext'
 
 import { Button } from '@/components/ui/button'
 import { NavLink } from 'react-router-dom'
@@ -60,24 +61,26 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
     return () => window.removeEventListener('sidebar-hints-changed', handler);
   }, []);
 
+  const { t } = useLanguage();
+
   const navItems: NavItem[] = [
-    { customIcon: HomeIcon, label: 'Home', path: '/', hint: 'View your feed with posts, trending moments, and updates from people and events you follow.' },
-    { customIcon: CalendarIcon, label: 'My Events', path: '/my-events', hint: 'View and manage events you\'ve created, events you\'ve been invited to, and committees you\'re part of.' },
-    { customIcon: ChatIcon, label: 'Messages', path: '/messages', hint: 'Send and receive private messages with event organizers, service providers, and your circle.' },
-    { customIcon: BellIcon, label: 'Notifications', path: '/notifications', hint: 'See all your notifications including RSVPs, follows, bookings, contributions, and content updates.' },
+    { customIcon: HomeIcon, label: t('home'), path: '/', hint: 'View your feed with posts, trending moments, and updates from people and events you follow.' },
+    { customIcon: CalendarIcon, label: t('my_events'), path: '/my-events', hint: 'View and manage events you\'ve created, events you\'ve been invited to, and committees you\'re part of.' },
+    { customIcon: ChatIcon, label: t('messages'), path: '/messages', hint: 'Send and receive private messages with event organizers, service providers, and your circle.' },
+    { customIcon: BellIcon, label: t('notifications'), path: '/notifications', hint: 'See all your notifications including RSVPs, follows, bookings, contributions, and content updates.' },
   ]
 
   const secondaryItems: NavItem[] = [
-    { lucideIcon: Search, label: 'Find Services', path: '/find-services', hint: 'Search and browse verified service providers like DJs, caterers, photographers, and decorators for your events.' },
-    { lucideIcon: Briefcase, label: 'My Services', path: '/my-services', hint: 'Manage your listed services, view bookings, track ratings, and respond to client reviews.' },
-    { customIcon: CardIcon, label: 'Nuru Pass', path: '/nuru-cards', hint: 'Order your Nuru Pass for seamless tap-to-check-in at events, with QR code backup and NFC support.' },
-    { customIcon: CircleIcon, label: 'My Circle', path: '/circle', hint: 'View and manage the people you follow, your followers, and pending connection requests.' },
-    { customIcon: ContributorsIcon, label: 'Contributors', path: '/my-contributors', hint: 'See a list of people who have contributed to your events and track their contributions.' },
-    { customIcon: CommunitiesIcon, label: 'Communities', path: '/communities', hint: 'Browse, join, and participate in community groups based on shared interests or professions.' },
-    { customIcon: IssueIcon, label: 'My Issues', path: '/my-issues', hint: 'Submit new issues and track the status of previously reported problems or disputes.' },
-    { lucideIcon: AlertTriangle, label: 'Removed Content', path: '/removed-content', hint: 'View posts or moments that were removed, check the reason, and submit an appeal if needed.' },
-    { customIcon: HelpIcon, label: 'Help', path: '/help', hint: 'Browse help categories, read FAQs, or contact support for assistance.' },
-    { customIcon: SettingsIcon, label: 'Settings', path: '/settings', hint: 'Manage your notification preferences, privacy controls, theme, and account settings.' },
+    { lucideIcon: Search, label: t('find_services'), path: '/find-services', hint: 'Search and browse verified service providers like DJs, caterers, photographers, and decorators for your events.' },
+    { lucideIcon: Briefcase, label: t('my_services'), path: '/my-services', hint: 'Manage your listed services, view bookings, track ratings, and respond to client reviews.' },
+    { customIcon: CardIcon, label: t('nuru_pass'), path: '/nuru-cards', hint: 'Order your Nuru Pass for instant tap-to-check-in at events, with QR code backup and NFC support.' },
+    { customIcon: CircleIcon, label: t('circle'), path: '/circle', hint: 'View and manage the people you follow, your followers, and pending connection requests.' },
+    { customIcon: ContributorsIcon, label: t('contributors'), path: '/my-contributors', hint: 'See a list of people who have contributed to your events and track their contributions.' },
+    { customIcon: CommunitiesIcon, label: t('communities'), path: '/communities', hint: 'Browse, join, and participate in community groups based on shared interests or professions.' },
+    { customIcon: IssueIcon, label: t('my_issues'), path: '/my-issues', hint: 'Submit new issues and track the status of previously reported problems or disputes.' },
+    { lucideIcon: AlertTriangle, label: t('removed_content'), path: '/removed-content', hint: 'View posts or moments that were removed, check the reason, and submit an appeal if needed.' },
+    { customIcon: HelpIcon, label: t('help'), path: '/help', hint: 'Browse help categories, read FAQs, or contact support for assistance.' },
+    { customIcon: SettingsIcon, label: t('settings'), path: '/settings', hint: 'Manage your notification preferences, privacy controls, theme, and account settings.' },
   ]
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -143,13 +146,13 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
             <HoverCardTrigger asChild>
               <NavLink to="/create-event" onClick={onNavigate}>
                 <Button className="w-full bg-nuru-yellow hover:bg-nuru-yellow/90 text-foreground font-medium lg:px-4 md:px-0 px-4 justify-center">
-                  <SvgIcon src={AddSquareIcon} alt="Create Event" className="w-5 h-5 lg:w-4 lg:h-4 lg:mr-2" />
-                  <span className="md:hidden lg:inline">Create Event</span>
+                  <SvgIcon src={AddSquareIcon} alt={t("create_event")} className="w-5 h-5 lg:w-4 lg:h-4 lg:mr-2" />
+                  <span className="md:hidden lg:inline">{t('create_event')}</span>
                 </Button>
               </NavLink>
             </HoverCardTrigger>
             <HoverCardContent side="right" align="start" className="hidden lg:block w-72 bg-popover border border-border shadow-lg rounded-xl p-4">
-              <p className="text-sm font-semibold text-foreground mb-1">Create Event</p>
+              <p className="text-sm font-semibold text-foreground mb-1">{t('create_event')}</p>
               <p className="text-xs text-muted-foreground leading-relaxed">Set up a new event with details like title, date, location, budget, guest count, and ticket classes.</p>
               <button
                 onClick={(e) => {
@@ -167,8 +170,8 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
         ) : (
           <NavLink to="/create-event" onClick={onNavigate}>
             <Button className="w-full bg-nuru-yellow hover:bg-nuru-yellow/90 text-foreground font-medium lg:px-4 md:px-0 px-4 justify-center">
-              <SvgIcon src={AddSquareIcon} alt="Create Event" className="w-5 h-5 lg:w-4 lg:h-4 lg:mr-2" />
-              <span className="md:hidden lg:inline">Create Event</span>
+              <SvgIcon src={AddSquareIcon} alt={t("create_event")} className="w-5 h-5 lg:w-4 lg:h-4 lg:mr-2" />
+              <span className="md:hidden lg:inline">{t('create_event')}</span>
             </Button>
           </NavLink>
         )}
@@ -179,13 +182,13 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
         {hintsEnabled ? (
           <HoverCard openDelay={400} closeDelay={100}>
             <HoverCardTrigger asChild>
-              <NavLink to="/tickets" className={linkClass} onClick={onNavigate} title="Browse Tickets">
-                <SvgIcon src={TicketIcon} alt="Tickets" className="w-5 h-5 flex-shrink-0" />
-                <span className="md:hidden lg:inline">Browse Tickets</span>
+              <NavLink to="/tickets" className={linkClass} onClick={onNavigate} title={t('browse_tickets')}>
+                <SvgIcon src={TicketIcon} alt={t('tickets')} className="w-5 h-5 flex-shrink-0" />
+                <span className="md:hidden lg:inline">{t('browse_tickets')}</span>
               </NavLink>
             </HoverCardTrigger>
             <HoverCardContent side="right" align="start" className="hidden lg:block w-72 bg-popover border border-border shadow-lg rounded-xl p-4">
-              <p className="text-sm font-semibold text-foreground mb-1">Browse Tickets</p>
+              <p className="text-sm font-semibold text-foreground mb-1">{t('browse_tickets')}</p>
               <p className="text-xs text-muted-foreground leading-relaxed">Discover upcoming events near you and purchase tickets directly.</p>
               <button
                 onClick={(e) => {
@@ -201,9 +204,9 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
             </HoverCardContent>
           </HoverCard>
         ) : (
-          <NavLink to="/tickets" className={linkClass} onClick={onNavigate} title="Browse Tickets">
-            <SvgIcon src={TicketIcon} alt="Tickets" className="w-5 h-5 flex-shrink-0" />
-            <span className="md:hidden lg:inline">Browse Tickets</span>
+          <NavLink to="/tickets" className={linkClass} onClick={onNavigate} title={t('browse_tickets')}>
+            <SvgIcon src={TicketIcon} alt={t('tickets')} className="w-5 h-5 flex-shrink-0" />
+            <span className="md:hidden lg:inline">{t('browse_tickets')}</span>
           </NavLink>
         )}
       </nav>
@@ -221,16 +224,16 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
             className="w-full flex items-center gap-3 px-3 lg:px-3 md:px-0 md:justify-center lg:justify-start py-3 md:py-2.5 rounded-lg font-medium text-base md:text-base text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
           >
             <Sparkles className="w-5 h-5 flex-shrink-0" />
-            <span className="md:hidden lg:inline">Replay Tour</span>
+            <span className="md:hidden lg:inline">{t('replay_tour')}</span>
           </button>
         </div>
       )}
 
       {/* Profile Section */}
       <div className="mt-auto pt-4 border-t border-sidebar-border">
-        <NavLink to="/profile" className={linkClass} onClick={onNavigate} title="Your Profile">
+        <NavLink to="/profile" className={linkClass} onClick={onNavigate} title={t('your_profile')}>
           <SvgIcon src={UserProfileIcon} className="w-5 h-5" />
-          <span className="md:hidden lg:inline">Your Profile</span>
+          <span className="md:hidden lg:inline">{t('your_profile')}</span>
         </NavLink>
       </div>
     </aside>

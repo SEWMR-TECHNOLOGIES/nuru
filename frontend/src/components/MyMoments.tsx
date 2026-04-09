@@ -33,12 +33,14 @@ import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { socialApi } from '@/lib/api/social';
 import { toast } from 'sonner';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 // Module-level cache for my moments/posts
 let _myPostsCache: any[] = [];
 let _myPostsHasLoaded = false;
 
 const MyMoments = () => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { data: currentUser } = useCurrentUser();
   const [posts, setPosts] = useState<any[]>(_myPostsCache);
@@ -263,27 +265,27 @@ const MyMoments = () => {
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="text">Content</Label>
+              <Label htmlFor="text">{t('content')}</Label>
               <Textarea
                 id="text"
                 value={editText}
                 onChange={(e) => setEditText(e.target.value)}
-                placeholder="What's on your mind?"
+                placeholder={t('whats_on_your_mind')}
                 rows={4}
               />
             </div>
             <div className="space-y-2">
-              <Label>Visibility</Label>
+              <Label>{t('visibility')}</Label>
               <Select value={editVisibility} onValueChange={setEditVisibility}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="public">
-                    <span className="flex items-center gap-2"><Globe className="w-4 h-4" /> Public</span>
+                    <span className="flex items-center gap-2"><Globe className="w-4 h-4" /> {t('public')}</span>
                   </SelectItem>
                   <SelectItem value="circle">
-                    <span className="flex items-center gap-2"><Users className="w-4 h-4" /> My Circle</span>
+                    <span className="flex items-center gap-2"><Users className="w-4 h-4" /> {t('my_circle')}</span>
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -291,8 +293,8 @@ const MyMoments = () => {
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-            <Button onClick={saveEdit}>Save Changes</Button>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>{t("cancel")}</Button>
+            <Button onClick={saveEdit}>{t("save_changes")}</Button>
           </div>
         </DialogContent>
       </Dialog>

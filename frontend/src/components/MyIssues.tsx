@@ -20,6 +20,7 @@ import closeIcon from "@/assets/icons/close-icon.svg";
 import imageIcon from "@/assets/icons/image-icon.svg";
 import chatIcon from "@/assets/icons/chat-icon.svg";
 import issueIcon from "@/assets/icons/issue-icon.svg";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 // ── Staged file type (not yet uploaded) ──
 interface StagedFile {
@@ -45,6 +46,7 @@ export default function MyIssues() {
   const [searchParams] = useSearchParams();
   useWorkspaceMeta({ title: "Report Issue", description: "Submit and track issues" });
 
+  const { t } = useLanguage();
   const [issues, setIssues] = useState<Issue[]>([]);
   const [summary, setSummary] = useState<IssueSummary>({ total: 0, open: 0, in_progress: 0, resolved: 0 });
   const [categories, setCategories] = useState<IssueCategory[]>([]);
@@ -343,14 +345,14 @@ export default function MyIssues() {
                 <Textarea
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
-                  placeholder="Type your reply..."
+                  placeholder={t('type_reply')}
                   rows={2}
                   className="flex-1 resize-none text-sm"
                   maxLength={5000}
                   autoComplete="off"
                 />
                 <Button size="sm" onClick={handleReply} disabled={replying || !replyText.trim()} className="self-end">
-                  {replying ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send"}
+                  {replying ? <Loader2 className="w-4 h-4 animate-spin" /> : t("send")}
                 </Button>
               </div>
             )}
@@ -367,22 +369,22 @@ export default function MyIssues() {
         <div className="flex items-center gap-2.5">
           <img src={issueIcon} alt="" className="w-6 h-6 dark:invert" />
           <div>
-            <h1 className="text-2xl font-bold">Report an Issue</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Submit issues and track their progress</p>
+            <h1 className="text-2xl font-bold">{t('report_issue')}</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">{t('submit_issues_track')}</p>
           </div>
         </div>
         <Button onClick={() => setShowSubmit(true)} size="sm">
-          <Plus className="w-4 h-4 mr-1.5" /> New Issue
+          <Plus className="w-4 h-4 mr-1.5" /> {t('new_issue')}
         </Button>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: "Total", value: summary.total, color: "text-foreground" },
-          { label: "Open", value: summary.open, color: "text-blue-600" },
-          { label: "In Progress", value: summary.in_progress, color: "text-amber-600" },
-          { label: "Resolved", value: summary.resolved, color: "text-green-600" },
+          { label: t("total"), value: summary.total, color: "text-foreground" },
+          { label: t("open"), value: summary.open, color: "text-blue-600" },
+          { label: t("in_progress"), value: summary.in_progress, color: "text-amber-600" },
+          { label: t("resolved"), value: summary.resolved, color: "text-green-600" },
         ].map((s) => (
           <Card key={s.label}>
             <CardContent className="p-4 text-center">
@@ -403,7 +405,7 @@ export default function MyIssues() {
             onClick={() => setFilterStatus(s)}
             className="shrink-0"
           >
-            {s === "all" ? "All" : s === "in_progress" ? "In Progress" : s.charAt(0).toUpperCase() + s.slice(1)}
+            {s === "all" ? t("all") : s === "in_progress" ? t("in_progress") : t(s)}
           </Button>
         ))}
       </div>
@@ -423,9 +425,9 @@ export default function MyIssues() {
         <Card>
           <CardContent className="p-12 text-center">
             <img src={issueIcon} alt="" className="w-10 h-10 mx-auto mb-3 opacity-30 dark:invert" />
-            <p className="text-muted-foreground">No issues submitted yet</p>
+            <p className="text-muted-foreground">{t('no_issues_yet')}</p>
             <Button variant="outline" size="sm" className="mt-3" onClick={() => setShowSubmit(true)}>
-              Submit Your First Issue
+              {t('submit_first_issue')}
             </Button>
           </CardContent>
         </Card>
@@ -488,14 +490,14 @@ export default function MyIssues() {
       }}>
         <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Submit an Issue</DialogTitle>
+            <DialogTitle>{t('submit_issue')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 overflow-y-auto flex-1">
             <div className="space-y-1.5">
-              <Label>Category *</Label>
+              <Label>{t('category')} *</Label>
               <Select value={form.category_id} onValueChange={(v) => setForm({ ...form, category_id: v })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select issue category" />
+                  <SelectValue placeholder={t('select_issue_category')} />
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map((cat) => (
@@ -508,22 +510,22 @@ export default function MyIssues() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Subject *</Label>
+              <Label>{t('subject')} *</Label>
               <Input
                 value={form.subject}
                 onChange={(e) => setForm({ ...form, subject: e.target.value })}
-                placeholder="Brief summary of the issue"
+                placeholder={t('brief_summary_issue')}
                 maxLength={200}
                 autoComplete="off"
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label>Description *</Label>
+              <Label>{t('description')} *</Label>
               <Textarea
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Describe the issue in detail. Include steps to reproduce if applicable..."
+                placeholder={t('describe_issue_detail')}
                 rows={5}
                 className="resize-none"
                 maxLength={5000}
@@ -532,7 +534,7 @@ export default function MyIssues() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Priority</Label>
+              <Label>{t('priority')}</Label>
               <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v })}>
                 <SelectTrigger>
                   <SelectValue />

@@ -12,6 +12,7 @@ import SvgIcon from '@/components/ui/svg-icon';
 import PhotosIcon from '@/assets/icons/photos-icon.svg';
 import CalendarIconSVG from '@/assets/icons/calendar-icon.svg';
 import LocationIconSVG from '@/assets/icons/location-icon.svg';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 // ─── Module-level cache ───
 const _librariesCache: Record<string, PhotoLibrary[]> = {};
@@ -19,6 +20,7 @@ const _storageCache: Record<string, { used_mb: number; limit_mb: number; remaini
 const _librariesLoaded: Record<string, boolean> = {};
 
 const ServicePhotoLibraries = () => {
+  const { t } = useLanguage();
   const { serviceId } = useParams<{ serviceId: string }>();
   const navigate = useNavigate();
   const [libraries, setLibraries] = useState<PhotoLibrary[]>(serviceId ? (_librariesCache[serviceId] || []) : []);

@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
 import InvitationQRDialog from './InvitationQRDialog';
 import { getEventCountdown } from '@/utils/getEventCountdown';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const rsvpStyles: Record<string, string> = {
   pending: 'bg-amber-100 text-amber-800',
@@ -28,6 +29,7 @@ const rsvpIcons: Record<string, any> = {
 };
 
 const InvitedEvents = () => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

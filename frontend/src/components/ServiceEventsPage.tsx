@@ -19,6 +19,7 @@ import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { formatPrice } from '@/utils/formatPrice';
 import PhotosIcon from '@/assets/icons/photos-icon.svg';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 // ─── Module-level cache ───
 let _eventsCache: Record<string, ServiceConfirmedEvent[]> = {};
@@ -26,6 +27,7 @@ let _eventsTitleCache: Record<string, string> = {};
 let _eventsLoaded: Record<string, boolean> = {};
 
 const ServiceEventsPage = () => {
+  const { t } = useLanguage();
   const { serviceId } = useParams<{ serviceId: string }>();
   const navigate = useNavigate();
   const [events, setEvents] = useState<ServiceConfirmedEvent[]>(serviceId ? (_eventsCache[serviceId] || []) : []);
@@ -327,7 +329,7 @@ const ServiceEventsPage = () => {
               <img src={CalendarIcon} alt="" className="w-6 h-6 dark:invert opacity-80" />
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-bold text-foreground">My Events</h1>
+              <h1 className="text-2xl font-bold text-foreground">{t("my_events")}</h1>
               <div className="flex items-center gap-3 mt-1 flex-wrap">
                 {serviceTitle && <span className="text-sm text-muted-foreground font-medium">{serviceTitle}</span>}
                 {serviceTitle && <span className="text-muted-foreground text-sm">·</span>}
@@ -383,7 +385,7 @@ const ServiceEventsPage = () => {
             <section>
               <SectionHeader
                 icon={<img src={CalendarIcon} alt="" className="w-4 h-4 dark:invert text-primary" />}
-                label="Upcoming"
+                label={t("upcoming")}
                 count={upcomingEvents.length}
                 colorClass="bg-primary/10 text-primary"
               />

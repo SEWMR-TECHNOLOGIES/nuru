@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import nuruLogo from '@/assets/nuru-logo.png';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://api.nuru.tz/api/v1";
 
@@ -32,6 +33,7 @@ const isVideoMedia = (img: any): boolean => {
 };
 
 const GuestPost = () => {
+  const { t } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { userIsLoggedIn } = useCurrentUser();
@@ -94,8 +96,8 @@ const GuestPost = () => {
     <header className="border-b border-border px-4 py-3 flex items-center justify-between sticky top-0 bg-background z-50">
       <Link to="/"><img src={nuruLogo} alt="Nuru" className="h-8" /></Link>
       <div className="flex gap-2">
-        <Button variant="outline" size="sm" asChild><Link to="/login">Sign In</Link></Button>
-        <Button size="sm" className="bg-[hsl(var(--nuru-yellow))] hover:bg-[hsl(var(--nuru-yellow))]/90 text-foreground" asChild><Link to="/register">Sign Up</Link></Button>
+        <Button variant="outline" size="sm" asChild><Link to="/login">{t("sign_in")}</Link></Button>
+        <Button size="sm" className="bg-[hsl(var(--nuru-yellow))] hover:bg-[hsl(var(--nuru-yellow))]/90 text-foreground" asChild><Link to="/register">{t("sign_up")}</Link></Button>
       </div>
     </header>
   );
@@ -121,7 +123,7 @@ const GuestPost = () => {
           <p className="text-muted-foreground text-lg mb-4">{error || 'This post is not available'}</p>
           <p className="text-sm text-muted-foreground mb-6">Sign in to see more content on Nuru</p>
           <div className="flex gap-3 justify-center">
-            <Button asChild><Link to="/login">Sign In</Link></Button>
+            <Button asChild><Link to="/login">{t("sign_in")}</Link></Button>
             <Button variant="outline" asChild><Link to="/register">Create Account</Link></Button>
           </div>
         </div>
@@ -245,7 +247,7 @@ const GuestPost = () => {
             Sign in or create an account to glow, echo, and share this post.
           </p>
           <div className="flex gap-3 justify-center flex-wrap">
-            <Button asChild><Link to={`/login?redirect=/post/${id}`}>Sign In</Link></Button>
+            <Button asChild><Link to={`/login?redirect=/post/${id}`}>{t("sign_in")}</Link></Button>
             <Button className="bg-[hsl(var(--nuru-yellow))] hover:bg-[hsl(var(--nuru-yellow))]/90 text-foreground" asChild><Link to="/register">Create Account</Link></Button>
           </div>
         </div>

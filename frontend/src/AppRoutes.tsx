@@ -112,6 +112,7 @@ import AdminAgreements from "@/pages/admin/AdminAgreements";
 import AdminTicketedEvents from "@/pages/admin/AdminTicketedEvents";
 import AdminNameFlags from "@/pages/admin/AdminNameFlags";
 import MyIssues from "@/components/MyIssues";
+import MeetingRoom from "@/pages/MeetingRoom";
 
 // Inner component that uses router hooks (must be inside BrowserRouter)
 
@@ -211,6 +212,7 @@ function InnerRoutes() {
         <Route path="/features/invitations" element={<Invitations />} />
         <Route path="/features/nfc-cards" element={<NfcCards />} />
         <Route path="/features/payments" element={<Payments />} />
+        <Route path="/meet/:roomId" element={<MeetingRoom />} />
 
         {/* Admin Panel */}
         <Route path="/admin/login" element={<AdminLogin />} />

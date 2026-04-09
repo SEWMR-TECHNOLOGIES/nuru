@@ -14,6 +14,7 @@ import { getEventCountdown } from "@/utils/getEventCountdown";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import CountdownClock from "@/components/CountdownClock";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 // Module-level cache
 let _browseEventsCache: any[] = [];
@@ -21,6 +22,7 @@ let _browseEventsPagination: any = null;
 let _browseEventsHasLoaded = false;
 
 const BrowseTickets = () => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [events, setEvents] = useState<any[]>(_browseEventsCache);
   const [loading, setLoading] = useState(!_browseEventsHasLoaded);
@@ -110,10 +112,10 @@ const BrowseTickets = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <img src={TicketIcon} alt="Tickets" className="w-5 h-5 dark:invert" />
+            <img src={TicketIcon} alt={t("tickets")} className="w-5 h-5 dark:invert" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-foreground">Browse Tickets</h1>
+            <h1 className="text-xl font-bold text-foreground">{t("browse_tickets")}</h1>
             <p className="text-sm text-muted-foreground">Find events and purchase tickets</p>
           </div>
         </div>
@@ -129,7 +131,7 @@ const BrowseTickets = () => {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
-          placeholder="Search events by name or location..."
+          placeholder={t('search_events_tickets')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"

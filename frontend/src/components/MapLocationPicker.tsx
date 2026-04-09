@@ -1,39 +1,12 @@
-import { useState, useEffect, useRef } from "react";
-import { Navigation, Loader2, Search, X } from "lucide-react";
-import LocationIcon from '@/assets/icons/location-icon.svg';
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Navigation, Loader2, Search, X, MapPin, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-
-// Google Maps–style red drop pin SVG
-const pinSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none">
-  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#EA4335"/>
-  <circle cx="12" cy="9" r="2.5" fill="white"/>
-</svg>`;
-
-const pinDataUrl = `data:image/svg+xml;base64,${btoa(pinSvg)}`;
-
-const DefaultIcon = L.icon({
-  iconUrl: pinDataUrl,
-  iconSize: [40, 40],
-  iconAnchor: [20, 40],
-  popupAnchor: [0, -40],
-});
-
-L.Marker.prototype.options.icon = DefaultIcon;
-
-// Shadow for the center pin (small ellipse below the pin)
-const centerPinShadow = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="6" viewBox="0 0 20 6"><ellipse cx="10" cy="3" rx="8" ry="3" fill="rgba(0,0,0,0.25)"/></svg>`;
+import { addOpenSourceTiles, DEFAULT_MAP_CENTER, VenueMarkerIcon } from "@/lib/maps/leaflet";
 
 export interface LocationData {
   latitude: number;
@@ -49,138 +22,202 @@ interface MapLocationPickerProps {
   placeholder?: string;
 }
 
-const MapLocationPicker = ({ value, onChange, label = "Location", placeholder = "Search or pick on map" }: MapLocationPickerProps) => {
-  const [open, setOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+interface NominatimAddress {
+  amenity?: string;
+  building?: string;
+  tourism?: string;
+  shop?: string;
+  road?: string;
+  street?: string;
+  neighbourhood?: string;
+  suburb?: string;
+  quarter?: string;
+  city?: string;
+  town?: string;
+  village?: string;
+  municipality?: string;
+  state?: string;
+  region?: string;
+}
+
+const DEFAULT_ZOOM = 12;
+const SELECTED_ZOOM = 16;
+
+function formatReadableAddress(addr?: NominatimAddress, displayName?: string): string {
+  if (!addr) return displayName || "";
+  const parts: string[] = [];
+
+  const place = addr.amenity || addr.building || addr.tourism || addr.shop;
+  if (place) parts.push(place);
+
+  const road = addr.road || addr.street;
+  if (road) parts.push(road);
+
+  const area = addr.neighbourhood || addr.suburb || addr.quarter;
+  if (area && parts.length < 3) parts.push(area);
+
+  const city = addr.city || addr.town || addr.village || addr.municipality;
+  if (city) parts.push(city);
+
+  const state = addr.state || addr.region;
+  if (state && parts.length < 4) parts.push(state);
+
+  return parts.length > 0 ? parts.join(", ") : displayName || "";
+}
+
+function extractShortName(addr?: NominatimAddress, displayName?: string): string {
+  if (!addr) return displayName?.split(",")[0]?.trim() || "";
+  const name = addr.amenity || addr.building || addr.tourism || addr.shop || addr.road || addr.neighbourhood || addr.suburb;
+  return name || displayName?.split(",")[0]?.trim() || "";
+}
+
+function sameCoordinates(aLat: number, aLng: number, bLat: number, bLng: number) {
+  return Math.abs(aLat - bLat) < 0.00001 && Math.abs(aLng - bLng) < 0.00001;
+}
+
+const MapLocationPicker = ({
+  value,
+  onChange,
+  label = "Location",
+  placeholder = "Search or pin a location on the map",
+}: MapLocationPickerProps) => {
+  const [searchQuery, setSearchQuery] = useState(value?.name || "");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(value || null);
   const [isLocating, setIsLocating] = useState(false);
-  const [isPanning, setIsPanning] = useState(false);
-  
+
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reverseGeocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reverseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Reverse-geocode a lat/lng
-  const reverseGeocode = async (lat: number, lng: number): Promise<LocationData> => {
+  const reverseGeocode = useCallback(async (lat: number, lng: number): Promise<LocationData> => {
     try {
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`
       );
       const data = await res.json();
-      const name =
-        data.address?.road ||
-        data.address?.city ||
-        data.address?.town ||
-        data.address?.village ||
-        data.address?.county ||
-        "Selected location";
-      return { latitude: lat, longitude: lng, name, address: data.display_name };
+      const addr = data.address as NominatimAddress | undefined;
+      return {
+        latitude: lat,
+        longitude: lng,
+        name: extractShortName(addr, data.display_name),
+        address: formatReadableAddress(addr, data.display_name),
+      };
     } catch {
       return { latitude: lat, longitude: lng, name: "Selected location" };
     }
-  };
+  }, []);
 
-  // Initialize map when dialog opens
+  const placeMarker = useCallback((map: L.Map, lat: number, lng: number) => {
+    if (markerRef.current) {
+      markerRef.current.setLatLng([lat, lng]);
+      return;
+    }
+
+    markerRef.current = L.marker([lat, lng], { icon: VenueMarkerIcon }).addTo(map);
+  }, []);
+
   useEffect(() => {
-    if (!open || !mapRef.current) return;
+    setSelectedLocation(value || null);
+    setSearchQuery(value?.name || "");
+  }, [value?.latitude, value?.longitude, value?.name, value?.address]);
 
-    const timer = setTimeout(() => {
-      if (!mapRef.current || mapInstanceRef.current) return;
+  useEffect(() => {
+    if (!mapRef.current || mapInstanceRef.current) return;
 
-      const defaultCenter: [number, number] = selectedLocation
-        ? [selectedLocation.latitude, selectedLocation.longitude]
-        : [-6.7924, 39.2083]; // Dar es Salaam default
+    const initialLocation = value || selectedLocation;
+    const center: [number, number] = initialLocation
+      ? [initialLocation.latitude, initialLocation.longitude]
+      : DEFAULT_MAP_CENTER;
 
-      const map = L.map(mapRef.current, {
-        center: defaultCenter,
-        zoom: selectedLocation ? 15 : 12,
-        zoomControl: false,
-      });
+    const map = L.map(mapRef.current, {
+      center,
+      zoom: initialLocation ? SELECTED_ZOOM : DEFAULT_ZOOM,
+      zoomControl: false,
+    });
 
-      // Zoom controls bottom-right
-      L.control.zoom({ position: "bottomright" }).addTo(map);
+    L.control.zoom({ position: "bottomright" }).addTo(map);
+    addOpenSourceTiles(map);
 
-      // CartoDB Voyager tiles — beautiful free tiles
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-        subdomains: "abcd",
-        maxZoom: 19,
-      }).addTo(map);
+    if (initialLocation) {
+      placeMarker(map, initialLocation.latitude, initialLocation.longitude);
+    }
 
-      // Place marker if value already exists
-      if (selectedLocation) {
-        markerRef.current = L.marker([selectedLocation.latitude, selectedLocation.longitude])
-          .addTo(map)
-          .bindPopup(selectedLocation.name);
-      }
+    const handleMoveEnd = () => {
+      const currentCenter = map.getCenter();
+      placeMarker(map, currentCenter.lat, currentCenter.lng);
 
-      // On map move → update the center pin's location and reverse-geocode
-      const handleMove = () => {
-        setIsPanning(true);
-        if (reverseGeocodeTimerRef.current) clearTimeout(reverseGeocodeTimerRef.current);
-      };
-
-      const handleMoveEnd = () => {
-        const center = map.getCenter();
-        const lat = center.lat;
-        const lng = center.lng;
-
-        // Place / move the marker to center
-        if (markerRef.current) {
-          markerRef.current.setLatLng([lat, lng]);
-        } else {
-          markerRef.current = L.marker([lat, lng]).addTo(map);
-        }
-
-        setIsPanning(false);
-
-        // Debounced reverse geocode
-        reverseGeocodeTimerRef.current = setTimeout(async () => {
-          const loc = await reverseGeocode(lat, lng);
-          setSelectedLocation(loc);
-        }, 300);
-      };
-
-      // Click to place marker immediately
-      map.on("click", async (e: L.LeafletMouseEvent) => {
-        const { lat, lng } = e.latlng;
-        if (markerRef.current) {
-          markerRef.current.setLatLng([lat, lng]);
-        } else {
-          markerRef.current = L.marker([lat, lng]).addTo(map);
-        }
-        map.setView([lat, lng], map.getZoom());
-        const loc = await reverseGeocode(lat, lng);
+      if (reverseTimerRef.current) clearTimeout(reverseTimerRef.current);
+      reverseTimerRef.current = setTimeout(async () => {
+        const loc = await reverseGeocode(currentCenter.lat, currentCenter.lng);
         setSelectedLocation(loc);
-      });
+      }, 350);
+    };
 
-      map.on("move", handleMove);
-      map.on("moveend", handleMoveEnd);
+    const handleClick = async (event: L.LeafletMouseEvent) => {
+      const { lat, lng } = event.latlng;
+      placeMarker(map, lat, lng);
+      map.setView([lat, lng], Math.max(map.getZoom(), SELECTED_ZOOM), { animate: false });
+      const loc = await reverseGeocode(lat, lng);
+      setSelectedLocation(loc);
+    };
 
-      mapInstanceRef.current = map;
+    map.on("moveend", handleMoveEnd);
+    map.on("click", handleClick);
+    mapInstanceRef.current = map;
 
-      setTimeout(() => map.invalidateSize(), 300);
-    }, 200);
+    const resizeTimer = window.setTimeout(() => map.invalidateSize(), 180);
+    const mapElement = mapRef.current;
+    const resizeObserver = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(() => map.invalidateSize())
+      : null;
+
+    resizeObserver?.observe(mapElement);
 
     return () => {
-      clearTimeout(timer);
-      if (reverseGeocodeTimerRef.current) clearTimeout(reverseGeocodeTimerRef.current);
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
+      window.clearTimeout(resizeTimer);
+      if (reverseTimerRef.current) clearTimeout(reverseTimerRef.current);
+      resizeObserver?.disconnect();
+      map.off("moveend", handleMoveEnd);
+      map.off("click", handleClick);
+      map.remove();
+      mapInstanceRef.current = null;
+      markerRef.current = null;
+    };
+  }, [placeMarker, reverseGeocode, selectedLocation, value]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (!selectedLocation) {
+      if (markerRef.current) {
+        markerRef.current.remove();
         markerRef.current = null;
       }
-    };
-  }, [open]);
+      map.setView(DEFAULT_MAP_CENTER, DEFAULT_ZOOM, { animate: false });
+      return;
+    }
 
-  // Search with debounce
+    placeMarker(map, selectedLocation.latitude, selectedLocation.longitude);
+    const currentCenter = map.getCenter();
+
+    if (!sameCoordinates(currentCenter.lat, currentCenter.lng, selectedLocation.latitude, selectedLocation.longitude)) {
+      map.setView(
+        [selectedLocation.latitude, selectedLocation.longitude],
+        Math.max(map.getZoom(), SELECTED_ZOOM),
+        { animate: false }
+      );
+    }
+  }, [placeMarker, selectedLocation]);
+
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    if (!searchQuery.trim() || searchQuery.length < 3) {
+
+    if (!searchQuery.trim() || searchQuery.trim().length < 3) {
       setSearchResults([]);
       setSearching(false);
       return;
@@ -190,38 +227,34 @@ const MapLocationPicker = ({ value, onChange, label = "Location", placeholder = 
     searchTimerRef.current = setTimeout(async () => {
       try {
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=5&countrycodes=tz`
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=5&addressdetails=1`
         );
         const data = await res.json();
-        setSearchResults(data);
+        setSearchResults(Array.isArray(data) ? data : []);
       } catch {
         setSearchResults([]);
       } finally {
         setSearching(false);
       }
-    }, 400);
+    }, 350);
+
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    };
   }, [searchQuery]);
 
   const selectSearchResult = (result: any) => {
     const lat = parseFloat(result.lat);
     const lng = parseFloat(result.lon);
-    const name = result.display_name?.split(",")[0] || "Selected";
+    const addr = result.address as NominatimAddress | undefined;
+    const name = extractShortName(addr, result.display_name);
 
     setSelectedLocation({
       latitude: lat,
       longitude: lng,
       name,
-      address: result.display_name,
+      address: formatReadableAddress(addr, result.display_name),
     });
-
-    if (mapInstanceRef.current) {
-      if (markerRef.current) {
-        markerRef.current.setLatLng([lat, lng]);
-      } else {
-        markerRef.current = L.marker([lat, lng]).addTo(mapInstanceRef.current);
-      }
-      mapInstanceRef.current.setView([lat, lng], 16);
-    }
 
     setSearchResults([]);
     setSearchQuery(name);
@@ -237,16 +270,6 @@ const MapLocationPicker = ({ value, onChange, label = "Location", placeholder = 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
-
-        if (mapInstanceRef.current) {
-          if (markerRef.current) {
-            markerRef.current.setLatLng([latitude, longitude]);
-          } else {
-            markerRef.current = L.marker([latitude, longitude]).addTo(mapInstanceRef.current);
-          }
-          mapInstanceRef.current.setView([latitude, longitude], 16);
-        }
-
         const loc = await reverseGeocode(latitude, longitude);
         setSelectedLocation(loc);
         setSearchQuery(loc.name);
@@ -265,67 +288,60 @@ const MapLocationPicker = ({ value, onChange, label = "Location", placeholder = 
       toast.error("Please select a location first");
       return;
     }
+
     onChange(selectedLocation);
-    setOpen(false);
   };
 
   const clearLocation = () => {
-    onChange(null);
     setSelectedLocation(null);
     setSearchQuery("");
+    setSearchResults([]);
+    onChange(null);
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <Label>{label}</Label>
-      <div className="flex gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          className="flex-1 justify-start text-left font-normal h-10"
-          onClick={() => setOpen(true)}
-        >
-          <img src={LocationIcon} alt="Location" className="w-4 h-4 mr-2 flex-shrink-0 dark:invert" />
-          <span className={value ? "text-foreground" : "text-muted-foreground"}>
-            {value?.name || placeholder}
-          </span>
-        </Button>
-        {value && (
-          <Button type="button" variant="ghost" size="icon" className="h-10 w-10" onClick={clearLocation}>
-            <X className="w-4 h-4" />
-          </Button>
-        )}
-      </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Pick Location</DialogTitle>
-            <DialogDescription>Search, tap, or drag the map to place the pin</DialogDescription>
-          </DialogHeader>
+      <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+        <div className="relative">
+          <div ref={mapRef} className="h-[320px] w-full bg-muted md:h-[380px]" />
 
-          <div className="space-y-3 flex-1 overflow-hidden flex flex-col">
-            {/* Search + Use my location */}
+          <div className="absolute left-3 right-3 top-3 z-[1000] space-y-2">
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search places in Tanzania..."
+                  placeholder={placeholder}
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  className="h-11 rounded-xl border-0 bg-background/95 pl-9 pr-9 shadow-lg backdrop-blur"
                   autoComplete="off"
                 />
                 {searching && (
                   <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
                 )}
+                {!searching && searchQuery && (
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setSearchResults([]);
+                    }}
+                  >
+                    <X className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                )}
               </div>
+
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
                 onClick={useMyLocation}
                 disabled={isLocating}
+                className="h-11 w-11 shrink-0 rounded-xl border-0 bg-background/95 shadow-lg backdrop-blur"
                 title="Use my location"
               >
                 {isLocating ? (
@@ -336,74 +352,63 @@ const MapLocationPicker = ({ value, onChange, label = "Location", placeholder = 
               </Button>
             </div>
 
-            {/* Search results */}
             {searchResults.length > 0 && (
-              <div className="border border-border rounded-lg max-h-32 overflow-y-auto">
-                {searchResults.map((r, i) => (
-                  <button
-                    key={i}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors border-b border-border last:border-b-0"
-                    onClick={() => selectSearchResult(r)}
-                  >
-                    <div className="font-medium text-foreground line-clamp-1">
-                      {r.display_name?.split(",")[0]}
-                    </div>
-                    <div className="text-xs text-muted-foreground line-clamp-1">
-                      {r.display_name}
-                    </div>
-                  </button>
-                ))}
+              <div className="overflow-hidden rounded-2xl bg-background/95 shadow-lg backdrop-blur">
+                {searchResults.map((result, index) => {
+                  const addr = result.address as NominatimAddress | undefined;
+                  const name = extractShortName(addr, result.display_name);
+                  const readable = formatReadableAddress(addr, result.display_name);
+
+                  return (
+                    <button
+                      key={`${result.place_id ?? index}-${index}`}
+                      type="button"
+                      className="flex w-full items-start gap-3 border-b border-border/60 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-muted/50"
+                      onClick={() => selectSearchResult(result)}
+                    >
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium text-foreground">{name}</div>
+                        <div className="truncate text-xs text-muted-foreground">{readable}</div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
+          </div>
+        </div>
 
-            {/* Map with center pin overlay */}
-            <div className="relative rounded-lg border border-border overflow-hidden">
-              <div
-                ref={mapRef}
-                className="z-0"
-                style={{ height: "300px", width: "100%" }}
-              />
-              {/* Floating center pin — visible while panning (marker hides during drag) */}
-              <div
-                className="pointer-events-none absolute inset-0 flex items-center justify-center z-[1000]"
-                style={{ transition: "transform 0.15s ease" }}
-              >
-                <div className="flex flex-col items-center" style={{ transform: isPanning ? "translateY(-8px)" : "translateY(0)" }}>
-                  <img src={pinDataUrl} alt="" className="w-10 h-10" style={{ marginBottom: "-4px", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.3))" }} />
-                  <img src={`data:image/svg+xml;base64,${btoa(centerPinShadow)}`} alt="" className="w-5 h-1.5" style={{ opacity: isPanning ? 0.4 : 0.6 }} />
-                </div>
+        <div className="space-y-4 border-t border-border bg-background p-4">
+          {selectedLocation ? (
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10">
+                <MapPin className="h-5 w-5 text-destructive" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-foreground">{selectedLocation.name}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {selectedLocation.address || `${selectedLocation.latitude.toFixed(5)}, ${selectedLocation.longitude.toFixed(5)}`}
+                </p>
               </div>
             </div>
-
-            {/* Hint text */}
-            <p className="text-xs text-muted-foreground text-center">
-              Drag the map to move the pin to your exact location
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Click anywhere on the map, drag the map to refine the pin, or search for a place.
             </p>
+          )}
 
-            {/* Selected location info */}
-            {selectedLocation && (
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/20">
-                <img src={LocationIcon} alt="Location" className="w-4 h-4 flex-shrink-0 dark:invert" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{selectedLocation.name}</p>
-                  {selectedLocation.address && (
-                    <p className="text-xs text-muted-foreground truncate">{selectedLocation.address}</p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="flex gap-3 pt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setOpen(false)}>
-              Cancel
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" className="rounded-xl" onClick={clearLocation}>
+              Clear
             </Button>
-            <Button className="flex-1" onClick={confirmLocation} disabled={!selectedLocation}>
-              <img src={LocationIcon} alt="Location" className="w-4 h-4 mr-2 dark:invert" /> Confirm Location
+            <Button type="button" className="ml-auto rounded-xl" onClick={confirmLocation} disabled={!selectedLocation}>
+              <Check className="mr-2 h-4 w-4" />
+              Use this location
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </div>
     </div>
   );
 };

@@ -7,65 +7,51 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import NuruChatbot from './NuruChatbot';
 import { useNavigate } from 'react-router-dom';
-
-const helpCategories = [
-  {
-    icon: BookOpen,
-    title: 'Getting Started',
-    description: 'Learn the basics of using Nuru'
-  },
-  {
-    icon: Users,
-    title: 'Event Management',
-    description: 'Managing events, committees, and services'
-  },
-  {
-    icon: Settings,
-    title: 'Account Settings',
-    description: 'Profile, notifications, and preferences'
-  },
-  {
-    icon: Shield,
-    title: 'Safety & Privacy',
-    description: 'Security features and privacy controls'
-  }
-];
-
-const faqs = [
-  {
-    question: 'How do I create my first event?',
-    answer: 'To create an event, click the "Create Event" button in the sidebar, fill out the event details form including date, location, and expected guests. Our system will automatically suggest relevant services for your event type.'
-  },
-  {
-    question: 'How do I find service providers?',
-    answer: 'Visit the "Find Services" section to browse verified service providers. You can filter by category, location, and price range. All providers show ratings and reviews from previous clients.'
-  },
-  {
-    question: 'Can I manage multiple events at once?',
-    answer: 'Yes! The "My Events" section shows all your events. You can switch between different events and manage their individual committees, services, and invitations.'
-  },
-  {
-    question: 'How do I track contributions and pledges?',
-    answer: 'Each event has a dedicated contributions section where you can record monetary pledges, service contributions, and physical items. You can track who has contributed what and their payment status.'
-  },
-  {
-    question: 'Is my data secure on Nuru?',
-    answer: 'We take security seriously. All your data is encrypted and stored locally on your device. We recommend regular backups of important event information.'
-  },
-  {
-    question: 'How do I verify my account?',
-    answer: 'Account verification helps build trust in the community. Upload a valid ID and phone number verification to get your verified badge, which increases your credibility as a service provider.'
-  }
-];
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const Help = () => {
+  const { t } = useLanguage();
   useWorkspaceMeta({
-    title: 'Help Center',
-    description: 'Get help, find answers to common questions, and contact support.'
+    title: t('help_center'),
+    description: t('help_subtitle'),
   });
 
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
+
+  const helpCategories = [
+    { icon: BookOpen, title: t('getting_started'), description: t('learn_basics') },
+    { icon: Users, title: t('event_management'), description: t('managing_events_desc') },
+    { icon: Settings, title: t('account_settings'), description: t('profile_notif_prefs') },
+    { icon: Shield, title: t('safety_privacy'), description: t('security_features_desc') },
+  ];
+
+  const faqs = [
+    {
+      question: 'How do I create my first event?',
+      answer: `To create an event, click the "${t('create_event')}" button in the sidebar, fill out the event details form including date, location, and expected guests. Our system will automatically suggest relevant services for your event type.`
+    },
+    {
+      question: 'How do I find service providers?',
+      answer: `Visit the "${t('find_services')}" section to browse verified service providers. You can filter by category, location, and price range. All providers show ratings and reviews from previous clients.`
+    },
+    {
+      question: 'Can I manage multiple events at once?',
+      answer: `Yes! The "${t('my_events')}" section shows all your events. You can switch between different events and manage their individual committees, services, and invitations.`
+    },
+    {
+      question: 'How do I track contributions and pledges?',
+      answer: 'Each event has a dedicated contributions section where you can record monetary pledges, service contributions, and physical items. You can track who has contributed what and their payment status.'
+    },
+    {
+      question: 'Is my data secure on Nuru?',
+      answer: 'We take security seriously. All your data is encrypted and stored locally on your device. We recommend regular backups of important event information.'
+    },
+    {
+      question: 'How do I verify my account?',
+      answer: 'Account verification helps build trust in the community. Upload a valid ID and phone number verification to get your verified badge, which increases your credibility as a service provider.'
+    }
+  ];
 
   const filteredFaqs = faqs.filter(faq =>
     faq.question.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -75,17 +61,16 @@ const Help = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold mb-2">Help Center</h1>
-        <p className="text-muted-foreground">Get help and find answers to common questions</p>
+        <h1 className="text-3xl font-bold mb-2">{t('help_center')}</h1>
+        <p className="text-muted-foreground">{t('help_subtitle')}</p>
       </div>
 
-      {/* Search Bar */}
       <Card>
         <CardContent className="p-6">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search for help..."
+              placeholder={t('search_for_help')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -94,22 +79,21 @@ const Help = () => {
         </CardContent>
       </Card>
 
-      {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('/live-chat')}>
           <CardContent className="p-6 text-center">
             <MessageCircle className="w-8 h-8 text-primary mx-auto mb-3" />
-            <h3 className="font-semibold mb-2">Live Chat</h3>
-            <p className="text-sm text-muted-foreground mb-4">Chat with our support team</p>
-            <Button size="sm" className="w-full">Start Chat</Button>
+            <h3 className="font-semibold mb-2">{t('live_chat')}</h3>
+            <p className="text-sm text-muted-foreground mb-4">{t('chat_with_support')}</p>
+            <Button size="sm" className="w-full">{t('start_chat')}</Button>
           </CardContent>
         </Card>
         
         <Card className="hover:shadow-md transition-shadow cursor-pointer">
           <CardContent className="p-6 text-center">
             <Phone className="w-8 h-8 text-primary mx-auto mb-3" />
-            <h3 className="font-semibold mb-2">Call Support</h3>
-            <p className="text-sm text-muted-foreground mb-4">Speak directly with our team</p>
+            <h3 className="font-semibold mb-2">{t('call_support')}</h3>
+            <p className="text-sm text-muted-foreground mb-4">{t('speak_with_team')}</p>
             <Button size="sm" variant="outline" className="w-full">+255 (0) 653 750 805</Button>
           </CardContent>
         </Card>
@@ -117,16 +101,15 @@ const Help = () => {
         <Card className="hover:shadow-md transition-shadow cursor-pointer">
           <CardContent className="p-6 text-center">
             <Mail className="w-8 h-8 text-primary mx-auto mb-3" />
-            <h3 className="font-semibold mb-2">Email Us</h3>
-            <p className="text-sm text-muted-foreground mb-4">Send us your questions</p>
+            <h3 className="font-semibold mb-2">{t('email_us')}</h3>
+            <p className="text-sm text-muted-foreground mb-4">{t('send_us_questions')}</p>
             <Button size="sm" variant="outline" className="w-full">support@nuru.tz</Button>
           </CardContent>
         </Card>
       </div>
 
-      {/* Help Categories */}
       <div>
-        <h2 className="text-2xl font-bold mb-4">Browse by Category</h2>
+        <h2 className="text-2xl font-bold mb-4">{t('browse_by_category')}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {helpCategories.map((category, index) => (
             <Card key={index} className="hover:shadow-md transition-shadow cursor-pointer">
@@ -144,10 +127,9 @@ const Help = () => {
         </div>
       </div>
 
-      {/* FAQ Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Frequently Asked Questions</CardTitle>
+          <CardTitle>{t('frequently_asked')}</CardTitle>
         </CardHeader>
         <CardContent>
           <Accordion type="single" collapsible className="w-full">
@@ -168,12 +150,11 @@ const Help = () => {
       {filteredFaqs.length === 0 && searchTerm && (
         <Card>
           <CardContent className="p-12 text-center">
-            <p className="text-muted-foreground">No help articles found matching your search.</p>
+            <p className="text-muted-foreground">{t('no_help_articles')}</p>
           </CardContent>
         </Card>
       )}
 
-      {/* AI Chatbot */}
       <NuruChatbot />
     </div>
   );

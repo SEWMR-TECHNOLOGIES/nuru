@@ -3,8 +3,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Cookie, Shield, Settings2 } from "lucide-react";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const CookieConsent = () => {
+  const { t } = useLanguage();
   const [visible, setVisible] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
 

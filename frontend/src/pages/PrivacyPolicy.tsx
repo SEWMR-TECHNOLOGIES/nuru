@@ -3,8 +3,10 @@ import { Link } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const PrivacyPolicy = () => {
+  const { t } = useLanguage();
   useMeta({
     title: "Privacy Policy | Nuru",
     description: "Learn how Nuru Workspace collects, uses, and protects your personal information, including media content, event data, and payment details."
@@ -187,7 +189,7 @@ const PrivacyPolicy = () => {
                 <Link to="/contact">Contact us</Link>
               </Button>
               <Button asChild variant="outline" className="rounded-full h-10 px-6">
-                <Link to="/terms">Terms of Service</Link>
+                <Link to="/terms">{t("terms_of_service")}</Link>
               </Button>
             </div>
           </motion.div>

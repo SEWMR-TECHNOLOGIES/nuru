@@ -32,6 +32,7 @@ from .whatsapp_admin import router as whatsapp_admin_router
 from .issues import router as issues_router
 from .agreements import router as agreements_router
 from .card_templates import router as card_templates_router
+from .meetings import router as meetings_router
 
 # All routers to be included in main app
 all_routers = [
@@ -66,6 +67,7 @@ all_routers = [
     issues_router,             # /issues/...
     agreements_router,         # /agreements/...
     card_templates_router,     # /card-templates/... + /events/.../card-template
+    meetings_router,           # /events/.../meetings
 ]
 
 __all__ = [
@@ -100,4 +102,5 @@ __all__ = [
     "all_routers",
     "agreements_router",
     "card_templates_router",
+    "meetings_router",
 ]

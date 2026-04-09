@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatPrice } from '@/utils/formatPrice';
 import { formatDateMedium } from '@/utils/formatDate';
 import type { EventContribution } from '@/lib/api/types';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface ContributorDetailDialogProps {
   open: boolean;
@@ -15,6 +16,7 @@ interface ContributorDetailDialogProps {
 }
 
 const ContributorDetailDialog = ({ open, onOpenChange, contributorName, contributions }: ContributorDetailDialogProps) => {
+  const { t } = useLanguage();
   const pledged = contributions.filter(c => c.status === 'pending').reduce((s, c) => s + c.amount, 0);
   const paid = contributions.filter(c => c.status === 'confirmed').reduce((s, c) => s + c.amount, 0);
   const balance = Math.max(0, pledged - paid);

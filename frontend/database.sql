@@ -2431,3 +2431,40 @@ CREATE INDEX idx_agreement_versions_type ON agreement_versions(agreement_type);
 INSERT INTO agreement_versions (agreement_type, version, summary, document_path) VALUES
 ('vendor_agreement', 1, 'Covers escrow payments, cancellation rules, dispute handling, and platform fees for service providers.', '/docs/vendor-agreement.md'),
 ('organiser_agreement', 1, 'Covers contribution management, ticket sales, vendor bookings, and dispute processes for event organisers.', '/docs/organiser-agreement.md');
+
+-- ──────────────────────────────────────────────
+-- Event Meetings & Participants
+-- ──────────────────────────────────────────────
+
+CREATE TYPE meeting_status_enum AS ENUM ('scheduled', 'in_progress', 'ended');
+
+CREATE TABLE event_meetings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    scheduled_at TIMESTAMP NOT NULL,
+    duration_minutes VARCHAR(10) DEFAULT '60',
+    room_id VARCHAR(255) NOT NULL UNIQUE,
+    status meeting_status_enum DEFAULT 'scheduled',
+    ended_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE event_meeting_participants (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    meeting_id UUID NOT NULL REFERENCES event_meetings(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    invited_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    is_notified BOOLEAN DEFAULT FALSE,
+    joined_at TIMESTAMP,
+    left_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE INDEX idx_event_meetings_event_id ON event_meetings(event_id);
+CREATE INDEX idx_event_meetings_status ON event_meetings(status);
+CREATE INDEX idx_event_meeting_participants_meeting_id ON event_meeting_participants(meeting_id);
+CREATE INDEX idx_event_meeting_participants_user_id ON event_meeting_participants(user_id);

@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import nuruLogo from "@/assets/nuru-logo.png";
 import MenuIcon from "@/assets/icons/menu-icon.svg";
 import CloseIcon from "@/assets/icons/close-icon.svg";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const Header = () => {
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const location = useLocation();

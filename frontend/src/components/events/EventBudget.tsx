@@ -34,12 +34,14 @@ import type { EventBudgetItem } from '@/lib/api/types';
 import writeXlsxFile from 'write-excel-file';
 import ServiceProviderSearch from '@/components/events/ServiceProviderSearch';
 import aiIcon from '@/assets/icons/ai-icon.svg';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 // Module-level import state so it survives unmount/remount
 let _importProgress: { current: number; total: number } | null = null;
 let _importAbort = false;
 const _importListeners = new Set<(p: { current: number; total: number } | null) => void>();
 const _broadcastImport = (p: { current: number; total: number } | null) => {
+  const { t } = useLanguage();
   _importProgress = p;
   _importListeners.forEach(fn => fn(p));
 };

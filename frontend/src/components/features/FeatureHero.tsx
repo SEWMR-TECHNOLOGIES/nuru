@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface FeatureHeroProps {
   title: string;
@@ -15,6 +16,7 @@ const FeatureHero = ({
   imageAlt,
   imagePosition = "right"
 }: FeatureHeroProps) => {
+  const { t } = useLanguage();
   const isImageLeft = imagePosition === "left";
 
   return (

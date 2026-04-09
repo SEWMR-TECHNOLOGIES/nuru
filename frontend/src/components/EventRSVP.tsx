@@ -14,6 +14,7 @@ import { useEventGuests } from '@/data/useEvents';
 import { usePolling } from '@/hooks/usePolling';
 import RSVPSkeletonLoader from './events/RSVPSkeletonLoader';
 import type { EventPermissions } from '@/hooks/useEventPermissions';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 /** Convert 255xxxxxxxxx to 0xxxxxxxxx for display */
 const formatPhoneDisplay = (phone?: string | null): string => {
@@ -31,6 +32,7 @@ interface EventRSVPProps {
 }
 
 const EventRSVP = ({ eventId, eventTitle, permissions }: EventRSVPProps) => {
+  const { t } = useLanguage();
   const { guests, summary, loading, refetch } = useEventGuests(eventId || null);
   usePolling(refetch, 15000);
 
@@ -210,25 +212,25 @@ const EventRSVP = ({ eventId, eventTitle, permissions }: EventRSVPProps) => {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card><CardContent className="p-4 text-center"><div className="text-base font-semibold text-green-600">{stats.attending}</div><p className="text-xs text-muted-foreground">Attending</p></CardContent></Card>
         <Card><CardContent className="p-4 text-center"><div className="text-base font-semibold text-orange-600">{stats.pending}</div><p className="text-xs text-muted-foreground">Pending</p></CardContent></Card>
-        <Card><CardContent className="p-4 text-center"><div className="text-base font-semibold text-red-600">{stats.declined}</div><p className="text-xs text-muted-foreground">Declined</p></CardContent></Card>
-        <Card><CardContent className="p-4 text-center"><div className="text-base font-semibold text-blue-600">{stats.checked_in}</div><p className="text-xs text-muted-foreground">Checked In</p></CardContent></Card>
-        <Card><CardContent className="p-4 text-center"><div className="text-base font-semibold">{stats.total}</div><p className="text-xs text-muted-foreground">Total Invited</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><div className="text-base font-semibold text-red-600">{stats.declined}</div><p className="text-xs text-muted-foreground">{t('declined')}</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><div className="text-base font-semibold text-blue-600">{stats.checked_in}</div><p className="text-xs text-muted-foreground">{t('checked_in')}</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><div className="text-base font-semibold">{stats.total}</div><p className="text-xs text-muted-foreground">{t('total_invited')}</p></CardContent></Card>
       </div>
 
       {/* Search & Filter */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Search guests..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
+          <Input placeholder={t('search_guests')} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40"><Filter className="w-4 h-4 mr-2" /><SelectValue placeholder="Filter" /></SelectTrigger>
+          <SelectTrigger className="w-40"><Filter className="w-4 h-4 mr-2" /><SelectValue placeholder={t("filter")} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="confirmed">Attending</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="declined">Declined</SelectItem>
-            <SelectItem value="maybe">Maybe</SelectItem>
+            <SelectItem value="all">{t('all_status')}</SelectItem>
+            <SelectItem value="confirmed">{t('attending')}</SelectItem>
+            <SelectItem value="pending">{t('pending')}</SelectItem>
+            <SelectItem value="declined">{t('declined')}</SelectItem>
+            <SelectItem value="maybe">{t('maybe')}</SelectItem>
           </SelectContent>
         </Select>
       </div>

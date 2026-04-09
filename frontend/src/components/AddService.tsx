@@ -18,8 +18,10 @@ import { businessPhoneApi, type BusinessPhone } from '@/lib/api/businessPhone';
 import { agreementsApi } from '@/lib/api/agreements';
 import MapLocationPicker from '@/components/MapLocationPicker';
 import AgreementModal from '@/components/AgreementModal';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const AddService = () => {
+  const { t } = useLanguage();
   useWorkspaceMeta({
     title: 'Add Service',
     description: 'Create a new service offering and showcase your expertise to event organizers.'
@@ -178,7 +180,7 @@ const AddService = () => {
                 <Label htmlFor="title">Service Title *</Label>
                 <Input
                   id="title"
-                  placeholder="e.g., Professional Wedding Photography"
+                  placeholder={t('service_title_placeholder')}
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   required
@@ -193,7 +195,7 @@ const AddService = () => {
                   required
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a category" />
+                    <SelectValue placeholder={t('select_category')} />
                   </SelectTrigger>
                   <SelectContent>
                     {categories.map(cat => (
@@ -217,7 +219,7 @@ const AddService = () => {
                         <Loader2 className="w-4 h-4 animate-spin" />Loading types...
                       </span>
                     ) : (
-                      <SelectValue placeholder="Select a service type" />
+                      <SelectValue placeholder={t('select_service_type')} />
                     )}
                   </SelectTrigger>
                   <SelectContent>
@@ -232,7 +234,7 @@ const AddService = () => {
                 <Label htmlFor="description">Description *</Label>
                 <Textarea
                   id="description"
-                  placeholder="Describe your service, experience, and what makes you unique..."
+                  placeholder={t('describe_service')}
                   rows={4}
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -308,7 +310,7 @@ const AddService = () => {
               {businessPhones.length > 0 && (
                 <Select value={selectedPhoneId} onValueChange={setSelectedPhoneId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a verified phone" />
+                    <SelectValue placeholder={t('select_verified_phone')} />
                   </SelectTrigger>
                   <SelectContent>
                     {businessPhones.filter(p => p.verification_status === 'verified').map(p => (

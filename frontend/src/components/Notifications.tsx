@@ -11,6 +11,7 @@ import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useNotifications } from '@/data/useSocial';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getTimeAgo } from '@/utils/getTimeAgo';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const getIcon = (type: string) => {
   switch (type) {
@@ -266,6 +267,7 @@ const NotificationItem = ({ notification, onMarkRead }: { notification: any; onM
 };
 
 const Notifications = () => {
+  const { t } = useLanguage();
   useWorkspaceMeta({
     title: 'Notifications',
     description: 'Stay updated with glows, echoes, event invitations, and more on Nuru.'
@@ -338,7 +340,7 @@ const Notifications = () => {
       {notifications.length === 0 ? (
         <div className="text-center py-16">
           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-            <img src={BellIcon} alt="Notifications" className="w-7 h-7" />
+            <img src={BellIcon} alt={t("notifications")} className="w-7 h-7" />
           </div>
           <h3 className="font-medium text-foreground mb-1">No notifications yet</h3>
           <p className="text-sm text-muted-foreground">

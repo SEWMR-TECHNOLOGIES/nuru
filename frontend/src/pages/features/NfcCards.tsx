@@ -4,12 +4,14 @@ import FeatureGrid from "@/components/features/FeatureGrid";
 import FeatureStatement from "@/components/features/FeatureStatement";
 import illustrationImg from "@/assets/illustration-nfc-cards.jpg";
 import { useMeta } from "@/hooks/useMeta";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const NfcCards = () => {
+  const { t } = useLanguage();
   const useCases = [
-    { title: "Event check-ins", description: "Instant tap-to-enter for seamless guest arrivals" },
+    { title: "Event check-ins", description: "No queues. No paper lists. Just tap and walk in." },
     { title: "Contact sharing", description: "Exchange details with a simple tap" },
-    { title: "Digital business cards", description: "Professional networking made effortless" },
+    { title: "Digital business cards", description: "Professional networking at conferences and corporate events" },
     { title: "Guest book signing", description: "Digital signatures and messages" },
     { title: "Conference networking", description: "Connect attendees instantly" },
     { title: "Info access", description: "Menus, schedules, and venue details on tap" }
@@ -24,7 +26,7 @@ const NfcCards = () => {
 
   useMeta({
     title: "NFC Smart Cards",
-    description: "Seamless guest check-ins and instant event access with Nuru's NFC-enabled smart cards."
+    description: "No queues. No paper lists. Tap and walk in with Nuru's NFC-enabled smart cards."
   });
 
   return (
@@ -52,7 +54,7 @@ const NfcCards = () => {
       />
 
       <FeatureStatement
-        statement="The future of events is contactless. Smart cards bridge the physical and digital experience seamlessly."
+        statement="The future of events is contactless. Every guest deserves a warm welcome without the wait."
       />
     </Layout>
   );

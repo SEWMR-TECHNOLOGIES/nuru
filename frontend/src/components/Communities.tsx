@@ -12,8 +12,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useCommunities } from '@/data/useSocial';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const Communities = () => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   useWorkspaceMeta({
     title: 'Communities',
@@ -195,20 +197,20 @@ const Communities = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="name">Community Name</Label>
+                <Label htmlFor="name">{t('community_name')}</Label>
                 <Input
                   id="name"
-                  placeholder="e.g., Wedding Planners"
+                  placeholder={t('community_name_placeholder')}
                   value={newCommunity.name}
                   onChange={(e) => setNewCommunity({ ...newCommunity, name: e.target.value })}
                   disabled={isSubmitting}
                 />
               </div>
               <div>
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description">{t('description')}</Label>
                 <Textarea
                   id="description"
-                  placeholder="Describe your community..."
+                  placeholder={t('describe_community')}
                   value={newCommunity.description}
                   onChange={(e) => setNewCommunity({ ...newCommunity, description: e.target.value })}
                   rows={4}
@@ -225,10 +227,10 @@ const Communities = () => {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating...
+                    {t('creating')}
                   </>
                 ) : (
-                  'Create Community'
+                  t('create_community')
                 )}
               </Button>
             </DialogFooter>
@@ -240,7 +242,7 @@ const Communities = () => {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
         <Input
-          placeholder="Search communities..."
+          placeholder={t('search_communities')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"
@@ -250,7 +252,7 @@ const Communities = () => {
       {/* My Communities */}
       {myFilteredCommunities.length > 0 && (
         <div>
-          <h2 className="text-xl font-semibold text-foreground mb-4">My Communities</h2>
+          <h2 className="text-xl font-semibold text-foreground mb-4">{t('my_communities')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {myFilteredCommunities.map((community) => (
               <Card key={community.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/communities/${community.id}`)}>

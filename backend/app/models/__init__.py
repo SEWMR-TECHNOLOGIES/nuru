@@ -84,3 +84,4 @@ from models.whatsapp import WAConversation, WAMessage
 from models.issues import IssueCategory, Issue, IssueResponse
 from models.agreements import AgreementVersion, UserAgreementAcceptance
 from models.card_templates import InvitationCardTemplate
+from models.meetings import EventMeeting, EventMeetingParticipant
