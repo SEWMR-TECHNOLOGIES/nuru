@@ -57,4 +57,6 @@ export const meetingsApi = {
     post(`/events/${eventId}/meetings/${meetingId}/end`, {}),
   getToken: (eventId: string, meetingId: string) =>
     post(`/events/${eventId}/meetings/${meetingId}/token`, {}),
+  getByRoom: (roomId: string) => get(`/meetings/room/${roomId}`),
+  myMeetings: () => get(`/meetings/my`),
 };

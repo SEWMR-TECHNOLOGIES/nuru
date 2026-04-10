@@ -107,6 +107,7 @@ const MeetingUI = ({ onLeave }: { onLeave: () => void }) => {
               const participant = trackRef.participant;
               const isLocal = participant.identity === localParticipant?.identity;
               const isMuted = !participant.isMicrophoneEnabled;
+              const displayName = participant.name || (isLocal ? 'You' : 'Participant');
 
               return (
                 <div
@@ -123,14 +124,14 @@ const MeetingUI = ({ onLeave }: { onLeave: () => void }) => {
                       <div className="w-16 h-16 rounded-2xl bg-primary/15 flex items-center justify-center">
                         <Users className="w-8 h-8 text-primary" />
                       </div>
-                      <span className="text-white/50 text-sm">{participant.name || 'Participant'}</span>
+                      <span className="text-white/50 text-sm">{displayName}</span>
                     </div>
                   )}
                   {/* Name overlay */}
                   <div className="absolute bottom-2 left-2 px-2 py-1 rounded-md bg-black/60 flex items-center gap-1.5">
                     {isMuted && <MicOff className="w-3 h-3 text-red-400" />}
                     <span className="text-white text-[11px] font-medium">
-                      {isLocal ? 'You' : (participant.name || 'Participant')}
+                      {isLocal ? 'You' : displayName}
                     </span>
                   </div>
                 </div>
@@ -152,13 +153,14 @@ const MeetingUI = ({ onLeave }: { onLeave: () => void }) => {
               {participants.map((p) => {
                 const isLocal = p.identity === localParticipant?.identity;
                 const isMuted = !p.isMicrophoneEnabled;
+                const displayName = p.name || (isLocal ? 'You' : 'Participant');
                 return (
                   <div key={p.identity} className="flex items-center gap-2.5 px-3 py-2 hover:bg-white/5">
                     <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center text-primary text-xs font-semibold">
-                      {(p.name || '?')[0].toUpperCase()}
+                      {displayName[0].toUpperCase()}
                     </div>
                     <span className="text-white text-sm flex-1 truncate">
-                      {p.name || 'Participant'}{isLocal ? ' (You)' : ''}
+                      {displayName}{isLocal ? ' (You)' : ''}
                     </span>
                     {isMuted ? (
                       <MicOff className="w-3.5 h-3.5 text-red-400" />
@@ -304,8 +306,8 @@ const MeetingRoom = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
 
-  const eventId = searchParams.get('eventId') || '';
-  const meetingId = searchParams.get('meetingId') || '';
+  const [eventId, setEventId] = useState(searchParams.get('eventId') || '');
+  const [meetingId, setMeetingId] = useState(searchParams.get('meetingId') || '');
 
   const [token, setToken] = useState<string | null>(null);
   const [livekitUrl, setLivekitUrl] = useState<string | null>(null);
@@ -313,15 +315,46 @@ const MeetingRoom = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!eventId || !meetingId) {
-      setError('Missing event or meeting information.');
+    if (!roomId) {
+      setError('Invalid meeting link.');
       setLoading(false);
       return;
     }
 
-    const fetchToken = async () => {
+    const init = async () => {
       try {
-        const res = await meetingsApi.getToken(eventId, meetingId);
+        let eid = eventId;
+        let mid = meetingId;
+
+        // If eventId/meetingId missing, resolve from roomId
+        if (!eid || !mid) {
+          const roomRes = await meetingsApi.getByRoom(roomId);
+          if (roomRes.success && roomRes.data) {
+            const roomData = roomRes.data as any;
+            eid = roomData.event?.id || '';
+            mid = roomData.id || '';
+            if (eid && mid) {
+              setEventId(eid);
+              setMeetingId(mid);
+            }
+          }
+        }
+
+        if (!eid || !mid) {
+          setError('Could not find meeting details. The meeting may have ended or been removed.');
+          setLoading(false);
+          return;
+        }
+
+        // Join meeting first
+        try {
+          await meetingsApi.join(eid, mid);
+        } catch {
+          // May fail if already joined, that's ok
+        }
+
+        // Get token
+        const res = await meetingsApi.getToken(eid, mid);
         if (res.success && res.data) {
           const data = res.data as { token: string; url: string };
           setToken(data.token);
@@ -336,8 +369,8 @@ const MeetingRoom = () => {
       }
     };
 
-    fetchToken();
-  }, [eventId, meetingId]);
+    init();
+  }, [roomId]);
 
   const handleLeave = useCallback(() => {
     navigate(-1);

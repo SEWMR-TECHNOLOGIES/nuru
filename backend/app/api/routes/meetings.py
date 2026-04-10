@@ -86,27 +86,33 @@ def _notify_participants(meeting: EventMeeting, participants, event: Event, db: 
         phone = getattr(user, 'phone', None) or getattr(user, 'phone_number', None)
         meeting_link = f"https://nuru.tz/meet/{meeting.room_id}"
         event_name = event.name
+        scheduled_time = meeting.scheduled_at.strftime("%b %d, %Y at %I:%M %p") if meeting.scheduled_at else "TBA"
 
         # WhatsApp first, then SMS fallback
         wa_sent = False
         if phone:
             try:
-                wa_meeting_invitation(phone, event_name, meeting.title, meeting.scheduled_at.strftime("%b %d, %Y at %I:%M %p"), meeting_link)
+                print(f"[Meeting] Sending WhatsApp invitation to {phone} for meeting '{meeting.title}'")
+                wa_meeting_invitation(phone, event_name, meeting.title, scheduled_time, meeting_link)
                 wa_sent = True
-            except Exception:
-                pass
+                print(f"[Meeting] WhatsApp invitation sent successfully to {phone}")
+            except Exception as e:
+                print(f"[Meeting] WhatsApp invitation failed for {phone}: {e}")
 
             if not wa_sent:
                 try:
-                    sms_meeting_invitation(phone, event_name, meeting.title, meeting.scheduled_at.strftime("%b %d, %Y at %I:%M %p"), meeting_link)
-                except Exception:
-                    pass
+                    print(f"[Meeting] Falling back to SMS for {phone}")
+                    sms_meeting_invitation(phone, event_name, meeting.title, scheduled_time, meeting_link)
+                except Exception as e:
+                    print(f"[Meeting] SMS invitation also failed for {phone}: {e}")
+        else:
+            print(f"[Meeting] No phone number for user {p.user_id}, skipping WhatsApp/SMS")
 
         # In-app notification always
         try:
             notify_meeting_invitation(str(p.user_id), event_name, meeting.title, str(meeting.id), db)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Meeting] In-app notification failed for {p.user_id}: {e}")
 
         p.is_notified = True
 

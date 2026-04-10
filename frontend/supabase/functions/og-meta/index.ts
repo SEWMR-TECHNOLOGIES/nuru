@@ -208,7 +208,7 @@ async function handleMeeting(roomId: string, apiBase: string) {
   const scheduledAt = meeting?.scheduled_at
     ? new Date(meeting.scheduled_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })
     : "";
-  const creatorName = meeting?.created_by?.name || "";
+  const creatorName = meeting?.creator?.name || "";
 
   const title = (eventName ? `${meetingTitle} – ${eventName}` : meetingTitle).slice(0, 60);
   const descParts = ["Join this video meeting on Nuru."];
@@ -216,7 +216,7 @@ async function handleMeeting(roomId: string, apiBase: string) {
   if (creatorName) descParts.push(`Hosted by ${creatorName}.`);
   const description = descParts.join(" ").slice(0, 160);
 
-  const rawImage = meeting?.event?.image_url || meeting?.event?.cover_image_url || '';
+  const rawImage = meeting?.event?.cover_image || '';
   const image = optimizeImageForOG(rawImage, fallbackImage);
   const canonicalUrl = `${siteUrl}/meet/${roomId}`;
 
