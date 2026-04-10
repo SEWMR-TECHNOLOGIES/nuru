@@ -1,10 +1,17 @@
 """
 Event Meetings API
 Committee members and invited guests can schedule and join video meetings.
+Uses LiveKit for WebRTC video conferencing.
 """
 
 import uuid
+import time
+import json
+import hmac
+import hashlib
+import base64
 from datetime import datetime
+from dateutil import parser as dtparser
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
@@ -29,14 +36,14 @@ router = APIRouter(prefix="/events/{event_id}/meetings", tags=["meetings"])
 class CreateMeetingRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
-    scheduled_at: datetime
+    scheduled_at: str
     duration_minutes: Optional[str] = "60"
     participant_user_ids: Optional[List[str]] = []
 
 class UpdateMeetingRequest(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    scheduled_at: Optional[datetime] = None
+    scheduled_at: Optional[str] = None
     duration_minutes: Optional[str] = None
 
 class AddParticipantsRequest(BaseModel):
@@ -77,7 +84,7 @@ def _notify_participants(meeting: EventMeeting, participants, event: Event, db: 
             continue
 
         phone = getattr(user, 'phone', None) or getattr(user, 'phone_number', None)
-        meeting_link = f"https://meet.jit.si/{meeting.room_id}"
+        meeting_link = f"https://nuru.tz/meet/{meeting.room_id}"
         event_name = event.name
 
         # WhatsApp first, then SMS fallback
@@ -121,7 +128,7 @@ def create_meeting(event_id: str, body: CreateMeetingRequest, db: Session = Depe
         created_by=user_id,
         title=body.title,
         description=body.description,
-        scheduled_at=body.scheduled_at,
+        scheduled_at=dtparser.parse(body.scheduled_at),
         duration_minutes=body.duration_minutes or "60",
         room_id=room_id,
         status=MeetingStatusEnum.scheduled,
@@ -215,7 +222,7 @@ def update_meeting(event_id: str, meeting_id: str, body: UpdateMeetingRequest, d
     if body.description is not None:
         meeting.description = body.description
     if body.scheduled_at is not None:
-        meeting.scheduled_at = body.scheduled_at
+        meeting.scheduled_at = dtparser.parse(body.scheduled_at)
     if body.duration_minutes is not None:
         meeting.duration_minutes = body.duration_minutes
 
@@ -325,7 +332,7 @@ def join_meeting(event_id: str, meeting_id: str, db: Session = Depends(get_db), 
         "success": True,
         "data": {
             "room_id": meeting.room_id,
-            "meeting_url": f"https://meet.jit.si/{meeting.room_id}",
+            "meeting_url": f"https://nuru.tz/meet/{meeting.room_id}",
             "title": meeting.title,
         }
     }
@@ -356,9 +363,97 @@ def end_meeting(event_id: str, meeting_id: str, db: Session = Depends(get_db), c
     return {"success": True, "message": "Meeting ended."}
 
 
+@router.post("/{meeting_id}/token")
+def get_meeting_token(event_id: str, meeting_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Generate a LiveKit access token for the meeting room."""
+    from core.config import LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
+
+    user_id = str(current_user.id)
+    _check_event_access(event_id, user_id, db)
+
+    meeting = db.query(EventMeeting).filter(
+        EventMeeting.id == meeting_id,
+        EventMeeting.event_id == event_id
+    ).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found.")
+
+    if not LIVEKIT_API_KEY or not LIVEKIT_API_SECRET or not LIVEKIT_URL:
+        raise HTTPException(status_code=500, detail="LiveKit not configured.")
+
+    # Build participant identity
+    user = db.query(User).filter(User.id == current_user.id).first()
+    participant_name = f"{user.first_name or ''} {user.last_name or ''}".strip() if user else "Participant"
+    participant_identity = user_id
+
+    # Generate LiveKit JWT token
+    token = _create_livekit_token(
+        api_key=LIVEKIT_API_KEY,
+        api_secret=LIVEKIT_API_SECRET,
+        room_name=meeting.room_id,
+        participant_identity=participant_identity,
+        participant_name=participant_name,
+    )
+
+    return {
+        "success": True,
+        "data": {
+            "token": token,
+            "url": LIVEKIT_URL,
+            "room_name": meeting.room_id,
+            "participant_name": participant_name,
+        }
+    }
+
+
+def _create_livekit_token(api_key: str, api_secret: str, room_name: str, participant_identity: str, participant_name: str, ttl: int = 86400) -> str:
+    """Create a LiveKit access token (JWT) without external libraries."""
+    now = int(time.time())
+
+    header = {"alg": "HS256", "typ": "JWT"}
+    claims = {
+        "iss": api_key,
+        "sub": participant_identity,
+        "name": participant_name,
+        "nbf": now,
+        "exp": now + ttl,
+        "jti": f"{participant_identity}-{now}",
+        "video": {
+            "room": room_name,
+            "roomJoin": True,
+            "canPublish": True,
+            "canSubscribe": True,
+            "canPublishData": True,
+        },
+    }
+
+    def _b64url(data: bytes) -> str:
+        return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+    h = _b64url(json.dumps(header, separators=(",", ":")).encode())
+    p = _b64url(json.dumps(claims, separators=(",", ":")).encode())
+    sig = hmac.new(api_secret.encode(), f"{h}.{p}".encode(), hashlib.sha256).digest()
+    return f"{h}.{p}.{_b64url(sig)}"
+
+
 # ── Serialization ────────────────────────────
 
 def _serialize_meeting(meeting: EventMeeting, db: Session) -> dict:
+    from datetime import timedelta
+    from models.meeting_documents import MeetingAgendaItem, MeetingMinutes
+
+    # Auto-fix stale in_progress meetings: if scheduled_at + duration has passed, mark as ended
+    if meeting.status == MeetingStatusEnum.in_progress:
+        try:
+            duration = int(meeting.duration_minutes or 60)
+            end_time = meeting.scheduled_at + timedelta(minutes=duration + 30)
+            if datetime.utcnow() > end_time:
+                meeting.status = MeetingStatusEnum.ended
+                meeting.ended_at = end_time
+                db.commit()
+        except Exception:
+            pass
+
     participants = []
     for p in meeting.participants:
         user = db.query(User).filter(User.id == p.user_id).first()
@@ -373,6 +468,9 @@ def _serialize_meeting(meeting: EventMeeting, db: Session) -> dict:
 
     creator = db.query(User).filter(User.id == meeting.created_by).first()
 
+    has_agenda = db.query(MeetingAgendaItem).filter(MeetingAgendaItem.meeting_id == meeting.id).count() > 0
+    has_minutes = db.query(MeetingMinutes).filter(MeetingMinutes.meeting_id == meeting.id).first() is not None
+
     return {
         "id": str(meeting.id),
         "event_id": str(meeting.event_id),
@@ -381,7 +479,7 @@ def _serialize_meeting(meeting: EventMeeting, db: Session) -> dict:
         "scheduled_at": meeting.scheduled_at.isoformat() if meeting.scheduled_at else None,
         "duration_minutes": meeting.duration_minutes,
         "room_id": meeting.room_id,
-        "meeting_url": f"https://meet.jit.si/{meeting.room_id}",
+        "meeting_url": f"https://nuru.tz/meet/{meeting.room_id}",
         "status": meeting.status.value if meeting.status else "scheduled",
         "created_by": {
             "id": str(meeting.created_by),
@@ -389,6 +487,8 @@ def _serialize_meeting(meeting: EventMeeting, db: Session) -> dict:
         },
         "participants": participants,
         "participant_count": len(participants),
+        "has_agenda": has_agenda,
+        "has_minutes": has_minutes,
         "ended_at": meeting.ended_at.isoformat() if meeting.ended_at else None,
         "created_at": meeting.created_at.isoformat() if meeting.created_at else None,
     }

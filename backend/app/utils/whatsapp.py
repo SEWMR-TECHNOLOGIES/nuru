@@ -161,7 +161,50 @@ def wa_booking_accepted(phone: str, client_name: str, vendor_name: str, service_
 
 
 def wa_meeting_invitation(phone: str, event_name: str, meeting_title: str, scheduled_time: str, meeting_link: str):
-    """Invite participant to an event meeting via WhatsApp."""
+    """
+    Invite participant to an event meeting via WhatsApp.
+
+    Uses the 'meeting_invitation' template which should be configured in
+    Meta WhatsApp Business Manager as follows:
+
+    ─────────────────────────────────────────────────
+    TEMPLATE NAME:  meeting_invitation
+    CATEGORY:       UTILITY
+    LANGUAGE:       en
+
+    HEADER (none)
+
+    BODY:
+      You've been invited to a meeting for *{{1}}*.
+
+      📋 *Meeting:* {{2}}
+      🕐 *When:* {{3}}
+
+      Join using the link below or tap the button to open the meeting directly.
+
+      🔗 {{4}}
+
+    BUTTONS:
+      [1] URL button
+          Label:  "Join Meeting"
+          URL:    {{5}}
+          (type: URL, dynamic URL parameter)
+
+    ─────────────────────────────────────────────────
+
+    Template variables mapping:
+      {{1}} = event_name
+      {{2}} = meeting_title
+      {{3}} = scheduled_time  (e.g. "Apr 15, 2026 at 03:00 PM")
+      {{4}} = meeting_link    (plain text in body for copy)
+      {{5}} = meeting_link    (button URL value)
+
+    The meeting_link format is: https://nuru.tz/meet/<room_id>
+    This URL serves an OG-meta preview page showing:
+      - Meeting title, event name, scheduled time
+      - "Join Meeting" call-to-action
+    Similar to how Google Calendar meeting links show a preview card.
+    """
     _send_whatsapp("meeting_invitation", phone, {
         "event_name": event_name,
         "meeting_title": meeting_title,

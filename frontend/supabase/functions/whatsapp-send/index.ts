@@ -76,6 +76,9 @@ Deno.serve(async (req) => {
       case "check_whatsapp":
         result = await checkWhatsAppBySending(phone, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
         break;
+      case "meeting_invitation":
+        result = await sendTemplate(phone, "meeting_invitation", buildMeetingInvitationComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        break;
       case "text":
         result = await sendTextMessage(phone, params?.message || "", WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
         break;
@@ -260,6 +263,34 @@ function buildBookingAcceptedComponents(params: {
       { type: "text", text: params.event_name || "an event" },
     ],
   }];
+}
+
+// ── Meeting invitation template ──
+// Template body: "You've been invited to a meeting for *{{1}}*.\n\n📋 *Meeting:* {{2}}\n🕐 *When:* {{3}}\n\nJoin using the link below:\n🔗 {{4}}"
+// Button [0]: URL button "Join Meeting" → {{5}}
+function buildMeetingInvitationComponents(params: {
+  event_name?: string; meeting_title?: string; scheduled_time?: string; meeting_link?: string;
+}) {
+  const link = params.meeting_link || "https://nuru.tz";
+  return [
+    {
+      type: "body",
+      parameters: [
+        { type: "text", text: params.event_name || "an event" },
+        { type: "text", text: params.meeting_title || "Meeting" },
+        { type: "text", text: params.scheduled_time || "TBA" },
+        { type: "text", text: link },
+      ],
+    },
+    {
+      type: "button",
+      sub_type: "url",
+      index: "0",
+      parameters: [
+        { type: "text", text: link },
+      ],
+    },
+  ];
 }
 
 // ── OTP verification template (authentication with Copy Code button) ──

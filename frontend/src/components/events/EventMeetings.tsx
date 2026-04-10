@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Video, Plus, Users, Clock, Play, Square, Trash2, Loader2, UserPlus, Calendar, Check, Link2, Sparkles } from 'lucide-react';
+import { Plus, Users, Clock, Play, Square, Trash2, Loader2, UserPlus, CalendarIcon, Check, Link2, Sparkles, ListOrdered, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,11 +11,18 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { meetingsApi, Meeting } from '@/lib/api/meetings';
 import { eventsApi, showCaughtError } from '@/lib/api';
 import { toast } from 'sonner';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+import SvgIcon from '@/components/ui/svg-icon';
+import videoChatIcon from '@/assets/video-chat-icon.svg';
+import MeetingDocuments from '@/components/events/MeetingDocuments';
 
 interface EventMeetingsProps {
   eventId: string;
@@ -31,10 +38,13 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
   const [showAddPeople, setShowAddPeople] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [selectedMeetingDocs, setSelectedMeetingDocs] = useState<string | null>(null);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [scheduledAt, setScheduledAt] = useState('');
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>();
+  const [selectedHour, setSelectedHour] = useState('09');
+  const [selectedMinute, setSelectedMinute] = useState('00');
   const [duration, setDuration] = useState('60');
   const [committeeMembers, setCommitteeMembers] = useState<any[]>([]);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
@@ -63,10 +73,14 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
   }, [loadMeetings, loadCommittee]);
 
   const handleCreate = async () => {
-    if (!title.trim() || !scheduledAt) {
+    if (!title.trim() || !selectedDate) {
       toast.error(t('enter_title_time'));
       return;
     }
+    const scheduled = new Date(selectedDate);
+    scheduled.setHours(parseInt(selectedHour), parseInt(selectedMinute), 0, 0);
+    const scheduledAt = scheduled.toISOString();
+
     setCreating(true);
     try {
       const res = await meetingsApi.create(eventId, {
@@ -79,7 +93,7 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
       if (res.success) {
         toast.success(res.message || t('meeting_scheduled'));
         setShowCreate(false);
-        setTitle(''); setDescription(''); setScheduledAt(''); setDuration('60'); setSelectedParticipants([]);
+        setTitle(''); setDescription(''); setSelectedDate(undefined); setSelectedHour('09'); setSelectedMinute('00'); setDuration('60'); setSelectedParticipants([]);
         loadMeetings();
       }
     } catch (err: any) { showCaughtError(err); }
@@ -91,7 +105,7 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
       const res = await meetingsApi.join(eventId, meeting.id);
       if (res.success) {
         const joinData = res.data as { room_id: string; meeting_url: string; title: string };
-        navigate(`/meet/${joinData.room_id}`);
+        navigate(`/meet/${joinData.room_id}?eventId=${eventId}&meetingId=${meeting.id}`);
       }
     } catch (err: any) { showCaughtError(err); }
   };
@@ -144,7 +158,7 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
         <div className="space-y-1">
           <h3 className="text-xl font-bold flex items-center gap-2.5 tracking-tight">
             <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Video className="w-5 h-5 text-primary" />
+              <SvgIcon src={videoChatIcon} className="w-5 h-5" />
             </div>
             {t('meetings')}
           </h3>
@@ -166,7 +180,7 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
         <Card className="border-dashed border-2">
           <CardContent className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-20 h-20 bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl flex items-center justify-center mb-6 shadow-sm">
-              <Video className="w-10 h-10 text-primary" />
+              <SvgIcon src={videoChatIcon} className="w-10 h-10" />
             </div>
             <h4 className="font-bold text-xl mb-2 tracking-tight">{t('no_meetings_yet')}</h4>
             <p className="text-muted-foreground text-sm max-w-sm leading-relaxed">
@@ -200,13 +214,7 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
                         ? 'bg-muted'
                         : 'bg-primary/10'
                   }`}>
-                    <Video className={`w-6 h-6 ${
-                      meeting.status === 'in_progress'
-                        ? 'text-emerald-600'
-                        : meeting.status === 'ended'
-                          ? 'text-muted-foreground'
-                          : 'text-primary'
-                    }`} />
+                    <SvgIcon src={videoChatIcon} className="w-6 h-6" />
                   </div>
 
                   {/* Content */}
@@ -226,7 +234,7 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
                     {/* Meta info */}
                     <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1.5 bg-muted/50 px-2.5 py-1 rounded-lg">
-                        <Calendar className="w-3.5 h-3.5" />
+                        <CalendarIcon className="w-3.5 h-3.5" />
                         {format(new Date(meeting.scheduled_at), 'MMM d, yyyy · h:mm a')}
                       </span>
                       <span className="flex items-center gap-1.5 bg-muted/50 px-2.5 py-1 rounded-lg">
@@ -273,11 +281,19 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
                         {copiedId === meeting.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Link2 className="w-3.5 h-3.5" />}
                         {copiedId === meeting.id ? t('copied') : t('copy_link')}
                       </Button>
+                      <Button variant="outline" size="sm" className="gap-1.5 rounded-xl" onClick={() => setSelectedMeetingDocs(selectedMeetingDocs === meeting.id ? null : meeting.id)}>
+                        <ListOrdered className="w-3.5 h-3.5" /> {t('agenda_minutes')}
+                        {(meeting.has_agenda || meeting.has_minutes) && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        )}
+                      </Button>
+                      {isCreator && meeting.status === 'in_progress' && (
+                        <Button variant="outline" size="sm" className="gap-1.5 rounded-xl" onClick={() => handleEnd(meeting.id)}>
+                          <Square className="w-3.5 h-3.5" /> {t('end_meeting')}
+                        </Button>
+                      )}
                       {isCreator && meeting.status !== 'ended' && (
                         <>
-                          <Button variant="outline" size="sm" className="gap-1.5 rounded-xl" onClick={() => handleEnd(meeting.id)}>
-                            <Square className="w-3.5 h-3.5" /> {t('end_meeting')}
-                          </Button>
                           <Button variant="outline" size="sm" className="gap-1.5 rounded-xl" onClick={() => { setShowAddPeople(meeting.id); loadCommittee(); }}>
                             <UserPlus className="w-3.5 h-3.5" /> {t('add_people')}
                           </Button>
@@ -287,6 +303,18 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
                         </>
                       )}
                     </div>
+                    {/* Agenda & Minutes Panel */}
+                    {selectedMeetingDocs === meeting.id && (
+                      <div className="mt-4 pt-4 border-t">
+                        <MeetingDocuments
+                          eventId={eventId}
+                          meetingId={meeting.id}
+                          meetingTitle={meeting.title}
+                          meetingDate={meeting.scheduled_at}
+                          isCreator={isCreator}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -301,7 +329,7 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
           <DialogHeader className="space-y-1.5">
             <DialogTitle className="text-xl font-bold tracking-tight flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Video className="w-4 h-4 text-primary" />
+                <SvgIcon src={videoChatIcon} className="w-4 h-4" />
               </div>
               {t('schedule_a_meeting')}
             </DialogTitle>
@@ -316,15 +344,34 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
               <Label className="text-sm font-medium">{t('meeting_description')}</Label>
               <Textarea className="rounded-xl resize-none" placeholder={t('meeting_description_placeholder')} value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">{t('date_and_time')}</Label>
-                <Input className="rounded-xl" type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">{t('date_and_time')}</Label>
+              <div className="flex gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("flex-1 justify-start text-left font-normal rounded-xl", !selectedDate && "text-muted-foreground")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {selectedDate ? format(selectedDate, 'MMM d, yyyy') : t('pick_date')}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))} initialFocus className={cn("p-3 pointer-events-auto")} />
+                  </PopoverContent>
+                </Popover>
+                <Select value={selectedHour} onValueChange={setSelectedHour}>
+                  <SelectTrigger className="w-[70px] rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>{Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent>
+                </Select>
+                <span className="flex items-center text-muted-foreground font-bold">:</span>
+                <Select value={selectedMinute} onValueChange={setSelectedMinute}>
+                  <SelectTrigger className="w-[70px] rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>{['00','15','30','45'].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">{t('duration_minutes')}</Label>
-                <Input className="rounded-xl" type="number" value={duration} onChange={(e) => setDuration(e.target.value)} min="15" max="480" />
-              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">{t('duration_minutes')}</Label>
+              <Input className="rounded-xl" type="number" value={duration} onChange={(e) => setDuration(e.target.value)} min="15" max="480" />
             </div>
             {committeeMembers.length > 0 && (
               <div className="space-y-2">
@@ -361,7 +408,7 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
               </div>
             )}
             <Button className="w-full rounded-xl h-11 font-semibold" onClick={handleCreate} disabled={creating}>
-              {creating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Video className="w-4 h-4 mr-2" />}
+              {creating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <SvgIcon src={videoChatIcon} className="w-4 h-4 mr-2" />}
               {t('schedule_meeting')}
             </Button>
           </div>

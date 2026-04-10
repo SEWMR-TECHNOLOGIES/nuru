@@ -188,12 +188,47 @@ async function handlePhotoLibrary(token: string, apiBase: string) {
   return buildHtmlPage(title, description, image, canonicalUrl);
 }
 
+// ── Meeting OG handler ─────────────────────────────────
+async function handleMeeting(roomId: string, apiBase: string) {
+  const fallbackImage = `${siteUrl}/logo.png`;
+  let meeting: any = null;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`${apiBase}/meetings/room/${roomId}`, { signal: controller.signal });
+    clearTimeout(timeout);
+    const json = await res.json();
+    if (json.success && json.data) meeting = json.data;
+  } catch (e) {
+    console.error("Failed to fetch meeting:", e);
+  }
+
+  const meetingTitle = meeting?.title || "Video Meeting";
+  const eventName = meeting?.event?.name || "";
+  const scheduledAt = meeting?.scheduled_at
+    ? new Date(meeting.scheduled_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })
+    : "";
+  const creatorName = meeting?.created_by?.name || "";
+
+  const title = (eventName ? `${meetingTitle} – ${eventName}` : meetingTitle).slice(0, 60);
+  const descParts = ["Join this video meeting on Nuru."];
+  if (scheduledAt) descParts.unshift(`📅 ${scheduledAt}`);
+  if (creatorName) descParts.push(`Hosted by ${creatorName}.`);
+  const description = descParts.join(" ").slice(0, 160);
+
+  const rawImage = meeting?.event?.image_url || meeting?.event?.cover_image_url || '';
+  const image = optimizeImageForOG(rawImage, fallbackImage);
+  const canonicalUrl = `${siteUrl}/meet/${roomId}`;
+
+  return buildHtmlPage(title, description, image, canonicalUrl);
+}
+
 // ── Main handler ────────────────────────────────────
 serve(async (req) => {
   const url = new URL(req.url);
   const userAgent = req.headers.get("user-agent") || "";
 
-  let resourceType: "post" | "rsvp" | "photo-library" | null = null;
+  let resourceType: "post" | "rsvp" | "photo-library" | "meeting" | null = null;
   let resourceId: string | null = null;
   let shortPath: string | undefined;
 
@@ -203,19 +238,21 @@ serve(async (req) => {
   const typeParam = url.searchParams.get("type");
 
   if (shortParam) {
-    // Short URL: decode base64url to UUID
     resourceType = "post";
     resourceId = decodeShortId(shortParam);
     shortPath = `/s/${shortParam}`;
   } else if (idParam) {
     if (typeParam === "rsvp") resourceType = "rsvp";
     else if (typeParam === "photo-library") resourceType = "photo-library";
+    else if (typeParam === "meeting") resourceType = "meeting";
     else resourceType = "post";
     resourceId = idParam;
   }
 
   // Check path patterns as fallback
   if (!resourceId) {
+    const meetMatch = url.pathname.match(/\/meet\/([A-Za-z0-9_-]+)/i);
+    if (meetMatch) { resourceType = "meeting"; resourceId = meetMatch[1]; }
     const postMatch = url.pathname.match(/\/shared\/post\/([a-f0-9-]+)/i);
     if (postMatch) { resourceType = "post"; resourceId = postMatch[1]; }
     const shortMatch = url.pathname.match(/\/s\/([A-Za-z0-9_-]+)/i);
@@ -237,8 +274,9 @@ serve(async (req) => {
       redirectPath = `${siteUrl}/rsvp/${resourceId}?r=1`;
     } else if (resourceType === "photo-library") {
       redirectPath = `${siteUrl}/shared/photo-library/${resourceId}?r=1`;
+    } else if (resourceType === "meeting") {
+      redirectPath = `${siteUrl}/meet/${resourceId}?r=1`;
     } else if (shortPath) {
-      // Short URL for real users: redirect to the SPA short route
       redirectPath = `${siteUrl}${shortPath}?r=1`;
     } else {
       redirectPath = `${siteUrl}/shared/post/${resourceId}?r=1`;
@@ -259,6 +297,8 @@ serve(async (req) => {
     html = await handleRsvp(resourceId, API_BASE);
   } else if (resourceType === "photo-library") {
     html = await handlePhotoLibrary(resourceId, API_BASE);
+  } else if (resourceType === "meeting") {
+    html = await handleMeeting(resourceId, API_BASE);
   } else {
     html = await handlePost(resourceId, API_BASE, shortPath);
   }

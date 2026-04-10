@@ -26,6 +26,8 @@ export interface Meeting {
   created_by: { id: string; name: string };
   participants: MeetingParticipant[];
   participant_count: number;
+  has_agenda: boolean;
+  has_minutes: boolean;
   ended_at: string | null;
   created_at: string;
 }
@@ -53,4 +55,6 @@ export const meetingsApi = {
     post(`/events/${eventId}/meetings/${meetingId}/join`, {}),
   end: (eventId: string, meetingId: string) =>
     post(`/events/${eventId}/meetings/${meetingId}/end`, {}),
+  getToken: (eventId: string, meetingId: string) =>
+    post(`/events/${eventId}/meetings/${meetingId}/token`, {}),
 };

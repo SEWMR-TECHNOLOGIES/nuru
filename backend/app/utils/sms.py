@@ -117,7 +117,7 @@ def sms_welcome_registered(phone: str, new_user_name: str, registered_by_name: s
 def sms_meeting_invitation(phone: str, event_name: str, meeting_title: str, scheduled_time: str, meeting_link: str):
     """Notify participant about an upcoming meeting via SMS."""
     msg = (
-        f"You've been invited to a meeting for {event_name}: {meeting_title}, "
+        f"Hello, you've been invited to \"{meeting_title}\" for {event_name}, "
         f"scheduled for {scheduled_time}. "
         f"Join here: {meeting_link}"
     )

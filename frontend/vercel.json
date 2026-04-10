@@ -40,6 +40,16 @@
       ],
       "destination": "https://lmfprculxhspqxppscbn.supabase.co/functions/v1/og-meta?id=:token&type=photo-library"
     },
+    {
+      "source": "/meet/:roomId",
+      "missing": [
+        {
+          "type": "query",
+          "key": "r"
+        }
+      ],
+      "destination": "https://lmfprculxhspqxppscbn.supabase.co/functions/v1/og-meta?id=:roomId&type=meeting"
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
