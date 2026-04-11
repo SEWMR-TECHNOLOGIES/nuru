@@ -646,7 +646,6 @@ def get_meeting_token(event_id: str, meeting_id: str, db: Session = Depends(get_
 
     # Get avatar URL for metadata
     avatar_url = user.profile.profile_picture_url if user and user.profile else None
-    print(f"[Meeting Token] Generating token for user {user_id} ({participant_name}), host: {is_host}, avatar: {avatar_url}")   
     # Generate LiveKit JWT token
     token = _create_livekit_token(
         api_key=LIVEKIT_API_KEY,
