@@ -93,9 +93,11 @@ def _notify_participants(meeting: EventMeeting, participants, event: Event, db: 
         if phone:
             try:
                 print(f"[Meeting] Sending WhatsApp invitation to {phone} for meeting '{meeting.title}'")
-                wa_meeting_invitation(phone, event_name, meeting.title, scheduled_time, meeting_link)
-                wa_sent = True
-                print(f"[Meeting] WhatsApp invitation sent successfully to {phone}")
+                wa_sent = wa_meeting_invitation(phone, event_name, meeting.title, scheduled_time, meeting_link)
+                if wa_sent:
+                    print(f"[Meeting] WhatsApp invitation sent successfully to {phone}")
+                else:
+                    print(f"[Meeting] WhatsApp invitation failed for {phone} (returned False)")
             except Exception as e:
                 print(f"[Meeting] WhatsApp invitation failed for {phone}: {e}")
 

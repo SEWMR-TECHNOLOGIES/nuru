@@ -39,6 +39,9 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
   const [creating, setCreating] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedMeetingDocs, setSelectedMeetingDocs] = useState<string | null>(null);
+  const [joiningId, setJoiningId] = useState<string | null>(null);
+  const [endingId, setEndingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -101,6 +104,7 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
   };
 
   const handleJoin = async (meeting: Meeting) => {
+    setJoiningId(meeting.id);
     try {
       const res = await meetingsApi.join(eventId, meeting.id);
       if (res.success) {
@@ -108,9 +112,11 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
         navigate(`/meet/${joinData.room_id}?eventId=${eventId}&meetingId=${meeting.id}`);
       }
     } catch (err: any) { showCaughtError(err); }
+    finally { setJoiningId(null); }
   };
 
   const handleEnd = async (meetingId: string) => {
+    setEndingId(meetingId);
     try {
       const res = await meetingsApi.end(eventId, meetingId);
       if (res.success) {
@@ -118,9 +124,11 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
         loadMeetings();
       }
     } catch (err: any) { showCaughtError(err); }
+    finally { setEndingId(null); }
   };
 
   const handleDelete = async (meetingId: string) => {
+    setDeletingId(meetingId);
     try {
       const res = await meetingsApi.delete(eventId, meetingId);
       if (res.success) {
@@ -128,6 +136,7 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
         loadMeetings();
       }
     } catch (err: any) { showCaughtError(err); }
+    finally { setDeletingId(null); }
   };
 
   const handleCopyLink = (meeting: Meeting) => {
@@ -272,8 +281,8 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
                     {/* Actions */}
                     <div className="flex flex-wrap items-center gap-2 pt-1">
                       {meeting.status !== 'ended' && (
-                        <Button size="sm" className="gap-1.5 rounded-xl shadow-sm" onClick={() => handleJoin(meeting)}>
-                          <Play className="w-3.5 h-3.5" />
+                        <Button size="sm" className="gap-1.5 rounded-xl shadow-sm" onClick={() => handleJoin(meeting)} disabled={joiningId === meeting.id}>
+                          {joiningId === meeting.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
                           {meeting.status === 'in_progress' ? t('join_now') : t('join_meeting')}
                         </Button>
                       )}
@@ -288,8 +297,9 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
                         )}
                       </Button>
                       {isCreator && meeting.status === 'in_progress' && (
-                        <Button variant="outline" size="sm" className="gap-1.5 rounded-xl" onClick={() => handleEnd(meeting.id)}>
-                          <Square className="w-3.5 h-3.5" /> {t('end_meeting')}
+                        <Button variant="outline" size="sm" className="gap-1.5 rounded-xl" onClick={() => handleEnd(meeting.id)} disabled={endingId === meeting.id}>
+                          {endingId === meeting.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Square className="w-3.5 h-3.5" />}
+                          {t('end_meeting')}
                         </Button>
                       )}
                       {isCreator && meeting.status !== 'ended' && (
@@ -297,8 +307,9 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
                           <Button variant="outline" size="sm" className="gap-1.5 rounded-xl" onClick={() => { setShowAddPeople(meeting.id); loadCommittee(); }}>
                             <UserPlus className="w-3.5 h-3.5" /> {t('add_people')}
                           </Button>
-                          <Button variant="ghost" size="sm" className="gap-1.5 rounded-xl text-destructive hover:text-destructive" onClick={() => handleDelete(meeting.id)}>
-                            <Trash2 className="w-3.5 h-3.5" /> {t('cancel')}
+                          <Button variant="ghost" size="sm" className="gap-1.5 rounded-xl text-destructive hover:text-destructive" onClick={() => handleDelete(meeting.id)} disabled={deletingId === meeting.id}>
+                            {deletingId === meeting.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                            {t('cancel')}
                           </Button>
                         </>
                       )}

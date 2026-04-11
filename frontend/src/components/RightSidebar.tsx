@@ -124,20 +124,28 @@ const TicketEventsSection = ({ navigate }: { navigate: (path: string) => void })
 const MyMeetingsSection = ({ navigate }: { navigate: (path: string) => void }) => {
   const [meetings, setMeetings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const loadedRef = useRef(false);
 
-  useEffect(() => {
-    if (loadedRef.current) return;
-    loadedRef.current = true;
-    meetingsApi.myMeetings().then((res) => {
+  const fetchMeetings = useCallback(async (isInitial = false) => {
+    try {
+      const res = await meetingsApi.myMeetings();
       if (res.success && res.data) {
         const data = res.data as any[];
-        // Show only non-ended meetings, sorted by scheduled_at
-        const active = data.filter((m) => m.status !== 'ended').slice(0, 5);
+        const active = data.filter((m: any) => m.status !== 'ended').slice(0, 5);
         setMeetings(active);
       }
-    }).catch(() => {}).finally(() => setLoading(false));
+    } catch { /* silent */ }
+    finally { if (isInitial) setLoading(false); }
   }, []);
+
+  useEffect(() => {
+    fetchMeetings(true);
+  }, [fetchMeetings]);
+
+  // Poll every 30s
+  useEffect(() => {
+    const interval = setInterval(() => fetchMeetings(), 30000);
+    return () => clearInterval(interval);
+  }, [fetchMeetings]);
 
   if (loading || meetings.length === 0) return null;
 

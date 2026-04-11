@@ -228,6 +228,8 @@ serve(async (req) => {
   const url = new URL(req.url);
   const userAgent = req.headers.get("user-agent") || "";
 
+  console.log(`[og-meta] Request: ${url.pathname}${url.search} UA: ${userAgent.slice(0, 60)}`);
+
   let resourceType: "post" | "rsvp" | "photo-library" | "meeting" | null = null;
   let resourceId: string | null = null;
   let shortPath: string | undefined;
@@ -264,8 +266,11 @@ serve(async (req) => {
   }
 
   if (!resourceType || !resourceId) {
+    console.log(`[og-meta] No resource found for path: ${url.pathname} search: ${url.search}`);
     return new Response("Missing resource ID", { status: 400 });
   }
+
+  console.log(`[og-meta] Resolved: type=${resourceType} id=${resourceId} isBot=${BOT_UA_REGEX.test(userAgent)}`);
 
   // For real browsers, redirect to the SPA with ?r=1
   if (!BOT_UA_REGEX.test(userAgent)) {

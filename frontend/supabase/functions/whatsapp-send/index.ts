@@ -1,4 +1,4 @@
-// No imports needed — uses built-in Deno.serve
+// WhatsApp Send Edge Function — uses built-in Deno.serve
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -77,7 +77,9 @@ Deno.serve(async (req) => {
         result = await checkWhatsAppBySending(phone, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
         break;
       case "meeting_invitation":
-        result = await sendTemplate(phone, "meeting_invitation", buildMeetingInvitationComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        console.log(`[WhatsApp] Meeting invitation params:`, JSON.stringify(params));
+        result = await sendTemplate(phone, "meeting_invitation", buildMeetingInvitationComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, "en_US");
+        console.log(`[WhatsApp] Meeting invitation result:`, JSON.stringify(result));
         break;
       case "text":
         result = await sendTextMessage(phone, params?.message || "", WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
@@ -272,6 +274,21 @@ function buildMeetingInvitationComponents(params: {
   event_name?: string; meeting_title?: string; scheduled_time?: string; meeting_link?: string;
 }) {
   const link = params.meeting_link || "https://nuru.tz";
+  // Extract the path suffix for the dynamic URL button
+  // Meta template base URL is configured as https://nuru.tz/meet/
+  // so we only need the room_id part for {{1}} in the button
+  let buttonSuffix = link;
+  try {
+    const urlObj = new URL(link);
+    // Get just the path after /meet/ e.g. "nuru-abc12345-def67890"
+    const meetPath = urlObj.pathname.replace(/^\/meet\//, "");
+    if (meetPath && meetPath !== urlObj.pathname) {
+      buttonSuffix = meetPath;
+    }
+  } catch {
+    // If URL parsing fails, use the full link
+  }
+
   return [
     {
       type: "body",
@@ -287,7 +304,7 @@ function buildMeetingInvitationComponents(params: {
       sub_type: "url",
       index: "0",
       parameters: [
-        { type: "text", text: link },
+        { type: "text", text: buttonSuffix },
       ],
     },
   ];
@@ -381,10 +398,11 @@ async function sendTemplate(
   templateName: string,
   components: Array<Record<string, unknown>>,
   accessToken: string,
-  phoneNumberId: string
+  phoneNumberId: string,
+  langOverride?: string
 ) {
   const url = `${GRAPH_API}/${phoneNumberId}/messages`;
-  const languageCode = "en";
+  const languageCode = langOverride || "en";
 
   console.log(`[WhatsApp] Sending template "${templateName}" to ${phone} with language "${languageCode}"`);
 

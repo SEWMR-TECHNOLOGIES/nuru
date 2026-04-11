@@ -29,13 +29,13 @@ def _normalize_phone(phone: str) -> str:
 
 
 def _send_whatsapp(action: str, phone: str, params: dict):
-    """Fire-and-forget WhatsApp message via edge function. Logs errors but never raises."""
+    """Send WhatsApp message via edge function. Returns True on success, False on failure. Never raises."""
     if not phone or not WHATSAPP_SEND_URL or not SUPABASE_ANON_KEY:
-        return
+        return False
 
     international_phone = _normalize_phone(phone)
     if not international_phone:
-        return
+        return False
 
     try:
         resp = requests.post(
@@ -50,8 +50,19 @@ def _send_whatsapp(action: str, phone: str, params: dict):
         )
         if not resp.ok:
             print(f"[WhatsApp] Failed ({resp.status_code}): {resp.text[:200]}")
+            return False
+        # Check if the edge function reported success
+        try:
+            data = resp.json()
+            if data.get("success") is False:
+                print(f"[WhatsApp] Edge function returned failure: {resp.text[:200]}")
+                return False
+        except Exception:
+            pass
+        return True
     except Exception as e:
         print(f"[WhatsApp] Error sending to {international_phone}: {e}")
+        return False
 
 
 def _send_whatsapp_text(phone: str, message: str):
@@ -163,49 +174,9 @@ def wa_booking_accepted(phone: str, client_name: str, vendor_name: str, service_
 def wa_meeting_invitation(phone: str, event_name: str, meeting_title: str, scheduled_time: str, meeting_link: str):
     """
     Invite participant to an event meeting via WhatsApp.
-
-    Uses the 'meeting_invitation' template which should be configured in
-    Meta WhatsApp Business Manager as follows:
-
-    ─────────────────────────────────────────────────
-    TEMPLATE NAME:  meeting_invitation
-    CATEGORY:       UTILITY
-    LANGUAGE:       en
-
-    HEADER (none)
-
-    BODY:
-      You've been invited to a meeting for *{{1}}*.
-
-      📋 *Meeting:* {{2}}
-      🕐 *When:* {{3}}
-
-      Join using the link below or tap the button to open the meeting directly.
-
-      🔗 {{4}}
-
-    BUTTONS:
-      [1] URL button
-          Label:  "Join Meeting"
-          URL:    {{5}}
-          (type: URL, dynamic URL parameter)
-
-    ─────────────────────────────────────────────────
-
-    Template variables mapping:
-      {{1}} = event_name
-      {{2}} = meeting_title
-      {{3}} = scheduled_time  (e.g. "Apr 15, 2026 at 03:00 PM")
-      {{4}} = meeting_link    (plain text in body for copy)
-      {{5}} = meeting_link    (button URL value)
-
-    The meeting_link format is: https://nuru.tz/meet/<room_id>
-    This URL serves an OG-meta preview page showing:
-      - Meeting title, event name, scheduled time
-      - "Join Meeting" call-to-action
-    Similar to how Google Calendar meeting links show a preview card.
+    Returns True on success, False on failure.
     """
-    _send_whatsapp("meeting_invitation", phone, {
+    return _send_whatsapp("meeting_invitation", phone, {
         "event_name": event_name,
         "meeting_title": meeting_title,
         "scheduled_time": scheduled_time,
