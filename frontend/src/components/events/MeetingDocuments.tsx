@@ -18,6 +18,7 @@ import { meetingDocsApi, AgendaItem, MeetingMinutesData } from '@/lib/api/meetin
 import { showCaughtError } from '@/lib/api';
 import { toast } from 'sonner';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import nuruLogoUrl from '@/assets/nuru-logo.png';
 
 interface MeetingDocumentsProps {
   eventId: string;
@@ -168,7 +169,7 @@ const MeetingDocuments = ({ eventId, meetingId, meetingTitle, meetingDescription
 
     const totalDuration = agendaItems.reduce((sum, item) => sum + (item.duration_minutes || 0), 0);
     const completedItems = agendaItems.filter(i => i.is_completed).length;
-    const logoAbsoluteUrl = (() => { try { return new URL('/nuru-logo.png', window.location.origin).href; } catch { return ''; } })();
+    const logoAbsoluteUrl = (() => { try { return new URL(nuruLogoUrl, window.location.origin).href; } catch { return ''; } })();
 
     printWindow.document.write(`
       <!DOCTYPE html>

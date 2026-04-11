@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Users, Clock, Play, Square, Trash2, Loader2, UserPlus, CalendarIcon, Check, Link2, Sparkles, ListOrdered, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Plus, Users, Clock, Play, Square, Trash2, Loader2, UserPlus, CalendarIcon, Check, Link2, Sparkles, ListOrdered, ChevronRight, ChevronLeft, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -52,6 +52,18 @@ const EventMeetings = ({ eventId, isCreator, eventName }: EventMeetingsProps) =>
   const [joiningId, setJoiningId] = useState<string | null>(null);
   const [endingId, setEndingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Edit meeting state
+  const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editDate, setEditDate] = useState<Date | undefined>();
+  const [editDatePickerOpen, setEditDatePickerOpen] = useState(false);
+  const [editHour, setEditHour] = useState('09');
+  const [editMinute, setEditMinute] = useState('00');
+  const [editDuration, setEditDuration] = useState('60');
+  const [editStep, setEditStep] = useState(1);
+  const [updating, setUpdating] = useState(false);
 
   // -- Create form state --
   const [step, setStep] = useState(1);
@@ -159,6 +171,40 @@ const EventMeetings = ({ eventId, isCreator, eventName }: EventMeetingsProps) =>
       }
     } catch (err: any) { showCaughtError(err); }
     finally { setDeletingId(null); }
+  };
+
+  const openEditMeeting = (meeting: Meeting) => {
+    const d = new Date(meeting.scheduled_at);
+    setEditingMeeting(meeting);
+    setEditTitle(meeting.title);
+    setEditDescription(meeting.description || '');
+    setEditDate(d);
+    setEditHour(String(d.getHours()).padStart(2, '0'));
+    setEditMinute(String(Math.floor(d.getMinutes() / 15) * 15).padStart(2, '0'));
+    setEditDuration(meeting.duration_minutes || '60');
+    setEditStep(1);
+  };
+
+  const handleUpdate = async () => {
+    if (!editingMeeting || !editTitle.trim() || !editDate) return;
+    const scheduled = new Date(editDate);
+    scheduled.setHours(parseInt(editHour), parseInt(editMinute), 0, 0);
+    setUpdating(true);
+    try {
+      const res = await meetingsApi.update(eventId, editingMeeting.id, {
+        title: editTitle.trim(),
+        description: editDescription.trim() || undefined,
+        scheduled_at: scheduled.toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        duration_minutes: editDuration,
+      });
+      if (res.success) {
+        toast.success(t('meeting_updated'));
+        setEditingMeeting(null);
+        loadMeetings();
+      }
+    } catch (err: any) { showCaughtError(err); }
+    finally { setUpdating(false); }
   };
 
   const handleCopyLink = (meeting: Meeting) => {
@@ -284,7 +330,7 @@ const EventMeetings = ({ eventId, isCreator, eventName }: EventMeetingsProps) =>
                         <div className="flex items-center -space-x-2">
                           {meeting.participants.slice(0, 6).map((p) => (
                             <Avatar key={p.id} className="w-8 h-8 border-2 border-background ring-1 ring-border/50">
-                              <AvatarImage src={p.avatar_url || ''} />
+                              {p.avatar_url ? <AvatarImage src={p.avatar_url} /> : null}
                               <AvatarFallback className="text-xs font-medium bg-primary/10 text-primary">{p.name.charAt(0)}</AvatarFallback>
                             </Avatar>
                           ))}
@@ -322,6 +368,11 @@ const EventMeetings = ({ eventId, isCreator, eventName }: EventMeetingsProps) =>
                         <Button variant="outline" size="sm" className="gap-1.5 rounded-xl" onClick={() => handleEnd(meeting.id)} disabled={endingId === meeting.id}>
                           {endingId === meeting.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Square className="w-3.5 h-3.5" />}
                           {t('end_meeting')}
+                        </Button>
+                      )}
+                      {isCreator && meeting.status === 'scheduled' && (
+                        <Button variant="outline" size="sm" className="gap-1.5 rounded-xl" onClick={() => openEditMeeting(meeting)}>
+                          <Pencil className="w-3.5 h-3.5" /> {t('edit_meeting')}
                         </Button>
                       )}
                       {isCreator && meeting.status !== 'ended' && (
@@ -422,7 +473,7 @@ const EventMeetings = ({ eventId, isCreator, eventName }: EventMeetingsProps) =>
                               }}
                             />
                             <Avatar className="w-8 h-8">
-                              <AvatarImage src={m.avatar_url || ''} />
+                              {m.avatar_url ? <AvatarImage src={m.avatar_url} /> : null}
                               <AvatarFallback className="text-xs bg-primary/10 text-primary">{(name || '?').charAt(0)}</AvatarFallback>
                             </Avatar>
                             <div className="flex-1 min-w-0">
@@ -568,6 +619,103 @@ const EventMeetings = ({ eventId, isCreator, eventName }: EventMeetingsProps) =>
         </DialogContent>
       </Dialog>
 
+      {/* Edit meeting dialog */}
+      <Dialog open={!!editingMeeting} onOpenChange={(open) => { if (!open) setEditingMeeting(null); }}>
+        <DialogContent className="max-w-md rounded-2xl p-0 overflow-hidden">
+          <div className="flex gap-1.5 px-6 pt-5">
+            <div className={cn("h-1 flex-1 rounded-full transition-all duration-300", "bg-primary")} />
+            <div className={cn("h-1 flex-1 rounded-full transition-all duration-300", editStep >= 2 ? "bg-primary" : "bg-muted")} />
+          </div>
+          <div className="px-6 pb-6 pt-3">
+            <DialogHeader className="space-y-1.5 mb-5">
+              <DialogTitle className="text-xl font-bold tracking-tight flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Pencil className="w-4.5 h-4.5" />
+                </div>
+                {editStep === 1 ? t('edit_a_meeting') : t('date_and_time')}
+              </DialogTitle>
+              <DialogDescription className="text-sm">{t('edit_meeting_subtitle')}</DialogDescription>
+            </DialogHeader>
+
+            {editStep === 1 ? (
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">{t('meeting_title')}</Label>
+                  <Input className="rounded-xl h-11" placeholder={t('meeting_title_placeholder')} value={editTitle} onChange={(e) => setEditTitle(e.target.value)} autoFocus />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">{t('meeting_description')}</Label>
+                  <Textarea className="rounded-xl resize-none" placeholder={t('meeting_description_placeholder')} value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={2} />
+                </div>
+                <Button className="w-full rounded-xl h-11 font-semibold gap-2" onClick={() => { if (!editTitle.trim()) { toast.error(t('enter_title_time')); return; } setEditStep(2); }}>
+                  {t('date_and_time')} <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">{t('pick_date')}</Label>
+                  <Popover open={editDatePickerOpen} onOpenChange={setEditDatePickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal rounded-xl h-11", !editDate && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {editDate ? format(editDate, 'EEEE, MMM d, yyyy') : t('pick_date')}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={editDate} onSelect={(date) => { setEditDate(date); setEditDatePickerOpen(false); }} disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))} initialFocus className={cn("p-3 pointer-events-auto")} />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">{t('pick_time')}</Label>
+                  <div className="flex items-center gap-0 bg-muted/40 rounded-2xl p-3 border">
+                    <div className="flex-1">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold text-center mb-2">Hour</p>
+                      <div className="grid grid-cols-6 gap-1">
+                        {HOURS.map(h => (
+                          <button key={h} onClick={() => setEditHour(h)} className={cn("h-8 rounded-lg text-sm font-medium transition-all", editHour === h ? "bg-primary text-primary-foreground shadow-sm" : "hover:bg-muted text-foreground")}>{h}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="w-px h-24 bg-border mx-3 self-center" />
+                    <div className="w-20">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold text-center mb-2">Min</p>
+                      <div className="grid grid-cols-1 gap-1">
+                        {MINUTES.map(m => (
+                          <button key={m} onClick={() => setEditMinute(m)} className={cn("h-9 rounded-lg text-sm font-medium transition-all", editMinute === m ? "bg-primary text-primary-foreground shadow-sm" : "hover:bg-muted text-foreground")}>:{m}</button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-center text-lg font-bold tracking-tight text-foreground">
+                    {editHour}:{editMinute}
+                    <span className="text-sm font-normal text-muted-foreground ml-2">({Intl.DateTimeFormat().resolvedOptions().timeZone})</span>
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">{t('duration_minutes')}</Label>
+                  <div className="flex gap-2">
+                    {DURATIONS.map(d => (
+                      <button key={d.value} onClick={() => setEditDuration(d.value)} className={cn("flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all", editDuration === d.value ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-background hover:bg-muted border-border text-foreground")}>{d.label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <Button variant="outline" className="rounded-xl h-11 px-5" onClick={() => setEditStep(1)}>
+                    <ChevronLeft className="w-4 h-4 mr-1" /> Back
+                  </Button>
+                  <Button className="flex-1 rounded-xl h-11 font-semibold gap-2" onClick={handleUpdate} disabled={updating || !editDate}>
+                    {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
+                    {t('update_meeting')}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Add participants dialog */}
       <AddParticipantsDialog
         open={!!showAddPeople}
@@ -638,7 +786,7 @@ function AddParticipantsDialog({ open, onClose, eventId, meetingId, committeeMem
                   }}
                 />
                 <Avatar className="w-8 h-8">
-                  <AvatarImage src={m.avatar_url || ''} />
+                  {m.avatar_url ? <AvatarImage src={m.avatar_url} /> : null}
                   <AvatarFallback className="text-xs bg-primary/10 text-primary">{(name || '?').charAt(0)}</AvatarFallback>
                 </Avatar>
                 <span className="text-sm font-medium">{name}</span>

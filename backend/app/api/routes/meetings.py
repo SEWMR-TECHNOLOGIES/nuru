@@ -241,6 +241,8 @@ def update_meeting(event_id: str, meeting_id: str, body: UpdateMeetingRequest, d
         raise HTTPException(status_code=404, detail="Meeting not found.")
     if str(meeting.created_by) != user_id:
         raise HTTPException(status_code=403, detail="Only the meeting organizer can update this meeting.")
+    if meeting.status != MeetingStatusEnum.scheduled:
+        raise HTTPException(status_code=400, detail="Only scheduled meetings can be edited.")
 
     if body.title is not None:
         meeting.title = body.title
@@ -642,6 +644,9 @@ def get_meeting_token(event_id: str, meeting_id: str, db: Session = Depends(get_
     # Determine permissions based on role
     is_host = _is_host_or_cohost(meeting, user_id, db)
 
+    # Get avatar URL for metadata
+    avatar_url = getattr(user, 'avatar_url', None) or getattr(getattr(user, 'profile', None), 'avatar_url', None) if user else None
+
     # Generate LiveKit JWT token
     token = _create_livekit_token(
         api_key=LIVEKIT_API_KEY,
@@ -650,6 +655,7 @@ def get_meeting_token(event_id: str, meeting_id: str, db: Session = Depends(get_
         participant_identity=participant_identity,
         participant_name=participant_name,
         is_host=is_host,
+        metadata=json.dumps({"avatar_url": avatar_url or ""}),
     )
 
     return {
@@ -665,7 +671,7 @@ def get_meeting_token(event_id: str, meeting_id: str, db: Session = Depends(get_
     }
 
 
-def _create_livekit_token(api_key: str, api_secret: str, room_name: str, participant_identity: str, participant_name: str, is_host: bool = False, ttl: int = 86400) -> str:
+def _create_livekit_token(api_key: str, api_secret: str, room_name: str, participant_identity: str, participant_name: str, is_host: bool = False, metadata: str = "", ttl: int = 86400) -> str:
     """Create a LiveKit access token (JWT) without external libraries."""
     now = int(time.time())
 
@@ -677,10 +683,12 @@ def _create_livekit_token(api_key: str, api_secret: str, room_name: str, partici
         "nbf": now,
         "exp": now + ttl,
         "jti": f"{participant_identity}-{now}",
+        "metadata": metadata,
         "video": {
             "room": room_name,
             "roomJoin": True,
             "canPublish": True,
+            "canPublishSources": ["camera", "microphone", "screen_share", "screen_share_audio"],
             "canSubscribe": True,
             "canPublishData": True,
         },

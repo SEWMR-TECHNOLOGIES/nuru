@@ -631,6 +631,11 @@ export const translations: Record<string, Record<Locale, string>> = {
   hours_2: { en: '2 hours', sw: 'Saa 2' },
   min_suffix: { en: 'min', sw: 'dak' },
   created_by: { en: 'Created by', sw: 'Imeundwa na' },
+  edit_meeting: { en: 'Edit', sw: 'Hariri' },
+  edit_a_meeting: { en: 'Edit meeting', sw: 'Hariri mkutano' },
+  edit_meeting_subtitle: { en: 'Update meeting details. Only scheduled meetings can be edited.', sw: 'Sasisha maelezo ya mkutano. Mikutano iliyopangwa tu ndiyo inayoweza kuhaririwa.' },
+  meeting_updated: { en: 'Meeting updated.', sw: 'Mkutano umesasishwa.' },
+  update_meeting: { en: 'Update Meeting', sw: 'Sasisha Mkutano' },
 
   // Meeting Agenda & Minutes
   agenda: { en: 'Agenda', sw: 'Ajenda' },

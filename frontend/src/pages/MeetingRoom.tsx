@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import {
   ChevronLeft, Loader2, Mic, MicOff, Camera, CameraOff, Monitor, MonitorOff,
   Users, MessageSquare, PhoneOff, Send, X, Hand, Smile, ShieldCheck, Volume2,
@@ -24,7 +25,7 @@ import {
   useTracks,
   VideoTrack,
 } from '@livekit/components-react';
-import { Track, RoomEvent, DataPacket_Kind } from 'livekit-client';
+import { Track, RoomEvent } from 'livekit-client';
 import '@livekit/components-styles';
 
 // ── Data channel message types ──
@@ -39,9 +40,10 @@ interface FloatingReaction {
   id: string;
   emoji: string;
   sender: string;
+  x: number; // random horizontal position
 }
 
-const REACTION_EMOJIS = ['👍', '👏', '❤️', '😂', '🎉', '🔥'];
+const REACTION_EMOJIS = ['👍', '👏', '❤️', '😂', '🎉', '🔥', '💯', '🙌'];
 
 // ── Waiting Room Component ──
 const WaitingRoom = ({ onAdmitted, onRejected, meetingTitle }: {
@@ -87,9 +89,12 @@ const JoinRequestPanel = ({ requests, onApprove, onReject }: {
       <ScrollArea className="max-h-48">
         {requests.map((req) => (
           <div key={req.id} className="flex items-center gap-2 px-3 py-2 border-b border-white/5">
-            <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center text-primary text-xs font-bold">
-              {req.name[0]?.toUpperCase() || '?'}
-            </div>
+            <Avatar className="w-8 h-8">
+              <AvatarImage src={req.avatar_url || ''} />
+              <AvatarFallback className="bg-primary/15 text-primary text-xs font-bold">
+                {req.name[0]?.toUpperCase() || '?'}
+              </AvatarFallback>
+            </Avatar>
             <span className="text-white text-sm flex-1 truncate">{req.name}</span>
             <button onClick={() => onApprove(req.id)} className="w-7 h-7 rounded-lg bg-green-500/15 flex items-center justify-center hover:bg-green-500/30 transition-colors">
               <Check className="w-3.5 h-3.5 text-green-400" />
@@ -104,12 +109,22 @@ const JoinRequestPanel = ({ requests, onApprove, onReject }: {
   );
 };
 
-// ── Reactions Overlay ──
+// ── Google Meet-style Animated Reactions Overlay ──
 const ReactionsOverlay = ({ reactions }: { reactions: FloatingReaction[] }) => (
-  <div className="absolute bottom-20 left-4 pointer-events-none z-40 flex flex-col-reverse gap-1">
+  <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden">
     {reactions.map((r) => (
-      <div key={r.id} className="animate-bounce text-3xl opacity-90" style={{ animationDuration: '1.5s' }}>
-        {r.emoji}
+      <div
+        key={r.id}
+        className="absolute animate-[floatUp_3s_ease-out_forwards]"
+        style={{
+          left: `${r.x}%`,
+          bottom: '80px',
+        }}
+      >
+        <div className="flex flex-col items-center gap-0.5">
+          <span className="text-4xl drop-shadow-lg">{r.emoji}</span>
+          <span className="text-[10px] text-white/60 font-medium bg-black/40 px-1.5 py-0.5 rounded-full whitespace-nowrap">{r.sender}</span>
+        </div>
       </div>
     ))}
   </div>
@@ -117,9 +132,9 @@ const ReactionsOverlay = ({ reactions }: { reactions: FloatingReaction[] }) => (
 
 // ── Reaction Picker ──
 const ReactionPicker = ({ onSelect, onClose }: { onSelect: (emoji: string) => void; onClose: () => void }) => (
-  <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-[#1a1a1a] border border-white/10 rounded-2xl px-3 py-2 flex gap-2 z-50 shadow-2xl">
+  <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-[#1e1e1e] border border-white/15 rounded-full px-4 py-2.5 flex gap-1 z-50 shadow-2xl backdrop-blur-sm">
     {REACTION_EMOJIS.map((e) => (
-      <button key={e} onClick={() => { onSelect(e); onClose(); }} className="text-2xl hover:scale-125 transition-transform p-1">
+      <button key={e} onClick={() => { onSelect(e); onClose(); }} className="text-2xl hover:scale-150 active:scale-90 transition-transform duration-200 p-1.5 rounded-full hover:bg-white/10">
         {e}
       </button>
     ))}
@@ -148,7 +163,7 @@ const SpeakingIndicator = ({ isSpeaking }: { isSpeaking: boolean }) => {
 const HandRaiseBadge = ({ isRaised }: { isRaised: boolean }) => {
   if (!isRaised) return null;
   return (
-    <div className="absolute top-2 left-2 w-7 h-7 rounded-lg bg-amber-500/30 flex items-center justify-center">
+    <div className="absolute top-2 left-2 w-7 h-7 rounded-lg bg-amber-500/30 flex items-center justify-center animate-bounce">
       <span className="text-sm">✋</span>
     </div>
   );
@@ -214,7 +229,8 @@ const MeetingUI = ({ onLeave, isHost, eventId, meetingId }: {
         
         if (msg.type === 'reaction') {
           const id = `${Date.now()}-${Math.random()}`;
-          setFloatingReactions(prev => [...prev.slice(-5), { id, emoji: msg.payload || '👍', sender: senderName }]);
+          const x = 10 + Math.random() * 80; // random horizontal position
+          setFloatingReactions(prev => [...prev.slice(-8), { id, emoji: msg.payload || '👍', sender: senderName, x }]);
           setTimeout(() => setFloatingReactions(prev => prev.filter(r => r.id !== id)), 3000);
         } else if (msg.type === 'hand_raise') {
           setRaisedHands(prev => new Set(prev).add(participant?.identity || ''));
@@ -247,7 +263,12 @@ const MeetingUI = ({ onLeave, isHost, eventId, meetingId }: {
   }, [localParticipant, isCamEnabled]);
 
   const toggleScreenShare = useCallback(async () => {
-    await localParticipant?.setScreenShareEnabled(!isScreenSharing);
+    try {
+      await localParticipant?.setScreenShareEnabled(!isScreenSharing);
+    } catch (err) {
+      console.error('Screen share error:', err);
+      toast.error('Screen sharing failed. Please check browser permissions.');
+    }
   }, [localParticipant, isScreenSharing]);
 
   const handleSendChat = useCallback(() => {
@@ -260,7 +281,8 @@ const MeetingUI = ({ onLeave, isHost, eventId, meetingId }: {
     sendDataMessage({ type: 'reaction', payload: emoji });
     // Show locally too
     const id = `${Date.now()}-local`;
-    setFloatingReactions(prev => [...prev.slice(-5), { id, emoji, sender: 'You' }]);
+    const x = 10 + Math.random() * 80;
+    setFloatingReactions(prev => [...prev.slice(-8), { id, emoji, sender: 'You', x }]);
     setTimeout(() => setFloatingReactions(prev => prev.filter(r => r.id !== id)), 3000);
   }, [sendDataMessage]);
 
@@ -294,26 +316,28 @@ const MeetingUI = ({ onLeave, isHost, eventId, meetingId }: {
     } catch { toast.error('Failed to decline'); }
   }, [eventId, meetingId]);
 
-  // Mute another participant (host only)
-  const muteParticipant = useCallback(async (identity: string) => {
-    if (!room || !isHost) return;
+  // Get participant metadata (avatar URL from LiveKit metadata)
+  const getParticipantAvatar = (participant: any) => {
     try {
-      const p = room.remoteParticipants.get(identity);
-      if (p) {
-        // Request mute via LiveKit room admin
-        p.trackPublications.forEach(pub => {
-          if (pub.source === Track.Source.Microphone && !pub.isMuted) {
-            // LiveKit allows room admins to mute remote participants
-            (room as any).localParticipant?.requestParticipantPermissions?.(p, { canPublish: false });
-          }
-        });
-        toast.info('Mute request sent');
+      if (participant.metadata) {
+        const meta = JSON.parse(participant.metadata);
+        return meta.avatar_url || '';
       }
     } catch { /* ignore */ }
-  }, [room, isHost]);
+    return '';
+  };
 
   return (
     <div className="h-full flex flex-col bg-[#0a0a0a] relative">
+      {/* CSS for floating reaction animation */}
+      <style>{`
+        @keyframes floatUp {
+          0% { opacity: 1; transform: translateY(0) scale(1); }
+          30% { opacity: 1; transform: translateY(-60px) scale(1.2); }
+          100% { opacity: 0; transform: translateY(-200px) scale(0.8); }
+        }
+      `}</style>
+
       {/* Floating reactions */}
       <ReactionsOverlay reactions={floatingReactions} />
 
@@ -366,6 +390,10 @@ const MeetingUI = ({ onLeave, isHost, eventId, meetingId }: {
               const isSpeaking = participant.isSpeaking;
               const isHandRaised = raisedHands.has(participant.identity);
               const displayName = participant.name || (isLocal ? 'You' : 'Participant');
+              const avatarUrl = getParticipantAvatar(participant);
+
+              // Camera is actually publishing a video track
+              const hasActiveVideo = trackRef.publication?.track && !trackRef.publication.isMuted;
 
               return (
                 <div
@@ -374,16 +402,19 @@ const MeetingUI = ({ onLeave, isHost, eventId, meetingId }: {
                     isSpeaking ? 'ring-2 ring-green-500/60' : ''
                   }`}
                 >
-                  {trackRef.publication?.track ? (
+                  {hasActiveVideo ? (
                     <VideoTrack
                       trackRef={trackRef as any}
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="w-16 h-16 rounded-2xl bg-primary/15 flex items-center justify-center">
-                        <Users className="w-8 h-8 text-primary" />
-                      </div>
+                    <div className="flex flex-col items-center gap-3">
+                      <Avatar className="w-20 h-20 border-2 border-white/10">
+                        <AvatarImage src={avatarUrl} />
+                        <AvatarFallback className="bg-primary/15 text-primary text-2xl font-bold">
+                          {displayName[0]?.toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
                       <span className="text-white/50 text-sm">{displayName}</span>
                     </div>
                   )}
@@ -406,7 +437,6 @@ const MeetingUI = ({ onLeave, isHost, eventId, meetingId }: {
                   {isHost && !isLocal && (
                     <div className="absolute top-2 right-2 opacity-0 hover:opacity-100 transition-opacity">
                       <button
-                        onClick={() => muteParticipant(participant.identity)}
                         className="w-6 h-6 rounded bg-black/60 flex items-center justify-center hover:bg-red-500/50"
                         title="Mute participant"
                       >
@@ -422,8 +452,8 @@ const MeetingUI = ({ onLeave, isHost, eventId, meetingId }: {
 
         {/* Participants sidebar */}
         {showParticipants && (
-          <div className="w-64 bg-[#111] border-l border-white/10 flex flex-col">
-            <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/10">
+          <div className="w-72 bg-[#111] border-l border-white/10 flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
               <span className="text-white font-semibold text-sm">Participants ({participants.length})</span>
               <button onClick={() => setShowParticipants(false)} className="text-white/50 hover:text-white/80">
                 <X className="w-4 h-4" />
@@ -435,15 +465,19 @@ const MeetingUI = ({ onLeave, isHost, eventId, meetingId }: {
                 const isMuted = !p.isMicrophoneEnabled;
                 const isHandUp = raisedHands.has(p.identity);
                 const displayName = p.name || (isLocal ? 'You' : 'Participant');
+                const avatarUrl = getParticipantAvatar(p);
                 return (
-                  <div key={p.identity} className="flex items-center gap-2.5 px-3 py-2 hover:bg-white/5">
-                    <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center text-primary text-xs font-semibold">
-                      {displayName[0]?.toUpperCase()}
-                    </div>
+                  <div key={p.identity} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors">
+                    <Avatar className="w-8 h-8">
+                      <AvatarImage src={avatarUrl} />
+                      <AvatarFallback className="bg-primary/15 text-primary text-xs font-semibold">
+                        {displayName[0]?.toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
                     <span className="text-white text-sm flex-1 truncate">
                       {displayName}{isLocal ? ' (You)' : ''}
                     </span>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       {isHandUp && <span className="text-sm">✋</span>}
                       {p.isSpeaking && <Volume2 className="w-3 h-3 text-green-400" />}
                       {isMuted ? (
@@ -462,7 +496,7 @@ const MeetingUI = ({ onLeave, isHost, eventId, meetingId }: {
         {/* Chat sidebar */}
         {showChat && (
           <div className="w-72 bg-[#111] border-l border-white/10 flex flex-col">
-            <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/10">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
               <span className="text-white font-semibold text-sm">Chat</span>
               <button onClick={() => setShowChat(false)} className="text-white/50 hover:text-white/80">
                 <X className="w-4 h-4" />
@@ -603,7 +637,7 @@ const MeetingRoom = () => {
   const [joinStatus, setJoinStatus] = useState<string>('');
   const waitingPollRef = useRef<ReturnType<typeof setInterval>>();
 
-  // Auth gate: redirect to login if not authenticated
+  // Auth gate
   useEffect(() => {
     if (authLoading) return;
     if (!userIsLoggedIn) {
@@ -621,7 +655,6 @@ const MeetingRoom = () => {
         let eid = eventId;
         let mid = meetingId;
 
-        // Resolve from roomId if needed
         if (!eid || !mid) {
           const roomRes = await meetingsApi.getByRoom(roomId);
           if (roomRes.success && roomRes.data) {
@@ -642,16 +675,13 @@ const MeetingRoom = () => {
           return;
         }
 
-        // Try to join
         const joinRes = await meetingsApi.join(eid, mid);
         const joinData = joinRes.data as any;
         const status = joinData?.status;
 
         if (status === 'joined' || status === 'already_joined') {
-          // Admitted! Get token
           await fetchToken(eid, mid);
         } else if (status === 'waiting') {
-          // Waiting room - start polling
           setJoinStatus('waiting');
           setLoading(false);
           startWaitingPoll(eid, mid);
@@ -669,7 +699,6 @@ const MeetingRoom = () => {
     };
 
     init();
-
     return () => clearInterval(waitingPollRef.current);
   }, [roomId, userIsLoggedIn, authLoading]);
 
@@ -718,7 +747,6 @@ const MeetingRoom = () => {
     navigate(-1);
   }, [navigate, eventId, meetingId]);
 
-  // Auth loading
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#0a0a0a]">
@@ -743,7 +771,6 @@ const MeetingRoom = () => {
     );
   }
 
-  // Waiting room
   if (joinStatus === 'waiting') {
     return (
       <WaitingRoom
