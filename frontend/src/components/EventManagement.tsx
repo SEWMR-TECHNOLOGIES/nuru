@@ -650,7 +650,7 @@ const EventManagement = () => {
         </TabsContent>
 
         <TabsContent value="meetings" className="space-y-6">
-          <EventMeetings eventId={id!} isCreator={isCreator} />
+          <EventMeetings eventId={id!} isCreator={isCreator} eventName={eventTitle} />
         </TabsContent>
 
         {(apiEvent as any)?.sells_tickets && (

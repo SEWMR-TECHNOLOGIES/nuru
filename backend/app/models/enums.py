@@ -273,3 +273,15 @@ class MeetingStatusEnum(enum.Enum):
     scheduled = "scheduled"
     in_progress = "in_progress"
     ended = "ended"
+
+
+class MeetingParticipantRoleEnum(enum.Enum):
+    creator = "creator"
+    co_host = "co_host"
+    participant = "participant"
+
+
+class MeetingJoinRequestStatusEnum(enum.Enum):
+    waiting = "waiting"
+    approved = "approved"
+    rejected = "rejected"

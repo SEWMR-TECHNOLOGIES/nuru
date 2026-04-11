@@ -23,11 +23,13 @@ interface MeetingDocumentsProps {
   eventId: string;
   meetingId: string;
   meetingTitle: string;
+  meetingDescription?: string;
   meetingDate: string;
   isCreator: boolean;
+  eventName?: string;
 }
 
-const MeetingDocuments = ({ eventId, meetingId, meetingTitle, meetingDate, isCreator }: MeetingDocumentsProps) => {
+const MeetingDocuments = ({ eventId, meetingId, meetingTitle, meetingDescription, meetingDate, isCreator, eventName }: MeetingDocumentsProps) => {
   const { t } = useLanguage();
 
   // Agenda state
@@ -165,6 +167,8 @@ const MeetingDocuments = ({ eventId, meetingId, meetingTitle, meetingDate, isCre
     if (!printWindow) return;
 
     const totalDuration = agendaItems.reduce((sum, item) => sum + (item.duration_minutes || 0), 0);
+    const completedItems = agendaItems.filter(i => i.is_completed).length;
+    const logoAbsoluteUrl = (() => { try { return new URL('/nuru-logo.png', window.location.origin).href; } catch { return ''; } })();
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -173,96 +177,141 @@ const MeetingDocuments = ({ eventId, meetingId, meetingTitle, meetingDate, isCre
         <title>${meetingTitle} - Agenda & Minutes</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: 'Georgia', 'Times New Roman', serif; color: #1a1a2e; background: white; padding: 0; }
-          .page { max-width: 800px; margin: 0 auto; padding: 60px 50px; }
-          .header { text-align: center; border-bottom: 3px solid #1a1a2e; padding-bottom: 30px; margin-bottom: 40px; }
-          .header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 8px; color: #1a1a2e; }
-          .header .subtitle { font-size: 14px; color: #666; margin-bottom: 4px; }
-          .header .meta { display: flex; justify-content: center; gap: 30px; margin-top: 16px; font-size: 13px; color: #444; }
-          .header .meta span { display: flex; align-items: center; gap: 6px; }
-          .section { margin-bottom: 36px; }
-          .section-title { font-size: 18px; font-weight: 700; color: #1a1a2e; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1.5px solid #e0e0e0; display: flex; align-items: center; gap: 10px; }
-          .section-title .icon { width: 24px; height: 24px; background: #f0f0ff; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
-          .agenda-item { display: flex; gap: 14px; padding: 14px 16px; margin-bottom: 8px; background: #fafafa; border-radius: 10px; border-left: 3px solid #6366f1; }
-          .agenda-item.completed { opacity: 0.6; border-left-color: #22c55e; }
-          .agenda-number { width: 28px; height: 28px; background: #6366f1; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
-          .agenda-item.completed .agenda-number { background: #22c55e; }
-          .agenda-content h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
-          .agenda-content p { font-size: 13px; color: #555; line-height: 1.5; }
-          .agenda-meta { font-size: 12px; color: #888; margin-top: 6px; display: flex; gap: 16px; }
-          .minutes-content { font-size: 14px; line-height: 1.8; color: #333; white-space: pre-wrap; }
-          .highlight-box { background: #f8f9ff; border: 1px solid #e8e8ff; border-radius: 10px; padding: 18px 20px; margin-bottom: 16px; }
-          .highlight-box h4 { font-size: 14px; font-weight: 700; color: #4f46e5; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
-          .highlight-box p { font-size: 13px; line-height: 1.7; color: #444; white-space: pre-wrap; }
-          .footer { margin-top: 50px; padding-top: 20px; border-top: 2px solid #1a1a2e; text-align: center; font-size: 11px; color: #999; }
-          .status-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-          .status-completed { background: #dcfce7; color: #166534; }
-          .status-pending { background: #fef3c7; color: #92400e; }
-          @media print { body { padding: 0; } .page { padding: 40px 30px; } }
+          body { font-family: Arial, sans-serif; color: #333; background: white; padding: 40px; }
+          .accent-bar { width: 100%; height: 3px; background: #FF7145; margin-bottom: 20px; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #E8ECF2; }
+          .brand { display: flex; flex-direction: column; align-items: flex-start; }
+          .brand img { height: 40px; margin-bottom: 6px; }
+          .brand .slogan { font-size: 11px; color: #9EADC2; font-style: italic; }
+          .header-right { text-align: right; }
+          .header-right h1 { font-size: 18px; margin: 0 0 4px 0; color: #0A1C40; }
+          .header-right h2 { font-size: 12px; color: #6B7F9E; margin: 0; font-weight: normal; }
+          .summary { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+          .metric-card { flex: 1; min-width: 100px; border: 1px solid #E8ECF2; border-radius: 6px; overflow: hidden; display: flex; }
+          .metric-accent { width: 3px; flex-shrink: 0; }
+          .metric-body { padding: 10px 12px; }
+          .metric-label { font-size: 9px; color: #9EADC2; text-transform: uppercase; letter-spacing: 0.8px; }
+          .metric-value { font-size: 16px; font-weight: bold; margin-top: 2px; color: #0A1C40; }
+          .section-heading { display: flex; align-items: center; gap: 8px; margin: 24px 0 12px; }
+          .section-heading .accent { width: 3px; height: 14px; background: #FF7145; border-radius: 1.5px; }
+          .section-heading span { font-size: 10px; font-weight: bold; color: #3A4D6A; text-transform: uppercase; letter-spacing: 1.5px; }
+          .agenda-item { display: flex; gap: 12px; padding: 12px 14px; margin-bottom: 6px; background: #F6F7F9; border-radius: 6px; border-left: 3px solid #6366f1; }
+          .agenda-item.completed { border-left-color: #22C55E; opacity: 0.75; }
+          .agenda-number { width: 24px; height: 24px; background: #6366f1; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+          .agenda-item.completed .agenda-number { background: #22C55E; }
+          .agenda-content h3 { font-size: 13px; font-weight: 600; margin-bottom: 3px; color: #0A1C40; }
+          .agenda-content p { font-size: 11px; color: #6B7F9E; line-height: 1.5; }
+          .agenda-meta { font-size: 10px; color: #9EADC2; margin-top: 4px; }
+          .minutes-content { font-size: 13px; line-height: 1.8; color: #333; white-space: pre-wrap; }
+          .highlight-box { border: 1px solid #E8ECF2; border-radius: 6px; padding: 14px 16px; margin-bottom: 12px; border-left: 3px solid; overflow: hidden; }
+          .highlight-box h4 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+          .highlight-box p { font-size: 12px; line-height: 1.7; color: #3A4D6A; white-space: pre-wrap; }
+          .highlight-summary { background: #FFFBEB; border-left-color: #F59E0B; }
+          .highlight-summary h4 { color: #F59E0B; }
+          .highlight-decisions { background: #F0FDF4; border-left-color: #22C55E; }
+          .highlight-decisions h4 { color: #22C55E; }
+          .highlight-actions { background: #F0F5FF; border-left-color: #2471E7; }
+          .highlight-actions h4 { color: #2471E7; }
+          .footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #F0F2F5; display: flex; justify-content: space-between; font-size: 8px; color: #9EADC2; letter-spacing: 0.3px; }
+          @media print { body { padding: 20px; } }
         </style>
       </head>
       <body>
-        <div class="page">
-          <div class="header">
-            <h1>${meetingTitle}</h1>
-            <div class="subtitle">Meeting Agenda & Minutes</div>
-            <div class="meta">
-              <span>📅 ${new Date(meetingDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-              <span>🕐 ${new Date(meetingDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
-              ${totalDuration > 0 ? `<span>⏱ ${totalDuration} min</span>` : ''}
+        <div class="accent-bar"></div>
+        <div class="header">
+          <div class="brand">
+            ${logoAbsoluteUrl ? `<img src="${logoAbsoluteUrl}" alt="Nuru" />` : ''}
+            <span class="slogan">Plan Smarter</span>
+          </div>
+          <div class="header-right">
+            <h1>Meeting Report</h1>
+            ${eventName ? `<h2 style="font-size:13px;color:#3A4D6A;margin:0 0 2px 0;font-weight:600">${eventName}</h2>` : ''}
+            <h2>${meetingTitle}</h2>
+            ${meetingDescription ? `<p style="font-size:10px;color:#9EADC2;margin:4px 0 0 0;max-width:300px;line-height:1.4">${meetingDescription}</p>` : ''}
+          </div>
+        </div>
+
+        <div class="summary">
+          <div class="metric-card">
+            <div class="metric-accent" style="background:#2471E7"></div>
+            <div class="metric-body">
+              <div class="metric-label">Date</div>
+              <div class="metric-value" style="font-size:13px">${new Date(meetingDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</div>
             </div>
           </div>
+          <div class="metric-card">
+            <div class="metric-accent" style="background:#7C3AED"></div>
+            <div class="metric-body">
+              <div class="metric-label">Time</div>
+              <div class="metric-value" style="font-size:13px">${new Date(meetingDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-accent" style="background:#FF7145"></div>
+            <div class="metric-body">
+              <div class="metric-label">Agenda Items</div>
+              <div class="metric-value">${agendaItems.length}</div>
+            </div>
+          </div>
+          ${totalDuration > 0 ? `
+          <div class="metric-card">
+            <div class="metric-accent" style="background:#F59E0B"></div>
+            <div class="metric-body">
+              <div class="metric-label">Est. Duration</div>
+              <div class="metric-value">${totalDuration} min</div>
+            </div>
+          </div>` : ''}
+          <div class="metric-card">
+            <div class="metric-accent" style="background:#22C55E"></div>
+            <div class="metric-body">
+              <div class="metric-label">Completed</div>
+              <div class="metric-value" style="color:#22C55E">${completedItems}/${agendaItems.length}</div>
+            </div>
+          </div>
+        </div>
 
-          ${agendaItems.length > 0 ? `
-          <div class="section">
-            <div class="section-title"><div class="icon">📋</div> Agenda</div>
-            ${agendaItems.map((item, i) => `
-              <div class="agenda-item ${item.is_completed ? 'completed' : ''}">
-                <div class="agenda-number">${i + 1}</div>
-                <div class="agenda-content">
-                  <h3>${item.title} ${item.is_completed ? '<span class="status-badge status-completed">✓ Done</span>' : ''}</h3>
-                  ${item.description ? `<p>${item.description}</p>` : ''}
-                  <div class="agenda-meta">
-                    ${item.duration_minutes ? `<span>⏱ ${item.duration_minutes} min</span>` : ''}
-                    ${item.presenter ? `<span>👤 ${item.presenter.name}</span>` : ''}
-                  </div>
-                </div>
+        ${agendaItems.length > 0 ? `
+        <div class="section-heading"><div class="accent"></div><span>Agenda</span></div>
+        ${agendaItems.map((item, i) => `
+          <div class="agenda-item ${item.is_completed ? 'completed' : ''}">
+            <div class="agenda-number">${i + 1}</div>
+            <div class="agenda-content">
+              <h3>${item.title}${item.is_completed ? ' <span style="font-size:10px;color:#22C55E;font-weight:bold">✓ DONE</span>' : ''}</h3>
+              ${item.description ? `<p>${item.description}</p>` : ''}
+              <div class="agenda-meta">
+                ${item.duration_minutes ? `⏱ ${item.duration_minutes} min` : ''}
+                ${item.presenter ? ` · 👤 ${item.presenter.name}` : ''}
               </div>
-            `).join('')}
+            </div>
           </div>
-          ` : ''}
+        `).join('')}
+        ` : ''}
 
-          ${minutes ? `
-          <div class="section">
-            <div class="section-title"><div class="icon">📝</div> Meeting Minutes</div>
-            <div class="minutes-content">${minutes.content}</div>
-          </div>
+        ${minutes ? `
+        <div class="section-heading"><div class="accent"></div><span>Meeting Minutes</span></div>
+        <div class="minutes-content">${minutes.content}</div>
 
-          ${minutes.summary ? `
-          <div class="highlight-box">
-            <h4>💡 Summary</h4>
-            <p>${minutes.summary}</p>
-          </div>
-          ` : ''}
+        ${minutes.summary ? `
+        <div class="highlight-box highlight-summary" style="margin-top:16px">
+          <h4>Summary</h4>
+          <p>${minutes.summary}</p>
+        </div>` : ''}
 
-          ${minutes.decisions ? `
-          <div class="highlight-box">
-            <h4>🎯 Key Decisions</h4>
-            <p>${minutes.decisions}</p>
-          </div>
-          ` : ''}
+        ${minutes.decisions ? `
+        <div class="highlight-box highlight-decisions">
+          <h4>Key Decisions</h4>
+          <p>${minutes.decisions}</p>
+        </div>` : ''}
 
-          ${minutes.action_items ? `
-          <div class="highlight-box">
-            <h4>⚡ Action Items</h4>
-            <p>${minutes.action_items}</p>
-          </div>
-          ` : ''}
-          ` : ''}
+        ${minutes.action_items ? `
+        <div class="highlight-box highlight-actions">
+          <h4>Action Items</h4>
+          <p>${minutes.action_items}</p>
+        </div>` : ''}
+        ` : ''}
 
-          <div class="footer">
-            Generated by Nuru · ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-          </div>
+        <div class="footer">
+          <span>Generated by Nuru Events Workspace &middot; &copy; ${new Date().getFullYear()} Nuru | SEWMR TECHNOLOGIES</span>
         </div>
       </body>
       </html>

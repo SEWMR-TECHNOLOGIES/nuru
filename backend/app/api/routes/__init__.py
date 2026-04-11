@@ -33,6 +33,7 @@ from .issues import router as issues_router
 from .agreements import router as agreements_router
 from .card_templates import router as card_templates_router
 from .meetings import router as meetings_router
+
 from .meeting_documents import router as meeting_documents_router
 from .meeting_og import router as meeting_og_router
 

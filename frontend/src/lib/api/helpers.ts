@@ -51,15 +51,20 @@ export async function request<T>(
     const response = await fetch(url, config);
 
     // Handle 401 globally - token expired or invalid
+    // Skip redirect on public pages (shared posts, photo libraries, RSVP, etc.)
     if (response.status === 401) {
       const currentToken = localStorage.getItem("access_token") || localStorage.getItem("token");
+      const publicPaths = ["/shared/", "/s/", "/rsvp/", "/ticket/", "/meet/", "/contact", "/faqs", "/register", "/login", "/verify-", "/reset-password", "/privacy-policy", "/terms", "/vendor-agreement", "/organiser-agreement", "/cancellation-policy", "/cookie-policy", "/features/"];
+      const isPublicPage = publicPaths.some(p => window.location.pathname.startsWith(p));
       if (currentToken) {
         localStorage.removeItem("access_token");
         localStorage.removeItem("token");
         localStorage.removeItem("refresh_token");
-        // Show message and redirect
-        const event = new CustomEvent("auth:session-expired");
-        window.dispatchEvent(event);
+        // Only redirect on protected pages, not public ones
+        if (!isPublicPage) {
+          const event = new CustomEvent("auth:session-expired");
+          window.dispatchEvent(event);
+        }
       }
     }
 

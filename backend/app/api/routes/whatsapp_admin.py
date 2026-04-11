@@ -23,9 +23,9 @@ router = APIRouter(tags=["WhatsApp"])
 # Import admin auth dependency from admin routes
 from api.routes.admin import require_admin
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
-WHATSAPP_SEND_URL = f"{SUPABASE_URL}/functions/v1/whatsapp-send" if SUPABASE_URL else ""
+EDGE_FUNCTION_URL = os.getenv("EDGE_FUNCTION_URL", "") or os.getenv("SUPABASE_URL", "")
+EDGE_FUNCTION_KEY = os.getenv("EDGE_FUNCTION_KEY", "") or os.getenv("SUPABASE_ANON_KEY", "")
+WHATSAPP_SEND_URL = f"{EDGE_FUNCTION_URL}/functions/v1/whatsapp-send" if EDGE_FUNCTION_URL else ""
 
 
 # ──────────────────────────────────────────────

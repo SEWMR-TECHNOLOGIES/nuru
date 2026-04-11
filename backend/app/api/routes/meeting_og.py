@@ -32,6 +32,7 @@ def get_meeting_by_room(room_id: str, db: Session = Depends(get_db)):
         "success": True,
         "data": {
             "id": str(meeting.id),
+            "event_id": str(meeting.event_id),
             "title": meeting.title,
             "description": meeting.description,
             "scheduled_at": meeting.scheduled_at.isoformat() if meeting.scheduled_at else None,
@@ -39,6 +40,7 @@ def get_meeting_by_room(room_id: str, db: Session = Depends(get_db)):
             "status": meeting.status.value if meeting.status else "scheduled",
             "room_id": meeting.room_id,
             "participant_count": len(meeting.participants),
+            "requires_auth": True,
             "event": {
                 "id": str(event.id) if event else None,
                 "name": event.name if event else None,

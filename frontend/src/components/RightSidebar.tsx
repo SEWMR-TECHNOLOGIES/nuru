@@ -147,7 +147,9 @@ const MyMeetingsSection = ({ navigate }: { navigate: (path: string) => void }) =
     return () => clearInterval(interval);
   }, [fetchMeetings]);
 
-  if (loading || meetings.length === 0) return null;
+  // Show nothing only after initial load completes with no meetings
+  if (loading) return null;
+  if (meetings.length === 0) return null;
 
   return (
     <div className="bg-card rounded-lg border border-border overflow-hidden">

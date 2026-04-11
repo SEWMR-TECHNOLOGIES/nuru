@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Users, Clock, Play, Square, Trash2, Loader2, UserPlus, CalendarIcon, Check, Link2, Sparkles, ListOrdered, FileText } from 'lucide-react';
+import { Plus, Users, Clock, Play, Square, Trash2, Loader2, UserPlus, CalendarIcon, Check, Link2, Sparkles, ListOrdered, ChevronRight, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +13,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { meetingsApi, Meeting } from '@/lib/api/meetings';
 import { eventsApi, showCaughtError } from '@/lib/api';
 import { toast } from 'sonner';
@@ -27,9 +26,20 @@ import MeetingDocuments from '@/components/events/MeetingDocuments';
 interface EventMeetingsProps {
   eventId: string;
   isCreator: boolean;
+  eventName?: string;
 }
 
-const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
+const DURATIONS = [
+  { value: '30', label: '30 min' },
+  { value: '60', label: '1 hour' },
+  { value: '90', label: '1.5 hours' },
+  { value: '120', label: '2 hours' },
+];
+
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+const MINUTES = ['00', '15', '30', '45'];
+
+const EventMeetings = ({ eventId, isCreator, eventName }: EventMeetingsProps) => {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -43,9 +53,12 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
   const [endingId, setEndingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // -- Create form state --
+  const [step, setStep] = useState(1);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [selectedHour, setSelectedHour] = useState('09');
   const [selectedMinute, setSelectedMinute] = useState('00');
   const [duration, setDuration] = useState('60');
@@ -75,6 +88,13 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
     loadCommittee();
   }, [loadMeetings, loadCommittee]);
 
+  const resetForm = () => {
+    setStep(1);
+    setTitle(''); setDescription(''); setSelectedDate(undefined);
+    setSelectedHour('09'); setSelectedMinute('00'); setDuration('60');
+    setSelectedParticipants([]);
+  };
+
   const handleCreate = async () => {
     if (!title.trim() || !selectedDate) {
       toast.error(t('enter_title_time'));
@@ -82,21 +102,23 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
     }
     const scheduled = new Date(selectedDate);
     scheduled.setHours(parseInt(selectedHour), parseInt(selectedMinute), 0, 0);
-    const scheduledAt = scheduled.toISOString();
+
+    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
     setCreating(true);
     try {
       const res = await meetingsApi.create(eventId, {
         title: title.trim(),
         description: description.trim() || undefined,
-        scheduled_at: scheduledAt,
+        scheduled_at: scheduled.toISOString(),
+        timezone: userTimezone,
         duration_minutes: duration,
         participant_user_ids: selectedParticipants,
       });
       if (res.success) {
         toast.success(res.message || t('meeting_scheduled'));
         setShowCreate(false);
-        setTitle(''); setDescription(''); setSelectedDate(undefined); setSelectedHour('09'); setSelectedMinute('00'); setDuration('60'); setSelectedParticipants([]);
+        resetForm();
         loadMeetings();
       }
     } catch (err: any) { showCaughtError(err); }
@@ -321,8 +343,10 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
                           eventId={eventId}
                           meetingId={meeting.id}
                           meetingTitle={meeting.title}
+                          meetingDescription={meeting.description}
                           meetingDate={meeting.scheduled_at}
                           isCreator={isCreator}
+                          eventName={eventName}
                         />
                       </div>
                     )}
@@ -334,94 +358,212 @@ const EventMeetings = ({ eventId, isCreator }: EventMeetingsProps) => {
         </div>
       )}
 
-      {/* Create meeting dialog */}
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="max-w-lg rounded-2xl">
-          <DialogHeader className="space-y-1.5">
-            <DialogTitle className="text-xl font-bold tracking-tight flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <SvgIcon src={videoChatIcon} className="w-4 h-4" />
-              </div>
-              {t('schedule_a_meeting')}
-            </DialogTitle>
-            <DialogDescription className="text-sm">{t('meeting_invite_subtitle')}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">{t('meeting_title')}</Label>
-              <Input className="rounded-xl" placeholder={t('meeting_title_placeholder')} value={title} onChange={(e) => setTitle(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">{t('meeting_description')}</Label>
-              <Textarea className="rounded-xl resize-none" placeholder={t('meeting_description_placeholder')} value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">{t('date_and_time')}</Label>
-              <div className="flex gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn("flex-1 justify-start text-left font-normal rounded-xl", !selectedDate && "text-muted-foreground")}>
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {selectedDate ? format(selectedDate, 'MMM d, yyyy') : t('pick_date')}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))} initialFocus className={cn("p-3 pointer-events-auto")} />
-                  </PopoverContent>
-                </Popover>
-                <Select value={selectedHour} onValueChange={setSelectedHour}>
-                  <SelectTrigger className="w-[70px] rounded-xl"><SelectValue /></SelectTrigger>
-                  <SelectContent>{Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent>
-                </Select>
-                <span className="flex items-center text-muted-foreground font-bold">:</span>
-                <Select value={selectedMinute} onValueChange={setSelectedMinute}>
-                  <SelectTrigger className="w-[70px] rounded-xl"><SelectValue /></SelectTrigger>
-                  <SelectContent>{['00','15','30','45'].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">{t('duration_minutes')}</Label>
-              <Input className="rounded-xl" type="number" value={duration} onChange={(e) => setDuration(e.target.value)} min="15" max="480" />
-            </div>
-            {committeeMembers.length > 0 && (
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">{t('invite_committee')}</Label>
-                <ScrollArea className="h-48 border rounded-xl p-2">
-                  {committeeMembers.map((m: any) => {
-                    const uid = m.user_id || m.id;
-                    const name = m.user_name || m.name || `${m.first_name || ''} ${m.last_name || ''}`.trim();
-                    return (
-                      <label key={uid} className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-muted/60 cursor-pointer transition-colors">
-                        <Checkbox
-                          checked={selectedParticipants.includes(uid)}
-                          onCheckedChange={(checked) => {
-                            setSelectedParticipants(prev =>
-                              checked ? [...prev, uid] : prev.filter(id => id !== uid)
-                            );
-                          }}
-                        />
-                        <Avatar className="w-8 h-8">
-                          <AvatarImage src={m.avatar_url || ''} />
-                          <AvatarFallback className="text-xs bg-primary/10 text-primary">{(name || '?').charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{name}</p>
-                          {m.role_name && <p className="text-xs text-muted-foreground">{m.role_name}</p>}
-                        </div>
-                      </label>
-                    );
-                  })}
-                </ScrollArea>
-                {selectedParticipants.length > 0 && (
-                  <p className="text-xs text-muted-foreground">{selectedParticipants.length} {t('selected_count')}</p>
+      {/* Create meeting dialog – 2-step wizard */}
+      <Dialog open={showCreate} onOpenChange={(open) => { setShowCreate(open); if (!open) resetForm(); }}>
+        <DialogContent className="max-w-md rounded-2xl p-0 overflow-hidden">
+          {/* Progress indicator */}
+          <div className="flex gap-1.5 px-6 pt-5">
+            <div className={cn("h-1 flex-1 rounded-full transition-all duration-300", "bg-primary")} />
+            <div className={cn("h-1 flex-1 rounded-full transition-all duration-300", step >= 2 ? "bg-primary" : "bg-muted")} />
+          </div>
+
+          <div className="px-6 pb-6 pt-3">
+            <DialogHeader className="space-y-1.5 mb-5">
+              <DialogTitle className="text-xl font-bold tracking-tight flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <SvgIcon src={videoChatIcon} className="w-4.5 h-4.5" />
+                </div>
+                {step === 1 ? t('schedule_a_meeting') : t('date_and_time')}
+              </DialogTitle>
+              <DialogDescription className="text-sm">
+                {step === 1 ? t('meeting_invite_subtitle') : 'Choose when your meeting takes place.'}
+              </DialogDescription>
+            </DialogHeader>
+
+            {step === 1 ? (
+              /* ── STEP 1: Title, Description, Participants ── */
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">{t('meeting_title')}</Label>
+                  <Input
+                    className="rounded-xl h-11"
+                    placeholder={t('meeting_title_placeholder')}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">{t('meeting_description')}</Label>
+                  <Textarea
+                    className="rounded-xl resize-none"
+                    placeholder={t('meeting_description_placeholder')}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={2}
+                  />
+                </div>
+
+                {committeeMembers.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">{t('invite_committee')}</Label>
+                    <ScrollArea className="h-44 border rounded-xl p-1.5">
+                      {committeeMembers.map((m: any) => {
+                        const uid = m.user_id || m.id;
+                        const name = m.user_name || m.name || `${m.first_name || ''} ${m.last_name || ''}`.trim();
+                        return (
+                          <label key={uid} className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-muted/60 cursor-pointer transition-colors">
+                            <Checkbox
+                              checked={selectedParticipants.includes(uid)}
+                              onCheckedChange={(checked) => {
+                                setSelectedParticipants(prev =>
+                                  checked ? [...prev, uid] : prev.filter(id => id !== uid)
+                                );
+                              }}
+                            />
+                            <Avatar className="w-8 h-8">
+                              <AvatarImage src={m.avatar_url || ''} />
+                              <AvatarFallback className="text-xs bg-primary/10 text-primary">{(name || '?').charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{name}</p>
+                              {m.role_name && <p className="text-xs text-muted-foreground">{m.role_name}</p>}
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </ScrollArea>
+                    {selectedParticipants.length > 0 && (
+                      <p className="text-xs text-muted-foreground">{selectedParticipants.length} {t('selected_count')}</p>
+                    )}
+                  </div>
                 )}
+
+                <Button
+                  className="w-full rounded-xl h-11 font-semibold gap-2"
+                  onClick={() => {
+                    if (!title.trim()) { toast.error(t('enter_title_time')); return; }
+                    setStep(2);
+                  }}
+                >
+                  {t('date_and_time')} <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              /* ── STEP 2: Date, Time, Duration ── */
+              <div className="space-y-5">
+                {/* Date picker */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">{t('pick_date')}</Label>
+                  <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal rounded-xl h-11", !selectedDate && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {selectedDate ? format(selectedDate, 'EEEE, MMM d, yyyy') : t('pick_date')}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={(date) => { setSelectedDate(date); setDatePickerOpen(false); }}
+                        disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Time picker – scrollable wheels */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">{t('pick_time')}</Label>
+                  <div className="flex items-center gap-0 bg-muted/40 rounded-2xl p-3 border">
+                    {/* Hour wheel */}
+                    <div className="flex-1">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold text-center mb-2">Hour</p>
+                      <div className="grid grid-cols-6 gap-1">
+                        {HOURS.map(h => (
+                          <button
+                            key={h}
+                            onClick={() => setSelectedHour(h)}
+                            className={cn(
+                              "h-8 rounded-lg text-sm font-medium transition-all",
+                              selectedHour === h
+                                ? "bg-primary text-primary-foreground shadow-sm"
+                                : "hover:bg-muted text-foreground"
+                            )}
+                          >
+                            {h}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Separator */}
+                    <div className="w-px h-24 bg-border mx-3 self-center" />
+                    {/* Minute wheel */}
+                    <div className="w-20">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold text-center mb-2">Min</p>
+                      <div className="grid grid-cols-1 gap-1">
+                        {MINUTES.map(m => (
+                          <button
+                            key={m}
+                            onClick={() => setSelectedMinute(m)}
+                            className={cn(
+                              "h-9 rounded-lg text-sm font-medium transition-all",
+                              selectedMinute === m
+                                ? "bg-primary text-primary-foreground shadow-sm"
+                                : "hover:bg-muted text-foreground"
+                            )}
+                          >
+                            :{m}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Selected time preview */}
+                  <p className="text-center text-lg font-bold tracking-tight text-foreground">
+                    {selectedHour}:{selectedMinute}
+                    <span className="text-sm font-normal text-muted-foreground ml-2">
+                      ({Intl.DateTimeFormat().resolvedOptions().timeZone})
+                    </span>
+                  </p>
+                </div>
+
+                {/* Duration chips */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">{t('duration_minutes')}</Label>
+                  <div className="flex gap-2">
+                    {DURATIONS.map(d => (
+                      <button
+                        key={d.value}
+                        onClick={() => setDuration(d.value)}
+                        className={cn(
+                          "flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all",
+                          duration === d.value
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                            : "bg-background hover:bg-muted border-border text-foreground"
+                        )}
+                      >
+                        {d.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-1">
+                  <Button variant="outline" className="rounded-xl h-11 px-5" onClick={() => setStep(1)}>
+                    <ChevronLeft className="w-4 h-4 mr-1" /> Back
+                  </Button>
+                  <Button className="flex-1 rounded-xl h-11 font-semibold gap-2" onClick={handleCreate} disabled={creating || !selectedDate}>
+                    {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <SvgIcon src={videoChatIcon} className="w-4 h-4" />}
+                    {t('schedule_meeting')}
+                  </Button>
+                </div>
               </div>
             )}
-            <Button className="w-full rounded-xl h-11 font-semibold" onClick={handleCreate} disabled={creating}>
-              {creating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <SvgIcon src={videoChatIcon} className="w-4 h-4 mr-2" />}
-              {t('schedule_meeting')}
-            </Button>
           </div>
         </DialogContent>
       </Dialog>

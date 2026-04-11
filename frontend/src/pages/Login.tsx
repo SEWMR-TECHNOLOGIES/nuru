@@ -1,7 +1,7 @@
 import { useState } from "react";
 import SuspensionModal from "@/components/SuspensionModal";
 import { motion } from "framer-motion";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff, ChevronLeft, Phone, Mail, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +34,8 @@ const Login = () => {
   const [resetOtpChannel, setResetOtpChannel] = useState<"sms" | "whatsapp" | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnUrl = searchParams.get('returnUrl');
   const qc = useQueryClient();
 
   const handleInputChange = (field: string, value: string) => {
@@ -78,7 +80,7 @@ const Login = () => {
 
         qc.setQueryData(["currentUser"], user);
         toast({ title: t('welcome_back_excl'), description: response.message });
-        navigate("/", { replace: true });
+        navigate(returnUrl || "/", { replace: true });
       } else {
         const data = (response as any).data;
         if (data?.suspended) {
