@@ -9,6 +9,7 @@ import '../../core/widgets/app_snackbar.dart';
 import '../../core/services/user_services_service.dart';
 import '../../core/services/social_service.dart';
 import '../../core/services/api_service.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class ContributorsScreen extends StatefulWidget {
   const ContributorsScreen({super.key});
@@ -60,13 +61,13 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Delete Contributor', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
-        content: Text('Are you sure you want to remove this contributor?', style: GoogleFonts.plusJakartaSans()),
+        title: Text(context.trw('delete_contributor'), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+        content: Text(context.trw('confirm_remove_contributor'), style: GoogleFonts.plusJakartaSans()),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Delete', style: GoogleFonts.plusJakartaSans(color: AppColors.error, fontWeight: FontWeight.w600)),
+            child: Text(context.trw('delete'), style: GoogleFonts.plusJakartaSans(color: AppColors.error, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -77,11 +78,11 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
       final headers = await _headers();
       await http.delete(Uri.parse('${ApiService.baseUrl}/user-contributors/$id'), headers: headers);
       if (mounted) {
-        AppSnackbar.success(context, 'Contributor removed');
+        AppSnackbar.success(context, context.tr('contributor_removed'));
         _load();
       }
     } catch (_) {
-      if (mounted) AppSnackbar.error(context, 'Failed to delete');
+      if (mounted) AppSnackbar.error(context, context.tr('failed_delete'));
     }
   }
 
@@ -110,7 +111,7 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
             children: [
               Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
               const SizedBox(height: 20),
-              Text('Edit Contributor', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700)),
+              Text(context.trw('edit_contributor'), style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700)),
               const SizedBox(height: 16),
               _editField(nameCtrl, 'Name'),
               const SizedBox(height: 10),
@@ -139,11 +140,11 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
                         }),
                       );
                       if (mounted) {
-                        AppSnackbar.success(context, 'Contributor updated');
+                        AppSnackbar.success(context, context.tr('contributor_updated'));
                         _load();
                       }
                     } catch (_) {
-                      if (mounted) AppSnackbar.error(context, 'Failed to update');
+                      if (mounted) AppSnackbar.error(context, context.tr('failed_update'));
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -152,7 +153,7 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
-                  child: Text('Save Changes', style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700)),
+                  child: Text(context.trw('save_changes'), style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700)),
                 ),
               ),
             ],
@@ -182,7 +183,7 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
-      appBar: NuruSubPageAppBar(title: 'My Contributors'),
+      appBar: NuruSubPageAppBar(title: context.tr('contributors')),
       body: RefreshIndicator(
         onRefresh: _load,
         color: AppColors.primary,
@@ -275,12 +276,12 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
               PopupMenuItem(value: 'edit', child: Row(children: [
                 const Icon(Icons.edit_rounded, size: 16, color: AppColors.textSecondary),
                 const SizedBox(width: 8),
-                Text('Edit', style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+                Text(context.trw('edit'), style: GoogleFonts.plusJakartaSans(fontSize: 13)),
               ])),
               PopupMenuItem(value: 'delete', child: Row(children: [
                 const Icon(Icons.delete_rounded, size: 16, color: AppColors.error),
                 const SizedBox(width: 8),
-                Text('Delete', style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.error)),
+                Text(context.trw('delete'), style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.error)),
               ])),
             ],
           ),

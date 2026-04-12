@@ -1,12 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/widgets/app_snackbar.dart';
-
-TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.3}) =>
-    GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+import '../../../core/theme/text_styles.dart';
+import '../../../core/l10n/l10n_helper.dart';
 
 class EventServicesTab extends StatefulWidget {
   final String eventId;
@@ -126,13 +124,13 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Remove Service', style: _f(size: 16, weight: FontWeight.w700)),
-        content: Text('Remove "$name" from this event? This cannot be undone.', style: _f(size: 14, color: AppColors.textSecondary)),
+        title: Text('Remove Service', style: appText(size: 16, weight: FontWeight.w700)),
+        content: Text('Remove "$name" from this event? This cannot be undone.', style: appText(size: 14, color: AppColors.textSecondary)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: _f(size: 14, color: AppColors.textTertiary))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: appText(size: 14, color: AppColors.textTertiary))),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Remove', style: _f(size: 14, weight: FontWeight.w700, color: AppColors.error)),
+            child: Text('Remove', style: appText(size: 14, weight: FontWeight.w700, color: AppColors.error)),
           ),
         ],
       ),
@@ -165,7 +163,7 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
         children: [
           // Header
           Row(children: [
-            Expanded(child: Text('Event Services', style: _f(size: 16, weight: FontWeight.w700))),
+            Expanded(child: Text('Event Services', style: appText(size: 16, weight: FontWeight.w700))),
             if (_canManage)
               GestureDetector(
                 onTap: _toggleSearch,
@@ -178,7 +176,7 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(_showSearch ? Icons.close : Icons.add_rounded, size: 16, color: _showSearch ? Colors.white : AppColors.primary),
                     const SizedBox(width: 4),
-                    Text(_showSearch ? 'Close' : 'Add Service', style: _f(size: 12, weight: FontWeight.w600, color: _showSearch ? Colors.white : AppColors.primary)),
+                    Text(_showSearch ? 'Close' : 'Add Service', style: appText(size: 12, weight: FontWeight.w600, color: _showSearch ? Colors.white : AppColors.primary)),
                   ]),
                 ),
               ),
@@ -195,16 +193,16 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
                 border: Border.all(color: AppColors.primary.withOpacity(0.2)),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Find Service Providers', style: _f(size: 14, weight: FontWeight.w600)),
+                Text('Find Service Providers', style: appText(size: 14, weight: FontWeight.w600)),
                 const SizedBox(height: 4),
-                Text('Search and add services to your event', style: _f(size: 12, color: AppColors.textTertiary)),
+                Text('Search and add services to your event', style: appText(size: 12, color: AppColors.textTertiary)),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _searchCtrl,
                   onChanged: _searchServices,
-                  style: _f(size: 14),
+                  style: appText(size: 14),
                   decoration: InputDecoration(
-                    hintText: 'Search services...', hintStyle: _f(size: 13, color: AppColors.textHint),
+                    hintText: 'Search services...', hintStyle: appText(size: 13, color: AppColors.textHint),
                     prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.textHint),
                     suffixIcon: _searching
                         ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)))
@@ -221,7 +219,7 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
                 if (!_searching && _searchQuery.length >= 2 && _searchResults.isEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
-                    child: Text('No services found. Try different search terms.', style: _f(size: 12, color: AppColors.textTertiary), textAlign: TextAlign.center),
+                    child: Text('No services found. Try different search terms.', style: appText(size: 12, color: AppColors.textTertiary), textAlign: TextAlign.center),
                   ),
               ]),
             ),
@@ -230,7 +228,7 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
 
           // Assigned services
           if (_assignedServices.isNotEmpty) ...[
-            Text('Assigned Services (${_assignedServices.length})', style: _f(size: 14, weight: FontWeight.w600, color: AppColors.textSecondary)),
+            Text('Assigned Services (${_assignedServices.length})', style: appText(size: 14, weight: FontWeight.w600, color: AppColors.textSecondary)),
             const SizedBox(height: 10),
             ..._assignedServices.map((s) => _assignedServiceCard(s as Map<String, dynamic>)),
           ] else
@@ -256,11 +254,11 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
           child: const Icon(Icons.storefront_rounded, size: 28, color: AppColors.primary),
         ),
         const SizedBox(height: 16),
-        Text('No services assigned', style: _f(size: 16, weight: FontWeight.w700)),
+        Text('No services assigned', style: appText(size: 16, weight: FontWeight.w700)),
         const SizedBox(height: 6),
         Text(
           _canManage ? 'Tap "Add Service" to search and assign service providers' : 'No service providers assigned yet',
-          style: _f(size: 13, color: AppColors.textTertiary), textAlign: TextAlign.center,
+          style: appText(size: 13, color: AppColors.textTertiary), textAlign: TextAlign.center,
         ),
       ]),
     );
@@ -300,23 +298,23 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
         Expanded(child: Padding(
           padding: const EdgeInsets.all(10),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: _f(size: 13, weight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
-            if (category.isNotEmpty) Text(category, style: _f(size: 10, color: AppColors.textTertiary)),
+            Text(title, style: appText(size: 13, weight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+            if (category.isNotEmpty) Text(category, style: appText(size: 10, color: AppColors.textTertiary)),
             const SizedBox(height: 4),
             Row(children: [
               if (rating != null) ...[
                 const Icon(Icons.star, size: 12, color: Color(0xFFFBBF24)),
                 const SizedBox(width: 2),
-                Text(double.tryParse(rating.toString())?.toStringAsFixed(1) ?? '$rating', style: _f(size: 10, weight: FontWeight.w600)),
+                Text(double.tryParse(rating.toString())?.toStringAsFixed(1) ?? '$rating', style: appText(size: 10, weight: FontWeight.w600)),
                 const SizedBox(width: 8),
               ],
               if (location.isNotEmpty) ...[
                 const Icon(Icons.location_on_outlined, size: 11, color: AppColors.textHint),
                 const SizedBox(width: 2),
-                Flexible(child: Text(location, style: _f(size: 10, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis)),
+                Flexible(child: Text(location, style: appText(size: 10, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis)),
               ],
             ]),
-            if (price != null) Text(price.toString(), style: _f(size: 12, weight: FontWeight.w700, color: AppColors.primary)),
+            if (price != null) Text(price.toString(), style: appText(size: 12, weight: FontWeight.w700, color: AppColors.primary)),
           ]),
         )),
         Padding(
@@ -406,14 +404,14 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             // Name + status row
             Row(children: [
-              Expanded(child: Text(name, style: _f(size: 13, weight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis)),
+              Expanded(child: Text(name, style: appText(size: 13, weight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis)),
               const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                 decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(6)),
                 child: Text(
                   status.replaceAll('_', ' ').split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '').join(' '),
-                  style: _f(size: 9, weight: FontWeight.w700, color: statusFg),
+                  style: appText(size: 9, weight: FontWeight.w700, color: statusFg),
                 ),
               ),
             ]),
@@ -423,7 +421,7 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
             if (providerName.isNotEmpty || category.isNotEmpty)
               Text(
                 [if (providerName.isNotEmpty) providerName, if (category.isNotEmpty) category].join(' · '),
-                style: _f(size: 11, color: AppColors.textTertiary),
+                style: appText(size: 11, color: AppColors.textTertiary),
                 maxLines: 1, overflow: TextOverflow.ellipsis,
               ),
 
@@ -432,12 +430,12 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
             // Price + rating row
             Row(children: [
               if (price != null)
-                Text('TZS ${_formatNum(price)}', style: _f(size: 12, weight: FontWeight.w800, color: AppColors.primary)),
+                Text('TZS ${_formatNum(price)}', style: appText(size: 12, weight: FontWeight.w800, color: AppColors.primary)),
               if (price != null && rating != null) const SizedBox(width: 8),
               if (rating != null) ...[
                 const Icon(Icons.star_rounded, size: 12, color: Color(0xFFF59E0B)),
                 const SizedBox(width: 2),
-                Text(double.tryParse(rating.toString())?.toStringAsFixed(1) ?? '$rating', style: _f(size: 11, weight: FontWeight.w600)),
+                Text(double.tryParse(rating.toString())?.toStringAsFixed(1) ?? '$rating', style: appText(size: 11, weight: FontWeight.w600)),
               ],
               const Spacer(),
               if (_canManage)

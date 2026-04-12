@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/services/ticketing_service.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class MyTicketsScreen extends StatefulWidget {
   const MyTicketsScreen({super.key});
@@ -65,7 +66,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
-      appBar: NuruSubPageAppBar(title: 'My Tickets'),
+      appBar: NuruSubPageAppBar(title: context.tr('my_tickets')),
       body: RefreshIndicator(
         onRefresh: _load,
         color: AppColors.primary,

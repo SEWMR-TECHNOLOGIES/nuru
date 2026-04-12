@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/social_service.dart';
 import '../../../core/widgets/nuru_video_player.dart';
+import '../../../core/l10n/l10n_helper.dart';
 
 /// Full-screen modal for post detail with scrollable echoes — matches web PostDetail
 class PostDetailModal extends StatefulWidget {
@@ -509,9 +510,7 @@ class _PostDetailModalState extends State<PostDetailModal> {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
 // Single Echo (Comment) Widget — threaded with replies
-// ══════════════════════════════════════════════════════════════════════════════
 class _EchoItemWidget extends StatefulWidget {
   final Map<String, dynamic> comment;
   final String postId;

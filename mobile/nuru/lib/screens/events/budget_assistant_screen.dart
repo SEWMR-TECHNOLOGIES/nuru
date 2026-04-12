@@ -1,11 +1,14 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
+import '../../core/services/report_generator.dart';
 import '../../core/theme/app_colors.dart';
-
-TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.4}) =>
-    GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+import '../../core/theme/text_styles.dart';
+import '../../core/widgets/ai_markdown_content.dart';
+import '../../core/widgets/app_snackbar.dart';
+import '../../core/l10n/l10n_helper.dart';
+import 'report_preview_screen.dart';
 
 /// AI Budget Assistant — chat-based budget planner matching web BudgetAssistant.
 /// Streams responses from the nuru-chat edge function.
@@ -48,6 +51,8 @@ class _BudgetAssistantScreenState extends State<BudgetAssistantScreen> {
   bool _streaming = false;
   String? _extractedTotal;
   List<Map<String, dynamic>> _extractedItems = [];
+  String _generatedBudgetContent = '';
+  bool _exportingPdf = false;
 
   @override
   void initState() {
@@ -100,6 +105,12 @@ BUDGET FORMAT (when generating):
   Future<void> _sendToAI(String? userMsg) async {
     if (_streaming) return;
     setState(() => _streaming = true);
+
+    if (userMsg != null) {
+      _extractedTotal = null;
+      _extractedItems = [];
+      _generatedBudgetContent = '';
+    }
 
     final apiMessages = <Map<String, String>>[
       {'role': 'system', 'content': _systemPrompt()},
@@ -161,6 +172,7 @@ BUDGET FORMAT (when generating):
       // Extract budget total and items
       _extractedTotal = _extractTotal(fullContent);
       _extractedItems = _parseBudgetTable(fullContent);
+      _generatedBudgetContent = fullContent;
       setState(() {});
     } catch (_) {
       if (_messages.isNotEmpty && _messages.last['content']?.isEmpty == true) {
@@ -213,6 +225,42 @@ BUDGET FORMAT (when generating):
     _sendToAI(text);
   }
 
+  Future<void> _previewEstimatedBudgetPdf() async {
+    if (_generatedBudgetContent.trim().isEmpty || _extractedItems.isEmpty) {
+      AppSnackbar.error(context, 'Generate a budget estimate first');
+      return;
+    }
+
+    setState(() => _exportingPdf = true);
+    final res = await ReportGenerator.generateAiBudgetEstimateReport(
+      items: _extractedItems,
+      eventTitle: widget.eventTitle,
+      eventType: widget.eventTypeName ?? widget.eventType,
+      location: widget.location,
+      expectedGuests: widget.expectedGuests,
+      total: _extractedTotal,
+      content: _generatedBudgetContent,
+    );
+
+    if (!mounted) return;
+    setState(() => _exportingPdf = false);
+
+    if (res['success'] == true && res['bytes'] != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ReportPreviewScreen(
+            title: 'Budget Estimate',
+            pdfBytes: res['bytes'],
+            filePath: res['path'] as String?,
+          ),
+        ),
+      );
+    } else {
+      AppSnackbar.error(context, res['message'] ?? 'Failed to generate PDF');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -222,22 +270,19 @@ BUDGET FORMAT (when generating):
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
+          icon: SvgPicture.asset('assets/icons/chevron-left-icon.svg', width: 22, height: 22,
+            colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
           onPressed: () => Navigator.pop(context),
         ),
         title: Row(children: [
-          Container(
-            width: 32, height: 32,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)]),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.auto_awesome_rounded, size: 16, color: Colors.white),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.asset('assets/images/nuru-logo-square.png', width: 32, height: 32, fit: BoxFit.cover),
           ),
           const SizedBox(width: 10),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('AI Budget Assistant', style: _f(size: 15, weight: FontWeight.w700)),
-            Text('Powered by Nuru AI', style: _f(size: 10, color: AppColors.textTertiary)),
+            Text(context.trw('ai_budget_assistant'), style: appText(size: 15, weight: FontWeight.w700)),
+            Text(context.trw('powered_by_nuru_ai'), style: appText(size: 10, color: AppColors.textTertiary)),
           ]),
         ]),
       ),
@@ -257,10 +302,17 @@ BUDGET FORMAT (when generating):
           ),
 
           // Action buttons when budget is generated
-          if (_extractedTotal != null || _extractedItems.isNotEmpty)
+          if (_extractedTotal != null || _extractedItems.isNotEmpty || _generatedBudgetContent.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Wrap(spacing: 8, runSpacing: 8, children: [
+                if (_generatedBudgetContent.isNotEmpty && _extractedItems.isNotEmpty)
+                  _actionChip(
+                    icon: Icons.picture_as_pdf_rounded,
+                    label: _exportingPdf ? 'Preparing PDF...' : 'Preview PDF',
+                    color: const Color(0xFFDC2626),
+                    onTap: _exportingPdf ? () {} : _previewEstimatedBudgetPdf,
+                  ),
                 if (_extractedTotal != null && widget.onSaveBudget != null)
                   _actionChip(
                     icon: Icons.savings_rounded,
@@ -295,14 +347,14 @@ BUDGET FORMAT (when generating):
               Expanded(
                 child: TextField(
                   controller: _ctrl,
-                  style: _f(size: 14),
+                  style: appText(size: 14),
                   maxLines: 3,
                   minLines: 1,
                   textInputAction: TextInputAction.send,
                   onSubmitted: (_) => _handleSend(),
                   decoration: InputDecoration(
                     hintText: 'Type your message...',
-                    hintStyle: _f(size: 13, color: AppColors.textHint),
+                    hintStyle: appText(size: 13, color: AppColors.textHint),
                     filled: true,
                     fillColor: const Color(0xFFF1F5F9),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
@@ -357,12 +409,20 @@ BUDGET FORMAT (when generating):
             ? Row(mainAxisSize: MainAxisSize.min, children: [
                 const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
                 const SizedBox(width: 8),
-                Text('Thinking...', style: _f(size: 13, color: AppColors.textTertiary)),
+                Text('Thinking...', style: appText(size: 13, color: AppColors.textTertiary)),
               ])
-            : SelectableText(
-                content,
-                style: _f(size: 13, color: isUser ? Colors.white : AppColors.textPrimary, height: 1.5),
-              ),
+            : isUser
+                ? SelectableText(
+                    content,
+                    style: appText(size: 13, color: Colors.white, height: 1.5),
+                  )
+                : AiMarkdownContent(
+                    content: content,
+                    textColor: AppColors.textPrimary,
+                    accentColor: AppColors.primary,
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                  ),
       ),
     );
   }
@@ -380,7 +440,7 @@ BUDGET FORMAT (when generating):
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, size: 16, color: color),
           const SizedBox(width: 6),
-          Text(label, style: _f(size: 12, weight: FontWeight.w600, color: color)),
+          Text(label, style: appText(size: 12, weight: FontWeight.w600, color: color)),
         ]),
       ),
     );

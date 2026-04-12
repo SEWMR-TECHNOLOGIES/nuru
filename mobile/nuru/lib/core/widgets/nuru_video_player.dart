@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:video_player/video_player.dart';
 import '../theme/app_colors.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 /// Real video player widget with actual playback using video_player package.
 class NuruVideoPlayer extends StatefulWidget {

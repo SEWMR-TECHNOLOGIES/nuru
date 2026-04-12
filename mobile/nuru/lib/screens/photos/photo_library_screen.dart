@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/photo_libraries_service.dart';
 import '../../core/widgets/app_snackbar.dart';
-
-TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.3}) =>
-    GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+import '../../core/theme/text_styles.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 /// Photo Library Screen — view, upload, and share event photos
 class PhotoLibraryScreen extends StatefulWidget {
@@ -71,11 +69,11 @@ class _PhotoLibraryScreenState extends State<PhotoLibraryScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Delete Photo?', style: _f(size: 18, weight: FontWeight.w700)),
-        content: Text('This cannot be undone.', style: _f(size: 14, color: AppColors.textSecondary)),
+        title: Text('Delete Photo?', style: appText(size: 18, weight: FontWeight.w700)),
+        content: Text('This cannot be undone.', style: appText(size: 14, color: AppColors.textSecondary)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: _f(size: 14, weight: FontWeight.w600, color: AppColors.textSecondary))),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text('Delete', style: _f(size: 14, weight: FontWeight.w700, color: AppColors.error))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: appText(size: 14, weight: FontWeight.w600, color: AppColors.textSecondary))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text('Delete', style: appText(size: 14, weight: FontWeight.w700, color: AppColors.error))),
         ],
       ),
     );
@@ -133,14 +131,14 @@ class _PhotoLibraryScreenState extends State<PhotoLibraryScreen> {
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 14),
-            Text('Share & Visibility', style: _f(size: 17, weight: FontWeight.w700)),
+            Text('Share & Visibility', style: appText(size: 17, weight: FontWeight.w700)),
             const SizedBox(height: 10),
             ListTile(
               tileColor: AppColors.surfaceVariant,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               leading: const Icon(Icons.public_rounded, color: AppColors.success),
-              title: Text('Public', style: _f(size: 14, weight: FontWeight.w600)),
-              subtitle: Text('Anyone with the link can view this library', style: _f(size: 11, color: AppColors.textTertiary)),
+              title: Text('Public', style: appText(size: 14, weight: FontWeight.w600)),
+              subtitle: Text('Anyone with the link can view this library', style: appText(size: 11, color: AppColors.textTertiary)),
               trailing: privacy == 'public' ? const Icon(Icons.check_circle, color: AppColors.success, size: 18) : null,
               onTap: () async {
                 Navigator.pop(ctx);
@@ -154,8 +152,8 @@ class _PhotoLibraryScreenState extends State<PhotoLibraryScreen> {
               tileColor: AppColors.surfaceVariant,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               leading: const Icon(Icons.lock_outline_rounded, color: AppColors.textSecondary),
-              title: Text('Private', style: _f(size: 14, weight: FontWeight.w600)),
-              subtitle: Text('Only service owner and event organizer can view', style: _f(size: 11, color: AppColors.textTertiary)),
+              title: Text('Private', style: appText(size: 14, weight: FontWeight.w600)),
+              subtitle: Text('Only service owner and event organizer can view', style: appText(size: 11, color: AppColors.textTertiary)),
               trailing: privacy != 'public' ? const Icon(Icons.check_circle, color: AppColors.primary, size: 18) : null,
               onTap: () async {
                 Navigator.pop(ctx);
@@ -178,7 +176,7 @@ class _PhotoLibraryScreenState extends State<PhotoLibraryScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 icon: const Icon(Icons.share_rounded, size: 18),
-                label: Text('Share link', style: _f(size: 13, weight: FontWeight.w700, color: Colors.white)),
+                label: Text('Share link', style: appText(size: 13, weight: FontWeight.w700, color: Colors.white)),
               ),
             ),
           ]),
@@ -220,10 +218,10 @@ class _PhotoLibraryScreenState extends State<PhotoLibraryScreen> {
                 ),
                 const SizedBox(width: 14),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(name, style: _f(size: 18, weight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(name, style: appText(size: 18, weight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 2),
                   Row(children: [
-                    Text('$photoCount photos', style: _f(size: 11, color: AppColors.textTertiary)),
+                    Text('$photoCount photos', style: appText(size: 11, color: AppColors.textTertiary)),
                     const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -233,13 +231,13 @@ class _PhotoLibraryScreenState extends State<PhotoLibraryScreen> {
                       ),
                       child: Text(
                         privacy == 'public' ? 'Public' : 'Private',
-                        style: _f(size: 10, weight: FontWeight.w700, color: privacy == 'public' ? AppColors.success : AppColors.textSecondary),
+                        style: appText(size: 10, weight: FontWeight.w700, color: privacy == 'public' ? AppColors.success : AppColors.textSecondary),
                       ),
                     ),
                   ]),
                   Text(
                     '${storageUsed}% used · ${storageUsedMb.toStringAsFixed(1)}MB / ${storageLimitMb.toStringAsFixed(0)}MB',
-                    style: _f(size: 10, color: AppColors.textHint),
+                    style: appText(size: 10, color: AppColors.textHint),
                   ),
                 ])),
                 GestureDetector(
@@ -263,9 +261,9 @@ class _PhotoLibraryScreenState extends State<PhotoLibraryScreen> {
                           SvgPicture.asset('assets/icons/camera-icon.svg', width: 48, height: 48,
                             colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
                           const SizedBox(height: 16),
-                          Text('No photos yet', style: _f(size: 16, weight: FontWeight.w600)),
+                          Text('No photos yet', style: appText(size: 16, weight: FontWeight.w600)),
                           const SizedBox(height: 4),
-                          Text('Upload your first photo', style: _f(size: 13, color: AppColors.textTertiary)),
+                          Text('Upload your first photo', style: appText(size: 13, color: AppColors.textTertiary)),
                         ]))
                       : RefreshIndicator(
                           onRefresh: _load,
@@ -335,7 +333,7 @@ class _PhotoLibraryScreenState extends State<PhotoLibraryScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 color: AppColors.surface,
-                child: Text(caption, style: _f(size: 13, color: AppColors.textSecondary)),
+                child: Text(caption, style: appText(size: 13, color: AppColors.textSecondary)),
               ),
           ]),
         ),

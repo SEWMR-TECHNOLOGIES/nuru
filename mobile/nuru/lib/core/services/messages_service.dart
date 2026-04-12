@@ -46,10 +46,14 @@ class MessagesService {
   static Future<Map<String, dynamic>> sendMessage(String conversationId, {
     required String content,
     String? replyToId,
+    List<String>? attachments,
   }) async {
     try {
       final body = <String, dynamic>{'content': content};
       if (replyToId != null) body['reply_to_id'] = replyToId;
+      if (attachments != null && attachments.isNotEmpty) {
+        body['attachments'] = attachments;
+      }
       final res = await http.post(
         Uri.parse('$_baseUrl/messages/$conversationId'),
         headers: await _headers(),

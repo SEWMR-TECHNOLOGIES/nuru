@@ -10,6 +10,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/services/api_service.dart';
 import '../../core/widgets/app_snackbar.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 /// Service Verification / KYC document upload — matches web ServiceVerification.tsx
 /// Shows KYC requirements and allows uploading documents for each
@@ -130,7 +131,7 @@ class _ServiceVerificationScreenState extends State<ServiceVerificationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F3F8),
-      appBar: NuruSubPageAppBar(title: 'Activate Your Service'),
+      appBar: NuruSubPageAppBar(title: context.tr('service_verification')),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : RefreshIndicator(

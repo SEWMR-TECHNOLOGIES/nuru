@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/events_service.dart';
 import 'public_service_screen.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class FindServicesScreen extends StatefulWidget {
   const FindServicesScreen({super.key});

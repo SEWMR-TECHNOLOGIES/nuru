@@ -11,6 +11,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/services/api_service.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 /// Manage service portfolio photos — add/remove images
 class ManagePhotosScreen extends StatefulWidget {

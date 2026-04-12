@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/services/api_service.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 /// Identity Verification screen — allows uploading ID documents
 class IdentityVerificationScreen extends StatefulWidget {
@@ -88,7 +89,7 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFE8EEF5),
-      appBar: NuruSubPageAppBar(title: 'Identity Verification'),
+      appBar: NuruSubPageAppBar(title: context.tr('identity_verification')),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : ListView(

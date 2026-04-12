@@ -24,10 +24,6 @@ class SocialService {
     };
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // FEED
-  // ═══════════════════════════════════════════════════════════════════════════
-
   /// GET /posts/feed — ranked or chronological feed
   static Future<Map<String, dynamic>> getFeed({
     int page = 1,
@@ -90,10 +86,6 @@ class SocialService {
       };
     }
   }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // POSTS
-  // ═══════════════════════════════════════════════════════════════════════════
 
   /// POST /posts — create a new post with FormData (multipart)
   static Future<Map<String, dynamic>> createPost({
@@ -164,9 +156,28 @@ class SocialService {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  /// PATCH /posts/:id — update content/visibility
+  static Future<Map<String, dynamic>> updatePost(
+    String postId, {
+    String? content,
+    String? visibility,
+  }) async {
+    try {
+      final body = <String, dynamic>{};
+      if (content != null) body['content'] = content;
+      if (visibility != null) body['visibility'] = visibility;
+      final res = await http.patch(
+        Uri.parse('$_baseUrl/posts/$postId'),
+        headers: await _headers(),
+        body: jsonEncode(body),
+      );
+      return jsonDecode(res.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to update post'};
+    }
+  }
+
   // GLOW (Like) — ❤️
-  // ═══════════════════════════════════════════════════════════════════════════
 
   /// POST /posts/:id/glow
   static Future<Map<String, dynamic>> glowPost(String postId) async {
@@ -194,9 +205,7 @@ class SocialService {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
   // SAVE / UNSAVE
-  // ═══════════════════════════════════════════════════════════════════════════
 
   /// POST /posts/:id/save
   static Future<Map<String, dynamic>> savePost(String postId) async {
@@ -242,9 +251,7 @@ class SocialService {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
   // COMMENTS (Echoes)
-  // ═══════════════════════════════════════════════════════════════════════════
 
   /// GET /posts/:id/comments
   static Future<Map<String, dynamic>> getComments(
@@ -290,10 +297,6 @@ class SocialService {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // FOLLOWERS
-  // ═══════════════════════════════════════════════════════════════════════════
-
   /// POST /users/:id/follow
   static Future<Map<String, dynamic>> followUser(String userId) async {
     try {
@@ -338,10 +341,6 @@ class SocialService {
       };
     }
   }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // NOTIFICATIONS
-  // ═══════════════════════════════════════════════════════════════════════════
 
   /// GET /notifications
   static Future<Map<String, dynamic>> getNotifications({
@@ -392,9 +391,7 @@ class SocialService {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
   // CONVERSATIONS (Messages)
-  // ═══════════════════════════════════════════════════════════════════════════
 
   /// GET /messages/
   static Future<Map<String, dynamic>> getConversations({
@@ -471,10 +468,6 @@ class SocialService {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // USER POSTS
-  // ═══════════════════════════════════════════════════════════════════════════
-
   /// GET /posts/user/:userId
   // static Future<Map<String, dynamic>> getUserPosts(String userId, {int page = 1, int limit = 20}) async {
   //   try {
@@ -527,10 +520,6 @@ class SocialService {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // SEARCH
-  // ═══════════════════════════════════════════════════════════════════════════
-
   static Future<Map<String, dynamic>> search(String query) async {
     try {
       final uri = Uri.parse(
@@ -542,10 +531,6 @@ class SocialService {
       return {'success': false, 'message': 'Search failed', 'data': null};
     }
   }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // ISSUES
-  // ═══════════════════════════════════════════════════════════════════════════
 
   static Future<Map<String, dynamic>> getMyIssues() async {
     try {
@@ -603,10 +588,6 @@ class SocialService {
       };
     }
   }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // CIRCLES
-  // ═══════════════════════════════════════════════════════════════════════════
 
   static Future<Map<String, dynamic>> getCircles() async {
     try {
@@ -712,10 +693,6 @@ class SocialService {
       return {'success': false, 'message': 'Unable to reject request'};
     }
   }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // COMMUNITIES
-  // ═══════════════════════════════════════════════════════════════════════════
 
   static Future<Map<String, dynamic>> getCommunities({
     int page = 1,
@@ -848,10 +825,6 @@ class SocialService {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // FOLLOWERS
-  // ═══════════════════════════════════════════════════════════════════════════
-
   static Future<Map<String, dynamic>> getFollowers(
     String userId, {
     int page = 1,
@@ -904,9 +877,7 @@ class SocialService {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
   // REMOVED CONTENT / APPEALS
-  // ═══════════════════════════════════════════════════════════════════════════
 
   static Future<Map<String, dynamic>> getMyRemovedPosts() async {
     try {
@@ -971,10 +942,6 @@ class SocialService {
       return {'success': false, 'message': 'Unable to submit appeal'};
     }
   }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // HELPERS
-  // ═══════════════════════════════════════════════════════════════════════════
 
   /// Get time ago string (YouTube-style) with UTC-to-local conversion.
   /// Server timestamps lack timezone info, so we treat them as UTC

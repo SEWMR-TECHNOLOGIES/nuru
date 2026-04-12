@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/widgets/app_snackbar.dart';
-
-TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.2}) =>
-    GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+import '../../../core/theme/text_styles.dart';
+import '../../../core/l10n/l10n_helper.dart';
 
 class EventScheduleTab extends StatefulWidget {
   final String eventId;
@@ -51,7 +49,7 @@ class _EventScheduleTabState extends State<EventScheduleTab> with AutomaticKeepA
               Center(child: Column(children: [
                 Icon(Icons.schedule_rounded, size: 48, color: AppColors.textHint),
                 const SizedBox(height: 12),
-                Text('No schedule items', style: _f(size: 14, color: AppColors.textTertiary)),
+                Text('No schedule items', style: appText(size: 14, color: AppColors.textTertiary)),
               ])),
             ])
           : ListView.builder(
@@ -73,7 +71,7 @@ class _EventScheduleTabState extends State<EventScheduleTab> with AutomaticKeepA
                         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                           Icon(Icons.add_rounded, size: 18, color: AppColors.primary),
                           const SizedBox(width: 8),
-                          Text('Add Schedule Item', style: _f(size: 14, weight: FontWeight.w600, color: AppColors.primary)),
+                          Text('Add Schedule Item', style: appText(size: 14, weight: FontWeight.w600, color: AppColors.primary)),
                         ]),
                       ),
                     ),
@@ -110,7 +108,7 @@ class _EventScheduleTabState extends State<EventScheduleTab> with AutomaticKeepA
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Expanded(child: Text(title, style: _f(size: 14, weight: FontWeight.w600))),
+                    Expanded(child: Text(title, style: appText(size: 14, weight: FontWeight.w600))),
                     GestureDetector(
                       onTap: () => _deleteItem(item['id']?.toString() ?? ''),
                       child: const Icon(Icons.close_rounded, size: 16, color: AppColors.textHint),
@@ -119,12 +117,12 @@ class _EventScheduleTabState extends State<EventScheduleTab> with AutomaticKeepA
                   if (startTime.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
-                      child: Text('$startTime${endTime.isNotEmpty ? ' - $endTime' : ''}', style: _f(size: 12, color: AppColors.primary, weight: FontWeight.w600)),
+                      child: Text('$startTime${endTime.isNotEmpty ? ' - $endTime' : ''}', style: appText(size: 12, color: AppColors.primary, weight: FontWeight.w600)),
                     ),
                   if (desc.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
-                      child: Text(desc, style: _f(size: 12, color: AppColors.textTertiary), maxLines: 2, overflow: TextOverflow.ellipsis),
+                      child: Text(desc, style: appText(size: 12, color: AppColors.textTertiary), maxLines: 2, overflow: TextOverflow.ellipsis),
                     ),
                 ],
               ),
@@ -163,7 +161,7 @@ class _EventScheduleTabState extends State<EventScheduleTab> with AutomaticKeepA
           children: [
             Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
             const SizedBox(height: 20),
-            Text('Add Schedule Item', style: _f(size: 18, weight: FontWeight.w700)),
+            Text('Add Schedule Item', style: appText(size: 18, weight: FontWeight.w700)),
             const SizedBox(height: 18),
             _input(titleCtrl, 'Title'),
             const SizedBox(height: 12),
@@ -193,7 +191,7 @@ class _EventScheduleTabState extends State<EventScheduleTab> with AutomaticKeepA
                   }
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999))),
-                child: Text('Save', style: _f(size: 15, weight: FontWeight.w700, color: Colors.white)),
+                child: Text('Save', style: appText(size: 15, weight: FontWeight.w700, color: Colors.white)),
               ),
             ),
           ],
@@ -205,9 +203,9 @@ class _EventScheduleTabState extends State<EventScheduleTab> with AutomaticKeepA
   Widget _input(TextEditingController ctrl, String hint) {
     return TextField(
       controller: ctrl,
-      style: _f(size: 15),
+      style: appText(size: 15),
       decoration: InputDecoration(
-        hintText: hint, hintStyle: _f(size: 14, color: AppColors.textHint),
+        hintText: hint, hintStyle: appText(size: 14, color: AppColors.textHint),
         filled: true, fillColor: const Color(0xFFF5F7FA),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

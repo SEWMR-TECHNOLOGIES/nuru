@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 /// Privacy Policy — mirrors web PrivacyPolicy.tsx content
 class PrivacyPolicyScreen extends StatelessWidget {
@@ -25,7 +26,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
-      appBar: NuruSubPageAppBar(title: 'Privacy Policy'),
+      appBar: NuruSubPageAppBar(title: context.tr('privacy_policy')),
       body: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
         itemCount: _sections.length,

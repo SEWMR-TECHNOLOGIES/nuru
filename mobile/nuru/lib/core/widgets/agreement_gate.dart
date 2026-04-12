@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 import '../services/agreements_service.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 /// Agreement modal — matches web AgreementModal.tsx
 /// Shows T&C before user creates a service or event

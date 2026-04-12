@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/services/nuru_cards_service.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class NuruCardsScreen extends StatefulWidget {
   const NuruCardsScreen({super.key});
@@ -49,7 +50,7 @@ class _NuruCardsScreenState extends State<NuruCardsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
-      appBar: NuruSubPageAppBar(title: 'Nuru Cards'),
+      appBar: NuruSubPageAppBar(title: context.tr('invitation_card')),
       body: RefreshIndicator(
         onRefresh: _load,
         color: AppColors.primary,
@@ -76,7 +77,7 @@ class _NuruCardsScreenState extends State<NuruCardsScreen> {
                         const SizedBox(height: 12),
                         Text('Nuru Card', style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white, height: 1.2)),
                         const SizedBox(height: 6),
-                        Text('Seamless event check-ins and exclusive benefits',
+                        Text('Instant event check-ins and exclusive benefits',
                             style: GoogleFonts.plusJakartaSans(fontSize: 13, color: Colors.white.withOpacity(0.8), height: 1.4)),
                         const SizedBox(height: 16),
                         if (_cards.isEmpty)
@@ -239,7 +240,7 @@ class _NuruCardsScreenState extends State<NuruCardsScreen> {
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text('Order Nuru Card', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700)),
-        content: Text('Choose your card type to get started with seamless event check-ins.',
+        content: Text('Choose your card type to get started with instant event check-ins.',
             style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary, height: 1.4)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),

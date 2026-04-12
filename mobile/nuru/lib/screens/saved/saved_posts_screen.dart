@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/services/social_service.dart';
 import '../home/widgets/moment_card.dart';
 import '../home/widgets/post_detail_modal.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class SavedPostsScreen extends StatefulWidget {
   const SavedPostsScreen({super.key});

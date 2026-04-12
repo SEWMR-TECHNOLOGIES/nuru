@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/auth_provider.dart';
+import 'providers/locale_provider.dart';
 import 'screens/splash_screen.dart';
 
 void main() {
@@ -25,8 +26,11 @@ void main() {
   ));
 
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => AuthProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => LocaleProvider()),
+      ],
       child: const NuruApp(),
     ),
   );
@@ -49,19 +53,15 @@ class _NuruAppState extends State<NuruApp> {
   }
 
   Future<void> _requestAllPermissions() async {
-    // Request location permission using permission_handler (triggers native dialog)
     final locationStatus = await Permission.locationWhenInUse.request();
     debugPrint('Location permission: $locationStatus');
 
-    // Request camera permission
     final cameraStatus = await Permission.camera.request();
     debugPrint('Camera permission: $cameraStatus');
 
-    // Request storage/photos permission
     final photosStatus = await Permission.photos.request();
     debugPrint('Photos permission: $photosStatus');
 
-    // Request notification permission (Android 13+)
     final notifStatus = await Permission.notification.request();
     debugPrint('Notification permission: $notifStatus');
   }

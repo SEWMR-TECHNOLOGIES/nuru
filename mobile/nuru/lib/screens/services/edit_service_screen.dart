@@ -1,5 +1,5 @@
-import 'dart:convert';
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -11,6 +11,7 @@ import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/user_services_service.dart';
 import '../../core/widgets/app_snackbar.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 /// Full-page Edit Service screen — matches web EditService.tsx
 class EditServiceScreen extends StatefulWidget {
@@ -166,11 +167,19 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
     final picker = ImagePicker();
     final picked = await picker.pickMultiImage(maxWidth: 1200, imageQuality: 85);
     if (picked.isNotEmpty && mounted) {
-      setState(() {
-        for (final f in picked) {
-          _newImages.add(File(f.path));
-        }
-      });
+      final accepted = <File>[];
+      for (final f in picked) {
+        final file = File(f.path);
+        final bytes = await file.length();
+        if (bytes > 5 * 1024 * 1024) continue;
+        accepted.add(file);
+      }
+      if (accepted.isEmpty && picked.isNotEmpty && mounted) {
+        AppSnackbar.info(context, 'Images must be 5MB or smaller');
+      }
+      if (accepted.isNotEmpty && mounted) {
+        setState(() => _newImages.addAll(accepted));
+      }
     }
   }
 
@@ -218,6 +227,23 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
   Future<void> _save() async {
     final serviceId = widget.service['id']?.toString() ?? '';
     if (serviceId.isEmpty) return;
+
+    if (_titleCtrl.text.trim().isEmpty) {
+      AppSnackbar.error(context, 'Service title is required');
+      return;
+    }
+    if (_descCtrl.text.trim().isEmpty) {
+      AppSnackbar.error(context, 'Description is required');
+      return;
+    }
+
+    final minNum = num.tryParse(_minPriceCtrl.text.trim().replaceAll(',', ''));
+    final maxNum = num.tryParse(_maxPriceCtrl.text.trim().replaceAll(',', ''));
+    if (minNum != null && maxNum != null && maxNum < minNum) {
+      AppSnackbar.error(context, 'Max price must be ≥ min price');
+      return;
+    }
+
     setState(() => _submitting = true);
 
     // Use FormData for update (matches web which uses putFormData)
@@ -272,7 +298,7 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F3F8),
-      appBar: NuruSubPageAppBar(title: 'Edit Service'),
+      appBar: NuruSubPageAppBar(title: context.tr('edit_service')),
       body: _loadingRefs
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : SingleChildScrollView(

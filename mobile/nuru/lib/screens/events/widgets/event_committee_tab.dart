@@ -1,15 +1,13 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/services/report_generator.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import '../report_preview_screen.dart';
-
-TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.3}) =>
-    GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+import '../../../core/theme/text_styles.dart';
+import '../../../core/l10n/l10n_helper.dart';
 
 /// Mirrors web EventCommittee.tsx — user search, role picker, permissions, edit/remove
 class EventCommitteeTab extends StatefulWidget {
@@ -100,15 +98,15 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
             child: const Icon(Icons.people_outline_rounded, size: 28, color: AppColors.primary),
           ),
           const SizedBox(height: 16),
-          Text('No committee members yet', style: _f(size: 15, weight: FontWeight.w600, color: AppColors.textSecondary)),
+          Text('No committee members yet', style: appText(size: 15, weight: FontWeight.w600, color: AppColors.textSecondary)),
           const SizedBox(height: 6),
-          Text('Add team members to help plan your event', style: _f(size: 13, color: AppColors.textTertiary), textAlign: TextAlign.center),
+          Text('Add team members to help plan your event', style: appText(size: 13, color: AppColors.textTertiary), textAlign: TextAlign.center),
           if (_canManage) ...[
             const SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: () => _showAddMemberSheet(),
               icon: const Icon(Icons.person_add_rounded, size: 18),
-              label: Text('Add First Member', style: _f(size: 14, weight: FontWeight.w600, color: Colors.white)),
+              label: Text('Add First Member', style: appText(size: 14, weight: FontWeight.w600, color: Colors.white)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary, foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -132,7 +130,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
             child: OutlinedButton.icon(
               onPressed: _generateReport,
               icon: const Icon(Icons.description_rounded, size: 16),
-              label: Text('Committee Report', style: _f(size: 12, weight: FontWeight.w600)),
+              label: Text('Committee Report', style: appText(size: 12, weight: FontWeight.w600)),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.primary,
                 side: const BorderSide(color: AppColors.primary),
@@ -151,7 +149,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
             onPressed: _showAddMemberSheet,
             backgroundColor: AppColors.primary, foregroundColor: Colors.white,
             icon: const Icon(Icons.person_add_rounded, size: 20),
-            label: Text('Add Member', style: _f(size: 13, weight: FontWeight.w700, color: Colors.white)),
+            label: Text('Add Member', style: appText(size: 13, weight: FontWeight.w700, color: Colors.white)),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           ),
         ),
@@ -187,12 +185,12 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
           CircleAvatar(
             radius: 22, backgroundColor: AppColors.primarySoft,
             backgroundImage: avatar != null ? NetworkImage(avatar) : null,
-            child: avatar == null ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: _f(size: 16, weight: FontWeight.w700, color: AppColors.primary)) : null,
+            child: avatar == null ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: appText(size: 16, weight: FontWeight.w700, color: AppColors.primary)) : null,
           ),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(name.isNotEmpty ? name : 'Unknown', style: _f(size: 14, weight: FontWeight.w600)),
-            if (role.isNotEmpty) Text(role, style: _f(size: 12, color: AppColors.primary, weight: FontWeight.w600)),
+            Text(name.isNotEmpty ? name : 'Unknown', style: appText(size: 14, weight: FontWeight.w600)),
+            if (role.isNotEmpty) Text(role, style: appText(size: 12, color: AppColors.primary, weight: FontWeight.w600)),
           ])),
           if (_canManage)
             PopupMenuButton<String>(
@@ -223,14 +221,14 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-            child: Text(status[0].toUpperCase() + status.substring(1), style: _f(size: 10, weight: FontWeight.w700, color: statusColor)),
+            child: Text(status[0].toUpperCase() + status.substring(1), style: appText(size: 10, weight: FontWeight.w700, color: statusColor)),
           ),
           const SizedBox(width: 8),
           if (permList.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(8)),
-              child: Text('${permList.length} permission${permList.length != 1 ? 's' : ''}', style: _f(size: 10, weight: FontWeight.w600, color: AppColors.primary)),
+              child: Text('${permList.length} permission${permList.length != 1 ? 's' : ''}', style: appText(size: 10, weight: FontWeight.w600, color: AppColors.primary)),
             ),
         ]),
       ]),
@@ -243,14 +241,12 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
       child: Row(children: [
         Icon(icon, size: 14, color: AppColors.textHint),
         const SizedBox(width: 8),
-        Expanded(child: Text(text, style: _f(size: 12, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis)),
+        Expanded(child: Text(text, style: appText(size: 12, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis)),
       ]),
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════
   // ADD MEMBER — matches web: user search, role picker, permissions
-  // ══════════════════════════════════════════════════════════════════
 
   void _showAddMemberSheet() {
     Map<String, dynamic>? selectedUser;
@@ -306,11 +302,11 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
               child: ListView(controller: scrollCtrl, children: [
                 Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
                 const SizedBox(height: 16),
-                Text('Add Committee Member', style: _f(size: 18, weight: FontWeight.w700)),
+                Text('Add Committee Member', style: appText(size: 18, weight: FontWeight.w700)),
                 const SizedBox(height: 20),
 
                 // User search
-                Text('Search User *', style: _f(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
+                Text('Search User *', style: appText(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
                 const SizedBox(height: 8),
                 if (selectedUser != null)
                   Container(
@@ -320,25 +316,25 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                       CircleAvatar(
                         radius: 18, backgroundColor: AppColors.primary.withOpacity(0.2),
                         backgroundImage: selectedUser!['avatar'] != null ? NetworkImage(selectedUser!['avatar']) : null,
-                        child: selectedUser!['avatar'] == null ? Text((selectedUser!['first_name'] ?? 'U')[0].toUpperCase(), style: _f(size: 14, weight: FontWeight.w700, color: AppColors.primary)) : null,
+                        child: selectedUser!['avatar'] == null ? Text((selectedUser!['first_name'] ?? 'U')[0].toUpperCase(), style: appText(size: 14, weight: FontWeight.w700, color: AppColors.primary)) : null,
                       ),
                       const SizedBox(width: 10),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('${selectedUser!['first_name'] ?? ''} ${selectedUser!['last_name'] ?? ''}'.trim(), style: _f(size: 14, weight: FontWeight.w600)),
-                        if (selectedUser!['email'] != null) Text(selectedUser!['email'], style: _f(size: 11, color: AppColors.textTertiary)),
+                        Text('${selectedUser!['first_name'] ?? ''} ${selectedUser!['last_name'] ?? ''}'.trim(), style: appText(size: 14, weight: FontWeight.w600)),
+                        if (selectedUser!['email'] != null) Text(selectedUser!['email'], style: appText(size: 11, color: AppColors.textTertiary)),
                       ])),
                       GestureDetector(
                         onTap: () => setSheetState(() { selectedUser = null; searchQuery = ''; searchResults = []; }),
-                        child: Text('Change', style: _f(size: 12, weight: FontWeight.w600, color: AppColors.primary)),
+                        child: Text('Change', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.primary)),
                       ),
                     ]),
                   )
                 else ...[
                   TextField(
                     onChanged: (v) { searchQuery = v; searchUsers(v); },
-                    style: _f(size: 14),
+                    style: appText(size: 14),
                     decoration: InputDecoration(
-                      hintText: 'Search by name, email or phone...', hintStyle: _f(size: 13, color: AppColors.textHint),
+                      hintText: 'Search by name, email or phone...', hintStyle: appText(size: 13, color: AppColors.textHint),
                       prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.textHint),
                       suffixIcon: searching ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))) : null,
                       filled: true, fillColor: const Color(0xFFF5F7FA),
@@ -366,10 +362,10 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                             dense: true,
                             leading: CircleAvatar(radius: 16, backgroundColor: AppColors.primarySoft,
                               backgroundImage: u['avatar'] != null ? NetworkImage(u['avatar']) : null,
-                              child: u['avatar'] == null ? Text((name.isNotEmpty ? name[0] : 'U').toUpperCase(), style: _f(size: 12, weight: FontWeight.w700, color: AppColors.primary)) : null,
+                              child: u['avatar'] == null ? Text((name.isNotEmpty ? name[0] : 'U').toUpperCase(), style: appText(size: 12, weight: FontWeight.w700, color: AppColors.primary)) : null,
                             ),
-                            title: Text(name.isNotEmpty ? name : 'Unknown User', style: _f(size: 13, weight: FontWeight.w600)),
-                            subtitle: subtitle.isNotEmpty ? Text(subtitle, style: _f(size: 11, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis) : null,
+                            title: Text(name.isNotEmpty ? name : 'Unknown User', style: appText(size: 13, weight: FontWeight.w600)),
+                            subtitle: subtitle.isNotEmpty ? Text(subtitle, style: appText(size: 11, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis) : null,
                             onTap: () => setSheetState(() { selectedUser = u; searchResults = []; }),
                           );
                         },
@@ -380,7 +376,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                 const SizedBox(height: 18),
 
                 // Role picker
-                Text('Role *', style: _f(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
+                Text('Role *', style: appText(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
                 const SizedBox(height: 8),
                 Container(
                   decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(14)),
@@ -388,12 +384,12 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                     value: selectedRoleId.isEmpty ? null : selectedRoleId,
                     decoration: InputDecoration(
                       border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      hintText: 'Select a role', hintStyle: _f(size: 14, color: AppColors.textHint),
+                      hintText: 'Select a role', hintStyle: appText(size: 14, color: AppColors.textHint),
                     ),
-                    style: _f(size: 14),
+                    style: appText(size: 14),
                     isExpanded: true,
                     itemHeight: null,
-                    items: _roles.map((r) => DropdownMenuItem(value: r['id'], child: Text(r['name']!, style: _f(size: 13, weight: FontWeight.w600)))).toList(),
+                    items: _roles.map((r) => DropdownMenuItem(value: r['id'], child: Text(r['name']!, style: appText(size: 13, weight: FontWeight.w600)))).toList(),
                     onChanged: (v) => setSheetState(() => selectedRoleId = v ?? ''),
                   ),
                 ),
@@ -402,9 +398,9 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                   const SizedBox(height: 10),
                   TextField(
                     onChanged: (v) => customRole = v,
-                    style: _f(size: 14),
+                    style: appText(size: 14),
                     decoration: InputDecoration(
-                      hintText: 'Enter custom role name', hintStyle: _f(size: 13, color: AppColors.textHint),
+                      hintText: 'Enter custom role name', hintStyle: appText(size: 13, color: AppColors.textHint),
                       filled: true, fillColor: const Color(0xFFF5F7FA),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -415,7 +411,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                 const SizedBox(height: 18),
 
                 // Permissions
-                Text('Permissions', style: _f(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
+                Text('Permissions', style: appText(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -429,8 +425,8 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                       onChanged: (v) => setSheetState(() {
                         if (v == true) { selectedPerms.add(p['id']!); } else { selectedPerms.remove(p['id']); }
                       }),
-                      title: Text(p['label']!, style: _f(size: 13, weight: FontWeight.w600)),
-                      subtitle: Text(p['desc']!, style: _f(size: 10, color: AppColors.textTertiary)),
+                      title: Text(p['label']!, style: appText(size: 13, weight: FontWeight.w600)),
+                      subtitle: Text(p['desc']!, style: appText(size: 10, color: AppColors.textTertiary)),
                     )).toList(),
                   ),
                 ),
@@ -443,7 +439,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                   activeColor: AppColors.primary,
                   value: sendInvitation,
                   onChanged: (v) => setSheetState(() => sendInvitation = v),
-                  title: Text('Send invitation to join committee', style: _f(size: 13, weight: FontWeight.w600)),
+                  title: Text('Send invitation to join committee', style: appText(size: 13, weight: FontWeight.w600)),
                 ),
 
                 const SizedBox(height: 20),
@@ -472,7 +468,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                     },
                     child: submitting
                         ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : Text('Add Member', style: _f(size: 15, weight: FontWeight.w700, color: Colors.white)),
+                        : Text('Add Member', style: appText(size: 15, weight: FontWeight.w700, color: Colors.white)),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -484,9 +480,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════
   // EDIT MEMBER — role + permissions update
-  // ══════════════════════════════════════════════════════════════════
 
   void _showEditMemberSheet(Map<String, dynamic> member) {
     final name = '${member['first_name'] ?? member['name'] ?? ''} ${member['last_name'] ?? ''}'.trim();
@@ -514,18 +508,18 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
             child: ListView(controller: scrollCtrl, children: [
               Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
               const SizedBox(height: 16),
-              Text('Edit — $name', style: _f(size: 18, weight: FontWeight.w700)),
+              Text('Edit — $name', style: appText(size: 18, weight: FontWeight.w700)),
               const SizedBox(height: 20),
 
-              Text('Role *', style: _f(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
+              Text('Role *', style: appText(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
               const SizedBox(height: 8),
               Container(
                 decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(14)),
                 child: DropdownButtonFormField<String>(
                   value: selectedRoleId,
                   decoration: InputDecoration(border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4)),
-                  style: _f(size: 14), isExpanded: true,
-                  items: _roles.map((r) => DropdownMenuItem(value: r['id'], child: Text(r['name']!, style: _f(size: 13, weight: FontWeight.w600)))).toList(),
+                  style: appText(size: 14), isExpanded: true,
+                  items: _roles.map((r) => DropdownMenuItem(value: r['id'], child: Text(r['name']!, style: appText(size: 13, weight: FontWeight.w600)))).toList(),
                   onChanged: (v) => setSheetState(() => selectedRoleId = v ?? ''),
                 ),
               ),
@@ -535,7 +529,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                 TextField(
                   controller: TextEditingController(text: customRole),
                   onChanged: (v) => customRole = v,
-                  style: _f(size: 14),
+                  style: appText(size: 14),
                   decoration: InputDecoration(
                     hintText: 'Custom role name', filled: true, fillColor: const Color(0xFFF5F7FA),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
@@ -545,7 +539,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
               ],
 
               const SizedBox(height: 18),
-              Text('Permissions', style: _f(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
+              Text('Permissions', style: appText(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -556,7 +550,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                     contentPadding: EdgeInsets.zero, activeColor: AppColors.primary,
                     value: selectedPerms.contains(p['id']),
                     onChanged: (v) => setSheetState(() { if (v == true) selectedPerms.add(p['id']!); else selectedPerms.remove(p['id']); }),
-                    title: Text(p['label']!, style: _f(size: 13, weight: FontWeight.w600)),
+                    title: Text(p['label']!, style: appText(size: 13, weight: FontWeight.w600)),
                   )).toList(),
                 ),
               ),
@@ -581,7 +575,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                   },
                   child: submitting
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : Text('Save Changes', style: _f(size: 15, weight: FontWeight.w700, color: Colors.white)),
+                      : Text('Save Changes', style: appText(size: 15, weight: FontWeight.w700, color: Colors.white)),
                 ),
               ),
             ]),
@@ -596,10 +590,10 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Remove Member', style: _f(size: 18, weight: FontWeight.w700)),
-        content: Text('Remove ${name.isNotEmpty ? name : 'this member'} from the committee?', style: _f(size: 14, color: AppColors.textSecondary)),
+        title: Text('Remove Member', style: appText(size: 18, weight: FontWeight.w700)),
+        content: Text('Remove ${name.isNotEmpty ? name : 'this member'} from the committee?', style: appText(size: 14, color: AppColors.textSecondary)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: _f(size: 14, color: AppColors.textTertiary))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: appText(size: 14, color: AppColors.textTertiary))),
           TextButton(onPressed: () async {
             Navigator.pop(ctx);
             final res = await EventsService.removeCommitteeMember(widget.eventId, memberId);
@@ -607,7 +601,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
               if (res['success'] == true) { AppSnackbar.success(context, 'Member removed'); _load(); }
               else { AppSnackbar.error(context, res['message'] ?? 'Failed'); }
             }
-          }, child: Text('Remove', style: _f(size: 14, weight: FontWeight.w700, color: AppColors.error))),
+          }, child: Text('Remove', style: appText(size: 14, weight: FontWeight.w700, color: AppColors.error))),
         ],
       ),
     );

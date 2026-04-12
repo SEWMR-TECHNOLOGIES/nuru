@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/social_service.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class CommunityDetailScreen extends StatefulWidget {
   final String communityId;
@@ -171,7 +172,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
-                              isMember ? 'Leave' : 'Join',
+                              isMember ? context.trw('leave') : context.trw('join'),
                               style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600,
                                   color: isMember ? AppColors.textSecondary : Colors.white),
                             ),
@@ -191,9 +192,9 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
               indicatorColor: AppColors.primary,
               labelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
               tabs: [
-                Tab(text: 'Posts (${_posts.length})'),
-                Tab(text: 'Members (${_members.length})'),
-                const Tab(text: 'About'),
+                Tab(text: '${context.tr('posts')} (${_posts.length})'),
+                Tab(text: '${context.tr('members')} (${_members.length})'),
+                Tab(text: context.tr('about')),
               ],
             ),
           ),
@@ -216,9 +217,9 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Icon(Icons.forum_outlined, size: 32, color: AppColors.textHint),
         const SizedBox(height: 12),
-        Text('No posts yet', style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        Text(context.trw('no_posts_yet'), style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
         const SizedBox(height: 4),
-        Text('Be the first to post in this community', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+        Text(context.trw('be_first_post'), style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
       ]));
     }
     return RefreshIndicator(
@@ -305,7 +306,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
   Widget _membersTab() {
     if (_membersLoading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
     if (_members.isEmpty) {
-      return Center(child: Text('No members', style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textTertiary)));
+      return Center(child: Text(context.trw('no_members'), style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textTertiary)));
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),

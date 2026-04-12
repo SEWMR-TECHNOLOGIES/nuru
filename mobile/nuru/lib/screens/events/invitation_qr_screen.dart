@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/events_service.dart';
 import '../../core/widgets/app_snackbar.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 /// Full-screen modern QR code display for event check-in
 class InvitationQRScreen extends StatefulWidget {

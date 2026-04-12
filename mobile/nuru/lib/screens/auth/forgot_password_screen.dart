@@ -9,6 +9,7 @@ import '../../core/widgets/app_snackbar.dart';
 import '../../providers/auth_provider.dart';
 
 import 'widgets/auth_text_field.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -51,7 +52,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   Future<void> _handleEmailReset() async {
     if (_emailCtrl.text.trim().isEmpty) {
-      AppSnackbar.error(context, 'Enter your email');
+      AppSnackbar.error(context, context.tr('enter_your_email'));
       return;
     }
     setState(() => _loading = true);
@@ -59,7 +60,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     setState(() => _loading = false);
     if (res['success'] == true) {
       if (mounted) {
-        AppSnackbar.success(context, res['message'] ?? 'Reset link sent!');
+        AppSnackbar.success(context, res['message'] ?? context.tr('reset_link_sent'));
         Navigator.pop(context);
       }
     } else {
@@ -70,7 +71,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Future<void> _handlePhoneReset() async {
     final cleaned = _fullPhone.replaceAll(RegExp(r'[^\d]'), '');
     if (cleaned.length < 7) {
-      AppSnackbar.error(context, 'Enter your phone');
+      AppSnackbar.error(context, context.tr('enter_your_phone'));
       return;
     }
     setState(() => _loading = true);
@@ -93,7 +94,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         _step = 'otp';
       });
       if (mounted)
-        AppSnackbar.success(context, backendRes['message'] ?? 'Code sent');
+        AppSnackbar.success(context, backendRes['message'] ?? context.tr('code_sent'));
     } else {
       if (mounted)
         AppSnackbar.error(context, backendRes['message'] ?? 'Failed');
@@ -103,7 +104,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Future<void> _handleVerifyOtp() async {
     final otp = _otpValue;
     if (otp.length < 6) {
-      AppSnackbar.error(context, 'Enter the 6-digit code');
+      AppSnackbar.error(context, context.tr('enter_6_digit_code'));
       return;
     }
     setState(() => _loading = true);
@@ -118,17 +119,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       setState(() => _step = 'reset');
     } else {
       if (mounted)
-        AppSnackbar.error(context, res['message'] ?? 'Verification failed');
+        AppSnackbar.error(context, res['message'] ?? context.tr('verification_failed'));
     }
   }
 
   Future<void> _handleResetPassword() async {
     if (_newPwCtrl.text.length < 8) {
-      AppSnackbar.error(context, 'Min 8 characters');
+      AppSnackbar.error(context, context.tr('min_8_chars'));
       return;
     }
     if (_newPwCtrl.text != _confirmPwCtrl.text) {
-      AppSnackbar.error(context, 'Passwords don\'t match');
+      AppSnackbar.error(context, context.tr('passwords_dont_match'));
       return;
     }
     setState(() => _loading = true);
@@ -140,11 +141,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     setState(() => _loading = false);
     if (res['success'] == true) {
       if (mounted) {
-        AppSnackbar.success(context, 'Password reset! Please sign in.');
+        AppSnackbar.success(context, context.tr('password_reset_success'));
         Navigator.pop(context);
       }
     } else {
-      if (mounted) AppSnackbar.error(context, res['message'] ?? 'Reset failed');
+      if (mounted) AppSnackbar.error(context, res['message'] ?? context.tr('reset_failed'));
     }
   }
 
@@ -162,30 +163,30 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   String get _title {
     switch (_step) {
       case 'email':
-        return 'Reset via email';
+        return context.tr('reset_via_email');
       case 'phone':
-        return 'Reset via phone';
+        return context.tr('reset_via_phone');
       case 'otp':
-        return 'Enter code';
+        return context.tr('enter_code');
       case 'reset':
-        return 'New password';
+        return context.tr('new_password');
       default:
-        return 'Reset password';
+        return context.tr('reset_password');
     }
   }
 
   String get _subtitle {
     switch (_step) {
       case 'email':
-        return 'Enter your email to receive reset instructions';
+        return context.tr('enter_email_reset');
       case 'phone':
-        return 'Enter your phone to receive a reset code';
+        return context.tr('enter_phone_reset');
       case 'otp':
-        return 'We sent a 6-digit code to ${maskPhoneDisplay(_fullPhone)}';
+        return '${context.tr('we_sent_code_to')} ${maskPhoneDisplay(_fullPhone)}';
       case 'reset':
-        return 'Choose a new secure password';
+        return context.tr('choose_new_password');
       default:
-        return 'Choose how to recover your account';
+        return context.tr('choose_recovery');
     }
   }
 
@@ -311,15 +312,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       children: [
         _optionCard(
           Icons.email_outlined,
-          'Reset via email',
-          'We\'ll send a reset link',
+          context.tr('reset_via_email'),
+          context.tr('well_send_reset_link'),
           () => setState(() => _step = 'email'),
         ),
         const SizedBox(height: 12),
         _optionCard(
           Icons.phone_android_rounded,
-          'Reset via phone',
-          'We\'ll send an OTP code',
+          context.tr('reset_via_phone'),
+          context.tr('well_send_otp'),
           () => setState(() => _step = 'phone'),
         ),
       ],
@@ -380,15 +381,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       children: [
         AuthTextField(
           controller: _emailCtrl,
-          label: 'Email address',
-          hintText: 'your.email@example.com',
+          label: context.tr('email_address'),
+          hintText: context.tr('email_hint'),
           prefixIcon: Icons.email_outlined,
           keyboardType: TextInputType.emailAddress,
           autofocus: true,
         ),
         const SizedBox(height: 28),
         _ctaBtn(
-          label: 'Send reset link',
+          label: context.tr('send_reset_link'),
           onPressed: _loading ? null : _handleEmailReset,
           isLoading: _loading,
         ),
@@ -407,7 +408,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ),
         const SizedBox(height: 28),
         _ctaBtn(
-          label: 'Send reset code',
+          label: context.tr('send_reset_code'),
           onPressed: _loading ? null : _handlePhoneReset,
           isLoading: _loading,
         ),
@@ -442,7 +443,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  _otpChannel == 'whatsapp' ? 'Check WhatsApp' : 'Check SMS',
+                  _otpChannel == 'whatsapp' ? context.tr('check_whatsapp') : context.tr('check_sms'),
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -461,7 +462,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ),
         const SizedBox(height: 28),
         _ctaBtn(
-          label: 'Verify & continue',
+          label: context.tr('verify_and_continue'),
           onPressed: _loading ? null : _handleVerifyOtp,
           isLoading: _loading,
         ),
@@ -470,7 +471,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           child: GestureDetector(
             onTap: _loading ? null : _handlePhoneReset,
             child: Text(
-              "Didn't get a code? Resend",
+              context.tr('didnt_get_code'),
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 color: AppColors.primary,
@@ -489,8 +490,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       children: [
         AuthTextField(
           controller: _newPwCtrl,
-          label: 'New Password',
-          hintText: 'Create a new password',
+          label: context.tr('new_password_label'),
+          hintText: context.tr('create_new_password_hint'),
           prefixIcon: Icons.lock_outline_rounded,
           obscureText: _obscureNew,
           suffixIcon: IconButton(
@@ -507,8 +508,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         const SizedBox(height: 18),
         AuthTextField(
           controller: _confirmPwCtrl,
-          label: 'Confirm Password',
-          hintText: 'Re-enter your password',
+          label: context.tr('confirm_password_label'),
+          hintText: context.tr('reenter_password_hint'),
           prefixIcon: Icons.lock_outline_rounded,
           obscureText: _obscureConfirm,
           suffixIcon: IconButton(
@@ -524,7 +525,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ),
         const SizedBox(height: 28),
         _ctaBtn(
-          label: 'Reset Password',
+          label: context.tr('reset_password'),
           onPressed: _loading ? null : _handleResetPassword,
           isLoading: _loading,
         ),

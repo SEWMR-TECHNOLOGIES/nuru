@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ChevronLeft, Clock, Users, CheckCircle, XCircle, Loader2, Camera, Images, Edit2, FileText } from 'lucide-react';
+import { ChevronLeft, Clock, Users, CheckCircle, XCircle, Loader2, Camera, Images, Edit2, FileText, Navigation } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
@@ -19,6 +19,8 @@ import ReportPreviewDialog from '@/components/ReportPreviewDialog';
 import { generateEventReportHtml } from '@/utils/generateEventReport';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import VenueMapPreview from '@/components/VenueMapPreview';
+import DirectionsMapDialog from '@/components/DirectionsMapDialog';
 
 const EventView = () => {
   const { t } = useLanguage();
@@ -34,6 +36,7 @@ const EventView = () => {
   const [photoLibraries, setPhotoLibraries] = useState<PhotoLibrary[]>([]);
   const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
   const [reportHtml, setReportHtml] = useState('');
+  const [directionsOpen, setDirectionsOpen] = useState(false);
   const fetchEvent = useCallback(async () => {
     if (!id) return;
     try {
@@ -289,18 +292,51 @@ const EventView = () => {
 
         {(event.location || event.venue) && (
           <Card className="sm:col-span-2">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <img src={LocationIcon} alt="Location" className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Location</p>
-                <p className="font-medium text-foreground">{event.venue || event.location}</p>
-                {event.venue && event.location && event.venue !== event.location && (
-                  <p className="text-sm text-muted-foreground">{event.location}</p>
-                )}
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <img src={LocationIcon} alt="Location" className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-muted-foreground">Location</p>
+                  <p className="font-medium text-foreground">{event.venue || event.location}</p>
+                  {event.venue && event.location && event.venue !== event.location && (
+                    <p className="text-sm text-muted-foreground">{event.location}</p>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 rounded-xl gap-1.5"
+                  onClick={() => {
+                    const vc = event.venue_coordinates;
+                    if (vc?.latitude && vc?.longitude) {
+                      setDirectionsOpen(true);
+                    } else {
+                      const q = encodeURIComponent([event.venue, event.location].filter(Boolean).join(', '));
+                      window.open(`https://www.openstreetmap.org/search?query=${q}`, '_blank');
+                    }
+                  }}
+                >
+                  <Navigation className="w-3.5 h-3.5" />
+                  Directions
+                </Button>
               </div>
             </CardContent>
+          </Card>
+        )}
+
+        {/* Venue Map */}
+        {event.venue_coordinates?.latitude && event.venue_coordinates?.longitude && (
+          <Card className="sm:col-span-2 overflow-hidden p-0">
+            <VenueMapPreview
+              latitude={parseFloat(event.venue_coordinates.latitude)}
+              longitude={parseFloat(event.venue_coordinates.longitude)}
+              venueName={event.venue || event.location}
+              address={event.venue_address || event.location}
+              height="220px"
+              onDirections={() => setDirectionsOpen(true)}
+            />
           </Card>
         )}
 
@@ -455,6 +491,17 @@ const EventView = () => {
         title="Event Report"
         html={reportHtml}
       />
+
+      {event?.venue_coordinates?.latitude && event?.venue_coordinates?.longitude && (
+        <DirectionsMapDialog
+          open={directionsOpen}
+          onOpenChange={setDirectionsOpen}
+          destinationLat={parseFloat(event.venue_coordinates.latitude)}
+          destinationLng={parseFloat(event.venue_coordinates.longitude)}
+          venueName={event.venue || event.location}
+          address={event.venue_address || event.location}
+        />
+      )}
     </div>
   );
 };

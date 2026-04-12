@@ -11,6 +11,7 @@ import '../../core/services/api_service.dart';
 import '../../core/services/messages_service.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../messages/messages_screen.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 /// Public Service Detail — matches web PublicServiceDetail.tsx
 class PublicServiceScreen extends StatefulWidget {

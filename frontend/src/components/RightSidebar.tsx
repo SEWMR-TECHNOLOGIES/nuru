@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Users, Loader2, Play, Video } from 'lucide-react';
+import { Users, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
@@ -182,11 +182,7 @@ const MyMeetingsSection = ({ navigate }: { navigate: (path: string) => void }) =
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
                 isLive ? 'bg-emerald-100 dark:bg-emerald-900' : 'bg-primary/10'
               }`}>
-                {isLive ? (
-                  <Play className="w-4 h-4 text-emerald-600 dark:text-emerald-400 fill-current" />
-                ) : (
-                  <Video className="w-4 h-4 text-primary" />
-                )}
+                <SvgIcon src={videoChatIcon} className={`w-4 h-4 ${isLive ? 'text-emerald-600 dark:text-emerald-400' : ''}`} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">

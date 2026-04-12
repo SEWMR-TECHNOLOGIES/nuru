@@ -8,6 +8,7 @@ import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import 'ai_assistant_screen.dart';
 import 'live_chat_screen.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class HelpScreen extends StatefulWidget {
   const HelpScreen({super.key});
@@ -47,7 +48,7 @@ class _HelpScreenState extends State<HelpScreen> {
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: NuruSubPageAppBar(
-        title: 'Help Center',
+        title: context.tr('help_center'),
         actions: [
           IconButton(
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiAssistantScreen())),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class NuruLogo extends StatelessWidget {
   final double size;

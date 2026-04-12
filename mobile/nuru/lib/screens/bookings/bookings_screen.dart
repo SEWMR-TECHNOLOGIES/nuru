@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/services/user_services_service.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class BookingsScreen extends StatefulWidget {
   const BookingsScreen({super.key});
@@ -40,7 +41,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
-      appBar: NuruSubPageAppBar(title: 'Bookings'),
+      appBar: NuruSubPageAppBar(title: context.tr('bookings')),
       body: RefreshIndicator(
         onRefresh: _load,
         color: AppColors.primary,

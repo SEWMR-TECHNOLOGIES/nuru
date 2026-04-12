@@ -1,12 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/widgets/app_snackbar.dart';
-
-TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.2}) =>
-    GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+import '../../../core/theme/text_styles.dart';
+import '../../../core/l10n/l10n_helper.dart';
 
 class EventGuestsTab extends StatefulWidget {
   final String eventId;
@@ -74,10 +72,10 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
               child: TextField(
                 controller: _searchCtrl,
                 onChanged: (_) => _load(),
-                style: _f(size: 14),
+                style: appText(size: 14),
                 decoration: InputDecoration(
                   hintText: 'Search guests...',
-                  hintStyle: _f(size: 13, color: AppColors.textHint),
+                  hintStyle: appText(size: 13, color: AppColors.textHint),
                   prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.textHint),
                   filled: true, fillColor: Colors.white,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
@@ -114,7 +112,7 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: _filter == f ? AppColors.primary : AppColors.border),
                   ),
-                  child: Text(f[0].toUpperCase() + f.substring(1), style: _f(size: 12, weight: FontWeight.w600, color: _filter == f ? Colors.white : AppColors.textSecondary)),
+                  child: Text(f[0].toUpperCase() + f.substring(1), style: appText(size: 12, weight: FontWeight.w600, color: _filter == f ? Colors.white : AppColors.textSecondary)),
                 ),
               ),
             )).toList(),
@@ -125,7 +123,7 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
           child: _loading
               ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
               : _guests.isEmpty
-                  ? Center(child: Text('No guests yet', style: _f(size: 14, color: AppColors.textTertiary)))
+                  ? Center(child: Text('No guests yet', style: appText(size: 14, color: AppColors.textTertiary)))
                   : RefreshIndicator(
                       onRefresh: _load,
                       color: AppColors.primary,
@@ -158,24 +156,24 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
           Container(
             width: 40, height: 40,
             decoration: BoxDecoration(color: rsvpColor.withOpacity(0.1), shape: BoxShape.circle),
-            child: Center(child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: _f(size: 16, weight: FontWeight.w700, color: rsvpColor))),
+            child: Center(child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: appText(size: 16, weight: FontWeight.w700, color: rsvpColor))),
           ),
           const SizedBox(width: 12),
           Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(children: [
-                Flexible(child: Text(name, style: _f(size: 14, weight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                Flexible(child: Text(name, style: appText(size: 14, weight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis)),
                 if (checkedIn) ...[const SizedBox(width: 6), Icon(Icons.check_circle, size: 14, color: AppColors.accent)],
               ]),
               Wrap(spacing: 8, children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(color: rsvpColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                  child: Text(rsvp, style: _f(size: 10, weight: FontWeight.w700, color: rsvpColor)),
+                  child: Text(rsvp, style: appText(size: 10, weight: FontWeight.w700, color: rsvpColor)),
                 ),
-                if (phone.isNotEmpty) Text(phone, style: _f(size: 11, color: AppColors.textTertiary)),
-                if (table.isNotEmpty) Text('Table $table', style: _f(size: 11, color: AppColors.textTertiary)),
+                if (phone.isNotEmpty) Text(phone, style: appText(size: 11, color: AppColors.textTertiary)),
+                if (table.isNotEmpty) Text('Table $table', style: appText(size: 11, color: AppColors.textTertiary)),
               ]),
             ],
           )),
@@ -250,19 +248,19 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
               children: [
                 Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
                 const SizedBox(height: 20),
-                Text('Add Guest', style: _f(size: 18, weight: FontWeight.w700)),
+                Text('Add Guest', style: appText(size: 18, weight: FontWeight.w700)),
                 const SizedBox(height: 4),
-                Text('Search for a Nuru user to add as guest', style: _f(size: 13, color: AppColors.textTertiary)),
+                Text('Search for a Nuru user to add as guest', style: appText(size: 13, color: AppColors.textTertiary)),
                 const SizedBox(height: 16),
 
                 // Search input
                 TextField(
                   controller: searchCtrl,
                   autofocus: true,
-                  style: _f(size: 14),
+                  style: appText(size: 14),
                   decoration: InputDecoration(
                     hintText: 'Search by name, email, or phone...',
-                    hintStyle: _f(size: 13, color: AppColors.textHint),
+                    hintStyle: appText(size: 13, color: AppColors.textHint),
                     prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.textHint),
                     filled: true, fillColor: const Color(0xFFF5F7FA),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
@@ -305,7 +303,7 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
                 if (!searching && searchResults.isEmpty && searchCtrl.text.length >= 2)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: Center(child: Text('No users found', style: _f(size: 13, color: AppColors.textTertiary))),
+                    child: Center(child: Text('No users found', style: appText(size: 13, color: AppColors.textTertiary))),
                   ),
 
                 if (selectedUser != null) ...[
@@ -319,13 +317,13 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
                           '${selectedUser!['first_name']?.toString() ?? ''}'.isNotEmpty
                               ? selectedUser!['first_name'].toString()[0].toUpperCase()
                               : '?',
-                          style: _f(size: 14, weight: FontWeight.w700, color: AppColors.primary),
+                          style: appText(size: 14, weight: FontWeight.w700, color: AppColors.primary),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('${selectedUser!['first_name'] ?? ''} ${selectedUser!['last_name'] ?? ''}'.trim(), style: _f(size: 14, weight: FontWeight.w600)),
-                        if (selectedUser!['email'] != null) Text(selectedUser!['email'].toString(), style: _f(size: 11, color: AppColors.textTertiary)),
+                        Text('${selectedUser!['first_name'] ?? ''} ${selectedUser!['last_name'] ?? ''}'.trim(), style: appText(size: 14, weight: FontWeight.w600)),
+                        if (selectedUser!['email'] != null) Text(selectedUser!['email'].toString(), style: appText(size: 11, color: AppColors.textTertiary)),
                       ])),
                       GestureDetector(
                         onTap: () => setModalState(() => selectedUser = null),
@@ -354,7 +352,7 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
                         }
                       },
                       style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999))),
-                      child: Text('Add as Guest', style: _f(size: 15, weight: FontWeight.w700, color: Colors.white)),
+                      child: Text('Add as Guest', style: appText(size: 15, weight: FontWeight.w700, color: Colors.white)),
                     ),
                   ),
                 ],
@@ -381,10 +379,10 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
                           leading: CircleAvatar(
                             radius: 20, backgroundColor: AppColors.surfaceVariant,
                             backgroundImage: avatar != null && avatar.isNotEmpty ? NetworkImage(avatar) : null,
-                            child: (avatar == null || avatar.isEmpty) ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: _f(size: 14, weight: FontWeight.w700, color: AppColors.textTertiary)) : null,
+                            child: (avatar == null || avatar.isEmpty) ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: appText(size: 14, weight: FontWeight.w700, color: AppColors.textTertiary)) : null,
                           ),
-                          title: Text(name, style: _f(size: 14, weight: FontWeight.w600)),
-                          subtitle: subtitle.isNotEmpty ? Text(subtitle, style: _f(size: 11, color: AppColors.textTertiary)) : null,
+                          title: Text(name, style: appText(size: 14, weight: FontWeight.w600)),
+                          subtitle: subtitle.isNotEmpty ? Text(subtitle, style: appText(size: 11, color: AppColors.textTertiary)) : null,
                           onTap: () => setModalState(() => selectedUser = user),
                         );
                       },
@@ -403,7 +401,7 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
       margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(20)),
-      child: Text('$label: ${count ?? 0}', style: _f(size: 11, weight: FontWeight.w700, color: color)),
+      child: Text('$label: ${count ?? 0}', style: appText(size: 11, weight: FontWeight.w700, color: color)),
     );
   }
 }

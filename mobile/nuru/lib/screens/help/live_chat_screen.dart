@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/services/secure_token_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/api_service.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 /// Live Chat screen — matches web LiveChat.tsx using /support/chat/* endpoints
 /// Resumes active chat sessions instead of creating new ones each time.

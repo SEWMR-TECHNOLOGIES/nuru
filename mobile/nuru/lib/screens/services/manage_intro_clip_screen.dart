@@ -9,6 +9,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/services/api_service.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 /// Manage intro clip (video/audio) for a service
 class ManageIntroClipScreen extends StatefulWidget {

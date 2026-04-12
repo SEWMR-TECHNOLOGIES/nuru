@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/services/social_service.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class RemovedContentScreen extends StatefulWidget {
   const RemovedContentScreen({super.key});
@@ -62,8 +63,8 @@ class _RemovedContentScreenState extends State<RemovedContentScreen> with Single
           indicatorColor: AppColors.primary,
           labelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
           tabs: [
-            Tab(text: 'Posts (${_removedPosts.length})'),
-            Tab(text: 'Moments (${_removedMoments.length})'),
+            Tab(text: '${context.tr('posts')} (${_removedPosts.length})'),
+            Tab(text: '${context.tr('moments')} (${_removedMoments.length})'),
           ],
         ),
       ),

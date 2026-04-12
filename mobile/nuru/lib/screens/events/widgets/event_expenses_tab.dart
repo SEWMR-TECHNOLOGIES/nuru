@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:open_filex/open_filex.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/services/report_generator.dart';
@@ -8,14 +7,16 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import '../report_preview_screen.dart';
 import '../../../core/widgets/deleting_overlay.dart';
-
-TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.2}) =>
-    GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+import '../../../core/theme/text_styles.dart';
+import '../../../core/l10n/l10n_helper.dart';
 
 class EventExpensesTab extends StatefulWidget {
   final String eventId;
   final Map<String, dynamic>? permissions;
-  const EventExpensesTab({super.key, required this.eventId, this.permissions});
+  final String? eventTitle;
+  final double? eventBudget;
+  final double? totalRaised;
+  const EventExpensesTab({super.key, required this.eventId, this.permissions, this.eventTitle, this.eventBudget, this.totalRaised});
 
   @override
   State<EventExpensesTab> createState() => _EventExpensesTabState();
@@ -71,7 +72,7 @@ class _EventExpensesTabState extends State<EventExpensesTab> with AutomaticKeepA
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Expense Summary', style: _f(size: 15, weight: FontWeight.w700)),
+                    Text('Expense Summary', style: appText(size: 15, weight: FontWeight.w700)),
                     const SizedBox(height: 12),
                     Row(children: [
                       Expanded(child: _summaryCard('Total Expenses', _formatAmount(_summary['total_expenses']), AppColors.secondary)),
@@ -89,14 +90,14 @@ class _EventExpensesTabState extends State<EventExpensesTab> with AutomaticKeepA
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Download Report', style: _f(size: 13, weight: FontWeight.w700)),
+                    Text('Download Report', style: appText(size: 13, weight: FontWeight.w700)),
                     const SizedBox(height: 10),
                     Row(children: [
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: () => _downloadReport('pdf'),
                           icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
-                          label: Text('PDF', style: _f(size: 12, weight: FontWeight.w600)),
+                          label: Text('PDF', style: appText(size: 12, weight: FontWeight.w600)),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppColors.error,
                             side: const BorderSide(color: AppColors.error),
@@ -110,7 +111,7 @@ class _EventExpensesTabState extends State<EventExpensesTab> with AutomaticKeepA
                         child: OutlinedButton.icon(
                           onPressed: () => _downloadReport('xlsx'),
                           icon: const Icon(Icons.table_chart_rounded, size: 16),
-                          label: Text('Excel', style: _f(size: 12, weight: FontWeight.w600)),
+                          label: Text('Excel', style: appText(size: 12, weight: FontWeight.w600)),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppColors.accent,
                             side: BorderSide(color: AppColors.accent),
@@ -126,14 +127,14 @@ class _EventExpensesTabState extends State<EventExpensesTab> with AutomaticKeepA
 
               Row(
                 children: [
-                  Expanded(child: Text('Expenses', style: _f(size: 15, weight: FontWeight.w700))),
+                  Expanded(child: Text('Expenses', style: appText(size: 15, weight: FontWeight.w700))),
                   if (canManage)
                     GestureDetector(
                       onTap: _showAddExpenseSheet,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(color: AppColors.secondary, borderRadius: BorderRadius.circular(20)),
-                        child: Text('+ Add', style: _f(size: 12, weight: FontWeight.w700, color: Colors.white)),
+                        child: Text('+ Add', style: appText(size: 12, weight: FontWeight.w700, color: Colors.white)),
                       ),
                     ),
                 ],
@@ -143,7 +144,7 @@ class _EventExpensesTabState extends State<EventExpensesTab> with AutomaticKeepA
                 Container(
                   padding: const EdgeInsets.all(30),
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                  child: Center(child: Text('No expenses recorded', style: _f(size: 14, color: AppColors.textTertiary))),
+                  child: Center(child: Text('No expenses recorded', style: appText(size: 14, color: AppColors.textTertiary))),
                 )
               else
                 ..._expenses.map((exp) => _expenseTile(exp, canManage)),
@@ -160,9 +161,9 @@ class _EventExpensesTabState extends State<EventExpensesTab> with AutomaticKeepA
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: _f(size: 11, color: AppColors.textTertiary)),
+        Text(label, style: appText(size: 11, color: AppColors.textTertiary)),
         const SizedBox(height: 4),
-        Text(value, style: _f(size: 15, weight: FontWeight.w700, color: color)),
+        Text(value, style: appText(size: 15, weight: FontWeight.w700, color: color)),
       ]),
     );
   }
@@ -178,11 +179,11 @@ class _EventExpensesTabState extends State<EventExpensesTab> with AutomaticKeepA
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (exp['category'] != null) Text(exp['category'].toString(), style: _f(size: 11, weight: FontWeight.w700, color: AppColors.secondary)),
-                Text(exp['description']?.toString() ?? 'Expense', style: _f(size: 14, weight: FontWeight.w600)),
+                if (exp['category'] != null) Text(exp['category'].toString(), style: appText(size: 11, weight: FontWeight.w700, color: AppColors.secondary)),
+                Text(exp['description']?.toString() ?? 'Expense', style: appText(size: 14, weight: FontWeight.w600)),
                 Row(children: [
-                  Text(_formatAmount(exp['amount']), style: _f(size: 13, weight: FontWeight.w700, color: AppColors.secondary)),
-                  if (exp['vendor_name'] != null) ...[const SizedBox(width: 8), Text(exp['vendor_name'].toString(), style: _f(size: 12, color: AppColors.textTertiary))],
+                  Text(_formatAmount(exp['amount']), style: appText(size: 13, weight: FontWeight.w700, color: AppColors.secondary)),
+                  if (exp['vendor_name'] != null) ...[const SizedBox(width: 8), Text(exp['vendor_name'].toString(), style: appText(size: 12, color: AppColors.textTertiary))],
                 ]),
               ],
             ),
@@ -211,6 +212,9 @@ class _EventExpensesTabState extends State<EventExpensesTab> with AutomaticKeepA
         format: format,
         expenses: _expenses,
         summary: _summary,
+        eventTitle: widget.eventTitle,
+        eventBudget: widget.eventBudget,
+        totalRaised: widget.totalRaised,
       );
       if (!mounted) return;
       if (res['success'] == true) {
@@ -264,7 +268,7 @@ class _EventExpensesTabState extends State<EventExpensesTab> with AutomaticKeepA
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Add Expense', style: _f(size: 18, weight: FontWeight.w700)),
+            Text('Add Expense', style: appText(size: 18, weight: FontWeight.w700)),
             const SizedBox(height: 14),
             _input(catCtrl, 'Category'),
             const SizedBox(height: 12),
@@ -296,7 +300,7 @@ class _EventExpensesTabState extends State<EventExpensesTab> with AutomaticKeepA
                   }
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-                child: Text('Save', style: _f(size: 14, weight: FontWeight.w700, color: Colors.white)),
+                child: Text('Save', style: appText(size: 14, weight: FontWeight.w700, color: Colors.white)),
               ),
             ),
           ],
@@ -309,10 +313,10 @@ class _EventExpensesTabState extends State<EventExpensesTab> with AutomaticKeepA
     return TextField(
       controller: ctrl,
       keyboardType: keyboard,
-      style: _f(size: 14),
+      style: appText(size: 14),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: _f(size: 13, color: AppColors.textHint),
+        hintStyle: appText(size: 13, color: AppColors.textHint),
         filled: true,
         fillColor: const Color(0xFFF5F7FA),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),

@@ -12,6 +12,7 @@ interface VenueMapPreviewProps {
   address?: string;
   height?: string;
   className?: string;
+  onDirections?: () => void;
 }
 
 export default function VenueMapPreview({
@@ -21,16 +22,16 @@ export default function VenueMapPreview({
   address,
   height = "200px",
   className = "",
+  onDirections,
 }: VenueMapPreviewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
 
   const openDirections = () => {
-    window.open(
-      `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`,
-      "_blank"
-    );
+    if (onDirections) {
+      onDirections();
+    }
   };
 
   useEffect(() => {

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/social_service.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class MyIssuesScreen extends StatefulWidget {
   const MyIssuesScreen({super.key});

@@ -9,6 +9,7 @@ import '../events/event_detail_screen.dart';
 import '../public_profile/public_profile_screen.dart';
 import '../services/public_service_screen.dart';
 import '../../core/services/api_service.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -162,9 +163,9 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
           indicatorColor: AppColors.primary,
           indicatorSize: TabBarIndicatorSize.label,
           tabs: [
-            Tab(text: 'People (${_users.length})'),
-            Tab(text: 'Events (${_events.length})'),
-            Tab(text: 'Services (${_services.length})'),
+            Tab(text: '${context.tr('search_people')} (${_users.length})'),
+            Tab(text: '${context.tr('events')} (${_events.length})'),
+            Tab(text: '${context.tr('services')} (${_services.length})'),
           ],
         ) : null,
       ),

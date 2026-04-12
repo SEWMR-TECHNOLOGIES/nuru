@@ -9,6 +9,8 @@ import '../../core/widgets/nuru_loader.dart';
 import '../../core/widgets/country_phone_input.dart';
 import '../../core/widgets/otp_input.dart';
 import '../../core/widgets/app_snackbar.dart';
+import '../../core/widgets/language_selector.dart';
+import '../../core/l10n/l10n_helper.dart';
 import '../../providers/auth_provider.dart';
 import '../../core/services/otp_service.dart';
 import '../home/home_screen.dart';

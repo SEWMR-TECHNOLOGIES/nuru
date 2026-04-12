@@ -8,9 +8,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/messages_service.dart';
+import '../../core/services/uploads_service.dart';
+import '../../core/widgets/app_snackbar.dart';
+import '../../providers/auth_provider.dart';
+import '../../core/l10n/l10n_helper.dart';
 import '../../core/services/events_service.dart';
 import '../../core/services/social_service.dart';
-import '../../providers/auth_provider.dart';
 
 /// Messages screen — matches web Messages.tsx design
 class MessagesScreen extends StatefulWidget {
@@ -107,10 +110,32 @@ class _MessagesScreenState extends State<MessagesScreen> {
     if (conv is! Map) return '';
     final lastMsg = conv['last_message'];
     if (lastMsg is Map) {
-      return lastMsg['content']?.toString() ?? '';
+      final content = lastMsg['content']?.toString() ?? '';
+      if (content.isNotEmpty) return content;
+      final attachments = _extractAttachmentUrls(lastMsg['attachments']);
+      final imageUrl = lastMsg['image_url']?.toString() ?? '';
+      if (attachments.isNotEmpty || imageUrl.isNotEmpty) return 'Photo';
+      return '';
     }
     if (lastMsg is String) return lastMsg;
     return conv['last_message_text']?.toString() ?? '';
+  }
+
+  List<String> _extractAttachmentUrls(dynamic attachments) {
+    if (attachments is! List) return const [];
+    return attachments
+        .map<String>((item) {
+          if (item is String) return item;
+          if (item is Map) {
+            return item['url']?.toString() ??
+                item['image_url']?.toString() ??
+                item['file_url']?.toString() ??
+                '';
+          }
+          return '';
+        })
+        .where((url) => url.isNotEmpty)
+        .toList();
   }
 
   String _getTimeAgo(dynamic conv) {
@@ -158,9 +183,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
               children: [
                 Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
                 const SizedBox(height: 16),
-                Text('New Conversation', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                Text(context.tr('new_conversation'), style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                 const SizedBox(height: 4),
-                Text('Search for a person to chat with', style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary)),
+                Text(context.tr('search_for_person'), style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary)),
                 const SizedBox(height: 16),
                 Container(
                   height: 46,
@@ -170,7 +195,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     autofocus: true,
                     style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary),
                     decoration: InputDecoration(
-                      hintText: 'Search by name, email, or phone...',
+                      hintText: context.tr('search_hint'),
                       hintStyle: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textHint),
                       border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(vertical: 12),
                       prefixIcon: Padding(
@@ -206,7 +231,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 if (!searching && searchResults.isEmpty && searchCtrl.text.length >= 2)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: Center(child: Text('No users found', style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary))),
+                    child: Center(child: Text(context.tr('no_users_found'), style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary))),
                   ),
                 if (searchResults.isNotEmpty)
                   ConstrainedBox(
@@ -351,7 +376,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
           child: Row(
             children: [
               Expanded(
-                child: Text('Messages', style: GoogleFonts.plusJakartaSans(fontSize: 26, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -0.5, height: 1.1)),
+                child: Text(context.tr('messages'), style: GoogleFonts.plusJakartaSans(fontSize: 26, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -0.5, height: 1.1)),
               ),
               GestureDetector(
                 onTap: _showNewConversationSheet,
@@ -375,7 +400,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
               onChanged: (v) => setState(() => _search = v),
               style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary, height: 1.3, decoration: TextDecoration.none, decorationThickness: 0),
               decoration: InputDecoration(
-                hintText: 'Search conversations...',
+                hintText: context.tr('search_conversations'),
                 hintStyle: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textHint, height: 1.3, decoration: TextDecoration.none),
                 border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -531,16 +556,16 @@ class _MessagesScreenState extends State<MessagesScreen> {
             child: Center(child: SvgPicture.asset('assets/icons/chat-icon.svg', width: 28, height: 28, colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn))),
           ),
           const SizedBox(height: 20),
-          Text('No conversations yet', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
+          Text(context.tr('no_conversations'), style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
           const SizedBox(height: 6),
-          Text('Start a conversation with someone', style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary, height: 1.4)),
+          Text(context.tr('start_conversation'), style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary, height: 1.4)),
           const SizedBox(height: 20),
           GestureDetector(
             onTap: _showNewConversationSheet,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(10)),
-              child: Text('New Message', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white, height: 1.2)),
+              child: Text(context.tr('new_message'), style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white, height: 1.2)),
             ),
           ),
         ],
@@ -549,9 +574,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
 // CHAT DETAIL SCREEN — with date grouping (Today / Yesterday / date)
-// ═══════════════════════════════════════════════════════════════════════════
 class ChatDetailScreen extends StatefulWidget {
   final String conversationId;
   final String name;
@@ -578,6 +601,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   Timer? _pollTimer;
   String? _currentUserId;
   File? _selectedImage;
+
+  List<String> _extractAttachmentUrls(dynamic attachments) {
+    if (attachments is! List) return const [];
+    return attachments
+        .map<String>((item) {
+          if (item is String) return item;
+          if (item is Map) {
+            return item['url']?.toString() ??
+                item['image_url']?.toString() ??
+                item['file_url']?.toString() ??
+                '';
+          }
+          return '';
+        })
+        .where((url) => url.isNotEmpty)
+        .toList();
+  }
 
   @override
   void initState() {
@@ -638,7 +678,38 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   Future<void> _sendMessage() async {
     final text = _msgCtrl.text.trim();
-    if (text.isEmpty || _sending) return;
+    final selectedImage = _selectedImage;
+    if ((text.isEmpty && selectedImage == null) || _sending) return;
+
+    if (mounted) setState(() => _sending = true);
+
+    String? uploadedUrl;
+    if (selectedImage != null) {
+      final uploadRes = await UploadsService.uploadFile(selectedImage.path);
+      if (!mounted) return;
+
+      if (uploadRes['success'] != true) {
+        setState(() => _sending = false);
+        AppSnackbar.error(
+          context,
+          uploadRes['message']?.toString() ?? 'Failed to upload image',
+        );
+        return;
+      }
+
+      final data = uploadRes['data'];
+      if (data is Map) {
+        uploadedUrl = data['url']?.toString() ?? data['file_url']?.toString();
+      }
+      uploadedUrl ??= uploadRes['url']?.toString();
+
+      if (uploadedUrl == null || uploadedUrl!.isEmpty) {
+        setState(() => _sending = false);
+        AppSnackbar.error(context, 'Failed to upload image');
+        return;
+      }
+    }
+
     _msgCtrl.clear();
 
     // Optimistic: add message to UI immediately
@@ -648,15 +719,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       'sender_id': _currentUserId,
       'is_sender': true,
       'created_at': DateTime.now().toIso8601String(),
+      if (uploadedUrl != null) 'attachments': [uploadedUrl],
+      if (uploadedUrl != null) 'image_url': uploadedUrl,
       '_optimistic': true,
     };
     setState(() {
-      _sending = true;
+      _selectedImage = null;
       _messages.add(optimisticMsg);
     });
     _scrollToBottom();
 
-    final res = await MessagesService.sendMessage(widget.conversationId, content: text);
+    final res = await MessagesService.sendMessage(
+      widget.conversationId,
+      content: text,
+      attachments: uploadedUrl != null ? [uploadedUrl] : null,
+    );
     if (mounted) {
       setState(() => _sending = false);
       if (res['success'] == true) {
@@ -673,9 +750,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         // Mark failed
         final idx = _messages.indexWhere((m) => m is Map && m['id'] == optimisticMsg['id']);
         if (idx >= 0) {
-          _messages[idx] = {...optimisticMsg, '_failed': true, 'content': '⚠ $text'};
+          _messages[idx] = {
+            ...optimisticMsg,
+            '_failed': true,
+            'content': text.isNotEmpty ? '⚠ $text' : '⚠ Photo failed to send',
+          };
           setState(() {});
         }
+        AppSnackbar.error(
+          context,
+          res['message']?.toString() ?? 'Failed to send message',
+        );
       }
     }
   }
@@ -866,7 +951,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final text = msg['content']?.toString() ?? msg['message_text']?.toString() ?? '';
     final isMine = _isMine(msg);
     final time = msg['created_at']?.toString() ?? msg['sent_at']?.toString() ?? '';
-    final imageUrl = msg['image_url']?.toString();
+    final attachmentUrls = _extractAttachmentUrls(msg['attachments']);
+    final rawImageUrl = msg['image_url']?.toString() ?? '';
+    final imageUrl = rawImageUrl.isNotEmpty
+        ? rawImageUrl
+        : (attachmentUrls.isNotEmpty ? attachmentUrls.first : null);
     final msgDate = _parseTime(time);
     final timeDisplay = msgDate != null ? '${msgDate.hour.toString().padLeft(2, '0')}:${msgDate.minute.toString().padLeft(2, '0')}' : '';
 
@@ -930,6 +1019,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   Widget _buildComposer(double bottomPadding) {
+    final canSend = _msgCtrl.text.trim().isNotEmpty || _selectedImage != null;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -969,9 +1060,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   child: TextField(
                     controller: _msgCtrl,
                     maxLines: 4, minLines: 1,
+                     onChanged: (_) => setState(() {}),
                     style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary, height: 1.4, decoration: TextDecoration.none, decorationThickness: 0),
                     decoration: InputDecoration(
-                      hintText: 'Type a message...',
+                      hintText: context.tr('type_message'),
                       hintStyle: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textHint, height: 1.4, decoration: TextDecoration.none),
                       border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(vertical: 10), isDense: true,
                     ),
@@ -980,13 +1072,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
               const SizedBox(width: 8),
               GestureDetector(
-                onTap: _sendMessage,
+                onTap: canSend && !_sending ? _sendMessage : null,
                 child: Container(
                   width: 40, height: 40,
-                  decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(
+                    color: canSend ? AppColors.primary : AppColors.surfaceVariant,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: _sending
                       ? const Padding(padding: EdgeInsets.all(10), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : Center(child: SvgPicture.asset('assets/icons/send-icon.svg', width: 18, height: 18, colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn))),
+                      : Center(
+                          child: SvgPicture.asset(
+                            'assets/icons/send-icon.svg',
+                            width: 18,
+                            height: 18,
+                            colorFilter: ColorFilter.mode(
+                              canSend ? Colors.white : AppColors.textHint,
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                        ),
                 ),
               ),
             ],

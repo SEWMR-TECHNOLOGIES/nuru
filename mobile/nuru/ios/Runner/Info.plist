@@ -47,7 +47,14 @@
 
 	<!-- Microphone permissions -->
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Nuru needs microphone access to record videos for your events.</string>
+	<string>Nuru needs microphone access for video meetings and recording.</string>
+
+	<!-- Background modes for WebRTC -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>voip</string>
+	</array>
 
 	<key>UIApplicationSceneManifest</key>
 	<dict>

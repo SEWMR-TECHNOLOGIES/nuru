@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 /// Terms of Service — mirrors web Terms.tsx content
 class TermsScreen extends StatelessWidget {
@@ -26,7 +27,7 @@ class TermsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
-      appBar: NuruSubPageAppBar(title: 'Terms & Conditions'),
+      appBar: NuruSubPageAppBar(title: context.tr('terms_of_service')),
       body: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
         itemCount: _sections.length,

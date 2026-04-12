@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/ticketing_service.dart';
 import '../../../core/widgets/app_snackbar.dart';
-
-TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.3}) =>
-    GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+import '../../../core/theme/text_styles.dart';
+import '../../../core/l10n/l10n_helper.dart';
 
 /// Event Tickets Tab — manage ticket classes and view sales (organizer view)
 /// Matches web EventTicketManagement.tsx
@@ -82,7 +80,7 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 20),
-          Text('New Ticket Class', style: _f(size: 18, weight: FontWeight.w700)),
+          Text('New Ticket Class', style: appText(size: 18, weight: FontWeight.w700)),
           const SizedBox(height: 16),
           _inputField('Name', nameCtrl, 'e.g. VIP, Regular, Early Bird'),
           const SizedBox(height: 12),
@@ -115,7 +113,7 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
                 backgroundColor: AppColors.primary, foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)), elevation: 0,
               ),
-              child: Text('Create', style: _f(size: 15, weight: FontWeight.w700, color: Colors.white)),
+              child: Text('Create', style: appText(size: 15, weight: FontWeight.w700, color: Colors.white)),
             ),
           ),
         ]),
@@ -125,16 +123,16 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
 
   Widget _inputField(String label, TextEditingController ctrl, String hint, {TextInputType? keyboard, int maxLines = 1}) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: _f(size: 11, weight: FontWeight.w600, color: AppColors.textTertiary)),
+      Text(label, style: appText(size: 11, weight: FontWeight.w600, color: AppColors.textTertiary)),
       const SizedBox(height: 4),
       TextField(
         controller: ctrl,
         keyboardType: keyboard,
         maxLines: maxLines,
-        style: _f(size: 14),
+        style: appText(size: 14),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: _f(size: 14, color: AppColors.textHint),
+          hintStyle: appText(size: 14, color: AppColors.textHint),
           filled: true,
           fillColor: const Color(0xFFF3F4F6),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -201,11 +199,11 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
                   SvgPicture.asset('assets/icons/ticket-icon.svg', width: 12, height: 12,
                     colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
                   const SizedBox(width: 5),
-                  Text(t['name']?.toString() ?? '', style: _f(size: 11, weight: FontWeight.w600)),
+                  Text(t['name']?.toString() ?? '', style: appText(size: 11, weight: FontWeight.w600)),
                   const SizedBox(width: 6),
-                  Text('${t['sold'] ?? 0}/${t['quantity'] ?? 0}', style: _f(size: 10, color: AppColors.textTertiary)),
+                  Text('${t['sold'] ?? 0}/${t['quantity'] ?? 0}', style: appText(size: 10, color: AppColors.textTertiary)),
                   const SizedBox(width: 6),
-                  Text(_fmtPrice(t['price']), style: _f(size: 10, weight: FontWeight.w700, color: AppColors.primary)),
+                  Text(_fmtPrice(t['price']), style: appText(size: 10, weight: FontWeight.w700, color: AppColors.primary)),
                 ]),
               );
             }).toList()),
@@ -229,7 +227,7 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   const Icon(Icons.add_rounded, size: 16, color: Colors.white),
                   const SizedBox(width: 4),
-                  Text('Add', style: _f(size: 12, weight: FontWeight.w600, color: Colors.white)),
+                  Text('Add', style: appText(size: 12, weight: FontWeight.w600, color: Colors.white)),
                 ]),
               ),
             ),
@@ -254,8 +252,8 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
           Icon(Icons.check_circle_rounded, size: 18, color: AppColors.success),
           const SizedBox(width: 8),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Approved', style: _f(size: 13, weight: FontWeight.w700, color: AppColors.success)),
-            Text('Your tickets are live and visible on the public tickets page.', style: _f(size: 10, color: AppColors.textTertiary)),
+            Text('Approved', style: appText(size: 13, weight: FontWeight.w700, color: AppColors.success)),
+            Text('Your tickets are live and visible on the public tickets page.', style: appText(size: 10, color: AppColors.textTertiary)),
           ])),
         ]),
       );
@@ -270,8 +268,8 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
           Icon(Icons.schedule_rounded, size: 18, color: AppColors.warning),
           const SizedBox(width: 8),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Pending Approval', style: _f(size: 13, weight: FontWeight.w700, color: AppColors.warning)),
-            Text('Your ticketed event is under review. Tickets will be visible once approved.', style: _f(size: 10, color: AppColors.textTertiary)),
+            Text('Pending Approval', style: appText(size: 13, weight: FontWeight.w700, color: AppColors.warning)),
+            Text('Your ticketed event is under review. Tickets will be visible once approved.', style: appText(size: 10, color: AppColors.textTertiary)),
           ])),
         ]),
       );
@@ -286,8 +284,8 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
           Icon(Icons.warning_amber_rounded, size: 18, color: AppColors.error),
           const SizedBox(width: 8),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Rejected', style: _f(size: 13, weight: FontWeight.w700, color: AppColors.error)),
-            Text(_rejectionReason ?? 'Your ticketed event was not approved.', style: _f(size: 10, color: AppColors.textTertiary)),
+            Text('Rejected', style: appText(size: 13, weight: FontWeight.w700, color: AppColors.error)),
+            Text(_rejectionReason ?? 'Your ticketed event was not approved.', style: appText(size: 10, color: AppColors.textTertiary)),
           ])),
         ]),
       );
@@ -302,8 +300,8 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
           Icon(Icons.warning_amber_rounded, size: 18, color: AppColors.textTertiary),
           const SizedBox(width: 8),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Removed', style: _f(size: 13, weight: FontWeight.w700)),
-            Text(_removedReason ?? 'Your ticketed event has been removed.', style: _f(size: 10, color: AppColors.textTertiary)),
+            Text('Removed', style: appText(size: 13, weight: FontWeight.w700)),
+            Text(_removedReason ?? 'Your ticketed event has been removed.', style: appText(size: 10, color: AppColors.textTertiary)),
           ])),
         ]),
       );
@@ -319,10 +317,10 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6)],
       ),
       child: Column(children: [
-        Text(value, style: _f(size: 13, weight: FontWeight.w800, color: label == 'Revenue' ? color : AppColors.textPrimary),
+        Text(value, style: appText(size: 13, weight: FontWeight.w800, color: label == 'Revenue' ? color : AppColors.textPrimary),
             maxLines: 1, overflow: TextOverflow.ellipsis),
         const SizedBox(height: 2),
-        Text(label, style: _f(size: 9, color: AppColors.textTertiary, weight: FontWeight.w600)),
+        Text(label, style: appText(size: 9, color: AppColors.textTertiary, weight: FontWeight.w600)),
       ]),
     ));
   }
@@ -337,7 +335,7 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
           color: active ? AppColors.primarySoft : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Text(label, style: _f(size: 12, weight: active ? FontWeight.w700 : FontWeight.w500,
+        child: Text(label, style: appText(size: 12, weight: active ? FontWeight.w700 : FontWeight.w500,
           color: active ? AppColors.primary : AppColors.textTertiary)),
       ),
     );
@@ -349,9 +347,9 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
         SvgPicture.asset('assets/icons/ticket-icon.svg', width: 40, height: 40,
           colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
         const SizedBox(height: 14),
-        Text('No ticket classes', style: _f(size: 15, weight: FontWeight.w600)),
+        Text('No ticket classes', style: appText(size: 15, weight: FontWeight.w600)),
         const SizedBox(height: 4),
-        Text('Create ticket classes for this event', style: _f(size: 12, color: AppColors.textTertiary)),
+        Text('Create ticket classes for this event', style: appText(size: 12, color: AppColors.textTertiary)),
       ]));
     }
 
@@ -376,14 +374,14 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Expanded(child: Text(name, style: _f(size: 15, weight: FontWeight.w700))),
+              Expanded(child: Text(name, style: appText(size: 15, weight: FontWeight.w700))),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: status == 'available' ? const Color(0xFFDCFCE7) : AppColors.surfaceVariant,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(status, style: _f(size: 10, weight: FontWeight.w600,
+                child: Text(status, style: appText(size: 10, weight: FontWeight.w600,
                   color: status == 'available' ? const Color(0xFF16A34A) : AppColors.textTertiary)),
               ),
             ]),
@@ -418,7 +416,7 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
         SvgPicture.asset('assets/icons/ticket-icon.svg', width: 40, height: 40,
           colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
         const SizedBox(height: 14),
-        Text('No ticket orders yet', style: _f(size: 15, weight: FontWeight.w600)),
+        Text('No ticket orders yet', style: appText(size: 15, weight: FontWeight.w600)),
       ]));
     }
 
@@ -458,12 +456,12 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
               ),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(buyerName, style: _f(size: 14, weight: FontWeight.w600)),
+                Text(buyerName, style: appText(size: 14, weight: FontWeight.w600)),
                 Row(children: [
-                  if (className.isNotEmpty) Text('$className · ', style: _f(size: 11, color: AppColors.textTertiary)),
-                  Text(code, style: _f(size: 11, color: AppColors.textTertiary, weight: FontWeight.w500)),
-                  Text(' · Qty: $qty', style: _f(size: 11, color: AppColors.textTertiary)),
-                  if (totalAmount != null) Text(' · ${_fmtPrice(totalAmount)}', style: _f(size: 11, weight: FontWeight.w600, color: AppColors.primary)),
+                  if (className.isNotEmpty) Text('$className · ', style: appText(size: 11, color: AppColors.textTertiary)),
+                  Text(code, style: appText(size: 11, color: AppColors.textTertiary, weight: FontWeight.w500)),
+                  Text(' · Qty: $qty', style: appText(size: 11, color: AppColors.textTertiary)),
+                  if (totalAmount != null) Text(' · ${_fmtPrice(totalAmount)}', style: appText(size: 11, weight: FontWeight.w600, color: AppColors.primary)),
                 ]),
               ])),
               Container(
@@ -472,7 +470,7 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
                   color: _statusColor(status).withOpacity(0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(status, style: _f(size: 10, weight: FontWeight.w600, color: _statusColor(status))),
+                child: Text(status, style: appText(size: 10, weight: FontWeight.w600, color: _statusColor(status))),
               ),
             ]),
             // Approve/Reject actions (matches web)
@@ -502,15 +500,15 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
           color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8),
           border: Border.all(color: color.withOpacity(0.3)),
         ),
-        child: Text(label, style: _f(size: 11, weight: FontWeight.w600, color: color)),
+        child: Text(label, style: appText(size: 11, weight: FontWeight.w600, color: color)),
       ),
     );
   }
 
   Widget _ticketStat(String label, String value) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: _f(size: 10, color: AppColors.textTertiary)),
-      Text(value, style: _f(size: 13, weight: FontWeight.w700)),
+      Text(label, style: appText(size: 10, color: AppColors.textTertiary)),
+      Text(value, style: appText(size: 13, weight: FontWeight.w700)),
     ]);
   }
 

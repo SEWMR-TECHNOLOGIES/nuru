@@ -12,6 +12,7 @@ import '../../core/services/user_services_service.dart';
 import '../../core/widgets/app_snackbar.dart';
 import 'public_service_screen.dart';
 import 'service_verification_screen.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 /// Owner's Service Detail — matches web ServiceDetail.tsx
 /// Tabs: Overview, Calendar, Reviews
@@ -150,7 +151,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
     if (_loading) {
       return Scaffold(
         backgroundColor: AppColors.surface,
-        appBar: NuruSubPageAppBar(title: 'Service'),
+        appBar: NuruSubPageAppBar(title: context.tr('services')),
         body: const Center(child: CircularProgressIndicator(color: AppColors.primary)),
       );
     }

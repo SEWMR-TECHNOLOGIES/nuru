@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/widgets/app_snackbar.dart';
-
-TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.2}) =>
-    GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+import '../../../core/theme/text_styles.dart';
+import '../../../core/l10n/l10n_helper.dart';
 
 class EventChecklistTab extends StatefulWidget {
   final String eventId;
@@ -97,8 +95,8 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Expanded(child: Text('Checklist Progress', style: _f(size: 15, weight: FontWeight.w700))),
-                    Text('${(progress * 100).toInt()}%', style: _f(size: 14, weight: FontWeight.w700, color: AppColors.primary)),
+                    Expanded(child: Text('Checklist Progress', style: appText(size: 15, weight: FontWeight.w700))),
+                    Text('${(progress * 100).toInt()}%', style: appText(size: 14, weight: FontWeight.w700, color: AppColors.primary)),
                   ]),
                   const SizedBox(height: 10),
                   ClipRRect(
@@ -134,13 +132,13 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
                   child: const Icon(Icons.checklist_rounded, size: 28, color: AppColors.primary),
                 ),
                 const SizedBox(height: 14),
-                Text('No checklist items yet', style: _f(size: 15, weight: FontWeight.w700)),
+                Text('No checklist items yet', style: appText(size: 15, weight: FontWeight.w700)),
                 const SizedBox(height: 6),
                 Text(
                   _templates.isNotEmpty
                       ? 'Choose a template below to get started, or add tasks manually.'
                       : 'Add tasks to track your event planning progress.',
-                  style: _f(size: 13, color: AppColors.textTertiary),
+                  style: appText(size: 13, color: AppColors.textTertiary),
                   textAlign: TextAlign.center,
                 ),
               ]),
@@ -154,10 +152,10 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
               child: Row(children: [
                 const Icon(Icons.auto_awesome_rounded, size: 16, color: AppColors.primary),
                 const SizedBox(width: 6),
-                Text('Available Templates', style: _f(size: 14, weight: FontWeight.w700)),
+                Text('Available Templates', style: appText(size: 14, weight: FontWeight.w700)),
                 const Spacer(),
                 if (_items.isNotEmpty)
-                  Text('${_templates.length} template${_templates.length != 1 ? 's' : ''}', style: _f(size: 12, color: AppColors.textTertiary)),
+                  Text('${_templates.length} template${_templates.length != 1 ? 's' : ''}', style: appText(size: 12, color: AppColors.textTertiary)),
               ]),
             ),
             ..._templates.map((t) => _templateCard(t)),
@@ -172,7 +170,7 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
                 const SizedBox(width: 10),
-                Text('Loading templates...', style: _f(size: 13, color: AppColors.textTertiary)),
+                Text('Loading templates...', style: appText(size: 13, color: AppColors.textTertiary)),
               ]),
             ),
 
@@ -187,7 +185,7 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
                 child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(Icons.add_rounded, size: 18, color: AppColors.primary),
                   const SizedBox(width: 8),
-                  Text('Add Task', style: _f(size: 14, weight: FontWeight.w600, color: AppColors.primary)),
+                  Text('Add Task', style: appText(size: 14, weight: FontWeight.w600, color: AppColors.primary)),
                 ]),
               ),
             ),
@@ -202,8 +200,8 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
     return Row(children: [
       Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
       const SizedBox(width: 4),
-      Text('$value ', style: _f(size: 13, weight: FontWeight.w700, color: color)),
-      Text(label, style: _f(size: 11, color: AppColors.textTertiary)),
+      Text('$value ', style: appText(size: 13, weight: FontWeight.w700, color: color)),
+      Text(label, style: appText(size: 11, color: AppColors.textTertiary)),
     ]);
   }
 
@@ -229,14 +227,14 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
           ),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(name, style: _f(size: 14, weight: FontWeight.w600)),
+            Text(name, style: appText(size: 14, weight: FontWeight.w600)),
             if (desc != null && desc.isNotEmpty)
-              Text(desc, style: _f(size: 12, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(desc, style: appText(size: 12, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis),
           ])),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(8)),
-            child: Text('$taskCount tasks', style: _f(size: 10, weight: FontWeight.w700, color: AppColors.primary)),
+            child: Text('$taskCount tasks', style: appText(size: 10, weight: FontWeight.w700, color: AppColors.primary)),
           ),
         ]),
       ),
@@ -253,13 +251,13 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Apply Template', style: _f(size: 18, weight: FontWeight.w700)),
-        content: Text('Add tasks from "$name" to your existing checklist?', style: _f(size: 14, color: AppColors.textSecondary)),
+        title: Text('Apply Template', style: appText(size: 18, weight: FontWeight.w700)),
+        content: Text('Add tasks from "$name" to your existing checklist?', style: appText(size: 14, color: AppColors.textSecondary)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: _f(size: 14, weight: FontWeight.w600, color: AppColors.textTertiary))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: appText(size: 14, weight: FontWeight.w600, color: AppColors.textTertiary))),
           TextButton(
             onPressed: () { Navigator.pop(ctx); _applyTemplate(template); },
-            child: Text('Apply', style: _f(size: 14, weight: FontWeight.w700, color: AppColors.primary)),
+            child: Text('Apply', style: appText(size: 14, weight: FontWeight.w700, color: AppColors.primary)),
           ),
         ],
       ),
@@ -310,7 +308,7 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
             children: [
               Text(
                 title,
-                style: _f(
+                style: appText(
                   size: 14,
                   weight: FontWeight.w600,
                   color: isCompleted ? AppColors.textTertiary : AppColors.textPrimary,
@@ -331,7 +329,7 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
                   Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.person_outline_rounded, size: 11, color: AppColors.textHint),
                     const SizedBox(width: 2),
-                    Text(assignee, style: _f(size: 10, color: AppColors.textTertiary)),
+                    Text(assignee, style: appText(size: 10, color: AppColors.textTertiary)),
                   ]),
               ]),
             ],
@@ -349,7 +347,7 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
-      child: Text(text, style: _f(size: 9, weight: FontWeight.w700, color: color)),
+      child: Text(text, style: appText(size: 9, weight: FontWeight.w700, color: color)),
     );
   }
 
@@ -446,9 +444,9 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
               child: ListView(controller: scrollCtrl, children: [
                 Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
                 const SizedBox(height: 16),
-                Text('Add Checklist Item', style: _f(size: 18, weight: FontWeight.w700)),
+                Text('Add Checklist Item', style: appText(size: 18, weight: FontWeight.w700)),
                 const SizedBox(height: 4),
-                Text('Add a new task to your event planning checklist', style: _f(size: 12, color: AppColors.textTertiary)),
+                Text('Add a new task to your event planning checklist', style: appText(size: 12, color: AppColors.textTertiary)),
                 const SizedBox(height: 20),
 
                 // Title
@@ -469,9 +467,9 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
                       decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(14)),
                       child: DropdownButtonFormField<String>(
                         value: category.isEmpty ? null : category,
-                        decoration: InputDecoration(border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4), hintText: 'Select', hintStyle: _f(size: 13, color: AppColors.textHint)),
-                        style: _f(size: 13), isExpanded: true,
-                        items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c, style: _f(size: 13)))).toList(),
+                        decoration: InputDecoration(border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4), hintText: 'Select', hintStyle: appText(size: 13, color: AppColors.textHint)),
+                        style: appText(size: 13), isExpanded: true,
+                        items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c, style: appText(size: 13)))).toList(),
                         onChanged: (v) => setSheetState(() => category = v ?? ''),
                       ),
                     ),
@@ -484,7 +482,7 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
                       child: DropdownButtonFormField<String>(
                         value: priority,
                         decoration: InputDecoration(border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4)),
-                        style: _f(size: 13), isExpanded: true,
+                        style: appText(size: 13), isExpanded: true,
                         items: const [
                           DropdownMenuItem(value: 'high', child: Text('🔴 High')),
                           DropdownMenuItem(value: 'medium', child: Text('🟡 Medium')),
@@ -518,7 +516,7 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
                       const SizedBox(width: 10),
                       Expanded(child: Text(
                         dueDate != null ? _formatDate(dueDate!.toIso8601String()) : 'Pick a date',
-                        style: _f(size: 14, color: dueDate != null ? AppColors.textPrimary : AppColors.textHint),
+                        style: appText(size: 14, color: dueDate != null ? AppColors.textPrimary : AppColors.textHint),
                       )),
                       if (dueDate != null) GestureDetector(
                         onTap: () => setSheetState(() => dueDate = null),
@@ -537,10 +535,10 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
                     decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(14)),
                     child: Row(children: [
                       CircleAvatar(radius: 14, backgroundColor: AppColors.primary.withOpacity(0.2),
-                        child: Text(assignedName![0].toUpperCase(), style: _f(size: 11, weight: FontWeight.w700, color: AppColors.primary)),
+                        child: Text(assignedName![0].toUpperCase(), style: appText(size: 11, weight: FontWeight.w700, color: AppColors.primary)),
                       ),
                       const SizedBox(width: 8),
-                      Expanded(child: Text(assignedName!, style: _f(size: 13, weight: FontWeight.w600))),
+                      Expanded(child: Text(assignedName!, style: appText(size: 13, weight: FontWeight.w600))),
                       GestureDetector(
                         onTap: () => setSheetState(() { assignedTo = null; assignedName = null; }),
                         child: const Icon(Icons.close, size: 16, color: AppColors.textHint),
@@ -552,8 +550,8 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
                     decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(14)),
                     child: DropdownButtonFormField<String>(
                       value: null,
-                      decoration: InputDecoration(border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4), hintText: 'Select member', hintStyle: _f(size: 13, color: AppColors.textHint)),
-                      style: _f(size: 13), isExpanded: true,
+                      decoration: InputDecoration(border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4), hintText: 'Select member', hintStyle: appText(size: 13, color: AppColors.textHint)),
+                      style: appText(size: 13), isExpanded: true,
                       items: assignableMembers.map((m) {
                         final mMap = m as Map<String, dynamic>;
                         final fullName = mMap['full_name']?.toString() ?? '${mMap['first_name'] ?? ''} ${mMap['last_name'] ?? ''}'.trim();
@@ -561,8 +559,8 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
                         return DropdownMenuItem(
                           value: mMap['id']?.toString(),
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                            Text(fullName, style: _f(size: 13, weight: FontWeight.w600)),
-                            if (role.isNotEmpty) Text(role, style: _f(size: 10, color: AppColors.textTertiary)),
+                            Text(fullName, style: appText(size: 13, weight: FontWeight.w600)),
+                            if (role.isNotEmpty) Text(role, style: appText(size: 10, color: AppColors.textTertiary)),
                           ]),
                         );
                       }).toList(),
@@ -611,7 +609,7 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
                     style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, disabledBackgroundColor: AppColors.primary.withOpacity(0.5), elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999))),
                     child: submitting
                         ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : Text('Add Task', style: _f(size: 15, weight: FontWeight.w700, color: Colors.white)),
+                        : Text('Add Task', style: appText(size: 15, weight: FontWeight.w700, color: Colors.white)),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -625,14 +623,14 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
 
   Widget _sheetLabel(String text) => Padding(
     padding: const EdgeInsets.only(bottom: 6),
-    child: Text(text, style: _f(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
+    child: Text(text, style: appText(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
   );
 
   Widget _sheetInput(TextEditingController ctrl, String hint, {int maxLines = 1, bool autofocus = false}) => TextField(
     controller: ctrl, maxLines: maxLines, autofocus: autofocus,
-    style: _f(size: 14),
+    style: appText(size: 14),
     decoration: InputDecoration(
-      hintText: hint, hintStyle: _f(size: 13, color: AppColors.textHint),
+      hintText: hint, hintStyle: appText(size: 13, color: AppColors.textHint),
       filled: true, fillColor: const Color(0xFFF5F7FA),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

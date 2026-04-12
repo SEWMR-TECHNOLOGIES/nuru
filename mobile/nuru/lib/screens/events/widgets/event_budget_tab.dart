@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:open_filex/open_filex.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/services/report_generator.dart';
@@ -8,9 +8,8 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import '../report_preview_screen.dart';
 import '../../../core/widgets/deleting_overlay.dart';
-
-TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.2}) =>
-    GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+import '../../../core/theme/text_styles.dart';
+import '../../../core/l10n/l10n_helper.dart';
 
 /// Budget categories matching web app
 const _kCategories = [
@@ -29,7 +28,9 @@ const _kStatusOptions = [
 class EventBudgetTab extends StatefulWidget {
   final String eventId;
   final Map<String, dynamic>? permissions;
-  const EventBudgetTab({super.key, required this.eventId, this.permissions});
+  final String? eventTitle;
+  final double? eventBudget;
+  const EventBudgetTab({super.key, required this.eventId, this.permissions, this.eventTitle, this.eventBudget});
 
   @override
   State<EventBudgetTab> createState() => _EventBudgetTabState();
@@ -85,7 +86,7 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Budget Summary', style: _f(size: 15, weight: FontWeight.w700)),
+                    Text('Budget Summary', style: appText(size: 15, weight: FontWeight.w700)),
                     const SizedBox(height: 12),
                     Row(children: [
                       Expanded(child: _summaryCard('Total Estimated', _formatAmount(_summary['total_estimated']), AppColors.primary)),
@@ -109,14 +110,14 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Download Report', style: _f(size: 13, weight: FontWeight.w700)),
+                    Text('Download Report', style: appText(size: 13, weight: FontWeight.w700)),
                     const SizedBox(height: 10),
                     Row(children: [
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: () => _downloadReport('pdf'),
                           icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
-                          label: Text('PDF', style: _f(size: 12, weight: FontWeight.w600)),
+                          label: Text('PDF', style: appText(size: 12, weight: FontWeight.w600)),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppColors.error,
                             side: const BorderSide(color: AppColors.error),
@@ -130,7 +131,7 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
                         child: OutlinedButton.icon(
                           onPressed: () => _downloadReport('xlsx'),
                           icon: const Icon(Icons.table_chart_rounded, size: 16),
-                          label: Text('Excel', style: _f(size: 12, weight: FontWeight.w600)),
+                          label: Text('Excel', style: appText(size: 12, weight: FontWeight.w600)),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppColors.accent,
                             side: BorderSide(color: AppColors.accent),
@@ -146,14 +147,14 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
 
               Row(
                 children: [
-                  Expanded(child: Text('Budget Items', style: _f(size: 15, weight: FontWeight.w700))),
+                  Expanded(child: Text('Budget Items', style: appText(size: 15, weight: FontWeight.w700))),
                   if (canManage)
                     GestureDetector(
                       onTap: _showAddBudgetSheet,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(20)),
-                        child: Text('+ Add', style: _f(size: 12, weight: FontWeight.w700, color: Colors.white)),
+                        child: Text('+ Add', style: appText(size: 12, weight: FontWeight.w700, color: Colors.white)),
                       ),
                     ),
                 ],
@@ -163,7 +164,7 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
                 Container(
                   padding: const EdgeInsets.all(30),
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                  child: Center(child: Text('No budget items yet', style: _f(size: 14, color: AppColors.textTertiary))),
+                  child: Center(child: Text('No budget items yet', style: appText(size: 14, color: AppColors.textTertiary))),
                 )
               else
                 ..._items.map((item) => _budgetTile(item, canManage)),
@@ -180,9 +181,9 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: _f(size: 11, color: AppColors.textTertiary)),
+        Text(label, style: appText(size: 11, color: AppColors.textTertiary)),
         const SizedBox(height: 4),
-        Text(value, style: _f(size: 15, weight: FontWeight.w700, color: color)),
+        Text(value, style: appText(size: 15, weight: FontWeight.w700, color: color)),
       ]),
     );
   }
@@ -207,7 +208,7 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
               children: [
                 Row(children: [
                   if (item['category'] != null)
-                    Text(item['category'].toString(), style: _f(size: 11, weight: FontWeight.w700, color: AppColors.primary)),
+                    Text(item['category'].toString(), style: appText(size: 11, weight: FontWeight.w700, color: AppColors.primary)),
                   const Spacer(),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -215,30 +216,30 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
                       color: (statusOpt['color'] as Color).withOpacity(0.12),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(statusOpt['label'] as String, style: _f(size: 9, weight: FontWeight.w700, color: statusOpt['color'] as Color)),
+                    child: Text(statusOpt['label'] as String, style: appText(size: 9, weight: FontWeight.w700, color: statusOpt['color'] as Color)),
                   ),
                 ]),
                 const SizedBox(height: 2),
-                Text(item['description']?.toString() ?? item['item_name']?.toString() ?? 'Budget Item', style: _f(size: 14, weight: FontWeight.w600)),
+                Text(item['description']?.toString() ?? item['item_name']?.toString() ?? 'Budget Item', style: appText(size: 14, weight: FontWeight.w600)),
                 Row(children: [
-                  Text(_formatAmount(effectiveCost), style: _f(size: 13, weight: FontWeight.w700, color: AppColors.primary)),
+                  Text(_formatAmount(effectiveCost), style: appText(size: 13, weight: FontWeight.w700, color: AppColors.primary)),
                   if (isEstimate) ...[
                     const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(color: AppColors.warning.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
-                      child: Text('estimate', style: _f(size: 9, weight: FontWeight.w700, color: AppColors.warning)),
+                      child: Text('estimate', style: appText(size: 9, weight: FontWeight.w700, color: AppColors.warning)),
                     ),
                   ],
                   if (item['vendor_name'] != null) ...[
                     const SizedBox(width: 8),
-                    Flexible(child: Text(item['vendor_name'].toString(), style: _f(size: 12, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis)),
+                    Flexible(child: Text(item['vendor_name'].toString(), style: appText(size: 12, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis)),
                   ],
                 ]),
                 if (item['notes'] != null && item['notes'].toString().isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
-                    child: Text(item['notes'].toString(), style: _f(size: 11, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    child: Text(item['notes'].toString(), style: appText(size: 11, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
               ],
             ),
@@ -246,9 +247,10 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
           if (canManage)
             GestureDetector(
               onTap: () => _deleteBudgetItem(item['id']?.toString() ?? ''),
-              child: const Padding(
-                padding: EdgeInsets.only(left: 8),
-                child: Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.textHint),
+              child: Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: SvgPicture.asset('assets/icons/delete-icon.svg', width: 20, height: 20,
+                  colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
               ),
             ),
         ],
@@ -270,6 +272,8 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
         format: format,
         budgetItems: _items,
         summary: _summary,
+        eventTitle: widget.eventTitle,
+        eventBudget: widget.eventBudget,
       );
       if (!mounted) return;
       if (res['success'] == true) {
@@ -343,14 +347,14 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
               children: [
                 Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
                 const SizedBox(height: 20),
-                Text('Add Budget Item', style: _f(size: 18, weight: FontWeight.w700)),
+                Text('Add Budget Item', style: appText(size: 18, weight: FontWeight.w700)),
                 const SizedBox(height: 18),
 
                 // Category + Status row
                 Row(children: [
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Category *', style: _f(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
+                      Text('Category *', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
                       const SizedBox(height: 6),
                       if (customCategoryMode)
                         Row(children: [
@@ -368,7 +372,7 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                               decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(12)),
-                              child: Text('Set', style: _f(size: 12, weight: FontWeight.w700, color: Colors.white)),
+                              child: Text('Set', style: appText(size: 12, weight: FontWeight.w700, color: Colors.white)),
                             ),
                           ),
                         ])
@@ -380,11 +384,11 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
                             child: DropdownButton<String>(
                               value: sortedCats.contains(selectedCategory) ? selectedCategory : null,
                               isExpanded: true,
-                              style: _f(size: 14),
-                              hint: Text('Select', style: _f(size: 14, color: AppColors.textHint)),
+                              style: appText(size: 14),
+                              hint: Text('Select', style: appText(size: 14, color: AppColors.textHint)),
                               items: [
-                                ...sortedCats.map((c) => DropdownMenuItem(value: c, child: Text(c, style: _f(size: 14)))),
-                                DropdownMenuItem(value: '__custom__', child: Text('+ Add custom', style: _f(size: 14, color: AppColors.primary, weight: FontWeight.w600))),
+                                ...sortedCats.map((c) => DropdownMenuItem(value: c, child: Text(c, style: appText(size: 14)))),
+                                DropdownMenuItem(value: '__custom__', child: Text('+ Add custom', style: appText(size: 14, color: AppColors.primary, weight: FontWeight.w600))),
                               ],
                               onChanged: (v) {
                                 if (v == '__custom__') {
@@ -401,7 +405,7 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Status', style: _f(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
+                      Text('Status', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
                       const SizedBox(height: 6),
                       Container(
                         decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(12)),
@@ -410,10 +414,10 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
                           child: DropdownButton<String>(
                             value: selectedStatus,
                             isExpanded: true,
-                            style: _f(size: 14),
+                            style: appText(size: 14),
                             items: _kStatusOptions.map((s) => DropdownMenuItem(
                               value: s['value'] as String,
-                              child: Text(s['label'] as String, style: _f(size: 14)),
+                              child: Text(s['label'] as String, style: appText(size: 14)),
                             )).toList(),
                             onChanged: (v) { if (v != null) setSheetState(() => selectedStatus = v); },
                           ),
@@ -425,7 +429,7 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
                 const SizedBox(height: 14),
 
                 // Item Name
-                Text('Item Name *', style: _f(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
+                Text('Item Name *', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
                 const SizedBox(height: 6),
                 _styledInput(descCtrl, 'e.g. Main hall booking'),
                 const SizedBox(height: 14),
@@ -433,13 +437,13 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
                 // Estimated + Actual Cost row
                 Row(children: [
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Estimated Cost', style: _f(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
+                    Text('Estimated Cost', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
                     const SizedBox(height: 6),
                     _styledInput(estCtrl, 'TZS 0', keyboard: TextInputType.number),
                   ])),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Actual Cost', style: _f(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
+                    Text('Actual Cost', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
                     const SizedBox(height: 6),
                     _styledInput(actCtrl, 'TZS 0', keyboard: TextInputType.number),
                   ])),
@@ -447,13 +451,13 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
                 const SizedBox(height: 14),
 
                 // Vendor
-                Text('Vendor / Supplier', style: _f(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
+                Text('Vendor / Supplier', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
                 const SizedBox(height: 6),
                 _styledInput(vendorCtrl, 'Search or type vendor name'),
                 const SizedBox(height: 14),
 
                 // Notes
-                Text('Notes', style: _f(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
+                Text('Notes', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
                 const SizedBox(height: 6),
                 _styledInput(notesCtrl, 'Optional notes...', maxLines: 2),
                 const SizedBox(height: 20),
@@ -487,7 +491,7 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                     ),
-                    child: Text('Save', style: _f(size: 15, weight: FontWeight.w700, color: Colors.white)),
+                    child: Text('Save', style: appText(size: 15, weight: FontWeight.w700, color: Colors.white)),
                   ),
                 ),
               ],
@@ -503,10 +507,10 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
       controller: ctrl,
       keyboardType: keyboard,
       maxLines: maxLines,
-      style: _f(size: 14),
+      style: appText(size: 14),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: _f(size: 13, color: AppColors.textHint),
+        hintStyle: appText(size: 13, color: AppColors.textHint),
         filled: true,
         fillColor: const Color(0xFFF5F7FA),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),

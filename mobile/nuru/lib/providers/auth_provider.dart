@@ -191,7 +191,8 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
-    try { await AuthApi.logout(); } catch (_) {}
+    // Fire-and-forget the server call — don't let it block local cleanup
+    AuthApi.logout().catchError((_) => <String, dynamic>{});
     await _clearTokens();
     _isLoggedIn = false;
     _user = null;

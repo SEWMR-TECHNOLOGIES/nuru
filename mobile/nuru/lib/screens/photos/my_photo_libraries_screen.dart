@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/photo_libraries_service.dart';
 import '../../core/services/user_services_service.dart';
 import 'photo_library_screen.dart';
-
-TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.3}) =>
-    GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+import '../../core/theme/text_styles.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 /// My Photo Libraries — lists all libraries across user's services
 class MyPhotoLibrariesScreen extends StatefulWidget {
@@ -181,8 +179,8 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
                 ),
                 const SizedBox(width: 14),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(widget.title, style: _f(size: 20, weight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  Text('${_libraries.length} libraries', style: _f(size: 12, color: AppColors.textTertiary)),
+                  Text(widget.title, style: appText(size: 20, weight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text('${_libraries.length} libraries', style: appText(size: 12, color: AppColors.textTertiary)),
                 ])),
               ]),
             ),
@@ -198,13 +196,13 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
                   ),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
-                      Text('Storage Allocation', style: _f(size: 12, weight: FontWeight.w700)),
+                      Text('Storage Allocation', style: appText(size: 12, weight: FontWeight.w700)),
                       const Spacer(),
                       Text(
                         _storageLimitMb > 0
                             ? '${_fmtMb(_storageUsedMb)} / ${_fmtMb(_storageLimitMb)}'
                             : _fmtMb(_storageUsedMb),
-                        style: _f(size: 11, color: AppColors.textTertiary),
+                        style: appText(size: 11, color: AppColors.textTertiary),
                       ),
                     ]),
                     const SizedBox(height: 6),
@@ -224,15 +222,15 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
               child: _loading
                   ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
                   : _error != null
-                      ? Center(child: Text(_error!, style: _f(size: 14, color: AppColors.textTertiary)))
+                      ? Center(child: Text(_error!, style: appText(size: 14, color: AppColors.textTertiary)))
                       : _libraries.isEmpty
                           ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
                               SvgPicture.asset('assets/icons/camera-icon.svg', width: 48, height: 48,
                                 colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
                               const SizedBox(height: 16),
-                              Text('No photo libraries yet', style: _f(size: 16, weight: FontWeight.w600)),
+                              Text('No photo libraries yet', style: appText(size: 16, weight: FontWeight.w600)),
                               const SizedBox(height: 4),
-                              Text('Create a library from your service events', style: _f(size: 13, color: AppColors.textTertiary)),
+                              Text('Create a library from your service events', style: appText(size: 13, color: AppColors.textTertiary)),
                             ]))
                           : RefreshIndicator(
                               onRefresh: _load,
@@ -293,13 +291,13 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
           Padding(
             padding: const EdgeInsets.all(14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(name, style: _f(size: 15, weight: FontWeight.w700)),
+              Text(name, style: appText(size: 15, weight: FontWeight.w700)),
               const SizedBox(height: 4),
               Row(children: [
-                Text('$photoCount photos', style: _f(size: 12, color: AppColors.textTertiary)),
+                Text('$photoCount photos', style: appText(size: 12, color: AppColors.textTertiary)),
                 if (eventName.isNotEmpty) ...[
-                  Text(' · ', style: _f(size: 12, color: AppColors.textHint)),
-                  Flexible(child: Text(eventName, style: _f(size: 12, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  Text(' · ', style: appText(size: 12, color: AppColors.textHint)),
+                  Flexible(child: Text(eventName, style: appText(size: 12, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis)),
                 ],
               ]),
               const SizedBox(height: 8),
@@ -312,11 +310,11 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
                   ),
                   child: Text(
                     privacy == 'public' ? 'Public' : 'Private',
-                    style: _f(size: 10, weight: FontWeight.w700, color: privacy == 'public' ? AppColors.success : AppColors.textSecondary),
+                    style: appText(size: 10, weight: FontWeight.w700, color: privacy == 'public' ? AppColors.success : AppColors.textSecondary),
                   ),
                 ),
                 const Spacer(),
-                Text('${_fmtMb(totalSizeMb)} / ${_fmtMb(storageLimitMb)}', style: _f(size: 11, color: AppColors.textTertiary)),
+                Text('${_fmtMb(totalSizeMb)} / ${_fmtMb(storageLimitMb)}', style: appText(size: 11, color: AppColors.textTertiary)),
               ]),
               const SizedBox(height: 8),
               ClipRRect(
@@ -328,7 +326,7 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
                 ),
               ),
               const SizedBox(height: 4),
-              Text('$storagePercent% storage used', style: _f(size: 10, color: AppColors.textHint)),
+              Text('$storagePercent% storage used', style: appText(size: 10, color: AppColors.textHint)),
             ]),
           ),
         ]),

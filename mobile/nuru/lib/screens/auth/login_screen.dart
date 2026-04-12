@@ -7,6 +7,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/nuru_logo.dart';
 import '../../core/widgets/app_snackbar.dart';
+import '../../core/widgets/language_selector.dart';
+import '../../core/l10n/l10n_helper.dart';
 import '../../providers/auth_provider.dart';
 import '../home/home_screen.dart';
 import 'signup_screen.dart';
@@ -165,16 +167,23 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   child: Column(
                     children: [
-                      // ── Logo at top ──
+                      // ── Language + Logo at top ──
                       const SizedBox(height: 12),
-                      const Center(child: NuruLogo(size: 28)),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: const [
+                          LanguageToggle(showLabel: true, size: 24),
+                          NuruLogo(size: 28),
+                          SizedBox(width: 60), // balance
+                        ],
+                      ),
                       SizedBox(height: box.maxHeight * 0.04),
 
                       // ── Title ──
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          'Welcome\nback',
+                          context.trw('welcome_back'),
                           textAlign: TextAlign.left,
                           style: _f(
                             size: (box.maxHeight * 0.048).clamp(30.0, 42.0),
@@ -187,7 +196,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'Sign in to continue managing your events',
+                        context.trw('sign_in_subtitle'),
                         textAlign: TextAlign.center,
                         style: _f(
                           size: 14.5,
@@ -225,7 +234,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             children: [
                               AuthTextField(
                                 controller: _credCtrl,
-                                label: 'Email, phone, or username',
+                                label: context.trw('phone_or_email'),
                                 hintText: 'Enter your credential',
                                 prefixIcon: Icons.person_outline_rounded,
                                 validator: (v) =>
@@ -234,7 +243,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               const SizedBox(height: 16),
                               AuthTextField(
                                 controller: _pwCtrl,
-                                label: 'Password',
+                                label: context.trw('password'),
                                 hintText: 'Enter your password',
                                 prefixIcon: Icons.lock_outline_rounded,
                                 obscureText: _obscure,
@@ -269,7 +278,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     minimumSize: const Size(52, 32),
                                   ),
                                   child: Text(
-                                    'Forgot Password?',
+                                    context.trw('forgot_password'),
                                     style: _f(
                                       size: 12,
                                       weight: FontWeight.w600,
@@ -306,7 +315,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                           ),
                                         )
                                       : Text(
-                                          'Sign In',
+                                          context.trw('sign_in'),
                                           style: _f(
                                             size: 16,
                                             weight: FontWeight.w700,
@@ -327,7 +336,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            "Don't have an account? ",
+                            context.trw('dont_have_account'),
                             style: _f(
                               size: 14,
                               weight: FontWeight.w500,
@@ -355,7 +364,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                             child: Text(
-                              'Sign Up',
+                              context.trw('sign_up'),
                               style: _f(
                                 size: 14,
                                 weight: FontWeight.w700,
@@ -378,9 +387,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
 // PHONE VERIFICATION (post-login)
-// ═══════════════════════════════════════════════════════════════════════════
 class _PhoneVerificationScreen extends StatefulWidget {
   final String userId;
   final String phone;

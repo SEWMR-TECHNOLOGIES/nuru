@@ -4,7 +4,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/ai_markdown_content.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class AiAssistantScreen extends StatefulWidget {
   const AiAssistantScreen({super.key});
@@ -102,7 +104,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
-      appBar: const NuruSubPageAppBar(title: 'Nuru AI Assistant'),
+      appBar: NuruSubPageAppBar(title: context.tr('ai_assistant')),
       body: Column(
         children: [
           Expanded(
@@ -123,7 +125,17 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                       color: isUser ? AppColors.primary : AppColors.surfaceVariant,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Text(m.content.isEmpty ? 'Thinking…' : m.content, style: _f(size: 13, color: isUser ? Colors.white : AppColors.textPrimary, height: 1.45)),
+                    child: m.content.isEmpty
+                        ? Text('Thinking…', style: _f(size: 13, color: isUser ? Colors.white : AppColors.textPrimary, height: 1.45))
+                        : isUser
+                            ? SelectableText(m.content, style: _f(size: 13, color: Colors.white, height: 1.45))
+                            : AiMarkdownContent(
+                                content: m.content,
+                                textColor: AppColors.textPrimary,
+                                accentColor: AppColors.primary,
+                                fontSize: 13,
+                                lineHeight: 1.45,
+                              ),
                   ),
                 );
               },

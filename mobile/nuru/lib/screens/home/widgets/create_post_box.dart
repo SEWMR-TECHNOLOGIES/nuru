@@ -7,6 +7,8 @@ import 'package:geolocator/geolocator.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/social_service.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/widgets/app_snackbar.dart';
+import '../../../core/l10n/l10n_helper.dart';
 
 /// Create post box — modern card composer
 class CreatePostBox extends StatefulWidget {
@@ -19,6 +21,9 @@ class CreatePostBox extends StatefulWidget {
 }
 
 class _CreatePostBoxState extends State<CreatePostBox> {
+  static const int _maxMediaCount = 10;
+  static const int _maxImageBytes = 10 * 1024 * 1024;
+
   final _textController = TextEditingController();
   final _picker = ImagePicker();
   List<XFile> _mediaFiles = [];
@@ -42,27 +47,77 @@ class _CreatePostBoxState extends State<CreatePostBox> {
   }
 
   Future<void> _pickFromGallery() async {
-    final files = await _picker.pickMultipleMedia(
-      limit: 10 - _mediaFiles.length,
-    );
-    if (files.isNotEmpty && mounted) {
-      setState(() {
-        _mediaFiles = [..._mediaFiles, ...files].take(10).toList();
-        _isExpanded = true;
-      });
+    if (_mediaFiles.length >= _maxMediaCount) {
+      AppSnackbar.info(context, 'You can upload up to 10 images');
+      return;
+    }
+
+    try {
+      final files = await _picker.pickMultipleMedia(
+        limit: _maxMediaCount - _mediaFiles.length,
+      );
+      if (!mounted || files.isEmpty) return;
+      await _addPickedMedia(files);
+    } catch (_) {
+      if (mounted) AppSnackbar.error(context, 'Failed to pick images');
     }
   }
 
   Future<void> _takePhoto() async {
-    final file = await _picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 85,
-    );
-    if (file != null && mounted) {
+    try {
+      final file = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 85,
+      );
+      if (file != null && mounted) {
+        await _addPickedMedia([file]);
+      }
+    } catch (_) {
+      if (mounted) AppSnackbar.error(context, 'Failed to open camera');
+    }
+  }
+
+  Future<void> _addPickedMedia(List<XFile> files) async {
+    final accepted = <XFile>[];
+    var skippedVideos = 0;
+    var oversized = 0;
+
+    for (final file in files) {
+      if (_isVideoFile(file.path)) {
+        skippedVideos++;
+        continue;
+      }
+
+      final bytes = await File(file.path).length();
+      if (bytes > _maxImageBytes) {
+        oversized++;
+        continue;
+      }
+
+      accepted.add(file);
+    }
+
+    if (!mounted) return;
+
+    if (accepted.isNotEmpty) {
       setState(() {
-        if (_mediaFiles.length < 10) _mediaFiles.add(file);
+        _mediaFiles = [..._mediaFiles, ...accepted].take(_maxMediaCount).toList();
         _isExpanded = true;
       });
+    }
+
+    if (skippedVideos > 0) {
+      AppSnackbar.info(
+        context,
+        'Some videos were skipped. Mobile moment uploads currently support images only.',
+      );
+    }
+
+    if (oversized > 0) {
+      AppSnackbar.error(
+        context,
+        'Some images were skipped because they exceed 10MB.',
+      );
     }
   }
 

@@ -127,7 +127,8 @@ const InvitedEvents = () => {
           return (
             <article
               key={event.id}
-              className="bg-card rounded-lg border border-border transition-colors relative"
+              className="bg-card rounded-lg border border-border transition-colors relative cursor-pointer hover:border-primary/30"
+              onClick={() => navigate(`/event/${event.id}`)}
             >
               {/* Diagonal status badge */}
               <div className="absolute top-0 right-0 z-10 overflow-hidden rounded-tr-lg" style={{ width: '90px', height: '90px', pointerEvents: 'none' }}>
@@ -185,10 +186,17 @@ const InvitedEvents = () => {
                         </span>
                       )}
                       {event.location && (
-                        <span className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/event/${event.id}#venue`);
+                          }}
+                          className="flex items-center gap-1 text-primary hover:text-primary/80 hover:underline transition-colors cursor-pointer"
+                          title="View venue on map"
+                        >
                           <img src={LocationIcon} alt="Location" className="w-4 h-4" />
                           {event.location}
-                        </span>
+                        </button>
                       )}
                     </div>
 

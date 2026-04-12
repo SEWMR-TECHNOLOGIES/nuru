@@ -5,6 +5,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/services/social_service.dart';
+import '../../core/l10n/l10n_helper.dart';
+import '../home/widgets/post_detail_modal.dart';
 
 class MyMomentsScreen extends StatefulWidget {
   final String? userId;
@@ -17,11 +19,20 @@ class MyMomentsScreen extends StatefulWidget {
 class _MyMomentsScreenState extends State<MyMomentsScreen> {
   List<dynamic> _posts = [];
   bool _loading = true;
+  String? _editingId;
+  final _editController = TextEditingController();
+  String _editVisibility = 'public';
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _editController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -39,10 +50,178 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
   }
 
   Future<void> _deletePost(String id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(context.tr('delete_moment'), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+        content: Text(context.tr('this_action_cannot_be_undone'),
+          style: GoogleFonts.plusJakartaSans(color: AppColors.textSecondary, height: 1.5)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(context.tr('cancel'), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(context.tr('delete'), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
     final res = await SocialService.deletePost(id);
     if (res['success'] == true) {
       setState(() => _posts.removeWhere((p) => p['id']?.toString() == id));
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Post deleted')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('moment_deleted')), backgroundColor: AppColors.accent, behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+        );
+      }
+    }
+  }
+
+  void _showEditSheet(Map<String, dynamic> post) {
+    _editingId = post['id']?.toString();
+    _editController.text = post['content']?.toString() ?? '';
+    _editVisibility = post['visibility']?.toString() ?? 'public';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Container(
+          decoration: const BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
+              const SizedBox(height: 16),
+              Text(context.tr('edit_moment'), style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _editController,
+                maxLines: 5,
+                minLines: 3,
+                style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary, height: 1.5),
+                decoration: InputDecoration(
+                  hintText: "What's on your mind?",
+                  hintStyle: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textHint),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.borderLight)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                  contentPadding: const EdgeInsets.all(14),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Visibility selector
+              Row(
+                children: [
+                  Text(context.tr('visibility'), style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                  const SizedBox(width: 12),
+                  _visibilityChip('public', 'Public', Icons.public_rounded, setSheetState),
+                  const SizedBox(width: 8),
+                  _visibilityChip('circle', 'Circle', Icons.group_rounded, setSheetState),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: AppColors.borderLight),
+                      ),
+                      child: Text(context.tr('cancel'), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await _saveEdit();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
+                      ),
+                      child: Text(context.tr('save_changes'), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, color: Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _visibilityChip(String value, String label, IconData icon, void Function(void Function()) setSheetState) {
+    final selected = _editVisibility == value;
+    return GestureDetector(
+      onTap: () => setSheetState(() => _editVisibility = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary.withOpacity(0.1) : AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: selected ? AppColors.primary : AppColors.borderLight),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 14, color: selected ? AppColors.primary : AppColors.textTertiary),
+          const SizedBox(width: 4),
+          Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600, color: selected ? AppColors.primary : AppColors.textTertiary)),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _saveEdit() async {
+    if (_editingId == null) return;
+    final res = await SocialService.updatePost(
+      _editingId!,
+      content: _editController.text.trim(),
+      visibility: _editVisibility,
+    );
+    if (mounted) {
+      if (res['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('moment_updated')), backgroundColor: AppColors.accent, behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+        );
+        _load();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res['message'] ?? 'Failed to update'), backgroundColor: AppColors.error, behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleVisibility(String id, String currentVisibility) async {
+    final newVisibility = currentVisibility == 'circle' ? 'public' : 'circle';
+    final res = await SocialService.updatePost(id, visibility: newVisibility);
+    if (res['success'] == true && mounted) {
+      _load();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Changed to $newVisibility'), backgroundColor: AppColors.accent, behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+      );
     }
   }
 
@@ -50,7 +229,7 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
-      appBar: NuruSubPageAppBar(title: 'My Moments'),
+      appBar: NuruSubPageAppBar(title: context.tr('my_moments')),
       body: RefreshIndicator(
         onRefresh: _load,
         color: AppColors.primary,
@@ -80,9 +259,9 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
               colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn))),
         ),
         const SizedBox(height: 16),
-        Text('No moments yet', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        Text(context.tr('no_moments_yet'), style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
         const SizedBox(height: 6),
-        Text('Share your first moment with the community', style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary)),
+        Text(context.tr('share_first_moment'), style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary)),
       ],
     );
   }
@@ -97,67 +276,160 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
     final visibility = p['visibility']?.toString() ?? 'public';
     final id = p['id']?.toString() ?? '';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderLight),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(6)),
-                child: Text(visibility, style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w500, color: AppColors.textTertiary)),
-              ),
-              const Spacer(),
-              if (createdAt.isNotEmpty)
-                Text(SocialService.getTimeAgo(createdAt), style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
-              const SizedBox(width: 8),
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.more_horiz, size: 18, color: AppColors.textHint),
-                onSelected: (v) {
-                  if (v == 'delete' && id.isNotEmpty) _deletePost(id);
-                },
-                itemBuilder: (_) => [
-                  const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                ],
-              ),
+    return GestureDetector(
+      onTap: () => PostDetailModal.show(context, p),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.borderLight),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: visibility == 'circle' ? AppColors.primary.withOpacity(0.08) : AppColors.surfaceVariant,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(visibility == 'circle' ? Icons.group_rounded : Icons.public_rounded, size: 10, color: AppColors.textTertiary),
+                    const SizedBox(width: 3),
+                    Text(visibility, style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w500, color: AppColors.textTertiary)),
+                  ]),
+                ),
+                const Spacer(),
+                if (createdAt.isNotEmpty)
+                  Text(SocialService.getTimeAgo(createdAt), style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
+                const SizedBox(width: 4),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_horiz, size: 18, color: AppColors.textHint),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  onSelected: (v) {
+                    if (v == 'delete' && id.isNotEmpty) _deletePost(id);
+                    if (v == 'edit') _showEditSheet(p);
+                    if (v == 'visibility') _toggleVisibility(id, visibility);
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(value: 'edit', child: Row(children: [
+                      const Icon(Icons.edit_rounded, size: 16, color: AppColors.textSecondary),
+                      const SizedBox(width: 8),
+                      Text(context.tr('edit'), style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+                    ])),
+                    PopupMenuItem(value: 'visibility', child: Row(children: [
+                      Icon(visibility == 'circle' ? Icons.public_rounded : Icons.group_rounded, size: 16, color: AppColors.textSecondary),
+                      const SizedBox(width: 8),
+                      Text(visibility == 'circle' ? context.tr('make_public') : context.tr('circle_only'), style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+                    ])),
+                    const PopupMenuDivider(),
+                    PopupMenuItem(value: 'delete', child: Row(children: [
+                      const Icon(Icons.delete_rounded, size: 16, color: AppColors.error),
+                      const SizedBox(width: 8),
+                      Text(context.tr('delete'), style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.error)),
+                    ])),
+                  ],
+                ),
+              ],
+            ),
+            if (content.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(content, style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary, height: 1.5)),
             ],
-          ),
-          if (content.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(content, style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary, height: 1.5)),
-          ],
-          if (images.isNotEmpty) ...[
+            if (images.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _imageGrid(images),
+            ],
             const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: CachedNetworkImage(
-                imageUrl: images[0] is Map ? (images[0]['url'] ?? '') : images[0].toString(),
-                width: double.infinity, height: 200, fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => Container(height: 200, color: AppColors.surfaceVariant),
-              ),
+            Row(
+              children: [
+                SvgPicture.asset('assets/icons/heart-icon.svg', width: 14, height: 14, colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
+                const SizedBox(width: 4),
+                Text('$glowCount ${context.tr('glows')}', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+                const SizedBox(width: 16),
+                SvgPicture.asset('assets/icons/echo-icon.svg', width: 14, height: 14, colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
+                const SizedBox(width: 4),
+                Text('$commentCount ${context.tr('echoes')}', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+              ],
             ),
           ],
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              SvgPicture.asset('assets/icons/heart-icon.svg', width: 16, height: 16,
-                  colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
-              const SizedBox(width: 4),
-              Text('$glowCount', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
-              const SizedBox(width: 16),
-              SvgPicture.asset('assets/icons/chat-icon.svg', width: 16, height: 16,
-                  colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
-              const SizedBox(width: 4),
-              Text('$commentCount', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
-            ],
+        ),
+      ),
+    );
+  }
+
+  Widget _imageGrid(List images) {
+    final urls = images.map<String>((img) {
+      if (img is String) return img;
+      if (img is Map) return (img['image_url'] ?? img['url'] ?? '').toString();
+      return '';
+    }).where((s) => s.isNotEmpty).toList();
+
+    if (urls.isEmpty) return const SizedBox.shrink();
+    if (urls.length == 1) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: CachedNetworkImage(
+          imageUrl: urls[0],
+          width: double.infinity, height: 200, fit: BoxFit.cover,
+          placeholder: (_, __) => Container(height: 200, color: AppColors.surfaceVariant),
+          errorWidget: (_, __, ___) => Container(height: 200, color: AppColors.surfaceVariant,
+            child: const Icon(Icons.broken_image_rounded, color: AppColors.textHint)),
+        ),
+      );
+    }
+    // Multi-image grid
+    return SizedBox(
+      height: 160,
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.only(topLeft: Radius.circular(12), bottomLeft: Radius.circular(12)),
+              child: CachedNetworkImage(imageUrl: urls[0], fit: BoxFit.cover, height: 160,
+                placeholder: (_, __) => Container(color: AppColors.surfaceVariant),
+                errorWidget: (_, __, ___) => Container(color: AppColors.surfaceVariant)),
+            ),
+          ),
+          const SizedBox(width: 3),
+          Expanded(
+            child: Column(
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.only(topRight: Radius.circular(12)),
+                    child: CachedNetworkImage(imageUrl: urls.length > 1 ? urls[1] : urls[0], fit: BoxFit.cover, width: double.infinity,
+                      placeholder: (_, __) => Container(color: AppColors.surfaceVariant),
+                      errorWidget: (_, __, ___) => Container(color: AppColors.surfaceVariant)),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.only(bottomRight: Radius.circular(12)),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        CachedNetworkImage(imageUrl: urls.length > 2 ? urls[2] : urls[0], fit: BoxFit.cover,
+                          placeholder: (_, __) => Container(color: AppColors.surfaceVariant),
+                          errorWidget: (_, __, ___) => Container(color: AppColors.surfaceVariant)),
+                        if (urls.length > 3)
+                          Container(
+                            color: Colors.black.withOpacity(0.5),
+                            child: Center(child: Text('+${urls.length - 3}', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white))),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

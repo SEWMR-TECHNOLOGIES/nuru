@@ -6,6 +6,10 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/services/user_services_service.dart';
 import '../../core/services/social_service.dart';
+import '../../core/services/messages_service.dart';
+import '../../core/widgets/app_snackbar.dart';
+import '../messages/messages_screen.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class PublicProfileScreen extends StatefulWidget {
   final String userId;
@@ -137,6 +141,65 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                           _isFollowing ? 'Following' : 'Follow',
                           style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600,
                               color: _isFollowing ? AppColors.textSecondary : Colors.white),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // Message button
+                  GestureDetector(
+                    onTap: () async {
+                      final res = await MessagesService.startConversation(
+                        recipientId: widget.userId,
+                        message: 'Hello!',
+                      );
+                      if (!mounted) return;
+                      if (res['success'] == true && res['data'] != null) {
+                        final convId = res['data']['id']?.toString();
+                        if (convId != null) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ChatDetailScreen(
+                                conversationId: convId,
+                                name: name.isNotEmpty ? name : '@$username',
+                                avatar: avatar,
+                              ),
+                            ),
+                          );
+                        }
+                      } else {
+                        AppSnackbar.error(
+                          context,
+                          res['message']?.toString() ?? 'Failed to start conversation',
+                        );
+                      }
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceVariant,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.borderLight),
+                      ),
+                      child: Center(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.chat_bubble_outline_rounded, size: 16, color: AppColors.textSecondary),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Message',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),

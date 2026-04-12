@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/services/social_service.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class CircleScreen extends StatefulWidget {
   const CircleScreen({super.key});
@@ -91,7 +92,7 @@ class _CircleScreenState extends State<CircleScreen> with SingleTickerProviderSt
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: NuruSubPageAppBar(
-        title: 'My Circle',
+        title: context.trw('my_circle'),
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.primary,
@@ -99,8 +100,8 @@ class _CircleScreenState extends State<CircleScreen> with SingleTickerProviderSt
           indicatorColor: AppColors.primary,
           labelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
           tabs: [
-            Tab(text: 'Members (${_members.length})'),
-            Tab(text: 'Requests (${_requests.length})'),
+            Tab(text: '${context.trw('members')} (${_members.length})'),
+            Tab(text: '${context.trw('requests')} (${_requests.length})'),
           ],
         ),
       ),
@@ -140,7 +141,7 @@ class _CircleScreenState extends State<CircleScreen> with SingleTickerProviderSt
         ),
         Expanded(
           child: _members.isEmpty
-              ? Center(child: Text('No members in your circle', style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textTertiary)))
+              ? Center(child: Text(context.trw('no_members_circle'), style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textTertiary)))
               : RefreshIndicator(
                   onRefresh: _load,
                   color: AppColors.primary,
@@ -186,7 +187,7 @@ class _CircleScreenState extends State<CircleScreen> with SingleTickerProviderSt
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name.isNotEmpty ? name : 'Unknown', style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                Text(name.isNotEmpty ? name : context.trw('unknown'), style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                 if (username.isNotEmpty)
                   Text('@$username', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
               ],
@@ -197,7 +198,7 @@ class _CircleScreenState extends State<CircleScreen> with SingleTickerProviderSt
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(color: AppColors.errorSoft, borderRadius: BorderRadius.circular(8)),
-              child: Text('Remove', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.error)),
+              child: Text(context.trw('remove'), style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.error)),
             ),
           ),
         ],
@@ -207,7 +208,7 @@ class _CircleScreenState extends State<CircleScreen> with SingleTickerProviderSt
 
   Widget _requestsTab() {
     if (_requests.isEmpty) {
-      return Center(child: Text('No pending requests', style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textTertiary)));
+      return Center(child: Text(context.trw('no_pending_requests'), style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textTertiary)));
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
@@ -234,13 +235,13 @@ class _CircleScreenState extends State<CircleScreen> with SingleTickerProviderSt
                     : _initials(name),
               ),
               const SizedBox(width: 12),
-              Expanded(child: Text(name.isNotEmpty ? name : 'Unknown', style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
+              Expanded(child: Text(name.isNotEmpty ? name : context.trw('unknown'), style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
               GestureDetector(
                 onTap: () => _acceptRequest(reqId),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(8)),
-                  child: Text('Accept', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white)),
+                  child: Text(context.trw('accept'), style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white)),
                 ),
               ),
               const SizedBox(width: 6),
@@ -249,7 +250,7 @@ class _CircleScreenState extends State<CircleScreen> with SingleTickerProviderSt
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(8)),
-                  child: Text('Decline', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                  child: Text(context.trw('decline'), style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
                 ),
               ),
             ],

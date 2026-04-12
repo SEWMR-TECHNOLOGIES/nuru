@@ -19,6 +19,7 @@ import 'manage_photos_screen.dart';
 import 'manage_intro_clip_screen.dart';
 import 'public_service_screen.dart';
 import 'service_verification_screen.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class MyServicesScreen extends StatefulWidget {
   const MyServicesScreen({super.key});
@@ -86,7 +87,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F3F8),
-      appBar: NuruSubPageAppBar(title: 'My Services'),
+      appBar: NuruSubPageAppBar(title: context.tr('my_services')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           final ok = await AgreementGate.checkAndPrompt(context, 'vendor_agreement');
@@ -718,9 +719,6 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
     );
   }
 
-
-
-
   // ─── Manage Sheet ───
   Future<void> _openManageSheet(Map<String, dynamic> service) async {
     final serviceId = service['id']?.toString() ?? '';
@@ -776,8 +774,6 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
       ),
     );
   }
-
-
 
   Future<void> _confirmDeleteService(String serviceId) async {
     final confirmed = await showDialog<bool>(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 /// Open Source Licenses screen
 class LicensesScreen extends StatelessWidget {
@@ -27,7 +28,7 @@ class LicensesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
-      appBar: NuruSubPageAppBar(title: 'Open Source Licenses'),
+      appBar: NuruSubPageAppBar(title: context.tr('about')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
         children: [

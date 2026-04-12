@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-
-TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.2}) =>
-    GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+import '../../../core/theme/text_styles.dart';
+import '../../../core/l10n/l10n_helper.dart';
 
 /// Check-In tab — uses camera QR scanning
 class EventCheckinTab extends StatefulWidget {
@@ -120,8 +118,8 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
               child: const Icon(Icons.qr_code_scanner_rounded, size: 22, color: AppColors.primary)),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Guest Check-In', style: _f(size: 17, weight: FontWeight.w700)),
-              Text('Scan QR codes or enter invitation codes', style: _f(size: 11, color: AppColors.textTertiary)),
+              Text('Guest Check-In', style: appText(size: 17, weight: FontWeight.w700)),
+              Text('Scan QR codes or enter invitation codes', style: appText(size: 11, color: AppColors.textTertiary)),
             ])),
           ]),
           const SizedBox(height: 16),
@@ -140,7 +138,7 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
                 SvgPicture.asset('assets/icons/camera-icon.svg', width: 20, height: 20,
                   colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
                 const SizedBox(width: 10),
-                Text('Check In Guest', style: _f(size: 14, weight: FontWeight.w700, color: Colors.white)),
+                Text('Check In Guest', style: appText(size: 14, weight: FontWeight.w700, color: Colors.white)),
               ]),
             ),
           ),
@@ -168,7 +166,7 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
             Row(children: [
               const Icon(Icons.check_circle_outline_rounded, size: 16, color: AppColors.primary),
               const SizedBox(width: 6),
-              Text('Recent Check-ins', style: _f(size: 13, weight: FontWeight.w700)),
+              Text('Recent Check-ins', style: appText(size: 13, weight: FontWeight.w700)),
             ]),
             const SizedBox(height: 10),
             ..._recentCheckins.take(10).map((c) => Container(
@@ -177,10 +175,10 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
               decoration: BoxDecoration(color: AppColors.surfaceVariant.withOpacity(0.5), borderRadius: BorderRadius.circular(10)),
               child: Row(children: [
                 CircleAvatar(radius: 14, backgroundColor: AppColors.primary.withOpacity(0.1),
-                  child: Text(c['name']![0].toUpperCase(), style: _f(size: 11, weight: FontWeight.w700, color: AppColors.primary))),
+                  child: Text(c['name']![0].toUpperCase(), style: appText(size: 11, weight: FontWeight.w700, color: AppColors.primary))),
                 const SizedBox(width: 10),
-                Expanded(child: Text(c['name']!, style: _f(size: 13, weight: FontWeight.w600))),
-                Text(c['time']!, style: _f(size: 11, color: AppColors.textTertiary)),
+                Expanded(child: Text(c['name']!, style: appText(size: 13, weight: FontWeight.w600))),
+                Text(c['time']!, style: appText(size: 11, color: AppColors.textTertiary)),
               ]),
             )),
           ]),
@@ -199,9 +197,9 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
             Container(width: 52, height: 52, decoration: BoxDecoration(color: AppColors.surfaceVariant.withOpacity(0.5), borderRadius: BorderRadius.circular(14)),
               child: Icon(Icons.qr_code_scanner_rounded, size: 24, color: AppColors.textHint.withOpacity(0.4))),
             const SizedBox(height: 12),
-            Text('No Check-ins Yet', style: _f(size: 14, weight: FontWeight.w700)),
+            Text('No Check-ins Yet', style: appText(size: 14, weight: FontWeight.w700)),
             const SizedBox(height: 4),
-            Text('Tap the scan button above to start checking in guests', style: _f(size: 12, color: AppColors.textTertiary), textAlign: TextAlign.center),
+            Text('Tap the scan button above to start checking in guests', style: appText(size: 12, color: AppColors.textTertiary), textAlign: TextAlign.center),
           ]),
         ),
     ]);
@@ -221,8 +219,8 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
           color: color.withOpacity(0.1), shape: BoxShape.circle),
           child: Icon(icon, size: 14, color: color)),
         const SizedBox(height: 6),
-        Text(value, style: _f(size: 16, weight: FontWeight.w800)),
-        Text(label, style: _f(size: 9, color: AppColors.textTertiary, weight: FontWeight.w600)),
+        Text(value, style: appText(size: 16, weight: FontWeight.w800)),
+        Text(label, style: appText(size: 9, color: AppColors.textTertiary, weight: FontWeight.w600)),
       ]),
     );
   }
@@ -240,8 +238,8 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
           color: color.withOpacity(0.15), shape: BoxShape.circle),
           child: Icon(icon, size: 14, color: color)),
         const SizedBox(height: 6),
-        Text(value, style: _f(size: 16, weight: FontWeight.w800, color: color)),
-        Text(label, style: _f(size: 9, color: AppColors.textTertiary, weight: FontWeight.w600)),
+        Text(value, style: appText(size: 16, weight: FontWeight.w800, color: color)),
+        Text(label, style: appText(size: 9, color: AppColors.textTertiary, weight: FontWeight.w600)),
       ]),
     );
   }
@@ -277,7 +275,7 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
                   child: const Icon(Icons.qr_code_scanner_rounded, size: 18, color: AppColors.primary),
                 ),
                 const SizedBox(width: 10),
-                Text('Guest Check-In', style: _f(size: 16, weight: FontWeight.w700)),
+                Text('Guest Check-In', style: appText(size: 16, weight: FontWeight.w700)),
                 const Spacer(),
                 GestureDetector(
                   onTap: () => Navigator.pop(ctx),
@@ -320,7 +318,7 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
                           Icon(Icons.qr_code_scanner_rounded, size: 16,
                             color: _tabIndex == 0 ? AppColors.primary : AppColors.textTertiary),
                           const SizedBox(width: 8),
-                          Text('Scan QR', style: _f(size: 13, weight: FontWeight.w700,
+                          Text('Scan QR', style: appText(size: 13, weight: FontWeight.w700,
                             color: _tabIndex == 0 ? AppColors.primary : AppColors.textTertiary)),
                         ]),
                       ),
@@ -340,7 +338,7 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
                           Icon(Icons.keyboard_rounded, size: 16,
                             color: _tabIndex == 1 ? AppColors.primary : AppColors.textTertiary),
                           const SizedBox(width: 8),
-                          Text('Enter Code', style: _f(size: 13, weight: FontWeight.w700,
+                          Text('Enter Code', style: appText(size: 13, weight: FontWeight.w700,
                             color: _tabIndex == 1 ? AppColors.primary : AppColors.textTertiary)),
                         ]),
                       ),
@@ -358,7 +356,7 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Column(children: [
                       Text('Point your camera at the guest\'s QR code',
-                        style: _f(size: 12, color: AppColors.textTertiary), textAlign: TextAlign.center),
+                        style: appText(size: 12, color: AppColors.textTertiary), textAlign: TextAlign.center),
                       const SizedBox(height: 10),
                       Expanded(
                         child: Container(
@@ -401,7 +399,7 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
                                     ),
                                   ),
                                   const SizedBox(height: 12),
-                                  Text('Verifying guest...', style: _f(size: 14, weight: FontWeight.w600, color: Colors.white)),
+                                  Text('Verifying guest...', style: appText(size: 14, weight: FontWeight.w600, color: Colors.white)),
                                 ]),
                               ],
                             ],
@@ -429,10 +427,10 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
                         child: const Icon(Icons.confirmation_number_outlined, size: 28, color: AppColors.primary),
                       ),
                       const SizedBox(height: 16),
-                      Text('Enter Invitation Code', style: _f(size: 16, weight: FontWeight.w700)),
+                      Text('Enter Invitation Code', style: appText(size: 16, weight: FontWeight.w700)),
                       const SizedBox(height: 4),
                       Text('Enter the code sent via SMS or WhatsApp',
-                        style: _f(size: 12, color: AppColors.textTertiary), textAlign: TextAlign.center),
+                        style: appText(size: 12, color: AppColors.textTertiary), textAlign: TextAlign.center),
                       const SizedBox(height: 20),
                       Container(
                         decoration: BoxDecoration(
@@ -443,11 +441,11 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
                         child: TextField(
                           controller: codeCtrl,
                           textAlign: TextAlign.center,
-                          style: _f(size: 16, weight: FontWeight.w600),
+                          style: appText(size: 16, weight: FontWeight.w600),
                           textCapitalization: TextCapitalization.characters,
                           decoration: InputDecoration(
                             hintText: 'e.g. ABC123 or scan ID',
-                            hintStyle: _f(size: 14, color: AppColors.textHint),
+                            hintStyle: appText(size: 14, color: AppColors.textHint),
                             border: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                           ),
@@ -480,9 +478,9 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
                             ? Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                                 const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
                                 const SizedBox(width: 10),
-                                Text('Verifying...', style: _f(size: 14, weight: FontWeight.w600, color: Colors.white)),
+                                Text('Verifying...', style: appText(size: 14, weight: FontWeight.w600, color: Colors.white)),
                               ])
-                            : Text('Check In Guest', style: _f(size: 14, weight: FontWeight.w700, color: Colors.white)),
+                            : Text('Check In Guest', style: appText(size: 14, weight: FontWeight.w700, color: Colors.white)),
                         ),
                       ),
                     ]),
@@ -539,9 +537,9 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
               child: Icon(stateIcon, size: 40, color: stateColor),
             ),
             const SizedBox(height: 16),
-            Text(stateTitle, style: _f(size: 20, weight: FontWeight.w800, color: stateColor)),
+            Text(stateTitle, style: appText(size: 20, weight: FontWeight.w800, color: stateColor)),
             const SizedBox(height: 6),
-            Text(stateSubtitle, style: _f(size: 13, color: AppColors.textTertiary), textAlign: TextAlign.center),
+            Text(stateSubtitle, style: appText(size: 13, color: AppColors.textTertiary), textAlign: TextAlign.center),
           ]),
         ),
 
@@ -562,13 +560,13 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
                 CircleAvatar(radius: 22, backgroundColor: AppColors.primary.withOpacity(0.1),
                   child: Text(
                     _getInitials(_scannedGuest?['name']?.toString() ?? 'G'),
-                    style: _f(size: 14, weight: FontWeight.w700, color: AppColors.primary),
+                    style: appText(size: 14, weight: FontWeight.w700, color: AppColors.primary),
                   )),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(_scannedGuest?['name']?.toString() ?? 'Guest', style: _f(size: 15, weight: FontWeight.w700)),
+                  Text(_scannedGuest?['name']?.toString() ?? 'Guest', style: appText(size: 15, weight: FontWeight.w700)),
                   if (_scannedGuest?['email'] != null)
-                    Text(_scannedGuest!['email'].toString(), style: _f(size: 11, color: AppColors.textTertiary)),
+                    Text(_scannedGuest!['email'].toString(), style: appText(size: 11, color: AppColors.textTertiary)),
                 ])),
               ]),
               if (_scannedGuest?['table_number'] != null) ...[
@@ -580,7 +578,7 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
                   child: Row(children: [
                     const Icon(Icons.table_restaurant_rounded, size: 14, color: AppColors.textTertiary),
                     const SizedBox(width: 6),
-                    Text('Table ${_scannedGuest!['table_number']}', style: _f(size: 12, weight: FontWeight.w600)),
+                    Text('Table ${_scannedGuest!['table_number']}', style: appText(size: 12, weight: FontWeight.w600)),
                   ]),
                 ),
               ],
@@ -605,7 +603,7 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               const Icon(Icons.qr_code_scanner_rounded, size: 18, color: Colors.white),
               const SizedBox(width: 8),
-              Text(isError ? 'Try Again' : 'Scan Next Guest', style: _f(size: 14, weight: FontWeight.w700, color: Colors.white)),
+              Text(isError ? 'Try Again' : 'Scan Next Guest', style: appText(size: 14, weight: FontWeight.w700, color: Colors.white)),
             ]),
           ),
         ),
@@ -621,7 +619,7 @@ class _EventCheckinTabState extends State<EventCheckinTab> with AutomaticKeepAli
                 side: BorderSide(color: AppColors.borderLight),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
-              child: Text('Done', style: _f(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
+              child: Text('Done', style: appText(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
             ),
           ),
         ],

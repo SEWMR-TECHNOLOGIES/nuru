@@ -12,6 +12,7 @@ import '../../core/services/api_service.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/agreement_gate.dart';
 import 'service_verification_screen.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class AddServiceScreen extends StatefulWidget {
   const AddServiceScreen({super.key});
@@ -22,6 +23,8 @@ class AddServiceScreen extends StatefulWidget {
 
 class _AddServiceScreenState extends State<AddServiceScreen> {
   static String get _baseUrl => ApiService.baseUrl;
+  static const int _maxImageCount = 10;
+  static const int _maxImageBytes = 5 * 1024 * 1024;
 
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
@@ -87,10 +90,46 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
   }
 
   Future<void> _pickImages() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickMultiImage(imageQuality: 80);
-    if (picked.isNotEmpty) {
-      setState(() => _images.addAll(picked));
+    if (_images.length >= _maxImageCount) {
+      AppSnackbar.info(context, 'You can upload up to 10 images');
+      return;
+    }
+
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickMultiImage(maxWidth: 1600, imageQuality: 85);
+      if (!mounted || picked.isEmpty) return;
+
+      final remaining = _maxImageCount - _images.length;
+      final accepted = <XFile>[];
+      var oversized = 0;
+
+      for (final file in picked) {
+        if (accepted.length >= remaining) break;
+        final bytes = await File(file.path).length();
+        if (bytes > _maxImageBytes) {
+          oversized++;
+          continue;
+        }
+        accepted.add(file);
+      }
+
+      if (accepted.isNotEmpty) {
+        setState(() => _images.addAll(accepted));
+      }
+
+      if (oversized > 0) {
+        AppSnackbar.info(
+          context,
+          'Some images were skipped because they exceed 5MB.',
+        );
+      }
+
+      if (picked.length > accepted.length && oversized == 0) {
+        AppSnackbar.info(context, 'You can upload up to 10 images');
+      }
+    } catch (_) {
+      if (mounted) AppSnackbar.error(context, 'Failed to pick images');
     }
   }
 
@@ -130,6 +169,26 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
     }
     if (_minPriceCtrl.text.trim().isEmpty) {
       AppSnackbar.error(context, 'Minimum price is required');
+      return;
+    }
+    if (_maxPriceCtrl.text.trim().isEmpty) {
+      AppSnackbar.error(context, 'Maximum price is required');
+      return;
+    }
+
+    final minPrice = double.tryParse(_minPriceCtrl.text.trim().replaceAll(',', '')) ?? 0;
+    final maxPrice = double.tryParse(_maxPriceCtrl.text.trim().replaceAll(',', '')) ?? 0;
+
+    if (minPrice <= 0) {
+      AppSnackbar.error(context, 'Minimum price must be greater than 0');
+      return;
+    }
+    if (maxPrice <= 0) {
+      AppSnackbar.error(context, 'Maximum price must be greater than 0');
+      return;
+    }
+    if (maxPrice < minPrice) {
+      AppSnackbar.error(context, 'Maximum price must be greater than or equal to minimum price');
       return;
     }
 
@@ -188,7 +247,7 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
         backgroundColor: const Color(0xFFF0F3F8),
-        appBar: NuruSubPageAppBar(title: 'Add New Service'),
+        appBar: NuruSubPageAppBar(title: context.tr('add_service')),
         body: _loadingCategories
             ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
             : SingleChildScrollView(

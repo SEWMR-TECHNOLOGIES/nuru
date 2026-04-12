@@ -1,19 +1,18 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_snackbar.dart';
-
-TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.3}) =>
-    GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+import '../../core/theme/text_styles.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 /// Full-screen PDF preview with save, share, and print options.
-/// Uses PdfPreview from the `printing` package for native rendering.
+/// Premium native rendering with polished action bar.
 class ReportPreviewScreen extends StatefulWidget {
   final String title;
   final Uint8List pdfBytes;
@@ -32,6 +31,7 @@ class ReportPreviewScreen extends StatefulWidget {
 
 class _ReportPreviewScreenState extends State<ReportPreviewScreen> {
   bool _saved = false;
+  bool _sharing = false;
 
   Future<String> _ensureFile() async {
     if (widget.filePath != null && File(widget.filePath!).existsSync()) {
@@ -45,133 +45,229 @@ class _ReportPreviewScreenState extends State<ReportPreviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: SvgPicture.asset(
-            'assets/icons/chevron-left-icon.svg',
-            width: 22,
-            height: 22,
-            colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.title, style: _f(size: 15, weight: FontWeight.w700)),
-            Text('Preview & share your report', style: _f(size: 11, color: AppColors.textTertiary)),
-          ],
-        ),
-      ),
-      body: Column(
-        children: [
-          // PDF viewer — use PdfPreview which handles rendering
-          Expanded(
-            child: PdfPreview(
-              build: (_) => widget.pdfBytes,
-              canChangeOrientation: false,
-              canChangePageFormat: false,
-              canDebug: false,
-              pdfFileName: widget.title.replaceAll(' ', '_').toLowerCase(),
-              allowPrinting: false,
-              allowSharing: false,
-              useActions: false,
-              loadingWidget: Center(
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const CircularProgressIndicator(color: AppColors.primary),
-                  const SizedBox(height: 12),
-                  Text('Loading preview...', style: _f(size: 13, color: AppColors.textTertiary)),
-                ]),
-              ),
-              onError: (context, error) => Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.picture_as_pdf_rounded, size: 48, color: AppColors.textHint),
-                    const SizedBox(height: 16),
-                    Text('Unable to preview PDF', style: _f(size: 15, weight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    Text('You can still share, print, or save the report using the buttons below.',
-                      style: _f(size: 13, color: AppColors.textTertiary), textAlign: TextAlign.center),
-                  ]),
-                ),
-              ),
-            ),
-          ),
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
-          // Bottom action bar
-          Container(
-            padding: EdgeInsets.fromLTRB(16, 14, 16, MediaQuery.of(context).padding.bottom + 14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, -2))],
-            ),
-            child: Row(
-              children: [
-                // Share
-                _actionBtn(
-                  icon: Icons.share_rounded,
-                  label: 'Share',
-                  onTap: () async {
-                    final path = await _ensureFile();
-                    Share.shareXFiles([XFile(path)], subject: widget.title);
-                  },
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF5F7FA),
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              // Premium header
+              Container(
+                padding: const EdgeInsets.fromLTRB(12, 8, 16, 12),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(bottom: BorderSide(color: Color(0xFFE8ECF0), width: 1)),
                 ),
-                const SizedBox(width: 10),
-                // Print
-                _actionBtn(
-                  icon: Icons.print_rounded,
-                  label: 'Print',
-                  onTap: () => Printing.layoutPdf(onLayout: (_) => widget.pdfBytes),
-                ),
-                const SizedBox(width: 10),
-                // Save
-                Expanded(
-                  flex: 2,
-                  child: ElevatedButton.icon(
-                    onPressed: _saved ? null : () async {
-                      await _ensureFile();
-                      setState(() => _saved = true);
-                      if (mounted) AppSnackbar.success(context, 'Report saved to device');
-                    },
-                    icon: Icon(_saved ? Icons.check_rounded : Icons.save_alt_rounded, size: 18),
-                    label: Text(
-                      _saved ? 'Saved' : 'Save to Device',
-                      style: _f(size: 13, weight: FontWeight.w700, color: _saved ? AppColors.textTertiary : Colors.white),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: SvgPicture.asset(
+                        'assets/icons/chevron-left-icon.svg',
+                        width: 22, height: 22,
+                        colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn),
+                      ),
+                      onPressed: () => Navigator.pop(context),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _saved ? const Color(0xFFE2E8F0) : AppColors.primary,
-                      foregroundColor: _saved ? AppColors.textTertiary : Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      elevation: 0,
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(widget.title, style: appText(size: 16, weight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 2),
+                          Text('Preview & share your report', style: appText(size: 11, color: AppColors.textTertiary)),
+                        ],
+                      ),
+                    ),
+                    // Quick print button in header
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.print_rounded, size: 20, color: AppColors.textSecondary),
+                        onPressed: () => Printing.layoutPdf(onLayout: (_) => widget.pdfBytes),
+                        tooltip: 'Print',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // PDF viewer
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 16, offset: const Offset(0, 2)),
+                    ],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: PdfPreview(
+                    build: (_) => widget.pdfBytes,
+                    canChangeOrientation: false,
+                    canChangePageFormat: false,
+                    canDebug: false,
+                    pdfFileName: widget.title.replaceAll(' ', '_').toLowerCase(),
+                    allowPrinting: false,
+                    allowSharing: false,
+                    useActions: false,
+                    loadingWidget: Center(
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        const SizedBox(
+                          width: 36, height: 36,
+                          child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2.5),
+                        ),
+                        const SizedBox(height: 16),
+                        Text('Loading preview...', style: appText(size: 13, color: AppColors.textTertiary)),
+                      ]),
+                    ),
+                    onError: (context, error) => Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(mainAxisSize: MainAxisSize.min, children: [
+                          Container(
+                            width: 64, height: 64,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF2F2),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Icon(Icons.picture_as_pdf_rounded, size: 32, color: Color(0xFFEF4444)),
+                          ),
+                          const SizedBox(height: 16),
+                          Text('Unable to preview PDF', style: appText(size: 16, weight: FontWeight.w700)),
+                          const SizedBox(height: 8),
+                          Text('You can still share, print, or save the report.',
+                            style: appText(size: 13, color: AppColors.textTertiary), textAlign: TextAlign.center),
+                        ]),
+                      ),
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+
+              // Premium bottom action bar
+              Container(
+                padding: EdgeInsets.fromLTRB(16, 14, 16, bottomPadding + 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 16, offset: const Offset(0, -4))],
+                ),
+                child: Row(
+                  children: [
+                    // Share
+                    _roundActionBtn(
+                      icon: Icons.share_rounded,
+                      label: 'Share',
+                      isLoading: _sharing,
+                      onTap: () async {
+                        setState(() => _sharing = true);
+                        try {
+                          final path = await _ensureFile();
+                          await Share.shareXFiles([XFile(path)], subject: widget.title);
+                        } catch (_) {
+                          if (mounted) AppSnackbar.error(context, 'Failed to share');
+                        }
+                        if (mounted) setState(() => _sharing = false);
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                    // Print
+                    _roundActionBtn(
+                      icon: Icons.print_rounded,
+                      label: 'Print',
+                      onTap: () => Printing.layoutPdf(onLayout: (_) => widget.pdfBytes),
+                    ),
+                    const SizedBox(width: 10),
+                    // Save — primary CTA
+                    Expanded(
+                      flex: 3,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        child: ElevatedButton.icon(
+                          onPressed: _saved ? null : () async {
+                            await _ensureFile();
+                            setState(() => _saved = true);
+                            HapticFeedback.mediumImpact();
+                            if (mounted) AppSnackbar.success(context, 'Report saved to device');
+                          },
+                          icon: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            child: Icon(
+                              _saved ? Icons.check_rounded : Icons.save_alt_rounded,
+                              key: ValueKey(_saved),
+                              size: 18,
+                            ),
+                          ),
+                          label: Text(
+                            _saved ? 'Saved ✓' : 'Save to Device',
+                            style: appText(
+                              size: 13,
+                              weight: FontWeight.w700,
+                              color: _saved ? AppColors.textTertiary : Colors.white,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _saved ? const Color(0xFFE2E8F0) : AppColors.primary,
+                            foregroundColor: _saved ? AppColors.textTertiary : Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            elevation: _saved ? 0 : 2,
+                            shadowColor: AppColors.primary.withOpacity(0.3),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _actionBtn({required IconData icon, required String label, required VoidCallback onTap}) {
+  Widget _roundActionBtn({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool isLoading = false,
+  }) {
     return Expanded(
-      child: OutlinedButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, size: 18),
-        label: Text(label, style: _f(size: 12, weight: FontWeight.w600)),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primary,
-          side: const BorderSide(color: AppColors.primary),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isLoading ? null : onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                isLoading
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                    : Icon(icon, size: 20, color: AppColors.primary),
+                const SizedBox(height: 4),
+                Text(label, style: appText(size: 11, weight: FontWeight.w600, color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
         ),
       ),
     );

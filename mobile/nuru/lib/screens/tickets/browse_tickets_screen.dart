@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/services/ticketing_service.dart';
 import 'my_tickets_screen.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class BrowseTicketsScreen extends StatefulWidget {
   const BrowseTicketsScreen({super.key});
@@ -48,7 +49,7 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
-      appBar: NuruSubPageAppBar(title: 'Browse Tickets'),
+      appBar: NuruSubPageAppBar(title: context.tr('browse_tickets')),
       body: Column(
         children: [
           // Header row: icon + description + My Tickets button (matches web)

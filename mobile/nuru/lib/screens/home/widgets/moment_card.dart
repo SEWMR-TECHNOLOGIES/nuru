@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/services/social_service.dart';
 import '../../../core/widgets/nuru_video_player.dart';
 import '../../events/event_public_view_screen.dart';
+import '../../../core/l10n/l10n_helper.dart';
 
 /// Feed post card — clean, modern white card with subtle border
 class MomentCard extends StatefulWidget {

@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/services/social_service.dart';
 import 'community_detail_screen.dart';
+import '../../core/l10n/l10n_helper.dart';
 
 class CommunitiesScreen extends StatefulWidget {
   const CommunitiesScreen({super.key});
@@ -57,7 +58,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with SingleTicker
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: NuruSubPageAppBar(
-        title: 'Communities',
+        title: context.trw('communities'),
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.primary,
@@ -65,8 +66,8 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with SingleTicker
           indicatorColor: AppColors.primary,
           labelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
           tabs: [
-            const Tab(text: 'Discover'),
-            Tab(text: 'Joined (${_myCommunities.length})'),
+            Tab(text: context.trw('discover')),
+            Tab(text: '${context.trw('joined')} (${_myCommunities.length})'),
           ],
         ),
         actions: [
@@ -100,7 +101,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with SingleTicker
               child: const Icon(Icons.groups_outlined, size: 24, color: AppColors.textHint),
             ),
             const SizedBox(height: 14),
-            Text(isDiscover ? 'No communities found' : 'You haven\'t joined any communities',
+            Text(isDiscover ? context.trw('no_communities_found') : context.trw('not_joined_communities'),
                 style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
           ],
         ),
@@ -183,7 +184,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with SingleTicker
                   children: [
                     const Icon(Icons.people_outline, size: 14, color: AppColors.textHint),
                     const SizedBox(width: 4),
-                    Text('$memberCount members', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+                    Text('$memberCount ${context.trw('members_count')}', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
                     const Spacer(),
                     GestureDetector(
                       onTap: () async {
@@ -201,7 +202,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with SingleTicker
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
-                          joined ? 'Leave' : 'Join',
+                          joined ? context.trw('leave') : context.trw('join'),
                           style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600,
                               color: joined ? AppColors.textSecondary : Colors.white),
                         ),
@@ -226,7 +227,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with SingleTicker
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Create Community', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700)),
+        title: Text(context.trw('create_community'), style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -253,7 +254,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with SingleTicker
               await SocialService.createCommunity(name: nameCtrl.text.trim(), description: descCtrl.text.trim());
               _load();
             },
-            child: const Text('Create'),
+            child: Text(context.trw('create')),
           ),
         ],
       ),

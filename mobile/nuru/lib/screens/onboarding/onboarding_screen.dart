@@ -7,12 +7,12 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_logo.dart';
+import '../../core/widgets/language_selector.dart';
+import '../../core/l10n/l10n_helper.dart';
 import '../../providers/auth_provider.dart';
 import '../auth/login_screen.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Main Screen
-// ─────────────────────────────────────────────────────────────────────────────
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -28,16 +28,16 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   late final AnimationController _textController;
 
-  static const _titles = [
-    'Plan events\nall in one place',
-    'Every event type\none platform',
-    'Explore and manage\nyour events',
+  List<String> _getTitles(BuildContext context) => [
+    context.trw('onboarding_title_1'),
+    context.trw('onboarding_title_2'),
+    context.trw('onboarding_title_3'),
   ];
 
-  static const _subtitles = [
-    'Manage vendors, contributions, invitations, and RSVPs from one premium workspace.',
-    'Weddings, corporate, birthdays, memorials, and more. Nuru handles them all seamlessly.',
-    'Tickets, guests, budgets, and insights, everything neatly organized. Start planning with confidence.',
+  List<String> _getSubtitles(BuildContext context) => [
+    context.trw('onboarding_desc_1'),
+    context.trw('onboarding_desc_2'),
+    context.trw('onboarding_desc_3'),
   ];
 
   @override
@@ -104,7 +104,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
               return Column(
                 children: [
-                  // ── Top bar: logo only + skip ──
+                  // ── Top bar: language toggle + logo + skip ──
                   Padding(
                     padding: EdgeInsets.fromLTRB(hp, 8, hp, 0),
                     child: SizedBox(
@@ -112,6 +112,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
+                          const Align(
+                            alignment: Alignment.centerLeft,
+                            child: LanguageToggle(showLabel: true, size: 24),
+                          ),
                           const Center(child: NuruLogo(size: 22)),
                           Align(
                             alignment: Alignment.centerRight,
@@ -119,11 +123,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                               onPressed: _skip,
                               style: TextButton.styleFrom(
                                 foregroundColor: AppColors.textTertiary,
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
                                 minimumSize: const Size(52, 36),
                               ),
-                              child: Text('Skip',
-                                  style: _font(size: 13, weight: FontWeight.w600)),
+                              child: Text(
+                                context.trw('skip'),
+                                style: _font(size: 13, weight: FontWeight.w600),
+                              ),
                             ),
                           ),
                         ],
@@ -137,12 +145,16 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       controller: _pageController,
                       itemCount: 3,
                       onPageChanged: _onPageChanged,
-                      itemBuilder: (_, index) => _OnboardingPage(
-                        index: index,
-                        title: _titles[index],
-                        subtitle: _subtitles[index],
-                        textController: _textController,
-                      ),
+                      itemBuilder: (ctx, index) {
+                        final titles = _getTitles(ctx);
+                        final subtitles = _getSubtitles(ctx);
+                        return _OnboardingPage(
+                          index: index,
+                          title: titles[index],
+                          subtitle: subtitles[index],
+                          textController: _textController,
+                        );
+                      },
                     ),
                   ),
 
@@ -169,11 +181,14 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                           ),
                         ),
                         child: Text(
-                          isLast ? 'Get Started' : 'Next',
+                          isLast
+                              ? context.trw('get_started')
+                              : context.trw('next'),
                           style: _font(
-                              size: 17,
-                              weight: FontWeight.w700,
-                              color: Colors.white),
+                            size: 17,
+                            weight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
@@ -188,9 +203,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Page wrapper
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _OnboardingPage extends StatelessWidget {
   final int index;
@@ -219,10 +232,7 @@ class _OnboardingPage extends StatelessWidget {
             children: [
               SizedBox(height: box.maxHeight * 0.01),
               // Scene takes ~55% of available height
-              Flexible(
-                flex: 55,
-                child: _sceneByIndex(index),
-              ),
+              Flexible(flex: 55, child: _sceneByIndex(index)),
               SizedBox(height: box.maxHeight * 0.02),
               // Text takes ~40%
               Flexible(
@@ -289,9 +299,7 @@ class _OnboardingPage extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // PAGE 1 — Stacked cards (like reference: rotated card stack with CTA chip)
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _WorkspaceScene extends StatefulWidget {
   const _WorkspaceScene();
@@ -305,9 +313,21 @@ class _WorkspaceSceneState extends State<_WorkspaceScene> {
 
   // Card order: index 0 = back-most, index 2 = front-most
   static const _cardConfigs = [
-    _CardConfig('Contributions', 'Track & manage', 'assets/images/onboarding_contributions.png'),
-    _CardConfig('Invitations', 'Send & track RSVPs', 'assets/images/onboarding_invitations.png'),
-    _CardConfig('Vendors', 'Discover & book', 'assets/images/onboarding_vendors.png'),
+    _CardConfig(
+      'Contributions',
+      'Track & manage',
+      'assets/images/onboarding_contributions.png',
+    ),
+    _CardConfig(
+      'Invitations',
+      'Send & track RSVPs',
+      'assets/images/onboarding_invitations.png',
+    ),
+    _CardConfig(
+      'Vendors',
+      'Discover & book',
+      'assets/images/onboarding_vendors.png',
+    ),
   ];
 
   void _swipeNext() {
@@ -315,7 +335,10 @@ class _WorkspaceSceneState extends State<_WorkspaceScene> {
   }
 
   void _swipePrev() {
-    setState(() => _frontIndex = (_frontIndex - 1 + _cardConfigs.length) % _cardConfigs.length);
+    setState(
+      () => _frontIndex =
+          (_frontIndex - 1 + _cardConfigs.length) % _cardConfigs.length,
+    );
   }
 
   @override
@@ -362,7 +385,9 @@ class _WorkspaceSceneState extends State<_WorkspaceScene> {
         final orderedCards = <Widget>[];
         for (int posIdx = 0; posIdx < 3; posIdx++) {
           // posIdx 0 = back, 1 = middle, 2 = front
-          final cardIdx = (_frontIndex - 2 + posIdx + _cardConfigs.length * 2) % _cardConfigs.length;
+          final cardIdx =
+              (_frontIndex - 2 + posIdx + _cardConfigs.length * 2) %
+              _cardConfigs.length;
           final card = _cardConfigs[cardIdx];
           final pos = positions[posIdx];
 
@@ -583,10 +608,8 @@ class _StackedCard extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // PAGE 2 — Profile-style rows (like reference: avatar + name + follow)
 // Adapted for Nuru: event feature rows without specific event type names
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _MultiEventScene extends StatelessWidget {
   const _MultiEventScene();
@@ -629,7 +652,9 @@ class _MultiEventScene extends StatelessWidget {
                     angle: 0.1,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(8),
@@ -644,9 +669,10 @@ class _MultiEventScene extends StatelessWidget {
                       child: Text(
                         'Unlimited Events',
                         style: _font(
-                            size: 10,
-                            weight: FontWeight.w700,
-                            color: AppColors.textPrimary),
+                          size: 10,
+                          weight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
                   ),
@@ -656,7 +682,9 @@ class _MultiEventScene extends StatelessWidget {
                 ...List.generate(features.length, (i) {
                   final f = features[i];
                   return Padding(
-                    padding: EdgeInsets.only(bottom: i < features.length - 1 ? 10 : 0),
+                    padding: EdgeInsets.only(
+                      bottom: i < features.length - 1 ? 10 : 0,
+                    ),
                     child: _EventFeatureCard(
                       label: f.label,
                       sub: f.sub,
@@ -798,10 +826,8 @@ class _EventFeatureCard extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // PAGE 3 — Orbital diagram (like reference: central circle + satellite nodes)
 // No Nuru logo in center, use abstract icon instead
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _TicketsScene extends StatelessWidget {
   const _TicketsScene();
@@ -817,11 +843,11 @@ class _TicketsScene extends StatelessWidget {
 
         // Satellite positions equally spaced (72° apart)
         final satellites = [
-          _Satellite('Tickets', -pi / 2),                    // top
-          _Satellite('Revenue', -pi / 2 + 2 * pi / 5),      // top-right
-          _Satellite('Budgets', -pi / 2 + 4 * pi / 5),      // bottom-right
-          _Satellite('Insights', -pi / 2 + 6 * pi / 5),     // bottom-left
-          _Satellite('Guests', -pi / 2 + 8 * pi / 5),       // top-left
+          _Satellite('Tickets', -pi / 2), // top
+          _Satellite('Revenue', -pi / 2 + 2 * pi / 5), // top-right
+          _Satellite('Budgets', -pi / 2 + 4 * pi / 5), // bottom-right
+          _Satellite('Insights', -pi / 2 + 6 * pi / 5), // bottom-left
+          _Satellite('Guests', -pi / 2 + 8 * pi / 5), // top-left
         ];
 
         return Center(
@@ -894,8 +920,10 @@ class _TicketsScene extends StatelessWidget {
                   top: sceneSize * 0.04,
                   right: sceneSize * 0.15,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(8),
@@ -1057,9 +1085,7 @@ class _DottedConnectionPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Dots
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _DotRow extends StatelessWidget {
   final int activeIndex;
@@ -1087,9 +1113,7 @@ class _DotRow extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Shared font helper
-// ─────────────────────────────────────────────────────────────────────────────
 
 TextStyle _font({
   required double size,

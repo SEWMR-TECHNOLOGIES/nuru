@@ -1,0 +1,172 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'secure_token_storage.dart';
+import 'api_config.dart';
+
+class ApiBase {
+  static String get baseUrl => ApiConfig.baseUrl;
+
+  static Future<Map<String, String>> headers({bool auth = true}) async {
+    final h = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    if (auth) {
+      final token = await SecureTokenStorage.getToken();
+      if (token != null) h['Authorization'] = 'Bearer $token';
+    }
+    return h;
+  }
+
+  static Future<Map<String, String>> authOnlyHeaders() async {
+    final h = <String, String>{'Accept': 'application/json'};
+    final token = await SecureTokenStorage.getToken();
+    if (token != null) h['Authorization'] = 'Bearer $token';
+    return h;
+  }
+
+  static Map<String, dynamic> normalizeResponse(
+    http.Response res, {
+    String fallbackError = 'Request failed',
+  }) {
+    try {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map<String, dynamic> && decoded.containsKey('success')) {
+        return decoded;
+      }
+      return {
+        'success': res.statusCode >= 200 && res.statusCode < 300,
+        'message': decoded is Map ? (decoded['message']?.toString() ?? '') : '',
+        'data': decoded,
+      };
+    } catch (_) {
+      return {'success': false, 'message': fallbackError, 'data': null};
+    }
+  }
+
+  static Future<Map<String, dynamic>> get(
+    String endpoint, {
+    bool auth = true,
+    Map<String, String>? queryParams,
+    String fallbackError = 'Request failed',
+  }) async {
+    try {
+      var uri = Uri.parse('$baseUrl$endpoint');
+      if (queryParams != null) {
+        uri = uri.replace(queryParameters: queryParams);
+      }
+      final res = await http.get(uri, headers: await headers(auth: auth));
+      return normalizeResponse(res, fallbackError: fallbackError);
+    } catch (_) {
+      return {'success': false, 'message': fallbackError, 'data': null};
+    }
+  }
+
+  static Future<Map<String, dynamic>> post(
+    String endpoint,
+    Map<String, dynamic> body, {
+    bool auth = true,
+    String fallbackError = 'Request failed',
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: await headers(auth: auth),
+        body: jsonEncode(body),
+      );
+      return normalizeResponse(res, fallbackError: fallbackError);
+    } catch (_) {
+      return {'success': false, 'message': fallbackError, 'data': null};
+    }
+  }
+
+  static Future<Map<String, dynamic>> put(
+    String endpoint,
+    Map<String, dynamic> body, {
+    bool auth = true,
+    String fallbackError = 'Request failed',
+  }) async {
+    try {
+      final res = await http.put(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: await headers(auth: auth),
+        body: jsonEncode(body),
+      );
+      return normalizeResponse(res, fallbackError: fallbackError);
+    } catch (_) {
+      return {'success': false, 'message': fallbackError, 'data': null};
+    }
+  }
+
+  static Future<Map<String, dynamic>> delete(
+    String endpoint, {
+    bool auth = true,
+    String fallbackError = 'Request failed',
+  }) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: await headers(auth: auth),
+      );
+      return normalizeResponse(res, fallbackError: fallbackError);
+    } catch (_) {
+      return {'success': false, 'message': fallbackError, 'data': null};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getRaw(String endpoint) async {
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: await headers(),
+      );
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': false, 'message': 'Request failed', 'data': null};
+    }
+  }
+
+  static Future<Map<String, dynamic>> postRaw(
+    String endpoint,
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: await headers(),
+        body: jsonEncode(body),
+      );
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': false, 'message': 'Request failed', 'data': null};
+    }
+  }
+
+  static Future<Map<String, dynamic>> putRaw(
+    String endpoint,
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      final res = await http.put(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: await headers(),
+        body: jsonEncode(body),
+      );
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': false, 'message': 'Request failed', 'data': null};
+    }
+  }
+
+  static Future<Map<String, dynamic>> deleteRaw(String endpoint) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: await headers(),
+      );
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': false, 'message': 'Request failed', 'data': null};
+    }
+  }
+}
