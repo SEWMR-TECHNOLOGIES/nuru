@@ -645,7 +645,7 @@ def get_meeting_token(event_id: str, meeting_id: str, db: Session = Depends(get_
     is_host = _is_host_or_cohost(meeting, user_id, db)
 
     # Get avatar URL for metadata
-    avatar_url = user.profile.profile_picture_url if user and user.profile else None
+    avatar_url = user.profile.profile_picture_url if user and hasattr(user, 'profile') and user.profile else None
     # Generate LiveKit JWT token
     token = _create_livekit_token(
         api_key=LIVEKIT_API_KEY,
@@ -712,26 +712,36 @@ def _serialize_meeting(meeting: EventMeeting, db: Session) -> dict:
     from datetime import timedelta
     from models.meeting_documents import MeetingAgendaItem, MeetingMinutes
 
-    # Auto-fix stale in_progress meetings
-    if meeting.status == MeetingStatusEnum.in_progress:
+    # Auto-end meetings: if scheduled time + duration has passed and no active participants
+    if meeting.status in (MeetingStatusEnum.in_progress, MeetingStatusEnum.scheduled):
         try:
             duration = int(meeting.duration_minutes or 60)
-            end_time = meeting.scheduled_at + timedelta(minutes=duration + 30)
+            end_time = meeting.scheduled_at + timedelta(minutes=duration)
             if datetime.utcnow() > end_time:
-                meeting.status = MeetingStatusEnum.ended
-                meeting.ended_at = end_time
-                db.commit()
+                # Check if anyone is still in the meeting (joined but not left)
+                active_count = db.query(EventMeetingParticipant).filter(
+                    EventMeetingParticipant.meeting_id == meeting.id,
+                    EventMeetingParticipant.joined_at.isnot(None),
+                    EventMeetingParticipant.left_at.is_(None),
+                ).count()
+                if active_count == 0:
+                    meeting.status = MeetingStatusEnum.ended
+                    meeting.ended_at = end_time
+                    db.commit()
         except Exception:
             pass
 
     participants = []
     for p in meeting.participants:
         user = db.query(User).filter(User.id == p.user_id).first()
+
+        avatar = user.profile.profile_picture_url if user and user.profile else None
+
         participants.append({
             "id": str(p.id),
             "user_id": str(p.user_id),
             "name": f"{user.first_name or ''} {user.last_name or ''}".strip() if user else "Unknown",
-            "avatar_url": getattr(user, 'avatar_url', None) or getattr(getattr(user, 'profile', None), 'avatar_url', None) if user else None,
+            "avatar_url": avatar,
             "is_notified": p.is_notified,
             "joined_at": p.joined_at.isoformat() if p.joined_at else None,
             "role": p.role.value if p.role else "participant",
