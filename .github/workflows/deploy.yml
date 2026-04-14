@@ -17,27 +17,40 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            set -e
+
             echo "🚀 Starting deployment..."
 
             cd /var/www/nuru
 
             echo "📥 Pulling latest code"
-            git pull origin main
+            git fetch origin
+            git reset --hard origin/master
 
-            echo "🐍 Backend setup"
-            cd backend
+            echo "🎨 Build frontend FIRST"
+            cd frontend
+            npm install
+            npm run build
+
+            echo "🐍 Prepare backend"
+            cd ../backend
             source venv/bin/activate
             pip install -r requirements.txt
 
-            echo "🔁 Restart backend"
+            echo "🔁 Restart backend LAST"
             systemctl restart nuru-backend
 
-            echo "🎨 Frontend build"
-            cd ../frontend
-            npm install
-            npm run build
+            echo "⏳ Wait for backend to be ready"
+            for i in {1..20}; do
+              if curl -s http://127.0.0.1:8000 > /dev/null; then
+                echo "✅ Backend is up"
+                break
+              fi
+              echo "Waiting..."
+              sleep 1
+            done
 
             echo "♻️ Reload nginx"
             systemctl reload nginx
 
-            echo "✅ Done"
+            echo "✅ Deployment complete"
