@@ -3,7 +3,7 @@ name: Deploy to VPS
 on:
   push:
     branches:
-      - master
+      - master # Change to your default branch if it's not 'master'
 
 jobs:
   deploy:
