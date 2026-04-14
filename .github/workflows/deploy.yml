@@ -1,0 +1,43 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            echo "🚀 Starting deployment..."
+
+            cd /var/www/nuru
+
+            echo "📥 Pulling latest code"
+            git pull origin main
+
+            echo "🐍 Backend setup"
+            cd backend
+            source venv/bin/activate
+            pip install -r requirements.txt
+
+            echo "🔁 Restart backend"
+            systemctl restart nuru-backend
+
+            echo "🎨 Frontend build"
+            cd ../frontend
+            npm install
+            npm run build
+
+            echo "♻️ Reload nginx"
+            systemctl reload nginx
+
+            echo "✅ Done"

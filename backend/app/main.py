@@ -29,6 +29,7 @@ app.add_middleware(
         "https://www.nuru.tz",
         "https://nuru.tz",
         "https://workspace.nuru.tz",
+        "http://app.nuru.tz",
     ],
     allow_credentials=True,
     allow_methods=["*"],
