@@ -1,0 +1,455 @@
+import { useState } from "react";
+import SuspensionModal from "@/components/SuspensionModal";
+import { motion } from "framer-motion";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Eye, EyeOff, ChevronLeft, Phone, Mail, MessageCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { useToast } from "@/hooks/use-toast";
+import Layout from "@/components/layout/Layout";
+import { useMeta } from "@/hooks/useMeta";
+import { useQueryClient } from "@tanstack/react-query";
+import { api, showApiErrorsShadcn } from "@/lib/api";
+import nuruLogo from "@/assets/nuru-logo.png";
+import { CountryPhoneInput, maskPhoneDisplay } from "@/components/ui/country-phone-input";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+
+type ForgotStep = "choose" | "email" | "phone" | "otp";
+
+const Login = () => {
+  const { t } = useLanguage();
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotStep, setForgotStep] = useState<ForgotStep>("choose");
+  const [suspensionInfo, setSuspensionInfo] = useState<{ open: boolean; reason?: string | null }>({ open: false });
+  const [formData, setFormData] = useState({
+    credential: "",
+    password: "",
+    forgotEmail: "",
+    forgotPhone: "",
+    otp: "",
+  });
+  const [resetOtpChannel, setResetOtpChannel] = useState<"sms" | "whatsapp" | null>(null);
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnUrl = searchParams.get('returnUrl');
+  const qc = useQueryClient();
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const resetForgotState = () => {
+    setShowForgotPassword(false);
+    setForgotStep("choose");
+    setResetOtpChannel(null);
+    setFormData(prev => ({ ...prev, forgotEmail: "", forgotPhone: "", otp: "" }));
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formData.credential || !formData.password) {
+      toast({ title: t('missing_fields'), description: "Credential and password are required.", variant: "destructive" });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await api.auth.signin({
+        credential: formData.credential,
+        password: formData.password
+      });
+      
+      if (response.success) {
+        const user = response.data.user;
+
+        if (!user.is_phone_verified) {
+          toast({ title: t('verify_your_phone'), description: "Please verify your phone to continue.", variant: "destructive" });
+          localStorage.setItem("userId", user.id);
+          navigate(`/verify-phone?phone=${user.phone}`);
+          return;
+        }
+        const token = response.data.access_token;
+
+        localStorage.setItem("token", token);
+        localStorage.setItem("login", Date.now().toString());
+
+        qc.setQueryData(["currentUser"], user);
+        toast({ title: t('welcome_back_excl'), description: response.message });
+        navigate(returnUrl || "/", { replace: true });
+      } else {
+        const data = (response as any).data;
+        if (data?.suspended) {
+          setSuspensionInfo({ open: true, reason: data.suspension_reason });
+        } else {
+          showApiErrorsShadcn(response, toast, "Login Failed");
+        }
+      }
+    } catch (err) {
+      toast({ title: t('error'), description: "Unable to reach server. Try again later.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.forgotEmail) {
+      toast({ title: t('email'), description: "We need your email to send reset instructions.", variant: "destructive" });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await api.auth.forgotPassword(formData.forgotEmail);
+      if (response.success) {
+        toast({ title: t('success'), description: response.message || "Check your email for password reset instructions." });
+        resetForgotState();
+      } else {
+        showApiErrorsShadcn(response, toast, "Reset Failed");
+      }
+    } catch (err) {
+      toast({ title: t('error'), description: "Unable to send reset link. Try again later.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotPhone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.forgotPhone) {
+      toast({ title: t('phone'), description: "We need your phone number to send a reset code.", variant: "destructive" });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await api.auth.forgotPasswordPhone(formData.forgotPhone);
+      if (response.success) {
+        const msg = (response.message || "").toLowerCase();
+        if (msg.includes("whatsapp")) setResetOtpChannel("whatsapp");
+        else setResetOtpChannel("sms");
+        toast({ title: t('success'), description: response.message || "Check your phone for the reset code." });
+        setForgotStep("otp");
+      } else {
+        showApiErrorsShadcn(response, toast, "Reset Failed");
+      }
+    } catch (err) {
+      toast({ title: t('error'), description: "Unable to send reset code. Try again later.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (formData.otp.length < 6) {
+      toast({ title: t('enter_verification_code'), description: "Please enter the 6-digit code sent to your phone.", variant: "destructive" });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await api.auth.verifyResetOtp(formData.forgotPhone, formData.otp);
+      if (response.success && response.data?.reset_token) {
+        toast({ title: t('success'), description: "Set your new password." });
+        navigate(`/reset-password?token=${response.data.reset_token}`);
+        resetForgotState();
+      } else {
+        showApiErrorsShadcn(response, toast, "Verification Failed");
+      }
+    } catch (err) {
+      toast({ title: t('error'), description: "Unable to verify code. Try again.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setIsLoading(true);
+    try {
+      const response = await api.auth.forgotPasswordPhone(formData.forgotPhone);
+      if (response.success) {
+        const msg = (response.message || "").toLowerCase();
+        if (msg.includes("whatsapp")) setResetOtpChannel("whatsapp");
+        else setResetOtpChannel("sms");
+        toast({ title: t('success'), description: response.message || "A new code has been sent." });
+      } else {
+        showApiErrorsShadcn(response, toast, "Resend Failed");
+      }
+    } catch {
+      toast({ title: t('error'), description: "Unable to resend code.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useMeta({ title: t('sign_in'), description: "Sign in to your Nuru account to manage events." });
+
+  if (suspensionInfo.open) {
+    return (
+      <SuspensionModal
+        open={true}
+        reason={suspensionInfo.reason}
+        variant="fullscreen"
+        onClose={() => setSuspensionInfo({ open: false })}
+      />
+    );
+  }
+
+  const renderForgotPassword = () => {
+    if (forgotStep === "choose") {
+      return (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground mb-2">{t('how_reset_password')}</p>
+          <Button
+            variant="outline"
+            className="w-full h-12 rounded-xl justify-start gap-3 text-foreground"
+            onClick={() => setForgotStep("email")}
+          >
+            <Mail className="w-5 h-5" />
+            {t('reset_via_email')}
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full h-12 rounded-xl justify-start gap-3 text-foreground"
+            onClick={() => setForgotStep("phone")}
+          >
+            <Phone className="w-5 h-5" />
+            {t('reset_via_phone')}
+          </Button>
+        </div>
+      );
+    }
+
+    if (forgotStep === "email") {
+      return (
+        <form onSubmit={handleForgotEmail} className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">{t('email_address')}</label>
+            <Input
+              type="email"
+              placeholder="your.email@example.com"
+              value={formData.forgotEmail}
+              onChange={e => handleInputChange("forgotEmail", e.target.value)}
+              className="h-12 rounded-xl"
+              required
+            />
+          </div>
+          <Button
+            type="submit"
+            className="w-full h-12 bg-foreground text-background hover:bg-foreground/90 rounded-full"
+            disabled={isLoading}
+          >
+            {isLoading ? t('sending') : t('send_reset_link')}
+          </Button>
+        </form>
+      );
+    }
+
+    if (forgotStep === "phone") {
+      return (
+        <form onSubmit={handleForgotPhone} className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">{t('phone_number')}</label>
+            <CountryPhoneInput
+              value={formData.forgotPhone}
+              onChange={(fullNumber) => handleInputChange("forgotPhone", fullNumber)}
+              autoDetect
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground mt-1">{t('we_send_code')}</p>
+          </div>
+          <Button
+            type="submit"
+            className="w-full h-12 bg-foreground text-background hover:bg-foreground/90 rounded-full"
+            disabled={isLoading}
+          >
+            {isLoading ? t('sending') : t('send_reset_code')}
+          </Button>
+        </form>
+      );
+    }
+
+    return (
+      <form onSubmit={handleVerifyOtp} className="space-y-5">
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-2">{t('enter_verification_code')}</label>
+          <p className="text-xs text-muted-foreground mb-3">
+            {resetOtpChannel === "whatsapp"
+              ? `A 6-digit code was sent via WhatsApp to ${maskPhoneDisplay(formData.forgotPhone)}`
+              : resetOtpChannel === "sms"
+              ? `A 6-digit code was sent via SMS to ${maskPhoneDisplay(formData.forgotPhone)}`
+              : t('code_sent_to_phone')
+            }
+          </p>
+
+          {resetOtpChannel && (
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium mb-4 ${
+              resetOtpChannel === "whatsapp" ? "bg-green-500/10 text-green-700 dark:text-green-400" : "bg-blue-500/10 text-blue-700 dark:text-blue-400"
+            }`}>
+              {resetOtpChannel === "whatsapp" ? <MessageCircle className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
+              {resetOtpChannel === "whatsapp" ? t('check_whatsapp') : t('check_sms')}
+            </div>
+          )}
+
+          <div className="flex justify-center">
+            <InputOTP
+              maxLength={6}
+              value={formData.otp}
+              onChange={value => handleInputChange("otp", value)}
+            >
+              <InputOTPGroup>
+                <InputOTPSlot index={0} />
+                <InputOTPSlot index={1} />
+                <InputOTPSlot index={2} />
+                <InputOTPSlot index={3} />
+                <InputOTPSlot index={4} />
+                <InputOTPSlot index={5} />
+              </InputOTPGroup>
+            </InputOTP>
+          </div>
+        </div>
+        <Button
+          type="submit"
+          className="w-full h-12 bg-foreground text-background hover:bg-foreground/90 rounded-full"
+          disabled={isLoading || formData.otp.length < 6}
+        >
+          {isLoading ? t('verifying') : t('verify_continue')}
+        </Button>
+        <button
+          type="button"
+          onClick={handleResendOtp}
+          disabled={isLoading}
+          className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {t('didnt_receive_code')}
+        </button>
+      </form>
+    );
+  };
+
+  const forgotTitle =
+    forgotStep === "choose" ? t('reset_password') :
+    forgotStep === "email" ? t('reset_via_email') :
+    forgotStep === "phone" ? t('reset_via_phone') :
+    t('enter_verification_code');
+
+  const forgotDescription =
+    forgotStep === "choose" ? t('choose_recovery') :
+    forgotStep === "email" ? t('enter_email_reset') :
+    forgotStep === "phone" ? t('enter_phone_reset') :
+    t('code_sent_to_phone');
+
+  return (
+    <Layout>
+      <div className="min-h-screen flex items-start md:items-center justify-center px-6 pt-16 md:py-20">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="w-full max-w-md"
+        >
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            {showForgotPassword ? forgotTitle : t('welcome_back')}
+          </h1>
+          <p className="text-muted-foreground mb-8">
+            {showForgotPassword ? forgotDescription : t('sign_in_continue')}
+          </p>
+
+          {!showForgotPassword ? (
+            <>
+              <form onSubmit={handleLogin} className="space-y-5">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    {t('email_phone_username')}
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder={t('enter_credential')}
+                    value={formData.credential}
+                    onChange={e => handleInputChange("credential", e.target.value)}
+                    className="h-12 rounded-xl"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">{t('password')}</label>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder={t('enter_password')}
+                      value={formData.password}
+                      onChange={e => handleInputChange("password", e.target.value)}
+                      className="h-12 pr-12 rounded-xl"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <button 
+                    type="button" 
+                    onClick={() => { setShowForgotPassword(true); setForgotStep("choose"); }} 
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {t('forgot_password_q')}
+                  </button>
+                </div>
+
+                <Button 
+                  type="submit" 
+                  className="w-full h-12 bg-foreground text-background hover:bg-foreground/90 rounded-full" 
+                  disabled={isLoading}
+                >
+                  {isLoading ? t('signing_in') : t('sign_in')}
+                </Button>
+              </form>
+
+              <p className="text-center mt-8 text-sm text-muted-foreground">
+                {t('dont_have_account')}{" "}
+                <Link to="/register" className="text-foreground hover:underline font-medium">
+                  {t('create_one')}
+                </Link>
+              </p>
+            </>
+          ) : (
+            <>
+              {renderForgotPassword()}
+
+              <button 
+                onClick={() => {
+                  if (forgotStep === "otp") {
+                    setForgotStep("phone");
+                  } else if (forgotStep !== "choose") {
+                    setForgotStep("choose");
+                  } else {
+                    resetForgotState();
+                  }
+                }} 
+                className="w-full mt-4 text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-1"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                {forgotStep === "choose" ? t('back_to_sign_in') : t('back')}
+              </button>
+            </>
+          )}
+        </motion.div>
+      </div>
+    </Layout>
+  );
+};
+
+export default Login;

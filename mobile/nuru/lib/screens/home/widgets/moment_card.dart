@@ -1,0 +1,535 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/services/social_service.dart';
+import '../../../core/widgets/nuru_video_player.dart';
+import '../../events/event_public_view_screen.dart';
+import '../../../core/l10n/l10n_helper.dart';
+
+/// Feed post card — clean, modern white card with subtle border
+class MomentCard extends StatefulWidget {
+  final Map<String, dynamic> post;
+  final VoidCallback? onTap;
+  final VoidCallback? onAuthorTap;
+
+  const MomentCard({super.key, required this.post, this.onTap, this.onAuthorTap});
+
+  @override
+  State<MomentCard> createState() => _MomentCardState();
+}
+
+class _MomentCardState extends State<MomentCard> {
+  late bool _glowed;
+  late int _glowCount;
+  late bool _saved;
+  bool _glowing = false;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _glowed = widget.post['has_glowed'] == true;
+    _glowCount = (widget.post['glow_count'] ?? 0) as int;
+    _saved = widget.post['has_saved'] == true;
+  }
+
+  String get _authorName {
+    final author = widget.post['author'];
+    final user = widget.post['user'];
+    if (author is Map && (author['name'] ?? '').toString().isNotEmpty) return author['name'];
+    if (user is Map) {
+      final fn = user['first_name'] ?? '';
+      final ln = user['last_name'] ?? '';
+      final full = '$fn $ln'.trim();
+      if (full.isNotEmpty) return full;
+    }
+    return 'Anonymous';
+  }
+
+  String? get _authorAvatar {
+    final author = widget.post['author'];
+    final user = widget.post['user'];
+    return (author is Map ? author['avatar'] : null) ?? (user is Map ? user['avatar'] : null);
+  }
+
+  bool get _isVerified {
+    final user = widget.post['user'];
+    final author = widget.post['author'];
+    return (user is Map ? user['is_identity_verified'] : false) == true ||
+        (author is Map ? author['is_verified'] : false) == true;
+  }
+
+  String get _timeAgo {
+    final created = widget.post['created_at']?.toString() ?? '';
+    return created.isEmpty ? 'Recently' : SocialService.getTimeAgo(created);
+  }
+
+  int get _commentCount => (widget.post['comment_count'] ?? widget.post['echo_count'] ?? 0) as int;
+
+  List<String> get _images {
+    final imgs = widget.post['images'] ?? widget.post['media'] ?? [];
+    if (imgs is! List) return [];
+    return imgs.map<String>((img) {
+      if (img is String) return img;
+      if (img is Map) return (img['image_url'] ?? img['url'] ?? '').toString();
+      return '';
+    }).where((s) => s.isNotEmpty).toList();
+  }
+
+  List<String> get _mediaTypes {
+    final imgs = widget.post['images'] ?? widget.post['media'] ?? [];
+    if (imgs is! List) return [];
+    return imgs.map<String>((img) {
+      if (img is String) return '';
+      if (img is Map) return (img['media_type'] ?? img['type'] ?? '').toString();
+      return '';
+    }).toList();
+  }
+
+  String get _title => (widget.post['title'] ?? '').toString().trim();
+  String get _content => (widget.post['content'] ?? '').toString().trim();
+
+  Map<String, dynamic>? get _sharedEvent => widget.post['shared_event'] as Map<String, dynamic>?;
+  bool get _isEventShare => widget.post['post_type'] == 'event_share' && _sharedEvent != null;
+
+  Future<void> _handleGlow() async {
+    if (_glowing) return;
+    _glowing = true;
+    HapticFeedback.lightImpact();
+    final wasGlowed = _glowed;
+    setState(() {
+      _glowed = !wasGlowed;
+      _glowCount += wasGlowed ? -1 : 1;
+    });
+    try {
+      final postId = widget.post['id'].toString();
+      if (wasGlowed) {
+        await SocialService.unglowPost(postId);
+      } else {
+        await SocialService.glowPost(postId);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _glowed = wasGlowed;
+          _glowCount += wasGlowed ? 1 : -1;
+        });
+      }
+    }
+    _glowing = false;
+  }
+
+  Future<void> _handleSave() async {
+    if (_saving) return;
+    _saving = true;
+    HapticFeedback.lightImpact();
+    final wasSaved = _saved;
+    setState(() => _saved = !wasSaved);
+    try {
+      final postId = widget.post['id'].toString();
+      if (wasSaved) {
+        await SocialService.unsavePost(postId);
+      } else {
+        await SocialService.savePost(postId);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _saved = wasSaved);
+    }
+    _saving = false;
+  }
+
+  Future<void> _handleShare() async {
+    HapticFeedback.lightImpact();
+    final postId = widget.post['id']?.toString() ?? '';
+    final shareUrl = 'https://nuru.tz/shared/post/$postId';
+    final shareText = _content.isNotEmpty
+        ? '$_content\n\n$shareUrl'
+        : 'Check out this moment on Nuru!\n$shareUrl';
+    await Share.share(shareText);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.borderLight, width: 1),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildHeader(),
+            if (_isEventShare)
+              _buildEventShareCard()
+            else ...[
+              if (_images.isNotEmpty) _buildMedia(),
+              if (_title.isNotEmpty || _content.isNotEmpty) _buildText(),
+            ],
+            _buildActions(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    final avatar = _authorAvatar;
+    final hasAvatar = avatar != null && avatar.isNotEmpty && !avatar.contains('unsplash.com');
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: widget.onAuthorTap,
+            child: hasAvatar
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: CachedNetworkImage(imageUrl: avatar!, width: 36, height: 36, fit: BoxFit.cover,
+                      errorWidget: (_, __, ___) => _initialsAvatar()),
+                  )
+                : _initialsAvatar(),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        _authorName,
+                        style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3),
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    // Verification badge removed
+                  ],
+                ),
+                const SizedBox(height: 1),
+                Text(_timeAgo, style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary, height: 1.2)),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: _handleSave,
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: SvgPicture.asset(
+                _saved ? 'assets/icons/bookmark-filled-icon.svg' : 'assets/icons/bookmark-icon.svg',
+                width: 20, height: 20,
+                colorFilter: ColorFilter.mode(
+                  _saved ? AppColors.primary : AppColors.textHint,
+                  BlendMode.srcIn,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _initialsAvatar() {
+    final initials = _authorName.split(' ').map((w) => w.isNotEmpty ? w[0] : '').take(2).join().toUpperCase();
+    return Container(
+      width: 36, height: 36,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceVariant,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Center(
+        child: Text(initials, style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary, height: 1.0)),
+      ),
+    );
+  }
+
+  Widget _buildMedia() {
+    final images = _images;
+    final types = _mediaTypes;
+
+    if (images.length == 1) {
+      final isVideo = types.isNotEmpty && (types[0].contains('video') || images[0].endsWith('.mp4') || images[0].endsWith('.mov'));
+
+      if (isVideo) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+          child: NuruVideoPlayer(url: images[0], height: 220, borderRadius: BorderRadius.circular(12)),
+        );
+      }
+
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 360),
+            child: CachedNetworkImage(imageUrl: images[0], width: double.infinity, fit: BoxFit.contain,
+              errorWidget: (_, __, ___) => Container(height: 200, color: AppColors.surfaceVariant,
+                child: Center(child: SvgPicture.asset('assets/icons/broken-image-icon.svg', width: 24, height: 24,
+                  colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn))))),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 140,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+        itemCount: images.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final isVideo = i < types.length && (types[i].contains('video') || images[i].endsWith('.mp4'));
+          if (isVideo) {
+            return SizedBox(width: 200, child: NuruVideoPlayer(url: images[i], height: 140, borderRadius: BorderRadius.circular(12)));
+          }
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: CachedNetworkImage(imageUrl: images[i], width: 160, height: 140, fit: BoxFit.cover,
+              errorWidget: (_, __, ___) => Container(width: 160, height: 140, color: AppColors.surfaceVariant)),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildText() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_title.isNotEmpty)
+            Text(_title, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
+          if (_title.isNotEmpty && _content.isNotEmpty) const SizedBox(height: 4),
+          if (_content.isNotEmpty)
+            Text(_content, style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary, height: 1.5),
+              maxLines: 6, overflow: TextOverflow.ellipsis),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEventShareCard() {
+    final event = _sharedEvent!;
+    final eventTitle = event['title'] ?? 'Event';
+    final eventDesc = event['description'] ?? '';
+    final eventDate = event['start_date'] ?? '';
+    final eventLocation = event['location'] ?? '';
+    final eventType = event['event_type'] ?? '';
+    final coverImage = event['cover_image'] as String?;
+    final eventImages = (event['images'] as List?)?.cast<String>() ?? (coverImage != null ? [coverImage] : <String>[]);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_content.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(_content, style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary, height: 1.5)),
+            ),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.borderLight, width: 1),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (eventImages.isNotEmpty)
+                  Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: const BorderRadius.only(topLeft: Radius.circular(11), topRight: Radius.circular(11)),
+                        child: CachedNetworkImage(imageUrl: eventImages[0], height: 160, width: double.infinity, fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) => Container(height: 160, color: AppColors.surfaceVariant)),
+                      ),
+                      if (eventType.isNotEmpty)
+                        Positioned(
+                          top: 10, left: 10,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(6)),
+                            child: Text(eventType.toString(), style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.white, height: 1.0)),
+                          ),
+                        ),
+                    ],
+                  ),
+                Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(eventTitle.toString(), style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
+                      if (eventDesc.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(eventDesc.toString(), style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary, height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis),
+                      ],
+                      const SizedBox(height: 10),
+                      if (eventDate.isNotEmpty)
+                        _eventMetaRow('assets/icons/calendar-icon.svg', _formatDate(eventDate.toString())),
+                      if (eventLocation.isNotEmpty)
+                        _eventMetaRow('assets/icons/location-icon.svg', eventLocation.toString()),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () {
+                            final eventId = event['id']?.toString();
+                            if (eventId != null && eventId.isNotEmpty) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => EventPublicViewScreen(eventId: eventId, initialData: event),
+                                ),
+                              );
+                            }
+                          },
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            side: const BorderSide(color: AppColors.border),
+                          ),
+                          child: Text('View Event Details', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.2)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _eventMetaRow(String svgAsset, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          SvgPicture.asset(svgAsset, width: 14, height: 14,
+            colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
+          const SizedBox(width: 6),
+          Flexible(child: Text(text, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary, height: 1.3), maxLines: 1, overflow: TextOverflow.ellipsis)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActions() {
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: AppColors.borderLight, width: 1)),
+      ),
+      child: Row(
+        children: [
+          _svgActionButton(
+            onTap: _handleGlow,
+            svgAsset: _glowed ? 'assets/icons/heart-filled-icon.svg' : 'assets/icons/heart-icon.svg',
+            label: 'Glow',
+            isActive: _glowed,
+            activeColor: AppColors.error,
+          ),
+          const SizedBox(width: 16),
+          _svgActionButton(
+            onTap: widget.onTap ?? () {},
+            svgAsset: 'assets/icons/echo-icon.svg',
+            label: 'Echo',
+          ),
+          const SizedBox(width: 16),
+          // Spark = Share using SVG share icon + native share
+          _sparkButton(),
+          const Spacer(),
+          Flexible(
+            child: Text(
+              '$_glowCount ${_glowCount == 1 ? 'Glow' : 'Glows'}',
+              style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary, height: 1.0),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              '$_commentCount ${_commentCount == 1 ? 'Echo' : 'Echoes'}',
+              style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary, height: 1.0),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sparkButton() {
+    return GestureDetector(
+      onTap: _handleShare,
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SvgPicture.asset(
+            'assets/icons/share-icon.svg',
+            width: 18,
+            height: 18,
+            colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn),
+          ),
+          const SizedBox(width: 4),
+          Text('Spark', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textTertiary, height: 1.2)),
+        ],
+      ),
+    );
+  }
+
+  Widget _svgActionButton({
+    required VoidCallback onTap,
+    required String svgAsset,
+    required String label,
+    bool isActive = false,
+    Color? activeColor,
+  }) {
+    final color = isActive ? (activeColor ?? AppColors.primary) : AppColors.textTertiary;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SvgPicture.asset(svgAsset, width: 18, height: 18,
+            colorFilter: ColorFilter.mode(color, BlendMode.srcIn)),
+          const SizedBox(width: 4),
+          Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w500, color: color, height: 1.2)),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(String dateStr) {
+    if (dateStr.isEmpty) return '';
+    try {
+      final d = DateTime.parse(dateStr);
+      final months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return '${d.day} ${months[d.month - 1]} ${d.year}';
+    } catch (_) {
+      return dateStr;
+    }
+  }
+}

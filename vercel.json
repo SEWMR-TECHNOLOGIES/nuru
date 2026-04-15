@@ -1,0 +1,55 @@
+{
+  "rewrites": [
+    {
+      "source": "/s/:shortId",
+      "missing": [
+        {
+          "type": "query",
+          "key": "r"
+        }
+      ],
+      "destination": "https://jvwvydheznkjlvojhuhi.supabase.co/functions/v1/og-meta?short=:shortId&type=post"
+    },
+    {
+      "source": "/shared/post/:id",
+      "missing": [
+        {
+          "type": "query",
+          "key": "r"
+        }
+      ],
+      "destination": "https://jvwvydheznkjlvojhuhi.supabase.co/functions/v1/og-meta?id=:id"
+    },
+    {
+      "source": "/rsvp/:code",
+      "missing": [
+        {
+          "type": "query",
+          "key": "r"
+        }
+      ],
+      "destination": "https://jvwvydheznkjlvojhuhi.supabase.co/functions/v1/og-meta?id=:code&type=rsvp"
+    },
+    {
+      "source": "/shared/photo-library/:token",
+      "missing": [
+        {
+          "type": "query",
+          "key": "r"
+        }
+      ],
+      "destination": "https://jvwvydheznkjlvojhuhi.supabase.co/functions/v1/og-meta?id=:token&type=photo-library"
+    },
+    {
+      "source": "/meet/:roomId",
+      "missing": [
+        {
+          "type": "query",
+          "key": "r"
+        }
+      ],
+      "destination": "https://jvwvydheznkjlvojhuhi.supabase.co/functions/v1/og-meta?id=:roomId&type=meeting"
+    },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

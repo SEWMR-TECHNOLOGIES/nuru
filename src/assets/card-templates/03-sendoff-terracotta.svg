@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 680" width="480" height="680">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#faf5ed"/>
+      <stop offset="100%" stop-color="#f5ede0"/>
+    </linearGradient>
+    <linearGradient id="archFill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#c86840"/>
+      <stop offset="100%" stop-color="#a04828"/>
+    </linearGradient>
+    <linearGradient id="archFillLight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#d88060"/>
+      <stop offset="100%" stop-color="#b85838"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="480" height="680" fill="url(#bg)"/>
+
+  <!-- TERRACOTTA ARCH -->
+  <path d="M155,30 L155,240 Q155,310 240,310 Q325,310 325,240 L325,30 Z"
+        fill="url(#archFill)" opacity="0.9"/>
+  <path d="M172,30 L172,238 Q172,292 240,292 Q308,292 308,238 L308,30 Z"
+        fill="url(#archFillLight)" opacity="0.4"/>
+  <path d="M185,30 L185,236 Q185,278 240,278 Q295,278 295,236 L295,30 Z"
+        fill="#faf5ed"/>
+
+  <!-- OLIVE BRANCH -->
+  <g stroke="#5a7040" fill="none" stroke-linecap="round">
+    <path d="M195,290 Q210,265 228,245 Q240,232 248,218" stroke-width="1.3" stroke="#6a8050"/>
+    <path d="M210,268 Q202,258 196,250" stroke-width="1"/>
+    <path d="M220,255 Q212,244 205,236" stroke-width="0.9"/>
+    <path d="M228,245 Q238,238 246,230" stroke-width="1"/>
+    <path d="M228,245 Q220,236 214,226" stroke-width="0.9"/>
+  </g>
+  <g fill="#7a9860" opacity="0.85">
+    <ellipse cx="198" cy="250" rx="9" ry="5" transform="rotate(-50,198,250)"/>
+    <ellipse cx="207" cy="237" rx="8" ry="4" transform="rotate(-45,207,237)"/>
+    <ellipse cx="244" cy="231" rx="8" ry="4" transform="rotate(20,244,231)"/>
+    <ellipse cx="218" cy="228" rx="9" ry="4" transform="rotate(-35,218,228)"/>
+    <circle cx="235" cy="242" r="3" fill="#6a7850" opacity="0.7"/>
+    <circle cx="225" cy="250" r="2.5" fill="#7a8860" opacity="0.6"/>
+  </g>
+
+  <!-- Mirror branch right side -->
+  <g stroke="#5a7040" fill="none" stroke-linecap="round">
+    <path d="M285,290 Q270,265 252,245 Q240,232 232,218" stroke-width="1.3" stroke="#6a8050"/>
+    <path d="M270,268 Q278,258 284,250" stroke-width="1"/>
+    <path d="M260,255 Q268,244 275,236" stroke-width="0.9"/>
+  </g>
+  <g fill="#7a9860" opacity="0.85">
+    <ellipse cx="282" cy="250" rx="9" ry="5" transform="rotate(50,282,250)"/>
+    <ellipse cx="273" cy="237" rx="8" ry="4" transform="rotate(45,273,237)"/>
+    <ellipse cx="262" cy="228" rx="9" ry="4" transform="rotate(35,262,228)"/>
+    <circle cx="245" cy="242" r="3" fill="#6a7850" opacity="0.7"/>
+  </g>
+
+  <!-- TEXT inside and below arch -->
+  <text x="240" y="90" font-family="Georgia,serif"
+        font-size="10" fill="#c86840" letter-spacing="5" text-anchor="middle">SAFARI NJEMA</text>
+
+  <text x="240" y="165" font-family="Georgia,serif"
+        font-size="52" fill="#2a1e14" font-style="italic" text-anchor="middle" id="honoree">Amina</text>
+
+  <text x="240" y="196" font-family="'Palatino Linotype',Palatino,serif"
+        font-size="10" fill="#9a7050" letter-spacing="4" text-anchor="middle" id="surname">MWALIMU</text>
+
+  <!-- Rule below arch -->
+  <line x1="80" y1="340" x2="400" y2="340" stroke="#c8a070" stroke-width="0.5" opacity="0.3"/>
+
+  <text x="240" y="378" font-family="Georgia,serif"
+        font-size="14" fill="#3a2a18" font-style="italic" text-anchor="middle">Sherehe ya Kuagana</text>
+
+  <text x="240" y="408" font-family="'Palatino Linotype',Palatino,serif"
+        font-size="11" fill="#8a6848" letter-spacing="2" text-anchor="middle" id="date">Ijumaa · 4 Aprili · 2025</text>
+
+  <text x="240" y="428" font-family="'Palatino Linotype',Palatino,serif"
+        font-size="11" fill="#b08060" letter-spacing="1" text-anchor="middle" id="time">Milango yanafunguka saa 12:30 jioni</text>
+
+  <text x="240" y="456" font-family="Georgia,serif"
+        font-size="13" fill="#5a3a20" font-style="italic" text-anchor="middle" id="venue">Mlimani City Conference Hall</text>
+
+  <text x="240" y="473" font-family="'Palatino Linotype',Palatino,serif"
+        font-size="9.5" fill="#a08060" letter-spacing="1" text-anchor="middle" id="address">Sam Nujoma Road · Dar es Salaam</text>
+
+  <line x1="80" y1="492" x2="400" y2="492" stroke="#c8a070" stroke-width="0.4" opacity="0.25"/>
+
+  <text x="240" y="516" font-family="Georgia,serif"
+        font-size="10" fill="#b09070" font-style="italic" text-anchor="middle">Tunakutakia kila la kheri katika safari yako.</text>
+
+  <!-- QR -->
+  <rect x="204" y="540" width="72" height="72" rx="2" fill="none" stroke="#c8a070" stroke-width="0.7" opacity="0.45"/>
+  <rect x="207" y="543" width="66" height="66" rx="1" fill="#f5ede0"/>
+  <g fill="#7a5030" opacity="0.55">
+    <rect x="210" y="546" width="15" height="15" rx="1"/>
+    <rect x="212" y="548" width="11" height="11" rx="0.5" fill="#f5ede0"/>
+    <rect x="214" y="550" width="7" height="7" fill="#7a5030"/>
+    <rect x="247" y="546" width="15" height="15" rx="1"/>
+    <rect x="249" y="548" width="11" height="11" rx="0.5" fill="#f5ede0"/>
+    <rect x="251" y="550" width="7" height="7" fill="#7a5030"/>
+    <rect x="210" y="581" width="15" height="15" rx="1"/>
+    <rect x="212" y="583" width="11" height="11" rx="0.5" fill="#f5ede0"/>
+    <rect x="214" y="585" width="7" height="7" fill="#7a5030"/>
+    <rect x="231" y="546" width="4" height="4"/>
+    <rect x="237" y="550" width="4" height="6"/>
+    <rect x="231" y="558" width="6" height="4"/>
+    <rect x="239" y="562" width="4" height="4"/>
+    <rect x="233" y="566" width="4" height="4"/>
+    <rect x="247" y="562" width="6" height="4"/>
+    <rect x="249" y="568" width="4" height="4"/>
+    <rect x="255" y="572" width="4" height="4"/>
+    <rect x="247" y="576" width="4" height="4"/>
+    <rect x="253" y="580" width="4" height="4"/>
+  </g>
+  <text x="240" y="628" font-family="'Palatino Linotype',Palatino,serif"
+        font-size="8.5" fill="#a08060" letter-spacing="2" text-anchor="middle">SCAN TO RSVP</text>
+
+  <text x="240" y="653" font-family="'Palatino Linotype',Palatino,serif"
+        font-size="9" fill="#c8a070" letter-spacing="2" text-anchor="middle" id="rsvp">RSVP · nuru.tz</text>
+</svg>
