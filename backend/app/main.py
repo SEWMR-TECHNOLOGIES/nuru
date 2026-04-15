@@ -8,10 +8,14 @@ import pytz
 
 from api.routes import all_routers
 from api.routes.card_templates import router as card_templates_router
+from core.config import ENV
 
 app = FastAPI(
     title="Nuru API",
     version="1.0.0",
+    docs_url=None if ENV == "production" else "/docs",
+    redoc_url=None if ENV == "production" else "/redoc",
+    openapi_url=None if ENV == "production" else "/openapi.json",
 )
 
 API_PREFIX = "/api/v1"
@@ -29,6 +33,7 @@ app.add_middleware(
         "https://www.nuru.tz",
         "https://nuru.tz",
         "https://workspace.nuru.tz",
+        "http://app.nuru.tz",
     ],
     allow_credentials=True,
     allow_methods=["*"],

@@ -36,6 +36,7 @@ import { toast } from "sonner";
 import { formatDateMedium } from "@/utils/formatDate";
 import { useQueryClient } from "@tanstack/react-query";
 import AvatarCropDialog from "@/components/AvatarCropDialog";
+import SmartMedia from '@/components/SmartMedia';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const UserProfile = () => {
@@ -601,23 +602,33 @@ const UserProfile = () => {
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {myPosts.map((post: any) => {
-                    const images = post.images || [];
-                    const firstImage = images[0]?.image_url || images[0]?.url || (typeof images[0] === 'string' ? images[0] : null);
+                    const rawMedia = post.images || post.media || [];
+                    const firstMedia = rawMedia[0];
+                    const firstUrl = typeof firstMedia === 'string' ? firstMedia : (firstMedia?.image_url || firstMedia?.url || null);
+                    const mediaType = typeof firstMedia === 'string' ? '' : (firstMedia?.media_type || firstMedia?.type || '');
                     const content = post.content || '';
+                    const isVideo = mediaType?.toString().toLowerCase().includes('video') ||
+                      (firstUrl && (firstUrl.toLowerCase().endsWith('.mp4') || firstUrl.toLowerCase().endsWith('.mov') || firstUrl.toLowerCase().endsWith('.webm') || firstUrl.toLowerCase().includes('/video')));
+
                     return (
                       <div
                         key={post.id}
                         className="aspect-square rounded-xl overflow-hidden bg-muted/30 border border-border/50 cursor-pointer active:scale-95 transition-all relative group"
                         onClick={() => navigate('/my-posts')}
                       >
-                        {firstImage ? (
-                          <img src={firstImage} alt="" className="w-full h-full object-cover" />
+                        {firstUrl ? (
+                          isVideo ? (
+                            <div className="w-full h-full bg-muted/50 flex items-center justify-center relative">
+                              <SmartMedia src={firstUrl} alt="" className="w-full h-full object-cover" isVideo={true} compact />
+                            </div>
+                          ) : (
+                            <img src={firstUrl} alt="" className="w-full h-full object-cover" />
+                          )
                         ) : (
                           <div className="w-full h-full flex items-center justify-center p-3">
                             <p className="text-xs text-muted-foreground text-center line-clamp-4">{content}</p>
                           </div>
                         )}
-                        {/* Tap/hover overlay */}
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 active:opacity-100 transition-opacity flex items-center justify-center">
                           <span className="text-white text-xs font-medium">{t("view")}</span>
                         </div>

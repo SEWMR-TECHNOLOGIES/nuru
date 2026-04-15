@@ -4,9 +4,8 @@
 
 import type { ApiResponse } from "./types";
 
-// Assemble API base URL at runtime to prevent static extraction by scanners
-const _p = ["https://", "api", ".", "nuru", ".", "tz", "/api/v1"];
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || _p.join("");
+// Use env var if set, otherwise fall back to relative path (works behind NGINX proxy)
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
 /**
  * Security headers added to every request

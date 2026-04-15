@@ -11,7 +11,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import nuruLogo from '@/assets/nuru-logo.png';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://api.nuru.tz/api/v1";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
 const getInitials = (name: string) => {
   const parts = name.trim().split(/\s+/);

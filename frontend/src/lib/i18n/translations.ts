@@ -671,4 +671,5 @@ export const translations: Record<string, Record<Locale, string>> = {
   recorded_by: { en: 'Recorded by', sw: 'Imeandikwa na' },
   published: { en: 'Published', sw: 'Imechapishwa' },
   export_pdf: { en: 'Export PDF', sw: 'Hamisha PDF' },
+  my_moments: { en: 'My Moments', sw: 'Wakati Wangu' },
 };

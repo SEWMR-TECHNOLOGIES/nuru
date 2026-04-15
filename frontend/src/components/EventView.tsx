@@ -37,6 +37,20 @@ const EventView = () => {
   const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
   const [reportHtml, setReportHtml] = useState('');
   const [directionsOpen, setDirectionsOpen] = useState(false);
+
+  const hasVenueCoordinates = Boolean(
+    event?.venue_coordinates?.latitude && event?.venue_coordinates?.longitude,
+  );
+
+  const handleOpenDirections = () => {
+    if (!hasVenueCoordinates) {
+      toast.error('Directions are only available when the event venue has map coordinates.');
+      return;
+    }
+
+    setDirectionsOpen(true);
+  };
+
   const fetchEvent = useCallback(async () => {
     if (!id) return;
     try {
@@ -308,15 +322,7 @@ const EventView = () => {
                   variant="outline"
                   size="sm"
                   className="shrink-0 rounded-xl gap-1.5"
-                  onClick={() => {
-                    const vc = event.venue_coordinates;
-                    if (vc?.latitude && vc?.longitude) {
-                      setDirectionsOpen(true);
-                    } else {
-                      const q = encodeURIComponent([event.venue, event.location].filter(Boolean).join(', '));
-                      window.open(`https://www.openstreetmap.org/search?query=${q}`, '_blank');
-                    }
-                  }}
+                  onClick={handleOpenDirections}
                 >
                   <Navigation className="w-3.5 h-3.5" />
                   Directions
@@ -335,7 +341,7 @@ const EventView = () => {
               venueName={event.venue || event.location}
               address={event.venue_address || event.location}
               height="220px"
-              onDirections={() => setDirectionsOpen(true)}
+              onDirections={handleOpenDirections}
             />
           </Card>
         )}

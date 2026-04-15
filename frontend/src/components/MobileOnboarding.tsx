@@ -5,7 +5,7 @@ import SvgIcon from '@/components/ui/svg-icon';
 import MenuIcon from '@/assets/icons/menu-icon.svg';
 import PanelRightIcon from '@/assets/icons/panel-right-icon.svg';
 import { PanelLeft, PanelRight, Check } from 'lucide-react';
-import { useLanguage } from '@/lib/i18n/LanguageContext';
+
 
 const ONBOARDING_KEY = 'nuru_onboarding_seen';
 
@@ -116,7 +116,6 @@ const MobileOnboarding = forwardRef<MobileOnboardingRef, MobileOnboardingProps>(
   }, [onOpenLeft, onOpenRight, closeDrawers]);
 
   const handleStart = () => {
-  const { t } = useLanguage();
     setPhase('highlight');
     runStep(0);
   };
