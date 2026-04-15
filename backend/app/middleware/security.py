@@ -1,9 +1,9 @@
 """
 Security middleware — hardened version.
 
-Changes from original:
-- REMOVED: in-memory RateLimitMiddleware (replaced by Redis-based middleware)
-- KEPT: SecurityHeadersMiddleware, RequestValidationMiddleware
+- Uses proper header handling (no .pop() on MutableHeaders)
+- Avoids duplication of headers
+- Keeps validation logic separate and clean
 """
 
 import re
@@ -19,6 +19,9 @@ def _error_response(status_code: int, message: str) -> JSONResponse:
     )
 
 
+# ------------------------------------------------------------------
+# Security Headers Middleware (ONLY place headers are set)
+# ------------------------------------------------------------------
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Adds security headers to every response."""
 
@@ -32,12 +35,20 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"
         response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
-        response.headers.pop("server", None)
-        response.headers.pop("x-powered-by", None)
+
+        # Correct way to remove headers
+        if "server" in response.headers:
+            del response.headers["server"]
+
+        if "x-powered-by" in response.headers:
+            del response.headers["x-powered-by"]
 
         return response
 
 
+# ------------------------------------------------------------------
+# Request Validation Middleware (NO header duplication)
+# ------------------------------------------------------------------
 class RequestValidationMiddleware(BaseHTTPMiddleware):
     """Validates incoming requests for suspicious patterns."""
 
@@ -50,14 +61,19 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         url = str(request.url)
 
+        # URL length check
         if len(url) > self.MAX_URL_LENGTH:
             return _error_response(414, "Request URI too long")
 
+        # Basic attack pattern detection
         if self.BLOCKED_PATTERNS.search(url):
             return _error_response(400, "Invalid request")
 
+        # Block known scanning tools
         user_agent = request.headers.get("user-agent", "")
-        if any(tool in user_agent.lower() for tool in ["sqlmap", "nikto", "dirbuster", "gobuster", "nuclei", "burpsuite"]):
+        if any(tool in user_agent.lower() for tool in [
+            "sqlmap", "nikto", "dirbuster", "gobuster", "nuclei", "burpsuite"
+        ]):
             return _error_response(403, "Forbidden")
 
         return await call_next(request)

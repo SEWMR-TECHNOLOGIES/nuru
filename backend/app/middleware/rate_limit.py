@@ -23,11 +23,30 @@ def _get_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def _rate_error(message: str = "Too many requests. Please slow down.") -> JSONResponse:
+def _cors_headers(request: Request) -> dict:
+    """Build CORS headers matching main.py config so 429s aren't masked as CORS errors."""
+    origin = request.headers.get("origin", "")
+    allowed = {
+        "https://app.nuru.tz", "https://www.nuru.tz", "https://nuru.tz",
+        "https://workspace.nuru.tz", "http://app.nuru.tz",
+        "http://localhost:8080", "http://127.0.0.1:8080", "http://192.168.100.7:8080",
+    }
+    headers = {"Retry-After": "60"}
+    if origin in allowed:
+        headers.update({
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        })
+    return headers
+
+
+def _rate_error(request: Request, message: str = "Too many requests. Please slow down.") -> JSONResponse:
     return JSONResponse(
         status_code=429,
         content={"success": False, "message": message, "data": None},
-        headers={"Retry-After": "60"},
+        headers=_cors_headers(request),
     )
 
 
@@ -51,7 +70,7 @@ class RedisRateLimitMiddleware(BaseHTTPMiddleware):
 
         from core.redis import rate_limit_check
         if not rate_limit_check(rate_key, self.max_requests, self.window_seconds):
-            return _rate_error()
+            return _rate_error(request)
 
         return await call_next(request)
 
@@ -83,6 +102,6 @@ class RedisAuthRateLimitMiddleware(BaseHTTPMiddleware):
 
         from core.redis import rate_limit_check
         if not rate_limit_check(rate_key, self.max_requests, self.window_seconds):
-            return _rate_error("Too many authentication attempts. Please try again later.")
+            return _rate_error(request, "Too many authentication attempts. Please try again later.")
 
         return await call_next(request)

@@ -46,9 +46,15 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 from middleware.rate_limit import RedisRateLimitMiddleware
 app.add_middleware(
     RedisRateLimitMiddleware,
-    max_requests=120,       # general: 120 req/min
-    window_seconds=60,
-    exclude_paths={"/health", "/docs", "/openapi.json", "/redoc"},
+    max_requests=300,        # increase capacity
+    window_seconds=60,       # keep same window
+    exclude_paths={
+        "/health",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+        "/api/v1/admin",    # VERY IMPORTANT
+    },
 )
 
 # 4. Auth-endpoint specific tighter rate limiting
