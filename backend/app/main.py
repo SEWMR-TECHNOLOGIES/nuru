@@ -46,7 +46,7 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 from middleware.rate_limit import RedisRateLimitMiddleware
 app.add_middleware(
     RedisRateLimitMiddleware,
-    max_requests=300,        # increase capacity
+    max_requests=500,        # increase capacity
     window_seconds=60,       # keep same window
     exclude_paths={
         "/health",
