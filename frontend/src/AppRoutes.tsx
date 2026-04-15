@@ -111,6 +111,7 @@ import AdminIssueCategories from "@/pages/admin/AdminIssueCategories";
 import AdminAgreements from "@/pages/admin/AdminAgreements";
 import AdminTicketedEvents from "@/pages/admin/AdminTicketedEvents";
 import AdminNameFlags from "@/pages/admin/AdminNameFlags";
+import AdminMonitoring from "@/pages/admin/AdminMonitoring";
 import MyIssues from "@/components/MyIssues";
 import MeetingRoom from "@/pages/MeetingRoom";
 
@@ -251,6 +252,7 @@ function InnerRoutes() {
           <Route path="issue-categories" element={<AdminIssueCategories />} />
           <Route path="agreements" element={<AdminAgreements />} />
           <Route path="ticketed-events" element={<AdminTicketedEvents />} />
+          <Route path="monitoring" element={<AdminMonitoring />} />
         </Route>
 
 

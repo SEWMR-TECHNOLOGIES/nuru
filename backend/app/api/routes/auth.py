@@ -94,11 +94,14 @@ async def signin(request: Request, response: Response, db: Session = Depends(get
     access_token = create_access_token({"uid": str(user.id)})
     refresh_token = create_refresh_token({"uid": str(user.id)})
 
-    # Set session cookie
+    # Set session cookie (signed JWT, NOT raw UUID — prevents impersonation)
+    from utils.auth import create_session_token
+    session_token = create_session_token(str(user.id))
     response.set_cookie(
         key="session_id",
-        value=str(user.id),
+        value=session_token,
         httponly=True,
+        secure=True,
         max_age=60 * 60 * 24,  # 1 day
         samesite="lax"
     )

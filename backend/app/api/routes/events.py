@@ -137,8 +137,9 @@ def search_events(
     total_pages = max(1, math.ceil(total / limit))
     events = query.offset((page - 1) * limit).limit(limit).all()
 
+    from utils.batch_loaders import build_public_event_dicts
     return standard_response(True, "Public events retrieved successfully", {
-        "events": [_public_event_dict(db, e) for e in events],
+        "events": build_public_event_dicts(db, events),
         "pagination": {
             "page": page, "limit": limit, "total_items": total,
             "total_pages": total_pages, "has_next": page < total_pages, "has_previous": page > 1,
@@ -170,7 +171,8 @@ def get_featured_events(limit: int = 10, db: Session = Depends(get_db)):
     else:
         events = query.order_by(Event.created_at.desc()).limit(limit).all()
 
-    return standard_response(True, "Featured events retrieved successfully", [_public_event_dict(db, e) for e in events])
+    from utils.batch_loaders import build_public_event_dicts
+    return standard_response(True, "Featured events retrieved successfully", build_public_event_dicts(db, events))
 
 
 # ──────────────────────────────────────────────
@@ -209,7 +211,8 @@ def get_nearby_events(
         .limit(limit).all()
     )
 
-    return standard_response(True, "Nearby events retrieved successfully", [_public_event_dict(db, e) for e in events])
+    from utils.batch_loaders import build_public_event_dicts
+    return standard_response(True, "Nearby events retrieved successfully", build_public_event_dicts(db, events))
 
 
 # ──────────────────────────────────────────────

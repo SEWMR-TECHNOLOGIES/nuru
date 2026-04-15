@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/l10n/l10n_helper.dart';
+import '../../../core/widgets/nuru_video_player.dart';
 import '../../home/widgets/post_detail_modal.dart';
 
 class ProfileMomentsTab extends StatelessWidget {
@@ -65,6 +66,21 @@ class ProfileMomentsTab extends StatelessWidget {
         }
         if (mediaType.contains('video')) isVideo = true;
 
+        // Extract thumbnail for video moments
+        String? thumbnailUrl;
+        if (isVideo) {
+          thumbnailUrl = post['thumbnail_url']?.toString();
+          if (thumbnailUrl != null && thumbnailUrl.isEmpty) thumbnailUrl = null;
+          // Also check first image item for thumbnail
+          if (thumbnailUrl == null && images != null && images.isNotEmpty) {
+            final first = images[0];
+            if (first is Map) {
+              thumbnailUrl = (first['thumbnail_url'] ?? first['thumbnail'] ?? '').toString();
+              if (thumbnailUrl.isEmpty) thumbnailUrl = null;
+            }
+          }
+        }
+
         return GestureDetector(
           onTap: () => PostDetailModal.show(context, post),
           child: ClipRRect(
@@ -73,9 +89,12 @@ class ProfileMomentsTab extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 if (isVideo)
-                  Container(
-                    color: AppColors.surfaceVariant,
-                    child: Center(child: Icon(Icons.play_circle_fill_rounded, size: 36, color: AppColors.primary.withOpacity(0.7))),
+                  // Use NuruVideoPlayer for video content, matching the feed
+                  NuruVideoPlayer(
+                    url: firstImage ?? '',
+                    thumbnailUrl: thumbnailUrl,
+                    height: double.infinity,
+                    borderRadius: BorderRadius.circular(8),
                   )
                 else if (firstImage != null && firstImage.isNotEmpty)
                   CachedNetworkImage(
@@ -86,16 +105,6 @@ class ProfileMomentsTab extends StatelessWidget {
                   )
                 else
                   _placeholder(post),
-                // Video badge
-                if (isVideo)
-                  Positioned(
-                    top: 4, left: 4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                      decoration: BoxDecoration(color: Colors.black.withOpacity(0.6), borderRadius: BorderRadius.circular(4)),
-                      child: const Icon(Icons.videocam_rounded, size: 12, color: Colors.white),
-                    ),
-                  ),
                 // Multi-image indicator
                 if (!isVideo && images != null && images.length > 1)
                   Positioned(

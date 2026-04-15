@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
+import '../../core/widgets/nuru_video_player.dart';
 import '../../core/services/social_service.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../home/widgets/post_detail_modal.dart';
@@ -269,12 +270,13 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
   Widget _postItem(dynamic post) {
     final p = post is Map<String, dynamic> ? post : <String, dynamic>{};
     final content = p['content']?.toString() ?? '';
-    final images = p['images'] is List ? p['images'] as List : [];
+    final images = p['images'] is List ? p['images'] as List : (p['media'] is List ? p['media'] as List : []);
     final createdAt = p['created_at']?.toString() ?? '';
     final glowCount = p['glow_count'] ?? p['likes_count'] ?? 0;
     final commentCount = p['comment_count'] ?? p['comments_count'] ?? 0;
     final visibility = p['visibility']?.toString() ?? 'public';
     final id = p['id']?.toString() ?? '';
+    final postMediaType = (p['media_type'] ?? '').toString().toLowerCase();
 
     return GestureDetector(
       onTap: () => PostDetailModal.show(context, p),
@@ -343,7 +345,7 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
             ],
             if (images.isNotEmpty) ...[
               const SizedBox(height: 12),
-              _imageGrid(images),
+              _buildMedia(images, postMediaType),
             ],
             const SizedBox(height: 12),
             Row(
@@ -363,75 +365,93 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
     );
   }
 
-  Widget _imageGrid(List images) {
-    final urls = images.map<String>((img) {
-      if (img is String) return img;
-      if (img is Map) return (img['image_url'] ?? img['url'] ?? '').toString();
-      return '';
-    }).where((s) => s.isNotEmpty).toList();
+  static bool _isVideoUrl(String url) {
+    final lower = url.toLowerCase();
+    return lower.endsWith('.mp4') || lower.endsWith('.mov') || lower.endsWith('.avi') ||
+        lower.endsWith('.webm') || lower.endsWith('.mkv') || lower.endsWith('.m4v') ||
+        lower.contains('/video') || lower.contains('video/');
+  }
 
+  /// Extract media info (url, thumbnail, isVideo) from image list items
+  static Map<String, dynamic> _parseMediaItem(dynamic img) {
+    String url = '';
+    String? thumbnail;
+    bool isVideo = false;
+    if (img is String) {
+      url = img;
+      isVideo = _isVideoUrl(img);
+    } else if (img is Map) {
+      url = (img['image_url'] ?? img['url'] ?? '').toString();
+      thumbnail = (img['thumbnail_url'] ?? img['thumbnail'] ?? '').toString();
+      if (thumbnail != null && thumbnail.isEmpty) thumbnail = null;
+      final itemType = (img['media_type'] ?? img['type'] ?? '').toString().toLowerCase();
+      isVideo = itemType.contains('video') || (url.isNotEmpty && _isVideoUrl(url));
+    }
+    return {'url': url, 'thumbnail': thumbnail, 'isVideo': isVideo};
+  }
+
+  /// Build media section matching the feed's moment_card rendering
+  Widget _buildMedia(List images, String postMediaType) {
+    final urls = <String>[];
+    final types = <String>[];
+    for (final img in images) {
+      if (img is String) {
+        urls.add(img);
+        types.add('');
+      } else if (img is Map) {
+        final url = (img['image_url'] ?? img['url'] ?? '').toString();
+        if (url.isNotEmpty) {
+          urls.add(url);
+          types.add((img['media_type'] ?? img['type'] ?? '').toString());
+        }
+      }
+    }
     if (urls.isEmpty) return const SizedBox.shrink();
+
+    bool checkIsVideo(int i) {
+      if (postMediaType.contains('video')) return true;
+      if (i < types.length && types[i].contains('video')) return true;
+      return _isVideoUrl(urls[i]);
+    }
+
     if (urls.length == 1) {
+      if (checkIsVideo(0)) {
+        return NuruVideoPlayer(url: urls[0], height: 220, borderRadius: BorderRadius.circular(12));
+      }
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: CachedNetworkImage(
-          imageUrl: urls[0],
-          width: double.infinity, height: 200, fit: BoxFit.cover,
-          placeholder: (_, __) => Container(height: 200, color: AppColors.surfaceVariant),
-          errorWidget: (_, __, ___) => Container(height: 200, color: AppColors.surfaceVariant,
-            child: const Icon(Icons.broken_image_rounded, color: AppColors.textHint)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 360),
+          child: CachedNetworkImage(
+            imageUrl: urls[0], width: double.infinity, fit: BoxFit.contain,
+            placeholder: (_, __) => Container(height: 200, color: AppColors.surfaceVariant),
+            errorWidget: (_, __, ___) => Container(height: 200, color: AppColors.surfaceVariant,
+              child: const Center(child: Icon(Icons.broken_image_rounded, color: AppColors.textHint))),
+          ),
         ),
       );
     }
-    // Multi-image grid
+
     return SizedBox(
-      height: 160,
-      child: Row(
-        children: [
-          Expanded(
-            flex: 2,
-            child: ClipRRect(
-              borderRadius: const BorderRadius.only(topLeft: Radius.circular(12), bottomLeft: Radius.circular(12)),
-              child: CachedNetworkImage(imageUrl: urls[0], fit: BoxFit.cover, height: 160,
-                placeholder: (_, __) => Container(color: AppColors.surfaceVariant),
-                errorWidget: (_, __, ___) => Container(color: AppColors.surfaceVariant)),
+      height: 140,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: urls.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          if (checkIsVideo(i)) {
+            return SizedBox(width: 200, child: NuruVideoPlayer(url: urls[i], height: 140, borderRadius: BorderRadius.circular(12)));
+          }
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: CachedNetworkImage(
+              imageUrl: urls[i], width: 160, height: 140, fit: BoxFit.cover,
+              placeholder: (_, __) => Container(width: 160, height: 140, color: AppColors.surfaceVariant),
+              errorWidget: (_, __, ___) => Container(width: 160, height: 140, color: AppColors.surfaceVariant,
+                child: const Center(child: Icon(Icons.broken_image_rounded, color: AppColors.textHint))),
             ),
-          ),
-          const SizedBox(width: 3),
-          Expanded(
-            child: Column(
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.only(topRight: Radius.circular(12)),
-                    child: CachedNetworkImage(imageUrl: urls.length > 1 ? urls[1] : urls[0], fit: BoxFit.cover, width: double.infinity,
-                      placeholder: (_, __) => Container(color: AppColors.surfaceVariant),
-                      errorWidget: (_, __, ___) => Container(color: AppColors.surfaceVariant)),
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.only(bottomRight: Radius.circular(12)),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        CachedNetworkImage(imageUrl: urls.length > 2 ? urls[2] : urls[0], fit: BoxFit.cover,
-                          placeholder: (_, __) => Container(color: AppColors.surfaceVariant),
-                          errorWidget: (_, __, ___) => Container(color: AppColors.surfaceVariant)),
-                        if (urls.length > 3)
-                          Container(
-                            color: Colors.black.withOpacity(0.5),
-                            child: Center(child: Text('+${urls.length - 3}', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white))),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'widgets/venue_map_preview.dart';
 import 'directions_screen.dart';
 import '../../core/theme/app_colors.dart';
@@ -475,7 +474,13 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
           ),
         ),
       );
+      return;
     }
+
+    AppSnackbar.error(
+      context,
+      'Directions are only available when the event venue has map coordinates.',
+    );
   }
 
   String _formatDate(String dateStr) {

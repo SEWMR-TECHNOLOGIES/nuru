@@ -18,53 +18,46 @@ router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 @router.get("/")
 def get_notifications(page: int = 1, limit: int = 20, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    from models import UserProfile
+    from core.redis import cache_get, cache_set, CacheKeys
+
+    cache_key = CacheKeys.for_notifications(str(current_user.id), page, limit)
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return standard_response(True, "Notifications retrieved", cached)
+
+    from utils.batch_loaders import build_notification_dicts
     query = db.query(Notification).filter(Notification.recipient_id == current_user.id).order_by(Notification.created_at.desc())
     items, pagination = paginate(query, page, limit)
-
-    data = []
-    for n in items:
-        # Resolve sender info
-        sender_info = None
-        if n.sender_ids and len(n.sender_ids) > 0:
-            try:
-                sender_id = uuid.UUID(n.sender_ids[0])
-                sender = db.query(User).filter(User.id == sender_id).first()
-                if sender:
-                    profile = db.query(UserProfile).filter(UserProfile.user_id == sender.id).first()
-                    sender_info = {
-                        "id": str(sender.id),
-                        "first_name": sender.first_name,
-                        "last_name": sender.last_name,
-                        "username": sender.username if hasattr(sender, 'username') else None,
-                        "avatar": profile.profile_picture_url if profile else None,
-                    }
-            except (ValueError, IndexError):
-                pass
-
-        data.append({
-            "id": str(n.id),
-            "type": n.type.value if n.type else None,
-            "message": n.message_template,
-            "data": n.message_data,
-            "is_read": n.is_read,
-            "reference_id": str(n.reference_id) if n.reference_id else None,
-            "reference_type": n.reference_type,
-            "actor": sender_info,
-            "created_at": n.created_at.isoformat() if n.created_at else None,
-        })
+    data = build_notification_dicts(db, items)
 
     # unread count
-    unread = db.query(Notification).filter(Notification.recipient_id == current_user.id, Notification.is_read == False).count()
+    from sqlalchemy import func as sa_func
+    unread = db.query(sa_func.count(Notification.id)).filter(
+        Notification.recipient_id == current_user.id, Notification.is_read == False
+    ).scalar() or 0
 
-    return standard_response(True, "Notifications retrieved", {"notifications": data, "unread_count": unread, "pagination": pagination})
+    result = {"notifications": data, "unread_count": unread, "pagination": pagination}
+    cache_set(cache_key, result, ttl_seconds=60)  # 1 min TTL
+    return standard_response(True, "Notifications retrieved", result)
 
 
 @router.get("/unread/count")
 def get_unread_count(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from core.redis import cache_get, cache_set, CacheKeys
+
+    cache_key = CacheKeys.for_unread(str(current_user.id))
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return standard_response(True, "Unread count retrieved", cached)
+
     from sqlalchemy import func as sa_func
-    count = db.query(sa_func.count(Notification.id)).filter(Notification.recipient_id == current_user.id, Notification.is_read == False).scalar() or 0
-    return standard_response(True, "Unread count retrieved", {"count": count})
+    count = db.query(sa_func.count(Notification.id)).filter(
+        Notification.recipient_id == current_user.id, Notification.is_read == False
+    ).scalar() or 0
+
+    result = {"count": count}
+    cache_set(cache_key, result, ttl_seconds=30)  # 30 sec TTL
+    return standard_response(True, "Unread count retrieved", result)
 
 
 @router.put("/{notification_id}/read")
@@ -78,6 +71,11 @@ def mark_as_read(notification_id: str, db: Session = Depends(get_db), current_us
         return standard_response(False, "Notification not found")
     n.is_read = True
     db.commit()
+
+    # Invalidate caches
+    from core.redis import invalidate_user_notifications
+    invalidate_user_notifications(str(current_user.id))
+
     return standard_response(True, "Notification marked as read")
 
 
@@ -85,6 +83,10 @@ def mark_as_read(notification_id: str, db: Session = Depends(get_db), current_us
 def mark_all_as_read(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db.query(Notification).filter(Notification.recipient_id == current_user.id, Notification.is_read == False).update({"is_read": True}, synchronize_session=False)
     db.commit()
+
+    from core.redis import invalidate_user_notifications
+    invalidate_user_notifications(str(current_user.id))
+
     return standard_response(True, "All notifications marked as read")
 
 
@@ -99,6 +101,10 @@ def delete_notification(notification_id: str, db: Session = Depends(get_db), cur
         return standard_response(False, "Notification not found")
     db.delete(n)
     db.commit()
+
+    from core.redis import invalidate_user_notifications
+    invalidate_user_notifications(str(current_user.id))
+
     return standard_response(True, "Notification deleted")
 
 
@@ -106,19 +112,8 @@ def delete_notification(notification_id: str, db: Session = Depends(get_db), cur
 def clear_all_notifications(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db.query(Notification).filter(Notification.recipient_id == current_user.id).delete(synchronize_session=False)
     db.commit()
+
+    from core.redis import invalidate_user_notifications
+    invalidate_user_notifications(str(current_user.id))
+
     return standard_response(True, "All notifications cleared")
-
-
-@router.post("/push-token")
-def register_push_token(body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    token = body.get("token", "").strip()
-    platform = body.get("platform", "web")
-    if not token:
-        return standard_response(False, "Push token is required")
-    # Store token (model-dependent; placeholder)
-    return standard_response(True, "Push token registered successfully")
-
-
-@router.delete("/push-token")
-def unregister_push_token(body: dict = Body(default={}), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return standard_response(True, "Push token unregistered")

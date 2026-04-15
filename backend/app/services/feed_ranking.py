@@ -814,10 +814,10 @@ def log_interaction(
 def recompute_quality_scores(db: Session, max_posts: int = 1000):
     """
     Batch recompute quality scores for recent posts.
-    Called periodically (e.g., every 30 minutes via background task).
+    FIX: Uses batch COUNT queries instead of N+1 per-post queries.
     """
     cutoff = datetime.utcnow() - timedelta(hours=168)  # 7 days
-    
+
     posts = (
         db.query(UserFeed)
         .filter(UserFeed.is_active == True, UserFeed.created_at >= cutoff)
@@ -825,63 +825,99 @@ def recompute_quality_scores(db: Session, max_posts: int = 1000):
         .limit(max_posts)
         .all()
     )
-    
+
+    if not posts:
+        return
+
+    post_ids = [p.id for p in posts]
+    author_ids = list({p.user_id for p in posts})
+
+    # ── Batch load all counts ──
+    # Image counts per post
+    img_counts = {}
+    for pid, cnt in db.query(UserFeedImage.feed_id, sa_func.count(UserFeedImage.id)).filter(
+        UserFeedImage.feed_id.in_(post_ids)
+    ).group_by(UserFeedImage.feed_id).all():
+        img_counts[str(pid)] = cnt
+
+    # Glow counts per post
+    glow_counts = {}
+    for pid, cnt in db.query(UserFeedGlow.feed_id, sa_func.count(UserFeedGlow.id)).filter(
+        UserFeedGlow.feed_id.in_(post_ids)
+    ).group_by(UserFeedGlow.feed_id).all():
+        glow_counts[str(pid)] = cnt
+
+    # Echo counts per post
+    echo_counts = {}
+    for pid, cnt in db.query(UserFeedEcho.feed_id, sa_func.count(UserFeedEcho.id)).filter(
+        UserFeedEcho.feed_id.in_(post_ids)
+    ).group_by(UserFeedEcho.feed_id).all():
+        echo_counts[str(pid)] = cnt
+
+    # Comment counts per post
+    comment_counts = {}
+    for pid, cnt in db.query(UserFeedComment.feed_id, sa_func.count(UserFeedComment.id)).filter(
+        UserFeedComment.feed_id.in_(post_ids), UserFeedComment.is_active == True
+    ).group_by(UserFeedComment.feed_id).all():
+        comment_counts[str(pid)] = cnt
+
+    # Author total glows (credibility) - batch per author
+    author_glows = {}
+    for uid, cnt in db.query(UserFeed.user_id, sa_func.count(UserFeedGlow.id)).join(
+        UserFeedGlow, UserFeedGlow.feed_id == UserFeed.id
+    ).filter(UserFeed.user_id.in_(author_ids)).group_by(UserFeed.user_id).all():
+        author_glows[str(uid)] = cnt
+
+    # Existing quality scores
+    existing_scores = {}
+    for q in db.query(PostQualityScore).filter(PostQualityScore.post_id.in_(post_ids)).all():
+        existing_scores[str(q.post_id)] = q
+
+    # ── Compute scores using batch data ──
     for post in posts:
-        quality = db.query(PostQualityScore).filter(
-            PostQualityScore.post_id == post.id
-        ).first()
-        
+        pid_str = str(post.id)
+        quality = existing_scores.get(pid_str)
+
         if not quality:
             quality = PostQualityScore(post_id=post.id)
             db.add(quality)
-        
+
         # Content richness
         richness = 0.3
         text_len = len(post.content or "")
         if text_len > 50: richness += 0.15
         if text_len > 200: richness += 0.1
-        
-        img_count = db.query(sa_func.count(UserFeedImage.id)).filter(
-            UserFeedImage.feed_id == post.id
-        ).scalar() or 0
-        if img_count > 0: richness += 0.2
-        if img_count > 1: richness += 0.1
+
+        ic = img_counts.get(pid_str, 0)
+        if ic > 0: richness += 0.2
+        if ic > 1: richness += 0.1
         if post.video_url: richness += 0.15
         quality.content_richness = min(1.0, richness)
-        
+
         # Engagement metrics
-        glow_count = db.query(sa_func.count(UserFeedGlow.id)).filter(
-            UserFeedGlow.feed_id == post.id).scalar() or 0
-        echo_count = db.query(sa_func.count(UserFeedEcho.id)).filter(
-            UserFeedEcho.feed_id == post.id).scalar() or 0
-        comment_count = db.query(sa_func.count(UserFeedComment.id)).filter(
-            UserFeedComment.feed_id == post.id, UserFeedComment.is_active == True
-        ).scalar() or 0
-        
-        total = glow_count + echo_count * 2 + comment_count * 1.5
+        gc = glow_counts.get(pid_str, 0)
+        ec = echo_counts.get(pid_str, 0)
+        cc = comment_counts.get(pid_str, 0)
+        total = gc + ec * 2 + cc * 1.5
         quality.total_engagements = int(total)
-        
+
         age_hours = max(0.1, (datetime.utcnow() - post.created_at).total_seconds() / 3600) if post.created_at else 1
         quality.engagement_velocity = total / age_hours
-        
+
         # Author credibility
-        author_total_glows = db.query(sa_func.count(UserFeedGlow.id)).join(
-            UserFeed, UserFeedGlow.feed_id == UserFeed.id
-        ).filter(UserFeed.user_id == post.user_id).scalar() or 0
-        quality.author_credibility = min(1.0, 0.3 + author_total_glows * 0.01)
-        
-        # Category
+        ag = author_glows.get(str(post.user_id), 0)
+        quality.author_credibility = min(1.0, 0.3 + ag * 0.01)
+
         quality.category = detect_category(post.content or "")
-        
-        # Final composite
+
         quality.final_quality_score = min(1.0, (
             quality.content_richness * 0.3
             + quality.author_credibility * 0.3
             + min(1.0, quality.engagement_velocity * 0.1) * 0.4
         ))
-        
+
         quality.last_computed_at = datetime.utcnow()
-    
+
     try:
         db.commit()
     except Exception:

@@ -227,12 +227,14 @@ def search_services(
             ).all()
             user_event_type_service_ids = {str(r[0]) for r in recommended}
 
-    # ── Fetch all matching services for ranking ──
-    # For relevance sorting, we fetch a larger pool and rank in-memory
+    # ── Fetch and rank services ──
+    # For relevance sorting, limit the candidate pool to prevent full-table scan.
+    # Score using denormalized data instead of loading all rows into memory.
     if sort_by == "relevance":
-        all_services = query.all()
+        # Cap candidate pool to 500 instead of loading all rows
+        MAX_RELEVANCE_POOL = 500
+        all_services = query.limit(MAX_RELEVANCE_POOL).all()
 
-        # Score each service
         scored = []
         for s in all_services:
             score = _compute_relevance_score(
@@ -241,12 +243,10 @@ def search_services(
                 user_lat=lat,
                 user_lng=lng
             )
-            # Boost services whose location text matches the search location
             if location and s.location and location.lower() in s.location.lower():
                 score += 15
             scored.append((s, score))
 
-        # Sort by score descending, then by created_at for stability
         scored.sort(key=lambda x: (-x[1], x[0].created_at))
 
         total = len(scored)
@@ -281,8 +281,27 @@ def search_services(
 
         items, pagination = paginate(query, page, limit)
 
+    # ── Batch load completed events count ──
+    service_ids = [s.id for s in items]
+    completed_events_map = {}
+    if service_ids:
+        completed_rows = (
+            db.query(EventService.provider_user_service_id, sa_func.count(EventService.id))
+            .join(Event, Event.id == EventService.event_id)
+            .filter(
+                EventService.provider_user_service_id.in_(service_ids),
+                EventService.service_status != EventServiceStatusEnum.cancelled,
+                or_(
+                    EventService.service_status == EventServiceStatusEnum.completed,
+                    sa_func.coalesce(Event.end_date, Event.start_date) < datetime.now(EAT),
+                ),
+            )
+            .group_by(EventService.provider_user_service_id)
+            .all()
+        )
+        completed_events_map = {str(sid): cnt for sid, cnt in completed_rows}
+
     # ── Build response ──
-    # Collect location & price stats for filters
     all_locations = {}
     global_min_price = None
     global_max_price = None
@@ -345,16 +364,7 @@ def search_services(
             "verified": s.is_verified,
             "availability": s.availability.value if hasattr(s.availability, "value") else s.availability,
             "years_experience": getattr(s, "years_experience", None),
-            "completed_events": db.query(sa_func.count(EventService.id)).join(
-                Event, Event.id == EventService.event_id
-            ).filter(
-                EventService.provider_user_service_id == s.id,
-                EventService.service_status != EventServiceStatusEnum.cancelled,
-                or_(
-                    EventService.service_status == EventServiceStatusEnum.completed,
-                    sa_func.coalesce(Event.end_date, Event.start_date) < datetime.now(EAT),
-                ),
-            ).scalar() or 0,
+            "completed_events": completed_events_map.get(str(s.id), 0),
             "business_phone": {
                 "phone_number": s.business_phone.phone_number,
                 "verification_status": s.business_phone.verification_status.value if hasattr(s.business_phone.verification_status, "value") else str(s.business_phone.verification_status),

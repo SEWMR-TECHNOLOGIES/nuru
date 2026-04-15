@@ -36,6 +36,7 @@ from .meetings import router as meetings_router
 
 from .meeting_documents import router as meeting_documents_router
 from .meeting_og import router as meeting_og_router
+from .combined import router as combined_router
 
 # All routers to be included in main app
 all_routers = [
@@ -73,6 +74,7 @@ all_routers = [
     meetings_router,           # /events/.../meetings
     meeting_documents_router,  # /events/.../meetings/.../agenda + minutes
     meeting_og_router,         # /meetings/room/:roomId (public OG)
+    combined_router,           # /combined/... (aggregated endpoints)
 ]
 
 __all__ = [
