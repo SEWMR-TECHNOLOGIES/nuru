@@ -12,7 +12,6 @@ const ScrollToTop = () => {
       return;
     }
 
-    sessionStorage.removeItem(FEED_SCROLL_KEY);
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [pathname]);
 
