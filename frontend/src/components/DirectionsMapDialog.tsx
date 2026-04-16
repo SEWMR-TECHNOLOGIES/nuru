@@ -168,7 +168,7 @@ export default function DirectionsMapDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl w-[95vw] p-0 gap-0 overflow-hidden rounded-2xl">
+      <DialogContent className="max-w-2xl w-[95vw] p-0 gap-0 overflow-hidden rounded-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
         <DialogHeader className="p-4 pb-2">
           <DialogTitle className="flex items-center gap-2 text-base">
@@ -208,7 +208,7 @@ export default function DirectionsMapDialog({
         )}
 
         {/* Map */}
-        <div ref={mapRef} className="w-full bg-muted" style={{ height: "400px" }} />
+        <div ref={mapRef} className="w-full bg-muted flex-1 min-h-[400px]" />
 
         {/* Footer */}
         <div className="p-4 pt-3 flex items-center justify-between gap-3 border-t border-border">
