@@ -306,6 +306,11 @@ async def update_service(
     service.updated_at = datetime.now(EAT)
 
     db.commit()
+    try:
+        from core.redis import cache_delete
+        cache_delete(f"service:detail:{service_id}")
+    except Exception:
+        pass
     return standard_response(True, "Service updated successfully", _service_dict(db, service))
 
 
