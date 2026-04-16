@@ -56,12 +56,12 @@ def _request_dict(db, circle_entry):
 @router.get("/")
 def get_circles(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get the user's circle (only accepted members)."""
+    from utils.batch_loaders import build_circle_member_dicts
     entries = db.query(UserCircle).filter(
         UserCircle.user_id == current_user.id,
         UserCircle.status == "accepted"
     ).order_by(UserCircle.created_at.desc()).all()
-    members = [_member_dict(db, e) for e in entries]
-    members = [m for m in members if m is not None]
+    members = build_circle_member_dicts(db, entries)
 
     circle = {
         "id": str(current_user.id),
@@ -76,12 +76,12 @@ def get_circles(db: Session = Depends(get_db), current_user: User = Depends(get_
 @router.get("/requests")
 def get_circle_requests(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get incoming circle requests (where someone wants to add me)."""
+    from utils.batch_loaders import build_circle_request_dicts
     entries = db.query(UserCircle).filter(
         UserCircle.circle_member_id == current_user.id,
         UserCircle.status == "pending"
     ).order_by(UserCircle.created_at.desc()).all()
-    requests = [_request_dict(db, e) for e in entries]
-    requests = [r for r in requests if r is not None]
+    requests = build_circle_request_dicts(db, entries)
     return standard_response(True, "Circle requests retrieved", {"requests": requests, "count": len(requests)})
 
 
@@ -168,12 +168,12 @@ def create_circle(db: Session = Depends(get_db), current_user: User = Depends(ge
 
 @router.get("/{circle_id}/members")
 def get_circle_members(circle_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from utils.batch_loaders import build_circle_member_dicts
     entries = db.query(UserCircle).filter(
         UserCircle.user_id == current_user.id,
         UserCircle.status == "accepted"
     ).order_by(UserCircle.created_at.desc()).all()
-    members = [_member_dict(db, e) for e in entries]
-    members = [m for m in members if m is not None]
+    members = build_circle_member_dicts(db, entries)
     return standard_response(True, "Circle members retrieved", {"members": members})
 
 
