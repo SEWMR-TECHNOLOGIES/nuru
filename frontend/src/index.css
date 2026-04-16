@@ -545,3 +545,7 @@ img.invert[src*="/icons/"] {
 .leaflet-popup-pane { z-index: 6 !important; }
 .leaflet-control { z-index: 7 !important; }
 
+.leaflet-control-attribution {
+  display: none !important;
+}
+
