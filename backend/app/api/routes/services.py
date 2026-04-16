@@ -410,7 +410,22 @@ def get_service_details(service_id: str, db: Session = Depends(get_db)):
     except ValueError:
         return standard_response(False, "Invalid service ID")
 
-    service = db.query(UserService).filter(UserService.id == sid).first()
+    # Try cache first (5 min TTL)
+    cache_key = f"service:detail:{service_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return standard_response(True, "Service retrieved successfully", cached)
+
+    service = db.query(UserService).options(
+        selectinload(UserService.ratings).joinedload(UserServiceRating.user).joinedload(User.profile),
+        selectinload(UserService.images),
+        selectinload(UserService.packages),
+        selectinload(UserService.intro_media),
+        joinedload(UserService.user).joinedload(User.profile),
+        joinedload(UserService.category),
+        joinedload(UserService.service_type),
+        joinedload(UserService.business_phone),
+    ).filter(UserService.id == sid).first()
     if not service:
         return standard_response(False, "Service not found")
 
