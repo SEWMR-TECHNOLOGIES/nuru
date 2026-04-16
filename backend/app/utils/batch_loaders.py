@@ -517,3 +517,205 @@ def build_notification_dicts(db: Session, notifications: list) -> List[Dict]:
         })
 
     return result
+
+
+# ─────────────────────────────────────────────────────────
+# Event summary batch loader (replaces _event_summary N+1)
+# ─────────────────────────────────────────────────────────
+
+def batch_load_event_context(db: Session, event_ids: List[UUID]) -> Dict[str, Dict[str, Any]]:
+    """
+    Pre-load all per-event context needed by _event_summary in a handful of
+    grouped queries instead of 8 queries per event.
+
+    Returns: {str(event_id): {event_type, settings, vc, committee_count,
+              service_count, images, contribution_target, contribution_target_obj,
+              guest_counts, contribution_summary}}
+    """
+    if not event_ids:
+        return {}
+
+    eid_list = list(event_ids)
+    eid_strs = [str(e) for e in eid_list]
+    base = {s: {
+        "event_type": None, "settings": None, "vc": None,
+        "committee_count": 0, "service_count": 0, "images": [],
+        "contribution_target": 0.0, "contribution_target_obj": None,
+        "guest_counts": {"guest_count": 0, "confirmed_guest_count": 0,
+                          "pending_guest_count": 0, "declined_guest_count": 0,
+                          "checked_in_count": 0},
+        "contribution_summary": {"contribution_total": 0.0, "contribution_count": 0},
+    } for s in eid_strs}
+
+    # Pull events to obtain event_type_ids in one query (caller already has them but cheap)
+    events = db.query(Event.id, Event.event_type_id).filter(Event.id.in_(eid_list)).all()
+    et_ids = {e.event_type_id for e in events if e.event_type_id}
+    et_map: Dict[str, EventType] = {}
+    if et_ids:
+        for et in db.query(EventType).filter(EventType.id.in_(list(et_ids))).all():
+            et_map[str(et.id)] = et
+    for e in events:
+        if e.event_type_id:
+            base[str(e.id)]["event_type"] = et_map.get(str(e.event_type_id))
+
+    # Settings
+    for s in db.query(EventSetting).filter(EventSetting.event_id.in_(eid_list)).all():
+        base[str(s.event_id)]["settings"] = s
+
+    # Venue coords
+    for vc in db.query(EventVenueCoordinate).filter(EventVenueCoordinate.event_id.in_(eid_list)).all():
+        base[str(vc.event_id)]["vc"] = vc
+
+    # Committee count
+    for eid, cnt in db.query(EventCommitteeMember.event_id, sa_func.count(EventCommitteeMember.id)).filter(
+        EventCommitteeMember.event_id.in_(eid_list)
+    ).group_by(EventCommitteeMember.event_id).all():
+        base[str(eid)]["committee_count"] = cnt
+
+    # Service count
+    for eid, cnt in db.query(EventService.event_id, sa_func.count(EventService.id)).filter(
+        EventService.event_id.in_(eid_list)
+    ).group_by(EventService.event_id).all():
+        base[str(eid)]["service_count"] = cnt
+
+    # Images
+    images_by_event: Dict[str, List[Dict]] = defaultdict(list)
+    for img in db.query(EventImage).filter(EventImage.event_id.in_(eid_list)).order_by(
+        EventImage.is_featured.desc(), EventImage.created_at.asc()
+    ).all():
+        images_by_event[str(img.event_id)].append({
+            "id": str(img.id), "image_url": img.image_url, "caption": img.caption,
+            "is_featured": img.is_featured,
+            "created_at": img.created_at.isoformat() if img.created_at else None,
+        })
+    for k, v in images_by_event.items():
+        base[k]["images"] = v
+
+    # Contribution targets
+    for ct in db.query(EventContributionTarget).filter(EventContributionTarget.event_id.in_(eid_list)).all():
+        base[str(ct.event_id)]["contribution_target_obj"] = ct
+        base[str(ct.event_id)]["contribution_target"] = float(ct.target_amount or 0)
+    # Settings.contribution_target_amount overrides if present
+    for k, v in base.items():
+        s = v["settings"]
+        if s and getattr(s, "contribution_target_amount", None):
+            v["contribution_target"] = float(s.contribution_target_amount)
+
+    # Guest counts (rsvp_status grouped)
+    for eid, status, cnt in db.query(
+        EventAttendee.event_id, EventAttendee.rsvp_status, sa_func.count(EventAttendee.id)
+    ).filter(EventAttendee.event_id.in_(eid_list)).group_by(
+        EventAttendee.event_id, EventAttendee.rsvp_status
+    ).all():
+        key = status.value if hasattr(status, "value") else status
+        gc = base[str(eid)]["guest_counts"]
+        gc["guest_count"] += cnt
+        if key == "confirmed":
+            gc["confirmed_guest_count"] = cnt
+        elif key == "pending":
+            gc["pending_guest_count"] = cnt
+        elif key == "declined":
+            gc["declined_guest_count"] = cnt
+
+    # Checked in
+    for eid, cnt in db.query(
+        EventAttendee.event_id, sa_func.count(EventAttendee.id)
+    ).filter(EventAttendee.event_id.in_(eid_list), EventAttendee.checked_in == True).group_by(
+        EventAttendee.event_id
+    ).all():
+        base[str(eid)]["guest_counts"]["checked_in_count"] = cnt
+
+    # Contribution summary (confirmed only)
+    for eid, total, cnt in db.query(
+        EventContribution.event_id,
+        sa_func.coalesce(sa_func.sum(EventContribution.amount), 0),
+        sa_func.count(EventContribution.id),
+    ).filter(
+        EventContribution.event_id.in_(eid_list),
+        EventContribution.confirmation_status == "confirmed",
+    ).group_by(EventContribution.event_id).all():
+        base[str(eid)]["contribution_summary"] = {
+            "contribution_total": float(total),
+            "contribution_count": cnt,
+        }
+
+    return base
+
+
+def batch_load_currency_codes(db: Session, currency_ids: Set[UUID]) -> Dict[str, Optional[str]]:
+    """Batch lookup of currency code by id."""
+    if not currency_ids:
+        return {}
+    out: Dict[str, Optional[str]] = {}
+    for c in db.query(Currency).filter(Currency.id.in_(list(currency_ids))).all():
+        out[str(c.id)] = c.code.strip() if c.code else None
+    return out
+
+
+def build_event_summaries(db: Session, events: List[Event]) -> List[Dict]:
+    """
+    Batched equivalent of _event_summary for a list of events.
+    Total queries: ~10 regardless of event count (vs 8 per event before).
+    """
+    if not events:
+        return []
+
+    event_ids = [e.id for e in events]
+    ctx = batch_load_event_context(db, event_ids)
+    currency_ids = {e.currency_id for e in events if e.currency_id}
+    currency_map = batch_load_currency_codes(db, currency_ids)
+
+    result = []
+    for event in events:
+        eid = str(event.id)
+        c = ctx[eid]
+        et = c["event_type"]
+        vc = c["vc"]
+        s = c["settings"]
+        ct_obj = c["contribution_target_obj"]
+        images = c["images"]
+        gc = c["guest_counts"]
+        cs = c["contribution_summary"]
+
+        cover = event.cover_image_url
+        if not cover:
+            for img in images:
+                if img.get("is_featured"):
+                    cover = img["image_url"]; break
+            if not cover and images:
+                cover = images[0]["image_url"]
+
+        result.append({
+            "id": eid, "user_id": str(event.organizer_id), "title": event.name,
+            "description": event.description,
+            "event_type_id": str(event.event_type_id) if event.event_type_id else None,
+            "event_type": {"id": str(et.id), "name": et.name, "icon": et.icon} if et else None,
+            "start_date": event.start_date.isoformat() if event.start_date else None,
+            "start_time": event.start_time.strftime("%H:%M") if event.start_time else None,
+            "end_date": event.end_date.isoformat() if event.end_date else None,
+            "end_time": event.end_time.strftime("%H:%M") if event.end_time else None,
+            "location": event.location,
+            "venue": vc.venue_name if vc else None,
+            "venue_address": vc.formatted_address if vc else None,
+            "venue_coordinates": {"latitude": float(vc.latitude), "longitude": float(vc.longitude)} if vc and vc.latitude else None,
+            "cover_image": cover, "images": images,
+            "theme_color": event.theme_color, "is_public": event.is_public,
+            "sells_tickets": event.sells_tickets or False,
+            "ticket_approval_status": event.ticket_approval_status.value if event.ticket_approval_status and hasattr(event.ticket_approval_status, 'value') else "pending",
+            "ticket_rejection_reason": event.ticket_rejection_reason,
+            "ticket_removed_reason": event.ticket_removed_reason,
+            "status": event.status.value if hasattr(event.status, "value") else event.status,
+            "budget": float(event.budget) if event.budget else None,
+            "currency": currency_map.get(str(event.currency_id)) if event.currency_id else None,
+            "dress_code": event.dress_code, "special_instructions": event.special_instructions,
+            "rsvp_deadline": s.rsvp_deadline.isoformat() if s and s.rsvp_deadline else None,
+            "contribution_enabled": s.contributions_enabled if s else False,
+            "contribution_target": c["contribution_target"],
+            "contribution_description": ct_obj.description if ct_obj else None,
+            "expected_guests": event.expected_guests,
+            **gc, **cs,
+            "committee_count": c["committee_count"], "service_booking_count": c["service_count"],
+            "created_at": event.created_at.isoformat() if event.created_at else None,
+            "updated_at": event.updated_at.isoformat() if event.updated_at else None,
+        })
+    return result
