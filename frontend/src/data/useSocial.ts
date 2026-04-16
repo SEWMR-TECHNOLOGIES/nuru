@@ -49,11 +49,12 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
   }, [initialParams]);
 
   useEffect(() => {
-    // Skip refetch if we already have cached feed data — preserves scroll & avoids reload on remount.
-    // Consumers can call refetch() manually (e.g., pull-to-refresh) when they want fresh data.
-    if (_feedHasLoaded && _feedCache.length > 0) return;
+    // Skip refetch entirely if we have ever loaded — preserves scroll & avoids reload on remount.
+    // Consumers must call refetch() manually (e.g., pull-to-refresh) for fresh data.
+    if (_feedHasLoaded) return;
     fetchFeed();
-  }, [fetchFeed]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadMore = async (page: number) => {
     try {
