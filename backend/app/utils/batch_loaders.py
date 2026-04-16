@@ -842,3 +842,315 @@ def build_booking_dicts(db: Session, bookings: List[ServiceBookingRequest]) -> L
             "updated_at": b.updated_at.isoformat() if b.updated_at else None,
         })
     return out
+
+
+# ─────────────────────────────────────────────────────────
+# Messages / Conversations batch loader
+# ─────────────────────────────────────────────────────────
+
+def build_conversation_dicts(db: Session, conversations: list, current_user_id) -> List[Dict]:
+    """
+    Batch-load other-participant users/profiles, last messages, unread counts,
+    and service info for a list of conversations.
+    Replaces ~5 per-conversation queries with ~6 grouped queries.
+    """
+    from models import Conversation, Message, UserService, UserServiceImage
+    from sqlalchemy import case
+
+    if not conversations:
+        return []
+
+    cur = str(current_user_id)
+    conv_ids = [c.id for c in conversations]
+
+    # Other participant per conversation
+    other_ids = set()
+    for c in conversations:
+        oid = c.user_two_id if str(c.user_one_id) == cur else c.user_one_id
+        if oid:
+            other_ids.add(oid)
+
+    users = db.query(User).filter(User.id.in_(list(other_ids))).all() if other_ids else []
+    user_map = {u.id: u for u in users}
+    profiles = db.query(UserProfile).filter(UserProfile.user_id.in_(list(other_ids))).all() if other_ids else []
+    profile_map = {p.user_id: p for p in profiles}
+
+    # Last message per conversation (window function fallback: bulk fetch + group)
+    last_msg_map: Dict = {}
+    if conv_ids:
+        # Fetch latest message id per conversation in a single grouped query
+        latest_ids_subq = db.query(
+            Message.conversation_id,
+            sa_func.max(Message.created_at).label("max_created")
+        ).filter(Message.conversation_id.in_(conv_ids)).group_by(Message.conversation_id).subquery()
+        last_msgs = db.query(Message).join(
+            latest_ids_subq,
+            (Message.conversation_id == latest_ids_subq.c.conversation_id) &
+            (Message.created_at == latest_ids_subq.c.max_created)
+        ).all()
+        for m in last_msgs:
+            # If multiple messages share same created_at (rare), keep the first
+            last_msg_map.setdefault(m.conversation_id, m)
+
+    # Unread counts (other sender, unread) grouped per conversation
+    unread_map: Dict = {}
+    if conv_ids:
+        rows = db.query(
+            Message.conversation_id,
+            sa_func.count(Message.id)
+        ).filter(
+            Message.conversation_id.in_(conv_ids),
+            Message.sender_id != current_user_id,
+            Message.is_read == False,
+        ).group_by(Message.conversation_id).all()
+        unread_map = {cid: int(cnt) for cid, cnt in rows}
+
+    # Service info bulk
+    service_ids = {c.service_id for c in conversations if c.service_id}
+    service_map: Dict = {}
+    service_image_map: Dict = {}
+    if service_ids:
+        services = db.query(UserService).filter(UserService.id.in_(list(service_ids))).all()
+        service_map = {s.id: s for s in services}
+        imgs = db.query(UserServiceImage).filter(UserServiceImage.service_id.in_(list(service_ids))).all()
+        for im in imgs:
+            cur_img = service_image_map.get(im.service_id)
+            if cur_img is None or (getattr(im, "is_featured", False) and not getattr(cur_img, "is_featured", False)):
+                service_image_map[im.service_id] = im
+
+    out: List[Dict] = []
+    for conv in conversations:
+        other_id = conv.user_two_id if str(conv.user_one_id) == cur else conv.user_one_id
+        other = user_map.get(other_id) if other_id else None
+        profile = profile_map.get(other_id) if other_id else None
+        last_msg = last_msg_map.get(conv.id)
+        unread = unread_map.get(conv.id, 0)
+
+        service_info = None
+        if conv.service_id:
+            svc = service_map.get(conv.service_id)
+            if svc:
+                im = service_image_map.get(conv.service_id)
+                service_info = {
+                    "id": str(svc.id),
+                    "title": svc.title,
+                    "image": im.image_url if im else None,
+                    "provider_id": str(svc.user_id),
+                }
+
+        participant_name = f"{other.first_name} {other.last_name}" if other else None
+        participant_avatar = profile.profile_picture_url if profile else None
+
+        is_service_owner = service_info and str(service_info["provider_id"]) == cur
+        if service_info and not is_service_owner:
+            display_name = service_info["title"]
+            display_avatar = service_info["image"]
+        else:
+            display_name = participant_name
+            display_avatar = participant_avatar
+
+        out.append({
+            "id": str(conv.id),
+            "type": conv.type.value if conv.type else "user_to_user",
+            "participant": {
+                "id": str(other.id) if other else None,
+                "name": display_name,
+                "avatar": display_avatar,
+            },
+            "service": service_info,
+            "last_message": {
+                "content": last_msg.message_text if last_msg else None,
+                "sent_at": last_msg.created_at.isoformat() if last_msg else None,
+                "is_mine": str(last_msg.sender_id) == cur if last_msg else False,
+            } if last_msg else None,
+            "unread_count": unread,
+            "is_active": conv.is_active,
+            "updated_at": conv.updated_at.isoformat() if conv.updated_at else None,
+        })
+    return out
+
+
+# ─────────────────────────────────────────────────────────
+# Communities batch loaders
+# ─────────────────────────────────────────────────────────
+
+def build_community_dicts(db: Session, communities: list, current_user_id) -> List[Dict]:
+    """Batch-load membership flags for a list of communities."""
+    from models import Community, CommunityMember
+    if not communities:
+        return []
+
+    cur = str(current_user_id) if current_user_id else None
+    community_ids = [c.id for c in communities]
+
+    member_ids: Set = set()
+    if cur:
+        rows = db.query(CommunityMember.community_id).filter(
+            CommunityMember.community_id.in_(community_ids),
+            CommunityMember.user_id == current_user_id,
+        ).all()
+        member_ids = {r[0] for r in rows}
+
+    out: List[Dict] = []
+    for c in communities:
+        is_creator = bool(cur and c.created_by and str(c.created_by) == cur)
+        is_member = (c.id in member_ids) or is_creator
+        out.append({
+            "id": str(c.id),
+            "name": c.name,
+            "description": c.description,
+            "image": c.cover_image_url,
+            "is_public": c.is_public,
+            "member_count": c.member_count or 0,
+            "is_creator": is_creator or is_member,
+            "is_member": is_member,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        })
+    return out
+
+
+def build_community_member_dicts(db: Session, memberships: list) -> List[Dict]:
+    """Batch-load user/profile for a paginated list of memberships."""
+    if not memberships:
+        return []
+    user_ids = list({m.user_id for m in memberships if m.user_id})
+    users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
+    user_map = {u.id: u for u in users}
+    profiles = db.query(UserProfile).filter(UserProfile.user_id.in_(user_ids)).all() if user_ids else []
+    profile_map = {p.user_id: p for p in profiles}
+
+    out: List[Dict] = []
+    for m in memberships:
+        u = user_map.get(m.user_id)
+        if not u:
+            continue
+        p = profile_map.get(m.user_id)
+        out.append({
+            "id": str(u.id),
+            "first_name": u.first_name,
+            "last_name": u.last_name,
+            "avatar": p.profile_picture_url if p else None,
+            "role": m.role,
+            "joined_at": m.joined_at.isoformat() if m.joined_at else None,
+        })
+    return out
+
+
+def build_community_post_dicts(db: Session, posts: list, current_user_id) -> List[Dict]:
+    """Batch-load authors, images, glow counts, and 'has_glowed' for posts."""
+    from models import CommunityPost, CommunityPostImage, CommunityPostGlow
+    if not posts:
+        return []
+
+    post_ids = [p.id for p in posts]
+    author_ids = list({p.author_id for p in posts if p.author_id})
+
+    users = db.query(User).filter(User.id.in_(author_ids)).all() if author_ids else []
+    user_map = {u.id: u for u in users}
+    profiles = db.query(UserProfile).filter(UserProfile.user_id.in_(author_ids)).all() if author_ids else []
+    profile_map = {p.user_id: p for p in profiles}
+
+    img_map: Dict = defaultdict(list)
+    if post_ids:
+        for im in db.query(CommunityPostImage).filter(CommunityPostImage.post_id.in_(post_ids)).all():
+            img_map[im.post_id].append(im)
+
+    glow_count_map: Dict = {}
+    if post_ids:
+        rows = db.query(CommunityPostGlow.post_id, sa_func.count(CommunityPostGlow.id)).filter(
+            CommunityPostGlow.post_id.in_(post_ids)
+        ).group_by(CommunityPostGlow.post_id).all()
+        glow_count_map = {pid: int(cnt) for pid, cnt in rows}
+
+    has_glowed_set: Set = set()
+    if post_ids and current_user_id:
+        rows = db.query(CommunityPostGlow.post_id).filter(
+            CommunityPostGlow.post_id.in_(post_ids),
+            CommunityPostGlow.user_id == current_user_id,
+        ).all()
+        has_glowed_set = {r[0] for r in rows}
+
+    out: List[Dict] = []
+    for cp in posts:
+        u = user_map.get(cp.author_id)
+        p = profile_map.get(cp.author_id) if cp.author_id else None
+        out.append({
+            "id": str(cp.id),
+            "author": {
+                "id": str(u.id) if u else None,
+                "name": f"{u.first_name} {u.last_name}" if u else None,
+                "avatar": p.profile_picture_url if p else None,
+                "is_verified": u.is_identity_verified if u else False,
+            },
+            "content": cp.content,
+            "images": [
+                {"url": im.image_url, "media_type": getattr(im, "media_type", None) or "image"}
+                for im in img_map.get(cp.id, [])
+            ],
+            "glow_count": glow_count_map.get(cp.id, 0),
+            "has_glowed": cp.id in has_glowed_set,
+            "created_at": cp.created_at.isoformat() if cp.created_at else None,
+        })
+    return out
+
+
+# ─────────────────────────────────────────────────────────
+# Circles batch loaders
+# ─────────────────────────────────────────────────────────
+
+def build_circle_member_dicts(db: Session, entries: list) -> List[Dict]:
+    """Batch-load member user/profile for accepted circle entries."""
+    if not entries:
+        return []
+    user_ids = list({e.circle_member_id for e in entries if e.circle_member_id})
+    users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
+    user_map = {u.id: u for u in users}
+    profiles = db.query(UserProfile).filter(UserProfile.user_id.in_(user_ids)).all() if user_ids else []
+    profile_map = {p.user_id: p for p in profiles}
+
+    out: List[Dict] = []
+    for e in entries:
+        member = user_map.get(e.circle_member_id)
+        if not member:
+            continue
+        profile = profile_map.get(e.circle_member_id)
+        out.append({
+            "id": str(member.id),
+            "first_name": member.first_name,
+            "last_name": member.last_name,
+            "username": member.username,
+            "avatar": profile.profile_picture_url if profile else None,
+            "mutual_count": e.mutual_friends_count or 0,
+            "status": e.status or "accepted",
+            "added_at": e.created_at.isoformat() if e.created_at else None,
+        })
+    return out
+
+
+def build_circle_request_dicts(db: Session, entries: list) -> List[Dict]:
+    """Batch-load requester user/profile for incoming circle requests."""
+    if not entries:
+        return []
+    user_ids = list({e.user_id for e in entries if e.user_id})
+    users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
+    user_map = {u.id: u for u in users}
+    profiles = db.query(UserProfile).filter(UserProfile.user_id.in_(user_ids)).all() if user_ids else []
+    profile_map = {p.user_id: p for p in profiles}
+
+    out: List[Dict] = []
+    for e in entries:
+        requester = user_map.get(e.user_id)
+        if not requester:
+            continue
+        profile = profile_map.get(e.user_id)
+        out.append({
+            "request_id": str(e.id),
+            "id": str(requester.id),
+            "first_name": requester.first_name,
+            "last_name": requester.last_name,
+            "username": requester.username,
+            "avatar": profile.profile_picture_url if profile else None,
+            "mutual_count": e.mutual_friends_count or 0,
+            "requested_at": e.created_at.isoformat() if e.created_at else None,
+        })
+    return out
