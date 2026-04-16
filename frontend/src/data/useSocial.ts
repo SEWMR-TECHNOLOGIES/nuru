@@ -11,10 +11,37 @@ import { throwApiError } from "@/lib/api/showApiErrors";
 // FEED (with module-level cache for scroll preservation)
 // ============================================================================
 
+const FEED_CACHE_KEY = "feedCache";
+const FEED_PAGINATION_KEY = "feedPaginationCache";
+const FEED_LOADED_KEY = "feedHasLoaded";
+
+const readSessionJson = <T,>(key: string, fallback: T): T => {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = sessionStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const persistFeedCache = (items: FeedPost[], pagination: unknown, hasLoaded: boolean) => {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(FEED_CACHE_KEY, JSON.stringify(items));
+    sessionStorage.setItem(FEED_PAGINATION_KEY, JSON.stringify(pagination));
+    sessionStorage.setItem(FEED_LOADED_KEY, hasLoaded ? "1" : "0");
+  } catch {
+    // ignore storage limits and privacy mode failures
+  }
+};
+
 // Module-level cache so feed data survives unmount/remount cycles
-let _feedCache: FeedPost[] = [];
-let _feedPaginationCache: any = null;
-let _feedHasLoaded = false;
+let _feedCache: FeedPost[] = readSessionJson<FeedPost[]>(FEED_CACHE_KEY, []);
+let _feedPaginationCache: any = readSessionJson<any>(FEED_PAGINATION_KEY, null);
+let _feedHasLoaded = typeof window !== "undefined"
+  ? sessionStorage.getItem(FEED_LOADED_KEY) === "1"
+  : false;
 
 export const useFeed = (initialParams?: FeedQueryParams) => {
   const [items, setItems] = useState<FeedPost[]>(_feedCache);
@@ -36,6 +63,7 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
         _feedCache = feedItems;
         _feedPaginationCache = feedData?.pagination;
         _feedHasLoaded = true;
+        persistFeedCache(feedItems, feedData?.pagination, true);
         setItems(feedItems);
         setPagination(feedData?.pagination);
       } else {
@@ -65,6 +93,8 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
         const combined = [..._feedCache, ...moreItems];
         _feedCache = combined;
         _feedPaginationCache = feedData?.pagination;
+        _feedHasLoaded = true;
+        persistFeedCache(combined, feedData?.pagination, true);
         setItems(combined);
         setPagination(feedData?.pagination);
       }
