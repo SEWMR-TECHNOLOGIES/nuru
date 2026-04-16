@@ -15,8 +15,9 @@ from core.database import get_db
 from models import (
     EventTypeService, EventService, Event, EventInvitation, EventCommitteeMember,
     ServiceType, UserService, ServicePackage, UserServiceRating,
-    EventServiceStatusEnum,
+    EventServiceStatusEnum, User,
 )
+from core.redis import cache_get, cache_set, cache_delete_pattern
 from utils.auth import get_current_user
 
 from utils.helpers import format_price, standard_response, paginate
