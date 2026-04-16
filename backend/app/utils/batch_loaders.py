@@ -23,7 +23,11 @@ from models import (
     EventCommitteeMember, EventService, EventContribution,
     EventContributionTarget, Currency, RSVPStatusEnum,
     ServiceBookingRequest, UserService, UserServiceImage, ServiceCategory,
+    ServiceType, EventExpense, CommitteeRole, CommitteePermission,
 )
+from models.meetings import EventMeeting, EventMeetingParticipant, EventMeetingJoinRequest
+from models.meeting_documents import MeetingAgendaItem, MeetingMinutes
+from models.enums import MeetingStatusEnum, MeetingJoinRequestStatusEnum
 
 
 # ─────────────────────────────────────────────────────────
