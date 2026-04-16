@@ -39,6 +39,7 @@ export default function DirectionsMapDialog({
   const [locating, setLocating] = useState(false);
   const [routeInfo, setRouteInfo] = useState<{ distance: string; duration: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
 
   // Request user location
   const requestLocation = () => {
@@ -78,11 +79,13 @@ export default function DirectionsMapDialog({
           zoom: 14,
           zoomControl: false,
           preferCanvas: true,
+          attributionControl: false,
         });
         L.control.zoom({ position: "bottomright" }).addTo(map);
         addOpenSourceTiles(map);
         L.marker([destinationLat, destinationLng], { icon: VenueMarkerIcon }).addTo(map);
         mapInstanceRef.current = map;
+        setMapReady(true);
         // Invalidate size after dialog animation completes
         setTimeout(() => map.invalidateSize(), 50);
         setTimeout(() => map.invalidateSize(), 250);
@@ -102,6 +105,7 @@ export default function DirectionsMapDialog({
       routeLayerRef.current = null;
       userMarkerRef.current = null;
       setRouteInfo(null);
+      setMapReady(false);
     }
   }, [open]);
 
@@ -148,8 +152,8 @@ export default function DirectionsMapDialog({
         }).addTo(map);
 
         // Fit bounds
-        const bounds = L.latLngBounds([userLocation, [destinationLat, destinationLng]]);
-        map.fitBounds(bounds, { padding: [50, 50] });
+        const bounds = routeLayerRef.current.getBounds();
+        map.fitBounds(bounds, { padding: [48, 48] });
 
         // Route info
         const distKm = (route.distance / 1000).toFixed(1);
@@ -195,7 +199,6 @@ export default function DirectionsMapDialog({
             </div>
             <div className="w-px h-4 bg-border" />
             <span className="text-sm text-muted-foreground">{routeInfo.distance}</span>
-            <span className="text-xs text-muted-foreground ml-auto">via OSRM</span>
           </div>
         )}
 
@@ -209,6 +212,14 @@ export default function DirectionsMapDialog({
 
         {/* Map */}
         <div className="relative flex-1 min-h-0 w-full bg-muted">
+          {!mapReady && (
+            <div className="absolute inset-0 z-[1] flex items-center justify-center bg-muted/80 backdrop-blur-[1px]">
+              <div className="flex items-center gap-2 rounded-full border border-border bg-background/90 px-4 py-2 text-sm text-muted-foreground shadow-sm">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading directions...
+              </div>
+            </div>
+          )}
           <div ref={mapRef} className="absolute inset-0" />
         </div>
 

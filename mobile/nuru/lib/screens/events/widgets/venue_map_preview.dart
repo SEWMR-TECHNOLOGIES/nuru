@@ -70,6 +70,7 @@ class VenueMapPreview extends StatelessWidget {
                     maxZoom: 19,
                     tileSize: 512,
                     zoomOffset: -1,
+                    retinaMode: RetinaMode.isHighDensity(context),
                   ),
                   MarkerLayer(
                     markers: [
