@@ -187,7 +187,8 @@ const MapLocationPicker = ({
       mapInstanceRef.current = null;
       markerRef.current = null;
     };
-  }, [placeMarker, reverseGeocode, selectedLocation, value]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
