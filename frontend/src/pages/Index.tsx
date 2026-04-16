@@ -4,95 +4,108 @@ import { ChevronRight } from "lucide-react";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
 import TrendingMoments from "@/components/TrendingMoments";
-import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 const Index = () => {
   const { t } = useLanguage();
   useMeta({
     title: "Nuru | Event Planning Workspace",
-    description: "Plan, organize, and manage events with verified providers in one platform."
+    description:
+      "Plan, organize, and manage events with verified providers in one platform.",
   });
 
   const features = [
-    { 
-      label: "Planning Tools", 
-      href: "/features/event-planning", 
+    {
+      label: "Planning Tools",
+      href: "/features/event-planning",
       desc: "Timelines, budgets, and task management",
       number: "01",
-      detail: "Stay on top of every detail with smart checklists, budget tracking, and collaborative task boards"
+      detail:
+        "Stay on top of every detail with smart checklists, budget tracking, and collaborative task boards",
     },
-    { 
-      label: "Verified Vendors", 
-      href: "/features/service-providers", 
+    {
+      label: "Verified Vendors",
+      href: "/features/service-providers",
       desc: "Trusted professionals for every need",
       number: "02",
-      detail: "Browse rated vendors, compare packages, and book directly through the platform"
+      detail:
+        "Browse rated vendors, compare packages, and book directly through the platform",
     },
-    { 
-      label: "Digital Invitations", 
-      href: "/features/invitations", 
+    {
+      label: "Digital Invitations",
+      href: "/features/invitations",
       desc: "Beautiful invites with RSVP tracking",
       number: "03",
-      detail: "Send stunning invitations via SMS, email, or link. Track opens and responses in real time"
+      detail:
+        "Send stunning invitations via SMS, email, or link. Track opens and responses in real time",
     },
-    { 
-      label: "NFC Guest Access", 
-      href: "/features/nfc-cards", 
+    {
+      label: "NFC Guest Access",
+      href: "/features/nfc-cards",
       desc: "Tap-to-check-in technology",
       number: "04",
-      detail: "Issue smart cards for instant check-in, cashless payments, and VIP access control"
+      detail:
+        "Issue smart cards for instant check-in, cashless payments, and VIP access control",
     },
-    { 
-      label: "Secure Payments", 
-      href: "/features/payments", 
+    {
+      label: "Secure Payments",
+      href: "/features/payments",
       desc: "Safe transactions, multiple options",
       number: "05",
-      detail: "Collect contributions, sell tickets, and pay vendors through M-Pesa, cards, and bank transfers"
+      detail:
+        "Collect contributions, sell tickets, and pay vendors through M-Pesa, cards, and bank transfers",
     },
   ];
 
   const eventTypes = [
-    { 
-      name: "Weddings", 
+    {
+      name: "Weddings",
       desc: "Celebrate love stories",
-      image: "https://images.unsplash.com/photo-1519741497674-611481863552?w=600&q=80",
-      size: "large"
+      image:
+        "https://images.unsplash.com/photo-1519741497674-611481863552?w=600&q=80",
+      size: "large",
     },
-    { 
-      name: "Birthdays", 
+    {
+      name: "Birthdays",
       desc: "Mark another year",
-      image: "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=600&q=80",
-      size: "small"
+      image:
+        "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=600&q=80",
+      size: "small",
     },
-    { 
-      name: "Memorials", 
+    {
+      name: "Memorials",
       desc: "Honor those we cherish",
-      image: "https://images.unsplash.com/photo-1501973801540-537f08ccae7b?w=600&q=80",
-      size: "medium"
+      image:
+        "https://images.unsplash.com/photo-1501973801540-537f08ccae7b?w=600&q=80",
+      size: "medium",
     },
-    { 
-      name: "Corporate", 
+    {
+      name: "Corporate",
       desc: "Elevate your brand",
-      image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&q=80",
-      size: "small"
+      image:
+        "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&q=80",
+      size: "small",
     },
-    { 
-      name: "Graduations", 
+    {
+      name: "Graduations",
       desc: "Celebrate achievements",
-      image: "https://images.unsplash.com/photo-1627556704290-2b1f5853ff78?w=600&q=80",
-      size: "medium"
+      image:
+        "https://images.unsplash.com/photo-1627556704290-2b1f5853ff78?w=600&q=80",
+      size: "medium",
     },
-    { 
-      name: "Baby Showers", 
+    {
+      name: "Baby Showers",
       desc: "Welcome new beginnings",
-      image: "https://images.unsplash.com/photo-1555252333-9f8e92e65df9?w=600&q=80",
-      size: "small"
+      image:
+        "https://images.unsplash.com/photo-1555252333-9f8e92e65df9?w=600&q=80",
+      size: "small",
     },
-    { 
-      name: "Anniversaries", 
+    {
+      name: "Anniversaries",
       desc: "Cherish milestones together",
-      image: "https://images.unsplash.com/photo-1529636798458-92182e662485?w=600&q=80",
-      size: "small"
+      image:
+        "https://images.unsplash.com/photo-1529636798458-92182e662485?w=600&q=80",
+      size: "small",
     },
   ];
 
@@ -109,25 +122,53 @@ const Index = () => {
         >
           <defs>
             <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="hsl(var(--muted))" stopOpacity="0.3" />
+              <stop
+                offset="0%"
+                stopColor="hsl(var(--muted))"
+                stopOpacity="0.3"
+              />
               <stop offset="100%" stopColor="hsl(var(--background))" />
             </linearGradient>
             <linearGradient id="blob1" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.12" />
-              <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.03" />
+              <stop
+                offset="0%"
+                stopColor="hsl(var(--primary))"
+                stopOpacity="0.12"
+              />
+              <stop
+                offset="100%"
+                stopColor="hsl(var(--primary))"
+                stopOpacity="0.03"
+              />
             </linearGradient>
             <linearGradient id="blob2" x1="100%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity="0.15" />
-              <stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity="0.03" />
+              <stop
+                offset="0%"
+                stopColor="hsl(var(--accent))"
+                stopOpacity="0.15"
+              />
+              <stop
+                offset="100%"
+                stopColor="hsl(var(--accent))"
+                stopOpacity="0.03"
+              />
             </linearGradient>
             <linearGradient id="blob3" x1="50%" y1="0%" x2="50%" y2="100%">
-              <stop offset="0%" stopColor="hsl(var(--muted-foreground))" stopOpacity="0.06" />
-              <stop offset="100%" stopColor="hsl(var(--muted-foreground))" stopOpacity="0.01" />
+              <stop
+                offset="0%"
+                stopColor="hsl(var(--muted-foreground))"
+                stopOpacity="0.06"
+              />
+              <stop
+                offset="100%"
+                stopColor="hsl(var(--muted-foreground))"
+                stopOpacity="0.01"
+              />
             </linearGradient>
           </defs>
-          
+
           <rect width="100%" height="100%" fill="url(#bgGradient)" />
-          
+
           <motion.path
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -162,7 +203,7 @@ const Index = () => {
             ry="300"
             fill="url(#blob3)"
           />
-          
+
           <motion.line
             initial={{ pathLength: 0 }}
             animate={{ pathLength: 1 }}
@@ -222,7 +263,8 @@ const Index = () => {
               transition={{ duration: 0.6, delay: 0.5 }}
               className="text-lg md:text-xl text-muted-foreground max-w-md mx-auto mb-24"
             >
-              Plan with clarity. Organize with ease. For every occasion life brings.
+              Plan with clarity. Organize with ease. For every occasion life
+              brings.
             </motion.p>
 
             {/* Creative Bento Grid */}
@@ -240,14 +282,14 @@ const Index = () => {
                     key={event.name}
                     initial={{ opacity: 0, y: 30, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ 
-                      duration: 0.6, 
+                    transition={{
+                      duration: 0.6,
                       delay: 0.6 + index * 0.1,
-                      ease: [0.22, 1, 0.36, 1]
+                      ease: [0.22, 1, 0.36, 1],
                     }}
-                    whileHover={{ 
+                    whileHover={{
                       scale: 1.02,
-                      transition: { duration: 0.3 }
+                      transition: { duration: 0.3 },
                     }}
                     className={`
                       ${gridClasses[event.size as keyof typeof gridClasses]}
@@ -256,15 +298,15 @@ const Index = () => {
                   >
                     {/* Background Image */}
                     <div className="absolute inset-0">
-                      <img 
-                        src={event.image} 
+                      <img
+                        src={event.image}
                         alt={event.name}
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                       />
                       {/* Gradient Overlay */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
                     </div>
-                    
+
                     {/* Content */}
                     <div className="absolute inset-0 p-4 md:p-5 flex flex-col justify-end">
                       <motion.div
@@ -272,17 +314,26 @@ const Index = () => {
                         animate={{ y: 0, opacity: 1 }}
                         transition={{ delay: 0.8 + index * 0.1 }}
                       >
-                        <h3 className={`
+                        <h3
+                          className={`
                           font-semibold text-white mb-1
-                          ${event.size === 'large' ? 'text-2xl md:text-3xl' : 
-                            event.size === 'medium' ? 'text-xl md:text-2xl' : 'text-lg'}
-                        `}>
+                          ${
+                            event.size === "large"
+                              ? "text-2xl md:text-3xl"
+                              : event.size === "medium"
+                                ? "text-xl md:text-2xl"
+                                : "text-lg"
+                          }
+                        `}
+                        >
                           {event.name}
                         </h3>
-                        <p className={`
+                        <p
+                          className={`
                           text-white/70 leading-relaxed
-                          ${event.size === 'small' ? 'hidden md:block text-sm' : 'text-sm md:text-base'}
-                        `}>
+                          ${event.size === "small" ? "hidden md:block text-sm" : "text-sm md:text-base"}
+                        `}
+                        >
                           {event.desc}
                         </p>
                       </motion.div>
@@ -310,7 +361,12 @@ const Index = () => {
         />
         <motion.div
           animate={{ y: [0, 12, 0], opacity: [0.15, 0.3, 0.15] }}
-          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+          transition={{
+            duration: 6,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 2,
+          }}
           className="absolute bottom-1/3 right-[12%] w-1.5 h-1.5 rounded-full bg-foreground/20 hidden lg:block"
         />
       </section>
@@ -350,7 +406,8 @@ const Index = () => {
               className="flex items-end"
             >
               <p className="text-muted-foreground text-lg lg:text-xl leading-relaxed max-w-md">
-                Five powerful tools designed to take your event from concept to celebration. Each one built with real organizers in mind.
+                Five powerful tools designed to take your event from concept to
+                celebration. Each one built with real organizers in mind.
               </p>
             </motion.div>
           </div>
@@ -362,20 +419,22 @@ const Index = () => {
                 key={item.label}
                 initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                transition={{ 
-                  duration: 0.6, 
+                transition={{
+                  duration: 0.6,
                   delay: index * 0.1,
-                  ease: [0.22, 1, 0.36, 1]
+                  ease: [0.22, 1, 0.36, 1],
                 }}
                 viewport={{ once: true }}
-                className={`group ${index === 0 ? 'lg:row-span-2' : ''} ${index === 4 ? 'md:col-span-2 lg:col-span-1' : ''}`}
+                className={`group ${index === 0 ? "lg:row-span-2" : ""} ${index === 4 ? "md:col-span-2 lg:col-span-1" : ""}`}
               >
                 <Link
                   to={item.href}
-                  className={`relative block h-full rounded-3xl border border-border/60 bg-gradient-to-br from-muted/30 via-transparent to-transparent overflow-hidden transition-all duration-500 hover:border-foreground/15 hover:shadow-xl hover:shadow-primary/[0.03] ${index === 0 ? 'p-10 lg:p-12' : 'p-8 lg:p-10'}`}
+                  className={`relative block h-full rounded-3xl border border-border/60 bg-gradient-to-br from-muted/30 via-transparent to-transparent overflow-hidden transition-all duration-500 hover:border-foreground/15 hover:shadow-xl hover:shadow-primary/[0.03] ${index === 0 ? "p-10 lg:p-12" : "p-8 lg:p-10"}`}
                 >
                   {/* Large faded number */}
-                  <span className={`absolute top-6 right-6 font-bold text-foreground/[0.04] group-hover:text-foreground/[0.08] transition-colors duration-700 ${index === 0 ? 'text-[120px] lg:text-[160px]' : 'text-[100px]'}`}>
+                  <span
+                    className={`absolute top-6 right-6 font-bold text-foreground/[0.04] group-hover:text-foreground/[0.08] transition-colors duration-700 ${index === 0 ? "text-[120px] lg:text-[160px]" : "text-[100px]"}`}
+                  >
                     {item.number}
                   </span>
 
@@ -384,10 +443,14 @@ const Index = () => {
 
                   <div className="relative flex flex-col h-full justify-between gap-6">
                     <div>
-                      <h3 className={`font-bold text-foreground tracking-tight mb-3 ${index === 0 ? 'text-2xl lg:text-3xl' : 'text-xl lg:text-2xl'}`}>
+                      <h3
+                        className={`font-bold text-foreground tracking-tight mb-3 ${index === 0 ? "text-2xl lg:text-3xl" : "text-xl lg:text-2xl"}`}
+                      >
                         {item.label}
                       </h3>
-                      <p className={`text-muted-foreground leading-relaxed ${index === 0 ? 'text-base lg:text-lg' : 'text-sm lg:text-base'}`}>
+                      <p
+                        className={`text-muted-foreground leading-relaxed ${index === 0 ? "text-base lg:text-lg" : "text-sm lg:text-base"}`}
+                      >
                         {item.detail}
                       </p>
                     </div>
@@ -409,7 +472,6 @@ const Index = () => {
         </div>
       </section>
 
-
       {/* Statement Section */}
       <section className="py-24 lg:py-32 px-6 lg:px-16 bg-foreground text-background">
         <div className="max-w-4xl mx-auto">
@@ -420,8 +482,9 @@ const Index = () => {
             viewport={{ once: true }}
             className="text-2xl sm:text-3xl md:text-4xl font-medium leading-relaxed"
           >
-            Life is made of moments. Some we look forward to, others we prepare for quietly. 
-            Nuru is here to help you organize them all with dignity and care.
+            Life is made of moments. Some we look forward to, others we prepare
+            for quietly. Nuru is here to help you organize them all with dignity
+            and care.
           </motion.p>
         </div>
       </section>
@@ -431,8 +494,15 @@ const Index = () => {
         {/* Dark cinematic background */}
         <div className="bg-foreground text-background relative">
           {/* Animated grain texture overlay */}
-          <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")', backgroundSize: '128px 128px' }} />
-          
+          <div
+            className="absolute inset-0 opacity-[0.03] pointer-events-none"
+            style={{
+              backgroundImage:
+                "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E\")",
+              backgroundSize: "128px 128px",
+            }}
+          />
+
           {/* Radial glow accents */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
           <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-accent/8 rounded-full blur-[100px] pointer-events-none" />
@@ -472,7 +542,8 @@ const Index = () => {
                 viewport={{ once: true }}
                 className="text-background/50 text-lg md:text-xl max-w-xl mx-auto text-center leading-relaxed"
               >
-                Every great celebration follows a path. Nuru walks it with you, from the first spark to the last goodbye.
+                Every great celebration follows a path. Nuru walks it with you,
+                from the first spark to the last goodbye.
               </motion.p>
             </div>
           </div>
@@ -485,7 +556,11 @@ const Index = () => {
                 <motion.div
                   initial={{ scaleX: 0 }}
                   whileInView={{ scaleX: 1 }}
-                  transition={{ duration: 1.5, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                  transition={{
+                    duration: 1.5,
+                    delay: 0.5,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
                   viewport={{ once: true }}
                   className="absolute top-[60px] left-[12.5%] right-[12.5%] h-px bg-gradient-to-r from-transparent via-background/20 to-transparent origin-left"
                 />
@@ -493,39 +568,39 @@ const Index = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-4">
                 {[
-                  { 
-                    step: "01", 
-                    action: "Dream", 
+                  {
+                    step: "01",
+                    action: "Dream",
                     swahili: "Ota",
                     desc: "Envision your perfect event. We'll help shape it into reality",
                   },
-                  { 
-                    step: "02", 
-                    action: "Plan", 
+                  {
+                    step: "02",
+                    action: "Plan",
                     swahili: "Panga",
                     desc: "Organize budgets, timelines, and vendors in one clear dashboard",
                   },
-                  { 
-                    step: "03", 
-                    action: "Gather", 
+                  {
+                    step: "03",
+                    action: "Gather",
                     swahili: "Kusanya",
                     desc: "Send invites, track RSVPs, and collect contributions in one place",
                   },
-                  { 
-                    step: "04", 
-                    action: "Celebrate", 
+                  {
+                    step: "04",
+                    action: "Celebrate",
                     swahili: "Sherehekea",
                     desc: "Check-in guests, capture moments, and create memories that last",
-                  }
+                  },
                 ].map((item, index) => (
                   <motion.div
                     key={item.action}
                     initial={{ opacity: 0, y: 40 }}
                     whileInView={{ opacity: 1, y: 0 }}
-                    transition={{ 
-                      duration: 0.7, 
+                    transition={{
+                      duration: 0.7,
                       delay: 0.4 + index * 0.15,
-                      ease: [0.22, 1, 0.36, 1]
+                      ease: [0.22, 1, 0.36, 1],
                     }}
                     viewport={{ once: true }}
                     className="group relative"
@@ -545,9 +620,6 @@ const Index = () => {
                           <h4 className="text-2xl md:text-3xl font-bold text-background tracking-tight">
                             {item.action}
                           </h4>
-                          <span className="text-sm text-primary/60 italic font-medium">
-                            {item.swahili}
-                          </span>
                         </div>
                         <p className="text-background/40 text-sm leading-relaxed group-hover:text-background/60 transition-colors duration-500">
                           {item.desc}
@@ -564,7 +636,6 @@ const Index = () => {
               </div>
             </div>
           </div>
-
         </div>
       </section>
     </Layout>
