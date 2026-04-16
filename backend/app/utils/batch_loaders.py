@@ -22,6 +22,7 @@ from models import (
     EventSetting, EventAttendee, Notification,
     EventCommitteeMember, EventService, EventContribution,
     EventContributionTarget, Currency, RSVPStatusEnum,
+    ServiceBookingRequest, UserService, UserServiceImage, ServiceCategory,
 )
 
 
