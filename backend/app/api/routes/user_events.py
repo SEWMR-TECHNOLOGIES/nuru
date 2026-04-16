@@ -6,6 +6,7 @@ import math
 import os
 import re
 import uuid
+from collections import defaultdict
 from datetime import datetime
 from typing import List, Optional
 
