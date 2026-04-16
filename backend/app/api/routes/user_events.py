@@ -2302,7 +2302,8 @@ def get_committee_members(event_id: str, db: Session = Depends(get_db), current_
         return standard_response(False, "Event not found")
 
     members = db.query(EventCommitteeMember).filter(EventCommitteeMember.event_id == eid).all()
-    return standard_response(True, "Committee members retrieved successfully", [_member_dict(db, cm) for cm in members])
+    from utils.batch_loaders import build_committee_member_dicts
+    return standard_response(True, "Committee members retrieved successfully", build_committee_member_dicts(db, members, PERMISSION_MAP))
 
 
 @router.post("/{event_id}/committee")
@@ -3071,7 +3072,8 @@ def get_event_services(event_id: str, db: Session = Depends(get_db), current_use
         return err
 
     services = db.query(EventService).filter(EventService.event_id == eid).all()
-    return standard_response(True, "Event services retrieved successfully", [_service_booking_dict(db, es, event.currency_id) for es in services])
+    from utils.batch_loaders import build_event_service_dicts
+    return standard_response(True, "Event services retrieved successfully", build_event_service_dicts(db, services, _currency_code(db, event.currency_id)))
 
 
 @router.post("/{event_id}/services")
