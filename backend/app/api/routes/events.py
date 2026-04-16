@@ -101,8 +101,18 @@ def search_events(
     limit: int = 20,
     db: Session = Depends(get_db),
 ):
-    """Searches and filters public events."""
+    """Searches and filters public events. Cached 2 min for anonymous traffic."""
     from models import EventStatusEnum
+    from core.redis import cache_get, cache_set
+
+    # Cache key combines all filter params
+    cache_key = (
+        f"events:search:q={q or ''}:t={event_type_id or ''}:loc={location or ''}"
+        f":sa={start_after or ''}:sb={start_before or ''}:p{page}:l{limit}"
+    )
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return standard_response(True, "Public events retrieved successfully", cached)
 
     query = db.query(Event).filter(Event.is_public == True, Event.status == EventStatusEnum.confirmed)
 
@@ -138,13 +148,15 @@ def search_events(
     events = query.offset((page - 1) * limit).limit(limit).all()
 
     from utils.batch_loaders import build_public_event_dicts
-    return standard_response(True, "Public events retrieved successfully", {
+    payload = {
         "events": build_public_event_dicts(db, events),
         "pagination": {
             "page": page, "limit": limit, "total_items": total,
             "total_pages": total_pages, "has_next": page < total_pages, "has_previous": page > 1,
         },
-    })
+    }
+    cache_set(cache_key, payload, ttl_seconds=120)
+    return standard_response(True, "Public events retrieved successfully", payload)
 
 
 # ──────────────────────────────────────────────
