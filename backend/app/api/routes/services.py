@@ -129,7 +129,15 @@ def search_services(
     Supports geo-proximity when lat/lng provided.
     """
 
-    query = db.query(UserService).filter(
+    query = db.query(UserService).options(
+        selectinload(UserService.ratings),
+        selectinload(UserService.images),
+        selectinload(UserService.packages),
+        joinedload(UserService.user).joinedload(User.profile),
+        joinedload(UserService.category),
+        joinedload(UserService.service_type),
+        joinedload(UserService.business_phone),
+    ).filter(
         UserService.is_active == True,
         UserService.is_verified == True,
         UserService.verification_status == "verified"
