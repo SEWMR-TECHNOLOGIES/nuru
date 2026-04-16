@@ -481,39 +481,57 @@ def get_committee_events(
     total_pages = max(1, math.ceil(total / limit))
     paged = memberships[(page - 1) * limit : page * limit]
 
+    # Batch fetch events + context
+    paged_event_ids = [cm.event_id for cm in paged]
+    events_map = {e.id: e for e in db.query(Event).filter(Event.id.in_(paged_event_ids)).all()}
+
+    from utils.batch_loaders import batch_load_event_context, batch_load_users
+    ctx = batch_load_event_context(db, list(events_map.keys()))
+    organizer_map = batch_load_users(db, {e.organizer_id for e in events_map.values() if e.organizer_id})
+
+    # Batch roles + perms
+    role_ids = {cm.role_id for cm in paged if cm.role_id}
+    role_map = {r.id: r for r in db.query(CommitteeRole).filter(CommitteeRole.id.in_(list(role_ids))).all()} if role_ids else {}
+    cm_ids = [cm.id for cm in paged]
+    perms_map = {p.committee_member_id: p for p in db.query(CommitteePermission).filter(
+        CommitteePermission.committee_member_id.in_(cm_ids)
+    ).all()} if cm_ids else {}
+
     results = []
     for cm in paged:
-        ev = db.query(Event).filter(Event.id == cm.event_id).first()
+        ev = events_map.get(cm.event_id)
         if not ev:
             continue
-
-        event_type = db.query(EventType).filter(EventType.id == ev.event_type_id).first()
-        vc = db.query(EventVenueCoordinate).filter(EventVenueCoordinate.event_id == ev.id).first()
-        organizer = db.query(User).filter(User.id == ev.organizer_id).first()
-        role = db.query(CommitteeRole).filter(CommitteeRole.id == cm.role_id).first() if cm.role_id else None
-        perms = db.query(CommitteePermission).filter(CommitteePermission.committee_member_id == cm.id).first()
-
-        perm_dict = {}
-        if perms:
-            for field in PERMISSION_FIELDS:
-                perm_dict[field] = getattr(perms, field, False)
-
-        gc = _guest_counts(db, ev.id)
+        eid_str = str(ev.id)
+        c = ctx.get(eid_str, {})
+        et = c.get("event_type"); vc = c.get("vc"); images = c.get("images", [])
+        cover = ev.cover_image_url
+        if not cover:
+            for img in images:
+                if img.get("is_featured"):
+                    cover = img["image_url"]; break
+            if not cover and images:
+                cover = images[0]["image_url"]
+        org = organizer_map.get(str(ev.organizer_id), {})
+        role = role_map.get(cm.role_id) if cm.role_id else None
+        perms = perms_map.get(cm.id)
+        perm_dict = {f: getattr(perms, f, False) for f in PERMISSION_FIELDS} if perms else {}
+        gc = c.get("guest_counts", {})
 
         results.append({
-            "id": str(ev.id),
+            "id": eid_str,
             "title": ev.name,
             "description": ev.description,
-            "event_type": {"id": str(event_type.id), "name": event_type.name, "icon": event_type.icon} if event_type else None,
+            "event_type": {"id": str(et.id), "name": et.name, "icon": et.icon} if et else None,
             "start_date": ev.start_date.isoformat() if ev.start_date else None,
             "start_time": ev.start_time.strftime("%H:%M") if ev.start_time else None,
             "end_date": ev.end_date.isoformat() if ev.end_date else None,
             "location": ev.location,
             "venue": vc.venue_name if vc else None,
-            "cover_image": _pick_cover_image(ev, _event_images(db, ev.id)),
-            "images": _event_images(db, ev.id),
+            "cover_image": cover,
+            "images": images,
             "theme_color": ev.theme_color,
-            "organizer": {"name": f"{organizer.first_name} {organizer.last_name}"} if organizer else None,
+            "organizer": {"name": org.get("name")} if org else None,
             "status": ev.status.value if hasattr(ev.status, "value") else ev.status,
             "committee_membership": {
                 "id": str(cm.id),
