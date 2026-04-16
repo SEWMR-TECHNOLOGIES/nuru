@@ -1,3 +1,5 @@
 [run]
+install = "npm install"
 build = "npm run build"
+"build:dev" = "npm run build:dev"
 dev = "npm run dev"
