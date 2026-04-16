@@ -1315,6 +1315,7 @@ async def update_event(
         cache_delete(f"public_event:{event_id}")
         cache_delete_pattern("events:featured:*")
         cache_delete_pattern("events:nearby:*")
+        cache_delete_pattern("events:search:*")
     except Exception:
         pass
 
@@ -1360,6 +1361,7 @@ def delete_event(event_id: str, db: Session = Depends(get_db), current_user: Use
         cache_delete(f"public_event:{event_id}")
         cache_delete_pattern("events:featured:*")
         cache_delete_pattern("events:nearby:*")
+        cache_delete_pattern("events:search:*")
     except Exception:
         pass
 
@@ -1415,6 +1417,7 @@ def update_event_status(event_id: str, body: dict = Body(...), db: Session = Dep
         cache_delete(f"public_event:{event_id}")
         cache_delete_pattern("events:featured:*")
         cache_delete_pattern("events:nearby:*")
+        cache_delete_pattern("events:search:*")
     except Exception:
         pass
 
