@@ -144,8 +144,9 @@ def get_expenses(
 
     summary = _expense_summary(db, eid, currency)
 
+    from utils.batch_loaders import build_expense_dicts
     return standard_response(True, "Expenses retrieved", {
-        "expenses": [_expense_to_dict(e, db) for e in expenses],
+        "expenses": build_expense_dicts(db, expenses),
         "summary": summary,
         "pagination": {
             "page": page, "limit": limit, "total_items": total,
