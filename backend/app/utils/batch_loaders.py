@@ -1158,3 +1158,310 @@ def build_circle_request_dicts(db: Session, entries: list) -> List[Dict]:
             "requested_at": e.created_at.isoformat() if e.created_at else None,
         })
     return out
+
+
+# ─────────────────────────────────────────────────────────
+# Meetings batch loaders
+# ─────────────────────────────────────────────────────────
+
+def build_meeting_dicts(db: Session, meetings: List[EventMeeting]) -> List[Dict]:
+    """Bulk-build meeting dicts. Eliminates N+1 over participants/creator/agenda/minutes/requests."""
+    if not meetings:
+        return []
+
+    meeting_ids = [m.id for m in meetings]
+
+    # Auto-end expired meetings (single pass — no per-meeting commit)
+    from datetime import datetime, timedelta
+    now = datetime.utcnow()
+    expired_ids = []
+    for m in meetings:
+        if m.status in (MeetingStatusEnum.in_progress, MeetingStatusEnum.scheduled):
+            try:
+                duration = int(m.duration_minutes or 60)
+                end_time = m.scheduled_at + timedelta(minutes=duration)
+                if now > end_time:
+                    expired_ids.append((m, end_time))
+            except Exception:
+                pass
+
+    if expired_ids:
+        # Active counts in one grouped query
+        active_counts = dict(
+            db.query(EventMeetingParticipant.meeting_id, sa_func.count(EventMeetingParticipant.id))
+            .filter(
+                EventMeetingParticipant.meeting_id.in_([m.id for m, _ in expired_ids]),
+                EventMeetingParticipant.joined_at.isnot(None),
+                EventMeetingParticipant.left_at.is_(None),
+            ).group_by(EventMeetingParticipant.meeting_id).all()
+        )
+        changed = False
+        for m, end_time in expired_ids:
+            if active_counts.get(m.id, 0) == 0:
+                m.status = MeetingStatusEnum.ended
+                m.ended_at = end_time
+                changed = True
+        if changed:
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+
+    # Bulk-load participants
+    participants = (
+        db.query(EventMeetingParticipant)
+        .filter(EventMeetingParticipant.meeting_id.in_(meeting_ids)).all()
+    )
+    parts_by_mtg: Dict[Any, List[EventMeetingParticipant]] = defaultdict(list)
+    for p in participants:
+        parts_by_mtg[p.meeting_id].append(p)
+
+    # Collect all user ids (creators + participants)
+    user_ids: Set = set()
+    for m in meetings:
+        if m.created_by:
+            user_ids.add(m.created_by)
+    for p in participants:
+        if p.user_id:
+            user_ids.add(p.user_id)
+
+    users_map = {u.id: u for u in db.query(User).filter(User.id.in_(list(user_ids))).all()} if user_ids else {}
+    profiles_map = {
+        p.user_id: p for p in db.query(UserProfile).filter(UserProfile.user_id.in_(list(user_ids))).all()
+    } if user_ids else {}
+
+    # Bulk-load agenda/minutes/pending request counts
+    agenda_counts = dict(
+        db.query(MeetingAgendaItem.meeting_id, sa_func.count(MeetingAgendaItem.id))
+        .filter(MeetingAgendaItem.meeting_id.in_(meeting_ids))
+        .group_by(MeetingAgendaItem.meeting_id).all()
+    )
+    minutes_ids = {
+        r[0] for r in db.query(MeetingMinutes.meeting_id)
+        .filter(MeetingMinutes.meeting_id.in_(meeting_ids)).all()
+    }
+    pending_counts = dict(
+        db.query(EventMeetingJoinRequest.meeting_id, sa_func.count(EventMeetingJoinRequest.id))
+        .filter(
+            EventMeetingJoinRequest.meeting_id.in_(meeting_ids),
+            EventMeetingJoinRequest.status == MeetingJoinRequestStatusEnum.waiting,
+        ).group_by(EventMeetingJoinRequest.meeting_id).all()
+    )
+
+    out: List[Dict] = []
+    for m in meetings:
+        parts_list = []
+        for p in parts_by_mtg.get(m.id, []):
+            user = users_map.get(p.user_id)
+            profile = profiles_map.get(p.user_id)
+            avatar = profile.profile_picture_url if profile else None
+            parts_list.append({
+                "id": str(p.id),
+                "user_id": str(p.user_id),
+                "name": f"{user.first_name or ''} {user.last_name or ''}".strip() if user else "Unknown",
+                "avatar_url": avatar,
+                "is_notified": p.is_notified,
+                "joined_at": p.joined_at.isoformat() if p.joined_at else None,
+                "role": p.role.value if p.role else "participant",
+            })
+
+        creator = users_map.get(m.created_by)
+        out.append({
+            "id": str(m.id),
+            "event_id": str(m.event_id),
+            "title": m.title,
+            "description": m.description,
+            "scheduled_at": m.scheduled_at.isoformat() if m.scheduled_at else None,
+            "timezone": getattr(m, "timezone", None) or "UTC",
+            "duration_minutes": m.duration_minutes,
+            "room_id": m.room_id,
+            "meeting_url": f"https://nuru.tz/meet/{m.room_id}",
+            "status": m.status.value if m.status else "scheduled",
+            "created_by": {
+                "id": str(m.created_by),
+                "name": f"{creator.first_name or ''} {creator.last_name or ''}".strip() if creator else "Unknown",
+            },
+            "participants": parts_list,
+            "participant_count": len(parts_list),
+            "pending_requests": pending_counts.get(m.id, 0),
+            "has_agenda": agenda_counts.get(m.id, 0) > 0,
+            "has_minutes": m.id in minutes_ids,
+            "ended_at": m.ended_at.isoformat() if m.ended_at else None,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+        })
+    return out
+
+
+# ─────────────────────────────────────────────────────────
+# Expenses batch loader
+# ─────────────────────────────────────────────────────────
+
+def build_expense_dicts(db: Session, expenses: List[EventExpense]) -> List[Dict]:
+    """Bulk-build expense dicts. Eliminates N+1 over recorder + vendor + category."""
+    if not expenses:
+        return []
+
+    recorder_ids = {e.recorded_by for e in expenses if e.recorded_by}
+    vendor_ids = {e.vendor_id for e in expenses if e.vendor_id}
+
+    recorders = {u.id: u for u in db.query(User).filter(User.id.in_(list(recorder_ids))).all()} if recorder_ids else {}
+    vendors_map: Dict = {}
+    if vendor_ids:
+        vendors = (
+            db.query(UserService)
+            .filter(UserService.id.in_(list(vendor_ids))).all()
+        )
+        cat_ids = {v.category_id for v in vendors if getattr(v, "category_id", None)}
+        cat_map = {c.id: c for c in db.query(ServiceCategory).filter(ServiceCategory.id.in_(list(cat_ids))).all()} if cat_ids else {}
+        for v in vendors:
+            cat = cat_map.get(getattr(v, "category_id", None))
+            vendors_map[v.id] = {
+                "id": str(v.id),
+                "title": v.title,
+                "category_name": cat.name if cat else None,
+                "location": v.location,
+                "is_verified": v.is_verified,
+            }
+
+    out: List[Dict] = []
+    for e in expenses:
+        rec = recorders.get(e.recorded_by) if e.recorded_by else None
+        out.append({
+            "id": str(e.id),
+            "event_id": str(e.event_id),
+            "category": e.category,
+            "description": e.description,
+            "amount": float(e.amount) if e.amount else 0,
+            "payment_method": e.payment_method,
+            "payment_reference": e.payment_reference,
+            "vendor_name": e.vendor_name,
+            "vendor_id": str(e.vendor_id) if e.vendor_id else None,
+            "vendor": vendors_map.get(e.vendor_id) if e.vendor_id else None,
+            "receipt_url": e.receipt_url,
+            "expense_date": e.expense_date.isoformat() if e.expense_date else None,
+            "notes": e.notes,
+            "recorded_by_id": str(e.recorded_by) if e.recorded_by else None,
+            "recorded_by_name": f"{rec.first_name} {rec.last_name}" if rec else None,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+            "updated_at": e.updated_at.isoformat() if e.updated_at else None,
+        })
+    return out
+
+
+# ─────────────────────────────────────────────────────────
+# Committee members + Event services batch loaders
+# ─────────────────────────────────────────────────────────
+
+def build_committee_member_dicts(
+    db: Session,
+    members: List[EventCommitteeMember],
+    permission_map: Dict[str, str],
+) -> List[Dict]:
+    """Bulk-build committee member dicts. Eliminates N+1 over user/profile/role/perms/assigner."""
+    if not members:
+        return []
+
+    user_ids = {m.user_id for m in members if m.user_id}
+    assigner_ids = {m.assigned_by for m in members if m.assigned_by}
+    role_ids = {m.role_id for m in members if m.role_id}
+    member_ids = [m.id for m in members]
+
+    all_user_ids = user_ids | assigner_ids
+    users = {u.id: u for u in db.query(User).filter(User.id.in_(list(all_user_ids))).all()} if all_user_ids else {}
+    profiles = {p.user_id: p for p in db.query(UserProfile).filter(UserProfile.user_id.in_(list(user_ids))).all()} if user_ids else {}
+    roles = {r.id: r for r in db.query(CommitteeRole).filter(CommitteeRole.id.in_(list(role_ids))).all()} if role_ids else {}
+    perms = {
+        p.committee_member_id: p for p in
+        db.query(CommitteePermission).filter(CommitteePermission.committee_member_id.in_(member_ids)).all()
+    }
+
+    out: List[Dict] = []
+    for cm in members:
+        member_user = users.get(cm.user_id) if cm.user_id else None
+        profile = profiles.get(cm.user_id) if cm.user_id else None
+        role = roles.get(cm.role_id) if cm.role_id else None
+        perm = perms.get(cm.id)
+        assigned_user = users.get(cm.assigned_by) if cm.assigned_by else None
+
+        permissions_list = []
+        if perm:
+            for api_name, db_field in permission_map.items():
+                if getattr(perm, db_field, False):
+                    permissions_list.append(api_name)
+
+        out.append({
+            "id": str(cm.id),
+            "event_id": str(cm.event_id),
+            "user_id": str(cm.user_id) if cm.user_id else None,
+            "name": f"{member_user.first_name} {member_user.last_name}" if member_user else "Invited Member",
+            "email": member_user.email if member_user else (cm.invited_email if hasattr(cm, "invited_email") else None),
+            "phone": member_user.phone if member_user else None,
+            "avatar": profile.profile_picture_url if profile else None,
+            "role": role.role_name if role else None,
+            "role_description": role.description if role else None,
+            "permissions": permissions_list,
+            "status": "active" if cm.user_id else "invited",
+            "assigned_by": {"id": str(assigned_user.id), "name": f"{assigned_user.first_name} {assigned_user.last_name}"} if assigned_user else None,
+            "assigned_at": cm.assigned_at.isoformat() if cm.assigned_at else None,
+            "created_at": cm.created_at.isoformat() if cm.created_at else None,
+        })
+    return out
+
+
+def build_event_service_dicts(
+    db: Session,
+    services: List[EventService],
+    currency_code: Optional[str],
+) -> List[Dict]:
+    """Bulk-build event service dicts. Eliminates N+1 over service_type/provider/images."""
+    if not services:
+        return []
+
+    svc_type_ids = {s.service_id for s in services if s.service_id}
+    provider_svc_ids = {s.provider_user_service_id for s in services if s.provider_user_service_id}
+    provider_user_ids = {s.provider_user_id for s in services if s.provider_user_id}
+
+    svc_types = {t.id: t for t in db.query(ServiceType).filter(ServiceType.id.in_(list(svc_type_ids))).all()} if svc_type_ids else {}
+    cat_ids = {t.category_id for t in svc_types.values() if getattr(t, "category_id", None)}
+    cat_map = {c.id: c for c in db.query(ServiceCategory).filter(ServiceCategory.id.in_(list(cat_ids))).all()} if cat_ids else {}
+
+    provider_svcs = {s.id: s for s in db.query(UserService).filter(UserService.id.in_(list(provider_svc_ids))).all()} if provider_svc_ids else {}
+    provider_users = {u.id: u for u in db.query(User).filter(User.id.in_(list(provider_user_ids))).all()} if provider_user_ids else {}
+
+    images_map: Dict[Any, str] = {}
+    if provider_svc_ids:
+        imgs = (
+            db.query(UserServiceImage)
+            .filter(UserServiceImage.user_service_id.in_(list(provider_svc_ids)))
+            .order_by(UserServiceImage.is_featured.desc()).all()
+        )
+        for img in imgs:
+            if img.user_service_id not in images_map:
+                images_map[img.user_service_id] = img.image_url
+
+    out: List[Dict] = []
+    for es in services:
+        svc_type = svc_types.get(es.service_id)
+        provider_svc = provider_svcs.get(es.provider_user_service_id) if es.provider_user_service_id else None
+        provider_user = provider_users.get(es.provider_user_id) if es.provider_user_id else None
+        cat = cat_map.get(getattr(svc_type, "category_id", None)) if svc_type else None
+
+        out.append({
+            "id": str(es.id),
+            "event_id": str(es.event_id),
+            "service_id": str(es.service_id) if es.service_id else None,
+            "service": {
+                "title": provider_svc.title if provider_svc else (svc_type.name if svc_type else None),
+                "category": cat.name if cat else None,
+                "provider_name": f"{provider_user.first_name} {provider_user.last_name}" if provider_user else None,
+                "image": images_map.get(es.provider_user_service_id) if es.provider_user_service_id else None,
+                "verification_status": (provider_svc.verification_status.value if provider_svc and hasattr(provider_svc.verification_status, "value") else (str(provider_svc.verification_status) if provider_svc and provider_svc.verification_status else "unverified")),
+                "verified": provider_svc.is_verified if provider_svc else False,
+            },
+            "quoted_price": float(es.agreed_price) if es.agreed_price else None,
+            "currency": currency_code,
+            "status": es.service_status.value if hasattr(es.service_status, "value") else es.service_status,
+            "notes": es.notes,
+            "created_at": es.created_at.isoformat() if es.created_at else None,
+        })
+    return out
