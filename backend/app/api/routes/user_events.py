@@ -334,8 +334,9 @@ def get_all_user_events(
     total_pages = max(1, math.ceil(total / limit))
     events = query.offset((page - 1) * limit).limit(limit).all()
 
+    from utils.batch_loaders import build_event_summaries
     return standard_response(True, "Events retrieved successfully", {
-        "events": [_event_summary(db, ev) for ev in events],
+        "events": build_event_summaries(db, events),
         "pagination": {"page": page, "limit": limit, "total_items": total, "total_pages": total_pages, "has_next": page < total_pages, "has_previous": page > 1},
     })
 
