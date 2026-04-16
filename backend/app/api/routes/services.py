@@ -515,6 +515,7 @@ def get_service_details(service_id: str, db: Session = Depends(get_db)):
         "created_at": service.created_at.isoformat()
     }
 
+    cache_set(cache_key, data, ttl_seconds=300)
     return standard_response(True, "Service retrieved successfully", data)
 
 
