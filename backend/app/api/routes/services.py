@@ -8,7 +8,7 @@ from typing import List, Optional
 
 import pytz
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload, joinedload
 from sqlalchemy import func as sa_func, or_, case, literal
 
 from core.database import get_db
