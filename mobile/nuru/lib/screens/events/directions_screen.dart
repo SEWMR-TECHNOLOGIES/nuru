@@ -36,6 +36,8 @@ class _DirectionsScreenState extends State<DirectionsScreen> {
   bool _loading = true;
   String? _error;
 
+  LatLngBounds? _routeBounds;
+
   @override
   void initState() {
     super.initState();
@@ -102,16 +104,16 @@ class _DirectionsScreenState extends State<DirectionsScreen> {
           _routePoints = coords;
           _distance = '$distKm km';
           _duration = durStr;
-          _loading = false;
-        });
-        // Fit bounds
-        try {
-          final bounds = LatLngBounds.fromPoints([
+          _routeBounds = LatLngBounds.fromPoints([
             _userLocation!,
             LatLng(widget.destinationLat, widget.destinationLng),
             ...coords,
           ]);
-          _mapCtrl.fitCamera(CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(60)));
+          _loading = false;
+        });
+        // Fit bounds
+        try {
+          _mapCtrl.fitCamera(CameraFit.bounds(bounds: _routeBounds!, padding: const EdgeInsets.all(60)));
         } catch (_) {}
       }
     } catch (e) {
@@ -142,6 +144,7 @@ class _DirectionsScreenState extends State<DirectionsScreen> {
                 maxZoom: 19,
                 tileSize: 512,
                 zoomOffset: -1,
+                retinaMode: RetinaMode.isHighDensity(context),
               ),
               if (_routePoints.isNotEmpty)
                 PolylineLayer(
@@ -359,7 +362,7 @@ class _DirectionsScreenState extends State<DirectionsScreen> {
               onTap: () {
                 if (_userLocation != null) {
                   try {
-                    final bounds = LatLngBounds.fromPoints([
+                    final bounds = _routeBounds ?? LatLngBounds.fromPoints([
                       _userLocation!,
                       LatLng(widget.destinationLat, widget.destinationLng),
                     ]);

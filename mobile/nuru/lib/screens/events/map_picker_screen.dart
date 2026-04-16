@@ -194,6 +194,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                 maxZoom: 19,
                 tileSize: 512,
                 zoomOffset: -1,
+                retinaMode: RetinaMode.isHighDensity(context),
               ),
               if (_selectedPoint != null)
                 MarkerLayer(
