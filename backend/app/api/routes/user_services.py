@@ -331,6 +331,11 @@ def delete_service(service_id: str, db: Session = Depends(get_db), current_user:
     service.is_active = False
     service.updated_at = datetime.now(EAT)
     db.commit()
+    try:
+        from core.redis import cache_delete
+        cache_delete(f"service:detail:{service_id}")
+    except Exception:
+        pass
     return standard_response(True, "Service deactivated successfully")
 
 
