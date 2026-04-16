@@ -720,3 +720,125 @@ def build_event_summaries(db: Session, events: List[Event]) -> List[Dict]:
             "updated_at": event.updated_at.isoformat() if event.updated_at else None,
         })
     return result
+
+
+# ─────────────────────────────────────────────────────────
+# Booking batch loader (eliminates N+1 in bookings list)
+# ─────────────────────────────────────────────────────────
+
+def _user_avatar_from_profile(profile) -> Optional[str]:
+    return profile.profile_picture_url if profile else None
+
+
+def build_booking_dicts(db: Session, bookings: List[ServiceBookingRequest]) -> List[Dict]:
+    """
+    Bulk-loads service / requester / vendor / event for a list of bookings.
+    Replaces 4 per-booking queries (services, requesters, vendors, events) with 4 grouped queries.
+    """
+    if not bookings:
+        return []
+
+    service_ids = {b.user_service_id for b in bookings if b.user_service_id}
+    requester_ids = {b.requester_user_id for b in bookings if b.requester_user_id}
+    event_ids = {b.event_id for b in bookings if b.event_id}
+
+    services = db.query(UserService).filter(UserService.id.in_(list(service_ids))).all() if service_ids else []
+    service_map = {s.id: s for s in services}
+
+    # Vendor IDs derive from services
+    vendor_ids = {s.user_id for s in services if s.user_id}
+    user_ids = list(requester_ids | vendor_ids)
+    users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
+    user_map = {u.id: u for u in users}
+
+    profiles = db.query(UserProfile).filter(UserProfile.user_id.in_(user_ids)).all() if user_ids else []
+    profile_map = {p.user_id: p for p in profiles}
+
+    # Service primary images (featured first)
+    img_map: Dict = defaultdict(list)
+    if service_ids:
+        imgs = db.query(UserServiceImage).filter(UserServiceImage.service_id.in_(list(service_ids))).all()
+        for im in imgs:
+            img_map[im.service_id].append(im)
+    primary_image: Dict = {}
+    for sid, lst in img_map.items():
+        featured = next((i for i in lst if getattr(i, "is_featured", False)), None)
+        chosen = featured or (lst[0] if lst else None)
+        primary_image[sid] = chosen.image_url if chosen else None
+
+    # Service categories
+    cat_ids = {s.category_id for s in services if getattr(s, "category_id", None)}
+    cat_map = {}
+    if cat_ids:
+        cats = db.query(ServiceCategory).filter(ServiceCategory.id.in_(list(cat_ids))).all()
+        cat_map = {c.id: c for c in cats}
+
+    # Events
+    events = db.query(Event).filter(Event.id.in_(list(event_ids))).all() if event_ids else []
+    event_map = {e.id: e for e in events}
+
+    def _user_dict(u, p):
+        if not u:
+            return None
+        return {
+            "id": str(u.id),
+            "name": f"{u.first_name} {u.last_name}",
+            "avatar": _user_avatar_from_profile(p),
+            "phone": u.phone,
+            "email": u.email,
+        }
+
+    out: List[Dict] = []
+    for b in bookings:
+        service = service_map.get(b.user_service_id) if b.user_service_id else None
+        requester = user_map.get(b.requester_user_id) if b.requester_user_id else None
+        vendor = user_map.get(service.user_id) if service and service.user_id else None
+        event = event_map.get(b.event_id) if b.event_id else None
+
+        service_dict = None
+        if service:
+            cat = cat_map.get(getattr(service, "category_id", None))
+            service_dict = {
+                "id": str(service.id),
+                "title": service.title,
+                "primary_image": primary_image.get(service.id) or getattr(service, "cover_image_url", None),
+                "category": cat.name if cat else None,
+            }
+
+        event_dict = None
+        if event:
+            event_date_str = event.start_date.isoformat() if event.start_date and hasattr(event.start_date, "isoformat") else (str(event.start_date) if event.start_date else None)
+            event_dict = {
+                "id": str(event.id),
+                "title": event.name,
+                "date": event_date_str,
+                "start_time": event.start_time.strftime("%H:%M") if event.start_time else None,
+                "end_time": event.end_time.strftime("%H:%M") if getattr(event, "end_time", None) else None,
+                "location": event.location,
+                "venue": getattr(event, "venue", None),
+                "guest_count": getattr(event, "expected_guests", None),
+            }
+
+        out.append({
+            "id": str(b.id),
+            "service": service_dict,
+            "client": _user_dict(requester, profile_map.get(b.requester_user_id) if requester else None),
+            "provider": _user_dict(vendor, profile_map.get(vendor.id) if vendor else None),
+            "event": event_dict,
+            "event_name": event.name if event else None,
+            "event_date": event_dict["date"] if event_dict else None,
+            "event_type": None,
+            "location": event.location if event else None,
+            "venue": getattr(event, "venue", None) if event else None,
+            "guest_count": getattr(event, "expected_guests", None) if event else None,
+            "status": b.status if isinstance(b.status, str) else (b.status.value if hasattr(b.status, "value") else b.status),
+            "message": b.message,
+            "proposed_price": float(b.proposed_price) if b.proposed_price else None,
+            "quoted_price": float(b.quoted_price) if b.quoted_price else None,
+            "deposit_required": float(b.deposit_required) if b.deposit_required else None,
+            "deposit_paid": b.deposit_paid,
+            "vendor_notes": b.vendor_notes,
+            "created_at": b.created_at.isoformat() if b.created_at else None,
+            "updated_at": b.updated_at.isoformat() if b.updated_at else None,
+        })
+    return out
