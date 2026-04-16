@@ -13,6 +13,7 @@ import { socialApi } from '@/lib/api/social';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const SCROLL_KEY = 'feedScrollPosition';
+const LAST_VISIT_KEY = 'feedLastVisitedAt';
 
 const getScrollContainer = () =>
   document.querySelector('.flex-1.overflow-y-auto') as HTMLElement | null;
@@ -26,6 +27,7 @@ const Feed = () => {
   });
   const hasLoadedOnce = useRef(false);
   const scrollRestoredRef = useRef(false);
+  const restoreAttemptsRef = useRef(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [trendingPosts, setTrendingPosts] = useState<any[]>([]);
@@ -49,23 +51,35 @@ const Feed = () => {
 
     const handleScroll = () => {
       sessionStorage.setItem(SCROLL_KEY, String(container.scrollTop));
+      sessionStorage.setItem(LAST_VISIT_KEY, String(Date.now()));
     };
+
+    handleScroll();
     container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
   // Restore scroll position after data is ready (only once per mount)
   useEffect(() => {
-    if (scrollRestoredRef.current || loading) return;
+    if (scrollRestoredRef.current || loading || apiPosts.length === 0) return;
     const savedPosition = sessionStorage.getItem(SCROLL_KEY);
     if (savedPosition) {
-      scrollRestoredRef.current = true;
-      requestAnimationFrame(() => {
+      const targetPosition = parseInt(savedPosition, 10);
+      const restoreScroll = () => {
         const container = getScrollContainer();
-        if (container) {
-          container.scrollTop = parseInt(savedPosition, 10);
+        if (!container) return;
+
+        container.scrollTop = targetPosition;
+        if (Math.abs(container.scrollTop - targetPosition) <= 2 || restoreAttemptsRef.current >= 6) {
+          scrollRestoredRef.current = true;
+          return;
         }
-      });
+
+        restoreAttemptsRef.current += 1;
+        requestAnimationFrame(restoreScroll);
+      };
+
+      requestAnimationFrame(restoreScroll);
     }
   }, [loading, apiPosts]);
 
