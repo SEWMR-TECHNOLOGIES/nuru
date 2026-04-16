@@ -66,31 +66,31 @@ export default function DirectionsMapDialog({
     if (open && !userLocation) requestLocation();
   }, [open]);
 
-  // Init map
+  // Init map (runs once dialog open + container mounted)
   useEffect(() => {
-    if (!open || !mapRef.current) return;
-    // Small delay for dialog animation
-    const timer = setTimeout(() => {
-      if (mapInstanceRef.current || !mapRef.current) return;
-
-      const map = L.map(mapRef.current, {
-        center: [destinationLat, destinationLng],
-        zoom: 14,
-        zoomControl: false,
+    if (!open) return;
+    let raf1 = 0, raf2 = 0;
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        if (mapInstanceRef.current || !mapRef.current) return;
+        const map = L.map(mapRef.current, {
+          center: [destinationLat, destinationLng],
+          zoom: 14,
+          zoomControl: false,
+          preferCanvas: true,
+        });
+        L.control.zoom({ position: "bottomright" }).addTo(map);
+        addOpenSourceTiles(map);
+        L.marker([destinationLat, destinationLng], { icon: VenueMarkerIcon }).addTo(map);
+        mapInstanceRef.current = map;
+        // Invalidate size after dialog animation completes
+        setTimeout(() => map.invalidateSize(), 50);
+        setTimeout(() => map.invalidateSize(), 250);
       });
-
-      L.control.zoom({ position: "bottomright" }).addTo(map);
-      addOpenSourceTiles(map);
-
-      // Destination marker
-      L.marker([destinationLat, destinationLng], { icon: VenueMarkerIcon }).addTo(map);
-
-      mapInstanceRef.current = map;
-      setTimeout(() => map.invalidateSize(), 100);
-    }, 200);
-
+    });
     return () => {
-      clearTimeout(timer);
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
     };
   }, [open, destinationLat, destinationLng]);
 
