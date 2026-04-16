@@ -1309,6 +1309,13 @@ async def update_event(
         db.rollback()
         return standard_response(False, f"Failed to update event: {str(e)}")
 
+    # Invalidate public event cache
+    try:
+        from core.redis import cache_delete
+        cache_delete(f"public_event:{event_id}")
+    except Exception:
+        pass
+
     return standard_response(True, "Event updated successfully", _event_summary(db, event))
 
 
@@ -1344,6 +1351,13 @@ def delete_event(event_id: str, db: Session = Depends(get_db), current_user: Use
     except Exception as e:
         db.rollback()
         return standard_response(False, f"Failed to delete event: {str(e)}")
+
+    # Invalidate public event cache
+    try:
+        from core.redis import cache_delete
+        cache_delete(f"public_event:{event_id}")
+    except Exception:
+        pass
 
     # Physically unlink all storage files (best-effort, synchronous)
     from utils.helpers import delete_storage_file_sync
@@ -1391,6 +1405,12 @@ def update_event_status(event_id: str, body: dict = Body(...), db: Session = Dep
     except Exception as e:
         db.rollback()
         return standard_response(False, f"Failed to update status: {str(e)}")
+
+    try:
+        from core.redis import cache_delete
+        cache_delete(f"public_event:{event_id}")
+    except Exception:
+        pass
 
     return standard_response(True, "Event status updated successfully", {
         "id": str(event.id),
