@@ -205,9 +205,10 @@ def list_meetings(event_id: str, db: Session = Depends(get_db), current_user=Dep
         EventMeeting.event_id == event_id
     ).order_by(EventMeeting.scheduled_at.desc()).all()
 
+    from utils.batch_loaders import build_meeting_dicts
     return {
         "success": True,
-        "data": [_serialize_meeting(m, db) for m in meetings]
+        "data": build_meeting_dicts(db, meetings)
     }
 
 
