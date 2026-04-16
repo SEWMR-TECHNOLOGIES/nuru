@@ -386,17 +386,33 @@ def get_invited_events(
     event_order = {eid: i for i, eid in enumerate(paged_ids)}
     events.sort(key=lambda e: event_order.get(e.id, 0))
 
+    # Batch load context
+    from utils.batch_loaders import batch_load_event_context, batch_load_users
+    ctx = batch_load_event_context(db, [e.id for e in events])
+    organizer_map = batch_load_users(db, {e.organizer_id for e in events if e.organizer_id})
+
+    # Batch load current user's attendee record per event
+    att_rows = db.query(EventAttendee).filter(
+        EventAttendee.event_id.in_(paged_ids),
+        EventAttendee.attendee_id == current_user.id,
+    ).all()
+    att_by_event = {str(a.event_id): a for a in att_rows}
+
     results = []
     for ev in events:
+        eid_str = str(ev.id)
+        c = ctx[eid_str]
         inv_or_att = inv_map.get(ev.id)
         is_invitation = isinstance(inv_or_att, EventInvitation)
-        event_type = db.query(EventType).filter(EventType.id == ev.event_type_id).first()
-        vc = db.query(EventVenueCoordinate).filter(EventVenueCoordinate.event_id == ev.id).first()
-        organizer = db.query(User).filter(User.id == ev.organizer_id).first()
-
-        attendee = db.query(EventAttendee).filter(
-            EventAttendee.event_id == ev.id, EventAttendee.attendee_id == current_user.id
-        ).first()
+        et = c["event_type"]; vc = c["vc"]; images = c["images"]
+        cover = ev.cover_image_url
+        if not cover:
+            for img in images:
+                if img.get("is_featured"):
+                    cover = img["image_url"]; break
+            if not cover and images:
+                cover = images[0]["image_url"]
+        attendee = att_by_event.get(eid_str)
 
         if is_invitation:
             inv = inv_or_att
@@ -408,7 +424,6 @@ def get_invited_events(
                 "rsvp_at": inv.rsvp_at.isoformat() if inv.rsvp_at else None,
             }
         else:
-            # Fallback from EventAttendee record
             att_record = inv_or_att
             invitation_data = {
                 "id": None,
@@ -418,19 +433,20 @@ def get_invited_events(
                 "rsvp_at": None,
             }
 
+        org = organizer_map.get(str(ev.organizer_id), {})
         results.append({
-            "id": str(ev.id),
+            "id": eid_str,
             "title": ev.name,
             "description": ev.description,
-            "event_type": {"id": str(event_type.id), "name": event_type.name, "icon": event_type.icon} if event_type else None,
+            "event_type": {"id": str(et.id), "name": et.name, "icon": et.icon} if et else None,
             "start_date": ev.start_date.isoformat() if ev.start_date else None,
             "start_time": ev.start_time.strftime("%H:%M") if ev.start_time else None,
             "end_date": ev.end_date.isoformat() if ev.end_date else None,
             "location": ev.location,
             "venue": vc.venue_name if vc else None,
-            "cover_image": _pick_cover_image(ev, _event_images(db, ev.id)),
+            "cover_image": cover,
             "theme_color": ev.theme_color,
-            "organizer": {"name": f"{organizer.first_name} {organizer.last_name}"} if organizer else None,
+            "organizer": {"name": org.get("name")} if org else None,
             "status": ev.status.value if hasattr(ev.status, "value") else ev.status,
             "invitation": invitation_data,
             "attendee_id": str(attendee.id) if attendee else None,
