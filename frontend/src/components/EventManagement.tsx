@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2, Images, ChevronDown, FileText, ChevronRight } from 'lucide-react';
+import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2, Images, ChevronDown, FileText, ChevronRight, Eye } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
@@ -223,6 +223,19 @@ const EventManagement = () => {
         <div className="flex items-start justify-between gap-3 mb-3">
           <h1 className="text-xl md:text-2xl lg:text-3xl font-bold">{eventTitle}</h1>
           <div className="flex items-center gap-2 flex-shrink-0">
+            {event && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => navigate(`/event/${event.id}`)}
+                title="View public event page"
+              >
+                <Eye className="w-4 h-4 opacity-70" />
+                <span className="hidden sm:inline">View Public Page</span>
+                <span className="sm:hidden">Public</span>
+              </Button>
+            )}
             {isCreator && event && (
               <ShareEventToFeed
                 event={{
@@ -235,7 +248,8 @@ const EventManagement = () => {
                 trigger={
                   <Button variant="outline" size="sm" className="gap-2">
                     <SvgIcon src={ShareIcon} alt="" className="w-4 h-4 opacity-70" />
-                    Share to Feed
+                    <span className="hidden sm:inline">Share to Feed</span>
+                    <span className="sm:hidden">Share</span>
                   </Button>
                 }
               />
