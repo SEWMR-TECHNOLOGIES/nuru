@@ -49,6 +49,9 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
   }, [initialParams]);
 
   useEffect(() => {
+    // Skip refetch if we already have cached feed data — preserves scroll & avoids reload on remount.
+    // Consumers can call refetch() manually (e.g., pull-to-refresh) when they want fresh data.
+    if (_feedHasLoaded && _feedCache.length > 0) return;
     fetchFeed();
   }, [fetchFeed]);
 
