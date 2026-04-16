@@ -226,6 +226,13 @@ def get_public_event(event_id: str, db: Session = Depends(get_db)):
     except ValueError:
         return standard_response(False, "Invalid event ID format")
 
+    # Cache public event detail for 2 minutes (payload is anonymous-safe)
+    from core.redis import cache_get, cache_set
+    cache_key = f"public_event:{event_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return standard_response(True, "Event retrieved successfully", cached)
+
     event = db.query(Event).filter(Event.id == eid).first()
     if not event:
         return standard_response(False, "Event not found")
@@ -262,6 +269,7 @@ def get_public_event(event_id: str, db: Session = Depends(get_db)):
             "end_time": si.end_time.isoformat() if si.end_time else None,
         } for si in schedule]
 
+    cache_set(cache_key, data, ttl_seconds=120)
     return standard_response(True, "Event retrieved successfully", data)
 
 
