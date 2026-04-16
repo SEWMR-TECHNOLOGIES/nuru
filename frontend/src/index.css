@@ -524,3 +524,24 @@ img.invert[src*="/icons/"] {
   0%, 100% { box-shadow: 0 0 12px hsl(45 96% 64% / 0.4); }
   50% { box-shadow: 0 0 20px hsl(45 96% 64% / 0.6), 0 0 40px hsl(45 96% 64% / 0.2); }
 }
+
+/* Constrain Leaflet z-index so page-level maps never render above dialogs/modals.
+   Radix Dialog overlay uses z-50 (50). Leaflet defaults panes to 200-700 which
+   bleeds through overlays. We cap the leaflet-container stacking context. */
+.leaflet-container {
+  z-index: 0;
+  isolation: isolate;
+}
+.leaflet-pane,
+.leaflet-top,
+.leaflet-bottom {
+  z-index: auto !important;
+}
+.leaflet-tile-pane { z-index: 1 !important; }
+.leaflet-overlay-pane { z-index: 2 !important; }
+.leaflet-shadow-pane { z-index: 3 !important; }
+.leaflet-marker-pane { z-index: 4 !important; }
+.leaflet-tooltip-pane { z-index: 5 !important; }
+.leaflet-popup-pane { z-index: 6 !important; }
+.leaflet-control { z-index: 7 !important; }
+
