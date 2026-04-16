@@ -20,6 +20,8 @@ from models import (
     UserFeedSpark, UserFeedComment, UserFeedCommentGlow, UserFeedPinned,
     UserFeedSaved, Event, EventImage, EventType, EventVenueCoordinate,
     EventSetting, EventAttendee, Notification,
+    EventCommitteeMember, EventService, EventContribution,
+    EventContributionTarget, Currency, RSVPStatusEnum,
 )
 
 
