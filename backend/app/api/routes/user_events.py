@@ -1311,8 +1311,10 @@ async def update_event(
 
     # Invalidate public event cache
     try:
-        from core.redis import cache_delete
+        from core.redis import cache_delete, cache_delete_pattern
         cache_delete(f"public_event:{event_id}")
+        cache_delete_pattern("events:featured:*")
+        cache_delete_pattern("events:nearby:*")
     except Exception:
         pass
 
@@ -1354,8 +1356,10 @@ def delete_event(event_id: str, db: Session = Depends(get_db), current_user: Use
 
     # Invalidate public event cache
     try:
-        from core.redis import cache_delete
+        from core.redis import cache_delete, cache_delete_pattern
         cache_delete(f"public_event:{event_id}")
+        cache_delete_pattern("events:featured:*")
+        cache_delete_pattern("events:nearby:*")
     except Exception:
         pass
 
@@ -1407,8 +1411,10 @@ def update_event_status(event_id: str, body: dict = Body(...), db: Session = Dep
         return standard_response(False, f"Failed to update status: {str(e)}")
 
     try:
-        from core.redis import cache_delete
+        from core.redis import cache_delete, cache_delete_pattern
         cache_delete(f"public_event:{event_id}")
+        cache_delete_pattern("events:featured:*")
+        cache_delete_pattern("events:nearby:*")
     except Exception:
         pass
 
