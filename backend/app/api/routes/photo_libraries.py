@@ -95,12 +95,13 @@ def _library_dict(library: ServicePhotoLibrary, include_photos: bool = False, ma
 
 
 def _get_service_total_storage(db: Session, service_id) -> int:
-    """Sum up all storage used across all libraries for this service."""
-    libraries = db.query(ServicePhotoLibrary).filter(
+    """Sum up all storage used across all libraries for this service (single SUM query)."""
+    from sqlalchemy import func as sa_func
+    total = db.query(sa_func.coalesce(sa_func.sum(ServicePhotoLibrary.total_size_bytes), 0)).filter(
         ServicePhotoLibrary.user_service_id == service_id,
         ServicePhotoLibrary.is_active == True,
-    ).all()
-    return sum(lib.total_size_bytes or 0 for lib in libraries)
+    ).scalar()
+    return int(total or 0)
 
 
 # ──────────────────────────────────────────────
