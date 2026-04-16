@@ -74,6 +74,10 @@ from middleware.query_logger import QueryCountMiddleware, ENABLED as QUERY_LOG_O
 if QUERY_LOG_ON:
     app.add_middleware(QueryCountMiddleware)
 
+# 7. Slow request logger — logs any request > SLOW_REQUEST_THRESHOLD_MS (default 500ms)
+from middleware.slow_request_logger import SlowRequestLoggerMiddleware
+app.add_middleware(SlowRequestLoggerMiddleware)
+
 # ------------------------------------------------------------------
 # Routes
 # ------------------------------------------------------------------
