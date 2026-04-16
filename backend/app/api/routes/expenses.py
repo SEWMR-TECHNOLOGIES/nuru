@@ -73,44 +73,10 @@ def _check_expense_access(db: Session, event_id: str, current_user, require_mana
 
 
 def _expense_to_dict(expense: EventExpense, db: Session) -> dict:
-    recorder_name = None
-    if expense.recorded_by:
-        recorder = db.query(User).filter(User.id == expense.recorded_by).first()
-        if recorder:
-            recorder_name = f"{recorder.first_name} {recorder.last_name}"
-
-    # Vendor details
-    vendor_info = None
-    if expense.vendor_id:
-        vs = expense.vendor
-        if vs:
-            vendor_info = {
-                "id": str(vs.id),
-                "title": vs.title,
-                "category_name": vs.category.name if vs.category else None,
-                "location": vs.location,
-                "is_verified": vs.is_verified,
-            }
-
-    return {
-        "id": str(expense.id),
-        "event_id": str(expense.event_id),
-        "category": expense.category,
-        "description": expense.description,
-        "amount": float(expense.amount) if expense.amount else 0,
-        "payment_method": expense.payment_method,
-        "payment_reference": expense.payment_reference,
-        "vendor_name": expense.vendor_name,
-        "vendor_id": str(expense.vendor_id) if expense.vendor_id else None,
-        "vendor": vendor_info,
-        "receipt_url": expense.receipt_url,
-        "expense_date": expense.expense_date.isoformat() if expense.expense_date else None,
-        "notes": expense.notes,
-        "recorded_by_id": str(expense.recorded_by) if expense.recorded_by else None,
-        "recorded_by_name": recorder_name,
-        "created_at": expense.created_at.isoformat() if expense.created_at else None,
-        "updated_at": expense.updated_at.isoformat() if expense.updated_at else None,
-    }
+    """Single-expense dict (used by create/update). For lists, use build_expense_dicts."""
+    from utils.batch_loaders import build_expense_dicts
+    result = build_expense_dicts(db, [expense])
+    return result[0] if result else {}
 
 
 def _expense_summary(db: Session, event_id, currency: str = "TZS") -> dict:
