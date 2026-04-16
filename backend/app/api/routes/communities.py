@@ -45,23 +45,24 @@ def _community_dict(db, c, current_user_id=None):
 
 @router.get("/")
 def get_communities(page: int = 1, limit: int = 20, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from utils.batch_loaders import build_community_dicts
     query = db.query(Community).order_by(Community.created_at.desc())
     items, pagination = paginate(query, page, limit)
-    data = [_community_dict(db, c, current_user.id) for c in items]
+    data = build_community_dicts(db, items, current_user.id)
     return standard_response(True, "Communities retrieved", data, pagination=pagination)
 
 
 @router.get("/my")
 def get_my_communities(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from utils.batch_loaders import build_community_dicts
     memberships = db.query(CommunityMember).filter(CommunityMember.user_id == current_user.id).all()
     community_ids = [m.community_id for m in memberships]
-    # Also include communities created by user
     created = db.query(Community).filter(Community.created_by == current_user.id).all()
     created_ids = [c.id for c in created]
     all_ids = list(set(community_ids + created_ids))
 
     communities = db.query(Community).filter(Community.id.in_(all_ids)).order_by(Community.created_at.desc()).all() if all_ids else []
-    data = [_community_dict(db, c, current_user.id) for c in communities]
+    data = build_community_dicts(db, communities, current_user.id)
     return standard_response(True, "My communities retrieved", data)
 
 
@@ -255,22 +256,10 @@ def get_community_members(community_id: str, page: int = 1, limit: int = 20, db:
     except ValueError:
         return standard_response(False, "Invalid community ID")
 
+    from utils.batch_loaders import build_community_member_dicts
     query = db.query(CommunityMember).filter(CommunityMember.community_id == cid).order_by(CommunityMember.joined_at.desc())
     items, pagination = paginate(query, page, limit)
-
-    members = []
-    for m in items:
-        user = db.query(User).filter(User.id == m.user_id).first()
-        profile = db.query(UserProfile).filter(UserProfile.user_id == m.user_id).first() if user else None
-        if user:
-            members.append({
-                "id": str(user.id),
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "avatar": profile.profile_picture_url if profile else None,
-                "role": m.role,
-                "joined_at": m.joined_at.isoformat() if m.joined_at else None,
-            })
+    members = build_community_member_dicts(db, items)
 
     return standard_response(True, "Members retrieved", {"members": members}, pagination=pagination, wrap_items=False)
 
@@ -371,33 +360,8 @@ def get_community_posts(community_id: str, page: int = 1, limit: int = 20, db: S
 
     items, pagination_data = paginate(query, page, limit)
 
-    posts = []
-    for cp in items:
-        user = db.query(User).filter(User.id == cp.author_id).first()
-        profile = db.query(UserProfile).filter(UserProfile.user_id == cp.author_id).first() if user else None
-        images = db.query(CommunityPostImage).filter(CommunityPostImage.post_id == cp.id).all()
-        glow_count = db.query(sa_func.count(CommunityPostGlow.id)).filter(CommunityPostGlow.post_id == cp.id).scalar() or 0
-        has_glowed = False
-        if current_user:
-            has_glowed = db.query(CommunityPostGlow).filter(
-                CommunityPostGlow.post_id == cp.id,
-                CommunityPostGlow.user_id == current_user.id
-            ).first() is not None
-
-        posts.append({
-            "id": str(cp.id),
-            "author": {
-                "id": str(user.id) if user else None,
-                "name": f"{user.first_name} {user.last_name}" if user else None,
-                "avatar": profile.profile_picture_url if profile else None,
-                "is_verified": user.is_identity_verified if user else False,
-            },
-            "content": cp.content,
-            "images": [{"url": img.image_url, "media_type": getattr(img, 'media_type', None) or 'image'} for img in images],
-            "glow_count": glow_count,
-            "has_glowed": has_glowed,
-            "created_at": cp.created_at.isoformat() if cp.created_at else None,
-        })
+    from utils.batch_loaders import build_community_post_dicts
+    posts = build_community_post_dicts(db, items, current_user.id if current_user else None)
 
     return standard_response(True, "Community posts retrieved", {"posts": posts}, pagination=pagination_data, wrap_items=False)
 
