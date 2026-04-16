@@ -233,7 +233,9 @@ def get_public_event(event_id: str, db: Session = Depends(get_db)):
     if not event.is_public:
         return standard_response(False, "This event is not publicly visible")
 
-    data = _public_event_dict(db, event)
+    from utils.batch_loaders import build_public_event_dicts
+    built = build_public_event_dicts(db, [event])
+    data = built[0] if built else _public_event_dict(db, event)
 
     # Add contribution info if enabled
     settings = db.query(EventSetting).filter(EventSetting.event_id == eid).first()

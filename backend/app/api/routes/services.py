@@ -8,15 +8,16 @@ from typing import List, Optional
 
 import pytz
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload, joinedload
 from sqlalchemy import func as sa_func, or_, case, literal
 
 from core.database import get_db
 from models import (
     EventTypeService, EventService, Event, EventInvitation, EventCommitteeMember,
     ServiceType, UserService, ServicePackage, UserServiceRating,
-    EventServiceStatusEnum,
+    EventServiceStatusEnum, User,
 )
+from core.redis import cache_get, cache_set, cache_delete_pattern
 from utils.auth import get_current_user
 
 from utils.helpers import format_price, standard_response, paginate
@@ -129,7 +130,15 @@ def search_services(
     Supports geo-proximity when lat/lng provided.
     """
 
-    query = db.query(UserService).filter(
+    query = db.query(UserService).options(
+        selectinload(UserService.ratings),
+        selectinload(UserService.images),
+        selectinload(UserService.packages),
+        joinedload(UserService.user).joinedload(User.profile),
+        joinedload(UserService.category),
+        joinedload(UserService.service_type),
+        joinedload(UserService.business_phone),
+    ).filter(
         UserService.is_active == True,
         UserService.is_verified == True,
         UserService.verification_status == "verified"
@@ -401,7 +410,22 @@ def get_service_details(service_id: str, db: Session = Depends(get_db)):
     except ValueError:
         return standard_response(False, "Invalid service ID")
 
-    service = db.query(UserService).filter(UserService.id == sid).first()
+    # Try cache first (5 min TTL)
+    cache_key = f"service:detail:{service_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return standard_response(True, "Service retrieved successfully", cached)
+
+    service = db.query(UserService).options(
+        selectinload(UserService.ratings).joinedload(UserServiceRating.user).joinedload(User.profile),
+        selectinload(UserService.images),
+        selectinload(UserService.packages),
+        selectinload(UserService.intro_media),
+        joinedload(UserService.user).joinedload(User.profile),
+        joinedload(UserService.category),
+        joinedload(UserService.service_type),
+        joinedload(UserService.business_phone),
+    ).filter(UserService.id == sid).first()
     if not service:
         return standard_response(False, "Service not found")
 
@@ -491,6 +515,7 @@ def get_service_details(service_id: str, db: Session = Depends(get_db)):
         "created_at": service.created_at.isoformat()
     }
 
+    cache_set(cache_key, data, ttl_seconds=300)
     return standard_response(True, "Service retrieved successfully", data)
 
 
