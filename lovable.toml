@@ -1,0 +1,7 @@
+[run]
+install = "npm --prefix frontend install"
+build = "npm --prefix frontend run build"
+dev = "npm --prefix frontend run dev"
+
+[run."build:dev"]
+command = "npm --prefix frontend run build:dev"

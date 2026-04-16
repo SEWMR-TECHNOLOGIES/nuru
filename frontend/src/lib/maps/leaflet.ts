@@ -15,9 +15,9 @@ const MAP_PIN_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="
 const MAP_PIN_URL = `data:image/svg+xml;base64,${btoa(MAP_PIN_SVG)}`;
 
 export const DEFAULT_MAP_CENTER: [number, number] = [-6.7924, 39.2083];
-export const OPEN_SOURCE_TILE_URL = "https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png";
+export const OPEN_SOURCE_TILE_URL = "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png";
 export const OPEN_SOURCE_TILE_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · Tiles by <a href="https://www.hotosm.org/">Humanitarian OpenStreetMap Team</a> hosted by OpenStreetMap France';
+  '&copy; OpenStreetMap contributors &copy; CARTO';
 
 export const VenueMarkerIcon = L.icon({
   iconUrl: MAP_PIN_URL,
@@ -29,7 +29,7 @@ export const VenueMarkerIcon = L.icon({
 export function addOpenSourceTiles(map: L.Map) {
   return L.tileLayer(OPEN_SOURCE_TILE_URL, {
     attribution: OPEN_SOURCE_TILE_ATTRIBUTION,
-    subdomains: "abc",
+    subdomains: "abcd",
     maxZoom: 20,
   }).addTo(map);
 }
