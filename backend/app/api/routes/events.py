@@ -152,10 +152,15 @@ def search_events(
 # ──────────────────────────────────────────────
 @router.get("/featured")
 def get_featured_events(limit: int = 10, db: Session = Depends(get_db)):
-    """Returns featured/trending public events."""
+    """Returns featured/trending public events. Cached 5 min for anonymous traffic."""
     from models import EventStatusEnum, PromotedEvent
+    from core.redis import cache_get, cache_set
 
-    # Promoted events first, then by guest count
+    cache_key = f"events:featured:l{limit}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return standard_response(True, "Featured events retrieved successfully", cached)
+
     promoted_ids = [
         r[0] for r in db.query(PromotedEvent.event_id)
         .filter(PromotedEvent.is_active == True).all()
@@ -172,7 +177,9 @@ def get_featured_events(limit: int = 10, db: Session = Depends(get_db)):
         events = query.order_by(Event.created_at.desc()).limit(limit).all()
 
     from utils.batch_loaders import build_public_event_dicts
-    return standard_response(True, "Featured events retrieved successfully", build_public_event_dicts(db, events))
+    data = build_public_event_dicts(db, events)
+    cache_set(cache_key, data, ttl_seconds=300)
+    return standard_response(True, "Featured events retrieved successfully", data)
 
 
 # ──────────────────────────────────────────────
@@ -186,8 +193,17 @@ def get_nearby_events(
     limit: int = 20,
     db: Session = Depends(get_db),
 ):
-    """Returns events near a location."""
+    """Returns events near a location. Cached 3 min by rounded coordinates."""
     from models import EventStatusEnum
+    from core.redis import cache_get, cache_set
+
+    # Round coordinates to ~1km grid for effective cache hit rate
+    lat_key = round(latitude, 2)
+    lon_key = round(longitude, 2)
+    cache_key = f"events:nearby:{lat_key}:{lon_key}:r{radius_km}:l{limit}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return standard_response(True, "Nearby events retrieved successfully", cached)
 
     # Simple bounding box filter (~1 degree ≈ 111km)
     degree_offset = radius_km / 111.0
@@ -202,6 +218,7 @@ def get_nearby_events(
     ids = [r[0] for r in event_ids]
 
     if not ids:
+        cache_set(cache_key, [], ttl_seconds=180)
         return standard_response(True, "No nearby events found", [])
 
     events = (
@@ -212,7 +229,9 @@ def get_nearby_events(
     )
 
     from utils.batch_loaders import build_public_event_dicts
-    return standard_response(True, "Nearby events retrieved successfully", build_public_event_dicts(db, events))
+    data = build_public_event_dicts(db, events)
+    cache_set(cache_key, data, ttl_seconds=180)
+    return standard_response(True, "Nearby events retrieved successfully", data)
 
 
 # ──────────────────────────────────────────────
