@@ -784,6 +784,11 @@ def create_event_type(body: dict = Body(...), db: Session = Depends(get_db), adm
         et.created_at = now
     db.add(et)
     db.commit()
+    try:
+        from core.redis import cache_delete, CacheKeys
+        cache_delete(CacheKeys.EVENT_TYPES)
+    except Exception:
+        pass
     return standard_response(True, "Event type created", {"id": str(et.id), "name": et.name})
 
 
@@ -805,6 +810,11 @@ def update_event_type(type_id: str, body: dict = Body(...), db: Session = Depend
     if "is_active" in body and hasattr(et, 'is_active'):
         et.is_active = body["is_active"]
     db.commit()
+    try:
+        from core.redis import cache_delete, CacheKeys
+        cache_delete(CacheKeys.EVENT_TYPES)
+    except Exception:
+        pass
     return standard_response(True, "Event type updated")
 
 
@@ -819,6 +829,11 @@ def delete_event_type(type_id: str, db: Session = Depends(get_db), admin: AdminU
         return standard_response(False, "Event type not found")
     db.delete(et)
     db.commit()
+    try:
+        from core.redis import cache_delete, CacheKeys
+        cache_delete(CacheKeys.EVENT_TYPES)
+    except Exception:
+        pass
     return standard_response(True, "Event type deleted")
 
 
@@ -2446,6 +2461,11 @@ def create_service_category(body: dict = Body(...), db: Session = Depends(get_db
         cat.icon = body.get("icon")
     db.add(cat)
     db.commit()
+    try:
+        from core.redis import cache_delete, CacheKeys
+        cache_delete(CacheKeys.SERVICE_CATEGORIES)
+    except Exception:
+        pass
     return standard_response(True, "Service category created", {"id": str(cat.id), "name": cat.name})
 
 
@@ -2464,6 +2484,11 @@ def update_service_category(cat_id: str, body: dict = Body(...), db: Session = D
         if field in body and hasattr(cat, field):
             setattr(cat, field, body[field])
     db.commit()
+    try:
+        from core.redis import cache_delete, CacheKeys
+        cache_delete(CacheKeys.SERVICE_CATEGORIES)
+    except Exception:
+        pass
     return standard_response(True, "Category updated")
 
 
@@ -2478,6 +2503,11 @@ def delete_service_category(cat_id: str, db: Session = Depends(get_db), admin: A
         return standard_response(False, "Category not found")
     db.delete(cat)
     db.commit()
+    try:
+        from core.redis import cache_delete, CacheKeys
+        cache_delete(CacheKeys.SERVICE_CATEGORIES)
+    except Exception:
+        pass
     return standard_response(True, "Category deleted")
 
 
