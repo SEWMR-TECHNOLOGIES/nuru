@@ -44,6 +44,12 @@ const Feed = () => {
     }
   }, [loading, apiPosts]);
 
+  useEffect(() => {
+    if (apiPosts.length > 0) {
+      refetch();
+    }
+  }, []);
+
   // Save scroll position before navigating away
   useEffect(() => {
     const container = getScrollContainer();
