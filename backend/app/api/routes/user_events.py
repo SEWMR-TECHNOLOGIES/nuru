@@ -1616,19 +1616,30 @@ def get_guests(event_id: str, page: int = 1, limit: int = 50, rsvp_status: str =
     total_pages = max(1, math.ceil(total / limit))
     attendees = query.order_by(EventAttendee.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
 
-    # Summary counts
-    all_q = db.query(EventAttendee).filter(EventAttendee.event_id == eid)
+    # Summary counts — collapse 6 queries into 1 grouped count + 1 invitation count
+    status_rows = db.query(
+        EventAttendee.rsvp_status, sa_func.count(EventAttendee.id)
+    ).filter(EventAttendee.event_id == eid).group_by(EventAttendee.rsvp_status).all()
+    status_counts = {row[0].value if hasattr(row[0], "value") else str(row[0]): row[1] for row in status_rows}
+    checked_in_count = db.query(sa_func.count(EventAttendee.id)).filter(
+        EventAttendee.event_id == eid, EventAttendee.checked_in == True
+    ).scalar() or 0
+    invitations_sent = db.query(sa_func.count(EventInvitation.id)).filter(
+        EventInvitation.event_id == eid, EventInvitation.sent_at.isnot(None)
+    ).scalar() or 0
+
     summary = {
-        "total": all_q.count(),
-        "confirmed": all_q.filter(EventAttendee.rsvp_status == RSVPStatusEnum.confirmed).count(),
-        "pending": all_q.filter(EventAttendee.rsvp_status == RSVPStatusEnum.pending).count(),
-        "declined": all_q.filter(EventAttendee.rsvp_status == RSVPStatusEnum.declined).count(),
-        "checked_in": all_q.filter(EventAttendee.checked_in == True).count(),
-        "invitations_sent": db.query(EventInvitation).filter(EventInvitation.event_id == eid, EventInvitation.sent_at.isnot(None)).count(),
+        "total": sum(status_counts.values()),
+        "confirmed": status_counts.get("confirmed", 0),
+        "pending": status_counts.get("pending", 0),
+        "declined": status_counts.get("declined", 0),
+        "checked_in": checked_in_count,
+        "invitations_sent": invitations_sent,
     }
 
+    from utils.batch_loaders import build_event_attendee_dicts
     return standard_response(True, "Guests retrieved successfully", {
-        "guests": [_attendee_dict(db, att) for att in attendees],
+        "guests": build_event_attendee_dicts(db, attendees),
         "summary": summary,
         "pagination": {"page": page, "limit": limit, "total_items": total, "total_pages": total_pages, "has_next": page < total_pages, "has_previous": page > 1},
     })
@@ -2255,7 +2266,8 @@ def export_guests(event_id: str, db: Session = Depends(get_db), current_user: Us
         return err
 
     attendees = db.query(EventAttendee).filter(EventAttendee.event_id == eid).all()
-    data = [_attendee_dict(db, att) for att in attendees]
+    from utils.batch_loaders import build_event_attendee_dicts
+    data = build_event_attendee_dicts(db, attendees)
     return standard_response(True, "Guest list exported successfully", data)
 
 

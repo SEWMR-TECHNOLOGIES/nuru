@@ -19,11 +19,24 @@ from celery import Celery
 from celery.schedules import crontab
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "vps").lower().strip()
+CELERY_ENABLED = DEPLOYMENT_MODE != "vercel"
+
+# On Vercel (or any serverless platform) Celery + Redis aren't available.
+# We still construct a Celery instance so `celery_app.task` decorators don't
+# break imports, but the broker is set to an in-memory dummy and tasks
+# called with .delay() will fall back to direct execution.
+if CELERY_ENABLED:
+    _broker = REDIS_URL
+    _backend = REDIS_URL
+else:
+    _broker = "memory://"
+    _backend = "cache+memory://"
 
 celery_app = Celery(
     "nuru",
-    broker=REDIS_URL,
-    backend=REDIS_URL,
+    broker=_broker,
+    backend=_backend,
     include=[
         "tasks.content_cleanup",
         "tasks.quality_scores",
