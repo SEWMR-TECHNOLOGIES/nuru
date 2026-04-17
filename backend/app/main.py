@@ -117,6 +117,14 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 # ------------------------------------------------------------------
 @app.on_event("startup")
 def startup_checks():
+    import os
+    deployment_mode = os.getenv("DEPLOYMENT_MODE", "vps").lower().strip()
+    print(f"[startup] Deployment mode: {deployment_mode}")
+
+    if deployment_mode == "vercel":
+        print("[startup] Vercel mode — Redis & Celery disabled, caching no-ops")
+        return
+
     from core.redis import redis_available
     if redis_available():
         print("[startup] Redis connected ✓ — caching + rate limiting active")
