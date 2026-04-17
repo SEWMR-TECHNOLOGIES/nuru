@@ -24,6 +24,8 @@ from models import (
     EventContributionTarget, Currency, RSVPStatusEnum,
     ServiceBookingRequest, UserService, UserServiceImage, ServiceCategory,
     ServiceType, EventExpense, CommitteeRole, CommitteePermission,
+    UserContributor, EventContributor, EventInvitation, EventGuestPlusOne,
+    ContributionStatusEnum,
 )
 from models.meetings import EventMeeting, EventMeetingParticipant, EventMeetingJoinRequest
 from models.meeting_documents import MeetingAgendaItem, MeetingMinutes
@@ -1465,3 +1467,167 @@ def build_event_service_dicts(
             "created_at": es.created_at.isoformat() if es.created_at else None,
         })
     return out
+
+
+# ─────────────────────────────────────────────────────────
+# EventContribution batch loaders (pending + recorded lists)
+# ─────────────────────────────────────────────────────────
+
+def build_pending_contribution_dicts(
+    db: Session,
+    contributions: list,
+    *,
+    include_status: bool = False,
+) -> List[Dict]:
+    """
+    Bulk-build dicts for EventContribution rows (pending or recorded lists).
+    Replaces N+1 queries: 1 EventContributor + 1 UserContributor + 1 User per row.
+    Now: 3 batched queries total regardless of list size.
+    """
+    if not contributions:
+        return []
+
+    ec_ids = {c.event_contributor_id for c in contributions if c.event_contributor_id}
+    recorder_ids = {c.recorded_by for c in contributions if c.recorded_by}
+
+    # Bulk-load EventContributors and their UserContributors
+    ec_map: Dict[Any, EventContributor] = {}
+    contributor_ids: Set = set()
+    if ec_ids:
+        for ec in db.query(EventContributor).filter(EventContributor.id.in_(list(ec_ids))).all():
+            ec_map[ec.id] = ec
+            if ec.contributor_id:
+                contributor_ids.add(ec.contributor_id)
+
+    contributor_map: Dict[Any, UserContributor] = {}
+    if contributor_ids:
+        for uc in db.query(UserContributor).filter(UserContributor.id.in_(list(contributor_ids))).all():
+            contributor_map[uc.id] = uc
+
+    # Bulk-load recorder users
+    recorder_map: Dict[Any, User] = {}
+    if recorder_ids:
+        for u in db.query(User).filter(User.id.in_(list(recorder_ids))).all():
+            recorder_map[u.id] = u
+
+    out: List[Dict] = []
+    for c in contributions:
+        ec = ec_map.get(c.event_contributor_id)
+        contributor = contributor_map.get(ec.contributor_id) if ec and ec.contributor_id else None
+        recorder = recorder_map.get(c.recorded_by) if c.recorded_by else None
+
+        item = {
+            "id": str(c.id),
+            "contributor_name": contributor.name if contributor else c.contributor_name,
+            "contributor_phone": contributor.phone if contributor else None,
+            "amount": float(c.amount) if c.amount is not None else 0.0,
+            "payment_method": c.payment_method.value if c.payment_method else None,
+            "transaction_ref": c.transaction_ref,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        }
+        if include_status:
+            item["confirmation_status"] = c.confirmation_status.value if c.confirmation_status else "confirmed"
+            item["confirmed_at"] = c.confirmed_at.isoformat() if c.confirmed_at else None
+        else:
+            item["recorded_by"] = f"{recorder.first_name} {recorder.last_name}" if recorder else None
+        out.append(item)
+
+    return out
+
+
+# ─────────────────────────────────────────────────────────
+# EventAttendee (guest list) batch loader
+# ─────────────────────────────────────────────────────────
+
+def build_event_attendee_dicts(db: Session, attendees: list) -> List[Dict]:
+    """
+    Bulk-build attendee dicts for the guest list endpoint.
+    Replaces 4 queries per attendee with 5 batched queries total.
+    """
+    if not attendees:
+        return []
+
+    att_ids = [a.id for a in attendees]
+    user_ids = {a.attendee_id for a in attendees if a.attendee_id}
+    contributor_ids = {a.contributor_id for a in attendees if a.contributor_id}
+    invitation_ids = {a.invitation_id for a in attendees if a.invitation_id}
+
+    # Bulk users + profiles
+    user_map: Dict[Any, User] = {}
+    profile_map: Dict[Any, UserProfile] = {}
+    if user_ids:
+        for u in db.query(User).filter(User.id.in_(list(user_ids))).all():
+            user_map[u.id] = u
+        for p in db.query(UserProfile).filter(UserProfile.user_id.in_(list(user_ids))).all():
+            profile_map[p.user_id] = p
+
+    # Bulk contributors
+    contributor_map: Dict[Any, UserContributor] = {}
+    if contributor_ids:
+        for uc in db.query(UserContributor).filter(UserContributor.id.in_(list(contributor_ids))).all():
+            contributor_map[uc.id] = uc
+
+    # Bulk invitations
+    inv_map: Dict[Any, EventInvitation] = {}
+    if invitation_ids:
+        for inv in db.query(EventInvitation).filter(EventInvitation.id.in_(list(invitation_ids))).all():
+            inv_map[inv.id] = inv
+
+    # Bulk plus-ones — one query for all attendees
+    plus_ones_map: Dict[Any, list] = defaultdict(list)
+    if att_ids:
+        for po in db.query(EventGuestPlusOne).filter(EventGuestPlusOne.attendee_id.in_(att_ids)).all():
+            plus_ones_map[po.attendee_id].append(po)
+
+    out: List[Dict] = []
+    for att in attendees:
+        guest_type = att.guest_type.value if hasattr(att.guest_type, "value") else (att.guest_type or "user")
+
+        name = email = phone = avatar = None
+        if guest_type == "contributor":
+            contributor = contributor_map.get(att.contributor_id) if att.contributor_id else None
+            if contributor:
+                name = contributor.name
+                email = contributor.email
+                phone = contributor.phone
+            else:
+                name = att.guest_name
+                email = att.guest_email
+                phone = att.guest_phone
+        else:
+            u = user_map.get(att.attendee_id) if att.attendee_id else None
+            if u:
+                name = f"{u.first_name} {u.last_name}"
+                email = u.email
+                phone = u.phone
+                p = profile_map.get(u.id)
+                avatar = p.profile_picture_url if p else None
+            else:
+                name = att.guest_name
+
+        invitation = inv_map.get(att.invitation_id) if att.invitation_id else None
+        plus_ones = plus_ones_map.get(att.id, [])
+
+        out.append({
+            "id": str(att.id),
+            "event_id": str(att.event_id),
+            "guest_type": guest_type,
+            "name": name, "avatar": avatar,
+            "email": email, "phone": phone,
+            "rsvp_status": att.rsvp_status.value if hasattr(att.rsvp_status, "value") else att.rsvp_status,
+            "dietary_requirements": att.dietary_restrictions,
+            "meal_preference": att.meal_preference,
+            "special_requests": att.special_requests,
+            "plus_ones": len(plus_ones),
+            "plus_one_names": [po.name for po in plus_ones],
+            "notes": invitation.notes if invitation else None,
+            "invitation_sent": invitation.sent_at is not None if invitation else False,
+            "invitation_sent_at": invitation.sent_at.isoformat() if invitation and invitation.sent_at else None,
+            "invitation_method": invitation.sent_via if invitation else None,
+            "checked_in": att.checked_in,
+            "checked_in_at": att.checked_in_at.isoformat() if att.checked_in_at else None,
+            "created_at": att.created_at.isoformat() if att.created_at else None,
+        })
+
+    return out
+

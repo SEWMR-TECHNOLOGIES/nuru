@@ -1017,22 +1017,8 @@ def get_pending_contributions(event_id: str, db: Session = Depends(get_db), curr
         EventContribution.confirmation_status == ContributionStatusEnum.pending,
     ).order_by(EventContribution.created_at.desc()).all()
 
-    items = []
-    for c in pending:
-        ec = db.query(EventContributor).options(
-            joinedload(EventContributor.contributor),
-        ).filter(EventContributor.id == c.event_contributor_id).first()
-        recorder = db.query(User).filter(User.id == c.recorded_by).first() if c.recorded_by else None
-        items.append({
-            "id": str(c.id),
-            "contributor_name": ec.contributor.name if ec and ec.contributor else c.contributor_name,
-            "contributor_phone": ec.contributor.phone if ec and ec.contributor else None,
-            "amount": float(c.amount),
-            "payment_method": c.payment_method.value if c.payment_method else None,
-            "transaction_ref": c.transaction_ref,
-            "recorded_by": f"{recorder.first_name} {recorder.last_name}" if recorder else None,
-            "created_at": c.created_at.isoformat() if c.created_at else None,
-        })
+    from utils.batch_loaders import build_pending_contribution_dicts
+    items = build_pending_contribution_dicts(db, pending, include_status=False)
 
     return standard_response(True, "Pending contributions fetched", {"contributions": items, "count": len(items)})
 
@@ -1059,22 +1045,8 @@ def get_my_recorded_contributions(event_id: str, db: Session = Depends(get_db), 
         EventContribution.recorded_by == current_user.id,
     ).order_by(EventContribution.created_at.desc()).all()
 
-    items = []
-    for c in contributions:
-        ec = db.query(EventContributor).options(
-            joinedload(EventContributor.contributor),
-        ).filter(EventContributor.id == c.event_contributor_id).first()
-        items.append({
-            "id": str(c.id),
-            "contributor_name": ec.contributor.name if ec and ec.contributor else c.contributor_name,
-            "contributor_phone": ec.contributor.phone if ec and ec.contributor else None,
-            "amount": float(c.amount),
-            "payment_method": c.payment_method.value if c.payment_method else None,
-            "transaction_ref": c.transaction_ref,
-            "confirmation_status": c.confirmation_status.value if c.confirmation_status else "confirmed",
-            "confirmed_at": c.confirmed_at.isoformat() if c.confirmed_at else None,
-            "created_at": c.created_at.isoformat() if c.created_at else None,
-        })
+    from utils.batch_loaders import build_pending_contribution_dicts
+    items = build_pending_contribution_dicts(db, contributions, include_status=True)
 
     return standard_response(True, "Your recorded contributions fetched", {"contributions": items, "count": len(items)})
 
