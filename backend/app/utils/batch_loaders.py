@@ -918,11 +918,11 @@ def build_conversation_dicts(db: Session, conversations: list, current_user_id) 
     if service_ids:
         services = db.query(UserService).filter(UserService.id.in_(list(service_ids))).all()
         service_map = {s.id: s for s in services}
-        imgs = db.query(UserServiceImage).filter(UserServiceImage.service_id.in_(list(service_ids))).all()
+        imgs = db.query(UserServiceImage).filter(UserServiceImage.user_service_id.in_(list(service_ids))).all()
         for im in imgs:
-            cur_img = service_image_map.get(im.service_id)
+            cur_img = service_image_map.get(im.user_service_id)
             if cur_img is None or (getattr(im, "is_featured", False) and not getattr(cur_img, "is_featured", False)):
-                service_image_map[im.service_id] = im
+                service_image_map[im.user_service_id] = im
 
     out: List[Dict] = []
     for conv in conversations:
