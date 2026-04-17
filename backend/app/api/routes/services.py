@@ -198,7 +198,6 @@ def search_services(
             token = auth_header.split(" ")[1]
             payload = decode_token(token)
             if payload:
-                from models import User
                 current_user = db.query(User).filter(User.id == payload.get("user_id")).first()
     except Exception:
         pass
