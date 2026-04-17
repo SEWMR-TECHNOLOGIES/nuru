@@ -13,6 +13,7 @@ import { adminCaches } from "@/lib/api/adminCache";
 import { usePolling } from "@/hooks/usePolling";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import SlowEndpointsWidget from "@/components/admin/SlowEndpointsWidget";
 
 // Module-level cache for dashboard stats
 let _dashStats: Stats | null = null;
@@ -155,6 +156,9 @@ export default function AdminDashboard() {
           ))}
         </motion.div>
       )}
+
+      {/* Performance Monitoring */}
+      <SlowEndpointsWidget />
 
       {/* Quick Actions */}
       <motion.div

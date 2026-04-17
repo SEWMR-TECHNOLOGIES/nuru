@@ -26,12 +26,18 @@ import redis
 # ─────────────────────────────────────────────────────────
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+# Honor deployment mode: on Vercel (or wherever Redis isn't available) we
+# completely skip the connection attempt so every cache call returns gracefully.
+_DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "vps").lower().strip()
+REDIS_ENABLED = _DEPLOYMENT_MODE != "vercel"
 
 _pool: Optional[redis.ConnectionPool] = None
 
 
-def _get_pool() -> redis.ConnectionPool:
+def _get_pool() -> Optional[redis.ConnectionPool]:
     global _pool
+    if not REDIS_ENABLED:
+        return None
     if _pool is None:
         _pool = redis.ConnectionPool.from_url(
             REDIS_URL,
@@ -44,15 +50,21 @@ def _get_pool() -> redis.ConnectionPool:
     return _pool
 
 
-def get_redis() -> redis.Redis:
-    """Return a Redis client from the shared pool."""
-    return redis.Redis(connection_pool=_get_pool())
+def get_redis() -> Optional[redis.Redis]:
+    """Return a Redis client from the shared pool, or None if disabled."""
+    pool = _get_pool()
+    if pool is None:
+        return None
+    return redis.Redis(connection_pool=pool)
 
 
 def redis_available() -> bool:
     """Quick health check – True if Redis responds to PING."""
+    if not REDIS_ENABLED:
+        return False
     try:
-        return get_redis().ping()
+        client = get_redis()
+        return bool(client and client.ping())
     except Exception:
         return False
 

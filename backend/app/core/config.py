@@ -32,6 +32,12 @@ MOMENT_EXPIRY_HOURS = 24
 OTP_SERVICE_SECRET = os.getenv("OTP_SERVICE_SECRET", "")
 ENV = os.getenv("ENV", "development")
 
+# Deployment mode: "vps" (Redis + Celery available) or "vercel" (serverless, no Redis/Celery)
+# When set to "vercel", all caching no-ops gracefully and Celery beat/workers are not assumed.
+DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "vps").lower().strip()
+USE_REDIS = DEPLOYMENT_MODE != "vercel"
+USE_CELERY = DEPLOYMENT_MODE != "vercel"
+
 # LiveKit
 LIVEKIT_URL = os.getenv("LIVEKIT_URL", "")
 LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY", "")

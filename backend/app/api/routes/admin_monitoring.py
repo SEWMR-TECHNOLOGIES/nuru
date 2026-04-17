@@ -254,30 +254,105 @@ def database_stats(db: Session = Depends(get_db), _admin=Depends(_require_admin)
 
 
 # ══════════════════════════════════════════════
-# 4. Combined Health Overview
+# 4. Slow Endpoints (last hour) — sourced from SlowRequestLoggerMiddleware
+# ══════════════════════════════════════════════
+
+@router.get("/slow-endpoints")
+def slow_endpoints(minutes: int = 60, limit: int = 25, _admin=Depends(_require_admin)):
+    """
+    Aggregate per-endpoint timing samples captured by SlowRequestLoggerMiddleware.
+    Returns the slowest endpoints in the last `minutes` window (default 60).
+    """
+    from middleware.slow_request_logger import get_recent_samples, SLOW_THRESHOLD_MS
+
+    minutes = max(1, min(minutes, 1440))  # clamp 1 min .. 24 h
+    limit = max(1, min(limit, 200))
+
+    samples = get_recent_samples(minutes=minutes)
+
+    # Aggregate per (method, path)
+    grouped: dict = {}
+    for s in samples:
+        key = f"{s['method']} {s['path']}"
+        g = grouped.setdefault(key, {
+            "method": s["method"],
+            "path": s["path"],
+            "count": 0,
+            "total_ms": 0.0,
+            "max_ms": 0.0,
+            "slow_count": 0,
+            "errors": 0,
+            "samples_ms": [],
+        })
+        g["count"] += 1
+        g["total_ms"] += s["ms"]
+        if s["ms"] > g["max_ms"]:
+            g["max_ms"] = s["ms"]
+        if s["ms"] >= SLOW_THRESHOLD_MS:
+            g["slow_count"] += 1
+        if s.get("status", 200) >= 500:
+            g["errors"] += 1
+        g["samples_ms"].append(s["ms"])
+
+    rows = []
+    for g in grouped.values():
+        n = max(1, g["count"])
+        sorted_ms = sorted(g["samples_ms"])
+        p95_idx = max(0, int(len(sorted_ms) * 0.95) - 1)
+        rows.append({
+            "method": g["method"],
+            "path": g["path"],
+            "count": g["count"],
+            "avg_ms": round(g["total_ms"] / n, 1),
+            "p95_ms": round(sorted_ms[p95_idx], 1),
+            "max_ms": round(g["max_ms"], 1),
+            "slow_count": g["slow_count"],
+            "error_count": g["errors"],
+        })
+
+    rows.sort(key=lambda r: r["avg_ms"], reverse=True)
+    rows = rows[:limit]
+
+    return {
+        "success": True,
+        "data": {
+            "window_minutes": minutes,
+            "threshold_ms": SLOW_THRESHOLD_MS,
+            "total_samples": len(samples),
+            "endpoints": rows,
+        },
+    }
+
+
+# ══════════════════════════════════════════════
+# 5. Combined Health Overview
 # ══════════════════════════════════════════════
 
 @router.get("/health")
 def monitoring_health(_admin=Depends(_require_admin)):
     """Quick combined health check for all subsystems."""
     from core.redis import redis_available
+    import os
 
+    deployment_mode = os.getenv("DEPLOYMENT_MODE", "vps").lower().strip()
     redis_ok = redis_available()
 
     celery_ok = False
-    try:
-        from core.celery_app import celery_app
-        inspector = celery_app.control.inspect(timeout=1.0)
-        ping = inspector.ping()
-        celery_ok = bool(ping)
-    except Exception:
-        pass
+    if deployment_mode != "vercel":
+        try:
+            from core.celery_app import celery_app
+            inspector = celery_app.control.inspect(timeout=1.0)
+            ping = inspector.ping()
+            celery_ok = bool(ping)
+        except Exception:
+            pass
 
     return {
         "success": True,
         "data": {
-            "redis": "ok" if redis_ok else "down",
-            "celery": "ok" if celery_ok else "down",
+            "deployment_mode": deployment_mode,
+            "redis": "ok" if redis_ok else ("disabled" if deployment_mode == "vercel" else "down"),
+            "celery": "ok" if celery_ok else ("disabled" if deployment_mode == "vercel" else "down"),
             "api": "ok",
         },
     }
