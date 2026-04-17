@@ -763,9 +763,9 @@ def build_booking_dicts(db: Session, bookings: List[ServiceBookingRequest]) -> L
     # Service primary images (featured first)
     img_map: Dict = defaultdict(list)
     if service_ids:
-        imgs = db.query(UserServiceImage).filter(UserServiceImage.service_id.in_(list(service_ids))).all()
+        imgs = db.query(UserServiceImage).filter(UserServiceImage.user_service_id.in_(list(service_ids))).all()
         for im in imgs:
-            img_map[im.service_id].append(im)
+            img_map[im.user_service_id].append(im)
     primary_image: Dict = {}
     for sid, lst in img_map.items():
         featured = next((i for i in lst if getattr(i, "is_featured", False)), None)
