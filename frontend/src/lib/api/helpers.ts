@@ -49,6 +49,16 @@ export async function request<T>(
   try {
     const response = await fetch(url, config);
 
+    // Handle 429 globally - rate limited
+    if (response.status === 429) {
+      const retryHeader = response.headers.get("Retry-After");
+      const retryAfter = retryHeader ? parseInt(retryHeader, 10) : 60;
+      const isAuth = endpoint.startsWith("/auth/") || endpoint.startsWith("/users/signup") || endpoint.startsWith("/users/verify-otp") || endpoint.startsWith("/users/request-otp");
+      window.dispatchEvent(new CustomEvent("api:rate-limited", {
+        detail: { retryAfter: isNaN(retryAfter) ? 60 : retryAfter, context: isAuth ? "auth" : "general" },
+      }));
+    }
+
     // Handle 401 globally - token expired or invalid
     // Skip redirect on public pages (shared posts, photo libraries, RSVP, etc.)
     if (response.status === 401) {
@@ -168,7 +178,15 @@ export async function postFormData<T>(endpoint: string, formData: FormData): Pro
       credentials: "include",
       body: formData,
     });
-    
+
+    if (response.status === 429) {
+      const retryHeader = response.headers.get("Retry-After");
+      const retryAfter = retryHeader ? parseInt(retryHeader, 10) : 60;
+      window.dispatchEvent(new CustomEvent("api:rate-limited", {
+        detail: { retryAfter: isNaN(retryAfter) ? 60 : retryAfter, context: "general" },
+      }));
+    }
+
     const json = await response.json().catch(() => null);
     
     if (json && typeof json === "object" && "success" in json) {
@@ -216,7 +234,15 @@ export async function putFormData<T>(endpoint: string, formData: FormData): Prom
       credentials: "include",
       body: formData,
     });
-    
+
+    if (response.status === 429) {
+      const retryHeader = response.headers.get("Retry-After");
+      const retryAfter = retryHeader ? parseInt(retryHeader, 10) : 60;
+      window.dispatchEvent(new CustomEvent("api:rate-limited", {
+        detail: { retryAfter: isNaN(retryAfter) ? 60 : retryAfter, context: "general" },
+      }));
+    }
+
     const json = await response.json().catch(() => null);
     
     if (json && typeof json === "object" && "success" in json) {
