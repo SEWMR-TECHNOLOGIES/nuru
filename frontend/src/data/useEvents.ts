@@ -60,6 +60,32 @@ export const useEvents = (initialParams?: EventQueryParams) => {
 
 // Module-level cache for single events
 const _eventCache = new Map<string, Event>();
+const _eventInflight = new Map<string, Promise<void>>();
+
+/**
+ * Hover-prefetch: warm the cache for a single event so navigation feels instant.
+ * Safe to call repeatedly — dedupes inflight requests and skips when cached.
+ */
+export const prefetchEvent = (eventId: string): void => {
+  if (!eventId || _eventCache.has(eventId) || _eventInflight.has(eventId)) return;
+  const p = (async () => {
+    try {
+      const response = await eventsApi.getById(eventId);
+      if (response.success) {
+        _eventCache.set(eventId, response.data);
+        try {
+          const inlinePerms = (response.data as any)?.permissions;
+          if (inlinePerms) {
+            const { seedEventPermissions } = await import('@/hooks/useEventPermissions');
+            seedEventPermissions(eventId, inlinePerms);
+          }
+        } catch { /* non-fatal */ }
+      }
+    } catch { /* non-fatal */ }
+    finally { _eventInflight.delete(eventId); }
+  })();
+  _eventInflight.set(eventId, p);
+};
 
 export const useEvent = (eventId: string | null) => {
   const cached = eventId ? _eventCache.get(eventId) : null;
@@ -75,6 +101,15 @@ export const useEvent = (eventId: string | null) => {
       if (response.success) {
         _eventCache.set(eventId, response.data);
         setEvent(response.data);
+        // Seed the permissions cache if the essential payload included them.
+        // This avoids a second round-trip from useEventPermissions.
+        try {
+          const inlinePerms = (response.data as any)?.permissions;
+          if (inlinePerms) {
+            const { seedEventPermissions } = await import('@/hooks/useEventPermissions');
+            seedEventPermissions(eventId, inlinePerms);
+          }
+        } catch { /* non-fatal */ }
       } else {
         setError(response.message || "Failed to fetch event");
       }

@@ -55,6 +55,10 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
     };
   }
 
+  // Track which tabs have already been loaded so we never refetch.
+  bool _calendarLoaded = false;
+  bool _reviewsLoaded = false;
+
   Future<void> _load() async {
     setState(() => _loading = true);
     final res = await UserServicesService.getServiceDetail(widget.serviceId);
@@ -69,11 +73,27 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
       _service = svc;
       _packages = svc['packages'] is List ? svc['packages'] as List : [];
       _introMedia = svc['intro_media'] is List ? svc['intro_media'] as List : [];
+      // Calendar is hidden behind a tab — don't show its skeleton on first paint.
+      _calendarLoading = false;
     });
-    _loadCalendar();
-    _loadReviews();
-    _loadIntroMedia();
+    // Only fetch intro media separately if it wasn't already inlined in the payload.
+    if (_introMedia.isEmpty) _loadIntroMedia();
   }
+
+  /// Lazy: fetch calendar data the first time the calendar tab is opened.
+  void _ensureCalendarLoaded() {
+    if (_calendarLoaded) return;
+    _calendarLoaded = true;
+    _loadCalendar();
+  }
+
+  /// Lazy: fetch reviews the first time the reviews tab is opened.
+  void _ensureReviewsLoaded() {
+    if (_reviewsLoaded) return;
+    _reviewsLoaded = true;
+    _loadReviews();
+  }
+
 
   Future<void> _loadCalendar() async {
     setState(() => _calendarLoading = true);
@@ -236,7 +256,11 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                 final labels = ['Overview', 'Calendar', 'Reviews ($reviewCount)'];
                 return Expanded(
                   child: GestureDetector(
-                    onTap: () => setState(() => _activeTab = i),
+                    onTap: () {
+                      setState(() => _activeTab = i);
+                      if (i == 1) _ensureCalendarLoaded();
+                      if (i == 2) _ensureReviewsLoaded();
+                    },
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(

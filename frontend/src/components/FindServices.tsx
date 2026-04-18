@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Star, Loader2, SlidersHorizontal, X, ChevronRight, MapPin, SearchX, LocateFixed } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
@@ -12,6 +12,8 @@ import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useServiceCategories } from '@/data/useServiceCategories';
 import { servicesApi, type ServiceQueryParams } from '@/lib/api/services';
+import { prefetchService } from '@/hooks/useUserService';
+import { usePrefetchOnVisible } from '@/hooks/usePrefetchOnVisible';
 import { formatPrice } from '@/utils/formatPrice';
 import type { UserService } from '@/lib/api/types';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
@@ -47,6 +49,30 @@ interface FindServicesCache {
   ts: number;
 }
 let _findServicesCache: FindServicesCache | null = null;
+
+/** Card shell that wires viewport + hover prefetch for a service. */
+const ServiceCardShell = ({
+  serviceId,
+  onOpen,
+  children,
+}: {
+  serviceId: string;
+  onOpen: () => void;
+  children: ReactNode;
+}) => {
+  const ref = usePrefetchOnVisible<HTMLDivElement>(() => prefetchService(serviceId));
+  return (
+    <div
+      ref={ref}
+      onMouseEnter={() => prefetchService(serviceId)}
+      onFocus={() => prefetchService(serviceId)}
+      onClick={onOpen}
+      className="bg-card border border-border rounded-xl overflow-hidden cursor-pointer group hover:shadow-md transition-all duration-200"
+    >
+      {children}
+    </div>
+  );
+};
 
 const FindServices = () => {
   const { t } = useLanguage();
@@ -507,10 +533,10 @@ const FindServices = () => {
           {services.map((provider) => {
             const imageUrl = getImageUrl(provider);
             return (
-              <div
+              <ServiceCardShell
                 key={provider.id}
-                onClick={() => navigate(`/services/view/${provider.id}`)}
-                className="bg-card border border-border rounded-xl overflow-hidden cursor-pointer group hover:shadow-md transition-all duration-200"
+                serviceId={provider.id}
+                onOpen={() => navigate(`/services/view/${provider.id}`)}
               >
                 {/* Image */}
                 <div className="relative aspect-[16/10] bg-muted overflow-hidden">
@@ -595,7 +621,7 @@ const FindServices = () => {
                     )}
                   </div>
                 </div>
-              </div>
+              </ServiceCardShell>
             );
           })}
         </div>

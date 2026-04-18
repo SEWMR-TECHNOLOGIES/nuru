@@ -45,9 +45,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _profile;
   List<dynamic> _feedPosts = [];
   bool _feedLoading = true;
+  bool _feedFallbackTried = false;
   bool _feedLoadingMore = false;
   int _feedPage = 1;
   int _feedTotalPages = 1;
+  // Session id for ranked feed — clearing it resets server impression history.
+  String _feedSessionId = DateTime.now().millisecondsSinceEpoch.toString();
+  int _feedRequestId = 0;
   List<dynamic> _myEvents = [];
   List<dynamic> _invitedEvents = [];
   List<dynamic> _committeeEvents = [];
@@ -98,24 +102,59 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted && userData != null) setState(() => _profile = userData);
   }
 
-  Future<void> _loadFeed({bool refresh = true}) async {
-    if (refresh) setState(() { _feedLoading = true; _feedPage = 1; });
-    final res = await SocialService.getFeed(page: _feedPage, limit: 15);
-    if (mounted) {
+  Future<void> _loadFeed({bool refresh = true, bool resetSession = false}) async {
+    if (refresh) {
+      if (resetSession) {
+        _feedSessionId = DateTime.now().millisecondsSinceEpoch.toString();
+      }
       setState(() {
-        _feedLoading = false;
-        if (res['success'] == true) {
-          final data = res['data'];
-          final items = data is Map ? (data['items'] ?? data['posts'] ?? []) : (data is List ? data : []);
-          if (refresh) { _feedPosts = items is List ? items : []; }
-          else { _feedPosts = [..._feedPosts, ...(items is List ? items : [])]; }
-          final pagination = data is Map ? data['pagination'] : null;
-          _feedPage = pagination?['page'] ?? _feedPage;
-          _feedTotalPages = pagination?['pages'] ?? 1;
-        }
-        if (_feedPosts.isEmpty && refresh) _loadTrendingFallback();
+        _feedLoading = true;
+        _feedFallbackTried = false;
+        _feedPage = 1;
       });
     }
+    final reqId = ++_feedRequestId;
+    final res = await SocialService.getFeed(page: _feedPage, limit: 15, sessionId: _feedSessionId);
+    if (!mounted || reqId != _feedRequestId) return;
+    List<dynamic> items = const [];
+    Map? pagination;
+    if (res['success'] == true) {
+      final data = res['data'];
+      final raw = data is Map ? (data['items'] ?? data['posts'] ?? []) : (data is List ? data : []);
+      items = raw is List ? raw : const [];
+      pagination = data is Map ? (data['pagination'] as Map?) : null;
+    }
+    setState(() {
+      if (refresh) {
+        _feedPosts = _dedupePosts(items);
+      } else {
+        _feedPosts = _dedupePosts([..._feedPosts, ...items]);
+      }
+      _feedPage = (pagination?['page'] as int?) ?? _feedPage;
+      _feedTotalPages = (pagination?['pages'] as int?) ?? 1;
+      // Only clear loading once we have content OR fallback has run.
+      if (_feedPosts.isNotEmpty) {
+        _feedLoading = false;
+      }
+    });
+    if (_feedPosts.isEmpty && refresh && !_feedFallbackTried) {
+      _feedFallbackTried = true;
+      await _loadTrendingFallback();
+      if (mounted) setState(() => _feedLoading = false);
+    } else if (_feedPosts.isEmpty && refresh) {
+      if (mounted) setState(() => _feedLoading = false);
+    }
+  }
+
+  List<dynamic> _dedupePosts(List<dynamic> posts) {
+    final seen = <String>{};
+    final out = <dynamic>[];
+    for (final p in posts) {
+      final id = (p is Map ? (p['id'] ?? p['post_id']) : null)?.toString();
+      if (id == null || id.isEmpty) { out.add(p); continue; }
+      if (seen.add(id)) out.add(p);
+    }
+    return out;
   }
 
   Future<void> _loadTrendingFallback() async {
@@ -123,7 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted && res['success'] == true) {
       final data = res['data'];
       final items = data is List ? data : (data is Map ? (data['posts'] ?? data['items'] ?? []) : []);
-      setState(() => _feedPosts = items is List ? items : []);
+      setState(() => _feedPosts = _dedupePosts(items is List ? items : const []));
     }
   }
 
@@ -131,14 +170,14 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_feedLoadingMore || _feedPage >= _feedTotalPages) return;
     setState(() => _feedLoadingMore = true);
     _feedPage++;
-    final res = await SocialService.getFeed(page: _feedPage, limit: 15);
+    final res = await SocialService.getFeed(page: _feedPage, limit: 15, sessionId: _feedSessionId);
     if (mounted) {
       setState(() {
         _feedLoadingMore = false;
         if (res['success'] == true) {
           final data = res['data'];
           final items = data is Map ? (data['items'] ?? data['posts'] ?? []) : (data is List ? data : []);
-          _feedPosts = [..._feedPosts, ...(items is List ? items : [])];
+          _feedPosts = _dedupePosts([..._feedPosts, ...(items is List ? items : const [])]);
           final pagination = data is Map ? data['pagination'] : null;
           _feedTotalPages = pagination?['pages'] ?? _feedTotalPages;
         }
@@ -330,16 +369,20 @@ class _HomeScreenState extends State<HomeScreen> {
         return false;
       },
       child: RefreshIndicator(
-        onRefresh: () => _loadFeed(refresh: true),
+        // Pull-to-refresh resets the ranked-feed session so server impression
+        // history is cleared and the user gets a freshly-rotated stream.
+        onRefresh: () => _loadFeed(refresh: true, resetSession: true),
         color: AppColors.primary,
         child: ListView.builder(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-          itemCount: _feedPosts.length + 2 + (_feedLoadingMore ? 1 : 0) + (!_feedLoading && _feedPosts.isEmpty ? 1 : 0),
+          itemCount: _feedPosts.length + 2 + (_feedLoadingMore ? 1 : 0) + (!_feedLoading && _feedFallbackTried && _feedPosts.isEmpty ? 1 : 0),
           itemBuilder: (context, index) {
             if (index == 0) return Padding(padding: const EdgeInsets.only(bottom: 16), child: CreatePostBox(onPostCreated: () => _loadFeed(refresh: true)));
-            if (index == 1 && _feedLoading) return Column(children: List.generate(3, (_) => const Padding(padding: EdgeInsets.only(bottom: 16), child: ShimmerCard(height: 220))));
-            if (index == 1 && !_feedLoading && _feedPosts.isEmpty) return const EmptyState(icon: Icons.dynamic_feed_rounded, title: 'No posts yet', subtitle: 'Be the first to share something with the community!');
+            if (index == 1 && (_feedLoading || (_feedPosts.isEmpty && !_feedFallbackTried))) {
+              return Column(children: List.generate(3, (_) => const Padding(padding: EdgeInsets.only(bottom: 16), child: ShimmerCard(height: 220))));
+            }
+            if (index == 1 && !_feedLoading && _feedFallbackTried && _feedPosts.isEmpty) return const EmptyState(icon: Icons.dynamic_feed_rounded, title: 'No posts yet', subtitle: 'Be the first to share something with the community!');
             if (index == 1) return const SizedBox.shrink();
             final postIndex = index - 2;
             if (postIndex >= _feedPosts.length) return const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))));

@@ -2,12 +2,14 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/text_styles.dart';
 import '../../core/services/events_service.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/report_generator.dart';
 import '../../core/widgets/app_snackbar.dart';
+import '../../providers/auth_provider.dart';
 import '../photos/my_photo_libraries_screen.dart';
 import 'widgets/event_guests_tab.dart';
 import 'widgets/event_budget_tab.dart';
@@ -178,72 +180,57 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
   }
 
   Future<void> _loadEvent() async {
-    setState(() => _loading = true);
+    // Show loader only if we have nothing on screen yet. With initialData
+    // (passed from the events list) we can render the header instantly.
+    if (_event == null) setState(() => _loading = true);
     final fallbackErr = {'success': false, 'message': 'Request failed', 'data': null};
 
-    late List<Map<String, dynamic>> results;
+    // ── Phase 1: ONE blocking call — essential event payload (with inline permissions) ──
+    Map<String, dynamic> eventRes;
     try {
-      results = await Future.wait([
-        EventsService.getEventById(widget.eventId).catchError((_) => fallbackErr),
-        EventsService.getMyPermissions(widget.eventId).catchError((_) => fallbackErr),
-        EventsService.getContributions(widget.eventId).catchError((_) => fallbackErr),
-        EventsService.getBudget(widget.eventId).catchError((_) => fallbackErr),
-        EventsService.getExpenses(widget.eventId).catchError((_) => fallbackErr),
-        EventsService.getEventServices(widget.eventId).catchError((_) => fallbackErr),
-        AuthApi.me().catchError((_) => fallbackErr),
-      ]);
-    } catch (e) {
-      results = List.filled(7, fallbackErr);
+      eventRes = await EventsService.getEventById(widget.eventId);
+    } catch (_) {
+      eventRes = Map<String, dynamic>.from(fallbackErr);
     }
 
     if (!mounted) return;
 
-    final eventData = (results[0]['success'] == true && results[0]['data'] is Map)
-        ? (results[0]['data'] as Map).cast<String, dynamic>() : null;
-    final apiPermissions = (results[1]['success'] == true && results[1]['data'] is Map)
-        ? (results[1]['data'] as Map).cast<String, dynamic>() : null;
-    final meData = (results[6]['success'] == true && results[6]['data'] is Map)
-        ? (results[6]['data'] as Map).cast<String, dynamic>() : null;
-    _currentUserName = meData?['first_name']?.toString();
+    final eventData = (eventRes['success'] == true && eventRes['data'] is Map)
+        ? (eventRes['data'] as Map).cast<String, dynamic>() : null;
+
+    // Inline permissions returned by /user-events/{id}?fields=essential
+    final inlinePermissions = (eventData?['permissions'] is Map)
+        ? (eventData!['permissions'] as Map).cast<String, dynamic>() : null;
 
     final knownRoleHint = _roleHint(widget.knownRole);
     final initialRoleHint = _roleHint(widget.initialData?['role'] ?? widget.initialData?['viewer_role'] ?? widget.initialData?['my_role']);
     final eventRoleHint = _roleHint(eventData?['role'] ?? eventData?['viewer_role'] ?? eventData?['my_role']);
-    final permissionRoleHint = _roleHint(apiPermissions?['role']);
-    final currentUserId = meData?['id']?.toString();
+    final permissionRoleHint = _roleHint(inlinePermissions?['role']);
+    // current_user.id is already cached in AuthProvider — no need for AuthApi.me()
+    String? currentUserId;
+    try {
+      final auth = context.read<AuthProvider>();
+      currentUserId = auth.user?['id']?.toString();
+      _currentUserName = auth.user?['first_name']?.toString();
+    } catch (_) { /* provider unavailable, fine */ }
     final eventOwnerId = _ownerIdFrom(eventData);
     final initialOwnerId = _ownerIdFrom(widget.initialData);
     final ownerMatched = currentUserId != null && currentUserId.isNotEmpty &&
         (eventOwnerId == currentUserId || initialOwnerId == currentUserId);
 
     final creatorHint = _isCreator || _asBool(widget.initialData?['is_creator']) || _asBool(eventData?['is_creator']) ||
-        _asBool(apiPermissions?['is_creator']) || _creatorRoles.contains(knownRoleHint) || _creatorRoles.contains(initialRoleHint) ||
+        _asBool(inlinePermissions?['is_creator']) || _creatorRoles.contains(knownRoleHint) || _creatorRoles.contains(initialRoleHint) ||
         _creatorRoles.contains(eventRoleHint) || _creatorRoles.contains(permissionRoleHint) || ownerMatched;
 
     final committeeHint = _committeeRoles.contains(knownRoleHint) || _committeeRoles.contains(initialRoleHint) ||
         _committeeRoles.contains(eventRoleHint) || _committeeRoles.contains(permissionRoleHint);
 
-    final contributionSummary = (results[2]['success'] == true && results[2]['data'] is Map)
-        ? (((results[2]['data'] as Map)['summary'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{}) : <String, dynamic>{};
-    final budgetSummary = (results[3]['success'] == true && results[3]['data'] is Map)
-        ? (((results[3]['data'] as Map)['summary'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{}) : <String, dynamic>{};
-    final expenseSummary = (results[4]['success'] == true && results[4]['data'] is Map)
-        ? (((results[4]['data'] as Map)['summary'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{}) : <String, dynamic>{};
-    final servicesData = results[5]['data'];
-    final servicesItems = servicesData is List ? servicesData
-        : (servicesData is Map ? ((servicesData['items'] is List) ? servicesData['items'] as List
-            : ((servicesData['services'] is List) ? servicesData['services'] as List : <dynamic>[])) : <dynamic>[]);
-    final completedServices = servicesItems.where((s) {
-      if (s is! Map) return false;
-      return s['service_status'] == 'completed' || s['status'] == 'completed';
-    }).length;
-
     if (creatorHint) {
       _permissions = _creatorPermissions();
       _permissionSource = ownerMatched ? 'owner_match' : 'creator_hint';
-    } else if (apiPermissions != null) {
-      _permissions = _normalizePermissions(apiPermissions);
-      _permissionSource = 'permissions_api';
+    } else if (inlinePermissions != null) {
+      _permissions = _normalizePermissions(inlinePermissions);
+      _permissionSource = 'inline_permissions';
     } else if (committeeHint) {
       _permissions = _normalizePermissions({'role': 'committee'});
       _permissionSource = 'committee_hint';
@@ -257,6 +244,44 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
     setState(() {
       _loading = false;
       if (eventData != null) _event = eventData;
+    });
+
+    // ── Phase 2: Fire-and-forget overview summaries ──
+    // These hydrate the stat cards on the Overview tab WITHOUT blocking the UI.
+    // Each setState is independent so the cards fill in as data arrives.
+    _hydrateOverviewSummaries();
+  }
+
+  Future<void> _hydrateOverviewSummaries() async {
+    final eid = widget.eventId;
+    final fallbackErr = {'success': false, 'message': 'Request failed', 'data': null};
+
+    // Run the four summary calls in parallel but don't block the UI on them.
+    final futures = await Future.wait([
+      EventsService.getContributions(eid).catchError((_) => fallbackErr),
+      EventsService.getBudget(eid).catchError((_) => fallbackErr),
+      EventsService.getExpenses(eid).catchError((_) => fallbackErr),
+      EventsService.getEventServices(eid).catchError((_) => fallbackErr),
+    ]);
+
+    if (!mounted) return;
+
+    final contributionSummary = (futures[0]['success'] == true && futures[0]['data'] is Map)
+        ? (((futures[0]['data'] as Map)['summary'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{}) : <String, dynamic>{};
+    final budgetSummary = (futures[1]['success'] == true && futures[1]['data'] is Map)
+        ? (((futures[1]['data'] as Map)['summary'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{}) : <String, dynamic>{};
+    final expenseSummary = (futures[2]['success'] == true && futures[2]['data'] is Map)
+        ? (((futures[2]['data'] as Map)['summary'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{}) : <String, dynamic>{};
+    final servicesData = futures[3]['data'];
+    final servicesItems = servicesData is List ? servicesData
+        : (servicesData is Map ? ((servicesData['items'] is List) ? servicesData['items'] as List
+            : ((servicesData['services'] is List) ? servicesData['services'] as List : <dynamic>[])) : <dynamic>[]);
+    final completedServices = servicesItems.where((s) {
+      if (s is! Map) return false;
+      return s['service_status'] == 'completed' || s['status'] == 'completed';
+    }).length;
+
+    setState(() {
       _contributionSummary = contributionSummary;
       _budgetSummary = budgetSummary;
       _expenseSummary = expenseSummary;

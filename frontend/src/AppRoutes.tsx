@@ -58,6 +58,7 @@ import OrganiserAgreement from "@/pages/OrganiserAgreement";
 import CancellationPolicy from "@/pages/CancellationPolicy";
 import CookiePolicy from "@/pages/CookiePolicy";
 import CookieConsent from "@/components/CookieConsent";
+import RegionSwitcher from "@/components/region/RegionSwitcher";
 import NotFound from "@/pages/NotFound";
 import ScrollToTop from "@/components/ScrollToTop";
 import EventPlanning from "@/pages/features/EventPlanning";
@@ -127,7 +128,8 @@ function InnerRoutes() {
   return (
     <>
       <ScrollToTop />
-      <CookieConsent />
+        <CookieConsent />
+        <RegionSwitcher />
       <Routes>
         {/* Root: marketing landing when logged out; app feed when logged in */}
         <Route

@@ -3,6 +3,21 @@ import { servicesApi, UserService } from "@/lib/api";
 
 // Module-level cache to prevent skeleton flicker on back-navigation
 const _serviceCache: Record<string, UserService> = {};
+const _serviceInflight: Record<string, Promise<void>> = {};
+
+/**
+ * Hover-prefetch: warm the service cache so detail navigation is instant.
+ */
+export const prefetchService = (serviceId: string): void => {
+  if (!serviceId || _serviceCache[serviceId] || _serviceInflight[serviceId]) return;
+  _serviceInflight[serviceId] = (async () => {
+    try {
+      const response = await servicesApi.getById(serviceId);
+      if (response.success) _serviceCache[serviceId] = response.data;
+    } catch { /* non-fatal */ }
+    finally { delete _serviceInflight[serviceId]; }
+  })();
+};
 
 export const useUserService = (serviceId: string | null) => {
   const [service, setService] = useState<UserService | null>(

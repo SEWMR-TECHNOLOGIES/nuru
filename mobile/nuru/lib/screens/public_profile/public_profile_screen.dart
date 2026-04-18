@@ -34,24 +34,26 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
+    // Essential first: profile header so the page paints immediately.
     final res = await UserServicesService.getUserProfile(widget.userId);
-    if (mounted) {
-      setState(() {
-        _loading = false;
-        if (res['success'] == true) {
-          _profile = res['data'] is Map<String, dynamic> ? res['data'] : null;
-          _isFollowing = _profile?['is_following'] == true;
-        }
-      });
-    }
-    // Load posts
-    final postsRes = await SocialService.getUserPosts(widget.userId);
-    if (mounted && postsRes['success'] == true) {
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      if (res['success'] == true) {
+        _profile = res['data'] is Map<String, dynamic> ? res['data'] : null;
+        _isFollowing = _profile?['is_following'] == true;
+      }
+    });
+    // Posts load in the background — does not block first paint.
+    SocialService.getUserPosts(widget.userId).then((postsRes) {
+      if (!mounted || postsRes['success'] != true) return;
       final data = postsRes['data'];
       setState(() {
-        _posts = data is List ? data : (data is Map ? (data['posts'] ?? data['items'] ?? []) : []);
+        _posts = data is List
+            ? data
+            : (data is Map ? (data['posts'] ?? data['items'] ?? []) : []);
       });
-    }
+    }).catchError((_) {});
   }
 
   @override

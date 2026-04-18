@@ -59,7 +59,14 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
       const response = await socialApi.getFeed(params || initialParams);
       if (response.success) {
         const feedData = response.data as any;
-        const feedItems = feedData?.posts || feedData?.items || (Array.isArray(feedData) ? feedData : []);
+        const rawItems = feedData?.posts || feedData?.items || (Array.isArray(feedData) ? feedData : []);
+        // Dedupe defensively in case the API returns duplicates within a page.
+        const seen = new Set<string>();
+        const feedItems = rawItems.filter((p: any) => {
+          if (!p || !p.id || seen.has(p.id)) return false;
+          seen.add(p.id);
+          return true;
+        });
         _feedCache = feedItems;
         _feedPaginationCache = feedData?.pagination;
         _feedHasLoaded = true;
@@ -90,7 +97,11 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
       if (response.success) {
         const feedData = response.data as any;
         const moreItems = feedData?.posts || feedData?.items || (Array.isArray(feedData) ? feedData : []);
-        const combined = [..._feedCache, ...moreItems];
+        // Dedupe by id to prevent the same post appearing repeatedly when
+        // the backend returns overlapping pages.
+        const seen = new Set(_feedCache.map((p: any) => p.id));
+        const fresh = moreItems.filter((p: any) => p && p.id && !seen.has(p.id));
+        const combined = [..._feedCache, ...fresh];
         _feedCache = combined;
         _feedPaginationCache = feedData?.pagination;
         _feedHasLoaded = true;
@@ -823,31 +834,76 @@ export const useConversations = () => {
 };
 
 const _messagesCache = new Map<string, any[]>();
+const _messagesInflight = new Map<string, Promise<void>>();
 
-export const useConversationMessages = (conversationId: string | null) => {
-  const cached = conversationId ? _messagesCache.get(conversationId) : null;
-  const [messages, setMessages] = useState<any[]>(cached || []);
-  const [loading, setLoading] = useState(!cached);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchMessages = useCallback(async () => {
-    if (!conversationId) return;
-    if (!_messagesCache.has(conversationId)) setLoading(true);
-    setError(null);
+/**
+ * Hover-prefetch: warm the message cache for a conversation so opening it is instant.
+ */
+export const prefetchConversationMessages = (conversationId: string): void => {
+  if (!conversationId || _messagesCache.has(conversationId) || _messagesInflight.has(conversationId)) return;
+  const p = (async () => {
     try {
       const response = await socialApi.getMessages(conversationId);
       if (response.success) {
         const data = response.data as any;
         const items = Array.isArray(data) ? data : data?.items || data?.messages || [];
         _messagesCache.set(conversationId, items);
+      }
+    } catch { /* non-fatal */ }
+    finally { _messagesInflight.delete(conversationId); }
+  })();
+  _messagesInflight.set(conversationId, p);
+};
+
+export const useConversationMessages = (conversationId: string | null) => {
+  const cached = conversationId ? _messagesCache.get(conversationId) : null;
+  const [messages, setMessages] = useState<any[]>(cached || []);
+  const [loading, setLoading] = useState(!!conversationId && !cached);
+  const [error, setError] = useState<string | null>(null);
+  // Track which conversation the current `messages` state belongs to so we
+  // never render stale messages from the previous conversation.
+  const activeConvIdRef = useRef<string | null>(conversationId);
+
+  // CRITICAL: When conversationId changes, immediately reset visible messages
+  // to the cache for the NEW conversation (or empty) and flip loading on if
+  // there is no cache yet. This prevents the old conversation's messages from
+  // remaining on screen while the new fetch is in flight.
+  useEffect(() => {
+    activeConvIdRef.current = conversationId;
+    if (!conversationId) {
+      setMessages([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+    const next = _messagesCache.get(conversationId);
+    setMessages(next || []);
+    setLoading(!next);
+    setError(null);
+  }, [conversationId]);
+
+  const fetchMessages = useCallback(async () => {
+    if (!conversationId) return;
+    const requestedConvId = conversationId;
+    if (!_messagesCache.has(requestedConvId)) setLoading(true);
+    setError(null);
+    try {
+      const response = await socialApi.getMessages(requestedConvId);
+      // Drop response if user has switched conversations meanwhile.
+      if (activeConvIdRef.current !== requestedConvId) return;
+      if (response.success) {
+        const data = response.data as any;
+        const items = Array.isArray(data) ? data : data?.items || data?.messages || [];
+        _messagesCache.set(requestedConvId, items);
         setMessages(items);
       } else {
         setError(response.message || "Failed to fetch messages");
       }
     } catch (err) {
+      if (activeConvIdRef.current !== requestedConvId) return;
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
-      setLoading(false);
+      if (activeConvIdRef.current === requestedConvId) setLoading(false);
     }
   }, [conversationId]);
 

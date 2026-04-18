@@ -70,13 +70,14 @@ const ServiceDetail = () => {
     }
   }, [service]);
 
-  // Fetch intro media separately for fresh data
+  // Intro media: only fetch separately if it isn't already inlined in the service payload
   useEffect(() => {
     if (!id) return;
+    if (introMedia.length > 0) return;
     userServicesApi.getIntroMedia(id).then(res => {
       if (res.success && res.data) setIntroMedia(Array.isArray(res.data) ? res.data : []);
     }).catch(() => {});
-  }, [id]);
+  }, [id, introMedia.length]);
 
   const loadReviews = useCallback(async () => {
     if (!id) return;
@@ -88,20 +89,26 @@ const ServiceDetail = () => {
     finally { setReviewsLoading(false); }
   }, [id]);
 
-  useEffect(() => { if (id) loadReviews(); }, [id, loadReviews]);
-
+  // Lazy: only fetch reviews when the reviews tab is opened (once)
+  const [reviewsLoaded, setReviewsLoaded] = useState(false);
   useEffect(() => {
-    if (!id) return;
-    const loadCalendar = async () => {
-      setCalendarLoading(true);
-      try {
-        const res = await servicesApi.getCalendar(id);
-        if (res.success && res.data?.booked_dates) setBookedDates(res.data.booked_dates);
-      } catch { /* silent */ }
-      finally { setCalendarLoading(false); }
-    };
-    loadCalendar();
-  }, [id]);
+    if (activeTab === 'reviews' && id && !reviewsLoaded) {
+      setReviewsLoaded(true);
+      loadReviews();
+    }
+  }, [activeTab, id, reviewsLoaded, loadReviews]);
+
+  // Lazy: only fetch calendar when the calendar tab is opened (once)
+  const [calendarLoaded, setCalendarLoaded] = useState(false);
+  useEffect(() => {
+    if (activeTab !== 'calendar' || !id || calendarLoaded) return;
+    setCalendarLoaded(true);
+    setCalendarLoading(true);
+    servicesApi.getCalendar(id).then((res) => {
+      if (res.success && res.data?.booked_dates) setBookedDates(res.data.booked_dates);
+    }).catch(() => {}).finally(() => setCalendarLoading(false));
+  }, [activeTab, id, calendarLoaded]);
+
 
   const getImageUrl = (img: any): string => {
     if (typeof img === 'string') return img;

@@ -511,8 +511,9 @@ def generate_ranked_feed(
     2. Load user interest profile & affinity scores
     3. Score all candidates
     4. Apply diversity re-ranking
-    5. Paginate and return
-    6. Log impressions asynchronously
+    5. Filter out posts already shown in this session (anti-repetition)
+    6. Paginate and return
+    7. Log impressions asynchronously
     
     Returns: (posts, pagination_dict)
     """
@@ -576,13 +577,38 @@ def generate_ranked_feed(
         score = compute_final_score(features)
         scored.append((post, score, features))
     
-    # Sort by score descending
-    scored.sort(key=lambda x: -x[1])
+    # Sort by score descending. Use post.id as a deterministic tie-breaker so
+    # results are stable across pagination calls (prevents the same post from
+    # surfacing on multiple pages due to score ties).
+    scored.sort(key=lambda x: (-x[1], str(x[0].id)))
     
     # ── Step 4: Diversity Re-Ranking ──
     scored = apply_diversity_reranking(scored)
     
-    # ── Step 5: Paginate ──
+    # ── Step 5: Anti-repetition — exclude posts already shown to this user
+    # in the current session (or in the last hour if no session).
+    seen_ids: set = set()
+    try:
+        impression_q = db.query(FeedImpression.post_id).filter(
+            FeedImpression.user_id == current_user_id,
+        )
+        if session_id:
+            impression_q = impression_q.filter(FeedImpression.session_id == session_id)
+        else:
+            impression_q = impression_q.filter(
+                FeedImpression.created_at >= (now - timedelta(hours=1))
+            )
+        seen_ids = {str(r[0]) for r in impression_q.all()}
+    except Exception:
+        seen_ids = set()
+    
+    if seen_ids:
+        # Always keep page 1 fresh; only filter on subsequent pages so users
+        # entering the app see the highest-ranked content immediately.
+        if page > 1:
+            scored = [t for t in scored if str(t[0].id) not in seen_ids]
+    
+    # ── Step 6: Paginate ──
     total_items = len(scored)
     total_pages = max(1, math.ceil(total_items / limit))
     page = max(1, min(page, total_pages))
@@ -600,7 +626,7 @@ def generate_ranked_feed(
         "has_previous": page > 1,
     }
     
-    # ── Step 6: Log Impressions (best-effort) ──
+    # ── Step 7: Log Impressions (best-effort) ──
     try:
         for idx, (post, score, features) in enumerate(page_items):
             impression = FeedImpression(
