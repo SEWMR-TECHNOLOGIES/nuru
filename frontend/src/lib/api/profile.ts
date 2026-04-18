@@ -28,6 +28,12 @@ export const profileApi = {
     get<UserProfile & { is_following?: boolean; is_followed_by?: boolean; mutual_followers_count?: number }>(`/users/${userId}`),
 
   /**
+   * Get user profile by username in a single round-trip (no search step)
+   */
+  getByUsername: (username: string) =>
+    get<UserProfile & { is_following?: boolean; is_followed_by?: boolean; mutual_followers_count?: number }>(`/users/by-username/${encodeURIComponent(username)}`),
+
+  /**
    * Update current user profile
    */
   update: (formData: FormData) => putFormData<UserProfile>("/users/profile", formData),

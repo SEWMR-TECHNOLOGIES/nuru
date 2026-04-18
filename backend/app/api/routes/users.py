@@ -607,6 +607,58 @@ def check_username(
 
 
 # ──────────────────────────────────────────────
+# Public User Profile (by username) — single round-trip lookup
+# ──────────────────────────────────────────────
+@router.get("/by-username/{username}")
+def get_public_user_profile_by_username(
+    username: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Resolve a username and return the full public profile in one call."""
+    uname = (username or "").strip().lstrip("@").lower()
+    if not uname:
+        return standard_response(False, "Username is required")
+
+    target = db.query(User).filter(
+        sa_func.lower(User.username) == uname,
+        User.is_active == True
+    ).first()
+    if not target:
+        return standard_response(False, "User not found")
+
+    payload = build_user_payload(db, target)
+
+    is_following = db.query(UserFollower).filter(
+        UserFollower.follower_id == current_user.id,
+        UserFollower.following_id == target.id
+    ).first() is not None
+    is_followed_by = db.query(UserFollower).filter(
+        UserFollower.follower_id == target.id,
+        UserFollower.following_id == current_user.id
+    ).first() is not None
+    my_following_ids = db.query(UserFollower.following_id).filter(
+        UserFollower.follower_id == current_user.id
+    ).subquery()
+    mutual_count = db.query(sa_func.count(UserFollower.id)).filter(
+        UserFollower.follower_id == target.id,
+        UserFollower.following_id.in_(my_following_ids)
+    ).scalar() or 0
+    post_count = db.query(sa_func.count(UserFeed.id)).filter(
+        UserFeed.user_id == target.id,
+        UserFeed.is_public == True
+    ).scalar() or 0
+
+    payload["is_following"] = is_following
+    payload["is_followed_by"] = is_followed_by
+    payload["mutual_followers_count"] = mutual_count
+    payload["post_count"] = post_count
+    payload.pop("email", None)
+    payload.pop("phone", None)
+    return standard_response(True, "User profile retrieved", payload)
+
+
+# ──────────────────────────────────────────────
 # Public User Profile
 # ──────────────────────────────────────────────
 @router.get("/{user_id}")

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2, Images, ChevronDown, FileText, ChevronRight, Eye } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
@@ -105,12 +105,20 @@ const EventManagement = () => {
   };
 
 
+  // Lazy-load services + photo libraries only when the user opens the
+  // Services tab (or the Overview, which renders the completed/total counter).
+  // This avoids two extra round-trips on the very first navigation into a
+  // brand-new event, which is the slowest path.
+  const _servicesLoaded = useRef(false);
   useEffect(() => {
-    if (id) {
+    if (!id) return;
+    const needsServices = activeTab === 'services' || activeTab === 'overview';
+    if (needsServices && !_servicesLoaded.current) {
+      _servicesLoaded.current = true;
       loadEventServices();
       loadEventPhotoLibraries();
     }
-  }, [id]);
+  }, [id, activeTab]);
 
   const completedServices = eventServices.filter((s: any) => s.status === 'completed').length;
   const totalServices = eventServices.length;

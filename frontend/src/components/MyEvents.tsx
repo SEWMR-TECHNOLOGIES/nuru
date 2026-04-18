@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import {
   Users, UserCheck, Edit2, Trash2, Loader2, FileText, Mail, Shield,
   Plus, MapPin, CalendarDays, Clock, ChevronRight, CheckCircle2, Info
@@ -14,7 +14,8 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { PillTabsNav } from '@/components/ui/pill-tabs';
 import { useNavigate } from 'react-router-dom';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
-import { useEvents, useDeleteEvent } from '@/data/useEvents';
+import { useEvents, useDeleteEvent, prefetchEvent } from '@/data/useEvents';
+import { usePrefetchOnVisible } from '@/hooks/usePrefetchOnVisible';
 import { usePolling } from '@/hooks/usePolling';
 import { formatPrice } from '@/utils/formatPrice';
 import { getEventCountdown } from '@/utils/getEventCountdown';
@@ -51,6 +52,33 @@ const cornerConfig: Record<string, string> = {
   published: 'bg-primary',
   cancelled: 'bg-destructive',
   completed: 'bg-blue-500',
+};
+
+/**
+ * Card shell that wires viewport-prefetch + hover-prefetch for an event.
+ * Defined at module scope so the prefetch hook is always called at top level.
+ */
+const EventCardShell = ({
+  eventId,
+  onOpen,
+  children,
+}: {
+  eventId: string;
+  onOpen: () => void;
+  children: ReactNode;
+}) => {
+  const ref = usePrefetchOnVisible<HTMLDivElement>(() => prefetchEvent(eventId));
+  return (
+    <Card
+      ref={ref as any}
+      className="overflow-hidden border-border/60 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+      onMouseEnter={() => prefetchEvent(eventId)}
+      onFocus={() => prefetchEvent(eventId)}
+      onClick={onOpen}
+    >
+      {children}
+    </Card>
+  );
 };
 
 const MyEvents = () => {
@@ -169,10 +197,10 @@ const MyEvents = () => {
     const eventType   = getEventType(event);
 
     return (
-      <Card
+      <EventCardShell
         key={event.id}
-        className="overflow-hidden border-border/60 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-        onClick={() => navigate(`/event-management/${event.id}`)}
+        eventId={event.id}
+        onOpen={() => navigate(`/event-management/${event.id}`)}
       >
         {/* ── Image Mosaic ── */}
         {imgs.length > 0 ? (
@@ -414,7 +442,7 @@ const MyEvents = () => {
             </div>
           </div>
         </CardContent>
-      </Card>
+      </EventCardShell>
     );
   };
 

@@ -79,6 +79,8 @@ export const adminApi = {
   // Dashboard
   getStats:         () => aGet<any>("/admin/stats"),
   getExtendedStats: () => aGet<any>("/admin/stats/extended"),
+  getSlowEndpoints: (windowMinutes = 60, limit = 10) =>
+    aGet<any>(`/admin/stats/slow-endpoints?window_minutes=${windowMinutes}&limit=${limit}`),
 
   // Users
   getUsers: (params?: any) => {

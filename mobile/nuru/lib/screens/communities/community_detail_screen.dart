@@ -46,20 +46,21 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final results = await Future.wait([
-      SocialService.getCommunityDetail(widget.communityId),
-      _loadPosts(),
-      _loadMembers(),
-    ]);
-    if (mounted) {
-      setState(() {
-        _loading = false;
-        if (results[0]['success'] == true) {
-          final data = results[0]['data'];
-          _community = data is Map<String, dynamic> ? data : (data is Map ? data['community'] as Map<String, dynamic>? : null);
-        }
-      });
-    }
+    // Essential first: render the community header as soon as possible.
+    final res = await SocialService.getCommunityDetail(widget.communityId);
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      if (res['success'] == true) {
+        final data = res['data'];
+        _community = data is Map<String, dynamic>
+            ? data
+            : (data is Map ? data['community'] as Map<String, dynamic>? : null);
+      }
+    });
+    // Secondary data loads in the background — does not block first paint.
+    _loadPosts();
+    _loadMembers();
   }
 
   Future<Map<String, dynamic>> _loadPosts() async {

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Numeric, Text, Enum, UniqueConstraint
+from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Numeric, Text, Enum, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -83,6 +83,15 @@ class EventContribution(Base):
     contributed_at = Column(DateTime, server_default=func.now())
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        # Lists / totals per event ordered by date
+        Index('idx_event_contributions_event_contributed', 'event_id', 'contributed_at'),
+        # Per-contributor history
+        Index('idx_event_contributions_contributor_date', 'event_contributor_id', 'contributed_at'),
+        # Recorder audit trail
+        Index('idx_event_contributions_recorder', 'recorded_by'),
+    )
 
     # Relationships
     event = relationship("Event", back_populates="contributions")

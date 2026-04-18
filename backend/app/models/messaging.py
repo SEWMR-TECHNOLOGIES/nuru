@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Text, Enum
+from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Text, Enum, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -23,6 +23,16 @@ class Conversation(Base):
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
+    # Mirrors existing DB indexes (idx_conversations_user_one/two/service) and
+    # adds composite (user_*, updated_at) for inbox listings sorted by recency.
+    __table_args__ = (
+        Index('idx_conversations_user_one', 'user_one_id'),
+        Index('idx_conversations_user_two', 'user_two_id'),
+        Index('idx_conversations_service', 'service_id'),
+        Index('idx_conversations_user_one_updated', 'user_one_id', 'updated_at'),
+        Index('idx_conversations_user_two_updated', 'user_two_id', 'updated_at'),
+    )
+
     # Relationships
     user_one = relationship("User", back_populates="conversations_as_one", foreign_keys=[user_one_id])
     user_two = relationship("User", back_populates="conversations_as_two", foreign_keys=[user_two_id])
@@ -41,6 +51,15 @@ class Message(Base):
     is_read = Column(Boolean, default=False)
     reply_to_id = Column(UUID(as_uuid=True), ForeignKey('messages.id'))
     created_at = Column(DateTime, server_default=func.now())
+
+    # Critical for fast message-list pagination (per conversation, newest first)
+    # and unread-count queries (conversation_id, is_read).
+    __table_args__ = (
+        Index('idx_messages_conv_created', 'conversation_id', 'created_at'),
+        Index('idx_messages_sender', 'sender_id'),
+        Index('idx_messages_conv_unread', 'conversation_id', 'is_read'),
+        Index('idx_messages_reply_to', 'reply_to_id'),
+    )
 
     # Relationships
     conversation = relationship("Conversation", back_populates="messages")
