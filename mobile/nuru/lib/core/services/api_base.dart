@@ -2,6 +2,17 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'secure_token_storage.dart';
 import 'api_config.dart';
+import 'rate_limit_notifier.dart';
+
+void _checkRateLimit(http.Response res, String endpoint) {
+  if (res.statusCode != 429) return;
+  final retryAfter = int.tryParse(res.headers['retry-after'] ?? '') ?? 60;
+  final isAuth = endpoint.startsWith('/auth/') ||
+      endpoint.startsWith('/users/signup') ||
+      endpoint.startsWith('/users/verify-otp') ||
+      endpoint.startsWith('/users/request-otp');
+  RateLimitNotifier.instance.trigger(retryAfter: retryAfter, isAuth: isAuth);
+}
 
 class ApiBase {
   static String get baseUrl => ApiConfig.baseUrl;
@@ -56,6 +67,7 @@ class ApiBase {
         uri = uri.replace(queryParameters: queryParams);
       }
       final res = await http.get(uri, headers: await headers(auth: auth));
+      _checkRateLimit(res, endpoint);
       return normalizeResponse(res, fallbackError: fallbackError);
     } catch (_) {
       return {'success': false, 'message': fallbackError, 'data': null};
@@ -74,6 +86,7 @@ class ApiBase {
         headers: await headers(auth: auth),
         body: jsonEncode(body),
       );
+      _checkRateLimit(res, endpoint);
       return normalizeResponse(res, fallbackError: fallbackError);
     } catch (_) {
       return {'success': false, 'message': fallbackError, 'data': null};
@@ -92,6 +105,7 @@ class ApiBase {
         headers: await headers(auth: auth),
         body: jsonEncode(body),
       );
+      _checkRateLimit(res, endpoint);
       return normalizeResponse(res, fallbackError: fallbackError);
     } catch (_) {
       return {'success': false, 'message': fallbackError, 'data': null};
@@ -108,6 +122,7 @@ class ApiBase {
         Uri.parse('$baseUrl$endpoint'),
         headers: await headers(auth: auth),
       );
+      _checkRateLimit(res, endpoint);
       return normalizeResponse(res, fallbackError: fallbackError);
     } catch (_) {
       return {'success': false, 'message': fallbackError, 'data': null};

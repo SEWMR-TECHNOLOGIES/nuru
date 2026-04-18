@@ -233,6 +233,9 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
     final minPrice = e['min_price'];
     final available = e['total_available'] ?? 0;
     final ticketClassCount = e['ticket_class_count'] ?? 0;
+    final isOwner = e['is_owner'] == true;
+    final approvalStatus = e['ticket_approval_status']?.toString();
+    final isPending = isOwner && approvalStatus != null && approvalStatus != 'approved';
 
     DateTime? d;
     try { d = DateTime.parse(startDate); } catch (_) {}
@@ -287,6 +290,24 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(6)),
                       child: Text('Sold Out', style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white)),
+                    ),
+                  ),
+                // Pending review badge top-left (owner only)
+                if (isPending)
+                  Positioned(
+                    top: 10, right: available <= 0 ? null : 10, left: available <= 0 ? 10 : null,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade600,
+                        borderRadius: BorderRadius.circular(6),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 6)],
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.schedule, size: 11, color: Colors.white),
+                        const SizedBox(width: 4),
+                        Text('Pending review', style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white)),
+                      ]),
                     ),
                   ),
               ],
@@ -470,6 +491,8 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
   String? _selectedId;
   int _quantity = 1;
   Map<String, dynamic>? _purchaseResult;
+  bool _isOwner = false;
+  String? _approvalStatus;
 
   @override
   void initState() {
@@ -485,6 +508,10 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
         if (res['success'] == true) {
           final data = res['data'];
           _classes = data is Map ? (data['ticket_classes'] ?? []) : (data is List ? data : []);
+          if (data is Map) {
+            _isOwner = data['is_owner'] == true;
+            _approvalStatus = data['ticket_approval_status']?.toString();
+          }
         }
       });
     }
@@ -567,6 +594,40 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
               ),
             ),
             const SizedBox(height: 16),
+
+            // Owner pending banner (matches web)
+            if (_isOwner && _approvalStatus != null && _approvalStatus != 'approved')
+              Container(
+                margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.amber.shade300),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.schedule, size: 18, color: Colors.amber.shade800),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Pending review',
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13, fontWeight: FontWeight.w700, color: Colors.amber.shade900)),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Your ticketed event is awaiting admin approval. Buyers will be able to purchase tickets once approved.',
+                            style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.amber.shade900, height: 1.4),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
             // Purchase result (matches web success state)
             if (_purchaseResult != null)

@@ -6,6 +6,7 @@ import 'core/theme/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/locale_provider.dart';
 import 'screens/splash_screen.dart';
+import 'widgets/rate_limit_overlay.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -73,6 +74,7 @@ class _NuruAppState extends State<NuruApp> {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       home: const SplashScreen(),
+      builder: (context, child) => RateLimitOverlay(child: child ?? const SizedBox.shrink()),
     );
   }
 }

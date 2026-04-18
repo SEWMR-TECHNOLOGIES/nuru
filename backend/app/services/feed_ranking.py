@@ -270,24 +270,63 @@ def generate_candidates(
     # ── Source 5: Trending / high-quality posts platform-wide ──
     if len(candidates) < MAX_CANDIDATES:
         remaining = MAX_CANDIDATES - len(candidates)
-        # Posts with high engagement, excluding already collected
+        trending_filters = [
+            UserFeed.is_active == True,
+            UserFeed.created_at >= cutoff_naive,
+            or_(
+                UserFeed.visibility == FeedVisibilityEnum.public,
+                UserFeed.visibility.is_(None),
+            ),
+        ]
+        # Only add the NOT IN clause when we actually have ids — passing the
+        # scalar `True` as a filter raises in SQLAlchemy 2.x and would mask
+        # the trending source entirely on cold-start users.
+        if candidate_ids:
+            try:
+                trending_filters.append(
+                    ~UserFeed.id.in_([uuid.UUID(pid) for pid in candidate_ids])
+                )
+            except (ValueError, TypeError):
+                pass
         trending_posts = (
             db.query(UserFeed)
-            .filter(
-                UserFeed.is_active == True,
-                UserFeed.created_at >= cutoff_naive,
-                or_(
-                    UserFeed.visibility == FeedVisibilityEnum.public,
-                    UserFeed.visibility.is_(None),
-                ),
-                ~UserFeed.id.in_([uuid.UUID(pid) for pid in candidate_ids]) if candidate_ids else True,
-            )
+            .filter(*trending_filters)
             .order_by(desc(UserFeed.glow_count + UserFeed.echo_count))
             .limit(min(remaining, 500))
             .all()
         )
         _add_candidates(trending_posts)
-    
+
+    # ── Source 6: Recent organic moments (anti-event-share-bias) ──
+    # Pull a pool of recent organic user moments so the feed is never dominated
+    # by event_share posts. These get caught by diversity re-ranking later.
+    if len(candidates) < MAX_CANDIDATES:
+        remaining = MAX_CANDIDATES - len(candidates)
+        organic_filters = [
+            UserFeed.is_active == True,
+            UserFeed.created_at >= cutoff_naive,
+            or_(UserFeed.post_type == 'post', UserFeed.post_type.is_(None)),
+            or_(
+                UserFeed.visibility == FeedVisibilityEnum.public,
+                UserFeed.visibility.is_(None),
+            ),
+        ]
+        if candidate_ids:
+            try:
+                organic_filters.append(
+                    ~UserFeed.id.in_([uuid.UUID(pid) for pid in candidate_ids])
+                )
+            except (ValueError, TypeError):
+                pass
+        organic_recent = (
+            db.query(UserFeed)
+            .filter(*organic_filters)
+            .order_by(desc(UserFeed.created_at))
+            .limit(min(remaining, 400))
+            .all()
+        )
+        _add_candidates(organic_recent)
+
     return candidates[:MAX_CANDIDATES]
 
 
@@ -962,15 +1001,18 @@ def get_cold_start_feed(
 ) -> Tuple[List[UserFeed], Dict]:
     """
     Feed for new users with no interaction history.
-    Strategy:
-    1. High-quality recent posts with images (visual appeal)
-    2. Posts from popular authors (social proof)
-    3. Mix of categories for exploration
-    4. Chronological tiebreaker for freshness
+
+    Strategy (improved):
+      1. Pull a pool of recent public posts (3 days)
+      2. Score using engagement velocity + recency (not raw counters)
+      3. Cap event_share posts to ~30% so organic moments stay visible
+      4. Per-user deterministic shuffle of equal-tier posts so no two users
+         see the exact same chronological sequence on cold start
+      5. Round-robin diversify by category for variety
     """
-    cutoff = datetime.utcnow() - timedelta(hours=72)  # 3 days
-    
-    # Get posts with images, sorted by engagement
+    import random as _random
+    cutoff = datetime.utcnow() - timedelta(hours=72)
+
     posts = (
         db.query(UserFeed)
         .filter(
@@ -981,24 +1023,60 @@ def get_cold_start_feed(
                 UserFeed.visibility.is_(None),
             ),
         )
-        .order_by(
-            desc(UserFeed.glow_count + UserFeed.echo_count),
-            desc(UserFeed.created_at),
-        )
-        .limit(200)
+        .order_by(desc(UserFeed.created_at))
+        .limit(300)
         .all()
     )
-    
-    # Diversify by category
+
+    if not posts:
+        return [], {
+            "page": page, "limit": limit,
+            "total_items": 0, "total_pages": 1,
+            "has_next": False, "has_previous": False,
+        }
+
+    # ── Score each post: recency × engagement velocity ──
+    now_utc = datetime.utcnow()
+
+    def _score(p: UserFeed) -> float:
+        age_h = max(0.5, (now_utc - p.created_at).total_seconds() / 3600.0) if p.created_at else 24.0
+        eng = (p.glow_count or 0) + 2 * (p.echo_count or 0) + 1.5 * (p.spark_count or 0)
+        # Recency-decayed engagement + freshness boost so brand-new posts surface
+        return (eng / (age_h ** 0.7)) + (5.0 / age_h)
+
+    scored = [(p, _score(p)) for p in posts]
+
+    # Per-user deterministic jitter: stable across paginations but unique per user
+    rng = _random.Random(int(uuid.UUID(str(current_user_id)).int) & 0xFFFFFFFF)
+    scored = [(p, s + rng.uniform(0, 0.25) * s) for (p, s) in scored]
+    scored.sort(key=lambda t: -t[1])
+
+    # ── Cap event_share posts to 30% of the pool ──
+    event_share_cap = max(2, int(len(scored) * 0.3))
+    capped: List[UserFeed] = []
+    es_count = 0
+    overflow_event_shares: List[UserFeed] = []
+    for p, _s in scored:
+        if (p.post_type or 'post') == 'event_share':
+            if es_count < event_share_cap:
+                capped.append(p)
+                es_count += 1
+            else:
+                overflow_event_shares.append(p)
+        else:
+            capped.append(p)
+    # Append overflow at the tail so we never lose them entirely
+    capped.extend(overflow_event_shares)
+
+    # ── Round-robin by category for diversity ──
     categorized = defaultdict(list)
-    for p in posts:
+    for p in capped:
         cat = detect_category(p.content or "")
         categorized[cat].append(p)
-    
-    # Round-robin across categories
-    result = []
-    seen = set()
-    while len(result) < len(posts):
+
+    result: List[UserFeed] = []
+    seen: set = set()
+    while len(result) < len(capped):
         added = False
         for cat in list(categorized.keys()):
             if categorized[cat]:
@@ -1009,17 +1087,17 @@ def get_cold_start_feed(
                     added = True
         if not added:
             break
-    
+
     total_items = len(result)
     total_pages = max(1, math.ceil(total_items / limit))
     page = max(1, min(page, total_pages))
     start = (page - 1) * limit
     page_items = result[start:start + limit]
-    
+
     pagination = {
         "page": page, "limit": limit,
         "total_items": total_items, "total_pages": total_pages,
         "has_next": page < total_pages, "has_previous": page > 1,
     }
-    
+
     return page_items, pagination

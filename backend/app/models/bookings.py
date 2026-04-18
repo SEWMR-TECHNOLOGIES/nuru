@@ -33,3 +33,4 @@ class ServiceBookingRequest(Base):
     requester = relationship("User", back_populates="booking_requests")
     event = relationship("Event", back_populates="booking_requests")
     package = relationship("ServicePackage", back_populates="booking_requests")
+    escrow_hold = relationship("EscrowHold", back_populates="booking", uselist=False, cascade="all, delete-orphan")

@@ -192,6 +192,13 @@ const BrowseTickets = () => {
                         <Badge variant="destructive" className="text-xs font-bold">Sold Out</Badge>
                       </div>
                     )}
+                    {event.is_owner && event.ticket_approval_status !== 'approved' && (
+                      <div className="absolute top-3 left-3">
+                        <Badge variant="secondary" className="text-[10px] font-semibold shadow">
+                          Pending review
+                        </Badge>
+                      </div>
+                    )}
                   </div>
                   <CardContent className="p-0">
                     <div className="flex">
