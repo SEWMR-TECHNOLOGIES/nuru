@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { LanguageProvider } from "@/lib/i18n/LanguageContext";
+import RateLimitModal from "@/components/RateLimitModal";
 
 import AppRoutes from "./AppRoutes";
 
@@ -16,6 +17,7 @@ export default function App() {
         <TooltipProvider>
           <Toaster />
           <Sonner />
+          <RateLimitModal />
           <AppRoutes />
         </TooltipProvider>
       </LanguageProvider>

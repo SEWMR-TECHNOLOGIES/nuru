@@ -3,6 +3,18 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'api_config.dart';
 import 'secure_token_storage.dart';
+import 'rate_limit_notifier.dart';
+
+void _checkRateLimit(http.Response response, String endpoint) {
+  if (response.statusCode != 429) return;
+  final retryHeader = response.headers['retry-after'];
+  final retryAfter = int.tryParse(retryHeader ?? '') ?? 60;
+  final isAuth = endpoint.startsWith('/auth/') ||
+      endpoint.startsWith('/users/signup') ||
+      endpoint.startsWith('/users/verify-otp') ||
+      endpoint.startsWith('/users/request-otp');
+  RateLimitNotifier.instance.trigger(retryAfter: retryAfter, isAuth: isAuth);
+}
 
 /// Standardized API response matching backend { success, message, data }
 class ApiResponse<T> {
@@ -59,6 +71,7 @@ class ApiService {
         headers: await _headers(auth: auth),
         body: jsonEncode(body),
       ).timeout(ApiConfig.timeout);
+      _checkRateLimit(response, endpoint);
       return _handleResponse(response);
     } catch (e) {
       return {
@@ -77,6 +90,7 @@ class ApiService {
         uri = uri.replace(queryParameters: queryParams);
       }
       final response = await http.get(uri, headers: await _headers(auth: auth)).timeout(ApiConfig.timeout);
+      _checkRateLimit(response, endpoint);
       return _handleResponse(response);
     } catch (e) {
       return {
@@ -95,6 +109,7 @@ class ApiService {
         headers: await _headers(auth: auth),
         body: jsonEncode(body),
       ).timeout(ApiConfig.timeout);
+      _checkRateLimit(response, endpoint);
       return _handleResponse(response);
     } catch (e) {
       return {
@@ -112,6 +127,7 @@ class ApiService {
         Uri.parse('$baseUrl$endpoint'),
         headers: await _headers(auth: auth),
       ).timeout(ApiConfig.timeout);
+      _checkRateLimit(response, endpoint);
       return _handleResponse(response);
     } catch (e) {
       return {

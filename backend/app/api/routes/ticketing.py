@@ -34,18 +34,30 @@ router = APIRouter(prefix="/ticketing", tags=["Ticketing"])
 def get_ticket_classes(
     event_id: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_optional_user),
 ):
-    """Get all ticket classes for a public ticketed event."""
+    """Get all ticket classes for a public ticketed event.
+
+    The organizer of the event can also fetch ticket classes while approval
+    is still pending, so they can preview their own listing.
+    """
     try:
         eid = UUID(event_id)
     except (ValueError, TypeError):
         return standard_response(False, "Invalid event ID")
 
     event = db.query(Event).filter(
-        Event.id == eid, Event.is_public == True, Event.sells_tickets == True,
-        Event.ticket_approval_status == TicketApprovalStatusEnum.approved,
+        Event.id == eid, Event.sells_tickets == True,
     ).first()
     if not event:
+        return standard_response(False, "Event not found or does not sell tickets")
+
+    is_owner = bool(current_user and event.organizer_id == current_user.id)
+    is_publicly_visible = (
+        event.is_public is True
+        and event.ticket_approval_status == TicketApprovalStatusEnum.approved
+    )
+    if not (is_owner or is_publicly_visible):
         return standard_response(False, "Event not found or does not sell tickets")
 
     classes = db.query(EventTicketClass).filter(
@@ -683,18 +695,34 @@ def get_ticketed_events(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_optional_user),
 ):
-    """Get all public events that sell tickets."""
-    from sqlalchemy import func as sa_func
+    """Get all public events that sell tickets.
+
+    Visibility rules:
+      - Approved + public events are visible to everyone.
+      - The organizer ALWAYS sees their own ticketed event regardless of
+        approval status (with `ticket_approval_status` in the payload so the
+        UI can render a "Pending review" badge).
+    """
+    from sqlalchemy import func as sa_func, or_, and_
 
     page = max(1, page)
     limit = max(1, min(limit, 50))
     offset = (page - 1) * limit
 
-    query = db.query(Event).filter(
-        Event.sells_tickets == True,
+    base_filter = [Event.sells_tickets == True]
+    visibility_filter = and_(
         Event.is_public == True,
         Event.ticket_approval_status == TicketApprovalStatusEnum.approved,
     )
+
+    if current_user:
+        # Organizer sees own events even if pending; everyone else only approved+public
+        query = db.query(Event).filter(
+            *base_filter,
+            or_(visibility_filter, Event.organizer_id == current_user.id),
+        )
+    else:
+        query = db.query(Event).filter(*base_filter, visibility_filter)
 
     # Live search filter
     if search and search.strip():
@@ -722,6 +750,9 @@ def get_ticketed_events(
         total_qty = sum([tc.quantity for tc in ticket_classes]) if ticket_classes else 0
         total_available = total_qty - int(total_sold_qty)
 
+        approval_status = e.ticket_approval_status.value if e.ticket_approval_status and hasattr(e.ticket_approval_status, "value") else "pending"
+        is_owner = bool(current_user and e.organizer_id == current_user.id)
+
         result.append({
             "id": str(e.id),
             "name": e.name,
@@ -731,6 +762,9 @@ def get_ticketed_events(
             "min_price": min_price,
             "total_available": max(0, total_available),
             "ticket_class_count": len(ticket_classes),
+            "ticket_approval_status": approval_status,
+            "is_owner": is_owner,
+            "is_public": bool(e.is_public),
         })
 
     return standard_response(True, "Ticketed events retrieved", {

@@ -285,3 +285,49 @@ class MeetingJoinRequestStatusEnum(enum.Enum):
     waiting = "waiting"
     approved = "approved"
     rejected = "rejected"
+
+
+# ──────────────────────────────────────────────
+# Escrow / Booking money state machine (Phase 1.1)
+# ──────────────────────────────────────────────
+
+class BookingStateEnum(enum.Enum):
+    """Authoritative booking states — string-compatible with legacy `status` text column."""
+    pending = "pending"                # vendor has not responded
+    accepted = "accepted"              # vendor accepted, awaiting deposit
+    funds_secured = "funds_secured"    # deposit (or full) received → Nuru holds escrow
+    in_progress = "in_progress"        # event day window
+    delivered = "delivered"            # OTP check-in done
+    released = "released"              # escrow released to vendor side
+    refunded = "refunded"              # full/partial refund issued
+    disputed = "disputed"              # dispute open → freezes auto-release
+    rejected = "rejected"
+    cancelled = "cancelled"
+    completed = "completed"            # legacy alias kept for back-compat
+
+
+class EscrowHoldStatusEnum(enum.Enum):
+    pending = "pending"                        # row created, no funds yet
+    held = "held"                              # funds secured (deposit and/or balance)
+    partially_released = "partially_released"
+    released = "released"
+    refunded = "refunded"
+    disputed = "disputed"
+
+
+class EscrowTransactionTypeEnum(enum.Enum):
+    HOLD_DEPOSIT = "HOLD_DEPOSIT"
+    HOLD_BALANCE = "HOLD_BALANCE"
+    RELEASE_TO_VENDOR = "RELEASE_TO_VENDOR"
+    REFUND_TO_ORGANISER = "REFUND_TO_ORGANISER"
+    COMMISSION_TO_NURU = "COMMISSION_TO_NURU"
+    FEE = "FEE"
+    ADJUSTMENT = "ADJUSTMENT"
+    SETTLED_TO_VENDOR = "SETTLED_TO_VENDOR"  # admin marks MPesa/card payout done
+
+
+class CancellationTierEnum(enum.Enum):
+    """Refund-tier classification per service category (Phase 1.2)."""
+    flexible = "flexible"
+    moderate = "moderate"
+    strict = "strict"

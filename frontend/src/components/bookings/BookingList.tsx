@@ -44,6 +44,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { PillTabsNav } from '@/components/ui/pill-tabs';
 import { useMyBookings, useIncomingBookings } from '@/data/useBookings';
+import CancelBookingDialog from './CancelBookingDialog';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
 import { formatPrice } from '@/utils/formatPrice';
@@ -124,27 +125,16 @@ const MyBookingsTab = () => {
   const [statusFilter, setStatusFilter] = useState('accepted');
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingRequest | null>(null);
-  const [cancelReason, setCancelReason] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleCancel = async () => {
+  const handleCancelConfirm = async (reason: string) => {
     if (!selectedBooking) return;
-    if (!cancelReason.trim()) {
-      toast.error('Please provide a cancellation reason');
-      return;
-    }
-
-    setIsSubmitting(true);
     try {
-      await cancelBooking(selectedBooking.id, cancelReason);
-      toast.success('Booking cancelled');
-      setCancelDialogOpen(false);
+      await cancelBooking(selectedBooking.id, reason);
+      toast.success('Booking cancelled — refund processed per policy');
       setSelectedBooking(null);
-      setCancelReason('');
     } catch (err: any) {
       showCaughtError(err, 'Failed to cancel booking');
-    } finally {
-      setIsSubmitting(false);
+      throw err;
     }
   };
 
@@ -254,35 +244,14 @@ const MyBookingsTab = () => {
         )}
       </div>
 
-      {/* Cancel Dialog */}
-      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancel Booking</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <p className="text-muted-foreground mb-4">
-              Are you sure you want to cancel this booking? This action cannot be undone.
-            </p>
-            <div className="space-y-2">
-              <Label htmlFor="cancel-reason">Reason for cancellation *</Label>
-              <Textarea
-                id="cancel-reason"
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                placeholder="Please provide a reason..."
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>Keep Booking</Button>
-            <Button variant="destructive" onClick={handleCancel} disabled={isSubmitting}>
-              {isSubmitting ? 'Cancelling...' : 'Cancel Booking'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Cancel Dialog (Phase 1.2 — refund preview before confirm) */}
+      <CancelBookingDialog
+        open={cancelDialogOpen}
+        onOpenChange={setCancelDialogOpen}
+        bookingId={selectedBooking?.id ?? null}
+        cancellingParty="organiser"
+        onConfirm={handleCancelConfirm}
+      />
     </div>
   );
 };

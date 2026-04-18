@@ -186,6 +186,28 @@ def update_booking(booking_id: str, body: dict = Body(...), db: Session = Depend
     return standard_response(True, "Booking updated successfully", _booking_dict(db, b))
 
 
+@router.get("/{booking_id}/refund-preview")
+def refund_preview(
+    booking_id: str,
+    cancelling_party: str = "organiser",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Preview the refund breakdown WITHOUT cancelling. Used by the
+    'see your refund before confirming' modal on web + mobile."""
+    try:
+        bid = uuid.UUID(booking_id)
+    except ValueError:
+        return standard_response(False, "Invalid booking ID")
+    b = db.query(ServiceBookingRequest).filter(ServiceBookingRequest.id == bid).first()
+    if not b:
+        return standard_response(False, "Booking not found")
+
+    from services.cancellation_service import calculate
+    breakdown = calculate(db, b, cancelling_party)
+    return standard_response(True, "Refund preview", breakdown.to_dict())
+
+
 @router.post("/{booking_id}/cancel")
 def cancel_booking(booking_id: str, body: dict = Body(default={}), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
@@ -197,10 +219,40 @@ def cancel_booking(booking_id: str, body: dict = Body(default={}), db: Session =
     if not b:
         return standard_response(False, "Booking not found")
 
+    # Determine cancelling party (organiser = requester, vendor = service owner).
+    cancelling_party = "organiser"
+    if b.user_service_id:
+        from models import UserService as _US
+        svc = db.query(_US).filter(_US.id == b.user_service_id).first()
+        if svc and str(svc.user_id) == str(current_user.id):
+            cancelling_party = "vendor"
+
+    # Compute the policy-driven refund (Phase 1.2).
+    from services.cancellation_service import calculate
+    from services import escrow_service as escrow
+    from models import EscrowHold
+
+    breakdown = calculate(db, b, cancelling_party)
+
+    # Apply the refund to escrow if any funds are held.
+    hold = db.query(EscrowHold).filter(EscrowHold.booking_id == b.id).first()
+    if hold and breakdown.refund_to_organiser > 0:
+        escrow.refund_to_organiser(
+            db, b, float(breakdown.refund_to_organiser),
+            reason=breakdown.reason_code,
+            actor_id=current_user.id,
+        )
+
     b.status = "cancelled"
+    b.vendor_notes = body.get("reason") or b.vendor_notes
     b.updated_at = datetime.now(EAT)
     db.commit()
-    return standard_response(True, "Booking cancelled successfully")
+
+    return standard_response(True, "Booking cancelled", {
+        "booking_id": str(b.id),
+        "status": "cancelled",
+        "refund": breakdown.to_dict(),
+    })
 
 
 @router.post("/{booking_id}/respond")
@@ -304,11 +356,13 @@ def pay_deposit(booking_id: str, body: dict = Body(...), db: Session = Depends(g
     if not b:
         return standard_response(False, "Booking not found")
 
-    b.deposit_paid = True
-    b.status = "deposit_paid"
-    b.updated_at = datetime.now(EAT)
+    # Logical escrow: record HOLD_DEPOSIT and flip booking to funds_secured.
+    from services import escrow_service as escrow
+    amount = body.get("amount") or float(b.deposit_required or 0)
+    hold = escrow.record_deposit_paid(db, b, amount, actor_id=current_user.id)
     db.commit()
-    return standard_response(True, "Deposit recorded successfully")
+    return standard_response(True, "Deposit recorded — funds secured in escrow",
+                             {"booking_id": str(b.id), "escrow": escrow.serialize_hold(hold, include_transactions=False)})
 
 
 @router.post("/{booking_id}/complete")
@@ -357,8 +411,10 @@ def pay_balance(booking_id: str, body: dict = Body(...), db: Session = Depends(g
     if not b:
         return standard_response(False, "Booking not found")
 
+    from services import escrow_service as escrow
+    amount = body.get("amount")
+    hold = escrow.record_balance_paid(db, b, amount, actor_id=current_user.id)
     b.balance_paid = True
-    b.status = "paid"
-    b.updated_at = datetime.now(EAT)
     db.commit()
-    return standard_response(True, "Balance paid successfully")
+    return standard_response(True, "Balance paid — fully held in escrow",
+                             {"booking_id": str(b.id), "escrow": escrow.serialize_hold(hold, include_transactions=False)})

@@ -23,12 +23,18 @@ import { Separator } from '@/components/ui/separator';
 import { useBooking } from '@/data/useBookings';
 import { formatPrice } from '@/utils/formatPrice';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import EscrowStatusCard from './EscrowStatusCard';
+import DeliveryOtpCard from './DeliveryOtpCard';
 
 const BookingDetail = () => {
   const { t } = useLanguage();
   const { id } = useParams();
   const navigate = useNavigate();
   const { booking, loading, error, refetch } = useBooking(id || null);
+  const { data: currentUser } = useCurrentUser();
+  const viewerRole: 'organiser' | 'vendor' =
+    booking && currentUser && booking.provider?.id === currentUser.id ? 'vendor' : 'organiser';
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -281,6 +287,12 @@ const BookingDetail = () => {
               )}
             </CardContent>
           </Card>
+
+          {/* On-site delivery check-in (Phase 1.3) */}
+          {booking.id && <DeliveryOtpCard bookingId={booking.id} viewerRole={viewerRole} />}
+
+          {/* Escrow status */}
+          {booking.id && <EscrowStatusCard bookingId={booking.id} viewerRole={viewerRole} />}
 
           {/* Provider Info */}
           {booking.provider && (
