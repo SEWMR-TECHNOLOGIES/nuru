@@ -6,7 +6,8 @@ import CustomImageIcon from '@/assets/icons/image-icon.svg';
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
-import { useConversations, useConversationMessages, useSendMessage } from '@/data/useSocial';
+import { useConversations, useConversationMessages, useSendMessage, prefetchConversationMessages } from '@/data/useSocial';
+import { usePrefetchOnVisible } from '@/hooks/usePrefetchOnVisible';
 import { messagesApi } from '@/lib/api/messages';
 import { uploadsApi } from '@/lib/api/uploads';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -38,6 +39,34 @@ const isValidAvatar = (url?: string | null): boolean => {
   if (url.includes('placeholder')) return false;
   if (url.includes('randomuser.me')) return false;
   return true;
+};
+
+/** Conversation row that wires viewport + hover prefetch. */
+const ConversationRowShell = ({
+  conversationId,
+  onOpen,
+  isSelected,
+  children,
+}: {
+  conversationId: string;
+  onOpen: () => void;
+  isSelected: boolean;
+  children: React.ReactNode;
+}) => {
+  const ref = usePrefetchOnVisible<HTMLButtonElement>(() => prefetchConversationMessages(conversationId));
+  return (
+    <button
+      ref={ref}
+      onMouseEnter={() => prefetchConversationMessages(conversationId)}
+      onFocus={() => prefetchConversationMessages(conversationId)}
+      onClick={onOpen}
+      className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${
+        isSelected ? 'bg-primary/10' : 'hover:bg-muted/50'
+      }`}
+    >
+      {children}
+    </button>
+  );
 };
 
 const Messages = () => {
@@ -99,15 +128,18 @@ const Messages = () => {
     }
   }, [messages]);
 
-  // Poll for new messages every 5 seconds
+  // Poll for new messages every 5 seconds — but only when the tab is visible
+  // to avoid wasted requests + battery drain on background tabs / phones.
   useEffect(() => {
     if (!selectedConversationId) return;
-
-    const interval = setInterval(() => {
-      refetchMessages();
-    }, 5000);
-
-    return () => clearInterval(interval);
+    const tick = () => { if (!document.hidden) refetchMessages(); };
+    const interval = setInterval(tick, 5000);
+    const onVis = () => { if (!document.hidden) refetchMessages(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, [selectedConversationId, refetchMessages]);
 
 
@@ -394,12 +426,11 @@ const Messages = () => {
             const displayAvatar = conversation.participant?.avatar || null;
             
             return (
-              <button
+              <ConversationRowShell
                 key={conversation.id}
-                onClick={() => handleSelectConversation(conversation.id)}
-                className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${
-                  isSelected ? 'bg-primary/10' : 'hover:bg-muted/50'
-                }`}
+                conversationId={conversation.id}
+                isSelected={isSelected}
+                onOpen={() => handleSelectConversation(conversation.id)}
               >
                 <div className="relative">
                   <Avatar className={`w-12 h-12 ${isSelected ? 'ring-2 ring-primary/40' : ''}`}>
@@ -437,7 +468,7 @@ const Messages = () => {
                     {conversation.last_message?.content || t('no_messages_yet')}
                   </p>
                 </div>
-              </button>
+              </ConversationRowShell>
             );
           })}
         </div>
@@ -487,7 +518,7 @@ const Messages = () => {
             </div>
 
             {/* Messages area */}
-            <div ref={messagesRef} className="flex-1 p-3 md:p-4 overflow-y-auto space-y-3 bg-muted/10">
+            <div key={selectedConversationId || 'no-conv'} ref={messagesRef} className="flex-1 p-3 md:p-4 overflow-y-auto space-y-3 bg-muted/10">
             {messagesLoading && messages.length === 0 ? (
                 <div className="space-y-4 p-4">
                   {[1,2,3,4,5].map(i => (

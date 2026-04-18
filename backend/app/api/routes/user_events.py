@@ -689,8 +689,22 @@ def get_invitation_card(
 # Get Single Event (Detailed)
 # ──────────────────────────────────────────────
 @router.get("/{event_id}")
-def get_event(event_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Returns detailed information about a specific event."""
+def get_event(
+    event_id: str,
+    fields: str = "essential",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Returns detailed information about a specific event.
+
+    fields:
+      - "essential" (default): event meta + counts + viewer_role + inline permissions.
+        Lightweight payload optimized for the Event Management Overview tab.
+        Heavy collections (guests, committee, contributions, service_bookings,
+        schedule, budget_items) are NOT included — request them per-tab via
+        their dedicated endpoints, or pass fields=full.
+      - "full": legacy payload with every child collection eagerly loaded.
+    """
     try:
         eid = uuid.UUID(event_id)
     except ValueError:
@@ -701,23 +715,28 @@ def get_event(event_id: str, db: Session = Depends(get_db), current_user: User =
         return standard_response(False, "Event not found")
 
     is_owner = str(event.organizer_id) == str(current_user.id)
-    is_committee = False
+    cm = None
     if not is_owner:
-        cm = db.query(EventCommitteeMember).filter(EventCommitteeMember.event_id == eid, EventCommitteeMember.user_id == current_user.id).first()
-        is_committee = cm is not None
+        cm = db.query(EventCommitteeMember).filter(
+            EventCommitteeMember.event_id == eid,
+            EventCommitteeMember.user_id == current_user.id,
+        ).first()
+    is_committee = cm is not None
 
     is_invited = False
     if not is_owner and not is_committee:
-        inv = db.query(EventInvitation).filter(EventInvitation.event_id == eid, EventInvitation.invited_user_id == current_user.id).first()
+        inv = db.query(EventInvitation).filter(
+            EventInvitation.event_id == eid,
+            EventInvitation.invited_user_id == current_user.id,
+        ).first()
         is_invited = inv is not None
 
     viewer_role = "creator" if is_owner else ("committee" if is_committee else ("guest" if is_invited else "public"))
-    print(f"[get-event] user_id={current_user.id} event_id={event_id} role={viewer_role} public={event.is_public}")
 
     if not is_owner and not is_committee and not is_invited and not event.is_public:
         return standard_response(False, "You do not have permission to view this event")
 
-    # Use batched event summary (~10 queries instead of ~8 per event)
+    # ── Build essential summary (10 batched queries via build_event_summaries) ──
     from utils.batch_loaders import build_event_summaries
     summaries = build_event_summaries(db, [event])
     data = summaries[0] if summaries else _event_summary(db, event)
@@ -725,7 +744,35 @@ def get_event(event_id: str, db: Session = Depends(get_db), current_user: User =
     data["is_creator"] = is_owner
     data["is_committee"] = is_committee
 
-    # ─── Batch fetch all child collections in parallel ───
+    # ── Inline permissions so clients don't need a second round-trip ──
+    if is_owner:
+        data["permissions"] = {"is_creator": True, "role": "creator", **{f: True for f in PERMISSION_FIELDS}}
+    elif is_committee and cm is not None:
+        role_obj = db.query(CommitteeRole).filter(CommitteeRole.id == cm.role_id).first() if cm.role_id else None
+        perm_row = db.query(CommitteePermission).filter(CommitteePermission.committee_member_id == cm.id).first()
+        perms = {f: bool(getattr(perm_row, f, False)) if perm_row else False for f in PERMISSION_FIELDS}
+        # Auto-grant view when manage is granted
+        if perms.get("can_manage_contributions"): perms["can_view_contributions"] = True
+        if perms.get("can_manage_budget"):        perms["can_view_budget"] = True
+        if perms.get("can_manage_guests"):        perms["can_view_guests"] = True
+        if perms.get("can_manage_vendors"):       perms["can_view_vendors"] = True
+        if perms.get("can_manage_expenses"):      perms["can_view_expenses"] = True
+        data["permissions"] = {
+            "is_creator": False,
+            "role": role_obj.role_name if role_obj else "member",
+            **perms,
+        }
+    else:
+        data["permissions"] = {
+            "is_creator": False, "role": None,
+            **{f: False for f in PERMISSION_FIELDS},
+        }
+
+    # ── ESSENTIAL MODE: stop here. Tabs lazy-load their own data. ──
+    if fields != "full":
+        return standard_response(True, "Event retrieved successfully", data)
+
+    # ─── FULL MODE: legacy heavy payload (kept for backwards compatibility) ───
     attendees = db.query(EventAttendee).filter(EventAttendee.event_id == eid).all()
     cms = db.query(EventCommitteeMember).filter(EventCommitteeMember.event_id == eid).all()
     contributions = db.query(EventContribution).filter(EventContribution.event_id == eid).all()

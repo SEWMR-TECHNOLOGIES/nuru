@@ -14,6 +14,7 @@ import '../../providers/auth_provider.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../../core/services/events_service.dart';
 import '../../core/services/social_service.dart';
+import '../../core/utils/prefetch_helper.dart';
 
 /// Messages screen — matches web Messages.tsx design
 class MessagesScreen extends StatefulWidget {
@@ -450,15 +451,21 @@ class _MessagesScreenState extends State<MessagesScreen> {
     final unreadCount = _getUnreadCount(conv);
     final serviceContext = _getServiceContext(conv);
 
-    return InkWell(
-      onTap: () {
-        final id = conv is Map ? conv['id']?.toString() : null;
-        if (id != null) {
-          Navigator.push(context, MaterialPageRoute(
-            builder: (_) => ChatDetailScreen(conversationId: id, name: name, avatar: avatar),
-          ));
-        }
+    final convId = conv is Map ? conv['id']?.toString() : null;
+    return PrefetchOnVisible(
+      onVisible: () {
+        if (convId == null || convId.isEmpty) return;
+        PrefetchHelper.prefetch('conv:$convId',
+            () => MessagesService.getMessages(convId));
       },
+      child: InkWell(
+        onTap: () {
+          if (convId != null) {
+            Navigator.push(context, MaterialPageRoute(
+              builder: (_) => ChatDetailScreen(conversationId: convId, name: name, avatar: avatar),
+            ));
+          }
+        },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         decoration: BoxDecoration(
@@ -516,6 +523,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 

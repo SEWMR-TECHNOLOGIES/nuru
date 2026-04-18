@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/events_service.dart';
+import '../../core/services/user_services_service.dart';
+import '../../core/utils/prefetch_helper.dart';
 import 'public_service_screen.dart';
 import '../../core/l10n/l10n_helper.dart';
 
@@ -205,13 +207,19 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
       priceDisplay = 'Price on request';
     }
 
-    return GestureDetector(
-      onTap: serviceId.isEmpty
-          ? null
-          : () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => PublicServiceScreen(serviceId: serviceId)),
-              ),
+    return PrefetchOnVisible(
+      onVisible: () {
+        if (serviceId.isEmpty) return;
+        PrefetchHelper.prefetch('service:$serviceId',
+            () => UserServicesService.getServiceDetail(serviceId));
+      },
+      child: GestureDetector(
+        onTap: serviceId.isEmpty
+            ? null
+            : () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => PublicServiceScreen(serviceId: serviceId)),
+                ),
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.surface,
@@ -299,6 +307,7 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
         ],
         ),
       ),
+    ),
     );
   }
 

@@ -43,6 +43,15 @@ const CREATOR_PERMISSIONS: EventPermissions = {
 
 const _permissionsCache = new Map<string, EventPermissions>();
 
+/**
+ * Seed permissions cache from an event payload that already includes them
+ * (essential mode of /user-events/{id}). Avoids a second round-trip.
+ */
+export const seedEventPermissions = (eventId: string, perms: any) => {
+  if (!eventId || !perms) return;
+  _permissionsCache.set(eventId, perms as EventPermissions);
+};
+
 export const useEventPermissions = (eventId: string | null) => {
   const cached = eventId ? _permissionsCache.get(eventId) : null;
   const [permissions, setPermissions] = useState<EventPermissions>(cached || ALL_PERMISSIONS);
@@ -50,7 +59,14 @@ export const useEventPermissions = (eventId: string | null) => {
 
   const fetchPermissions = useCallback(async () => {
     if (!eventId) return;
-    if (!_permissionsCache.has(eventId)) setLoading(true);
+    // Skip the network call if a fresher inline payload already populated the cache.
+    const fresh = _permissionsCache.get(eventId);
+    if (fresh) {
+      setPermissions(fresh);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     try {
       const res = await eventsApi.getMyPermissions(eventId);
       if (res.success) {
@@ -65,7 +81,15 @@ export const useEventPermissions = (eventId: string | null) => {
   }, [eventId]);
 
   useEffect(() => {
-    if (eventId) fetchPermissions();
+    if (!eventId) return;
+    // If cache is already populated (e.g. by seedEventPermissions), don't refetch.
+    const fresh = _permissionsCache.get(eventId);
+    if (fresh) {
+      setPermissions(fresh);
+      setLoading(false);
+      return;
+    }
+    fetchPermissions();
   }, [fetchPermissions, eventId]);
 
   return { permissions, loading, refetch: fetchPermissions };

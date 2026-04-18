@@ -76,27 +76,31 @@ const CommunityDetail = () => {
 
   useEffect(() => {
     if (!id) return;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const [cRes, mRes, pRes] = await Promise.all([
-          socialApi.getCommunity(id),
-          socialApi.getCommunityMembers(id),
-          socialApi.getCommunityPosts(id).catch(() => ({ success: false, data: { posts: [] } } as any)),
-        ]);
-        if (cRes.success) setCommunity(cRes.data);
-        if (mRes.success) {
-          const md = mRes.data as any;
-          setMembers(md?.members || (Array.isArray(md) ? md : []));
-        }
-        if (pRes.success) {
-          const pd = pRes.data as any;
-          setPosts(pd?.posts || (Array.isArray(pd) ? pd : []));
-        }
-      } catch { /* silent */ }
-      finally { setLoading(false); }
-    };
-    load();
+    let cancelled = false;
+    setLoading(true);
+    // Reset stale data when switching communities
+    setMembers([]); setPosts([]);
+
+    // Essential: community details first — this unblocks the page render
+    socialApi.getCommunity(id).then((cRes) => {
+      if (cancelled) return;
+      if (cRes.success) setCommunity(cRes.data);
+    }).catch(() => {}).finally(() => { if (!cancelled) setLoading(false); });
+
+    // Secondary data loads in parallel without blocking the main UI
+    socialApi.getCommunityMembers(id).then((mRes) => {
+      if (cancelled || !mRes.success) return;
+      const md = mRes.data as any;
+      setMembers(md?.members || (Array.isArray(md) ? md : []));
+    }).catch(() => {});
+
+    socialApi.getCommunityPosts(id).then((pRes) => {
+      if (cancelled || !pRes.success) return;
+      const pd = pRes.data as any;
+      setPosts(pd?.posts || (Array.isArray(pd) ? pd : []));
+    }).catch(() => {});
+
+    return () => { cancelled = true; };
   }, [id]);
 
   const handleJoin = async () => {

@@ -200,7 +200,14 @@ const Feed = () => {
     description: "See the latest events, weddings, birthdays, and community posts on Nuru."
   });
 
+  // Empty state must only appear once BOTH the primary feed and the trending
+  // fallback have settled. Otherwise mobile briefly flashes "no posts yet"
+  // before content arrives. `triedTrending.current` is set as soon as the
+  // fallback fetch is kicked off, so we wait for it to also complete.
   const showSkeleton = loading && !hasLoadedOnce.current && posts.length === 0;
+  const fallbackPending =
+    posts.length === 0 && (!triedTrending.current || trendingLoading);
+  const canShowEmpty = !loading && !trendingLoading && triedTrending.current;
 
   if (showSkeleton) {
     return (
@@ -240,7 +247,7 @@ const Feed = () => {
     <div className="space-y-4 md:space-y-6 pb-4">
       <CreatePostBox />
 
-      {displayPosts.length === 0 && !loading && !trendingLoading && (
+      {displayPosts.length === 0 && canShowEmpty && !fallbackPending && (
         <div className="text-center py-8">
           <p className="text-muted-foreground text-sm">No posts yet. Be the first to share something with the community!</p>
         </div>

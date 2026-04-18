@@ -121,8 +121,9 @@ class EventsService {
     return ApiBase.getRaw('/user-events/committee?page=$page&limit=$limit');
   }
 
-  static Future<Map<String, dynamic>> getEventById(String eventId) {
-    return ApiBase.getRaw('/user-events/$eventId');
+  /// fields: 'essential' (default — fast, includes inline permissions) or 'full'.
+  static Future<Map<String, dynamic>> getEventById(String eventId, {String fields = 'essential'}) {
+    return ApiBase.getRaw('/user-events/$eventId?fields=$fields');
   }
 
   static Future<Map<String, dynamic>> getMyPermissions(String eventId) {

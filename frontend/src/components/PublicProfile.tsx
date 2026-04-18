@@ -87,46 +87,66 @@ const PublicProfile = () => {
   useEffect(() => {
     if (!username) return;
 
-    // If it's the current user, redirect to own profile
+    // Redirect to own profile if it's the current user
     if (currentUser?.username === username) {
       navigate('/profile', { replace: true });
       return;
     }
 
     setLoading(true);
+    // Reset stale tab data when switching users
+    setEvents([]); setPosts([]); setServices([]);
 
-    // Step 1: Search for user by exact username to get their ID
-    searchApi.searchPeople(username, 10).then(async (res) => {
-      if (!res.success) {
-        setLoading(false);
-        return;
-      }
-
-      const match = res.data?.items?.find(
-        (u: any) => u.username?.toLowerCase() === username.toLowerCase()
-      );
-
-      if (!match) {
-        setLoading(false);
-        return;
-      }
-
-      // Step 2: Fetch full profile via GET /users/{id}
-      try {
-        const profileRes = await profileApi.getById(match.id);
-        if (profileRes.success && profileRes.data) {
+    // Single round-trip: resolve username and fetch profile in one call
+    profileApi.getByUsername(username).then((profileRes) => {
+      if (!profileRes.success || !profileRes.data) return;
+      const p = profileRes.data as any;
+      const userData: PublicUser = {
+        id: p.id,
+        first_name: p.first_name || '',
+        last_name: p.last_name || '',
+        username: p.username || username,
+        avatar: p.avatar,
+        bio: p.bio,
+        location: p.location,
+        website: p.website,
+        social_links: p.social_links,
+        is_identity_verified: p.is_identity_verified,
+        is_vendor: p.is_vendor ?? false,
+        follower_count: p.follower_count ?? 0,
+        following_count: p.following_count ?? 0,
+        event_count: p.event_count ?? 0,
+        service_count: p.service_count ?? 0,
+        post_count: p.post_count ?? 0,
+        moments_count: p.moments_count ?? 0,
+        created_at: p.created_at,
+        is_following: p.is_following,
+        is_followed_by: p.is_followed_by,
+        mutual_followers_count: p.mutual_followers_count,
+      };
+      setUser(userData);
+      setIsFollowing(!!userData.is_following);
+      setFollowerCount(userData.follower_count || 0);
+    }).catch(() => {
+      // Fallback: legacy 2-step lookup if the new endpoint isn't deployed yet
+      searchApi.searchPeople(username, 10).then(async (res) => {
+        if (!res.success) return;
+        const match = res.data?.items?.find(
+          (u: any) => u.username?.toLowerCase() === username.toLowerCase()
+        );
+        if (!match) return;
+        const profileRes = await profileApi.getById(match.id).catch(() => null);
+        if (profileRes?.success && profileRes.data) {
           const p = profileRes.data as any;
-          const userData: PublicUser = {
+          setUser({
             id: p.id,
-            first_name: p.first_name || match.full_name?.split(' ')[0] || '',
-            last_name: p.last_name || match.full_name?.split(' ').slice(1).join(' ') || '',
-            username: p.username || match.username,
-            avatar: p.avatar || match.avatar,
-            bio: p.bio,
-            location: p.location,
-            website: p.website,
+            first_name: p.first_name || '',
+            last_name: p.last_name || '',
+            username: p.username || username,
+            avatar: p.avatar,
+            bio: p.bio, location: p.location, website: p.website,
             social_links: p.social_links,
-            is_identity_verified: p.is_identity_verified ?? match.is_verified,
+            is_identity_verified: p.is_identity_verified,
             is_vendor: p.is_vendor ?? false,
             follower_count: p.follower_count ?? 0,
             following_count: p.following_count ?? 0,
@@ -138,51 +158,34 @@ const PublicProfile = () => {
             is_following: p.is_following,
             is_followed_by: p.is_followed_by,
             mutual_followers_count: p.mutual_followers_count,
-          };
-
-          setUser(userData);
-          setIsFollowing(!!userData.is_following);
-          setFollowerCount(userData.follower_count || 0);
-
-          // Step 3: Load content tabs
-          setContentLoading(true);
-          Promise.all([
-            profileApi.getEvents(match.id, { limit: 12, status: 'published' }).catch(() => null),
-            profileApi.getPosts(match.id, { limit: 12 }).catch(() => null),
-            profileApi.getServices(match.id, { limit: 12 }).catch(() => null),
-          ]).then(([eventsRes, postsRes, servicesRes]) => {
-            if (eventsRes?.success) setEvents(eventsRes.data?.events || []);
-            if (postsRes?.success) setPosts(postsRes.data?.posts || []);
-            if (servicesRes?.success) setServices(servicesRes.data?.services || []);
-          }).finally(() => setContentLoading(false));
-        } else {
-          // Fallback: use search data only
-          setUser({
-            id: match.id,
-            first_name: match.full_name?.split(' ')[0] || '',
-            last_name: match.full_name?.split(' ').slice(1).join(' ') || '',
-            username: match.username,
-            avatar: match.avatar,
-            is_identity_verified: match.is_verified,
           });
+          setIsFollowing(!!p.is_following);
+          setFollowerCount(p.follower_count || 0);
         }
-      } catch {
-        // Fallback: use search data
-        setUser({
-          id: match.id,
-          first_name: match.full_name?.split(' ')[0] || '',
-          last_name: match.full_name?.split(' ').slice(1).join(' ') || '',
-          username: match.username,
-          avatar: match.avatar,
-          is_identity_verified: match.is_verified,
-        });
-      } finally {
-        setLoading(false);
-      }
-    }).catch(() => {
-      setLoading(false);
-    });
+      }).catch(() => {});
+    }).finally(() => setLoading(false));
   }, [username, currentUser, navigate]);
+
+  // Lazy-load each tab's data only when its tab is opened (per user, once)
+  useEffect(() => {
+    if (!user?.id) return;
+    const w = (typeof window !== 'undefined' ? window : {}) as any;
+    w.__nuruProfileLoaded = w.__nuruProfileLoaded || new Set<string>();
+    const key = `${user.id}:${profileTab}`;
+    if (w.__nuruProfileLoaded.has(key)) return;
+    w.__nuruProfileLoaded.add(key);
+
+    setContentLoading(true);
+    const p =
+      profileTab === 'moments'
+        ? profileApi.getPosts(user.id, { limit: 12 }).then((r: any) => { if (r?.success) setPosts(r.data?.posts || []); })
+        : profileTab === 'events'
+        ? profileApi.getEvents(user.id, { limit: 12, status: 'published' }).then((r: any) => { if (r?.success) setEvents(r.data?.events || []); })
+        : profileTab === 'services'
+        ? profileApi.getServices(user.id, { limit: 12 }).then((r: any) => { if (r?.success) setServices(r.data?.services || []); })
+        : Promise.resolve();
+    p.catch(() => {}).finally(() => setContentLoading(false));
+  }, [user?.id, profileTab]);
 
   const handleFollow = async () => {
     if (!user) return;
