@@ -365,16 +365,18 @@ export default function MyIssues() {
   // ── MAIN LIST VIEW ──
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <img src={issueIcon} alt="" className="w-6 h-6 dark:invert" />
-          <div>
-            <h1 className="text-2xl font-bold">{t('report_issue')}</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">{t('submit_issues_track')}</p>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <img src={issueIcon} alt="" className="w-6 h-6 dark:invert flex-shrink-0" />
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-bold truncate">{t('report_issue')}</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 truncate">{t('submit_issues_track')}</p>
           </div>
         </div>
-        <Button onClick={() => setShowSubmit(true)} size="sm">
-          <Plus className="w-4 h-4 mr-1.5" /> {t('new_issue')}
+        <Button onClick={() => setShowSubmit(true)} size="sm" className="flex-shrink-0">
+          <Plus className="w-4 h-4 mr-1.5" />
+          <span className="hidden sm:inline">{t('new_issue')}</span>
+          <span className="sm:hidden">New</span>
         </Button>
       </div>
 

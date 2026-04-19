@@ -229,20 +229,21 @@ const MyServices = () => {
   return (
     <div className="space-y-8">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{t("my_services")}</h1>
-          <p className="text-muted-foreground mt-1">Your professional portfolio on Nuru</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight break-words leading-tight">{t("my_services")}</h1>
+          <p className="text-sm text-muted-foreground mt-1">Your professional portfolio on Nuru</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <SearchHeader
             value={search}
             onChange={setSearch}
             placeholder="Search your services…"
           />
-          <Button size="lg" className="shadow-md" onClick={() => navigate('/services/new')}>
+          <Button size="lg" className="shadow-md flex-1 sm:flex-none" onClick={() => navigate('/services/new')}>
             <Plus className="w-4 h-4 mr-2" />
-            Add New Service
+            <span className="hidden sm:inline">Add New Service</span>
+            <span className="sm:hidden">Add Service</span>
           </Button>
         </div>
       </div>

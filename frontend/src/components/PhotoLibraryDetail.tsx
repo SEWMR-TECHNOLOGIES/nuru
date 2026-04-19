@@ -185,8 +185,8 @@ const PhotoLibraryDetail = () => {
     <div className="pb-16">
 
       {/* ─── TOP BAR ─── */}
-      <div className="flex items-center justify-between py-4 px-1 mb-2">
-        <div className="flex gap-2">
+      <div className="flex items-center justify-between gap-2 py-4 px-1 mb-2">
+        <div className="flex gap-2 flex-wrap min-w-0">
           <Button variant="outline" size="sm" onClick={copyShareLink}>
             {copied ? <Check className="w-4 h-4 mr-1.5 text-emerald-500" /> : <img src={ShareIcon} alt="" className="w-4 h-4 mr-1.5 dark:invert opacity-70" />}
             {copied ? 'Copied!' : 'Share'}
@@ -204,7 +204,7 @@ const PhotoLibraryDetail = () => {
             </span>
           )}
         </div>
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Go back">
+        <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => navigate(-1)} aria-label="Go back">
           <ChevronLeft className="w-5 h-5" />
         </Button>
       </div>

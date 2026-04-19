@@ -97,8 +97,8 @@ const MyContributors = () => {
     <div className="space-y-4">
       <ConfirmDialog />
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-bold">{t("my_contributors")}</h1>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />{t("add")}</Button>
+        <h1 className="text-lg sm:text-xl font-bold truncate min-w-0 flex-1">{t("my_contributors")}</h1>
+        <Button size="sm" className="flex-shrink-0" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />{t("add")}</Button>
       </div>
 
       <p className="text-sm text-muted-foreground">

@@ -109,20 +109,21 @@ const BrowseTickets = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
             <img src={TicketIcon} alt={t("tickets")} className="w-5 h-5 dark:invert" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-foreground">{t("browse_tickets")}</h1>
-            <p className="text-sm text-muted-foreground">Find events and purchase tickets</p>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-foreground truncate">{t("browse_tickets")}</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">Find events and purchase tickets</p>
           </div>
         </div>
-        <Link to="/my-tickets">
+        <Link to="/my-tickets" className="flex-shrink-0">
           <Button variant="outline" size="sm" className="gap-2">
             <img src={TicketIcon} alt="" className="w-3.5 h-3.5 dark:invert" />
-            My Tickets
+            <span className="hidden sm:inline">My Tickets</span>
+            <span className="sm:hidden">Mine</span>
           </Button>
         </Link>
       </div>

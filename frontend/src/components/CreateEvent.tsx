@@ -314,18 +314,20 @@ const CreateEvent: React.FC = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground mb-1 break-words leading-tight">
             {editId ? 'Edit Event' : 'Create New Event'}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {editId ? 'Update your event details' : 'Plan your perfect event with our comprehensive toolkit'}
           </p>
         </div>
         <Button
           variant="ghost"
           size="icon"
+          className="flex-shrink-0"
+          aria-label="Back"
           onClick={() => navigate('/my-events')}
         >
           <ChevronLeft className="w-5 h-5" />

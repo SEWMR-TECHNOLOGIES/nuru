@@ -79,7 +79,9 @@ const Messages = () => {
 
   const { data: currentUser } = useCurrentUser();
   const [convSearch, setConvSearch] = useState('');
-  const { conversations, loading: conversationsLoading, error: conversationsError, refetch: refetchConversations, clearUnread } = useConversations(convSearch);
+  // Always load the full list — search is applied client-side below for
+  // instant, silent filtering (no refetch, no flicker, no empty-state flash).
+  const { conversations, loading: conversationsLoading, error: conversationsError, refetch: refetchConversations, clearUnread } = useConversations('');
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const { messages, loading: messagesLoading, refetch: refetchMessages, appendMessage } = useConversationMessages(selectedConversationId || '');
   const { sendMessage, loading: sending } = useSendMessage();
@@ -423,59 +425,79 @@ const Messages = () => {
         </div>
 
         <div className="p-2 space-y-1">
-          {conversations.map((conversation) => {
-            const isSelected = conversation.id === selectedConversationId;
-            
-            // Backend now sends correct participant info based on perspective
-            const displayName = conversation.participant?.name || 'Unknown';
-            const displayAvatar = conversation.participant?.avatar || null;
-            
-            return (
-              <ConversationRowShell
-                key={conversation.id}
-                conversationId={conversation.id}
-                isSelected={isSelected}
-                onOpen={() => handleSelectConversation(conversation.id)}
-              >
-                <div className="relative">
-                  <Avatar className={`w-12 h-12 ${isSelected ? 'ring-2 ring-primary/40' : ''}`}>
-                    {isValidAvatar(displayAvatar) ? (
-                      <AvatarImage src={displayAvatar!} alt={displayName} />
-                    ) : null}
-                    <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
-                      {getInitials(displayName)}
-                    </AvatarFallback>
-                  </Avatar>
-                  {conversation.unread_count > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[18px] h-4 bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center rounded-full px-1 ring-2 ring-card">
-                      {conversation.unread_count}
-                    </span>
-                  )}
-                </div>
+          {(() => {
+            // Instant client-side filter — list updates per keystroke
+            // (silent, WhatsApp-style) even before the debounced server reply.
+            const term = convSearch.trim().toLowerCase();
+            const visible = term
+              ? conversations.filter((c: any) => {
+                  const name = (c.participant?.name || '').toLowerCase();
+                  const last = (c.last_message?.content || '').toLowerCase();
+                  const svc = (c.service?.title || '').toLowerCase();
+                  return name.includes(term) || last.includes(term) || svc.includes(term);
+                })
+              : conversations;
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3
-                      className={`font-medium text-sm truncate ${
-                        conversation.unread_count > 0 ? 'text-foreground font-semibold' : 'text-foreground/80'
-                      }`}
-                    >
-                      {displayName}
-                    </h3>
-                    <span className="text-xs text-muted-foreground flex-shrink-0">
-                      {conversation.last_message?.sent_at 
-                        ? new Date(conversation.last_message.sent_at).toLocaleDateString([], { day: '2-digit', month: 'short' })
-                        : ''}
-                    </span>
+            if (visible.length === 0) {
+              return (
+                <div className="text-center text-sm text-muted-foreground py-8 px-3">
+                  {t('no_results') || 'No conversations match your search.'}
+                </div>
+              );
+            }
+
+            return visible.map((conversation) => {
+              const isSelected = conversation.id === selectedConversationId;
+              const displayName = conversation.participant?.name || 'Unknown';
+              const displayAvatar = conversation.participant?.avatar || null;
+
+              return (
+                <ConversationRowShell
+                  key={conversation.id}
+                  conversationId={conversation.id}
+                  isSelected={isSelected}
+                  onOpen={() => handleSelectConversation(conversation.id)}
+                >
+                  <div className="relative">
+                    <Avatar className={`w-12 h-12 ${isSelected ? 'ring-2 ring-primary/40' : ''}`}>
+                      {isValidAvatar(displayAvatar) ? (
+                        <AvatarImage src={displayAvatar!} alt={displayName} />
+                      ) : null}
+                      <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
+                        {getInitials(displayName)}
+                      </AvatarFallback>
+                    </Avatar>
+                    {conversation.unread_count > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[18px] h-4 bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center rounded-full px-1 ring-2 ring-card">
+                        {conversation.unread_count}
+                      </span>
+                    )}
                   </div>
 
-                  <p className={`text-sm truncate mt-0.5 ${conversation.unread_count > 0 ? 'font-medium text-foreground/90' : 'text-muted-foreground'}`}>
-                    {conversation.last_message?.content || t('no_messages_yet')}
-                  </p>
-                </div>
-              </ConversationRowShell>
-            );
-          })}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3
+                        className={`font-medium text-sm truncate ${
+                          conversation.unread_count > 0 ? 'text-foreground font-semibold' : 'text-foreground/80'
+                        }`}
+                      >
+                        {displayName}
+                      </h3>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        {conversation.last_message?.sent_at
+                          ? new Date(conversation.last_message.sent_at).toLocaleDateString([], { day: '2-digit', month: 'short' })
+                          : ''}
+                      </span>
+                    </div>
+
+                    <p className={`text-sm truncate mt-0.5 ${conversation.unread_count > 0 ? 'font-medium text-foreground/90' : 'text-muted-foreground'}`}>
+                      {conversation.last_message?.content || t('no_messages_yet')}
+                    </p>
+                  </div>
+                </ConversationRowShell>
+              );
+            });
+          })()}
         </div>
       </div>
 
