@@ -26,7 +26,12 @@ class ProfileMomentsTab extends StatelessWidget {
     if (isLoading) {
       return GridView.builder(
         padding: const EdgeInsets.all(20),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisSpacing: 3, crossAxisSpacing: 3),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          mainAxisSpacing: 3,
+          crossAxisSpacing: 3,
+          childAspectRatio: 1.0,
+        ),
         itemCount: 9,
         itemBuilder: (_, __) => Container(decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(4))),
       );
@@ -45,6 +50,7 @@ class ProfileMomentsTab extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3, mainAxisSpacing: 4, crossAxisSpacing: 4,
+        childAspectRatio: 1.0,
       ),
       itemCount: moments.length,
       itemBuilder: (context, i) {
@@ -134,15 +140,26 @@ class ProfileMomentsTab extends StatelessWidget {
                       ),
                     ),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.start,
                       children: [
                         const Icon(Icons.favorite_rounded, size: 10, color: Colors.white70),
                         const SizedBox(width: 2),
-                        Text('${post['glow_count'] ?? 0}', style: GoogleFonts.plusJakartaSans(fontSize: 9, color: Colors.white70, fontWeight: FontWeight.w500)),
+                        Flexible(
+                          child: Text('${post['glow_count'] ?? 0}',
+                            style: GoogleFonts.plusJakartaSans(fontSize: 9, color: Colors.white70, fontWeight: FontWeight.w500),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                         const SizedBox(width: 6),
                         const Icon(Icons.chat_bubble_rounded, size: 10, color: Colors.white70),
                         const SizedBox(width: 2),
-                        Text('${post['comment_count'] ?? post['echo_count'] ?? 0}', style: GoogleFonts.plusJakartaSans(fontSize: 9, color: Colors.white70, fontWeight: FontWeight.w500)),
+                        Flexible(
+                          child: Text('${post['comment_count'] ?? post['echo_count'] ?? 0}',
+                            style: GoogleFonts.plusJakartaSans(fontSize: 9, color: Colors.white70, fontWeight: FontWeight.w500),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                       ],
                     ),
                   ),

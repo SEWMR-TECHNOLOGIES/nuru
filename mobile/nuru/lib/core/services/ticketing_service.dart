@@ -101,9 +101,11 @@ class TicketingService {
   }
 
   /// My purchased tickets
-  static Future<Map<String, dynamic>> getMyTickets({int page = 1, int limit = 20}) async {
+  static Future<Map<String, dynamic>> getMyTickets({int page = 1, int limit = 20, String? search}) async {
     try {
-      final uri = Uri.parse('$_baseUrl/ticketing/my-tickets?page=$page&limit=$limit');
+      final qp = <String, String>{'page': '$page', 'limit': '$limit'};
+      if (search != null && search.isNotEmpty) qp['search'] = search;
+      final uri = Uri.parse('$_baseUrl/ticketing/my-tickets').replace(queryParameters: qp);
       final res = await http.get(uri, headers: await _headers());
       return jsonDecode(res.body);
     } catch (e) {

@@ -206,16 +206,20 @@ def invalidate_all_feeds():
 
 def rate_limit_check(key: str, max_requests: int, window_seconds: int) -> bool:
     """
-    Sliding-window rate limiter.
+    Fixed-window rate limiter.
     Returns True if request is ALLOWED, False if rate-limited.
+
+    IMPORTANT: EXPIRE must only be set on the FIRST increment of the window,
+    otherwise every subsequent request pushes the TTL forward and the counter
+    never resets — which permanently locks the key under sustained traffic.
     """
     try:
         r = get_redis()
-        pipe = r.pipeline()
-        pipe.incr(key)
-        pipe.expire(key, window_seconds)
-        results = pipe.execute()
-        current = results[0]
+        # INCR returns the new value. If it's 1, the key was just created
+        # (or had expired) — set the TTL exactly once for this window.
+        current = r.incr(key)
+        if current == 1:
+            r.expire(key, window_seconds)
         return current <= max_requests
     except Exception:
         return True  # Fail open if Redis is down

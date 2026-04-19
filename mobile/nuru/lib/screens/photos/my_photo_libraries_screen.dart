@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/photo_libraries_service.dart';
 import '../../core/services/user_services_service.dart';
+import '../../core/widgets/expanding_search_action.dart';
 import 'photo_library_screen.dart';
 import '../../core/theme/text_styles.dart';
 import '../../core/l10n/l10n_helper.dart';
@@ -31,11 +33,39 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
   String? _error;
   double _storageUsedMb = 0;
   double _storageLimitMb = 0;
+  String _search = '';
+  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String v) {
+    setState(() => _search = v);
+    _searchDebounce?.cancel();
+    // For scoped (service/event) views we re-fetch; for the aggregate view client-filters.
+    if (widget.serviceId != null) {
+      _searchDebounce = Timer(const Duration(milliseconds: 300), _load);
+    }
+  }
+
+  List<Map<String, dynamic>> get _visibleLibraries {
+    if (_search.trim().isEmpty) return _libraries;
+    final q = _search.toLowerCase();
+    return _libraries.where((lib) {
+      final name = (lib['name'] ?? '').toString().toLowerCase();
+      final eventName = (lib['event']?['name'] ?? '').toString().toLowerCase();
+      final svc = (lib['_service_name'] ?? '').toString().toLowerCase();
+      return name.contains(q) || eventName.contains(q) || svc.contains(q);
+    }).toList();
   }
 
   Future<void> _load() async {
@@ -57,7 +87,10 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
     }
 
     if (widget.serviceId != null) {
-      final libRes = await PhotoLibrariesService.getServiceLibraries(widget.serviceId!);
+      final libRes = await PhotoLibrariesService.getServiceLibraries(
+        widget.serviceId!,
+        search: _search.isNotEmpty ? _search : null,
+      );
       if (!mounted) return;
       if (libRes['success'] != true) {
         setState(() { _loading = false; _error = libRes['message']?.toString() ?? 'Unable to load libraries'; });
@@ -180,8 +213,13 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
                 const SizedBox(width: 14),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(widget.title, style: appText(size: 20, weight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  Text('${_libraries.length} libraries', style: appText(size: 12, color: AppColors.textTertiary)),
+                  Text('${_visibleLibraries.length} libraries', style: appText(size: 12, color: AppColors.textTertiary)),
                 ])),
+                ExpandingSearchAction(
+                  value: _search,
+                  hintText: 'Search libraries…',
+                  onChanged: _onSearchChanged,
+                ),
               ]),
             ),
             if (_storageUsedMb > 0 || _storageLimitMb > 0)
@@ -223,22 +261,22 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
                   ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
                   : _error != null
                       ? Center(child: Text(_error!, style: appText(size: 14, color: AppColors.textTertiary)))
-                      : _libraries.isEmpty
+                      : _visibleLibraries.isEmpty
                           ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
                               SvgPicture.asset('assets/icons/camera-icon.svg', width: 48, height: 48,
                                 colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
                               const SizedBox(height: 16),
-                              Text('No photo libraries yet', style: appText(size: 16, weight: FontWeight.w600)),
+                              Text(_search.isNotEmpty ? 'No libraries match your search' : 'No photo libraries yet', style: appText(size: 16, weight: FontWeight.w600)),
                               const SizedBox(height: 4),
-                              Text('Create a library from your service events', style: appText(size: 13, color: AppColors.textTertiary)),
+                              Text(_search.isNotEmpty ? 'Try a different keyword' : 'Create a library from your service events', style: appText(size: 13, color: AppColors.textTertiary)),
                             ]))
                           : RefreshIndicator(
                               onRefresh: _load,
                               color: AppColors.primary,
                               child: ListView.builder(
                                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                                itemCount: _libraries.length,
-                                itemBuilder: (_, i) => _libraryCard(_libraries[i]),
+                                itemCount: _visibleLibraries.length,
+                                itemBuilder: (_, i) => _libraryCard(_visibleLibraries[i]),
                               ),
                             ),
             ),

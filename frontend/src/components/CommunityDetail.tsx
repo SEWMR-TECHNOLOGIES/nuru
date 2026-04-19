@@ -217,7 +217,7 @@ const CommunityDetail = () => {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="space-y-6">
         <Skeleton className="h-40 w-full rounded-lg" />
         <Skeleton className="h-6 w-1/3" />
         <Skeleton className="h-4 w-2/3" />
@@ -233,7 +233,7 @@ const CommunityDetail = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div>
         <div className="flex items-start justify-between gap-3 mb-3">

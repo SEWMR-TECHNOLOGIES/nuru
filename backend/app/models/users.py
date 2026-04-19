@@ -65,7 +65,7 @@ class User(Base):
     user_services = relationship("UserService", back_populates="user")
     service_ratings = relationship("UserServiceRating", back_populates="user")
     organized_events = relationship("Event", back_populates="organizer")
-    contributors = relationship("UserContributor", back_populates="user")
+    contributors = relationship("UserContributor", foreign_keys="UserContributor.user_id", back_populates="user")
     support_tickets = relationship("SupportTicket", back_populates="user")
     notifications = relationship("Notification", back_populates="recipient")
     booking_requests = relationship("ServiceBookingRequest", back_populates="requester")

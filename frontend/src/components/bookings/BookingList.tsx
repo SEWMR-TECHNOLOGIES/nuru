@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Clock,
@@ -9,7 +9,6 @@ import {
   Eye,
   MoreVertical,
   Filter,
-  Search
 } from 'lucide-react';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
@@ -51,6 +50,7 @@ import { formatPrice } from '@/utils/formatPrice';
 import type { BookingRequest } from '@/lib/api/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import SearchHeader from '@/components/ui/search-header';
 
 const BookingListSkeleton = () => (
   <div className="space-y-4">
@@ -120,11 +120,20 @@ const BookingList = () => {
 
 const MyBookingsTab = () => {
   const navigate = useNavigate();
-  const { bookings, summary, loading, error, cancelBooking, refetch } = useMyBookings();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('accepted');
+  const { bookings, summary, loading, error, cancelBooking, refetch } = useMyBookings();
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingRequest | null>(null);
+
+  // Re-fetch on search/status change (server-side ?search=)
+  useEffect(() => {
+    refetch({
+      ...(searchQuery ? { search: searchQuery } : {}),
+      ...(statusFilter !== 'all' ? { status: statusFilter as any } : {}),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, statusFilter]);
 
   const handleCancelConfirm = async (reason: string) => {
     if (!selectedBooking) return;
@@ -138,13 +147,7 @@ const MyBookingsTab = () => {
     }
   };
 
-  const filteredBookings = bookings.filter(b => {
-    const matchesSearch = 
-      b.service.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.event_name?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || b.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredBookings = bookings;
 
   if (loading) {
     return <BookingListSkeleton />;
@@ -193,15 +196,9 @@ const MyBookingsTab = () => {
       )}
 
       {/* Filters */}
-      <div className="flex gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search bookings..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
+      <div className="flex gap-2 items-center">
+        <div className="flex-1 flex items-center">
+          <SearchHeader value={searchQuery} onChange={setSearchQuery} placeholder="Search bookings…" alwaysOpen />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-40">
@@ -258,9 +255,9 @@ const MyBookingsTab = () => {
 
 const IncomingBookingsTab = () => {
   const navigate = useNavigate();
-  const { bookings, summary, loading, error, respondToBooking, completeBooking, refetch } = useIncomingBookings();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('pending');
+  const { bookings, summary, loading, error, respondToBooking, completeBooking, refetch } = useIncomingBookings();
   const [responseDialogOpen, setResponseDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingRequest | null>(null);
   const [responseType, setResponseType] = useState<'accept' | 'reject'>('accept');
@@ -271,6 +268,15 @@ const IncomingBookingsTab = () => {
     reason: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Re-fetch on search/status change (server-side ?search=)
+  useEffect(() => {
+    refetch({
+      ...(searchQuery ? { search: searchQuery } : {}),
+      ...(statusFilter !== 'all' ? { status: statusFilter as any } : {}),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, statusFilter]);
 
   const handleRespond = async () => {
     if (!selectedBooking) return;
@@ -308,13 +314,7 @@ const IncomingBookingsTab = () => {
     }
   };
 
-  const filteredBookings = bookings.filter(b => {
-    const matchesSearch = 
-      b.client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.event_name?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || b.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredBookings = bookings;
 
   if (loading) {
     return <BookingListSkeleton />;
@@ -363,15 +363,9 @@ const IncomingBookingsTab = () => {
       )}
 
       {/* Filters */}
-      <div className="flex gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search requests..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
+      <div className="flex gap-2 items-center">
+        <div className="flex-1 flex items-center">
+          <SearchHeader value={searchQuery} onChange={setSearchQuery} placeholder="Search requests…" alwaysOpen />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-40">

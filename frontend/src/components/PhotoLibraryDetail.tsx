@@ -150,7 +150,7 @@ const PhotoLibraryDetail = () => {
   /* ─── SKELETON LOADING STATE ─── */
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto pb-16">
+      <div className="pb-16">
         <div className="flex items-center gap-3 py-4 px-1 mb-4">
           <Skeleton className="w-20 h-4" />
         </div>
@@ -182,7 +182,7 @@ const PhotoLibraryDetail = () => {
   const storageColor = storagePct > 90 ? 'text-destructive' : storagePct > 70 ? 'text-amber-600' : 'text-emerald-600';
 
   return (
-    <div className="max-w-5xl mx-auto pb-16">
+    <div className="pb-16">
 
       {/* ─── TOP BAR ─── */}
       <div className="flex items-center justify-between py-4 px-1 mb-2">

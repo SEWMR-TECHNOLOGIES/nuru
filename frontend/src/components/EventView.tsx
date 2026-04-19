@@ -115,7 +115,7 @@ const EventView = () => {
 
   if (loading) {
     return (
-      <div className="space-y-6 max-w-3xl mx-auto">
+      <div className="space-y-6">
         <Skeleton className="h-64 w-full rounded-xl" />
         <Skeleton className="h-10 w-2/3" />
         <Skeleton className="h-6 w-1/2" />
@@ -157,7 +157,7 @@ const EventView = () => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl md:text-3xl font-bold">{event.title || 'Event Details'}</h1>

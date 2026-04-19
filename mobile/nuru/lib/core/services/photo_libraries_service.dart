@@ -56,10 +56,13 @@ class PhotoLibrariesService {
     };
   }
 
-  /// Get all libraries for a service
-  static Future<Map<String, dynamic>> getServiceLibraries(String serviceId) async {
+  /// Get all libraries for a service (optional ``search``)
+  static Future<Map<String, dynamic>> getServiceLibraries(String serviceId, {String? search}) async {
     try {
-      final res = await http.get(Uri.parse('$_baseUrl/photo-libraries/service/$serviceId'), headers: await _headers());
+      final qp = <String, String>{};
+      if (search != null && search.isNotEmpty) qp['search'] = search;
+      final uri = Uri.parse('$_baseUrl/photo-libraries/service/$serviceId').replace(queryParameters: qp.isEmpty ? null : qp);
+      final res = await http.get(uri, headers: await _headers());
       return _normalizeBody(body: res.body, statusCode: res.statusCode, fallbackError: 'Unable to fetch libraries');
     } catch (e) {
       return {'success': false, 'message': 'Unable to fetch libraries'};
@@ -155,10 +158,13 @@ class PhotoLibrariesService {
     }
   }
 
-  /// Get confirmed events for a service (to create libraries from)
-  static Future<Map<String, dynamic>> getServiceEvents(String serviceId) async {
+  /// Get confirmed events for a service (to create libraries from). Optional ``search``.
+  static Future<Map<String, dynamic>> getServiceEvents(String serviceId, {String? search}) async {
     try {
-      final res = await http.get(Uri.parse('$_baseUrl/photo-libraries/service/$serviceId/events'), headers: await _headers());
+      final qp = <String, String>{};
+      if (search != null && search.isNotEmpty) qp['search'] = search;
+      final uri = Uri.parse('$_baseUrl/photo-libraries/service/$serviceId/events').replace(queryParameters: qp.isEmpty ? null : qp);
+      final res = await http.get(uri, headers: await _headers());
       return _normalizeBody(body: res.body, statusCode: res.statusCode, fallbackError: 'Unable to fetch events');
     } catch (e) {
       return {'success': false, 'message': 'Unable to fetch events'};

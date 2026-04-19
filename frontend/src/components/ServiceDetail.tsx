@@ -182,7 +182,7 @@ const ServiceDetail = () => {
   ] as const;
 
   return (
-    <div className="max-w-5xl mx-auto pb-16">
+    <div className="pb-16">
 
       {/* ─── TOP BAR ─── */}
       <div className="flex items-center justify-between py-4 px-1 mb-2">

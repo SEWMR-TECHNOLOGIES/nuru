@@ -45,9 +45,12 @@ class UserServicesService {
     };
   }
 
-  static Future<Map<String, dynamic>> getMyServices() async {
+  static Future<Map<String, dynamic>> getMyServices({String? search}) async {
     try {
-      final res = await http.get(Uri.parse('$_baseUrl/user-services/'), headers: await _headers());
+      final qp = <String, String>{};
+      if (search != null && search.trim().isNotEmpty) qp['search'] = search.trim();
+      final uri = Uri.parse('$_baseUrl/user-services/').replace(queryParameters: qp.isEmpty ? null : qp);
+      final res = await http.get(uri, headers: await _headers());
       return _normalizeResponse(res, fallbackError: 'Unable to fetch services');
     } catch (e) {
       return {'success': false, 'message': 'Unable to fetch services'};
@@ -141,35 +144,73 @@ class UserServicesService {
     }
   }
 
-  static Future<Map<String, dynamic>> getBookings({int page = 1}) async {
+  static Future<Map<String, dynamic>> getBookings({int page = 1, String? status, String? search}) async {
     try {
-      final res = await http.get(Uri.parse('$_baseUrl/bookings?page=$page'), headers: await _headers());
-      return jsonDecode(res.body);
+      final qp = <String, String>{'page': '$page'};
+      if (status != null && status != 'all') qp['status'] = status;
+      if (search != null && search.isNotEmpty) qp['search'] = search;
+      final uri = Uri.parse('$_baseUrl/bookings/').replace(queryParameters: qp);
+      final res = await http.get(uri, headers: await _headers());
+      return _normalizeResponse(res, fallbackError: 'Unable to fetch bookings');
     } catch (e) {
       return {'success': false, 'message': 'Unable to fetch bookings'};
+    }
+  }
+
+  /// Bookings on services I offer (vendor side).
+  static Future<Map<String, dynamic>> getIncomingBookings({int page = 1, String? status, String? search}) async {
+    try {
+      final qp = <String, String>{'page': '$page'};
+      if (status != null && status != 'all') qp['status'] = status;
+      if (search != null && search.isNotEmpty) qp['search'] = search;
+      final uri = Uri.parse('$_baseUrl/bookings/received').replace(queryParameters: qp);
+      final res = await http.get(uri, headers: await _headers());
+      return _normalizeResponse(res, fallbackError: 'Unable to fetch incoming bookings');
+    } catch (e) {
+      return {'success': false, 'message': 'Unable to fetch incoming bookings'};
     }
   }
 
   static Future<Map<String, dynamic>> getBookingDetail(String bookingId) async {
     try {
       final res = await http.get(Uri.parse('$_baseUrl/bookings/$bookingId'), headers: await _headers());
-      return jsonDecode(res.body);
+      return _normalizeResponse(res, fallbackError: 'Unable to fetch booking details');
     } catch (e) {
       return {'success': false, 'message': 'Unable to fetch booking details'};
     }
   }
 
-  static Future<Map<String, dynamic>> updateBookingStatus(String bookingId, String status) async {
+  /// Vendor responds: accepted/rejected with optional quoted_price + deposit.
+  static Future<Map<String, dynamic>> respondToBooking(
+    String bookingId, {
+    required String status,
+    required String message,
+    double? quotedPrice,
+    double? depositRequired,
+    String? reason,
+  }) async {
     try {
-      final res = await http.put(
-        Uri.parse('$_baseUrl/bookings/$bookingId/status'),
+      final body = <String, dynamic>{
+        'status': status,
+        'message': message,
+        if (quotedPrice != null) 'quoted_price': quotedPrice,
+        if (depositRequired != null) 'deposit_required': depositRequired,
+        if (reason != null && reason.isNotEmpty) 'reason': reason,
+      };
+      final res = await http.post(
+        Uri.parse('$_baseUrl/bookings/$bookingId/respond'),
         headers: await _headers(),
-        body: jsonEncode({'status': status}),
+        body: jsonEncode(body),
       );
-      return jsonDecode(res.body);
+      return _normalizeResponse(res, fallbackError: 'Unable to respond to booking');
     } catch (e) {
-      return {'success': false, 'message': 'Unable to update booking'};
+      return {'success': false, 'message': 'Unable to respond to booking'};
     }
+  }
+
+  /// Legacy fallback (kept for back-compat).
+  static Future<Map<String, dynamic>> updateBookingStatus(String bookingId, String status) async {
+    return respondToBooking(bookingId, status: status, message: status == 'accepted' ? 'Accepted' : 'Declined');
   }
 
   static Future<Map<String, dynamic>> getPhotoLibraries(String serviceId) async {

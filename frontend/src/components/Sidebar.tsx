@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   LucideIcon,
   Sparkles,
+  BookOpen,
 } from 'lucide-react'
 import { useLanguage } from '@/lib/i18n/LanguageContext'
 
@@ -73,6 +74,7 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
   const secondaryItems: NavItem[] = [
     { lucideIcon: Search, label: t('find_services'), path: '/find-services', hint: 'Search and browse verified service providers like DJs, caterers, photographers, and decorators for your events.' },
     { lucideIcon: Briefcase, label: t('my_services'), path: '/my-services', hint: 'Manage your listed services, view bookings, track ratings, and respond to client reviews.' },
+    { lucideIcon: BookOpen, label: 'Bookings', path: '/bookings', hint: 'View your booking requests and incoming bookings — accept, decline, pay deposits, or release escrowed payments.' },
     { customIcon: CardIcon, label: t('nuru_pass'), path: '/nuru-cards', hint: 'Order your Nuru Pass for instant tap-to-check-in at events, with QR code backup and NFC support.' },
     { customIcon: CircleIcon, label: t('circle'), path: '/circle', hint: 'View and manage the people you follow, your followers, and pending connection requests.' },
     { customIcon: ContributorsIcon, label: t('contributors'), path: '/my-contributors', hint: 'See a list of people who have contributed to your events and track their contributions.' },

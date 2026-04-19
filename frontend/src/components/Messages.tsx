@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useConversations, useConversationMessages, useSendMessage, prefetchConversationMessages } from '@/data/useSocial';
+import SearchHeader from '@/components/ui/search-header';
 import { usePrefetchOnVisible } from '@/hooks/usePrefetchOnVisible';
 import { messagesApi } from '@/lib/api/messages';
 import { uploadsApi } from '@/lib/api/uploads';
@@ -77,7 +78,8 @@ const Messages = () => {
   });
 
   const { data: currentUser } = useCurrentUser();
-  const { conversations, loading: conversationsLoading, error: conversationsError, refetch: refetchConversations, clearUnread } = useConversations();
+  const [convSearch, setConvSearch] = useState('');
+  const { conversations, loading: conversationsLoading, error: conversationsError, refetch: refetchConversations, clearUnread } = useConversations(convSearch);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const { messages, loading: messagesLoading, refetch: refetchMessages, appendMessage } = useConversationMessages(selectedConversationId || '');
   const { sendMessage, loading: sending } = useSendMessage();
@@ -384,7 +386,7 @@ const Messages = () => {
     </Dialog>
   );
 
-  if (conversations.length === 0) {
+  if (conversations.length === 0 && !convSearch) {
     return (
       <>
         {newChatDialog}
@@ -410,11 +412,14 @@ const Messages = () => {
     <div className="h-full flex bg-muted/20">
       {/* Chat List */}
       <div className={`${isMobile ? (showChatList ? 'w-full' : 'hidden') : 'w-80'} bg-card border-r border-border overflow-y-auto`}>
-        <div className="p-4 border-b border-border flex items-center justify-between">
-          <h2 className="font-semibold text-lg">{t('messages')}</h2>
-          <Button size="sm" className="rounded-lg p-2" aria-label={t('new_message')} onClick={() => setNewChatOpen(true)}>
-            <Plus className="w-4 h-4" />
-          </Button>
+        <div className="p-4 border-b border-border flex items-center justify-between gap-2">
+          <h2 className="font-semibold text-lg shrink-0">{t('messages')}</h2>
+          <div className="flex items-center gap-1">
+            <SearchHeader value={convSearch} onChange={setConvSearch} placeholder={t('search_conversations') || 'Search conversations…'} />
+            <Button size="sm" className="rounded-lg p-2" aria-label={t('new_message')} onClick={() => setNewChatOpen(true)}>
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="p-2 space-y-1">

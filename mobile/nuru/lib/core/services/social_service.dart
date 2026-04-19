@@ -347,11 +347,12 @@ class SocialService {
     int page = 1,
     int limit = 20,
     String filter = 'all',
+    String? search,
   }) async {
     try {
-      final uri = Uri.parse(
-        '$_baseUrl/notifications?page=$page&limit=$limit&filter=$filter',
-      );
+      final qp = <String, String>{'page': '$page', 'limit': '$limit', 'filter': filter};
+      if (search != null && search.isNotEmpty) qp['search'] = search;
+      final uri = Uri.parse('$_baseUrl/notifications/').replace(queryParameters: qp);
       final res = await http.get(uri, headers: await _headers());
       return jsonDecode(res.body);
     } catch (e) {
@@ -397,9 +398,12 @@ class SocialService {
   static Future<Map<String, dynamic>> getConversations({
     int page = 1,
     int limit = 20,
+    String? search,
   }) async {
     try {
-      final uri = Uri.parse('$_baseUrl/messages/?page=$page&limit=$limit');
+      final qp = <String, String>{'page': '$page', 'limit': '$limit'};
+      if (search != null && search.isNotEmpty) qp['search'] = search;
+      final uri = Uri.parse('$_baseUrl/messages/').replace(queryParameters: qp);
       final res = await http.get(uri, headers: await _headers());
       return jsonDecode(res.body);
     } catch (e) {

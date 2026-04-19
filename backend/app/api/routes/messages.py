@@ -106,14 +106,32 @@ def get_unread_count(db: Session = Depends(get_db), current_user: User = Depends
 
 
 @router.get("/")
-def get_conversations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Returns all conversations for the current user."""
+def get_conversations(
+    search: str = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Returns all conversations for the current user.
+
+    Optional ``?search=`` filters conversations whose other participant's
+    display name, username or email contains the term (case-insensitive).
+    """
     from utils.batch_loaders import build_conversation_dicts
     convs = db.query(Conversation).filter(
         or_(Conversation.user_one_id == current_user.id, Conversation.user_two_id == current_user.id),
         Conversation.is_active == True
     ).order_by(Conversation.updated_at.desc()).all()
-    return standard_response(True, "Conversations retrieved successfully", build_conversation_dicts(db, convs, current_user.id))
+    data = build_conversation_dicts(db, convs, current_user.id)
+    if search and search.strip():
+        term = search.strip().lower()
+        data = [c for c in data if term in (
+            f"{c.get('other_user_name','')} "
+            f"{c.get('other_user_username','')} "
+            f"{c.get('other_user_email','')} "
+            f"{c.get('service_name','')} "
+            f"{(c.get('last_message') or {}).get('content','')}"
+        ).lower()]
+    return standard_response(True, "Conversations retrieved successfully", data)
 
 
 # ── Static /start route MUST come before /{conversation_id} to avoid route conflict ──

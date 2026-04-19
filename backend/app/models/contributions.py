@@ -15,6 +15,9 @@ class UserContributor(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    # When the contributor is itself a registered Nuru user, link them so they
+    # can see this contribution in their "My Contributions" tab and self-pay.
+    contributor_user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
     name = Column(Text, nullable=False)
     email = Column(Text)
     phone = Column(Text)
@@ -27,7 +30,8 @@ class UserContributor(Base):
     )
 
     # Relationships
-    user = relationship("User", back_populates="contributors")
+    user = relationship("User", foreign_keys=[user_id], back_populates="contributors")
+    contributor_user = relationship("User", foreign_keys=[contributor_user_id])
     event_contributors = relationship("EventContributor", back_populates="contributor")
 
 

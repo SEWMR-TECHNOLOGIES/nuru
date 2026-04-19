@@ -144,6 +144,23 @@ async def signup(request: Request, db: Session = Depends(get_db)):
         db.add(profile)
         db.add(settings)
         db.commit()
+
+        # Backfill: link any existing UserContributor rows whose phone matches
+        # this new user, so they immediately see "My Contributions" populated.
+        try:
+            from models import UserContributor
+            from sqlalchemy import func as _f
+            digits = "".join(ch for ch in (formatted_phone or "") if ch.isdigit())[-9:]
+            if digits:
+                db.query(UserContributor).filter(
+                    UserContributor.contributor_user_id.is_(None),
+                    UserContributor.phone.isnot(None),
+                    _f.right(_f.regexp_replace(UserContributor.phone, r'[^0-9]', '', 'g'), 9) == digits,
+                ).update({UserContributor.contributor_user_id: user.id}, synchronize_session=False)
+                db.commit()
+        except Exception as e:
+            print(f"[register] Failed to backfill contributor links: {e}")
+            db.rollback()
         
     except Exception:
         db.rollback()

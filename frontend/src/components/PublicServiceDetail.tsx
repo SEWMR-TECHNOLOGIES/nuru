@@ -205,7 +205,7 @@ const PublicServiceDetail = () => {
   const ownerAvatar = (service as any).owner_avatar || (service as any).user?.avatar;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-16">
+    <div className="space-y-6 pb-16">
 
       {/* ─── BACK NAV ─── */}
       <div className="flex items-center justify-end py-4 px-1">

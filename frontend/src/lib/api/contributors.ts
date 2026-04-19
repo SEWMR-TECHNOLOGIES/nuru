@@ -12,12 +12,30 @@ import type { PaginatedResponse } from "./types";
 export interface UserContributor {
   id: string;
   user_id: string;
+  contributor_user_id?: string | null;
   name: string;
   email?: string | null;
   phone?: string | null;
   notes?: string | null;
   created_at?: string;
   updated_at?: string;
+}
+
+/** A row returned by GET /user-contributors/my-contributions */
+export interface MyContributionEvent {
+  event_id: string;
+  event_name: string;
+  event_cover_image_url?: string | null;
+  event_start_date?: string | null;
+  event_location?: string | null;
+  organizer_name?: string | null;
+  event_contributor_id: string;
+  currency: string;
+  pledge_amount: number;
+  total_paid: number;
+  pending_amount: number;
+  balance: number;
+  last_payment_at?: string | null;
 }
 
 export interface EventContributorSummary {
@@ -211,7 +229,27 @@ export const contributorsApi = {
     case_type: 'no_contribution' | 'partial' | 'completed';
     message_template: string;
     payment_info?: string;
+    /** Per-send override for the inquiry contact phone (defaults to event.reminder_contact_phone, then organiser phone) */
+    contact_phone?: string;
     contributor_ids: string[];
   }) =>
     post<{ sent: number; failed: number; errors: string[] }>(`/user-contributors/events/${eventId}/bulk-message`, data),
+
+  // ============================================================================
+  // SELF-CONTRIBUTE — events where the logged-in user is a contributor
+  // ============================================================================
+
+  /** Events where the current user is recorded as a contributor */
+  getMyContributions: (params?: { search?: string }) =>
+    get<{ events: MyContributionEvent[]; count: number }>(`/user-contributors/my-contributions${params?.search ? `?search=${encodeURIComponent(params.search)}` : ""}`),
+
+  /** Submit a pending self-contribution; organiser approves/rejects later */
+  selfContribute: (
+    eventId: string,
+    data: { amount: number; payment_reference?: string; note?: string },
+  ) =>
+    post<{ contribution_id: string; amount: number; status: 'pending' }>(
+      `/user-contributors/events/${eventId}/self-contribute`,
+      data,
+    ),
 };

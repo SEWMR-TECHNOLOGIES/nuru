@@ -16,13 +16,13 @@ class MessagesService {
     };
   }
 
-  /// GET /messages/ — list conversations
-  static Future<Map<String, dynamic>> getConversations() async {
+  /// GET /messages/ — list conversations (optional ``search``)
+  static Future<Map<String, dynamic>> getConversations({String? search}) async {
     try {
-      final res = await http.get(
-        Uri.parse('$_baseUrl/messages/'),
-        headers: await _headers(),
-      );
+      final qp = <String, String>{};
+      if (search != null && search.isNotEmpty) qp['search'] = search;
+      final uri = Uri.parse('$_baseUrl/messages/').replace(queryParameters: qp.isEmpty ? null : qp);
+      final res = await http.get(uri, headers: await _headers());
       return jsonDecode(res.body);
     } catch (e) {
       return {'success': false, 'message': 'Unable to fetch conversations'};

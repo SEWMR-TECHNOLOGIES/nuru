@@ -50,6 +50,7 @@ const CreateEvent: React.FC = () => {
     venueLongitude: null as number | null,
     venueName: "",
     venueAddress: "",
+    reminderContactPhone: "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -122,6 +123,7 @@ const CreateEvent: React.FC = () => {
               venueLongitude: (event as any).venue_coordinates?.longitude || null,
               venueName: (event as any).venue || "",
               venueAddress: (event as any).venue_address || "",
+              reminderContactPhone: (event as any).reminder_contact_phone || "",
             });
 
             // Restore ticketing state
@@ -237,6 +239,9 @@ const CreateEvent: React.FC = () => {
 
       const budgetNumber = formData.budget ? parseFloat(String(formData.budget).replace(/[^0-9.]/g, "")) : null;
       if (budgetNumber !== null && !Number.isNaN(budgetNumber)) form.append("budget", String(budgetNumber));
+
+      // Always send reminder_contact_phone (empty string clears it on update)
+      form.append("reminder_contact_phone", formData.reminderContactPhone.trim());
 
       // Ticketing flags
       form.append("sells_tickets", ticketingEnabled ? "true" : "false");
@@ -496,6 +501,23 @@ const CreateEvent: React.FC = () => {
               {descTooLong && (
                 <p className="text-xs text-destructive mt-1">Description must be under 2,000 characters ({formData.description.length}/2,000)</p>
               )}
+            </div>
+
+            {/* Reminder contact phone (used in contributor reminder messages) */}
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Reminder contact phone <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <Input
+                type="tel"
+                placeholder="e.g. 0712 345 678"
+                value={formData.reminderContactPhone}
+                onChange={(e) => setFormData({ ...formData, reminderContactPhone: e.target.value })}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Shown in reminder & thank-you messages so contributors know who to call.
+                Defaults to your account phone if left blank.
+              </p>
             </div>
 
             {/* Date, Time, Guests */}
