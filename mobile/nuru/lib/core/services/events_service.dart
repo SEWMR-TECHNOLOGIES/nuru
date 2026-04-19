@@ -97,9 +97,11 @@ class EventsService {
     int page = 1,
     int limit = 20,
     String? status,
+    String? search,
   }) {
     final params = <String, String>{'page': '$page', 'limit': '$limit'};
     if (status != null && status != 'all') params['status'] = status;
+    if (search != null && search.trim().isNotEmpty) params['search'] = search.trim();
     return ApiBase.get(
       '/user-events/',
       queryParams: params,
@@ -150,6 +152,7 @@ class EventsService {
     double? venueLatitude,
     double? venueLongitude,
     String? venueAddress,
+    String? reminderContactPhone,
   }) async {
     try {
       final uri = Uri.parse('$_baseUrl/user-events/');
@@ -180,6 +183,8 @@ class EventsService {
         request.fields['venue_longitude'] = '$venueLongitude';
       if (venueAddress != null && venueAddress.isNotEmpty)
         request.fields['venue_address'] = venueAddress;
+      if (reminderContactPhone != null)
+        request.fields['reminder_contact_phone'] = reminderContactPhone;
       if (imagePath != null)
         request.files.add(
           await http.MultipartFile.fromPath('cover_image', imagePath),
@@ -217,6 +222,7 @@ class EventsService {
     double? venueLatitude,
     double? venueLongitude,
     String? venueAddress,
+    String? reminderContactPhone,
   }) async {
     try {
       final uri = Uri.parse('$_baseUrl/user-events/$eventId');
@@ -246,7 +252,8 @@ class EventsService {
         request.fields['venue_longitude'] = '$venueLongitude';
       if (venueAddress != null && venueAddress.isNotEmpty)
         request.fields['venue_address'] = venueAddress;
-      if (imagePath != null)
+      if (reminderContactPhone != null)
+        request.fields['reminder_contact_phone'] = reminderContactPhone;
         request.files.add(
           await http.MultipartFile.fromPath('cover_image', imagePath),
         );

@@ -46,6 +46,8 @@ interface EventContributionsProps {
   eventTitle?: string;
   eventBudget?: number;
   eventEndDate?: string;
+  /** event.reminder_contact_phone — used as default in bulk reminder dialog */
+  reminderContactPhone?: string;
   isCreator?: boolean;
   permissions?: EventPermissions;
 }
@@ -63,7 +65,7 @@ const PAYMENT_METHODS = [
 
 const ITEMS_PER_PAGE = 10;
 
-const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, isCreator = true, permissions }: EventContributionsProps) => {
+const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, reminderContactPhone, isCreator = true, permissions }: EventContributionsProps) => {
   const { t } = useLanguage();
   const canManage = permissions?.can_manage_contributions || permissions?.is_creator;
   const canView = permissions?.can_view_contributions || permissions?.is_creator;
@@ -689,6 +691,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
           eventId={eventId}
           eventTitle={eventTitle}
           eventContributors={eventContributors}
+          defaultContactPhone={reminderContactPhone}
         />
       )}
 

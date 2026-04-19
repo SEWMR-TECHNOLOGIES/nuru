@@ -13,7 +13,7 @@ from typing import List, Optional
 import httpx
 import pytz
 from fastapi import APIRouter, Depends, File, Form, UploadFile, Body
-from sqlalchemy import func as sa_func
+from sqlalchemy import func as sa_func, or_
 from sqlalchemy.orm import Session
 
 from core.config import ALLOWED_IMAGE_EXTENSIONS, MAX_EVENT_IMAGES, MAX_IMAGE_SIZE, UPLOAD_SERVICE_URL
@@ -153,6 +153,7 @@ def _event_summary(db: Session, event: Event) -> dict:
         "budget": float(event.budget) if event.budget else None,
         "currency": _currency_code(db, event.currency_id),
         "dress_code": event.dress_code, "special_instructions": event.special_instructions,
+        "reminder_contact_phone": event.reminder_contact_phone,
         "rsvp_deadline": settings.rsvp_deadline.isoformat() if settings and settings.rsvp_deadline else None,
         "contribution_enabled": settings.contributions_enabled if settings else False,
         "contribution_target": contribution_target,
@@ -315,6 +316,7 @@ def get_my_permissions(
 def get_all_user_events(
     page: int = 1, limit: int = 20, status: str = "all",
     sort_by: str = "created_at", sort_order: str = "desc",
+    search: Optional[str] = None,
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     """Returns all events created by the authenticated user."""
@@ -327,6 +329,14 @@ def get_all_user_events(
         mapped = status
         if hasattr(EventStatusEnum, mapped):
             query = query.filter(Event.status == getattr(EventStatusEnum, mapped))
+
+    if search:
+        term = f"%{search.strip().lower()}%"
+        query = query.filter(or_(
+            sa_func.lower(Event.name).like(term),
+            sa_func.lower(Event.location).like(term),
+            sa_func.lower(Event.description).like(term),
+        ))
 
     sort_col = {"created_at": Event.created_at, "start_date": Event.start_date, "title": Event.name}.get(sort_by, Event.created_at)
     query = query.order_by(sort_col.desc() if sort_order == "desc" else sort_col.asc())
@@ -965,6 +975,7 @@ async def create_event(
     budget: Optional[float] = Form(None), currency: Optional[str] = Form(None),
     expected_guests: Optional[int] = Form(None), dress_code: Optional[str] = Form(None),
     special_instructions: Optional[str] = Form(None), rsvp_deadline: Optional[str] = Form(None),
+    reminder_contact_phone: Optional[str] = Form(None),
     contribution_enabled: Optional[bool] = Form(False), contribution_target: Optional[float] = Form(None),
     contribution_description: Optional[str] = Form(None), services: Optional[str] = Form(None),
     images: Optional[List[UploadFile]] = File(None),
@@ -1039,6 +1050,7 @@ async def create_event(
         theme_color=theme_color.strip() if theme_color else None,
         dress_code=dress_code.strip() if dress_code else None,
         special_instructions=special_instructions.strip() if special_instructions else None,
+        reminder_contact_phone=reminder_contact_phone.strip() if reminder_contact_phone else None,
         created_at=now, updated_at=now,
     )
     db.add(new_event)
@@ -1180,6 +1192,7 @@ async def update_event(
     status: Optional[str] = Form(None), budget: Optional[float] = Form(None),
     currency: Optional[str] = Form(None), expected_guests: Optional[int] = Form(None),
     dress_code: Optional[str] = Form(None), special_instructions: Optional[str] = Form(None),
+    reminder_contact_phone: Optional[str] = Form(None),
     rsvp_deadline: Optional[str] = Form(None), contribution_enabled: Optional[bool] = Form(None),
     contribution_target: Optional[float] = Form(None), contribution_description: Optional[str] = Form(None),
     time: Optional[str] = Form(None), images: Optional[List[UploadFile]] = File(None),
@@ -1279,6 +1292,9 @@ async def update_event(
         event.dress_code = dress_code.strip() if dress_code.strip() else None
     if special_instructions is not None:
         event.special_instructions = special_instructions.strip() if special_instructions.strip() else None
+    if reminder_contact_phone is not None:
+        rcp = reminder_contact_phone.strip()
+        event.reminder_contact_phone = rcp if rcp else None
 
     if errors:
         return standard_response(False, "Validation failed", errors)

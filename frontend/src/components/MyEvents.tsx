@@ -1,7 +1,7 @@
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import {
   Users, UserCheck, Edit2, Trash2, Loader2, FileText, Mail, Shield,
-  Plus, MapPin, CalendarDays, Clock, ChevronRight, CheckCircle2, Info
+  Plus, MapPin, CalendarDays, Clock, ChevronRight, CheckCircle2, Info, HandCoins
 } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
@@ -28,6 +28,8 @@ import { generateEventReportHtml } from '@/utils/generateEventReport';
 import ReportPreviewDialog from '@/components/ReportPreviewDialog';
 import InvitedEvents from './InvitedEvents';
 import CommitteeEvents from './CommitteeEvents';
+import MyContributionsTab from './events/MyContributionsTab';
+import SearchHeader from '@/components/ui/search-header';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const EVENT_STATUSES = [
@@ -89,7 +91,9 @@ const MyEvents = () => {
   });
 
   const navigate = useNavigate();
-  const { events: fetchedEvents, loading, error, refetch } = useEvents();
+  const [search, setSearch] = useState('');
+  const eventsParams = useMemo(() => (search ? { search } : undefined), [search]);
+  const { events: fetchedEvents, loading, error, refetch } = useEvents(eventsParams);
   const { deleteEvent, loading: deleting } = useDeleteEvent();
   usePolling(refetch, 15000);
 
@@ -448,29 +452,54 @@ const MyEvents = () => {
 
   // ── My Events list ─────────────────────────────────────────────────────────
   const renderMyEventsList = () => {
-    if (loading) return renderSkeleton();
-    if (error) return (
-      <div className="text-center py-12">
-        <p className="text-destructive mb-4">Failed to load events. Please try again.</p>
-        <Button onClick={() => refetch()}>Retry</Button>
-      </div>
-    );
-    if (events.length === 0) return (
-      <div className="text-center py-20 border-2 border-dashed border-muted-foreground/20 rounded-2xl">
-        <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
-          <CalendarDays className="w-10 h-10 text-primary" />
-        </div>
-        <h3 className="text-xl font-bold mb-2">No Events Yet</h3>
-        <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-          Create your first event to start planning, managing guests, and tracking contributions.
-        </p>
-        <Button size="lg" onClick={() => navigate('/create-event')}>
-          <Plus className="w-5 h-5 mr-2" /> Create Your First Event
-        </Button>
+    const searchBar = (
+      <div className="flex items-center justify-end">
+        <SearchHeader
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by title, location…"
+        />
       </div>
     );
 
-    return <div className="grid gap-5 sm:grid-cols-1 md:grid-cols-2">{events.map(renderEventCard)}</div>;
+    if (loading) return <div className="space-y-4">{searchBar}{renderSkeleton()}</div>;
+    if (error) return (
+      <div className="space-y-4">
+        {searchBar}
+        <div className="text-center py-12">
+          <p className="text-destructive mb-4">Failed to load events. Please try again.</p>
+          <Button onClick={() => refetch()}>Retry</Button>
+        </div>
+      </div>
+    );
+    if (events.length === 0) return (
+      <div className="space-y-4">
+        {searchBar}
+        <div className="text-center py-20 border-2 border-dashed border-muted-foreground/20 rounded-2xl">
+          <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CalendarDays className="w-10 h-10 text-primary" />
+          </div>
+          <h3 className="text-xl font-bold mb-2">{search ? 'No matches' : 'No Events Yet'}</h3>
+          <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+            {search
+              ? `Nothing matched "${search}". Try a different keyword.`
+              : 'Create your first event to start planning, managing guests, and tracking contributions.'}
+          </p>
+          {!search && (
+            <Button size="lg" onClick={() => navigate('/create-event')}>
+              <Plus className="w-5 h-5 mr-2" /> Create Your First Event
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="space-y-4">
+        {searchBar}
+        <div className="grid gap-5 sm:grid-cols-1 md:grid-cols-2">{events.map(renderEventCard)}</div>
+      </div>
+    );
   };
 
   return (
@@ -522,12 +551,14 @@ const MyEvents = () => {
             { value: 'my-events', label: 'My Events', icon: <SvgIcon src={CalendarIcon} alt="" className="w-4 h-4" /> },
             { value: 'invited', label: 'Invited', icon: <Mail className="w-4 h-4" /> },
             { value: 'committee', label: 'Committee', icon: <Shield className="w-4 h-4" /> },
+            { value: 'contributions', label: 'My Contributions', icon: <HandCoins className="w-4 h-4" /> },
           ]}
         />
 
         <TabsContent value="my-events">{renderMyEventsList()}</TabsContent>
         <TabsContent value="invited"><InvitedEvents /></TabsContent>
         <TabsContent value="committee"><CommitteeEvents /></TabsContent>
+        <TabsContent value="contributions"><MyContributionsTab /></TabsContent>
       </Tabs>
 
       <ReportPreviewDialog

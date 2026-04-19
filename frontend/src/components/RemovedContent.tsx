@@ -278,7 +278,7 @@ export default function RemovedContent() {
   const total = posts.length + moments.length;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+    <div className="px-4 py-6 space-y-6">
       {/* Header */}
       <div className="space-y-1">
         <div className="flex items-center gap-2">

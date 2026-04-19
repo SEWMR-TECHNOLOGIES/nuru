@@ -10,8 +10,10 @@ export const messagesApi = {
   // CONVERSATIONS
   // ============================================================================
 
-  getConversations: () =>
-    get<any[]>("/messages/"),
+  getConversations: (params?: { search?: string }) => {
+    const qs = params?.search ? `?search=${encodeURIComponent(params.search)}` : "";
+    return get<any[]>(`/messages/${qs}`);
+  },
 
   startConversation: (data: { recipient_id: string; message?: string; service_id?: string }) =>
     post<any>("/messages/start", data),

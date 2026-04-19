@@ -154,7 +154,7 @@ const AddService = () => {
 
   return (
     <div className="space-y-6">
-      <div className="max-w-3xl mx-auto">
+      <div className="">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl md:text-3xl font-bold">Add New Service</h1>
           <Button variant="ghost" size="icon" onClick={() => navigate('/my-services')}>

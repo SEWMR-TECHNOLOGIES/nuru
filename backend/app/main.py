@@ -64,7 +64,7 @@ app.add_middleware(
 from middleware.rate_limit import RedisAuthRateLimitMiddleware
 app.add_middleware(
     RedisAuthRateLimitMiddleware,
-    max_requests=10,        # auth: 10 req/min
+    max_requests=30,        # auth: 30 req/min per IP (raised from 10 for shared NAT)
     window_seconds=60,
 )
 

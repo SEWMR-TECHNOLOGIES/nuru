@@ -223,17 +223,17 @@ export const socialApi = {
   // NOTIFICATIONS
   // ============================================================================
 
-  getNotifications: (params?: { page?: number; limit?: number; filter?: "all" | "unread" }) => 
+  getNotifications: (params?: { page?: number; limit?: number; filter?: "all" | "unread"; search?: string }) =>
     get<{ notifications: any[]; unread_count: number; pagination: any }>(`/notifications${buildQueryString(params)}`),
   markAllNotificationsRead: () => put<any>("/notifications/read-all"),
-  markNotificationRead: (notificationId: string) => 
+  markNotificationRead: (notificationId: string) =>
     put<any>(`/notifications/${notificationId}/read`),
 
   // ============================================================================
   // CONVERSATIONS (Messages)
   // ============================================================================
 
-  getConversations: (params?: { page?: number; limit?: number }) => 
+  getConversations: (params?: { page?: number; limit?: number; search?: string }) =>
     get<any[]>(`/messages/${buildQueryString(params)}`),
   getMessages: (conversationId: string, params?: { page?: number; limit?: number }) => 
     get<any[]>(`/messages/${conversationId}${buildQueryString(params)}`),

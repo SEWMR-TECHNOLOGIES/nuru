@@ -74,9 +74,15 @@ export const ticketingApi = {
   purchaseTicket: (data: { ticket_class_id: string; quantity: number }) =>
     post<{ ticket_id: string; ticket_code: string; quantity: number; total_amount: number }>(`/ticketing/purchase`, data),
 
-  // My tickets
-  getMyTickets: (params?: { page?: number; limit?: number }) => {
-    const qs = params ? `?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString()}` : '';
+  // My tickets — supports server-side ?search= over event name/location/ticket class/code.
+  getMyTickets: (params?: { page?: number; limit?: number; search?: string }) => {
+    const qs = params
+      ? `?${new URLSearchParams(
+          Object.entries(params)
+            .filter(([_, v]) => v !== undefined && v !== "")
+            .map(([k, v]) => [k, String(v)]),
+        ).toString()}`
+      : "";
     return get<{ tickets: TicketPurchase[]; pagination: any }>(`/ticketing/my-tickets${qs}`);
   },
 

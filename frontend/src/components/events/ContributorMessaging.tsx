@@ -29,6 +29,8 @@ interface ContributorMessagingProps {
   eventTitle?: string;
   eventContributors: EventContributorSummary[];
   paymentInfo?: string;
+  /** Per-event default fallback contact phone (event.reminder_contact_phone) */
+  defaultContactPhone?: string;
 }
 
 type ContributorCase = 'no_contribution' | 'partial' | 'completed';
@@ -90,7 +92,7 @@ const CASE_CONFIG: Record<ContributorCase, { label: string; description: string;
   },
 };
 
-const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, paymentInfo = '' }: ContributorMessagingProps) => {
+const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, paymentInfo = '', defaultContactPhone = '' }: ContributorMessagingProps) => {
   const { t } = useLanguage();
   const [selectedCase, setSelectedCase] = useState<ContributorCase>('no_contribution');
   const [messageText, setMessageText] = useState('');
@@ -100,6 +102,7 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
   const [sendResult, setSendResult] = useState<{ sent: number; failed: number; errors: string[] } | null>(null);
   const [resultOpen, setResultOpen] = useState(false);
   const [customPaymentInfo, setCustomPaymentInfo] = useState(paymentInfo);
+  const [contactPhoneOverride, setContactPhoneOverride] = useState(defaultContactPhone);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -221,6 +224,7 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
         case_type: selectedCase,
         message_template: messageText,
         payment_info: customPaymentInfo || undefined,
+        contact_phone: contactPhoneOverride.trim() || undefined,
         contributor_ids: sendTargets.map(ec => ec.id),
       });
 
@@ -355,6 +359,23 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
         </div>
 
         <Separator />
+
+        {/* Contact phone (per-send override; defaults to event default, then organiser phone) */}
+        <div className="space-y-2">
+          <Label className="text-xs font-medium">Contact phone shown in message</Label>
+          <Input
+            type="tel"
+            value={contactPhoneOverride}
+            onChange={e => setContactPhoneOverride(e.target.value)}
+            placeholder={defaultContactPhone || 'e.g. 0712 345 678 — leave empty to use organiser phone'}
+            className="text-sm"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            {defaultContactPhone
+              ? `Defaults to the event's reminder contact (${defaultContactPhone}). Override here for this batch.`
+              : 'Falls back to your account phone if left blank. Override here for this batch.'}
+          </p>
+        </div>
 
         {/* Payment Info */}
         <div className="space-y-2">

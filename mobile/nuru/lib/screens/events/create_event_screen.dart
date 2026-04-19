@@ -36,6 +36,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   final _budgetCtrl = TextEditingController();
   final _dressCodeCtrl = TextEditingController();
   final _specialInstructionsCtrl = TextEditingController();
+  final _reminderContactPhoneCtrl = TextEditingController();
   String? _eventTypeId;
   String _visibility = 'private';
   DateTime? _startDate;
@@ -87,6 +88,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _venueCtrl.text = extractStr(e['venue']);
     _dressCodeCtrl.text = extractStr(e['dress_code']);
     _specialInstructionsCtrl.text = extractStr(e['special_instructions']);
+    _reminderContactPhoneCtrl.text = extractStr(e['reminder_contact_phone']);
     if (e['expected_guests'] != null) _expectedGuestsCtrl.text = '${e['expected_guests']}';
     if (e['budget'] != null) _budgetCtrl.text = '${e['budget']}';
     final rawType = e['event_type'];
@@ -229,6 +231,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _budgetCtrl.dispose();
     _dressCodeCtrl.dispose();
     _specialInstructionsCtrl.dispose();
+    _reminderContactPhoneCtrl.dispose();
     super.dispose();
   }
 
@@ -273,6 +276,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         isPublic: _isPublic,
         dressCode: _dressCodeCtrl.text.trim().isEmpty ? null : _dressCodeCtrl.text.trim(),
         specialInstructions: _specialInstructionsCtrl.text.trim().isEmpty ? null : _specialInstructionsCtrl.text.trim(),
+        reminderContactPhone: _reminderContactPhoneCtrl.text.trim().isEmpty ? null : _reminderContactPhoneCtrl.text.trim(),
         time: timeStr,
         imagePath: _imagePath,
         venueLatitude: _venueLatitude,
@@ -295,6 +299,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         isPublic: _isPublic,
         dressCode: _dressCodeCtrl.text.trim().isEmpty ? null : _dressCodeCtrl.text.trim(),
         specialInstructions: _specialInstructionsCtrl.text.trim().isEmpty ? null : _specialInstructionsCtrl.text.trim(),
+        reminderContactPhone: _reminderContactPhoneCtrl.text.trim().isEmpty ? null : _reminderContactPhoneCtrl.text.trim(),
         time: timeStr,
         imagePath: _imagePath,
         venueLatitude: _venueLatitude,
@@ -554,6 +559,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       _input(_dressCodeCtrl, context.tr('dress_code_hint')),
       const SizedBox(height: 12),
       _input(_specialInstructionsCtrl, context.tr('special_instructions_hint'), maxLines: 3),
+      const SizedBox(height: 16),
+      _label('Reminder contact phone (optional)'),
+      _input(_reminderContactPhoneCtrl, 'e.g. +255712345678 — used in reminder messages instead of your number', keyboardType: TextInputType.phone),
     ]));
   }
 

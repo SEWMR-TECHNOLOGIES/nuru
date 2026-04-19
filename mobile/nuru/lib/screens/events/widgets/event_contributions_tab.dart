@@ -61,6 +61,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
   String _messagingCase = 'no_contribution';
   String _messageTemplate = '';
   String _paymentInfo = '';
+  String _reminderContactOverride = '';
   final Set<String> _messagingSelected = {};
   bool _sendingMessages = false;
 
@@ -1871,6 +1872,17 @@ class _EventContributionsTabState extends State<EventContributionsTab>
               style: appText(size: 10, color: AppColors.textTertiary)),
           const SizedBox(height: 12),
 
+          // Reminder contact phone override
+          _label('Contact phone for this send (optional)'),
+          _input(
+            TextEditingController(text: _reminderContactOverride),
+            'Defaults to event reminder contact, then your number',
+            onChanged: (v) => _reminderContactOverride = v,
+          ),
+          Text("Recipients will see this number if they need to reach you about their contribution.",
+              style: appText(size: 10, color: AppColors.textTertiary)),
+          const SizedBox(height: 12),
+
           // Message template (editable)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2087,6 +2099,8 @@ class _EventContributionsTabState extends State<EventContributionsTab>
       'case_type': _messagingCase,
       'message_template': _messageTemplate,
       if (_paymentInfo.isNotEmpty) 'payment_info': _paymentInfo,
+      if (_reminderContactOverride.trim().isNotEmpty)
+        'contact_phone': _reminderContactOverride.trim(),
       'contributor_ids': targets
           .map((ec) => ec['id']?.toString())
           .where((id) => id != null)

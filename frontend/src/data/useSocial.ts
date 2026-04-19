@@ -676,7 +676,7 @@ const _broadcastNotifCount = (count: number) => {
   _notifListeners.forEach(fn => fn(count));
 };
 
-export const useNotifications = (filter?: "all" | "unread") => {
+export const useNotifications = (filter?: "all" | "unread", search: string = "") => {
   const [notifications, setNotifications] = useState<any[]>(_notificationsCache);
   const [unreadCount, setUnreadCount] = useState(_notificationsUnreadCache);
   const [loading, setLoading] = useState(!_notificationsHasLoaded);
@@ -687,22 +687,30 @@ export const useNotifications = (filter?: "all" | "unread") => {
   useEffect(() => {
     const handler = (count: number) => setUnreadCount(count);
     _notifListeners.add(handler);
-    // Sync on mount in case cache changed while unmounted
     setUnreadCount(_notificationsUnreadCache);
     return () => { _notifListeners.delete(handler); };
   }, []);
 
-  const fetchNotifications = useCallback(async (params?: { page?: number; limit?: number }) => {
-    if (!_notificationsHasLoaded) setLoading(true);
+  const fetchNotifications = useCallback(async (params?: { page?: number; limit?: number; search?: string }) => {
+    const term = params?.search ?? search;
+    if (!_notificationsHasLoaded && !term) setLoading(true);
+    if (term) setLoading(true);
     setError(null);
     try {
-      const response = await socialApi.getNotifications({ ...params, filter });
+      const response = await socialApi.getNotifications({
+        page: params?.page,
+        limit: params?.limit,
+        filter,
+        ...(term ? { search: term } : {}),
+      });
       if (response.success) {
         const data = response.data as any;
         const items = data?.notifications || data?.items || (Array.isArray(data) ? data : []);
         const uc = data?.unread_count || 0;
-        _notificationsCache = items;
-        _notificationsHasLoaded = true;
+        if (!term) {
+          _notificationsCache = items;
+          _notificationsHasLoaded = true;
+        }
         setNotifications(items);
         setPagination(data?.pagination);
         _broadcastNotifCount(uc);
@@ -714,7 +722,7 @@ export const useNotifications = (filter?: "all" | "unread") => {
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [filter, search]);
 
   useEffect(() => {
     fetchNotifications();
@@ -778,13 +786,12 @@ const _broadcastConvCount = (count: number) => {
   _convListeners.forEach(fn => fn(count));
 };
 
-export const useConversations = () => {
+export const useConversations = (search: string = "") => {
   const [conversations, setConversations] = useState<any[]>(_conversationsCache);
   const [unreadCount, setUnreadCount] = useState(_conversationsUnreadCache);
   const [loading, setLoading] = useState(!_conversationsHasLoaded);
   const [error, setError] = useState<string | null>(null);
 
-  // Subscribe to cross-instance count updates
   useEffect(() => {
     const handler = (count: number) => setUnreadCount(count);
     _convListeners.add(handler);
@@ -792,16 +799,20 @@ export const useConversations = () => {
     return () => { _convListeners.delete(handler); };
   }, []);
 
-  const fetchConversations = useCallback(async () => {
-    if (!_conversationsHasLoaded) setLoading(true);
+  const fetchConversations = useCallback(async (overrideSearch?: string) => {
+    const term = overrideSearch ?? search;
+    if (!_conversationsHasLoaded && !term) setLoading(true);
+    if (term) setLoading(true);
     setError(null);
     try {
-      const response = await socialApi.getConversations();
+      const response = await socialApi.getConversations(term ? { search: term } : undefined);
       if (response.success) {
         const data = response.data as any;
         const list = Array.isArray(data) ? data : data?.items || data?.conversations || [];
-        _conversationsCache = list;
-        _conversationsHasLoaded = true;
+        if (!term) {
+          _conversationsCache = list;
+          _conversationsHasLoaded = true;
+        }
         setConversations(list);
         const newCount = list.filter((c: any) => c.unread_count > 0).length;
         _broadcastConvCount(newCount);
@@ -813,7 +824,7 @@ export const useConversations = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [search]);
 
   useEffect(() => {
     fetchConversations();

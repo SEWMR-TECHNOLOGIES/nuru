@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
+import '../../core/widgets/expanding_search_action.dart';
 import '../../core/services/ticketing_service.dart';
 import 'my_tickets_screen.dart';
 import '../../core/l10n/l10n_helper.dart';
@@ -49,12 +50,25 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
-      appBar: NuruSubPageAppBar(title: context.tr('browse_tickets')),
+      appBar: NuruSubPageAppBar(
+        title: context.tr('browse_tickets'),
+        actions: [
+          ExpandingSearchAction(
+            value: _search,
+            hintText: 'Search events…',
+            onChanged: (v) {
+              setState(() => _search = v);
+              _page = 1;
+              _load();
+            },
+          ),
+        ],
+      ),
       body: Column(
         children: [
           // Header row: icon + description + My Tickets button (matches web)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             child: Row(
               children: [
                 Container(
@@ -97,34 +111,6 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
                   ),
                 ),
               ],
-            ),
-          ),
-          // Search
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Container(
-              height: 44,
-              decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(12)),
-              child: TextField(
-                onChanged: (v) {
-                  _search = v;
-                  Future.delayed(const Duration(milliseconds: 400), () {
-                    if (_search == v) { _page = 1; _load(); }
-                  });
-                },
-                style: GoogleFonts.plusJakartaSans(fontSize: 14),
-                decoration: InputDecoration(
-                  hintText: 'Search events by name or location...',
-                  hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textHint),
-                  prefixIcon: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: SvgPicture.asset('assets/icons/search-icon.svg', width: 18, height: 18,
-                        colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-              ),
             ),
           ),
           // Events list
