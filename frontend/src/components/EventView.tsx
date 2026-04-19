@@ -159,25 +159,28 @@ const EventView = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl md:text-3xl font-bold">{event.title || 'Event Details'}</h1>
+      <div className="space-y-3">
         <div className="flex items-center gap-2">
-          {isCreator && (
-            <>
-              <Button variant="outline" size="sm" onClick={() => navigate(`/create-event?edit=${id}`)} className="gap-1.5">
-                <Edit2 className="w-4 h-4" />
-                Edit
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleGenerateReport} className="gap-1.5">
-                <FileText className="w-4 h-4" />
-                Report
-              </Button>
-            </>
-          )}
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <h1 className="flex-1 min-w-0 text-lg sm:text-2xl md:text-3xl font-bold break-words leading-tight">
+            {event.title || 'Event Details'}
+          </h1>
+          <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => navigate(-1)} aria-label="Back">
             <ChevronLeft className="w-5 h-5" />
           </Button>
         </div>
+        {isCreator && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate(`/create-event?edit=${id}`)} className="gap-1.5">
+              <Edit2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Edit</span>
+              <span className="sm:hidden">Edit</span>
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleGenerateReport} className="gap-1.5">
+              <FileText className="w-4 h-4" />
+              Report
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Cover Image */}

@@ -505,12 +505,12 @@ const MyEvents = () => {
   return (
     <div className="space-y-8">
       {/* ── Page Header ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{t("my_events")}</h1>
-          <p className="text-muted-foreground mt-1">Plan, manage, and track all your events in one place</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight break-words leading-tight">{t("my_events")}</h1>
+          <p className="text-sm text-muted-foreground mt-1">Plan, manage, and track all your events in one place</p>
         </div>
-        <Button size="lg" className="shadow-md" onClick={() => navigate('/create-event')}>
+        <Button size="lg" className="shadow-md w-full sm:w-auto" onClick={() => navigate('/create-event')}>
           <Plus className="w-4 h-4 mr-2" /> New Event
         </Button>
       </div>

@@ -525,9 +525,9 @@ const PostDetail = () => {
   if (loading) {
     return (
       <>
-        <div className="flex items-center justify-between mb-3 md:mb-4">
-          <h1 className="text-2xl md:text-3xl font-bold">Moment</h1>
-          <Button variant="ghost" size="icon" onClick={handleBack}>
+        <div className="flex items-center gap-2 mb-3 md:mb-4">
+          <h1 className="flex-1 min-w-0 text-xl sm:text-2xl md:text-3xl font-bold break-words leading-tight">Moment</h1>
+          <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={handleBack} aria-label="Back">
             <ChevronLeft className="w-5 h-5" />
           </Button>
         </div>
@@ -604,9 +604,9 @@ const PostDetail = () => {
         </DialogContent>
       </Dialog>
 
-        <div className="flex items-center justify-between mb-3 md:mb-4">
-          <h1 className="text-2xl md:text-3xl font-bold">Moment</h1>
-          <Button variant="ghost" size="icon" onClick={handleBack}>
+        <div className="flex items-center gap-2 mb-3 md:mb-4">
+          <h1 className="flex-1 min-w-0 text-xl sm:text-2xl md:text-3xl font-bold break-words leading-tight">Moment</h1>
+          <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={handleBack} aria-label="Back">
             <ChevronLeft className="w-5 h-5" />
           </Button>
         </div>

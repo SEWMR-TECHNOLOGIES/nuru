@@ -801,8 +801,10 @@ export const useConversations = (search: string = "") => {
 
   const fetchConversations = useCallback(async (overrideSearch?: string) => {
     const term = overrideSearch ?? search;
+    // Silent refresh: only show skeleton on the very first load (no cached
+    // data and no search term). Subsequent searches/refreshes update the list
+    // in place — WhatsApp-style — without re-mounting the UI.
     if (!_conversationsHasLoaded && !term) setLoading(true);
-    if (term) setLoading(true);
     setError(null);
     try {
       const response = await socialApi.getConversations(term ? { search: term } : undefined);

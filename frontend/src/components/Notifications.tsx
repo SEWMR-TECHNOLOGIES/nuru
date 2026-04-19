@@ -318,8 +318,8 @@ const Notifications = () => {
   return (
     <div className="space-y-4 md:space-y-6 pb-4">
       <div className="flex items-center justify-between gap-2">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Notifications</h1>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl md:text-2xl font-bold text-foreground truncate">Notifications</h1>
           {unreadCount > 0 && (
             <p className="text-sm text-muted-foreground">{unreadCount} unread</p>
           )}
