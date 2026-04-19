@@ -699,20 +699,20 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
       {isCreator && pendingContributions.length > 0 && (
         <Card className="border-amber-200 bg-amber-50/50">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-amber-600" />
-                <h3 className="font-semibold text-amber-800">Awaiting Confirmation ({pendingContributions.length})</h3>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <ShieldCheck className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                <h3 className="font-semibold text-amber-800 text-sm sm:text-base truncate">Awaiting Confirmation ({pendingContributions.length})</h3>
               </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setSelectedPending(selectedPending.length === pendingContributions.length ? [] : pendingContributions.map(p => p.id))}>
-                  {selectedPending.length === pendingContributions.length ? 'Deselect All' : 'Select All'}
+              <div className="grid grid-cols-3 sm:flex gap-2 w-full sm:w-auto">
+                <Button size="sm" variant="outline" className="px-2 sm:px-3" onClick={() => setSelectedPending(selectedPending.length === pendingContributions.length ? [] : pendingContributions.map(p => p.id))}>
+                  <span className="truncate text-xs sm:text-sm">{selectedPending.length === pendingContributions.length ? 'Deselect' : 'Select All'}</span>
                 </Button>
-                <Button size="sm" variant="destructive" onClick={handleRejectPending} disabled={selectedPending.length === 0 || confirmingPending}>
-                  {confirmingPending ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />...</> : <><Trash className="w-4 h-4 mr-1" />Reject ({selectedPending.length})</>}
+                <Button size="sm" variant="destructive" className="px-2 sm:px-3" onClick={handleRejectPending} disabled={selectedPending.length === 0 || confirmingPending}>
+                  {confirmingPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Trash className="w-4 h-4 sm:mr-1" /><span className="hidden sm:inline">Reject </span><span className="text-xs sm:text-sm">({selectedPending.length})</span></>}
                 </Button>
-                <Button size="sm" onClick={handleConfirmPending} disabled={selectedPending.length === 0 || confirmingPending}>
-                  {confirmingPending ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Confirming...</> : <><CheckCircle2 className="w-4 h-4 mr-1" />Confirm ({selectedPending.length})</>}
+                <Button size="sm" className="px-2 sm:px-3" onClick={handleConfirmPending} disabled={selectedPending.length === 0 || confirmingPending}>
+                  {confirmingPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle2 className="w-4 h-4 sm:mr-1" /><span className="hidden sm:inline">Confirm </span><span className="text-xs sm:text-sm">({selectedPending.length})</span></>}
                 </Button>
               </div>
             </div>
