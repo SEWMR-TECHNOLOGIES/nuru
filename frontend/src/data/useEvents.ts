@@ -21,20 +21,25 @@ let _eventsPaginationCache: any = null;
 let _eventsHasLoaded = false;
 
 export const useEvents = (initialParams?: EventQueryParams) => {
-  const [events, setEvents] = useState<Event[]>(_eventsCache);
-  const [loading, setLoading] = useState(!_eventsHasLoaded);
+  const hasSearch = !!initialParams?.search;
+  const [events, setEvents] = useState<Event[]>(hasSearch ? [] : _eventsCache);
+  const [loading, setLoading] = useState(hasSearch ? true : !_eventsHasLoaded);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState<any>(_eventsPaginationCache);
+  const [pagination, setPagination] = useState<any>(hasSearch ? null : _eventsPaginationCache);
 
   const fetchEvents = useCallback(async (params?: EventQueryParams) => {
-    if (!_eventsHasLoaded) setLoading(true);
+    const effective = params || initialParams;
+    const isSearch = !!effective?.search;
+    if (!_eventsHasLoaded || isSearch) setLoading(true);
     setError(null);
     try {
-      const response = await eventsApi.getAll(params || initialParams);
+      const response = await eventsApi.getAll(effective);
       if (response.success) {
-        _eventsCache = response.data.events;
-        _eventsPaginationCache = response.data.pagination;
-        _eventsHasLoaded = true;
+        if (!isSearch) {
+          _eventsCache = response.data.events;
+          _eventsPaginationCache = response.data.pagination;
+          _eventsHasLoaded = true;
+        }
         setEvents(response.data.events);
         setPagination(response.data.pagination);
       } else {

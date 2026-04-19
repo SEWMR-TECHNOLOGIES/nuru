@@ -12,6 +12,8 @@ export interface BookingQueryParams {
   service_id?: string;
   sort_by?: "created_at" | "event_date" | "status";
   sort_order?: "asc" | "desc";
+  /** Server-side substring filter across service / event / client / vendor / status / notes. */
+  search?: string;
 }
 
 export const bookingsApi = {

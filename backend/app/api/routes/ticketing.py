@@ -373,17 +373,36 @@ async def purchase_ticket(
 def get_my_tickets(
     page: int = 1,
     limit: int = 20,
+    search: str = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get all tickets purchased by the current user."""
+    """Get all tickets purchased by the current user.
+
+    Optional ``?search=`` filters by event name, location, ticket class name
+    or ticket code (case-insensitive substring match)."""
+    from sqlalchemy import func as sa_func, or_
+
     page = max(1, page)
     limit = max(1, min(limit, 50))
     offset = (page - 1) * limit
 
     query = db.query(EventTicket).filter(
         EventTicket.buyer_user_id == current_user.id
-    ).order_by(EventTicket.created_at.desc())
+    )
+
+    if search and search.strip():
+        term = f"%{search.strip().lower()}%"
+        query = query.outerjoin(Event, EventTicket.event_id == Event.id) \
+                     .outerjoin(EventTicketClass, EventTicket.ticket_class_id == EventTicketClass.id) \
+                     .filter(or_(
+                         sa_func.lower(EventTicket.ticket_code).like(term),
+                         sa_func.lower(Event.name).like(term),
+                         sa_func.lower(Event.location).like(term),
+                         sa_func.lower(EventTicketClass.name).like(term),
+                     ))
+
+    query = query.order_by(EventTicket.created_at.desc())
 
     total = query.count()
     tickets = query.offset(offset).limit(limit).all()

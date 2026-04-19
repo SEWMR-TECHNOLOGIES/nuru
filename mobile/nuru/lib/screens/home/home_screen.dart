@@ -14,6 +14,7 @@ import '../../core/widgets/premium_button.dart';
 import '../../providers/auth_provider.dart';
 import '../events/event_detail_screen.dart' show EventDetailScreen;
 import '../events/event_public_view_screen.dart';
+import '../events/widgets/my_contributions_tab.dart';
 import '../search/search_screen.dart';
 import '../messages/messages_screen.dart';
 import '../profile/profile_screen.dart';
@@ -64,6 +65,8 @@ class _HomeScreenState extends State<HomeScreen> {
   List<dynamic> _ticketedEvents = [];
   List<dynamic> _myServices = [];
   int _eventsSubTab = 0;
+  String _eventsSearch = '';
+  Timer? _eventsSearchDebounce;
 
   @override
   void initState() {
@@ -186,8 +189,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadEvents() async {
+    final s = _eventsSearch.trim().isEmpty ? null : _eventsSearch.trim();
     final results = await Future.wait([
-      EventsService.getMyEvents(limit: 20),
+      EventsService.getMyEvents(limit: 20, search: s),
       EventsService.getInvitedEvents(limit: 20),
       EventsService.getCommitteeEvents(limit: 20),
     ]);
@@ -200,9 +204,15 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _loadNotifications() async {
+  String _notificationsSearch = '';
+
+  Future<void> _loadNotifications({String? search}) async {
+    if (search != null) _notificationsSearch = search;
     setState(() => _notificationsLoading = true);
-    final res = await SocialService.getNotifications(limit: 30);
+    final res = await SocialService.getNotifications(
+      limit: 30,
+      search: _notificationsSearch.isNotEmpty ? _notificationsSearch : null,
+    );
     if (mounted) {
       setState(() {
         _notificationsLoading = false;
@@ -337,6 +347,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     unreadCount: _unreadNotifications,
                     isLoading: _notificationsLoading,
                     onRefresh: _loadNotifications,
+                    onSearch: (q) => _loadNotifications(search: q),
                     onTabChanged: (i) => setState(() => _tab = i),
                   ),
                   _profileContent(),
@@ -417,9 +428,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 StatItem('Committee', '${_committeeEvents.length}'),
               ]),
               const SizedBox(height: 16),
-              PillTabs(tabs: const ['My Events', 'Invited', 'Committee'], selected: _eventsSubTab, onChanged: (i) => setLocalState(() => _eventsSubTab = i)),
-              const SizedBox(height: 16),
-              if (_loading) ...List.generate(3, (_) => const Padding(padding: EdgeInsets.only(bottom: 16), child: ShimmerCard()))
+              PillTabs(tabs: const ['My Events', 'Invited', 'Committee', 'Contributing'], selected: _eventsSubTab, onChanged: (i) => setLocalState(() => _eventsSubTab = i)),
+              const SizedBox(height: 12),
+              if (_eventsSubTab == 0) _eventsSearchBar(setLocalState),
+              if (_eventsSubTab == 0) const SizedBox(height: 12),
+              if (_eventsSubTab == 3)
+                const MyContributionsTab()
+              else if (_loading) ...List.generate(3, (_) => const Padding(padding: EdgeInsets.only(bottom: 16), child: ShimmerCard()))
               else if (events.isEmpty)
                 EmptyState(
                   icon: _eventsSubTab == 0 ? Icons.calendar_month_outlined : _eventsSubTab == 1 ? Icons.mail_outline_rounded : Icons.groups_outlined,
@@ -454,6 +469,43 @@ class _HomeScreenState extends State<HomeScreen> {
       profile: _profile,
       myEventsCount: _totalEvents,
       onRefresh: _loadAllData,
+    );
+  }
+
+  Widget _eventsSearchBar(StateSetter setLocalState) {
+    return TextField(
+      controller: TextEditingController(text: _eventsSearch)
+        ..selection = TextSelection.collapsed(offset: _eventsSearch.length),
+      onChanged: (v) {
+        _eventsSearchDebounce?.cancel();
+        _eventsSearchDebounce = Timer(const Duration(milliseconds: 350), () {
+          setState(() => _eventsSearch = v);
+          _loadEvents();
+        });
+      },
+      style: GoogleFonts.plusJakartaSans(fontSize: 14),
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: 'Search my events…',
+        hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary),
+        prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.textTertiary),
+        suffixIcon: _eventsSearch.isEmpty
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textTertiary),
+                onPressed: () {
+                  _eventsSearchDebounce?.cancel();
+                  setState(() => _eventsSearch = '');
+                  _loadEvents();
+                },
+                splashRadius: 18,
+              ),
+        filled: true,
+        fillColor: AppColors.surfaceVariant,
+        contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
+      ),
     );
   }
 }

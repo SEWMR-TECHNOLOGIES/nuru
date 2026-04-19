@@ -15,6 +15,7 @@ import { getEventCountdown } from "@/utils/getEventCountdown";
 import { motion } from "framer-motion";
 import PrintableTicket from "@/components/PrintableTicket";
 import CountdownClock from "@/components/CountdownClock";
+import SearchHeader from "@/components/ui/search-header";
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const STATUS_STYLES: Record<string, string> = {
@@ -87,23 +88,27 @@ const MyTickets = () => {
   const [pagination, setPagination] = useState<any>(_ticketsPagination);
   const [upcomingTickets, setUpcomingTickets] = useState<any[]>(_upcomingCache);
   const [printTicket, setPrintTicket] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
-    if (initialLoad.current) setLoading(true);
+    if (initialLoad.current && !searchTerm) setLoading(true);
+    if (searchTerm) setLoading(true);
     Promise.all([
-      ticketingApi.getMyTickets({ page, limit: 20 }),
-      ticketingApi.getMyUpcomingTickets(),
+      ticketingApi.getMyTickets({ page, limit: 20, ...(searchTerm ? { search: searchTerm } : {}) }),
+      _upcomingCache.length === 0 ? ticketingApi.getMyUpcomingTickets() : Promise.resolve(null as any),
     ]).then(([ticketRes, upRes]) => {
       if (ticketRes.success && ticketRes.data) {
         const d = ticketRes.data as any;
-        const t = d.tickets || [];
-        _ticketsCache = t;
-        _ticketsPagination = d.pagination || null;
-        _ticketsHasLoaded = true;
-        setTickets(t);
+        const tk = d.tickets || [];
+        if (!searchTerm) {
+          _ticketsCache = tk;
+          _ticketsPagination = d.pagination || null;
+          _ticketsHasLoaded = true;
+        }
+        setTickets(tk);
         setPagination(d.pagination || null);
       }
-      if (upRes.success && upRes.data) {
+      if (upRes && upRes.success && upRes.data) {
         const up = (upRes.data as any).tickets || [];
         _upcomingCache = up;
         setUpcomingTickets(up);
@@ -112,10 +117,10 @@ const MyTickets = () => {
       setLoading(false);
       initialLoad.current = false;
     });
-  }, [page]);
+  }, [page, searchTerm]);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -127,9 +132,12 @@ const MyTickets = () => {
             <p className="text-sm text-muted-foreground">All your purchased event tickets</p>
           </div>
         </div>
-        <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate(-1)}>
-          <ChevronLeft className="w-5 h-5" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <SearchHeader value={searchTerm} onChange={(v) => { setPage(1); setSearchTerm(v); }} placeholder="Search by event, code, or class…" />
+          <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate(-1)}>
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

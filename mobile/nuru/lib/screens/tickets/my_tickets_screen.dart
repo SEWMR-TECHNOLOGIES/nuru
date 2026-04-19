@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
+import '../../core/widgets/expanding_search_action.dart';
 import '../../core/services/ticketing_service.dart';
 import '../../core/l10n/l10n_helper.dart';
 
@@ -21,6 +22,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> {
   bool _loading = true;
   int _page = 1;
   Map<String, dynamic>? _pagination;
+  String _search = '';
 
   static const _statusStyles = <String, Color>{
     'confirmed': AppColors.blue,
@@ -39,7 +41,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     final results = await Future.wait([
-      TicketingService.getMyTickets(page: _page),
+      TicketingService.getMyTickets(page: _page, search: _search.isNotEmpty ? _search : null),
       TicketingService.getMyUpcomingTickets(),
     ]);
     if (mounted) {
@@ -66,7 +68,16 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
-      appBar: NuruSubPageAppBar(title: context.tr('my_tickets')),
+      appBar: NuruSubPageAppBar(
+        title: context.tr('my_tickets'),
+        actions: [
+          ExpandingSearchAction(
+            value: _search,
+            hintText: 'Search tickets…',
+            onChanged: (v) { _search = v; _page = 1; _load(); },
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
         color: AppColors.primary,

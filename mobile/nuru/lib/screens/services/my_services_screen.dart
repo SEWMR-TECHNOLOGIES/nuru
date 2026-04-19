@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../../core/services/secure_token_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
+import '../../core/widgets/expanding_search_action.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/user_services_service.dart';
 import '../../core/widgets/app_snackbar.dart';
@@ -33,6 +34,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
   List<dynamic> _recentReviews = [];
   Map<String, dynamic> _summary = {};
   bool _loading = true;
+  String _search = '';
 
   @override
   void initState() {
@@ -42,7 +44,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final res = await UserServicesService.getMyServices();
+    final res = await UserServicesService.getMyServices(search: _search.isEmpty ? null : _search);
     if (mounted) {
       setState(() {
         _loading = false;
@@ -87,7 +89,19 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F3F8),
-      appBar: NuruSubPageAppBar(title: context.tr('my_services')),
+      appBar: NuruSubPageAppBar(
+        title: context.tr('my_services'),
+        actions: [
+          ExpandingSearchAction(
+            value: _search,
+            hintText: 'Search services…',
+            onChanged: (v) {
+              setState(() => _search = v);
+              _load();
+            },
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           final ok = await AgreementGate.checkAndPrompt(context, 'vendor_agreement');

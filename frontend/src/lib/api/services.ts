@@ -32,7 +32,8 @@ export const userServicesApi = {
   /**
    * Get all services for current user
    */
-  getAll: () => get<UserService[]>("/user-services/"),
+  getAll: (params?: { search?: string }) =>
+    get<UserService[]>(`/user-services/${params?.search ? `?search=${encodeURIComponent(params.search)}` : ""}`),
 
   /**
    * Get a single service by ID

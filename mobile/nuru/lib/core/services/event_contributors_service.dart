@@ -56,6 +56,22 @@ class EventContributorsService {
     return ApiBase.postRaw('/user-contributors/events/$eventId/bulk-message', data);
   }
 
+  /// Events where the logged-in user is listed as a contributor.
+  static Future<Map<String, dynamic>> getMyContributions({String? search}) {
+    final qp = <String, String>{};
+    if (search != null && search.trim().isNotEmpty) qp['search'] = search.trim();
+    return ApiBase.get(
+      '/user-contributors/my-contributions',
+      queryParams: qp.isEmpty ? null : qp,
+      fallbackError: 'Unable to fetch your contributions',
+    );
+  }
+
+  /// Submit a pending self-contribution awaiting organiser approval.
+  static Future<Map<String, dynamic>> selfContribute(String eventId, Map<String, dynamic> data) {
+    return ApiBase.postRaw('/user-contributors/events/$eventId/self-contribute', data);
+  }
+
   static Future<Map<String, dynamic>> addContributorsAsGuests(String eventId, Map<String, dynamic> data) {
     return ApiBase.postRaw('/user-events/$eventId/guests/from-contributors', data);
   }

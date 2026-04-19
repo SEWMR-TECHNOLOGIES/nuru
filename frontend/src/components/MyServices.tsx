@@ -24,6 +24,7 @@ import { showApiErrors, showCaughtError } from '@/lib/api';
 import { userServicesApi } from '@/lib/api';
 import type { ServiceReview } from '@/lib/api/types';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import SearchHeader from '@/components/ui/search-header';
 
 // Detect if a service is photography type
 const isPhotographyService = (service: any): boolean => {
@@ -39,7 +40,8 @@ const MyServices = () => {
   });
 
   const navigate = useNavigate();
-  const { services, summary, recentReviews, loading, error, refetch } = useUserServices();
+  const [search, setSearch] = useState('');
+  const { services, summary, recentReviews, loading, error, refetch } = useUserServices(search);
 
   const reviews = (recentReviews || []).map((r: any) => ({
     id: r.id,
@@ -221,7 +223,7 @@ const MyServices = () => {
   const getCategoryName = (service: any): string => service.category || service.service_category?.name || 'Uncategorized';
   const getServiceTypeName = (service: any): string => service.service_type_name || service.service_type?.name || '';
 
-  if (loading) return <ServiceLoadingSkeleton />;
+  if (loading && !search) return <ServiceLoadingSkeleton />;
   if (error) return <p className="text-destructive">{error}</p>;
 
   return (
@@ -232,10 +234,17 @@ const MyServices = () => {
           <h1 className="text-3xl font-bold tracking-tight">{t("my_services")}</h1>
           <p className="text-muted-foreground mt-1">Your professional portfolio on Nuru</p>
         </div>
-        <Button size="lg" className="shadow-md" onClick={() => navigate('/services/new')}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add New Service
-        </Button>
+        <div className="flex items-center gap-2">
+          <SearchHeader
+            value={search}
+            onChange={setSearch}
+            placeholder="Search your services…"
+          />
+          <Button size="lg" className="shadow-md" onClick={() => navigate('/services/new')}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add New Service
+          </Button>
+        </div>
       </div>
 
       {/* Stats Row */}

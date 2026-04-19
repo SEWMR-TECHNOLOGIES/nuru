@@ -58,6 +58,9 @@ class Event(Base):
     dress_code = Column(String(100))
     special_instructions = Column(Text)
     card_template_id = Column(UUID(as_uuid=True), ForeignKey('invitation_card_templates.id', ondelete='SET NULL'), nullable=True)
+    # Optional fallback phone used in contributor reminder/bulk messages
+    # (defaults to organiser's phone if NULL).
+    reminder_contact_phone = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

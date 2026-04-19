@@ -17,27 +17,45 @@ router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 
 @router.get("/")
-def get_notifications(page: int = 1, limit: int = 20, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_notifications(
+    page: int = 1,
+    limit: int = 20,
+    search: str = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     from core.redis import cache_get, cache_set, CacheKeys
 
-    cache_key = CacheKeys.for_notifications(str(current_user.id), page, limit)
-    cached = cache_get(cache_key)
-    if cached is not None:
-        return standard_response(True, "Notifications retrieved", cached)
+    use_cache = not (search and search.strip())
+    cache_key = CacheKeys.for_notifications(str(current_user.id), page, limit) if use_cache else None
+    if use_cache:
+        cached = cache_get(cache_key)
+        if cached is not None:
+            return standard_response(True, "Notifications retrieved", cached)
 
     from utils.batch_loaders import build_notification_dicts
-    query = db.query(Notification).filter(Notification.recipient_id == current_user.id).order_by(Notification.created_at.desc())
+    from sqlalchemy import func as sa_func, or_
+
+    query = db.query(Notification).filter(Notification.recipient_id == current_user.id)
+    if search and search.strip():
+        term = f"%{search.strip().lower()}%"
+        query = query.filter(or_(
+            sa_func.lower(Notification.title).like(term),
+            sa_func.lower(Notification.message).like(term),
+            sa_func.lower(Notification.notification_type).like(term),
+        ))
+    query = query.order_by(Notification.created_at.desc())
+
     items, pagination = paginate(query, page, limit)
     data = build_notification_dicts(db, items)
 
-    # unread count
-    from sqlalchemy import func as sa_func
     unread = db.query(sa_func.count(Notification.id)).filter(
         Notification.recipient_id == current_user.id, Notification.is_read == False
     ).scalar() or 0
 
     result = {"notifications": data, "unread_count": unread, "pagination": pagination}
-    cache_set(cache_key, result, ttl_seconds=60)  # 1 min TTL
+    if use_cache:
+        cache_set(cache_key, result, ttl_seconds=60)
     return standard_response(True, "Notifications retrieved", result)
 
 

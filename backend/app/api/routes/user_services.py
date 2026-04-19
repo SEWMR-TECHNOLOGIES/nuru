@@ -132,8 +132,19 @@ def _service_dict(db, service):
 # Get All My Services
 # ──────────────────────────────────────────────
 @router.get("/")
-def get_my_services(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    services = db.query(UserService).filter(UserService.user_id == current_user.id).all()
+def get_my_services(
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    q = db.query(UserService).filter(UserService.user_id == current_user.id)
+    if search:
+        term = f"%{search.strip().lower()}%"
+        q = q.filter(or_(
+            sa_func.lower(UserService.title).like(term),
+            sa_func.lower(UserService.description).like(term),
+        ))
+    services = q.all()
     service_list = [_service_dict(db, s) for s in services]
 
     # Collect all recent reviews across all services

@@ -16,10 +16,20 @@ from starlette.responses import JSONResponse
 
 
 def _get_client_ip(request: Request) -> str:
-    """Extract real client IP, respecting X-Forwarded-For from NGINX."""
-    forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    """Extract real client IP, respecting X-Forwarded-For from NGINX.
+
+    NGINX sets `X-Forwarded-For: <client>, <intermediate>...` via
+    `$proxy_add_x_forwarded_for`, so the FIRST entry is the real client.
+    Fall back to X-Real-IP, then to the socket peer.
+    """
+    forwarded = request.headers.get("x-forwarded-for", "")
     if forwarded:
-        return forwarded
+        first = forwarded.split(",")[0].strip()
+        if first:
+            return first
+    real_ip = request.headers.get("x-real-ip", "").strip()
+    if real_ip:
+        return real_ip
     return request.client.host if request.client else "unknown"
 
 
@@ -60,7 +70,15 @@ class RedisRateLimitMiddleware(BaseHTTPMiddleware):
         self.exclude_paths = exclude_paths or {"/health", "/docs", "/openapi.json"}
 
     async def dispatch(self, request: Request, call_next):
+        # Never rate-limit CORS preflights — browsers fire these automatically
+        # and they shouldn't count against the user's budget.
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         path = request.url.path
+        # Exact-match excludes for tiny paths that shouldn't burn budget.
+        if path in {"/", "/favicon.ico", "/robots.txt"}:
+            return await call_next(request)
         for prefix in self.exclude_paths:
             if path.startswith(prefix):
                 return await call_next(request)
@@ -93,6 +111,9 @@ class RedisAuthRateLimitMiddleware(BaseHTTPMiddleware):
         self.window_seconds = window_seconds
 
     async def dispatch(self, request: Request, call_next):
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         path = request.url.path
         if not self.AUTH_PATTERN.match(path):
             return await call_next(request)

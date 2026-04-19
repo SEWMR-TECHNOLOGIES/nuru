@@ -13,6 +13,7 @@ import PhotosIcon from '@/assets/icons/photos-icon.svg';
 import CalendarIconSVG from '@/assets/icons/calendar-icon.svg';
 import LocationIconSVG from '@/assets/icons/location-icon.svg';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import SearchHeader from '@/components/ui/search-header';
 
 // ─── Module-level cache ───
 const _librariesCache: Record<string, PhotoLibrary[]> = {};
@@ -26,6 +27,7 @@ const ServicePhotoLibraries = () => {
   const [libraries, setLibraries] = useState<PhotoLibrary[]>(serviceId ? (_librariesCache[serviceId] || []) : []);
   const [storageInfo, setStorageInfo] = useState(serviceId && _storageCache[serviceId] ? _storageCache[serviceId] : { used_mb: 0, limit_mb: 200, remaining_mb: 200 });
   const [loading, setLoading] = useState(serviceId ? !_librariesLoaded[serviceId] : true);
+  const [search, setSearch] = useState('');
 
   useWorkspaceMeta({ title: 'Photo Libraries', description: 'Manage your event photo libraries' });
 
@@ -33,25 +35,27 @@ const ServicePhotoLibraries = () => {
 
   const fetchLibraries = useCallback(async () => {
     if (!serviceId) return;
-    if (initialLoad.current) setLoading(true);
+    if (initialLoad.current || search) setLoading(true);
     try {
-      const res = await photoLibrariesApi.getServiceLibraries(serviceId);
+      const res = await photoLibrariesApi.getServiceLibraries(serviceId, search ? { search } : undefined);
       if (res.success && res.data) {
         const storage = {
           used_mb: res.data.storage_used_mb,
           limit_mb: res.data.storage_limit_mb,
           remaining_mb: res.data.storage_remaining_mb,
         };
-        _librariesCache[serviceId] = res.data.libraries;
-        _storageCache[serviceId] = storage;
-        _librariesLoaded[serviceId] = true;
+        if (!search) {
+          _librariesCache[serviceId] = res.data.libraries;
+          _storageCache[serviceId] = storage;
+          _librariesLoaded[serviceId] = true;
+        }
         initialLoad.current = false;
         setLibraries(res.data.libraries);
         setStorageInfo(storage);
       }
     } catch (err) { showCaughtError(err); }
     finally { setLoading(false); }
-  }, [serviceId]);
+  }, [serviceId, search]);
 
   useEffect(() => { fetchLibraries(); }, [fetchLibraries]);
 
@@ -64,17 +68,20 @@ const ServicePhotoLibraries = () => {
   const mosaicPhotos = allPhotos.slice(0, 6);
 
   return (
-    <div className="max-w-5xl mx-auto pb-16">
+    <div className="pb-16">
 
       {/* ─── TOP BAR: back on right, new library button inline ─── */}
-      <div className="flex items-center justify-between py-4 px-1 mb-2">
+      <div className="flex items-center justify-between py-4 px-1 mb-2 gap-2">
         <Button size="sm" onClick={() => navigate(`/services/events/${serviceId}`)}>
           <Plus className="w-4 h-4 mr-1.5" />
           New Library
         </Button>
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Go back">
-          <ChevronLeft className="w-5 h-5" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <SearchHeader value={search} onChange={setSearch} placeholder="Search libraries…" />
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Go back">
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+        </div>
       </div>
 
       {/* ─── HEADER with mosaic ─── */}

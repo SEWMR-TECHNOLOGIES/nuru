@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -12,12 +13,15 @@ import '../../events/event_public_view_screen.dart';
 import 'shared_widgets.dart';
 import '../../../core/l10n/l10n_helper.dart';
 
-class HomeNotificationsTab extends StatelessWidget {
+class HomeNotificationsTab extends StatefulWidget {
   final List<dynamic> notifications;
   final int unreadCount;
   final bool isLoading;
   final VoidCallback onRefresh;
   final ValueChanged<int>? onTabChanged;
+  /// Called (debounced) when the user types in the search field.
+  /// Parent should re-fetch notifications using the query.
+  final ValueChanged<String>? onSearch;
 
   const HomeNotificationsTab({
     super.key,
@@ -26,12 +30,33 @@ class HomeNotificationsTab extends StatelessWidget {
     this.isLoading = false,
     required this.onRefresh,
     this.onTabChanged,
+    this.onSearch,
   });
+
+  @override
+  State<HomeNotificationsTab> createState() => _HomeNotificationsTabState();
+}
+
+class _HomeNotificationsTabState extends State<HomeNotificationsTab> {
+  String _search = '';
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String v) {
+    setState(() => _search = v);
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () => widget.onSearch?.call(v));
+  }
 
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
-      onRefresh: () async => onRefresh(),
+      onRefresh: () async => widget.onRefresh(),
       color: AppColors.primary,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -40,16 +65,16 @@ class HomeNotificationsTab extends StatelessWidget {
           Row(children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Notifications', style: GoogleFonts.plusJakartaSans(fontSize: 26, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -0.5, height: 1.1)),
-              if (unreadCount > 0) ...[
+              if (widget.unreadCount > 0) ...[
                 const SizedBox(height: 4),
-                Text('$unreadCount unread', style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary, height: 1.2)),
+                Text('${widget.unreadCount} unread', style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary, height: 1.2)),
               ],
             ])),
-            if (notifications.isNotEmpty)
+            if (widget.notifications.isNotEmpty)
               GestureDetector(
                 onTap: () async {
                   await SocialService.markAllNotificationsRead();
-                  onRefresh();
+                  widget.onRefresh();
                 },
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -58,13 +83,45 @@ class HomeNotificationsTab extends StatelessWidget {
                 ),
               ),
           ]),
-          const SizedBox(height: 20),
-          if (isLoading)
+          const SizedBox(height: 12),
+          // Search bar (debounced server-side)
+          Container(
+            height: 42,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceVariant,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.borderLight, width: 0.5),
+            ),
+            child: TextField(
+              onChanged: _onSearchChanged,
+              style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'Search notifications…',
+                hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textHint),
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.all(11),
+                  child: SvgPicture.asset('assets/icons/search-icon.svg', width: 16, height: 16,
+                      colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
+                ),
+                suffixIcon: _search.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textHint),
+                        onPressed: () { _onSearchChanged(''); },
+                      )
+                    : null,
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 11),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (widget.isLoading)
             ...List.generate(5, (_) => const Padding(padding: EdgeInsets.only(bottom: 10), child: ShimmerCard(height: 72)))
-          else if (notifications.isEmpty)
+          else if (widget.notifications.isEmpty)
             _emptyState()
           else
-            ...notifications.map((n) {
+            ...widget.notifications.map((n) {
               final data = n is Map<String, dynamic> ? n : <String, dynamic>{};
               return _notificationItem(context, data);
             }),

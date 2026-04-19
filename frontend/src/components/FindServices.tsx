@@ -329,7 +329,7 @@ const FindServices = () => {
   // ── Loading state ──
   if (loading && initialLoad.current) {
     return (
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="space-y-6">
         <div className="space-y-1">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-5 w-72" />
@@ -345,7 +345,7 @@ const FindServices = () => {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5">
+    <div className="space-y-5">
       {/* ── Header ── */}
       <div>
         <h1 className="text-xl md:text-2xl font-bold text-foreground">

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../core/widgets/expanding_search_action.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
@@ -29,6 +30,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
   bool _loading = true;
   String _search = '';
   Timer? _pollTimer;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -40,12 +42,19 @@ class _MessagesScreenState extends State<MessagesScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _searchDebounce?.cancel();
     super.dispose();
+  }
+
+  void _onSearchChanged(String v) {
+    _search = v;
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () => _loadConversations());
   }
 
   Future<void> _loadConversations({bool silent = false}) async {
     if (!silent) setState(() => _loading = true);
-    final res = await MessagesService.getConversations();
+    final res = await MessagesService.getConversations(search: _search.isNotEmpty ? _search : null);
     if (mounted) {
       setState(() {
         if (!silent) _loading = false;
@@ -73,13 +82,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     return time;
   }
 
-  List<dynamic> get _filteredConversations {
-    if (_search.isEmpty) return _conversations;
-    return _conversations.where((c) {
-      final name = _getConversationName(c).toLowerCase();
-      return name.contains(_search.toLowerCase());
-    }).toList();
-  }
+  List<dynamic> get _filteredConversations => _conversations;
 
   String _getConversationName(dynamic conv) {
     if (conv is! Map) return 'Unknown';
@@ -398,7 +401,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
             height: 46,
             decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.borderLight, width: 0.5)),
             child: TextField(
-              onChanged: (v) => setState(() => _search = v),
+              onChanged: _onSearchChanged,
               style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary, height: 1.3, decoration: TextDecoration.none, decorationThickness: 0),
               decoration: InputDecoration(
                 hintText: context.tr('search_conversations'),

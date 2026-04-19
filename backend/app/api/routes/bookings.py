@@ -118,11 +118,39 @@ def _booking_dict(db, b):
     }
 
 
+def _filter_bookings_by_search(items, term):
+    """Filter already-built booking dicts by search term across user-visible fields."""
+    if not term:
+        return items
+    t = term.strip().lower()
+    if not t:
+        return items
+    out = []
+    for b in items:
+        haystack_parts = [
+            str(b.get("service_name") or ""),
+            str(b.get("event_name") or ""),
+            str(b.get("client_name") or ""),
+            str(b.get("vendor_name") or ""),
+            str(b.get("status") or ""),
+            str(b.get("notes") or ""),
+            str(b.get("vendor_notes") or ""),
+        ]
+        if t in " ".join(haystack_parts).lower():
+            out.append(b)
+    return out
+
+
 @router.get("/")
-def get_my_bookings(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_my_bookings(
+    search: str = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     from utils.batch_loaders import build_booking_dicts
     bookings = db.query(ServiceBookingRequest).filter(ServiceBookingRequest.requester_user_id == current_user.id).order_by(ServiceBookingRequest.created_at.desc()).all()
     items = build_booking_dicts(db, bookings)
+    items = _filter_bookings_by_search(items, search)
     summary = {
         "total": len(items),
         "pending": sum(1 for b in items if b["status"] == "pending"),
@@ -135,13 +163,18 @@ def get_my_bookings(db: Session = Depends(get_db), current_user: User = Depends(
 
 
 @router.get("/received")
-def get_received_bookings(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_received_bookings(
+    search: str = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     from utils.batch_loaders import build_booking_dicts
     my_service_ids = [s.id for s in db.query(UserService.id).filter(UserService.user_id == current_user.id).all()]
     if not my_service_ids:
         return standard_response(True, "Received bookings retrieved successfully", {"bookings": [], "summary": {"total": 0, "pending": 0, "accepted": 0, "rejected": 0, "completed": 0, "cancelled": 0}})
     bookings = db.query(ServiceBookingRequest).filter(ServiceBookingRequest.user_service_id.in_(my_service_ids)).order_by(ServiceBookingRequest.created_at.desc()).all()
     items = build_booking_dicts(db, bookings)
+    items = _filter_bookings_by_search(items, search)
     summary = {
         "total": len(items),
         "pending": sum(1 for b in items if b["status"] == "pending"),

@@ -659,7 +659,7 @@ const EventManagement = () => {
         </TabsContent>
 
         <TabsContent value="contributions" className="space-y-6">
-          <EventContributions eventId={id!} eventTitle={eventTitle} eventBudget={apiEvent?.budget ? parseFloat(String(apiEvent.budget).replace(/[^0-9]/g, '')) : undefined} eventEndDate={apiEvent?.start_date} isCreator={isCreator} permissions={permissions} />
+          <EventContributions eventId={id!} eventTitle={eventTitle} eventBudget={apiEvent?.budget ? parseFloat(String(apiEvent.budget).replace(/[^0-9]/g, '')) : undefined} eventEndDate={apiEvent?.start_date} reminderContactPhone={(apiEvent as any)?.reminder_contact_phone || ''} isCreator={isCreator} permissions={permissions} />
         </TabsContent>
 
 

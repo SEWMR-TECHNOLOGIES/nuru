@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useNotifications } from '@/data/useSocial';
 import { Skeleton } from '@/components/ui/skeleton';
+import SearchHeader from '@/components/ui/search-header';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
@@ -273,7 +274,8 @@ const Notifications = () => {
     description: 'Stay updated with glows, echoes, event invitations, and more on Nuru.'
   });
 
-  const { notifications, unreadCount, loading, error, refetch, markAllRead, markRead } = useNotifications();
+  const [searchTerm, setSearchTerm] = useState("");
+  const { notifications, unreadCount, loading, error, refetch, markAllRead, markRead } = useNotifications(undefined, searchTerm);
   const [markingRead, setMarkingRead] = useState(false);
 
   const handleMarkAllRead = async () => {
@@ -315,26 +317,28 @@ const Notifications = () => {
 
   return (
     <div className="space-y-4 md:space-y-6 pb-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-foreground">Notifications</h1>
           {unreadCount > 0 && (
             <p className="text-sm text-muted-foreground">{unreadCount} unread</p>
           )}
         </div>
-        {notifications.length > 0 && (
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="text-sm text-muted-foreground"
-            onClick={handleMarkAllRead}
-            disabled={markingRead}
-          >
-            {markingRead ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-            Mark all read
-          </Button>
-        )}
+        <div className="flex items-center gap-1">
+          <SearchHeader value={searchTerm} onChange={setSearchTerm} placeholder="Search notifications…" />
+          {notifications.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-sm text-muted-foreground"
+              onClick={handleMarkAllRead}
+              disabled={markingRead}
+            >
+              {markingRead ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+              Mark all read
+            </Button>
+          )}
+        </div>
       </div>
       
       {notifications.length === 0 ? (
