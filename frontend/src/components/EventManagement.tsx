@@ -228,44 +228,53 @@ const EventManagement = () => {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <h1 className="text-xl md:text-2xl lg:text-3xl font-bold">{eventTitle}</h1>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {event && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={() => navigate(`/event/${event.id}`)}
-                title="View public event page"
-              >
-                <Eye className="w-4 h-4 opacity-70" />
-                <span className="hidden sm:inline">View Public Page</span>
-                <span className="sm:hidden">Public</span>
-              </Button>
-            )}
-            {isCreator && event && (
-              <ShareEventToFeed
-                event={{
-                  id: event.id,
-                  title: event.title,
-                  start_date: event.start_date,
-                  location: event.location,
-                  cover_image: (event as any).cover_image || eventImages[0],
-                }}
-                trigger={
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <SvgIcon src={ShareIcon} alt="" className="w-4 h-4 opacity-70" />
-                    <span className="hidden sm:inline">Share to Feed</span>
-                    <span className="sm:hidden">Share</span>
-                  </Button>
-                }
-              />
-            )}
-            <Button variant="ghost" size="icon" onClick={() => navigate('/my-events')}>
-              <ChevronLeft className="w-5 h-5" />
+        {/* Top row: title + back button (back stays on the right, matching other pages). */}
+        <div className="flex items-center gap-2 mb-3">
+          <h1 className="flex-1 min-w-0 text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold break-words leading-tight">
+            {eventTitle}
+          </h1>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="flex-shrink-0 self-center"
+            onClick={() => navigate('/my-events')}
+            aria-label="Back"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          {event && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => navigate(`/event/${event.id}`)}
+              title="View public event page"
+            >
+              <Eye className="w-4 h-4 opacity-70" />
+              <span className="hidden sm:inline">View Public Page</span>
+              <span className="sm:hidden">Public</span>
             </Button>
-          </div>
+          )}
+          {isCreator && event && (
+            <ShareEventToFeed
+              event={{
+                id: event.id,
+                title: event.title,
+                start_date: event.start_date,
+                location: event.location,
+                cover_image: (event as any).cover_image || eventImages[0],
+              }}
+              trigger={
+                <Button variant="outline" size="sm" className="gap-2">
+                  <SvgIcon src={ShareIcon} alt="" className="w-4 h-4 opacity-70" />
+                  <span className="hidden sm:inline">Share to Feed</span>
+                  <span className="sm:hidden">Share</span>
+                </Button>
+              }
+            />
+          )}
         </div>
         <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
           <span className="flex items-center gap-2"><SvgIcon src={CalendarIcon} alt="Calendar" className="w-4 h-4 flex-shrink-0" /><span className="truncate">{eventDate}</span></span>

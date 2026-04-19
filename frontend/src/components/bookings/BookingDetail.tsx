@@ -92,9 +92,9 @@ const BookingDetail = () => {
   if (error || !booking) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Booking Details</h1>
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+        <div className="flex items-center gap-2">
+          <h1 className="flex-1 min-w-0 text-xl sm:text-2xl md:text-3xl font-bold break-words leading-tight">Booking Details</h1>
+          <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => navigate(-1)} aria-label="Back">
             <ChevronLeft className="w-5 h-5" />
           </Button>
         </div>
@@ -106,12 +106,12 @@ const BookingDetail = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Booking Details</h1>
-          <p className="text-muted-foreground mt-1">Booking #{booking.id.slice(0, 8)}</p>
+      <div className="flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold break-words leading-tight">Booking Details</h1>
+          <p className="text-muted-foreground mt-1 text-sm truncate">Booking #{booking.id.slice(0, 8)}</p>
         </div>
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => navigate(-1)} aria-label="Back">
           <ChevronLeft className="w-5 h-5" />
         </Button>
       </div>
