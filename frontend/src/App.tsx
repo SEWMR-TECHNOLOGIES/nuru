@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { LanguageProvider } from "@/lib/i18n/LanguageContext";
 import RateLimitModal from "@/components/RateLimitModal";
+import PaymentVerifierProvider from "@/components/payments/PaymentVerifierProvider";
 
 import AppRoutes from "./AppRoutes";
 
@@ -15,10 +16,12 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
         <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <RateLimitModal />
-          <AppRoutes />
+          <PaymentVerifierProvider>
+            <Toaster />
+            <Sonner />
+            <RateLimitModal />
+            <AppRoutes />
+          </PaymentVerifierProvider>
         </TooltipProvider>
       </LanguageProvider>
     </QueryClientProvider>

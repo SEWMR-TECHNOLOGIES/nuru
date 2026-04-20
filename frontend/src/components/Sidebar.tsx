@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react'
-import { 
-  Search, 
+import {
+  Search,
   Briefcase,
   AlertTriangle,
   LucideIcon,
   Sparkles,
   BookOpen,
+  Wallet,
+  MessageSquare,
+  HandCoins,
 } from 'lucide-react'
 import { useLanguage } from '@/lib/i18n/LanguageContext'
 
@@ -26,6 +29,7 @@ import CommunitiesIcon from '@/assets/icons/communities-icon.svg'
 import UserProfileIcon from '@/assets/icons/user-profile-icon.svg'
 import ContributorsIcon from '@/assets/icons/contributors-icon.svg'
 import HelpIcon from '@/assets/icons/help-icon.svg'
+import GroupsIcon from '@/assets/icons/groups-icon.svg'
 import {
   HoverCard,
   HoverCardContent,
@@ -75,9 +79,12 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
     { lucideIcon: Search, label: t('find_services'), path: '/find-services', hint: 'Search and browse verified service providers like DJs, caterers, photographers, and decorators for your events.' },
     { lucideIcon: Briefcase, label: t('my_services'), path: '/my-services', hint: 'Manage your listed services, view bookings, track ratings, and respond to client reviews.' },
     { lucideIcon: BookOpen, label: 'Bookings', path: '/bookings', hint: 'View your booking requests and incoming bookings — accept, decline, pay deposits, or release escrowed payments.' },
+    { lucideIcon: Wallet, label: 'Wallet', path: '/wallet', hint: 'View your Nuru wallet balance, top up, and review your transaction history.' },
     { customIcon: CardIcon, label: t('nuru_pass'), path: '/nuru-cards', hint: 'Order your Nuru Pass for instant tap-to-check-in at events, with QR code backup and NFC support.' },
     { customIcon: CircleIcon, label: t('circle'), path: '/circle', hint: 'View and manage the people you follow, your followers, and pending connection requests.' },
     { customIcon: ContributorsIcon, label: t('contributors'), path: '/my-contributors', hint: 'See a list of people who have contributed to your events and track their contributions.' },
+    { customIcon: GroupsIcon, label: 'My Groups', path: '/my-groups', hint: 'Jump into every event group chat you belong to. See unread messages and the latest activity at a glance.' },
+    { lucideIcon: HandCoins, label: 'My Contributions', path: '/my-contributions', hint: 'Receipts for every contribution you have paid to events you support.' },
     { customIcon: CommunitiesIcon, label: t('communities'), path: '/communities', hint: 'Browse, join, and participate in community groups based on shared interests or professions.' },
     { customIcon: IssueIcon, label: t('my_issues'), path: '/my-issues', hint: 'Submit new issues and track the status of previously reported problems or disputes.' },
     { lucideIcon: AlertTriangle, label: t('removed_content'), path: '/removed-content', hint: 'View posts or moments that were removed, check the reason, and submit an appeal if needed.' },
@@ -179,38 +186,14 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
         )}
       </div>
 
-      {/* Browse Tickets */}
+      {/* Browse Tickets — uses the same renderNavItem pattern so the active highlight matches the rest of the sidebar */}
       <nav className="mt-2 space-y-1 lg:space-y-2">
-        {hintsEnabled ? (
-          <HoverCard openDelay={400} closeDelay={100}>
-            <HoverCardTrigger asChild>
-              <NavLink to="/tickets" className={linkClass} onClick={onNavigate} title={t('browse_tickets')}>
-                <SvgIcon src={TicketIcon} alt={t('tickets')} className="w-5 h-5 flex-shrink-0" />
-                <span className="md:hidden lg:inline">{t('browse_tickets')}</span>
-              </NavLink>
-            </HoverCardTrigger>
-            <HoverCardContent side="right" align="start" className="hidden lg:block w-72 bg-popover border border-border shadow-lg rounded-xl p-4">
-              <p className="text-sm font-semibold text-foreground mb-1">{t('browse_tickets')}</p>
-              <p className="text-xs text-muted-foreground leading-relaxed">Discover upcoming events near you and purchase tickets directly.</p>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  localStorage.setItem(HINTS_KEY, 'false');
-                  setHintsEnabled(false);
-                  window.dispatchEvent(new Event('sidebar-hints-changed'));
-                }}
-                className="mt-2 text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-              >
-                Don't show again
-              </button>
-            </HoverCardContent>
-          </HoverCard>
-        ) : (
-          <NavLink to="/tickets" className={linkClass} onClick={onNavigate} title={t('browse_tickets')}>
-            <SvgIcon src={TicketIcon} alt={t('tickets')} className="w-5 h-5 flex-shrink-0" />
-            <span className="md:hidden lg:inline">{t('browse_tickets')}</span>
-          </NavLink>
-        )}
+        {renderNavItem({
+          customIcon: TicketIcon,
+          label: t('browse_tickets'),
+          path: '/tickets',
+          hint: 'Discover upcoming events near you and purchase tickets directly.',
+        })}
       </nav>
 
       {/* Secondary Navigation */}

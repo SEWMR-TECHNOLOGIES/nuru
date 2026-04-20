@@ -530,6 +530,14 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
         joinedload(EventContributor.contributions),
     ).filter(EventContributor.id == ec.id).first()
 
+    # Auto-add this contributor to the event group workspace if one exists
+    try:
+        from api.routes.event_groups import ensure_member_for_contributor
+        ensure_member_for_contributor(db, eid, contributor)
+        db.commit()
+    except Exception:
+        db.rollback()
+
     # Send WhatsApp (primary) + SMS (fallback) when contributor is added with a pledge amount
     pledge_val = float(body.get("pledge_amount", 0))
     if pledge_val > 0 and contributor.phone:
@@ -714,6 +722,20 @@ def record_payment(event_id: str, ec_id: str, body: dict = Body(...), db: Sessio
     )
     db.add(contribution)
     db.commit()
+
+    # Post into event group workspace (if one exists). Best-effort.
+    try:
+        from api.routes.event_groups import post_payment_system_message
+        total_paid_after = sum(float(c.amount or 0) for c in ec.contributions)
+        pledge_amount = float(ec.pledge_amount or 0)
+        currency = _currency_code(db, event)
+        post_payment_system_message(
+            db, eid,
+            ec.contributor.name if ec.contributor else "Someone",
+            float(amount), pledge_amount, total_paid_after, currency,
+        )
+    except Exception:
+        pass
 
     # Send WhatsApp (primary) + SMS (fallback) to contributor
     contributor = ec.contributor
@@ -1365,14 +1387,16 @@ def get_contribution_report(
                     "balance": max(0, pledge - paid_in_range),
                 })
         else:
-            if paid_in_range > 0 or pledge > 0:
-                results.append({
-                    "name": ec.contributor.name if ec.contributor else "Unknown",
-                    "phone": ec.contributor.phone if ec.contributor else None,
-                    "pledged": pledge,
-                    "paid": paid_in_range,
-                    "balance": max(0, pledge - paid_in_range),
-                })
+            # Include ALL event contributors in unfiltered reports — even
+            # those with no pledge/target and no payments yet. Owners want
+            # the full roster on the PDF, not just active payers.
+            results.append({
+                "name": ec.contributor.name if ec.contributor else "Unknown",
+                "phone": ec.contributor.phone if ec.contributor else None,
+                "pledged": pledge,
+                "paid": paid_in_range,
+                "balance": max(0, pledge - paid_in_range),
+            })
 
     # Sort alphabetically
     results.sort(key=lambda r: r["name"])

@@ -8,15 +8,67 @@ from services.SewmrSmsClient import SewmrSmsClient
 SMS_SIGNATURE = "\n— Nuru: Keep your event together"
 
 
-def _send(phone: str, message: str):
-    """Fire-and-forget SMS. Appends Nuru signature and logs errors but never raises."""
+def normalize_tz_phone(phone: str | None) -> str | None:
+    """Normalize a Tanzanian phone to international 255 format.
+
+    Accepts: ``07XXXXXXXX``, ``7XXXXXXXX``, ``+2557XXXXXXXX``, ``2557XXXXXXXX``.
+    Returns ``255XXXXXXXXX`` (12 digits) or ``None`` if the input is unusable.
+    Gateway rejects local ``07…`` numbers, so we always upgrade to 255 here.
+    """
     if not phone:
+        return None
+    digits = "".join(c for c in str(phone) if c.isdigit())
+    if not digits:
+        return None
+    if digits.startswith("255") and len(digits) == 12:
+        return digits
+    if digits.startswith("0") and len(digits) == 10:
+        return "255" + digits[1:]
+    if len(digits) == 9 and digits.startswith("7"):
+        return "255" + digits
+    # Already international (KE, etc.) — return as-is.
+    return digits
+
+
+def get_admin_notify_phone(db=None) -> str:
+    """Resolve the admin SMS recipient.
+
+    Priority: first active super-admin's stored phone → ``ADMIN_NOTIFY_PHONE``
+    env → hard-coded fallback ``255764413610``. Always returns a normalized
+    string so callers can SMS without further checks.
+    """
+    from core.config import ADMIN_NOTIFY_PHONE
+    if db is not None:
+        try:
+            from models.admin import AdminUser, AdminRoleEnum
+            admin = (
+                db.query(AdminUser)
+                .filter(
+                    AdminUser.is_active == True,  # noqa: E712
+                    AdminUser.role.in_([AdminRoleEnum.admin, AdminRoleEnum.finance_admin]),
+                )
+                .order_by(AdminUser.created_at.asc())
+                .first()
+            )
+            phone = getattr(admin, "phone", None) if admin else None
+            normalized = normalize_tz_phone(phone)
+            if normalized:
+                return normalized
+        except Exception as e:
+            print(f"[SMS] admin phone lookup failed: {e}")
+    return normalize_tz_phone(ADMIN_NOTIFY_PHONE) or "255764413610"
+
+
+def _send(phone: str, message: str):
+    """Fire-and-forget SMS. Normalizes phone, appends signature, never raises."""
+    normalized = normalize_tz_phone(phone)
+    if not normalized:
         return
     try:
         client = SewmrSmsClient()
-        client.send_quick_sms(message=message + SMS_SIGNATURE, recipients=[phone])
+        client.send_quick_sms(message=message + SMS_SIGNATURE, recipients=[normalized])
     except Exception as e:
-        print(f"[SMS] Failed to send to {phone}: {e}")
+        print(f"[SMS] Failed to send to {normalized}: {e}")
 
 
 def sms_guest_added(phone: str, guest_name: str, event_title: str, event_date: str = "", organizer_name: str = "", invitation_code: str = ""):
@@ -122,3 +174,101 @@ def sms_meeting_invitation(phone: str, event_name: str, meeting_title: str, sche
         f"Join here: {meeting_link}"
     )
     _send(phone, msg)
+
+
+def sms_payment_received(
+    phone: str,
+    payer_name: str,
+    purpose: str,
+    amount: float,
+    currency: str,
+    transaction_code: str,
+    payee_label: str = "your Nuru wallet",
+):
+    """Notify a user that a payment was successfully received.
+
+    Sent on the credited path for both wallet top-ups (payer == payee) and
+    other transactions (e.g. ticket purchase, contribution).
+    """
+    msg = (
+        f"Payment received from Nuru. {currency} {amount:,.0f} for {purpose} "
+        f"by {payer_name} has been credited to {payee_label}. "
+        f"Reference: {transaction_code}."
+    )
+    _send(phone, msg)
+
+
+def sms_payment_confirmed_to_payer(
+    phone: str,
+    payer_name: str,
+    purpose: str,
+    amount: float,
+    currency: str,
+    transaction_code: str,
+):
+    """Confirmation back to the person who actually paid."""
+    msg = (
+        f"Hello {payer_name}, your payment of {currency} {amount:,.0f} to Nuru "
+        f"for {purpose} was successful. Reference: {transaction_code}. "
+        f"Keep this message for your records."
+    )
+    _send(phone, msg)
+
+
+def sms_organizer_contribution_received(
+    phone: str,
+    organizer_name: str,
+    contributor_name: str,
+    event_title: str,
+    amount: float,
+    currency: str,
+    transaction_code: str,
+):
+    """Tell an event organizer that a contribution just landed in their wallet."""
+    msg = (
+        f"Hello {organizer_name}, {contributor_name} just contributed "
+        f"{currency} {amount:,.0f} to {event_title} via Nuru. "
+        f"Funds are now in your wallet. Reference: {transaction_code}."
+    )
+    _send(phone, msg)
+
+
+def sms_vendor_booking_paid(
+    phone: str,
+    vendor_name: str,
+    client_name: str,
+    service_title: str,
+    amount: float,
+    currency: str,
+    transaction_code: str,
+):
+    """Tell a service vendor that a client just paid for their booking."""
+    msg = (
+        f"Hello {vendor_name}, {client_name} has paid {currency} {amount:,.0f} "
+        f"via Nuru for your service \"{service_title}\". "
+        f"Funds are now in your wallet. Reference: {transaction_code}."
+    )
+    _send(phone, msg)
+
+
+def sms_admin_payment_alert(
+    phone: str,
+    payer_name: str,
+    payer_phone: str | None,
+    purpose: str,
+    amount: float,
+    currency: str,
+    transaction_code: str,
+    method: str | None,
+    target_label: str | None = None,
+):
+    """Heads-up to ops/admin so they can credit/reconcile externally if needed."""
+    payer_bit = payer_name + (f" ({payer_phone})" if payer_phone else "")
+    target_bit = f" → {target_label}" if target_label else ""
+    method_bit = f" via {method}" if method else ""
+    msg = (
+        f"[Nuru Admin] {currency} {amount:,.0f} received{method_bit} for "
+        f"{purpose}{target_bit} from {payer_bit}. Ref: {transaction_code}."
+    )
+    _send(phone, msg)
+

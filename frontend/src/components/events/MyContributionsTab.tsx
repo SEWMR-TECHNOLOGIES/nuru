@@ -22,7 +22,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useMyContributions } from "@/data/useMyContributions";
 import SelfContributeDialog from "@/components/contributions/SelfContributeDialog";
-import { formatPrice } from "@/utils/formatPrice";
+import { useCurrency } from '@/hooks/useCurrency';
 import type { MyContributionEvent } from "@/lib/api/contributors";
 
 const formatDate = (iso?: string | null) => {
@@ -39,6 +39,7 @@ const formatDate = (iso?: string | null) => {
 };
 
 const MyContributionsTab = () => {
+  const { format: formatPrice } = useCurrency();
   const [search, setSearch] = useState("");
   const { events, loading, error, refetch } = useMyContributions(search);
   const navigate = useNavigate();
@@ -215,6 +216,7 @@ const ContributionCard = ({
   onPay: () => void;
   onOpenEvent: () => void;
 }) => {
+  const { format: formatPrice } = useCurrency();
   const pledge = ev.pledge_amount || 0;
   const paid = ev.total_paid || 0;
   const pending = ev.pending_amount || 0;
@@ -270,9 +272,11 @@ const ContributionCard = ({
       <div className="p-4 space-y-3">
         {/* Numbers */}
         <div className="grid grid-cols-3 gap-2 text-center">
-          <Stat label="Pledged" value={`${ev.currency} ${formatPrice(pledge)}`} />
-          <Stat label="Paid" value={`${ev.currency} ${formatPrice(paid)}`} tone="success" />
-          <Stat label="Balance" value={`${ev.currency} ${formatPrice(balance)}`} tone={balance > 0 ? "warning" : "muted"} />
+          {/* formatPrice() already includes the currency symbol — do not
+              prepend ev.currency again or it renders "TZS TZS 1,000". */}
+          <Stat label="Pledged" value={formatPrice(pledge)} />
+          <Stat label="Paid" value={formatPrice(paid)} tone="success" />
+          <Stat label="Balance" value={formatPrice(balance)} tone={balance > 0 ? "warning" : "muted"} />
         </div>
 
         {/* Progress */}
@@ -282,7 +286,7 @@ const ContributionCard = ({
               <span>{pct}% complete</span>
               {pending > 0 && (
                 <span className="text-amber-600 font-medium">
-                  {ev.currency} {formatPrice(pending)} pending
+                  {formatPrice(pending)} pending
                 </span>
               )}
             </div>
@@ -304,7 +308,7 @@ const ContributionCard = ({
           variant={isComplete ? "outline" : "default"}
         >
           <HandCoins className="w-4 h-4" />
-          {isComplete ? "Fully paid" : balance > 0 ? `Pay ${ev.currency} ${formatPrice(balance)}` : "Make a contribution"}
+          {isComplete ? "Fully paid" : balance > 0 ? `Pay ${formatPrice(balance)}` : "Make a contribution"}
         </Button>
       </div>
     </Card>

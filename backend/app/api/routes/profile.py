@@ -160,6 +160,60 @@ async def update_profile(
 
 
 # ──────────────────────────────────────────────
+# Country / Currency confirmation (Migration onboarding)
+# ──────────────────────────────────────────────
+
+# Country → currency mapping for the supported launch markets.
+_COUNTRY_TO_CURRENCY = {"TZ": "TZS", "KE": "KES"}
+_VALID_SOURCES = {"phone", "ip", "locale", "manual"}
+
+
+@router.post("/profile/country")
+def confirm_country(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Persist the user's confirmed country + derived currency on UserProfile,
+    and provision a wallet in the matching currency.
+
+    Body: { country_code: "TZ" | "KE", source?: "phone"|"ip"|"locale"|"manual" }
+    """
+    code = (payload.get("country_code") or "").upper()
+    source = (payload.get("source") or "manual").lower()
+    if code not in _COUNTRY_TO_CURRENCY:
+        return standard_response(False, "Unsupported country", {"errors": {"country_code": "Must be TZ or KE."}})
+    if source not in _VALID_SOURCES:
+        source = "manual"
+    currency = _COUNTRY_TO_CURRENCY[code]
+
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    if not profile:
+        profile = UserProfile(user_id=current_user.id)
+        db.add(profile)
+
+    profile.country_code = code
+    profile.currency_code = currency
+    profile.country_source = source
+    profile.updated_at = datetime.now(EAT)
+
+    # Provision the wallet for this currency so the UI flips immediately.
+    try:
+        from services.wallet_service import get_or_create_wallet
+        get_or_create_wallet(db, current_user.id, currency)
+    except Exception:
+        # Wallet creation is best-effort; failure must not break country save.
+        pass
+
+    db.commit()
+    return standard_response(True, "Country confirmed.", {
+        "country_code": code,
+        "currency_code": currency,
+        "country_source": source,
+    })
+
+
+# ──────────────────────────────────────────────
 # Identity Verification
 # ──────────────────────────────────────────────
 

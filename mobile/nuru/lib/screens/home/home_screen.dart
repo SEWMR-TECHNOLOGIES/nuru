@@ -31,6 +31,9 @@ import 'widgets/home_left_drawer.dart';
 import 'widgets/home_right_drawer.dart';
 import 'widgets/home_notifications_tab.dart';
 import '../../core/l10n/l10n_helper.dart';
+import '../onboarding/country_confirm_sheet.dart';
+import '../migration/migration_welcome_sheet.dart';
+import '../../providers/migration_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -102,7 +105,42 @@ class _HomeScreenState extends State<HomeScreen> {
     if (profileRes['success'] == true && profileRes['data'] is Map<String, dynamic>) {
       userData = {...(userData ?? {}), ...profileRes['data'] as Map<String, dynamic>};
     }
-    if (mounted && userData != null) setState(() => _profile = userData);
+    if (mounted && userData != null) {
+      setState(() => _profile = userData);
+      _maybePromptCountry(userData);
+      _loadMigrationStatus(userData);
+    }
+  }
+
+  bool _countryPrompted = false;
+  bool _migrationPrompted = false;
+
+  void _maybePromptCountry(Map<String, dynamic> user) {
+    if (_countryPrompted) return;
+    final cc = (user['country_code'] ?? user['country'])?.toString();
+    if (cc != null && cc.isNotEmpty) return;
+    _countryPrompted = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) showCountryConfirmSheet(context);
+    });
+  }
+
+  Future<void> _loadMigrationStatus(Map<String, dynamic> user) async {
+    final id = user['id']?.toString();
+    if (id == null) return;
+    final mig = context.read<MigrationProvider>();
+    await mig.load(id);
+    if (!mounted || _migrationPrompted) return;
+    if (await mig.shouldShowWelcome()) {
+      _migrationPrompted = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        // If country isn't set yet, the country sheet takes priority.
+        final cc = (user['country_code'] ?? user['country'])?.toString();
+        if (cc == null || cc.isEmpty) return;
+        showMigrationWelcomeSheet(context);
+      });
+    }
   }
 
   Future<void> _loadFeed({bool refresh = true, bool resetSession = false}) async {

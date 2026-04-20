@@ -9,6 +9,7 @@ import '../../events/event_public_view_screen.dart';
 import '../../services/public_service_screen.dart';
 import '../../tickets/browse_tickets_screen.dart';
 import '../../tickets/my_tickets_screen.dart';
+import '../../event_groups/my_groups_screen.dart';
 import '../../meetings/meeting_room_screen.dart';
 import '../../../core/services/social_service.dart';
 import '../../../core/services/meetings_service.dart';
@@ -140,6 +141,19 @@ class HomeRightDrawer extends StatelessWidget {
                 // My Meetings
                 const _MyMeetingsSection(),
 
+                // My Groups (Event Workspaces)
+                _SectionHeaderAction(
+                  iconData: Icons.forum_outlined,
+                  title: 'My Groups',
+                  action: 'View all',
+                  onAction: () {
+                    Navigator.pop(context);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const MyGroupsScreen()));
+                  },
+                ),
+                const SizedBox(height: 28),
+
+
                 // My Tickets
                 if (upcomingTickets.isNotEmpty) ...[
                   _SectionHeaderAction(
@@ -261,13 +275,14 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _SectionHeaderAction extends StatelessWidget {
-  final String icon;
+  final String? icon;
+  final IconData? iconData;
   final String title;
   final String action;
   final VoidCallback onAction;
 
   const _SectionHeaderAction({
-    required this.icon, required this.title,
+    this.icon, this.iconData, required this.title,
     required this.action, required this.onAction,
   });
 
@@ -280,8 +295,12 @@ class _SectionHeaderAction extends StatelessWidget {
           color: AppColors.primary.withOpacity(0.08),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Center(child: SvgPicture.asset(icon, width: 14, height: 14,
-            colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn))),
+        child: Center(
+          child: icon != null
+              ? SvgPicture.asset(icon!, width: 14, height: 14,
+                  colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn))
+              : Icon(iconData ?? Icons.circle_outlined, size: 14, color: AppColors.primary),
+        ),
       ),
       const SizedBox(width: 10),
       Expanded(

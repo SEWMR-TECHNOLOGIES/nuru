@@ -21,6 +21,7 @@ import '../../bookings/bookings_screen.dart';
 import '../../moments/my_moments_screen.dart';
 import '../../help/help_screen.dart';
 import '../../settings/settings_screen.dart';
+import '../../wallet/wallet_screen.dart';
 import '../../../core/l10n/l10n_helper.dart';
 
 class HomeLeftDrawer extends StatelessWidget {
@@ -117,6 +118,7 @@ class HomeLeftDrawer extends StatelessWidget {
         _item(context, 'assets/icons/settings-icon.svg', context.tr('my_services'), onTap: () => _navigate(context, const MyServicesScreen())),
         _item(context, 'assets/icons/calendar-icon.svg', context.tr('bookings'), onTap: () => _navigate(context, const BookingsScreen())),
         _item(context, 'assets/icons/card-icon.svg', context.tr('nuru_pass'), onTap: () => _navigate(context, const NuruCardsScreen())),
+        _item(context, 'assets/icons/card-icon.svg', 'Wallet', onTap: () => _navigate(context, const WalletScreen())),
         _item(context, 'assets/icons/circle-icon.svg', context.tr('my_circle'), onTap: () => _navigate(context, const CircleScreen())),
         _item(context, 'assets/icons/contributors-icon.svg', context.tr('contributors'), onTap: () => _navigate(context, const ContributorsScreen())),
         _item(context, 'assets/icons/communities-icon.svg', context.tr('communities'), onTap: () => _navigate(context, const CommunitiesScreen())),

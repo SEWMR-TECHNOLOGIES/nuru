@@ -9,14 +9,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { PillTabsNav } from "@/components/ui/pill-tabs";
 import { ticketingApi } from "@/lib/api/ticketing";
-import { formatPrice } from "@/utils/formatPrice";
+import { useCurrency } from '@/hooks/useCurrency';
 import { getEventCountdown } from "@/utils/getEventCountdown";
 import { motion } from "framer-motion";
 import PrintableTicket from "@/components/PrintableTicket";
 import CountdownClock from "@/components/CountdownClock";
 import SearchHeader from "@/components/ui/search-header";
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import MigrationBanner from '@/components/migration/MigrationBanner';
+import MyTicketPaymentsTab from '@/components/tickets/MyTicketPaymentsTab';
 
 const STATUS_STYLES: Record<string, string> = {
   confirmed: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
@@ -79,6 +83,7 @@ const UpcomingSidebarSkeleton = () => (
 );
 
 const MyTickets = () => {
+  const { format: formatPrice } = useCurrency();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [tickets, setTickets] = useState<any[]>(_ticketsCache);
@@ -89,13 +94,17 @@ const MyTickets = () => {
   const [upcomingTickets, setUpcomingTickets] = useState<any[]>(_upcomingCache);
   const [printTicket, setPrintTicket] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState<"tickets" | "payments">("tickets");
 
   useEffect(() => {
     if (initialLoad.current && !searchTerm) setLoading(true);
     if (searchTerm) setLoading(true);
+    // Always re-fetch upcoming tickets too — relying on the module cache
+    // hides tickets paid for in the current session and creates the
+    // confusing "sidebar shows tickets, page is empty" state.
     Promise.all([
       ticketingApi.getMyTickets({ page, limit: 20, ...(searchTerm ? { search: searchTerm } : {}) }),
-      _upcomingCache.length === 0 ? ticketingApi.getMyUpcomingTickets() : Promise.resolve(null as any),
+      ticketingApi.getMyUpcomingTickets(),
     ]).then(([ticketRes, upRes]) => {
       if (ticketRes.success && ticketRes.data) {
         const d = ticketRes.data as any;
@@ -121,6 +130,7 @@ const MyTickets = () => {
 
   return (
     <div className="space-y-6">
+      <MigrationBanner surface="tickets" />
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -140,6 +150,21 @@ const MyTickets = () => {
         </div>
       </div>
 
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "tickets" | "payments")}>
+        <PillTabsNav
+          activeTab={activeTab}
+          onTabChange={(v) => setActiveTab(v as "tickets" | "payments")}
+          tabs={[
+            { value: "tickets", label: "My Tickets" },
+            { value: "payments", label: "Payments" },
+          ]}
+        />
+
+        <TabsContent value="payments" className="space-y-4">
+          <MyTicketPaymentsTab />
+        </TabsContent>
+
+        <TabsContent value="tickets" className="space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main ticket list */}
         <div className="lg:col-span-2 space-y-4">
@@ -351,7 +376,8 @@ const MyTickets = () => {
           ) : null}
         </div>
       </div>
-
+        </TabsContent>
+      </Tabs>
       {printTicket && (
         <PrintableTicket
           ticket={printTicket}

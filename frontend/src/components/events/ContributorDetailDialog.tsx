@@ -3,7 +3,7 @@
  */
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import { formatDateMedium } from '@/utils/formatDate';
 import type { EventContribution } from '@/lib/api/types';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
@@ -16,6 +16,7 @@ interface ContributorDetailDialogProps {
 }
 
 const ContributorDetailDialog = ({ open, onOpenChange, contributorName, contributions }: ContributorDetailDialogProps) => {
+  const { format: formatPrice } = useCurrency();
   const { t } = useLanguage();
   const pledged = contributions.filter(c => c.status === 'pending').reduce((s, c) => s + c.amount, 0);
   const paid = contributions.filter(c => c.status === 'confirmed').reduce((s, c) => s + c.amount, 0);

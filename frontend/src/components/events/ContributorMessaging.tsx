@@ -20,7 +20,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { contributorsApi } from '@/lib/api/contributors';
 import { showCaughtError } from '@/lib/api';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import type { EventContributorSummary } from '@/lib/api/contributors';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
@@ -93,6 +93,7 @@ const CASE_CONFIG: Record<ContributorCase, { label: string; description: string;
 };
 
 const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, paymentInfo = '', defaultContactPhone = '' }: ContributorMessagingProps) => {
+  const { format: formatPrice } = useCurrency();
   const { t } = useLanguage();
   const [selectedCase, setSelectedCase] = useState<ContributorCase>('no_contribution');
   const [messageText, setMessageText] = useState('');

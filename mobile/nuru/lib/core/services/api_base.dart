@@ -184,4 +184,43 @@ class ApiBase {
       return {'success': false, 'message': 'Request failed', 'data': null};
     }
   }
+
+  /// Generic request that lets the caller pass arbitrary headers
+  /// (used by services that mix auth + guest tokens, e.g. event groups).
+  static Future<Map<String, dynamic>> requestWithHeaders({
+    required String method,
+    required String endpoint,
+    required Map<String, String> headers,
+    Map<String, dynamic>? body,
+    Map<String, String>? queryParams,
+    String fallbackError = 'Request failed',
+  }) async {
+    try {
+      var uri = Uri.parse('$baseUrl$endpoint');
+      if (queryParams != null) {
+        uri = uri.replace(queryParameters: queryParams);
+      }
+      http.Response res;
+      switch (method.toUpperCase()) {
+        case 'GET':
+          res = await http.get(uri, headers: headers);
+          break;
+        case 'POST':
+          res = await http.post(uri, headers: headers, body: jsonEncode(body ?? {}));
+          break;
+        case 'PUT':
+          res = await http.put(uri, headers: headers, body: jsonEncode(body ?? {}));
+          break;
+        case 'DELETE':
+          res = await http.delete(uri, headers: headers);
+          break;
+        default:
+          throw UnsupportedError('Method $method not supported');
+      }
+      _checkRateLimit(res, endpoint);
+      return normalizeResponse(res, fallbackError: fallbackError);
+    } catch (_) {
+      return {'success': false, 'message': fallbackError, 'data': null};
+    }
+  }
 }

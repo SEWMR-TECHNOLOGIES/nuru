@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { useBooking } from '@/data/useBookings';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import EscrowStatusCard from './EscrowStatusCard';
@@ -30,6 +30,7 @@ import DeliveryOtpCard from './DeliveryOtpCard';
 import PayDepositDialog from './PayDepositDialog';
 
 const BookingDetail = () => {
+  const { format: formatPrice } = useCurrency();
   const { t } = useLanguage();
   const { id } = useParams();
   const navigate = useNavigate();

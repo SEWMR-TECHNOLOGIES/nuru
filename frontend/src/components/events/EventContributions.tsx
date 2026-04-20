@@ -26,7 +26,7 @@ import { usePolling } from '@/hooks/usePolling';
 import { toast } from 'sonner';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { showCaughtError } from '@/lib/api';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import { formatDateMedium } from '@/utils/formatDate';
 import ContributionsSkeletonLoader from './ContributionsSkeletonLoader';
 import ContributorDetailDialog from './ContributorDetailDialog';
@@ -40,6 +40,7 @@ import ContributorMessaging from './ContributorMessaging';
 import SvgIcon from '@/components/ui/svg-icon';
 import ChatIcon from '@/assets/icons/chat-icon.svg';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import ReceivedPaymentsPanel from '@/components/payments/ReceivedPaymentsPanel';
 
 interface EventContributionsProps {
   eventId: string;
@@ -66,6 +67,7 @@ const PAYMENT_METHODS = [
 const ITEMS_PER_PAGE = 10;
 
 const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, reminderContactPhone, isCreator = true, permissions }: EventContributionsProps) => {
+  const { format: formatPrice } = useCurrency();
   const { t } = useLanguage();
   const canManage = permissions?.can_manage_contributions || permissions?.is_creator;
   const canView = permissions?.can_view_contributions || permissions?.is_creator;
@@ -146,6 +148,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
   const [addingAsGuests, setAddingAsGuests] = useState(false);
   const [guestBatchDialogOpen, setGuestBatchDialogOpen] = useState(false);
   const [messagingOpen, setMessagingOpen] = useState(false);
+  const [paymentsOpen, setPaymentsOpen] = useState(false);
 
   // Pause polling when any dialog is open to prevent form disruption
   const anyDialogOpen = addContributorDialogOpen || paymentDialogOpen || editPledgeDialogOpen || thankYouDialogOpen || reportDateDialogOpen || reportPreviewOpen || historyDialogOpen || bulkDialogOpen || guestBatchDialogOpen;
@@ -682,6 +685,11 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
               <SvgIcon src={ChatIcon} alt={t("messages")} className="w-4 h-4 mr-2" />{messagingOpen ? 'Hide' : ''} Messaging
             </Button>
           )}
+          {isCreator && (
+            <Button variant="outline" size="sm" onClick={() => setPaymentsOpen(!paymentsOpen)}>
+              <DollarSign className="w-4 h-4 mr-2" />{paymentsOpen ? 'Hide ' : ''}Payments
+            </Button>
+          )}
         </div>
       </div>
 
@@ -692,6 +700,14 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
           eventTitle={eventTitle}
           eventContributors={eventContributors}
           defaultContactPhone={reminderContactPhone}
+        />
+      )}
+
+      {/* Received contribution payments */}
+      {isCreator && paymentsOpen && (
+        <ReceivedPaymentsPanel
+          source={{ kind: 'event-contributions', eventId }}
+          title="Contribution payments received"
         />
       )}
 

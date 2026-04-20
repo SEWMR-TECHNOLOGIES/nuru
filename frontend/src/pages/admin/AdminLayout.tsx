@@ -7,7 +7,7 @@ import {
   Package, Briefcase, Newspaper, Sparkles, Users2,
   BookOpen, CreditCard, Tag, UserCog, BadgeCheck, AlertTriangle,
   BarChart3, MessageCircle, PanelLeftClose, PanelLeft, FileCheck,
-  Ticket, Flag, Activity,
+  Ticket, Flag, Activity, Banknote,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -42,6 +42,7 @@ const navItems = [
   { label: "Issue Categories", icon: Tag, to: "/admin/issue-categories" },
   { label: "Agreements", icon: FileCheck, to: "/admin/agreements" },
   { label: "Monitoring", icon: Activity, to: "/admin/monitoring" },
+  { label: "Payments", icon: Banknote, to: "/admin/payments" },
 ];
 
 export default function AdminLayout() {

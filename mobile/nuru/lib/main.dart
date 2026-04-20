@@ -5,8 +5,11 @@ import 'package:permission_handler/permission_handler.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/locale_provider.dart';
+import 'providers/wallet_provider.dart';
+import 'providers/migration_provider.dart';
 import 'screens/splash_screen.dart';
 import 'widgets/rate_limit_overlay.dart';
+import 'widgets/payment_verifier.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,8 +34,10 @@ void main() {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => LocaleProvider()),
+        ChangeNotifierProvider(create: (_) => WalletProvider()),
+        ChangeNotifierProvider(create: (_) => MigrationProvider()),
       ],
-      child: const NuruApp(),
+      child: const PaymentVerifier(child: NuruApp()),
     ),
   );
 }

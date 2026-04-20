@@ -1,31 +1,15 @@
 /**
- * PayDepositDialog — collects payment method + phone, calls bookingsApi.payDeposit.
+ * PayDepositDialog — thin wrapper around CheckoutModal so existing call sites
+ * keep working while payment goes through the new payments pipeline
+ * (target_type=service_booking).
+ *
+ * Resolves the vendor (booking.provider.id) and forwards it as the
+ * `beneficiaryUserId` so the backend credits the right wallet on success.
+ * The backend also auto-resolves this from `target_id` as a safety net.
  */
-
-import { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { useQuery } from "@tanstack/react-query";
+import CheckoutModal from "@/components/payments/CheckoutModal";
 import { bookingsApi } from "@/lib/api/bookings";
-import { showApiErrors } from "@/lib/api/showApiErrors";
-import { formatPrice } from "@/utils/formatPrice";
-import { toast } from "sonner";
-import { Smartphone } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -36,84 +20,35 @@ interface Props {
 }
 
 export function PayDepositDialog({ open, onOpenChange, bookingId, amount, onSuccess }: Props) {
-  const [method, setMethod] = useState("mpesa");
-  const [phone, setPhone] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const handlePay = async () => {
-    if (method === "mpesa" && !phone.trim()) {
-      toast.error("Enter your M-Pesa phone number");
-      return;
-    }
-    setBusy(true);
-    try {
-      const res = await bookingsApi.payDeposit(bookingId, {
-        payment_method: method,
-        phone: phone.trim() || undefined,
-      });
-      if (res.success) {
-        toast.success("Payment initiated — check your phone for the prompt");
-        onSuccess?.();
-        onOpenChange(false);
-      } else {
-        showApiErrors(res, "Payment failed");
-      }
-    } catch (e: any) {
-      toast.error(e?.message || "Payment failed");
-    } finally {
-      setBusy(false);
-    }
-  };
+  // Fetch the booking only when the dialog is opened so we can pass the
+  // vendor's user_id as the beneficiary. Cached by react-query so re-opens
+  // are instant.
+  const { data: booking } = useQuery({
+    queryKey: ["booking-detail-for-payment", bookingId],
+    queryFn: async () => {
+      const res = await bookingsApi.getById(bookingId);
+      return res.success ? res.data : null;
+    },
+    enabled: !!bookingId && open,
+    staleTime: 60_000,
+  });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Smartphone className="w-5 h-5 text-primary" />
-            Pay deposit
-          </DialogTitle>
-          <DialogDescription>
-            Pay {formatPrice(amount)} to secure your booking. Funds are held in escrow and only released once the service is delivered.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label>Payment method</Label>
-            <Select value={method} onValueChange={setMethod}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="mpesa">M-Pesa</SelectItem>
-                <SelectItem value="card">Card</SelectItem>
-                <SelectItem value="airtel">Airtel Money</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {(method === "mpesa" || method === "airtel") && (
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone number</Label>
-              <Input
-                id="phone"
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="e.g., 0712 345 678"
-              />
-            </div>
-          )}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
-            Cancel
-          </Button>
-          <Button onClick={handlePay} disabled={busy}>
-            {busy ? "Processing…" : `Pay ${formatPrice(amount)}`}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <CheckoutModal
+      open={open}
+      onOpenChange={onOpenChange}
+      targetType="service_booking"
+      targetId={bookingId}
+      beneficiaryUserId={booking?.provider?.id}
+      amount={amount}
+      title="Pay deposit"
+      description="Funds are held in escrow and only released once the service is delivered."
+      onSuccess={async () => {
+        // Best-effort sync with bookings service so the booking row reflects the deposit.
+        try { await bookingsApi.payDeposit(bookingId, { payment_method: "wallet" }); } catch { /* ignore */ }
+        onSuccess?.();
+      }}
+    />
   );
 }
 

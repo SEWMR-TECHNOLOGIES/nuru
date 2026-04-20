@@ -571,7 +571,7 @@ const MomentDetail = () => {
         <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 mb-4 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-destructive">This moment has been removed by an administrator.</p>
+            <p className="text-sm font-medium text-destructive">This moment has been removed by Nuru.</p>
             {post.removal_reason && (
               <p className="text-xs text-muted-foreground mt-0.5">Reason: {post.removal_reason}</p>
             )}

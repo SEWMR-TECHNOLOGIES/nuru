@@ -23,7 +23,7 @@ import { useDeleteTracker } from '@/hooks/useDeleteTracker';
 import { toast } from 'sonner';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { showCaughtError } from '@/lib/api';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import { useEventBudget } from '@/data/useEvents';
 import { generateBudgetReportHtml } from '@/utils/generateBudgetItemsReport';
 import ReportPreviewDialog from '@/components/ReportPreviewDialog';
@@ -41,7 +41,6 @@ let _importProgress: { current: number; total: number } | null = null;
 let _importAbort = false;
 const _importListeners = new Set<(p: { current: number; total: number } | null) => void>();
 const _broadcastImport = (p: { current: number; total: number } | null) => {
-  const { t } = useLanguage();
   _importProgress = p;
   _importListeners.forEach(fn => fn(p));
 };
@@ -77,6 +76,7 @@ const getStatusStyle = (status: string) => STATUS_OPTIONS.find(s => s.value === 
 const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeName, eventLocation, expectedGuests, permissions }: EventBudgetProps) => {
   const canManage = permissions?.can_manage_budget || permissions?.is_creator;
   const canView = permissions?.can_view_budget || permissions?.can_manage_budget || permissions?.is_creator;
+  const { currency, format: formatPrice } = useCurrency();
 
   const { items, summary, loading, refetch, addItem, updateItem, deleteItem } = useEventBudget(eventId);
   const { trackDelete, isDeleting } = useDeleteTracker();
@@ -739,11 +739,11 @@ const EventBudget = ({ eventId, eventTitle, eventBudget, eventType, eventTypeNam
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Estimated Cost</Label>
-                <FormattedNumberInput value={formEstimatedCost} onChange={setFormEstimatedCost} prefix="TZS " placeholder="TZS 0" />
+                <FormattedNumberInput value={formEstimatedCost} onChange={setFormEstimatedCost} prefix={`${currency} `} placeholder={`${currency} 0`} />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Actual Cost</Label>
-                <FormattedNumberInput value={formActualCost} onChange={setFormActualCost} prefix="TZS " placeholder="TZS 0" />
+                <FormattedNumberInput value={formActualCost} onChange={setFormActualCost} prefix={`${currency} `} placeholder={`${currency} 0`} />
               </div>
             </div>
             <div className="space-y-1.5">
