@@ -49,6 +49,8 @@ from .migration import router as migration_router
 from .admin_payments_ops import router as admin_payments_ops_router
 from .received_payments import router as received_payments_router
 from .event_groups import router as event_groups_router
+from .public_contributions import router as public_contributions_router
+
 
 # All routers to be included in main app
 all_routers = [
@@ -99,6 +101,7 @@ all_routers = [
     admin_payments_ops_router, # /admin/payments/{summary,ledger,settlements,beneficiaries,reconciliation,reports}
     received_payments_router,  # /received-payments/{events,services}/...
     event_groups_router,       # /event-groups/...
+    public_contributions_router,  # /public/contributions/{token}/...
 ]
 
 __all__ = [

@@ -84,6 +84,8 @@ import EventGroupWorkspace from "@/pages/EventGroupWorkspace";
 import GuestGroupJoin from "@/pages/GuestGroupJoin";
 import MyGroups from "@/components/eventGroups/MyGroups";
 import MyContributions from "@/pages/MyContributions";
+import PublicContribute from "@/pages/PublicContribute";
+import PublicContributionReceipt from "@/pages/PublicContributionReceipt";
 
 // Admin
 import AdminLogin from "@/pages/admin/AdminLogin";
@@ -231,6 +233,8 @@ function InnerRoutes() {
         <Route path="/rsvp/:code" element={<RSVPConfirmation />} />
         <Route path="/ticket/:code" element={<TicketVerification />} />
         <Route path="/g/:token" element={<GuestGroupJoin />} />
+        <Route path="/c/:token" element={<PublicContribute />} />
+        <Route path="/c/:token/r/:txCode" element={<PublicContributionReceipt />} />
         <Route path="/features/event-planning" element={<EventPlanning />} />
         <Route path="/features/service-providers" element={<ServiceProviders />} />
         <Route path="/features/invitations" element={<Invitations />} />

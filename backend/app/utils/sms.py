@@ -272,3 +272,50 @@ def sms_admin_payment_alert(
     )
     _send(phone, msg)
 
+
+def sms_guest_contribution_invite(
+    phone: str,
+    contributor_name: str,
+    organiser_name: str,
+    event_title: str,
+    pledge_amount: float,
+    currency: str,
+    payment_url: str,
+):
+    """Invite a non-Nuru-user contributor to pay their pledge via a link.
+
+    Friendly, no jargon — recipient may have never heard of Nuru before.
+    """
+    amount_bit = (
+        f"{currency} {pledge_amount:,.0f}" if pledge_amount and pledge_amount > 0 else "your contribution"
+    )
+    msg = (
+        f"Hello {contributor_name}, {organiser_name} has invited you to contribute "
+        f"{amount_bit} towards {event_title}. "
+        f"Pay safely here: {payment_url}"
+    )
+    _send(phone, msg)
+
+
+def sms_guest_contribution_receipt(
+    phone: str,
+    contributor_name: str,
+    event_title: str,
+    amount: float,
+    currency: str,
+    transaction_code: str,
+    receipt_url: str,
+):
+    """Send a guest contributor a link to their permanent receipt page.
+
+    Fired once when a guest payment transitions to credited on the public
+    flow. Recipient may not have a Nuru account — keep it plain.
+    """
+    msg = (
+        f"Hello {contributor_name}, your payment of {currency} {amount:,.0f} "
+        f"for {event_title} was successful. Ref: {transaction_code}. "
+        f"View your receipt anytime: {receipt_url}"
+    )
+    _send(phone, msg)
+
+

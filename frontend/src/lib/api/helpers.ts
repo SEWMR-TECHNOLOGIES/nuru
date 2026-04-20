@@ -63,7 +63,7 @@ export async function request<T>(
     // Skip redirect on public pages (shared posts, photo libraries, RSVP, etc.)
     if (response.status === 401) {
       const currentToken = localStorage.getItem("access_token") || localStorage.getItem("token");
-      const publicPaths = ["/shared/", "/s/", "/rsvp/", "/ticket/", "/meet/", "/contact", "/faqs", "/register", "/login", "/verify-", "/reset-password", "/privacy-policy", "/terms", "/vendor-agreement", "/organiser-agreement", "/cancellation-policy", "/cookie-policy", "/features/"];
+      const publicPaths = ["/shared/", "/s/", "/c/", "/rsvp/", "/ticket/", "/meet/", "/contact", "/faqs", "/register", "/login", "/verify-", "/reset-password", "/privacy-policy", "/terms", "/vendor-agreement", "/organiser-agreement", "/cancellation-policy", "/cookie-policy", "/features/"];
       const isPublicPage = publicPaths.some(p => window.location.pathname.startsWith(p));
       if (currentToken) {
         localStorage.removeItem("access_token");
