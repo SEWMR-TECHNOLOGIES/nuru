@@ -580,7 +580,17 @@ const PostDetail = () => {
   // Shared event detection
   const isEventShare = post.post_type === 'event_share' && !!post.shared_event;
   const sharedEvent = post.shared_event;
-  const eventImages = sharedEvent?.images?.length ? sharedEvent.images : (sharedEvent?.cover_image ? [sharedEvent.cover_image] : []);
+  const normalizeImg = (i: any): string | null =>
+    !i ? null : (typeof i === 'string' ? i : (i.image_url || i.url || i.src || null));
+  const eventImages: string[] = (() => {
+    const raw = sharedEvent?.images;
+    const list = Array.isArray(raw) && raw.length
+      ? raw.map(normalizeImg).filter(Boolean) as string[]
+      : [];
+    if (list.length) return list;
+    const cover = normalizeImg(sharedEvent?.cover_image);
+    return cover ? [cover] : [];
+  })();
 
   const isOwner = currentUser && (post.user?.id === currentUser.id || post.author?.id === currentUser.id);
   const isRemoved = post.is_active === false;

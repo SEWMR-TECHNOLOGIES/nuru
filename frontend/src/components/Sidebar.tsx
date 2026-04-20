@@ -59,6 +59,8 @@ import { cn } from '@/lib/utils'
 interface SidebarProps {
   onNavigate?: () => void;
   onReplayTour?: () => void;
+  /** When true, renders the full expanded desktop layout regardless of viewport (used inside the mobile drawer). */
+  inDrawer?: boolean;
 }
 
 type NavItem = {
@@ -84,7 +86,14 @@ const FAVORITES_KEY = 'nuru_sidebar_favorites_v1';
 const RECENTS_KEY = 'nuru_sidebar_recents_v1';
 const MAX_RECENTS = 5;
 
-const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
+const Sidebar = ({ onNavigate, onReplayTour, inDrawer = false }: SidebarProps) => {
+  // When inside the mobile drawer, force the expanded "lg" layout instead of the icon-rail "md" layout.
+  const lg = (cls: string) => (inDrawer ? cls.replace(/(^|\s)lg:/g, '$1') : cls);
+  const showLabel = inDrawer ? 'inline' : 'md:hidden lg:inline';
+  const showLgBlock = inDrawer ? 'block' : 'hidden lg:block';
+  const showLgFlex = inDrawer ? 'flex' : 'hidden lg:flex';
+  const showLgInlineFlex = inDrawer ? 'inline-flex' : 'hidden lg:inline-flex';
+  const hideOnLg = inDrawer ? 'hidden' : 'md:block lg:hidden';
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useLanguage();
@@ -269,13 +278,13 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
               )}
             />
             {renderIcon(item)}
-            <span className="md:hidden lg:inline truncate flex-1">{item.label}</span>
+            <span className={cn(showLabel, 'truncate flex-1')}>{item.label}</span>
             {showStar && (
               <button
                 type="button"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleFavorite(item.path); }}
                 className={cn(
-                  'hidden lg:inline-flex p-1 -mr-1 rounded transition-opacity',
+                  showLgInlineFlex, 'p-1 -mr-1 rounded transition-opacity',
                   isFav ? 'opacity-100 text-nuru-yellow' : 'opacity-0 group-hover/nav:opacity-60 hover:!opacity-100 text-muted-foreground'
                 )}
                 title={isFav ? 'Remove from favorites' : 'Add to favorites'}
@@ -331,9 +340,9 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
     .filter(Boolean) as NavItem[];
 
   return (
-    <aside className="flex flex-col w-full md:w-14 lg:w-64 bg-sidebar-background md:border-r md:border-sidebar-border h-full overflow-hidden">
+    <aside className={cn('flex flex-col h-full overflow-hidden bg-sidebar-background', inDrawer ? 'w-full' : 'w-full md:w-14 lg:w-64 md:border-r md:border-sidebar-border')}>
       {/* Quick jump trigger (desktop) */}
-      <div className="hidden lg:block px-3 pt-3 pb-2">
+      <div className={cn(showLgBlock, 'px-3 pt-3 pb-2')}>
         <button
           type="button"
           onClick={() => setPaletteOpen(true)}
@@ -348,7 +357,7 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
       </div>
 
       {/* Inline filter */}
-      <div className="hidden lg:block px-3 pb-2">
+      <div className={cn(showLgBlock, 'px-3 pb-2')}>
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -357,7 +366,7 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
         />
       </div>
 
-      <div className="flex-1 overflow-y-auto overscroll-y-contain p-1.5 lg:px-3 lg:pb-4 lg:pt-0">
+      <div className={cn('flex-1 overflow-y-auto overscroll-y-contain', inDrawer ? 'px-3 pb-4 pt-0' : 'p-1.5 lg:px-3 lg:pb-4 lg:pt-0')}>
         {/* Pinned */}
         <nav className="space-y-0.5">
           {(normalizedFilter ? pinned.filter(matches) : pinned).map((i) => renderNavItem(i))}
@@ -366,16 +375,16 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
         {/* Create Event CTA */}
         <div className="mt-3 mb-2">
           <NavLink to="/create-event" onClick={onNavigate}>
-            <Button className="w-full bg-nuru-yellow hover:bg-nuru-yellow/90 text-foreground font-semibold lg:px-4 md:px-0 px-4 justify-center shadow-sm h-9">
-              <SvgIcon src={AddSquareIcon} alt={t('create_event')} className="w-4 h-4 lg:mr-2" />
-              <span className="md:hidden lg:inline">{t('create_event')}</span>
+            <Button className={cn('w-full bg-nuru-yellow hover:bg-nuru-yellow/90 text-foreground font-semibold justify-center shadow-sm h-9', inDrawer ? 'px-4' : 'lg:px-4 md:px-0 px-4')}>
+              <SvgIcon src={AddSquareIcon} alt={t('create_event')} className={cn('w-4 h-4', inDrawer ? 'mr-2' : 'lg:mr-2')} />
+              <span className={showLabel}>{t('create_event')}</span>
             </Button>
           </NavLink>
         </div>
 
         {/* Favorites — show only when there are some, hidden in filter mode */}
         {!normalizedFilter && favItems.length > 0 && (
-          <div className="hidden lg:block mt-3">
+          <div className={cn(showLgBlock, 'mt-3')}>
             <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground/70">
               <Star className="w-3 h-3" /> <span>Favorites</span>
             </div>
@@ -387,7 +396,7 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
 
         {/* Recents — surfaced when not filtering and we have a couple */}
         {!normalizedFilter && recentItems.length > 0 && (
-          <div className="hidden lg:block mt-3">
+          <div className={cn(showLgBlock, 'mt-3')}>
             <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground/70">
               <Clock className="w-3 h-3" /> <span>Recents</span>
             </div>
@@ -414,7 +423,7 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
                 >
                   <CollapsibleTrigger
                     className={cn(
-                      'hidden lg:flex w-full items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[10.5px] uppercase tracking-[0.08em] font-semibold transition-colors',
+                      showLgFlex, 'w-full items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[10.5px] uppercase tracking-[0.08em] font-semibold transition-colors',
                       open ? 'text-foreground/80' : 'text-muted-foreground/60 hover:text-foreground/80'
                     )}
                   >
@@ -426,11 +435,11 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
                   </CollapsibleTrigger>
 
                   {/* md (icon-only) view: always show items */}
-                  <div className="md:block lg:hidden">
+                  <div className={hideOnLg}>
                     <nav className="space-y-0.5">{s.items.map((i) => renderNavItem(i, { showStar: false }))}</nav>
                   </div>
 
-                  <CollapsibleContent className="hidden lg:block overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
+                  <CollapsibleContent className={cn(showLgBlock, 'overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up')}>
                     <div className="relative pl-3 ml-[11px] mt-0.5 mb-1 border-l border-sidebar-border/70">
                       <nav className="space-y-px">{s.items.map((i) => renderNavItem(i))}</nav>
                     </div>
@@ -446,17 +455,17 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
           <div className="mt-3">
             <button
               onClick={onReplayTour}
-              className="w-full flex items-center gap-3 px-2.5 lg:px-2.5 md:px-0 md:justify-center lg:justify-start py-2 rounded-md font-medium text-sm text-muted-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground transition-colors"
+              className={cn('w-full flex items-center gap-3 py-2 rounded-md font-medium text-sm text-muted-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground transition-colors', inDrawer ? 'px-2.5 justify-start' : 'px-2.5 lg:px-2.5 md:px-0 md:justify-center lg:justify-start')}
             >
               <Sparkles className="w-[18px] h-[18px] flex-shrink-0" />
-              <span className="md:hidden lg:inline">{t('replay_tour')}</span>
+              <span className={showLabel}>{t('replay_tour')}</span>
             </button>
           </div>
         )}
       </div>
 
       {/* Sticky profile footer */}
-      <div className="border-t border-sidebar-border p-2 lg:p-3">
+      <div className={cn('border-t border-sidebar-border', inDrawer ? 'p-3' : 'p-2 lg:p-3')}>
         <NavLink to="/profile" className={linkClass} onClick={onNavigate} title={t('your_profile')}>
           {({ isActive }) => (
             <>
@@ -468,7 +477,7 @@ const Sidebar = ({ onNavigate, onReplayTour }: SidebarProps) => {
                 )}
               />
               <SvgIcon src={UserProfileIcon} className="w-[18px] h-[18px]" />
-              <span className="md:hidden lg:inline">{t('your_profile')}</span>
+              <span className={showLabel}>{t('your_profile')}</span>
             </>
           )}
         </NavLink>
