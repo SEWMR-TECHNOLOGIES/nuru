@@ -17,7 +17,7 @@ import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useEvents, useDeleteEvent, prefetchEvent } from '@/data/useEvents';
 import { usePrefetchOnVisible } from '@/hooks/usePrefetchOnVisible';
 import { usePolling } from '@/hooks/usePolling';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import { getEventCountdown } from '@/utils/getEventCountdown';
 import { Skeleton } from '@/components/ui/skeleton';
 import { eventsApi } from '@/lib/api/events';
@@ -28,6 +28,7 @@ import { generateEventReportHtml } from '@/utils/generateEventReport';
 import ReportPreviewDialog from '@/components/ReportPreviewDialog';
 import InvitedEvents from './InvitedEvents';
 import CommitteeEvents from './CommitteeEvents';
+import MigrationBanner from '@/components/migration/MigrationBanner';
 import MyContributionsTab from './events/MyContributionsTab';
 import SearchHeader from '@/components/ui/search-header';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
@@ -84,6 +85,7 @@ const EventCardShell = ({
 };
 
 const MyEvents = () => {
+  const { format: formatPrice } = useCurrency();
   const { t } = useLanguage();
   useWorkspaceMeta({
     title: 'My Events',
@@ -453,13 +455,16 @@ const MyEvents = () => {
   // ── My Events list ─────────────────────────────────────────────────────────
   const renderMyEventsList = () => {
     const searchBar = (
-      <div className="flex items-center justify-end">
-        <SearchHeader
-          value={search}
-          onChange={setSearch}
-          placeholder="Search by title, location…"
-        />
-      </div>
+      <>
+        <MigrationBanner surface="events" />
+        <div className="flex items-center justify-end">
+          <SearchHeader
+            value={search}
+            onChange={setSearch}
+            placeholder="Search by title, location…"
+          />
+        </div>
+      </>
     );
 
     if (loading) return <div className="space-y-4">{searchBar}{renderSkeleton()}</div>;

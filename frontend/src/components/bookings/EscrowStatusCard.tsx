@@ -19,7 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useBookingEscrow } from "@/data/useBookingEscrow";
-import { formatPrice } from "@/utils/formatPrice";
+import { useCurrency } from "@/hooks/useCurrency";
 import { toast } from "sonner";
 
 interface Props {
@@ -37,6 +37,7 @@ const STATUS_LABEL: Record<string, { label: string; className: string }> = {
 };
 
 export function EscrowStatusCard({ bookingId, viewerRole }: Props) {
+  const { format: formatPrice } = useCurrency();
   const { hold, loading, error, release, refund, refetch } = useBookingEscrow(bookingId);
   const [refundOpen, setRefundOpen] = useState(false);
   const [refundAmount, setRefundAmount] = useState("");

@@ -848,6 +848,11 @@ export const useConversations = (search: string = "") => {
 
 const _messagesCache = new Map<string, any[]>();
 const _messagesInflight = new Map<string, Promise<void>>();
+// Last successful fetch timestamp per conversation — used to throttle the
+// 5s polling tick so we don't hammer the API with back-to-back requests
+// (e.g., visibility-change firing right after the interval).
+const _messagesLastFetch = new Map<string, number>();
+const FETCH_THROTTLE_MS = 2500;
 
 /**
  * Hover-prefetch: warm the message cache for a conversation so opening it is instant.
@@ -856,11 +861,12 @@ export const prefetchConversationMessages = (conversationId: string): void => {
   if (!conversationId || _messagesCache.has(conversationId) || _messagesInflight.has(conversationId)) return;
   const p = (async () => {
     try {
-      const response = await socialApi.getMessages(conversationId);
+      const response = await socialApi.getMessages(conversationId, { limit: 30 });
       if (response.success) {
         const data = response.data as any;
         const items = Array.isArray(data) ? data : data?.items || data?.messages || [];
         _messagesCache.set(conversationId, items);
+        _messagesLastFetch.set(conversationId, Date.now());
       }
     } catch { /* non-fatal */ }
     finally { _messagesInflight.delete(conversationId); }
@@ -895,20 +901,61 @@ export const useConversationMessages = (conversationId: string | null) => {
     setError(null);
   }, [conversationId]);
 
-  const fetchMessages = useCallback(async () => {
+  const fetchMessages = useCallback(async (opts?: { force?: boolean }) => {
     if (!conversationId) return;
     const requestedConvId = conversationId;
+    // Throttle background polling — skip if we successfully fetched < 2.5s ago.
+    const last = _messagesLastFetch.get(requestedConvId) || 0;
+    if (!opts?.force && Date.now() - last < FETCH_THROTTLE_MS) return;
     if (!_messagesCache.has(requestedConvId)) setLoading(true);
     setError(null);
     try {
-      const response = await socialApi.getMessages(requestedConvId);
+      const response = await socialApi.getMessages(requestedConvId, { limit: 30 });
       // Drop response if user has switched conversations meanwhile.
       if (activeConvIdRef.current !== requestedConvId) return;
       if (response.success) {
         const data = response.data as any;
         const items = Array.isArray(data) ? data : data?.items || data?.messages || [];
-        _messagesCache.set(requestedConvId, items);
-        setMessages(items);
+        // Merge with any optimistic "tmp-*" bubbles still on screen so
+        // background polling never wipes a message the user just sent.
+        // Drop optimistic bubbles whose content matches an incoming real
+        // message from the same sender within the last 30 seconds.
+        setMessages(prev => {
+          const optimistic = prev.filter((m: any) => typeof m.id === "string" && m.id.startsWith("tmp-"));
+          if (optimistic.length === 0) {
+            _messagesCache.set(requestedConvId, items);
+            return items;
+          }
+          const parseTs = (s?: string) => {
+            if (!s) return 0;
+            const norm = s.endsWith("Z") || /[+-]\d{2}:?\d{2}$/.test(s) ? s : (s.includes("T") ? `${s}Z` : `${s.replace(" ", "T")}Z`);
+            return new Date(norm).getTime();
+          };
+          const surviving = optimistic.filter((opt: any) => {
+            const optTime = parseTs(opt.created_at);
+            const optContent = (opt.content || "").trim();
+            const optHasAttachment = Array.isArray(opt.attachments) && opt.attachments.length > 0;
+            return !items.some((real: any) => {
+              // A real message matches our optimistic one if it's authored by us.
+              // The server may signal that via is_sender OR matching sender_id.
+              const mine = real.is_sender === true || (opt.sender_id && real.sender_id === opt.sender_id);
+              if (!mine) return false;
+              const sameText = (real.content || "").trim() === optContent;
+              const realHasAttachment = Array.isArray(real.attachments) && real.attachments.length > 0;
+              // Content-only message: text must match. Attachment message: both must have an attachment.
+              const contentMatch = optHasAttachment ? realHasAttachment && sameText : sameText;
+              if (!contentMatch) return false;
+              const realTime = parseTs(real.created_at);
+              // Generous 2-min window to absorb slow networks / clock skew.
+              return Math.abs(realTime - optTime) < 120_000;
+            });
+          });
+          // Append surviving optimistic bubbles at the end — they're the newest.
+          const merged = surviving.length === 0 ? items : [...items, ...surviving];
+          _messagesCache.set(requestedConvId, merged);
+          return merged;
+        });
+        _messagesLastFetch.set(requestedConvId, Date.now());
       } else {
         setError(response.message || "Failed to fetch messages");
       }
@@ -924,16 +971,37 @@ export const useConversationMessages = (conversationId: string | null) => {
     if (conversationId) fetchMessages();
   }, [fetchMessages, conversationId]);
 
-  // FIX: Wrapped in useCallback for stability
+  // Append (de-duped by id) so polling + manual sends don't double-render.
   const appendMessage = useCallback((msg: any) => {
     setMessages(prev => {
+      if (msg?.id && prev.some((m: any) => m.id === msg.id)) return prev;
       const updated = [...prev, msg];
       if (conversationId) _messagesCache.set(conversationId, updated);
       return updated;
     });
   }, [conversationId]);
 
-  return { messages, loading, error, refetch: fetchMessages, setMessages, appendMessage };
+  // Swap an optimistic tmp-* bubble with the real server message in place
+  // (no flicker, no re-sort). Falls back to append if temp not found.
+  const replaceMessage = useCallback((tempId: string, real: any) => {
+    setMessages(prev => {
+      const idx = prev.findIndex((m: any) => m.id === tempId);
+      const updated = idx === -1 ? [...prev, real] : prev.map((m: any, i) => (i === idx ? real : m));
+      if (conversationId) _messagesCache.set(conversationId, updated);
+      return updated;
+    });
+  }, [conversationId]);
+
+  // Remove a failed optimistic bubble.
+  const removeMessage = useCallback((id: string) => {
+    setMessages(prev => {
+      const updated = prev.filter((m: any) => m.id !== id);
+      if (conversationId) _messagesCache.set(conversationId, updated);
+      return updated;
+    });
+  }, [conversationId]);
+
+  return { messages, loading, error, refetch: fetchMessages, setMessages, appendMessage, replaceMessage, removeMessage };
 };
 
 export const useSendMessage = () => {

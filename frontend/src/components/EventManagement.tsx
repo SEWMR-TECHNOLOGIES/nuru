@@ -28,7 +28,7 @@ import { useEventContributors } from '@/data/useContributors';
 import { useEvent } from '@/data/useEvents';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { usePolling } from '@/hooks/usePolling';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import { getEventCountdown } from '@/utils/getEventCountdown';
 import { EventManagementSkeleton } from '@/components/ui/EventManagementSkeleton';
 import { eventsApi, showCaughtError } from '@/lib/api';
@@ -42,10 +42,12 @@ import ShareEventToFeed from '@/components/ShareEventToFeed';
 import EventTicketManagement from '@/components/events/EventTicketManagement';
 import EventGuestCheckIn from '@/components/events/EventGuestCheckIn';
 import EventMeetings from '@/components/events/EventMeetings';
+import EventGroupCta from '@/components/eventGroups/EventGroupCta';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const EventManagement = () => {
+  const { format: formatPrice } = useCurrency();
   const { t } = useLanguage();
   const { id } = useParams();
   const navigate = useNavigate();
@@ -68,6 +70,26 @@ const EventManagement = () => {
   });
 
   const [activeTab, setActiveTab] = useState('overview');
+  const [openingWorkspace, setOpeningWorkspace] = useState(false);
+
+  const openWorkspace = useCallback(async () => {
+    if (!id || openingWorkspace) return;
+    setOpeningWorkspace(true);
+    try {
+      const { eventGroupsApi } = await import('@/lib/api/eventGroups');
+      let res = await eventGroupsApi.getForEvent(id);
+      if (!res.success || !res.data?.id) {
+        res = await eventGroupsApi.createForEvent(id);
+      }
+      const groupId = (res.data as any)?.id;
+      if (groupId) navigate(`/event-group/${groupId}`);
+      else toast.error('Could not open workspace');
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not open workspace');
+    } finally {
+      setOpeningWorkspace(false);
+    }
+  }, [id, navigate, openingWorkspace]);
   const [showAddServiceDialog, setShowAddServiceDialog] = useState(false);
   const [serviceSearch, setServiceSearch] = useState('');
   const [deleteServiceId, setDeleteServiceId] = useState<string | null>(null);
@@ -362,6 +384,9 @@ const EventManagement = () => {
         />
 
         <TabsContent value="overview" className="space-y-4">
+          {/* Group Chat CTA — create or open the event group from here */}
+          <EventGroupCta eventId={id || ''} onOpen={openWorkspace} opening={openingWorkspace} />
+
           {/* Row 1: Financial overview */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <Card className="w-full"><CardContent className="p-5"><div className="flex items-center justify-between"><div className="flex-1"><p className="text-xs text-muted-foreground">Budget Status</p><p className="text-base font-semibold mt-1">{eventBudget}</p><p className="text-xs text-muted-foreground mt-1">Budget allocated</p></div><div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-blue-600" /></div></div></CardContent></Card>

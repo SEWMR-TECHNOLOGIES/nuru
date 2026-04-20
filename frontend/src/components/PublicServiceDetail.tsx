@@ -18,7 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useUserService } from '@/hooks/useUserService';
 import { servicesApi } from '@/lib/api/services';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import { ServiceDetailLoadingSkeleton } from '@/components/ui/ServiceLoadingSkeleton';
 import { UserService, ServicePackage, ServiceReview } from '@/lib/api/types';
 import { showApiErrors } from '@/lib/api';
@@ -36,6 +36,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
 
 const PublicServiceDetail = () => {
+  const { format: formatPrice } = useCurrency();
   const { t } = useLanguage();
   const { id } = useParams();
   const navigate = useNavigate();

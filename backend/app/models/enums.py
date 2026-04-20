@@ -331,3 +331,76 @@ class CancellationTierEnum(enum.Enum):
     flexible = "flexible"
     moderate = "moderate"
     strict = "strict"
+
+
+# ──────────────────────────────────────────────
+# Payments / Wallet (Phase 1)
+# ──────────────────────────────────────────────
+
+class PaymentProviderTypeEnum(enum.Enum):
+    """Type of payout/collection provider an admin can register."""
+    mobile_money = "mobile_money"
+    bank = "bank"
+
+
+class PaymentTargetTypeEnum(enum.Enum):
+    """What the payment is funding — drives credit routing."""
+    contribution = "contribution"
+    ticket = "ticket"
+    booking = "booking"
+    wallet_topup = "wallet_topup"
+    withdrawal = "withdrawal"
+    settlement = "settlement"
+
+
+class TransactionStatusEnum(enum.Enum):
+    """Lifecycle of any money movement."""
+    pending = "pending"          # created, not yet sent to gateway
+    processing = "processing"    # STK pushed / awaiting confirmation
+    paid = "paid"                # funds received in Nuru collection
+    credited = "credited"        # beneficiary wallet credited
+    failed = "failed"
+    reversed = "reversed"
+
+
+class WalletEntryTypeEnum(enum.Enum):
+    """Direction & nature of a wallet ledger entry."""
+    credit = "credit"            # money in
+    debit = "debit"              # money out
+    hold = "hold"                # placed on pending balance
+    release = "release"          # moved from pending → available
+    commission = "commission"    # platform fee
+    refund = "refund"
+    withdrawal = "withdrawal"
+    adjustment = "adjustment"
+
+
+class CountrySourceEnum(enum.Enum):
+    """How the user's country was determined."""
+    ip = "ip"
+    phone_prefix = "phone_prefix"
+    locale = "locale"
+    manual = "manual"
+
+
+class PayoutMethodTypeEnum(enum.Enum):
+    """How a beneficiary wants to be paid out."""
+    mobile_money = "mobile_money"
+    bank = "bank"
+
+
+class WithdrawalRequestStatusEnum(enum.Enum):
+    """Lifecycle of an admin-mediated withdrawal request.
+
+    pending   — submitted by user, funds held; awaiting admin review.
+    approved  — admin acknowledged; funds still pending while paying out.
+    settled   — admin confirmed external payout sent; wallet `withdrawal()` recorded.
+    rejected  — admin declined; held funds released back to available.
+    cancelled — user cancelled before admin action; held funds released.
+    """
+    pending = "pending"
+    approved = "approved"
+    settled = "settled"
+    rejected = "rejected"
+    cancelled = "cancelled"
+

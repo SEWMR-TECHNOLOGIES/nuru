@@ -39,6 +39,16 @@ from .meeting_og import router as meeting_og_router
 from .combined import router as combined_router
 from .escrow import router as escrow_router
 from .delivery_otp import router as delivery_otp_router
+from .wallet import router as wallet_router
+from .payment_profiles import router as payment_profiles_router
+from .payments import router as payments_router
+from .admin_payments import router as admin_payments_router
+from .withdrawals import router as withdrawals_router
+from .admin_withdrawals import router as admin_withdrawals_router
+from .migration import router as migration_router
+from .admin_payments_ops import router as admin_payments_ops_router
+from .received_payments import router as received_payments_router
+from .event_groups import router as event_groups_router
 
 # All routers to be included in main app
 all_routers = [
@@ -79,6 +89,16 @@ all_routers = [
     combined_router,           # /combined/... (aggregated endpoints)
     escrow_router,             # /escrow/...
     delivery_otp_router,       # /delivery-otp/...
+    wallet_router,             # /wallet/...
+    payment_profiles_router,   # /payment-profiles/...
+    payments_router,           # /payments/...
+    admin_payments_router,     # /admin/payments/...
+    withdrawals_router,        # /withdrawals/...
+    admin_withdrawals_router,  # /admin/withdrawals/...
+    migration_router,          # /users/me/migration-status
+    admin_payments_ops_router, # /admin/payments/{summary,ledger,settlements,beneficiaries,reconciliation,reports}
+    received_payments_router,  # /received-payments/{events,services}/...
+    event_groups_router,       # /event-groups/...
 ]
 
 __all__ = [

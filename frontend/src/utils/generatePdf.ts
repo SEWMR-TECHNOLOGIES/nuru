@@ -321,3 +321,230 @@ export const generateExpenseReportHtml = (
     </body></html>
   `;
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin Payments Operations Report
+// Used by AdminPaymentsReports for all 10 finance reports (collections,
+// commissions, settlements, country mix, etc.). Renders branded HTML for
+// ReportPreviewDialog → Print → PDF, matching the contribution/expense look.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PaymentsReportColumn {
+  key: string;
+  label: string;
+  align?: "left" | "right" | "center";
+  format?: (v: unknown, row: Record<string, unknown>) => string;
+}
+
+export interface PaymentsReportSummaryCard {
+  label: string;
+  value: string;
+  tone?: "primary" | "success" | "danger" | "warning" | "muted";
+}
+
+export const generatePaymentsReportHtml = (
+  reportTitle: string,
+  rows: Record<string, unknown>[],
+  columns: PaymentsReportColumn[],
+  summary: PaymentsReportSummaryCard[],
+  dateRangeLabel?: string,
+  footerNote?: string,
+): string => {
+  const logoAbsoluteUrl = new URL(nuruLogoUrl, window.location.origin).href;
+  const generatedAt = `${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+
+  const toneToColor = (tone?: PaymentsReportSummaryCard["tone"]) => {
+    switch (tone) {
+      case "success": return "#16a34a";
+      case "danger":  return "#dc2626";
+      case "warning": return "#ca8a04";
+      case "primary": return "#2563eb";
+      default:        return "#111827";
+    }
+  };
+
+  const summaryCards = summary.map((c) => `
+    <div class="summary-card">
+      <div class="label">${c.label}</div>
+      <div class="value" style="color:${toneToColor(c.tone)}">${c.value}</div>
+    </div>
+  `).join('');
+
+  const headerCells = columns.map((c) => `
+    <th style="text-align:${c.align ?? 'left'}">${c.label}</th>
+  `).join('');
+
+  const bodyRows = rows.map((r, i) => `
+    <tr>
+      <td style="padding:8px;border-bottom:1px solid #eee">${i + 1}</td>
+      ${columns.map((c) => {
+        const raw = r[c.key];
+        const text = c.format ? c.format(raw, r) : (raw ?? '—');
+        return `<td style="padding:8px;border-bottom:1px solid #eee;text-align:${c.align ?? 'left'}">${text}</td>`;
+      }).join('')}
+    </tr>
+  `).join('');
+
+  return `
+    <!DOCTYPE html>
+    <html><head><title>${reportTitle}</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 36px; color: #333; }
+      .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; border-bottom: 2px solid #e5e7eb; padding-bottom: 18px; }
+      .brand { display: flex; flex-direction: column; align-items: flex-start; }
+      .brand img { height: 38px; margin-bottom: 6px; }
+      .brand .slogan { font-size: 11px; color: #888; font-style: italic; }
+      .header-right { text-align: right; }
+      .header-right h1 { font-size: 19px; margin: 0 0 4px 0; }
+      .header-right h2 { font-size: 12px; color: #666; margin: 0; font-weight: normal; }
+      .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 22px; }
+      .summary-card { background: #f9fafb; border-radius: 8px; padding: 12px 16px; border: 1px solid #f1f5f9; }
+      .summary-card .label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.6px; }
+      .summary-card .value { font-size: 16px; font-weight: bold; margin-top: 4px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+      th { background: #f8f8f8; padding: 9px 8px; text-align: left; border-bottom: 2px solid #ddd; font-size: 12px; }
+      td { font-size: 12px; }
+      .footer { margin-top: 28px; font-size: 10.5px; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 12px; }
+      @media print { body { padding: 18px; } }
+    </style></head>
+    <body>
+      <div class="header">
+        <div class="brand">
+          <img src="${logoAbsoluteUrl}" alt="Nuru" />
+          <span class="slogan">Plan Smarter</span>
+        </div>
+        <div class="header-right">
+          <h1>${reportTitle}</h1>
+          <h2>Generated ${generatedAt}</h2>
+          ${dateRangeLabel ? `<h2 style="color:#ca8a04;margin-top:4px">Period: ${dateRangeLabel}</h2>` : ''}
+        </div>
+      </div>
+
+      ${summary.length ? `<div class="summary">${summaryCards}</div>` : ''}
+
+      <table>
+        <thead><tr><th>S/N</th>${headerCells}</tr></thead>
+        <tbody>${bodyRows || `<tr><td colspan="${columns.length + 1}" style="padding:24px;text-align:center;color:#888">No data for the selected period.</td></tr>`}</tbody>
+      </table>
+
+      ${footerNote ? `<p style="font-size:11px;color:#666;margin-top:14px;font-style:italic">${footerNote}</p>` : ''}
+
+      <div class="footer">Nuru Finance Operations &middot; Generated by Admin Console &middot; &copy; ${new Date().getFullYear()} Nuru | SEWMR TECHNOLOGIES</div>
+    </body></html>
+  `;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Single Transaction Receipt
+// Renders a Nuru-branded printable HTML receipt — same look & feel as the
+// contribution & expense reports so PDF/print works identically across web
+// and mobile.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ReceiptTransactionLike {
+  transaction_code: string;
+  status: string;
+  target_type: string;
+  gross_amount: number;
+  net_amount?: number;
+  commission_amount?: number;
+  currency_code?: string;
+  payment_description?: string | null;
+  description?: string | null;
+  provider_name?: string | null;
+  method_type?: string | null;
+  external_reference?: string | null;
+  initiated_at?: string | null;
+  completed_at?: string | null;
+  created_at?: string | null;
+  failure_reason?: string | null;
+}
+
+export const generateReceiptHtml = (tx: ReceiptTransactionLike): string => {
+  const currency = tx.currency_code || 'TZS';
+  const fmt = (n: number) => `${currency} ${(n || 0).toLocaleString()}`;
+  const logoAbsoluteUrl = new URL(nuruLogoUrl, window.location.origin).href;
+
+  const dateStr = (iso?: string | null) => iso
+    ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—';
+
+  const purpose = tx.target_type
+    ? tx.target_type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+    : 'Payment';
+
+  const statusLabel = (tx.status || '').toLowerCase();
+  const isPaid = ['succeeded', 'paid', 'credited'].includes(statusLabel);
+  const statusColor = isPaid ? '#16a34a' : statusLabel === 'failed' || statusLabel === 'cancelled' ? '#dc2626' : '#ca8a04';
+
+  const fee = typeof tx.commission_amount === 'number'
+    ? tx.commission_amount
+    : Math.max(0, (tx.gross_amount || 0) - (tx.net_amount || tx.gross_amount || 0));
+  const subtotal = typeof tx.net_amount === 'number' ? tx.net_amount : (tx.gross_amount || 0) - fee;
+
+  return `
+    <!DOCTYPE html>
+    <html><head><title>Receipt ${tx.transaction_code}</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
+      .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; border-bottom: 2px solid #e5e7eb; padding-bottom: 20px; }
+      .brand { display: flex; flex-direction: column; align-items: flex-start; }
+      .brand img { height: 40px; margin-bottom: 6px; }
+      .brand .slogan { font-size: 11px; color: #888; font-style: italic; }
+      .header-right { text-align: right; }
+      .header-right h1 { font-size: 20px; margin: 0 0 4px 0; }
+      .header-right h2 { font-size: 13px; color: #666; margin: 0; font-weight: normal; }
+      .status-pill { display:inline-block; padding:4px 12px; border-radius:999px; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px; }
+      .summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin: 18px 0 24px; }
+      .summary-card { background: #f9fafb; border-radius: 8px; padding: 14px 18px; border:1px solid #f1f5f9; }
+      .summary-card .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+      .summary-card .value { font-size: 16px; font-weight: bold; margin-top: 4px; }
+      .totals { margin-top: 18px; border:1px solid #e5e7eb; border-radius:8px; }
+      .totals .row { display:flex; justify-content:space-between; padding:10px 16px; border-bottom:1px solid #f1f5f9; font-size:13px; }
+      .totals .row:last-child { border-bottom:none; font-weight:bold; font-size:15px; background:#f9fafb; border-radius:0 0 8px 8px; }
+      .footer { margin-top: 32px; font-size: 11px; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 12px; }
+      @media print { body { padding: 20px; } }
+    </style></head>
+    <body>
+      <div class="header">
+        <div class="brand">
+          <img src="${logoAbsoluteUrl}" alt="Nuru" />
+          <span class="slogan">Plan Smarter</span>
+        </div>
+        <div class="header-right">
+          <h1>Payment Receipt</h1>
+          <h2>${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</h2>
+          <div style="margin-top:8px"><span class="status-pill" style="background:${statusColor}1A;color:${statusColor}">${statusLabel || 'unknown'}</span></div>
+        </div>
+      </div>
+
+      <div class="summary">
+        <div class="summary-card"><div class="label">Reference</div><div class="value" style="font-family:monospace;font-size:14px">${tx.transaction_code}</div></div>
+        <div class="summary-card"><div class="label">Purpose</div><div class="value">${purpose}</div></div>
+        <div class="summary-card"><div class="label">Date</div><div class="value" style="font-size:13px">${dateStr(tx.completed_at || tx.initiated_at || tx.created_at)}</div></div>
+        <div class="summary-card"><div class="label">Method</div><div class="value">${tx.provider_name || tx.method_type || '—'}</div></div>
+      </div>
+
+      <h3 style="font-size:14px;margin-bottom:8px">Description</h3>
+      <p style="font-size:13px;color:#555;margin:0 0 18px;padding:12px 14px;background:#f9fafb;border-radius:8px;border:1px solid #f1f5f9">
+        ${tx.payment_description || tx.description || `Nuru · ${purpose}`}
+      </p>
+
+      <div class="totals">
+        <div class="row"><span>Amount</span><span>${fmt(subtotal)}</span></div>
+        <div class="row"><span>Service fee</span><span>${fee > 0 ? fmt(fee) : 'Free'}</span></div>
+        <div class="row"><span>Total ${isPaid ? 'paid' : ''}</span><span>${fmt(tx.gross_amount || 0)}</span></div>
+      </div>
+
+      ${tx.failure_reason ? `
+        <div style="margin-top:18px;padding:12px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b;font-size:12px">
+          <strong>Reason:</strong> ${tx.failure_reason}
+        </div>
+      ` : ''}
+
+      ${tx.external_reference ? `<p style="font-size:11px;color:#888;margin-top:14px">Gateway reference: <span style="font-family:monospace">${tx.external_reference}</span></p>` : ''}
+
+      <div class="footer">Verify this receipt at ${typeof window !== "undefined" ? (window.location.hostname.endsWith("nuru.ke") ? "nuru.ke" : "nuru.tz") : "nuru.tz"}/shared/receipt/${tx.transaction_code} &middot; &copy; ${new Date().getFullYear()} Nuru | SEWMR TECHNOLOGIES</div>
+    </body></html>
+  `;
+};

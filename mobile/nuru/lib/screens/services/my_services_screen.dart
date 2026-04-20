@@ -21,6 +21,7 @@ import 'manage_intro_clip_screen.dart';
 import 'public_service_screen.dart';
 import 'service_verification_screen.dart';
 import '../../core/l10n/l10n_helper.dart';
+import '../migration/migration_banner.dart';
 
 class MyServicesScreen extends StatefulWidget {
   const MyServicesScreen({super.key});
@@ -127,6 +128,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                 : ListView(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
                     children: [
+                      const MigrationBanner(surface: MigrationSurface.services, margin: EdgeInsets.only(bottom: 12)),
                       // Stats Row — matches web
                       _statsRow(),
                       const SizedBox(height: 16),

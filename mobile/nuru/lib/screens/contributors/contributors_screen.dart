@@ -10,6 +10,7 @@ import '../../core/services/user_services_service.dart';
 import '../../core/services/social_service.dart';
 import '../../core/services/api_service.dart';
 import '../../core/l10n/l10n_helper.dart';
+import 'widgets/my_contribution_payments_tab.dart';
 
 class ContributorsScreen extends StatefulWidget {
   const ContributorsScreen({super.key});
@@ -181,24 +182,52 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.surface,
-      appBar: NuruSubPageAppBar(title: context.tr('contributors')),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        color: AppColors.primary,
-        child: _loading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-            : _contributors.isEmpty
-                ? ListView(children: [
-                    SizedBox(height: MediaQuery.of(context).size.height * 0.25),
-                    _emptyState(),
-                  ])
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _contributors.length,
-                    itemBuilder: (_, i) => _contributorCard(_contributors[i]),
-                  ),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: AppColors.surface,
+        appBar: NuruSubPageAppBar(
+          title: context.tr('contributors'),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(46),
+            child: Container(
+              color: AppColors.surface,
+              child: TabBar(
+                indicatorColor: AppColors.primary,
+                indicatorWeight: 3,
+                labelColor: AppColors.primary,
+                unselectedLabelColor: AppColors.textTertiary,
+                labelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700),
+                unselectedLabelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
+                tabs: const [
+                  Tab(text: 'Contributors'),
+                  Tab(text: 'My Contributions'),
+                ],
+              ),
+            ),
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            RefreshIndicator(
+              onRefresh: _load,
+              color: AppColors.primary,
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                  : _contributors.isEmpty
+                      ? ListView(children: [
+                          SizedBox(height: MediaQuery.of(context).size.height * 0.25),
+                          _emptyState(),
+                        ])
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _contributors.length,
+                          itemBuilder: (_, i) => _contributorCard(_contributors[i]),
+                        ),
+            ),
+            const MyContributionPaymentsTab(),
+          ],
+        ),
       ),
     );
   }

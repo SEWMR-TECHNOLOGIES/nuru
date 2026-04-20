@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Heart, MessageCircle, UserPlus, Users, Loader2, Briefcase, CheckCircle, ShieldCheck, Lock, AlertTriangle, ExternalLink } from 'lucide-react';
+import { Heart, MessageCircle, UserPlus, Users, Loader2, Briefcase, CheckCircle, ShieldCheck, Lock, AlertTriangle, ExternalLink, Receipt, XCircle, Wallet } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import BellIcon from '@/assets/icons/bell-icon.svg';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
@@ -55,6 +55,18 @@ const getIcon = (type: string) => {
     case 'issue_closed':
     case 'issue_updated':
       return <img src={IssueIcon} alt="Issue" className="w-4 h-4 dark:invert" />;
+    case 'payment_succeeded':
+    case 'payout_succeeded':
+      return <Receipt className="w-4 h-4 text-emerald-500" />;
+    case 'payment_failed':
+    case 'payout_failed':
+      return <XCircle className="w-4 h-4 text-destructive" />;
+    case 'payment_refunded':
+      return <Receipt className="w-4 h-4 text-purple-500" />;
+    case 'wallet_credit':
+    case 'wallet_debit':
+    case 'wallet_topup':
+      return <Wallet className="w-4 h-4 text-primary" />;
     default:
       return <img src={BellIcon} alt="Notification" className="w-4 h-4" />;
   }
@@ -156,6 +168,21 @@ const getNavigationTarget = (notification: any): string | null => {
       if (refId && refType === 'issue') return `/my-issues?issue=${refId}`;
       return '/my-issues';
 
+    // ── Payments / wallet ──
+    case 'payment_succeeded':
+    case 'payment_failed':
+    case 'payment_refunded':
+    case 'payout_succeeded':
+    case 'payout_failed': {
+      const code = data.transaction_code || data.code || (refType === 'transaction' ? refId : null);
+      if (code) return `/wallet/receipt/${code}`;
+      return '/wallet';
+    }
+    case 'wallet_credit':
+    case 'wallet_debit':
+    case 'wallet_topup':
+      return '/wallet';
+
     default:
       // Generic fallback: use reference_type to determine route
       if (refId) {
@@ -164,6 +191,7 @@ const getNavigationTarget = (notification: any): string | null => {
         if (refType === 'booking') return `/bookings/${refId}`;
         if (refType === 'service') return `/service/${refId}`;
         if (refType === 'issue') return `/my-issues?issue=${refId}`;
+        if (refType === 'transaction') return `/wallet/receipt/${refId}`;
         if (refType === 'user' && actorId) return `/u/${notification.actor?.username || actorId}`;
       }
       break;

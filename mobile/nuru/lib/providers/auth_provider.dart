@@ -68,6 +68,30 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Refresh the cached user from the server (used after profile changes
+  /// like confirming country/currency, avatar updates, etc.).
+  Future<void> refreshUser() async {
+    try {
+      final res = await AuthApi.me();
+      Map<String, dynamic>? userData;
+      if (res['success'] == true && res['data'] is Map<String, dynamic>) {
+        userData = res['data'] as Map<String, dynamic>;
+      } else if (res['data'] is Map<String, dynamic> && res['data']['id'] != null) {
+        userData = res['data'] as Map<String, dynamic>;
+      }
+      if (userData != null) {
+        _user = userData;
+        try {
+          final profileRes = await EventsService.getProfile();
+          if (profileRes['success'] == true && profileRes['data'] is Map<String, dynamic>) {
+            _user = {..._user!, ...profileRes['data'] as Map<String, dynamic>};
+          }
+        } catch (_) {}
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
   Future<void> completeOnboarding() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyHasSeenOnboarding, true);

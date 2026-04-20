@@ -6,6 +6,7 @@ import '../../core/widgets/expanding_search_action.dart';
 import '../../core/services/user_services_service.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../../widgets/cancel_booking_dialog.dart';
+import '../migration/migration_banner.dart';
 
 class BookingsScreen extends StatefulWidget {
   const BookingsScreen({super.key});
@@ -96,6 +97,7 @@ class _BookingsScreenState extends State<BookingsScreen> with SingleTickerProvid
       ),
       body: Column(
         children: [
+          const MigrationBanner(surface: MigrationSurface.bookings),
           // Pill tabs
           Container(
             margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),

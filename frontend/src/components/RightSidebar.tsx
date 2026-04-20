@@ -19,7 +19,7 @@ import { useFollowSuggestions, useCircles } from '@/data/useSocial';
 import { eventsApi } from '@/lib/api/events';
 import { ticketingApi } from '@/lib/api/ticketing';
 import { meetingsApi } from '@/lib/api/meetings';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 // Loading skeleton for sidebar cards
@@ -59,6 +59,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 // ── Ticket-Selling Events Section ──
 const TicketEventsSection = ({ navigate }: { navigate: (path: string) => void }) => {
+  const { format: formatPrice } = useCurrency();
   const { t } = useLanguage();
   const [ticketEvents, setTicketEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

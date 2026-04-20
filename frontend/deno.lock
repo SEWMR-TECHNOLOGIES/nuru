@@ -1,5 +1,8 @@
 {
   "version": "5",
+  "redirects": {
+    "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2.104.0"
+  },
   "remote": {
     "https://deno.land/std@0.168.0/async/abortable.ts": "80b2ac399f142cc528f95a037a7d0e653296352d95c681e284533765961de409",
     "https://deno.land/std@0.168.0/async/deadline.ts": "2c2deb53c7c28ca1dda7a3ad81e70508b1ebc25db52559de6b8636c9278fd41f",
@@ -11,13 +14,16 @@
     "https://deno.land/std@0.168.0/async/pool.ts": "6854d8cd675a74c73391c82005cbbe4cc58183bddcd1fbbd7c2bcda42b61cf69",
     "https://deno.land/std@0.168.0/async/retry.ts": "e8e5173623915bbc0ddc537698fa418cf875456c347eda1ed453528645b42e67",
     "https://deno.land/std@0.168.0/async/tee.ts": "3a47cc4e9a940904fd4341f0224907e199121c80b831faa5ec2b054c6d2eff5e",
-    "https://deno.land/std@0.168.0/http/server.ts": "e99c1bee8a3f6571ee4cdeb2966efad465b8f6fe62bec1bdb59c1f007cc4d155"
+    "https://deno.land/std@0.168.0/http/server.ts": "e99c1bee8a3f6571ee4cdeb2966efad465b8f6fe62bec1bdb59c1f007cc4d155",
+    "https://esm.sh/@supabase/supabase-js@2.104.0": "67037e235b6fbec8e8eed1ca97714a9379c8cc60af4e8747dfe6cf4c43f661bb"
   },
   "workspace": {
     "packageJson": {
       "dependencies": [
         "npm:@eslint/js@^9.32.0",
         "npm:@hookform/resolvers@^3.10.0",
+        "npm:@livekit/components-react@^2.9.20",
+        "npm:@livekit/components-styles@^1.2.0",
         "npm:@radix-ui/react-accordion@^1.2.11",
         "npm:@radix-ui/react-alert-dialog@^1.1.14",
         "npm:@radix-ui/react-aspect-ratio@^1.1.7",
@@ -45,7 +51,7 @@
         "npm:@radix-ui/react-toggle-group@^1.1.10",
         "npm:@radix-ui/react-toggle@^1.1.9",
         "npm:@radix-ui/react-tooltip@^1.2.7",
-        "npm:@supabase/supabase-js@^2.74.0",
+        "npm:@supabase/supabase-js@^2.103.0",
         "npm:@tailwindcss/typography@~0.5.19",
         "npm:@tanstack/react-query@^5.83.0",
         "npm:@types/leaflet@^1.9.21",
@@ -67,8 +73,9 @@
         "npm:html2canvas@^1.4.1",
         "npm:html5-qrcode@^2.3.8",
         "npm:input-otp@^1.4.2",
-        "npm:jspdf@^4.1.0",
+        "npm:jspdf@^2.5.2",
         "npm:leaflet@^1.9.4",
+        "npm:livekit-client@^2.18.1",
         "npm:lovable-tagger@^1.1.9",
         "npm:lucide-react@0.462",
         "npm:next-themes@0.3",

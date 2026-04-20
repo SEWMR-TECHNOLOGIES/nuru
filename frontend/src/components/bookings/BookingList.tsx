@@ -46,7 +46,7 @@ import { useMyBookings, useIncomingBookings } from '@/data/useBookings';
 import CancelBookingDialog from './CancelBookingDialog';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import type { BookingRequest } from '@/lib/api/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
@@ -494,6 +494,7 @@ interface BookingCardProps {
 }
 
 const BookingCard = ({ booking, onView, onCancel, onAccept, onReject, onComplete, isVendor }: BookingCardProps) => {
+  const { format: formatPrice } = useCurrency();
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':

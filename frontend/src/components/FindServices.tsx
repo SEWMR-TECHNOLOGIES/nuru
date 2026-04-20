@@ -14,7 +14,7 @@ import { useServiceCategories } from '@/data/useServiceCategories';
 import { servicesApi, type ServiceQueryParams } from '@/lib/api/services';
 import { prefetchService } from '@/hooks/useUserService';
 import { usePrefetchOnVisible } from '@/hooks/usePrefetchOnVisible';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import type { UserService } from '@/lib/api/types';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
@@ -75,6 +75,7 @@ const ServiceCardShell = ({
 };
 
 const FindServices = () => {
+  const { format: formatPrice } = useCurrency();
   const { t } = useLanguage();
   useWorkspaceMeta({
     title: 'Find Services',

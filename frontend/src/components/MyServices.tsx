@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import { Star, CheckCircle, Users, Plus, Edit, Loader2, Camera, MapPin, ChevronRight, BookOpen, Upload, Trash2, X, Music } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import CalendarSVG from '@/assets/icons/calendar-icon.svg';
@@ -25,6 +25,7 @@ import { userServicesApi } from '@/lib/api';
 import type { ServiceReview } from '@/lib/api/types';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import SearchHeader from '@/components/ui/search-header';
+import MigrationBanner from '@/components/migration/MigrationBanner';
 
 // Detect if a service is photography type
 const isPhotographyService = (service: any): boolean => {
@@ -33,6 +34,7 @@ const isPhotographyService = (service: any): boolean => {
 };
 
 const MyServices = () => {
+  const { format: formatPrice } = useCurrency();
   const { t } = useLanguage();
   useWorkspaceMeta({
     title: 'My Services',

@@ -112,6 +112,12 @@ class UserProfile(Base):
     profile_picture_url = Column(Text)
     social_links = Column(JSONB)
     country_id = Column(UUID(as_uuid=True), ForeignKey('countries.id'))
+    # Phase 1 — payments: snapshot the country/currency the user operates in.
+    # Defaults are derived from country_id but stored independently so future
+    # cross-border behaviour stays explicit.
+    country_code = Column(String(2), nullable=True)
+    currency_code = Column(String(3), nullable=True)
+    country_source = Column(Text, nullable=True)  # ip|phone_prefix|locale|manual
     website_url = Column(Text)
     location = Column(Text)
     created_at = Column(DateTime, server_default=func.now())
