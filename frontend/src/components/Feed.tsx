@@ -35,8 +35,8 @@ const Feed = () => {
   const triedTrending = useRef(false);
 
   const currentPage = pagination?.page || 1;
-  const totalPages = pagination?.pages || 1;
-  const hasMore = currentPage < totalPages;
+  const totalPages = pagination?.total_pages ?? pagination?.pages ?? 1;
+  const hasMore = pagination?.has_next ?? (currentPage < totalPages);
 
   useEffect(() => {
     if (!loading && apiPosts.length >= 0) {

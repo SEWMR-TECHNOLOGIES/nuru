@@ -157,7 +157,17 @@ const Moment = ({ post }: MomentProps) => {
   };
 
   // For event shares, use event images if post has none
-  const eventImages = sharedEvent?.images?.length ? sharedEvent.images : (sharedEvent?.cover_image ? [sharedEvent.cover_image] : []);
+  const normalizeImg = (i: any): string | null =>
+    !i ? null : (typeof i === 'string' ? i : (i.image_url || i.url || i.src || null));
+  const eventImages: string[] = (() => {
+    const raw = sharedEvent?.images;
+    const list = Array.isArray(raw) && raw.length
+      ? raw.map(normalizeImg).filter(Boolean) as string[]
+      : [];
+    if (list.length) return list;
+    const cover = normalizeImg(sharedEvent?.cover_image);
+    return cover ? [cover] : [];
+  })();
 
   // Use short URL for sharing
   const shareUrl = `${window.location.origin}/s/${encodeId(post.id)}`;
