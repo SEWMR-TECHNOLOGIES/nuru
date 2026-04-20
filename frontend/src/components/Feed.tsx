@@ -44,11 +44,7 @@ const Feed = () => {
     }
   }, [loading, apiPosts]);
 
-  useEffect(() => {
-    if (apiPosts.length > 0) {
-      refetch();
-    }
-  }, []);
+  // Note: revalidation on mount is handled inside useFeed() (stale-while-revalidate).
 
   // Save scroll position before navigating away
   useEffect(() => {
@@ -282,8 +278,8 @@ const Feed = () => {
         <div key={post.id}>
           <Moment post={post} />
 
-          {/* Ad skeleton slot after every 3rd post */}
-          {(index + 1) % 3 === 0 && index < posts.length - 1 && (
+          {/* Ad / promoted slot after every 3rd post */}
+          {(index + 1) % 3 === 0 && index < displayPosts.length - 1 && (
             index % 6 === 2 ? (
               <div className="mt-4 md:mt-6">
                 <AdCardSkeleton />
