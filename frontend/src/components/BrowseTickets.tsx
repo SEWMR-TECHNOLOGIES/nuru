@@ -107,9 +107,8 @@ const BrowseTickets = () => {
         const data = res.data as any;
         setPurchaseResult({ ticket_code: data.ticket_code, total_amount: data.total_amount });
         setPendingTicketId(data.ticket_id || data.id || null);
-        // Open checkout immediately — the ticket is reserved but NOT issued
-        // until payment is confirmed.
-        setCheckoutOpen(true);
+        // Show reservation summary first — user must click "Pay now" to open checkout.
+        setCheckoutOpen(false);
       } else {
         toast.error((res as any).message || "Could not reserve ticket");
       }

@@ -366,7 +366,7 @@ const EventView = () => {
 
       {/* Ticket Purchase Section */}
       {id && event.sells_tickets && (
-        <EventTicketPurchase eventId={id} eventName={event.title} />
+        <EventTicketPurchase eventId={id} eventName={event.title} event={event} />
       )}
 
       {/* Description */}
