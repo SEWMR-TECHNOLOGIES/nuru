@@ -42,6 +42,8 @@ let _feedPaginationCache: any = readSessionJson<any>(FEED_PAGINATION_KEY, null);
 let _feedHasLoaded = typeof window !== "undefined"
   ? sessionStorage.getItem(FEED_LOADED_KEY) === "1"
   : false;
+let _feedLastFetchedAt = 0;
+const FEED_STALE_MS = 2 * 60 * 1000; // 2 minutes — revalidate after this
 
 export const useFeed = (initialParams?: FeedQueryParams) => {
   const [items, setItems] = useState<FeedPost[]>(_feedCache);
@@ -70,6 +72,7 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
         _feedCache = feedItems;
         _feedPaginationCache = feedData?.pagination;
         _feedHasLoaded = true;
+        _feedLastFetchedAt = Date.now();
         persistFeedCache(feedItems, feedData?.pagination, true);
         setItems(feedItems);
         setPagination(feedData?.pagination);
@@ -84,10 +87,11 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
   }, [initialParams]);
 
   useEffect(() => {
-    // Skip refetch entirely if we have ever loaded — preserves scroll & avoids reload on remount.
-    // Consumers must call refetch() manually (e.g., pull-to-refresh) for fresh data.
-    if (_feedHasLoaded) return;
-    fetchFeed();
+    // Always refresh on mount if cache is stale (or empty), so newly created
+    // posts elsewhere in the app appear without a hard reload. Cached items
+    // remain visible while the refresh runs in the background.
+    const isStale = !_feedHasLoaded || Date.now() - _feedLastFetchedAt > FEED_STALE_MS;
+    if (isStale) fetchFeed();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
