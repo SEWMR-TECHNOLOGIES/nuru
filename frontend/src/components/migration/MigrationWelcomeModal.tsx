@@ -16,8 +16,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
-  Sparkles, ShieldCheck, Wallet as WalletIcon, ArrowRight,
+  ShieldCheck, Wallet as WalletIcon, ArrowRight,
 } from "lucide-react";
+import NewBadgeIcon from "@/assets/icons/new-badge.svg";
 import { useMigrationStatus } from "@/hooks/useMigrationStatus";
 
 const MigrationWelcomeModal = () => {
@@ -66,12 +67,14 @@ const MigrationWelcomeModal = () => {
           >
             {/* Hero */}
             <div className="relative px-6 pt-7 pb-6 bg-gradient-to-br from-primary/15 via-primary/5 to-background">
-              <div className="absolute top-4 right-4">
+              {/* "New" badge — placed on the left so the dialog's close (×) on the right doesn't overlap it. */}
+              <div className="absolute top-4 left-4">
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-primary/15 text-primary">
-                  <Sparkles className="h-3 w-3" /> New
+                  <img src={NewBadgeIcon} alt="" className="h-3 w-3 [filter:brightness(0)_saturate(100%)] dark:invert" aria-hidden />
+                  New
                 </span>
               </div>
-              <div className="h-12 w-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/25 mb-4">
+              <div className="h-12 w-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/25 mb-4 mt-6">
                 <WalletIcon className="h-6 w-6" />
               </div>
               <h2 className="text-xl font-bold text-foreground tracking-tight">
@@ -96,7 +99,7 @@ const MigrationWelcomeModal = () => {
                   {summary.events > 0 && <Chip>{summary.events} event{summary.events > 1 ? "s" : ""}</Chip>}
                   {summary.ticketed_events > 0 && <Chip>{summary.ticketed_events} ticketed</Chip>}
                   {summary.services > 0 && <Chip>{summary.services} service{summary.services > 1 ? "s" : ""}</Chip>}
-                  {summary.contributions > 0 && <Chip>{summary.contributions} campaign{summary.contributions > 1 ? "s" : ""}</Chip>}
+                  {summary.contributions > 0 && <Chip>{summary.contributions} contribution{summary.contributions > 1 ? "s" : ""} received</Chip>}
                   {summary.bookings > 0 && <Chip>{summary.bookings} booking{summary.bookings > 1 ? "s" : ""}</Chip>}
                 </div>
                 {status.has_pending_balance && status.pending_balance && (

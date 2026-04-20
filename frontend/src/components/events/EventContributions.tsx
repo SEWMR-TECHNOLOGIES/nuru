@@ -3,8 +3,9 @@ import readXlsxFile from 'read-excel-file';
 import { format } from 'date-fns';
 import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import { 
-  DollarSign, Plus, Search, Filter, MoreVertical, Edit, Trash, Send, Download, TrendingUp, Users, Clock, Loader2, Eye, ChevronLeft, ChevronRight, UserPlus, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, ShieldCheck, UserCheck, CalendarIcon
+  DollarSign, Plus, Search, Filter, MoreVertical, Edit, Trash, Send, Download, TrendingUp, Users, Clock, Loader2, Eye, ChevronLeft, ChevronRight, UserPlus, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, ShieldCheck, UserCheck, CalendarIcon, Link as LinkIcon
 } from 'lucide-react';
+import ShareContributorLinkDialog from './ShareContributorLinkDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -90,6 +91,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
   const [detailContributor, setDetailContributor] = useState<EventContributorSummary | null>(null);
   const [paymentTarget, setPaymentTarget] = useState<EventContributorSummary | null>(null);
   const [editTarget, setEditTarget] = useState<EventContributorSummary | null>(null);
+  const [shareLinkTarget, setShareLinkTarget] = useState<EventContributorSummary | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState('contributors');
   const [currentPage, setCurrentPage] = useState(1);
@@ -693,6 +695,15 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
         </div>
       </div>
 
+      {/* Share payment link with a single contributor */}
+      <ShareContributorLinkDialog
+        open={!!shareLinkTarget}
+        onOpenChange={(v) => { if (!v) setShareLinkTarget(null); }}
+        eventId={eventId}
+        contributor={shareLinkTarget}
+        onChanged={refetchEC}
+      />
+
       {/* Contributor Messaging */}
       {isCreator && messagingOpen && (
         <ContributorMessaging
@@ -842,6 +853,9 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
                                 <Send className="w-4 h-4 mr-2" />Send Thank You
                               </DropdownMenuItem>
                             )}
+                            <DropdownMenuItem onClick={() => setShareLinkTarget(ec)}>
+                              <LinkIcon className="w-4 h-4 mr-2" />Share payment link
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleAddAsGuest(ec.id)}>
                               <UserCheck className="w-4 h-4 mr-2" />Add as Guest
                             </DropdownMenuItem>

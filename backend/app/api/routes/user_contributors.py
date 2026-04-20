@@ -72,6 +72,7 @@ def _find_user_by_phone(db: Session, phone: str):
 def _event_contributor_dict(ec: EventContributor, show_recorder: bool = False) -> dict:
     total_paid = sum(float(c.amount or 0) for c in ec.contributions if c.confirmation_status is None or c.confirmation_status == ContributionStatusEnum.confirmed)
     pledge = float(ec.pledge_amount or 0)
+    has_link = bool(getattr(ec, "share_token_hash", None)) and not getattr(ec, "share_token_revoked_at", None)
     return {
         "id": str(ec.id),
         "event_id": str(ec.event_id),
@@ -81,6 +82,12 @@ def _event_contributor_dict(ec: EventContributor, show_recorder: bool = False) -
         "total_paid": total_paid,
         "balance": max(0, pledge - total_paid),
         "notes": ec.notes,
+        # Share-link metadata (organiser-side only — never the plain token).
+        "has_share_link": has_link,
+        "share_link_last_opened_at": ec.share_link_last_opened_at.isoformat()
+            if getattr(ec, "share_link_last_opened_at", None) else None,
+        "share_link_sms_last_sent_at": ec.share_link_sms_last_sent_at.isoformat()
+            if getattr(ec, "share_link_sms_last_sent_at", None) else None,
         "created_at": ec.created_at.isoformat() if ec.created_at else None,
         "updated_at": ec.updated_at.isoformat() if ec.updated_at else None,
     }
@@ -1792,3 +1799,166 @@ def self_contribute(
         "amount": amount,
         "status": "pending",
     })
+
+
+# ══════════════════════════════════════════════
+# SHARE LINK — let organiser hand a contributor a public payment URL
+# ══════════════════════════════════════════════
+
+def _ensure_can_manage(db: Session, event_id, current_user) -> Event:
+    """Resolve the event and verify the caller can manage contributors."""
+    event, is_creator, _cm, perms = _get_event_access(db, event_id, current_user)
+    if not event:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Event not found.")
+    if not (is_creator or (perms and getattr(perms, "can_manage_contributions", False))):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="You don't have permission to manage contributors here.")
+    return event
+
+
+@router.post("/events/{event_id}/contributors/{ec_id}/share-link")
+def generate_share_link(
+    event_id: str,
+    ec_id: str,
+    body: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate (or regenerate) a public payment URL for one contributor.
+
+    Body (optional): ``{ "regenerate": true }`` — if a token already exists
+    we return the existing URL only when the caller explicitly re-issues.
+    The plain token is returned ONCE; we never expose it again.
+    """
+    from services.share_links import (
+        issue_share_token, build_share_url, host_for_currency,
+        can_send_sms_for_currency,
+    )
+    from fastapi import HTTPException
+
+    event = _ensure_can_manage(db, event_id, current_user)
+    try:
+        ec_uuid = uuid.UUID(ec_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid contributor id.")
+    ec = (
+        db.query(EventContributor)
+        .filter(EventContributor.id == ec_uuid, EventContributor.event_id == event.id)
+        .first()
+    )
+    if not ec:
+        raise HTTPException(status_code=404, detail="Contributor not found on this event.")
+
+    regenerate = bool(body.get("regenerate"))
+    if not regenerate and ec.share_token_hash and not ec.share_token_revoked_at:
+        # Already has a live token — but we don't know the plain text.
+        # Force a regenerate so the host actually receives a usable URL.
+        regenerate = True
+
+    plain = issue_share_token(db, ec)
+    db.commit()
+    db.refresh(ec)
+
+    currency_code = _currency_code(db, event)
+    url = build_share_url(currency_code, plain)
+    return standard_response(True, "Payment link ready.", {
+        "url": url,
+        "host": host_for_currency(currency_code),
+        "currency_code": currency_code,
+        "expires_at": ec.share_token_expires_at.isoformat() if ec.share_token_expires_at else None,
+        "sms_supported": can_send_sms_for_currency(currency_code),
+    })
+
+
+@router.post("/events/{event_id}/contributors/{ec_id}/send-share-sms")
+def send_share_sms(
+    event_id: str,
+    ec_id: str,
+    body: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Send the share link to the contributor's phone via SMS (TZ only for now)."""
+    from services.share_links import (
+        issue_share_token, build_share_url, can_send_sms_for_currency,
+    )
+    from utils.sms import sms_guest_contribution_invite
+    from fastapi import HTTPException
+
+    event = _ensure_can_manage(db, event_id, current_user)
+    try:
+        ec_uuid = uuid.UUID(ec_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid contributor id.")
+    ec = (
+        db.query(EventContributor)
+        .options(joinedload(EventContributor.contributor))
+        .filter(EventContributor.id == ec_uuid, EventContributor.event_id == event.id)
+        .first()
+    )
+    if not ec or not ec.contributor:
+        raise HTTPException(status_code=404, detail="Contributor not found on this event.")
+
+    contributor = ec.contributor
+    if not contributor.phone:
+        raise HTTPException(status_code=400, detail="This contributor doesn't have a phone number.")
+
+    currency_code = _currency_code(db, event)
+    if not can_send_sms_for_currency(currency_code):
+        return standard_response(False, "SMS isn't available for this country yet — please copy the link instead.", {
+            "sms_supported": False,
+        })
+
+    # Always re-issue so the SMS contains a guaranteed-valid token. (We never
+    # have the plain text of an old token in DB, so we couldn't reuse it
+    # anyway.) The previous token becomes invalid — desired for security.
+    plain = issue_share_token(db, ec)
+    url = build_share_url(currency_code, plain)
+    organiser = db.query(User).filter(User.id == event.organizer_id).first()
+    organiser_name = (
+        " ".join(p for p in [getattr(organiser, "first_name", None), getattr(organiser, "last_name", None)] if p).strip()
+        or "Your host"
+    )
+
+    sms_guest_contribution_invite(
+        phone=contributor.phone,
+        contributor_name=contributor.name or "there",
+        organiser_name=organiser_name,
+        event_title=event.name or "the event",
+        pledge_amount=float(ec.pledge_amount or 0),
+        currency=currency_code,
+        payment_url=url,
+    )
+    ec.share_link_sms_last_sent_at = datetime.utcnow()
+    db.commit()
+    return standard_response(True, "Payment link sent by SMS.", {
+        "url": url,
+        "sms_supported": True,
+    })
+
+
+@router.post("/events/{event_id}/contributors/{ec_id}/revoke-share-link")
+def revoke_share_link(
+    event_id: str,
+    ec_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Invalidate the existing public link without removing the contributor."""
+    from fastapi import HTTPException
+    event = _ensure_can_manage(db, event_id, current_user)
+    try:
+        ec_uuid = uuid.UUID(ec_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid contributor id.")
+    ec = (
+        db.query(EventContributor)
+        .filter(EventContributor.id == ec_uuid, EventContributor.event_id == event.id)
+        .first()
+    )
+    if not ec:
+        raise HTTPException(status_code=404, detail="Contributor not found on this event.")
+    ec.share_token_revoked_at = datetime.utcnow()
+    db.commit()
+    return standard_response(True, "Payment link disabled.")

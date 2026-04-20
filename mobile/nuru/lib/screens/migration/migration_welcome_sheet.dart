@@ -28,10 +28,16 @@ class MigrationWelcomeSheet extends StatelessWidget {
       final n = (v is num) ? v.toInt() : 0;
       if (n > 0) chips.add(_Chip('$n $label${n > 1 ? 's' : ''}'));
     };
+    final contribCount = (summary['contributions'] is num)
+        ? (summary['contributions'] as num).toInt()
+        : 0;
     addChip('event', summary['events']);
     addChip('ticketed', summary['ticketed_events']);
     addChip('service', summary['services']);
-    addChip('campaign', summary['contributions']);
+    if (contribCount > 0) {
+      chips.add(_Chip(
+          '$contribCount contribution${contribCount > 1 ? 's' : ''} received'));
+    }
     addChip('booking', summary['bookings']);
 
     return Container(

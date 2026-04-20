@@ -48,6 +48,12 @@ export interface EventContributorSummary {
   balance: number;
   notes?: string | null;
   currency?: string | null;
+  /** True if this contributor has a live (un-revoked) guest payment link. */
+  has_share_link?: boolean;
+  /** ISO timestamp the contributor last opened their /c/:token page, if any. */
+  share_link_last_opened_at?: string | null;
+  /** ISO timestamp we last sent the share-link SMS, if any. */
+  share_link_sms_last_sent_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -251,5 +257,48 @@ export const contributorsApi = {
     post<{ contribution_id: string; amount: number; status: 'pending' }>(
       `/user-contributors/events/${eventId}/self-contribute`,
       data,
+    ),
+
+  // ============================================================================
+  // GUEST PAYMENT LINKS — host-side actions for the /c/:token flow
+  // ============================================================================
+
+  /**
+   * Generate (or rotate) a share token for a single contributor.
+   * The plain token is returned ONCE inside `url`; the server stores only the hash.
+   */
+  generateShareLink: (
+    eventId: string,
+    eventContributorId: string,
+    data?: { regenerate?: boolean },
+  ) =>
+    post<{
+      url: string;
+      token: string;
+      host: string;
+      currency_code: string;
+      expires_at: string | null;
+      sms_supported: boolean;
+    }>(
+      `/user-contributors/events/${eventId}/contributors/${eventContributorId}/share-link`,
+      data ?? {},
+    ),
+
+  /** Send the freshly-issued share link to the contributor by SMS (TZ for now). */
+  sendShareLinkSms: (
+    eventId: string,
+    eventContributorId: string,
+    data?: { custom_message?: string },
+  ) =>
+    post<{ sent: boolean; sms_supported?: boolean; sms_last_sent_at?: string | null }>(
+      `/user-contributors/events/${eventId}/contributors/${eventContributorId}/share-link/send-sms`,
+      data ?? {},
+    ),
+
+  /** Disable the contributor's share link so the URL stops working. */
+  revokeShareLink: (eventId: string, eventContributorId: string) =>
+    post<{ revoked: boolean }>(
+      `/user-contributors/events/${eventId}/contributors/${eventContributorId}/revoke-share-link`,
+      {},
     ),
 };

@@ -8,6 +8,9 @@ import 'package:excel/excel.dart' as xl;
 import 'package:csv/csv.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/events_service.dart';
+import '../../../core/services/event_contributors_service.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import '../../../core/services/report_generator.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import '../report_preview_screen.dart';
@@ -709,6 +712,16 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                     ),
                   ),
                 const PopupMenuItem(
+                  value: 'share_link',
+                  child: Row(
+                    children: [
+                      Icon(Icons.link, size: 18, color: AppColors.textSecondary),
+                      SizedBox(width: 8),
+                      Text('Share payment link'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
                   value: 'guest',
                   child: Row(
                     children: [
@@ -774,10 +787,276 @@ class _EventContributionsTabState extends State<EventContributionsTab>
       case 'guest':
         _addAsGuest(ecId);
         break;
+      case 'share_link':
+        _showShareLinkSheet(ec);
+        break;
       case 'remove':
         _removeContributor(ecId);
         break;
     }
+  }
+
+  /// Bottom sheet that lets the host generate / share / SMS / revoke a guest
+  /// payment link for ONE contributor. The plain token is returned by the
+  /// server only once per generation — if the host closes the sheet without
+  /// sharing, regenerating rotates the token (the previous URL stops working).
+  Future<void> _showShareLinkSheet(Map<String, dynamic> ec) async {
+    final ecId = ec['id']?.toString() ?? '';
+    if (ecId.isEmpty) return;
+    final contributor = (ec['contributor'] as Map?) ?? const {};
+    final name = (contributor['name'] ?? 'Contributor').toString();
+    final phone = (contributor['phone'] ?? '').toString();
+    final balance = (ec['balance'] as num?)?.toDouble() ?? 0;
+    final currency = (ec['currency'] ?? '').toString();
+    final hasExisting = ec['has_share_link'] == true;
+
+    String? url;
+    String? host;
+    bool smsSupported = false;
+    bool busy = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            Future<void> generate({bool regenerate = false}) async {
+              setSheetState(() => busy = true);
+              final res = await EventContributorsService.generateShareLink(
+                widget.eventId, ecId, regenerate: regenerate,
+              );
+              if (!mounted) return;
+              setSheetState(() => busy = false);
+              if (res['success'] == true) {
+                final data = (res['data'] as Map?) ?? {};
+                setSheetState(() {
+                  url = data['url']?.toString();
+                  host = data['host']?.toString();
+                  smsSupported = data['sms_supported'] == true;
+                });
+                if (regenerate) {
+                  AppSnackbar.success(
+                    context,
+                    'New link generated. The previous one no longer works.',
+                  );
+                }
+              } else {
+                AppSnackbar.error(
+                  context, res['message']?.toString() ?? 'Could not generate link',
+                );
+              }
+            }
+
+            Future<void> sendSms() async {
+              setSheetState(() => busy = true);
+              final res = await EventContributorsService.sendShareLinkSms(
+                widget.eventId, ecId,
+              );
+              if (!mounted) return;
+              setSheetState(() => busy = false);
+              if (res['success'] == true) {
+                AppSnackbar.success(context, 'SMS sent to $name');
+              } else {
+                AppSnackbar.error(
+                  context, res['message']?.toString() ?? 'Could not send SMS',
+                );
+              }
+            }
+
+            Future<void> revoke() async {
+              setSheetState(() => busy = true);
+              final res = await EventContributorsService.revokeShareLink(
+                widget.eventId, ecId,
+              );
+              if (!mounted) return;
+              setSheetState(() => busy = false);
+              if (res['success'] == true) {
+                AppSnackbar.success(context, 'Link disabled');
+                Navigator.of(ctx).pop();
+                _load();
+              } else {
+                AppSnackbar.error(
+                  context, res['message']?.toString() ?? 'Could not revoke',
+                );
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36, height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.textHint.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(children: [
+                    const Icon(Icons.link, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Share payment link',
+                      style: appText(size: 16, weight: FontWeight.w700),
+                    ),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Generate a secure one-tap link for $name to pay without signing up.',
+                    style: appText(size: 12, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceVariant,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name, style: appText(size: 14, weight: FontWeight.w600)),
+                        if (phone.isNotEmpty)
+                          Text(phone, style: appText(size: 12, color: AppColors.textSecondary)),
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Outstanding balance',
+                              style: appText(size: 12, color: AppColors.textSecondary),
+                            ),
+                            Text(
+                              '$currency ${balance.toStringAsFixed(0)}',
+                              style: appText(size: 13, weight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (url == null) ...[
+                    SizedBox(
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        onPressed: busy ? null : () => generate(),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: busy
+                          ? const SizedBox(
+                              width: 16, height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.link),
+                        label: Text(busy ? 'Generating…' : 'Generate payment link'),
+                      ),
+                    ),
+                    if (hasExisting) ...[
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: busy ? null : revoke,
+                        icon: const Icon(Icons.delete_outline, color: Colors.red),
+                        label: const Text(
+                          'Disable existing link',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ] else ...[
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.divider),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(children: [
+                        Expanded(
+                          child: Text(
+                            url!,
+                            style: appText(size: 11, weight: FontWeight.w500),
+                            maxLines: 2, overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Copy',
+                          icon: const Icon(Icons.copy, size: 18),
+                          onPressed: () async {
+                            await Clipboard.setData(ClipboardData(text: url!));
+                            if (mounted) AppSnackbar.success(context, 'Link copied');
+                          },
+                        ),
+                      ]),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: busy ? null : () {
+                            final text =
+                              'Hi $name, please use this secure link to pay your contribution'
+                              '${balance > 0 ? " ($currency ${balance.toStringAsFixed(0)})" : ""}'
+                              ': ${url!}';
+                            Share.share(text, subject: 'Payment link');
+                          },
+                          icon: const Icon(Icons.ios_share),
+                          label: const Text('Share'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: (busy || !smsSupported || phone.isEmpty)
+                            ? null : sendSms,
+                          icon: const Icon(Icons.sms_outlined),
+                          label: Text(smsSupported ? 'Send SMS' : 'SMS N/A'),
+                        ),
+                      ),
+                    ]),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      Expanded(
+                        child: TextButton.icon(
+                          onPressed: busy ? null : () => generate(regenerate: true),
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Regenerate'),
+                        ),
+                      ),
+                      Expanded(
+                        child: TextButton.icon(
+                          onPressed: busy ? null : revoke,
+                          icon: const Icon(Icons.delete_outline, color: Colors.red),
+                          label: const Text('Disable', style: TextStyle(color: Colors.red)),
+                        ),
+                      ),
+                    ]),
+                  ],
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   // ── Remove Contributor ──
