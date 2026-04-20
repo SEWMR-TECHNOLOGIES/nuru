@@ -57,6 +57,15 @@ class EventContributor(Base):
     contributor_id = Column(UUID(as_uuid=True), ForeignKey('user_contributors.id', ondelete='CASCADE'), nullable=False)
     pledge_amount = Column(Numeric, default=0)
     notes = Column(Text)
+    # Guest payment link: lets a non-Nuru contributor pay via a public URL.
+    # Plain token never lives in DB — only the SHA-256 hash. The plain value
+    # is returned ONCE on generation and embedded in the SMS link.
+    share_token_hash = Column(Text, nullable=True, index=True)
+    share_token_created_at = Column(DateTime, nullable=True)
+    share_token_expires_at = Column(DateTime, nullable=True)
+    share_token_revoked_at = Column(DateTime, nullable=True)
+    share_link_last_opened_at = Column(DateTime, nullable=True)
+    share_link_sms_last_sent_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

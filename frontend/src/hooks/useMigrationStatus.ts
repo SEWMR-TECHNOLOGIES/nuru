@@ -97,9 +97,13 @@ export function useMigrationStatus(): UseMigrationStatusResult {
   const needsSetup = !!status?.needs_setup;
   const isRestricted = needsSetup && phase === "restrict";
 
-  // Welcome modal: show if needs_setup AND not dismissed within window.
+  // Welcome modal: show only AFTER the user has chosen a country (so the
+  // CountryConfirmModal isn't covered by this one) AND payment setup is needed
+  // AND not dismissed within the cool-down window.
   const shouldShowWelcome = useMemo(() => {
     if (!needsSetup || !user?.id) return false;
+    // Wait until country is set — CountryConfirmModal has priority on first login.
+    if (!user.country_code) return false;
     const dismissedAt = safeRead(`${MODAL_DISMISS_KEY}:${user.id}`);
     if (!dismissedAt) return true;
     const ts = parseInt(dismissedAt, 10);
@@ -109,7 +113,7 @@ export function useMigrationStatus(): UseMigrationStatusResult {
     if (phase === "restrict") return ageDays >= 1;
     if (phase === "nudge") return ageDays >= 7;
     return false; // "soft" — only once per device
-  }, [needsSetup, user?.id, phase]);
+  }, [needsSetup, user?.id, user?.country_code, phase]);
 
   const dismissWelcome = () => {
     if (!user?.id) return;

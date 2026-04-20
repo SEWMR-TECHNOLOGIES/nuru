@@ -79,4 +79,42 @@ class EventContributorsService {
   static Future<Map<String, dynamic>> bulkAddToEvent(String eventId, Map<String, dynamic> data) {
     return ApiBase.postRaw('/user-contributors/events/$eventId/contributors/bulk', data);
   }
+
+  // ────────────────────────────────────────────────────────────────────
+  // Guest payment links — host-side actions for the /c/:token web flow.
+  // The plain token is returned ONCE; the server stores only its hash.
+  // ────────────────────────────────────────────────────────────────────
+
+  /// Generate (or rotate) a one-time guest payment link for one contributor.
+  /// Pass `regenerate: true` to invalidate any existing link.
+  static Future<Map<String, dynamic>> generateShareLink(
+    String eventId,
+    String ecId, {
+    bool regenerate = false,
+  }) {
+    return ApiBase.postRaw(
+      '/user-contributors/events/$eventId/contributors/$ecId/share-link',
+      {'regenerate': regenerate},
+    );
+  }
+
+  /// Send the freshly-issued share link to the contributor by SMS (TZ for now).
+  static Future<Map<String, dynamic>> sendShareLinkSms(
+    String eventId,
+    String ecId, {
+    String? customMessage,
+  }) {
+    return ApiBase.postRaw(
+      '/user-contributors/events/$eventId/contributors/$ecId/share-link/send-sms',
+      customMessage == null ? <String, dynamic>{} : {'custom_message': customMessage},
+    );
+  }
+
+  /// Disable an existing share link so the URL stops working.
+  static Future<Map<String, dynamic>> revokeShareLink(String eventId, String ecId) {
+    return ApiBase.postRaw(
+      '/user-contributors/events/$eventId/contributors/$ecId/revoke-share-link',
+      <String, dynamic>{},
+    );
+  }
 }
