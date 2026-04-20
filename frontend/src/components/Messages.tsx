@@ -83,13 +83,12 @@ const Messages = () => {
   // instant, silent filtering (no refetch, no flicker, no empty-state flash).
   const { conversations, loading: conversationsLoading, error: conversationsError, refetch: refetchConversations, clearUnread } = useConversations('');
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
-  const { messages, loading: messagesLoading, refetch: refetchMessages, appendMessage } = useConversationMessages(selectedConversationId || '');
-  const { sendMessage, loading: sending } = useSendMessage();
+  const { messages, loading: messagesLoading, refetch: refetchMessages, appendMessage, replaceMessage, removeMessage } = useConversationMessages(selectedConversationId || '');
+  const { sendMessage } = useSendMessage();
 
   const [input, setInput] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
   const [showChatList, setShowChatList] = useState(true);
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [startingChat, setStartingChat] = useState(false);
@@ -178,52 +177,70 @@ const Messages = () => {
     if (inputFileRef.current) inputFileRef.current.value = '';
   };
 
+  /**
+   * WhatsApp-style optimistic send (mirrors event-groups ChatPanel):
+   * - Text: push tmp bubble immediately, fire send in background, swap with real on success.
+   * - Image: show pending image bubble immediately (with __sending flag), upload + send in
+   *   background, then swap. Rollback on failure.
+   * No refetch after send — polling will reconcile if needed.
+   */
   const handleSendMessage = async () => {
     if ((!input.trim() && !imageFile) || !selectedConversationId) return;
 
     const messageContent = input.trim();
-    let uploadedUrl: string | undefined;
+    const fileToSend = imageFile;
+    const previewUrl = imagePreview;
+    const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-    // Upload image first if present
-    if (imageFile) {
-      setUploadingImage(true);
-      try {
-        const uploadRes = await uploadsApi.upload(imageFile);
-        if (uploadRes.success && uploadRes.data?.url) {
-          uploadedUrl = uploadRes.data.url;
-        } else {
-          toast.error(t('failed_upload_image'));
-          setUploadingImage(false);
-          return;
-        }
-      } catch {
-        toast.error(t('failed_upload_image'));
-        setUploadingImage(false);
-        return;
-      }
-      setUploadingImage(false);
-    }
-
-    const attachments = uploadedUrl ? [uploadedUrl] : undefined;
-
-    // Optimistic: append message locally for instant feedback
-    const optimisticMsg = {
-      id: `temp-${Date.now()}`,
+    const optimisticMsg: any = {
+      id: tempId,
       content: messageContent,
       is_sender: true,
       sender_id: currentUser?.id,
-      attachments: attachments || [],
+      attachments: previewUrl ? [previewUrl] : [],
       created_at: new Date().toISOString(),
+      __sending: !!fileToSend,
     };
     appendMessage(optimisticMsg);
     setInput('');
-    removeImage();
+    // Clear the file input UI immediately — preview lives inside the optimistic bubble now.
+    setImageFile(null);
+    setImagePreview(null);
+    if (inputFileRef.current) inputFileRef.current.value = '';
 
     try {
-      await sendMessage(selectedConversationId, messageContent, attachments);
-      refetchMessages();
+      let uploadedUrl: string | undefined;
+      if (fileToSend) {
+        const uploadRes = await uploadsApi.upload(fileToSend);
+        if (!uploadRes.success || !uploadRes.data?.url) {
+          throw new Error('upload-failed');
+        }
+        uploadedUrl = uploadRes.data.url;
+      }
+      const attachments = uploadedUrl ? [uploadedUrl] : undefined;
+      const sent = await sendMessage(selectedConversationId, messageContent, attachments);
+      if (sent && (sent as any).id) {
+        // Normalize API shape immediately so the bubble keeps the same time field
+        // and doesn't disappear/reappear on the next DB poll.
+        replaceMessage(tempId, {
+          ...(sent as any),
+          is_sender: true,
+          sender_id: currentUser?.id,
+          created_at: (sent as any).created_at || (sent as any).sent_at || optimisticMsg.created_at,
+          attachments: uploadedUrl ? [uploadedUrl] : optimisticMsg.attachments,
+          __sending: false,
+        });
+      } else {
+        // No id returned — at least clear the sending flag and use uploaded url.
+        replaceMessage(tempId, { ...optimisticMsg, attachments: uploadedUrl ? [uploadedUrl] : optimisticMsg.attachments, __sending: false });
+      }
     } catch (err) {
       console.error('Failed to send message:', err);
+      removeMessage(tempId);
+      if (previewUrl) {
+        try { URL.revokeObjectURL(previewUrl); } catch {}
+      }
+      toast.error(fileToSend ? t('failed_upload_image') : (err instanceof Error ? err.message : 'Failed to send'));
     }
   };
 
@@ -611,13 +628,19 @@ const Messages = () => {
                             : 'bg-card border border-border text-foreground rounded-2xl rounded-bl-md shadow-sm'
                         }`}>
                           {msg.attachments && msg.attachments.length > 0 && (
-                              <div className="mb-2 rounded-lg overflow-hidden">
-                                <img src={msg.attachments[0]} alt="attachment" className="w-full h-32 md:h-40 object-cover" />
+                              <div className="mb-2 rounded-lg overflow-hidden relative">
+                                <img src={msg.attachments[0]} alt="attachment" className={`w-full h-32 md:h-40 object-cover transition-opacity ${msg.__sending ? 'opacity-70' : 'opacity-100'}`} />
+                                {msg.__sending && (
+                                  <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                    <Loader2 className="w-5 h-5 animate-spin text-white" />
+                                  </div>
+                                )}
                               </div>
                           )}
                           {msg.content && <p className="text-sm break-words">{msg.content}</p>}
-                          <p className={`text-[10px] mt-1 ${isSender ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                          <p className={`text-[10px] mt-1 flex items-center gap-1 ${isSender ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
                             {msgDate ? msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                            {msg.__sending && <Loader2 className="w-3 h-3 animate-spin" />}
                           </p>
                         </div>
                       </div>
@@ -626,14 +649,6 @@ const Messages = () => {
                 })
               )}
             </div>
-
-            {/* Upload progress indicator */}
-            {uploadingImage && (
-              <div className="px-4 py-2 border-t border-border flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>{t('uploading_image')}</span>
-              </div>
-            )}
 
             {/* Input area */}
             <div className="p-3 md:p-4 border-t border-border">
@@ -680,10 +695,10 @@ const Messages = () => {
                   size="icon"
                   className="rounded-full w-10 h-10 bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
                   onClick={handleSendMessage}
-                  disabled={(!input.trim() && !imagePreview) || sending || uploadingImage}
+                  disabled={!input.trim() && !imagePreview}
                   aria-label={t('send_message_aria')}
                 >
-                  {(sending || uploadingImage) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  <Send className="w-4 h-4" />
                 </Button>
               </div>
             </div>

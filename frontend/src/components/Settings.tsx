@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Lock, Moon, Loader2, MousePointerClick } from 'lucide-react';
+import { User, Lock, Moon, Loader2, MousePointerClick, ChevronLeft } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import SvgIcon from '@/components/ui/svg-icon';
@@ -98,7 +98,18 @@ const Settings = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl md:text-2xl font-semibold">{t('settings')}</h1>
+      <div className="flex items-center gap-2">
+        <h1 className="flex-1 min-w-0 text-xl md:text-2xl font-semibold">{t('settings')}</h1>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="flex-shrink-0 self-center"
+          onClick={() => navigate(-1)}
+          aria-label="Back"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </Button>
+      </div>
       
       <div className="space-y-6">
         {/* Notification Settings */}

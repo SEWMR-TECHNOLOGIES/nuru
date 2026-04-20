@@ -25,7 +25,7 @@ import {
   CancellingParty,
   RefundBreakdown,
 } from "@/lib/api/cancellations";
-import { formatPrice } from "@/utils/formatPrice";
+import { useCurrency } from "@/hooks/useCurrency";
 import { ShieldAlert, Clock, AlertTriangle } from "lucide-react";
 
 interface Props {
@@ -49,6 +49,7 @@ export function CancelBookingDialog({
   cancellingParty = "organiser",
   onConfirm,
 }: Props) {
+  const { format: formatPrice } = useCurrency();
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [preview, setPreview] = useState<RefundBreakdown | null>(null);

@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 import { photoLibrariesApi, ServiceConfirmedEvent } from '@/lib/api/photoLibraries';
 import { showApiErrors, showCaughtError } from '@/lib/api';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import PhotosIcon from '@/assets/icons/photos-icon.svg';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
@@ -28,6 +28,7 @@ let _eventsTitleCache: Record<string, string> = {};
 let _eventsLoaded: Record<string, boolean> = {};
 
 const ServiceEventsPage = () => {
+  const { format: formatPrice } = useCurrency();
   const { t } = useLanguage();
   const { serviceId } = useParams<{ serviceId: string }>();
   const navigate = useNavigate();

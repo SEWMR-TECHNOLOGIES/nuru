@@ -164,4 +164,18 @@ export const profileApi = {
    * Get verification status
    */
   getVerificationStatus: () => get<{ status: string; submitted_at?: string; verified_at?: string; rejection_reason?: string }>("/users/verify-identity/status"),
+
+  // ============================================================================
+  // COUNTRY / CURRENCY (Phase 3 — payments)
+  // ============================================================================
+
+  /**
+   * Confirm or update the user's country of residence. The backend will
+   * derive the matching currency (TZ→TZS, KE→KES) and provision a wallet.
+   */
+  confirmCountry: (data: { country_code: "TZ" | "KE"; source?: "ip" | "phone" | "locale" | "manual" }) =>
+    post<{ country_code: string; currency_code: string; country_source: string }>(
+      "/users/profile/country",
+      data
+    ),
 };

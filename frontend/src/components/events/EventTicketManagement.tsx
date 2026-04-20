@@ -13,10 +13,11 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { ticketingApi } from "@/lib/api/ticketing";
 import { get, put } from "@/lib/api/helpers";
-import { formatPrice } from "@/utils/formatPrice";
+import { useCurrency } from '@/hooks/useCurrency';
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import ReceivedPaymentsPanel from '@/components/payments/ReceivedPaymentsPanel';
 
 interface EventTicketManagementProps {
   eventId: string;
@@ -32,6 +33,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProps) => {
+  const { format: formatPrice } = useCurrency();
   const { t } = useLanguage();
   const [tickets, setTickets] = useState<any[]>([]);
   const [ticketClasses, setTicketClasses] = useState<any[]>([]);
@@ -42,6 +44,7 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
   const [classesLoading, setClassesLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<any>(null);
+  
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
   const [scanMode, setScanMode] = useState<'manual' | 'camera'>('manual');
@@ -267,7 +270,7 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
           <Clock className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
           <div>
             <p className="font-semibold text-amber-800 dark:text-amber-300 text-sm">Pending Approval</p>
-            <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">Your ticketed event is under review. Tickets will be visible to the public once approved by an administrator.</p>
+            <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">Your ticketed event is being reviewed by Nuru. Tickets will be visible to the public once approved.</p>
           </div>
         </div>
       ) : approvalStatus === "rejected" ? (
@@ -283,7 +286,7 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
           <AlertTriangle className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
           <div>
             <p className="font-semibold text-foreground text-sm">Removed</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Your ticketed event has been removed by an administrator.{removedReason ? ` Reason: ${removedReason}` : ''}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Your ticketed event has been removed by Nuru.{removedReason ? ` Reason: ${removedReason}` : ''}</p>
           </div>
         </div>
       ) : approvalStatus === "approved" ? (
@@ -296,7 +299,7 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
         </div>
       ) : null}
 
-      {/* Scan Ticket Button */}
+      {/* Scan action */}
       {isCreator && (
         <Button
           onClick={() => { resetScan(); setScanOpen(true); }}
@@ -305,6 +308,12 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
           <img src={ScanIcon} alt="Scan" className="w-4 h-4 mr-2 invert" />
           Scan / Enter Ticket Code
         </Button>
+      )}
+      {isCreator && (
+        <ReceivedPaymentsPanel
+          source={{ kind: 'event-tickets', eventId }}
+          title="Ticket payments received"
+        />
       )}
 
       {/* Summary cards */}

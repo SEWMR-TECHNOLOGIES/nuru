@@ -14,6 +14,9 @@ import FindServices from "@/components/FindServices";
 import Notifications from "@/components/Notifications";
 import Help from "@/components/Help";
 import Settings from "@/components/Settings";
+import Wallet from "@/components/Wallet";
+import ReceiptPage from "@/components/ReceiptPage";
+import SettingsPayments from "@/components/SettingsPayments";
 import PostDetail from "@/components/PostDetail";
 import CreateEvent from "@/components/CreateEvent";
 import EventManagement from "@/components/EventManagement";
@@ -44,6 +47,7 @@ import ServiceEventsPage from "@/components/ServiceEventsPage";
 import ServicePhotoLibraries from "@/components/ServicePhotoLibraries";
 import PhotoLibraryDetail from "@/components/PhotoLibraryDetail";
 import SharedPhotoLibrary from "@/components/SharedPhotoLibrary";
+import SharedReceiptPage from "@/pages/SharedReceiptPage";
 
 
 import Index from "@/pages/Index";
@@ -59,6 +63,8 @@ import CancellationPolicy from "@/pages/CancellationPolicy";
 import CookiePolicy from "@/pages/CookiePolicy";
 import CookieConsent from "@/components/CookieConsent";
 import RegionSwitcher from "@/components/region/RegionSwitcher";
+import CountryConfirmModal from "@/components/region/CountryConfirmModal";
+import MigrationWelcomeModal from "@/components/migration/MigrationWelcomeModal";
 import NotFound from "@/pages/NotFound";
 import ScrollToTop from "@/components/ScrollToTop";
 import EventPlanning from "@/pages/features/EventPlanning";
@@ -74,6 +80,10 @@ import ShortLinkRedirect from "@/pages/ShortLinkRedirect";
 import RSVPConfirmation from "@/pages/RSVPConfirmation";
 import ChangePassword from "@/pages/ChangePassword";
 import TicketVerification from "@/pages/TicketVerification";
+import EventGroupWorkspace from "@/pages/EventGroupWorkspace";
+import GuestGroupJoin from "@/pages/GuestGroupJoin";
+import MyGroups from "@/components/eventGroups/MyGroups";
+import MyContributions from "@/pages/MyContributions";
 
 // Admin
 import AdminLogin from "@/pages/admin/AdminLogin";
@@ -113,6 +123,7 @@ import AdminAgreements from "@/pages/admin/AdminAgreements";
 import AdminTicketedEvents from "@/pages/admin/AdminTicketedEvents";
 import AdminNameFlags from "@/pages/admin/AdminNameFlags";
 import AdminMonitoring from "@/pages/admin/AdminMonitoring";
+import AdminPayments from "@/pages/admin/AdminPayments";
 import MyIssues from "@/components/MyIssues";
 import MeetingRoom from "@/pages/MeetingRoom";
 
@@ -130,6 +141,8 @@ function InnerRoutes() {
       <ScrollToTop />
         <CookieConsent />
         <RegionSwitcher />
+        <CountryConfirmModal />
+        <MigrationWelcomeModal />
       <Routes>
         {/* Root: marketing landing when logged out; app feed when logged in */}
         <Route
@@ -157,11 +170,17 @@ function InnerRoutes() {
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/help" element={<Help />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/settings/payments" element={<SettingsPayments />} />
+          <Route path="/wallet" element={<Wallet />} />
+          <Route path="/wallet/receipt/:transaction_code" element={<ReceiptPage />} />
           <Route path="/post/:id" element={<PostDetail />} />
           <Route path="/create-event" element={<CreateEvent />} />
           <Route path="/tickets" element={<BrowseTickets />} />
           <Route path="/my-tickets" element={<MyTickets />} />
           <Route path="/event-management/:id" element={<EventManagement />} />
+          <Route path="/event-group/:groupId" element={<EventGroupWorkspace />} />
+          <Route path="/my-groups" element={<MyGroups />} />
+          <Route path="/my-contributions" element={<MyContributions />} />
           <Route path="/my-services" element={<MyServices />} />
           <Route path="/services/new" element={<AddService />} />
           <Route path="/services/edit/:id" element={<EditService />} />
@@ -208,8 +227,10 @@ function InnerRoutes() {
         <Route path="/shared/post/:id" element={<GuestPost />} />
         <Route path="/s/:shortId" element={<ShortLinkRedirect />} />
         <Route path="/shared/photo-library/:token" element={<SharedPhotoLibrary />} />
+        <Route path="/shared/receipt/:transaction_code" element={<SharedReceiptPage />} />
         <Route path="/rsvp/:code" element={<RSVPConfirmation />} />
         <Route path="/ticket/:code" element={<TicketVerification />} />
+        <Route path="/g/:token" element={<GuestGroupJoin />} />
         <Route path="/features/event-planning" element={<EventPlanning />} />
         <Route path="/features/service-providers" element={<ServiceProviders />} />
         <Route path="/features/invitations" element={<Invitations />} />
@@ -255,6 +276,7 @@ function InnerRoutes() {
           <Route path="agreements" element={<AdminAgreements />} />
           <Route path="ticketed-events" element={<AdminTicketedEvents />} />
           <Route path="monitoring" element={<AdminMonitoring />} />
+          <Route path="payments" element={<AdminPayments />} />
         </Route>
 
 

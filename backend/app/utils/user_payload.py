@@ -53,6 +53,11 @@ def build_user_payload(db, user):
         "location": profile.location if profile else None,
         "website": profile.website_url if profile else None,
         "social_links": profile.social_links if profile else {},
+        # Payments / region — required so CountryConfirmModal does not re-open
+        # on every login once the user has confirmed their country.
+        "country_code": profile.country_code if profile else None,
+        "currency_code": profile.currency_code if profile else None,
+        "country_source": profile.country_source if profile else None,
         "is_active": user.is_active,
         "is_suspended": getattr(user, "is_suspended", False),
         "suspension_reason": getattr(user, "suspension_reason", None),

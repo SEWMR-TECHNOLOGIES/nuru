@@ -179,7 +179,7 @@ function RemovedCard({ item, onAppealSubmitted }: { item: RemovedItem; onAppealS
             ? 'border-green-500/20 bg-green-500/5'
             : 'border-destructive/20 bg-destructive/5'
         }`}>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Admin Response</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Nuru Response</p>
           <p className="text-sm text-foreground">{item.appeal.admin_notes}</p>
         </div>
       )}

@@ -27,6 +27,8 @@ import 'widgets/venue_map_preview.dart';
 import 'report_preview_screen.dart';
 import 'budget_assistant_screen.dart';
 import '../../core/l10n/l10n_helper.dart';
+import '../../core/services/event_groups_service.dart';
+import '../event_groups/event_group_workspace_screen.dart';
 
 class EventDetailScreen extends StatefulWidget {
   final String eventId;
@@ -426,6 +428,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
       case 'rsvp': return EventRsvpTab(eventId: widget.eventId);
       case 'meetings': return EventMeetingsTab(eventId: widget.eventId, isCreator: _isCreator, permissions: _permissions, eventName: extractStr((_event ?? {})['title']));
       case 'tickets': return EventTicketsTab(eventId: widget.eventId, permissions: _permissions);
+      // workspace tab removed — Group Chat lives on the overview as a CTA card
       case 'check_in': return EventCheckinTab(
         eventId: widget.eventId, permissions: _permissions,
         eventTitle: extractStr((_event ?? {})['title']),
@@ -466,6 +469,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
     return RefreshIndicator(
       onRefresh: _loadEvent, color: AppColors.primary,
       child: ListView(padding: const EdgeInsets.all(16), children: [
+        if (_isCreator) ...[
+          _EventGroupCta(eventId: widget.eventId),
+          const SizedBox(height: 16),
+        ],
         _sectionHeader(context.trw('financial_overview')),
         const SizedBox(height: 10),
         _financialCard(label: context.trw('budget_status'), value: budgetNum > 0 ? formatTZS(budgetNum) : context.trw('not_set'), subtitle: context.trw('budget_allocated'),
@@ -795,3 +802,102 @@ class _TabBarDelegate extends SliverPersistentHeaderDelegate {
   @override Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) => Container(color: const Color(0xFFE8EEF5), child: tabBar);
   @override bool shouldRebuild(covariant _TabBarDelegate oldDelegate) => false;
 }
+
+/// Premium CTA card on the Event Overview tab. Shows "Open Group Chat" when
+/// a group already exists, otherwise "Create Group Chat".
+class _EventGroupCta extends StatefulWidget {
+  final String eventId;
+  const _EventGroupCta({required this.eventId});
+  @override
+  State<_EventGroupCta> createState() => _EventGroupCtaState();
+}
+
+class _EventGroupCtaState extends State<_EventGroupCta> {
+  bool _loading = true;
+  bool _busy = false;
+  Map<String, dynamic>? _group;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final res = await EventGroupsService.getForEvent(widget.eventId);
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _group = (res['success'] == true && res['data'] is Map<String, dynamic>)
+          ? res['data'] as Map<String, dynamic> : null;
+    });
+  }
+
+  Future<void> _createOrOpen() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final res = await EventGroupsService.openOrCreateForEvent(widget.eventId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    final id = res['data']?['id']?.toString();
+    if (id != null) {
+      Navigator.push(context, MaterialPageRoute(
+        builder: (_) => EventGroupWorkspaceScreen(groupId: id),
+      )).then((_) => _refresh());
+    } else {
+      AppSnackbar.error(context, res['message']?.toString() ?? 'Could not create group');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const SizedBox.shrink();
+    final hasGroup = _group != null;
+    final memberCount = (_group?['member_count'] ?? 0) as int;
+    final unread = (_group?['unread_count'] ?? 0) as int;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.primary.withOpacity(0.12), AppColors.primary.withOpacity(0.04)],
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withOpacity(0.25)),
+      ),
+      child: Row(children: [
+        Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.18), borderRadius: BorderRadius.circular(12)),
+          child: Icon(Icons.chat_bubble_rounded, color: AppColors.primary, size: 22),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(hasGroup ? 'Group Chat' : 'Create the Group Chat',
+            style: appText(size: 14, weight: FontWeight.w700, color: AppColors.textPrimary)),
+          const SizedBox(height: 2),
+          Text(hasGroup
+              ? '$memberCount members${unread > 0 ? " · $unread unread" : ""}'
+              : 'Private chat for your organizer team, committee and contributors — with a live contribution scoreboard.',
+            style: appText(size: 11, color: AppColors.textSecondary, height: 1.4)),
+        ])),
+        const SizedBox(width: 8),
+        ElevatedButton(
+          onPressed: _busy ? null : _createOrOpen,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary, foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), elevation: 0,
+          ),
+          child: _busy
+              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : Text(hasGroup ? 'Open' : 'Create',
+                  style: appText(size: 12, weight: FontWeight.w700, color: Colors.white)),
+        ),
+      ]),
+    );
+  }
+}
+
+

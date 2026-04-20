@@ -62,4 +62,10 @@ class SecureTokenStorage {
     await _storage.delete(key: _keyAccessToken);
     await _storage.delete(key: _keyRefreshToken);
   }
+
+  // ── Generic key API (for feature-specific tokens like guest group JWTs) ──
+  static Future<String?> read(String key) => _storage.read(key: key);
+  static Future<void> write(String key, String value) =>
+      _storage.write(key: key, value: value);
+  static Future<void> deleteKey(String key) => _storage.delete(key: key);
 }

@@ -10,7 +10,7 @@ const Payments = () => {
   const { t } = useLanguage();
   const paymentMethods = [
     { title: "Cards accepted", description: "Visa, Mastercard, and all major credit cards" },
-    { title: "Mobile money", description: "M-Pesa, Tigo Pesa, and local providers" },
+    { title: "Mobile money", description: "M-Pesa, Mixx by Yas, Airtel Money, HaloPesa" },
     { title: "Bank transfers", description: "Direct deposits for larger transactions" },
     { title: "Digital wallets", description: "Apple Pay, Google Pay, and more" },
     { title: "PayPal", description: "International payments made simple" },

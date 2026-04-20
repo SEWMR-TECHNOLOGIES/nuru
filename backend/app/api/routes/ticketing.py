@@ -387,8 +387,13 @@ def get_my_tickets(
     limit = max(1, min(limit, 50))
     offset = (page - 1) * limit
 
+    # Buyers should only see tickets they have actually paid for. Pending
+    # reservations (created at checkout time but never paid) stay hidden so
+    # we never advertise an unconfirmed ticket as "issued".
     query = db.query(EventTicket).filter(
-        EventTicket.buyer_user_id == current_user.id
+        EventTicket.buyer_user_id == current_user.id,
+        EventTicket.payment_status == PaymentStatusEnum.completed,
+        EventTicket.status.notin_([TicketOrderStatusEnum.cancelled, TicketOrderStatusEnum.rejected]),
     )
 
     if search and search.strip():
@@ -577,6 +582,7 @@ def get_my_upcoming_tickets(
 
     tickets = db.query(EventTicket).filter(
         EventTicket.buyer_user_id == current_user.id,
+        EventTicket.payment_status == PaymentStatusEnum.completed,
         EventTicket.status.in_([TicketOrderStatusEnum.confirmed, TicketOrderStatusEnum.approved]),
     ).all()
 

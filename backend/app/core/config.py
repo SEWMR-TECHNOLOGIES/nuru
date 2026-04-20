@@ -16,6 +16,13 @@ ALGORITHM = os.getenv("ALGORITHM", "HS256")
 SEWMR_SMS_BASE_URL = os.getenv("SEWMR_SMS_BASE_URL", "https://api.sewmrsms.co.tz/api/v1/")
 SEWMR_SMS_ACCESS_TOKEN = os.getenv("SEWMR_SMS_ACCESS_TOKEN", "")
 SEWMR_SMS_DEFAULT_SENDER_ID = os.getenv("SEWMR_SMS_DEFAULT_SENDER_ID", "")
+# Phone that receives a heads-up SMS for every successful payment so the ops
+# team can reconcile in real time. Falls back to the founders' line if unset.
+ADMIN_NOTIFY_PHONE = os.getenv("ADMIN_NOTIFY_PHONE", "255764413610")
+# Public base URL of this API — used to auto-build the SasaPay callback URL
+# (and any other webhook URL) when an explicit override is not provided.
+# Example: https://api.nuru.tz  →  callback becomes https://api.nuru.tz/api/v1/payments/callback
+API_BASE_URL = os.getenv("API_BASE_URL", "").rstrip("/")
 UPLOAD_SERVICE_URL = "https://data.sewmrtechnologies.com/handle-file-uploads"
 DELETE_SERVICE_URL = "https://data.sewmrtechnologies.com/delete-file.php"
 MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB

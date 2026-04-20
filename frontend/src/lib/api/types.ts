@@ -41,6 +41,12 @@ export interface User {
   avatar: string | null;
   bio?: string;
   location?: string;
+  /** ISO-3166 alpha-2 country code (e.g. "TZ", "KE"). Set during signup or first login. */
+  country_code?: string | null;
+  /** ISO-4217 currency code matching the country (TZS / KES). Drives wallet & price formatting. */
+  currency_code?: string | null;
+  /** How the country was determined: ip | phone | locale | manual. */
+  country_source?: string | null;
   is_active?: boolean;
   is_suspended?: boolean;
   suspension_reason?: string | null;

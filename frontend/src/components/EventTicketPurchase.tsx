@@ -8,10 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ticketingApi, TicketClass } from "@/lib/api/ticketing";
-import { formatPrice } from "@/utils/formatPrice";
+import { useCurrency } from '@/hooks/useCurrency';
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import CheckoutModal from "@/components/payments/CheckoutModal";
 
 interface EventTicketPurchaseProps {
   eventId: string;
@@ -19,6 +20,7 @@ interface EventTicketPurchaseProps {
 }
 
 const EventTicketPurchase = ({ eventId, eventName }: EventTicketPurchaseProps) => {
+  const { format: formatPrice } = useCurrency();
   const { t } = useLanguage();
   const [classes, setClasses] = useState<TicketClass[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,6 +28,8 @@ const EventTicketPurchase = ({ eventId, eventName }: EventTicketPurchaseProps) =
   const [quantity, setQuantity] = useState(1);
   const [purchasing, setPurchasing] = useState(false);
   const [purchaseResult, setPurchaseResult] = useState<{ ticket_code: string; total_amount: number } | null>(null);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
 
   useEffect(() => {
     ticketingApi.getTicketClasses(eventId).then((res) => {
@@ -46,15 +50,16 @@ const EventTicketPurchase = ({ eventId, eventName }: EventTicketPurchaseProps) =
       if (res.success && res.data) {
         const data = res.data as any;
         setPurchaseResult({ ticket_code: data.ticket_code, total_amount: data.total_amount });
-        toast.success("Ticket request sent! Awaiting organizer approval.");
-        // Refresh classes
-        const refresh = await ticketingApi.getTicketClasses(eventId);
-        if (refresh.success && refresh.data) setClasses((refresh.data as any).ticket_classes || []);
+        setPendingTicketId(data.ticket_id || data.id || null);
+        // Open checkout so the buyer pays now via the new pipeline.
+        // We DO NOT confirm the ticket here — that only happens once the
+        // payment status returns succeeded/credited from the gateway.
+        setCheckoutOpen(true);
       } else {
-        toast.error(res.message || "Purchase failed");
+        toast.error(res.message || "Could not reserve ticket");
       }
     } catch {
-      toast.error("Failed to purchase ticket");
+      toast.error("Failed to reserve ticket");
     } finally {
       setPurchasing(false);
     }
@@ -205,29 +210,83 @@ const EventTicketPurchase = ({ eventId, eventName }: EventTicketPurchaseProps) =
         </CardContent>
       </Card>
 
-      {/* Success dialog */}
-      <Dialog open={!!purchaseResult} onOpenChange={() => { setPurchaseResult(null); setSelectedClass(null); setQuantity(1); }}>
+      {/* Checkout — pay for the ticket via the new payments pipeline */}
+      {selectedClass && purchaseResult && (
+        <CheckoutModal
+          open={checkoutOpen}
+          onOpenChange={(v) => {
+            setCheckoutOpen(v);
+            if (!v) {
+              // Refresh classes after closing checkout so availability updates.
+              ticketingApi.getTicketClasses(eventId).then((r) => {
+                if (r.success && r.data) setClasses((r.data as any).ticket_classes || []);
+              });
+            }
+          }}
+          targetType="event_ticket"
+          targetId={pendingTicketId || selectedClass.id}
+          amount={purchaseResult.total_amount}
+          allowBank={false}
+          title={`Buy ${quantity} ${selectedClass.name} ticket${quantity > 1 ? "s" : ""}`}
+          description={`Ticket for ${eventName ?? "event"} — ${selectedClass.name} × ${quantity}`}
+          onSuccess={() => {
+            toast.success("Payment confirmed — your ticket is now issued.", {
+              description: "View it under My Tickets.",
+            });
+            setSelectedClass(null);
+            setQuantity(1);
+            setPurchaseResult(null);
+            setPendingTicketId(null);
+          }}
+        />
+      )}
+
+      {/* Reservation reminder — only shown if user closes checkout without paying.
+          Tickets are NEVER confirmed here; confirmation happens after payment. */}
+      <Dialog
+        open={!!purchaseResult && !checkoutOpen}
+        onOpenChange={() => {
+          setPurchaseResult(null);
+          setPendingTicketId(null);
+          setSelectedClass(null);
+          setQuantity(1);
+        }}
+      >
         <DialogContent className="max-w-sm text-center">
           <DialogHeader>
-            <DialogTitle className="text-lg">
-              Ticket Request Sent!
-            </DialogTitle>
-            <DialogDescription>Your ticket is pending approval by the event organizer</DialogDescription>
+            <DialogTitle className="text-lg">Complete payment to confirm</DialogTitle>
+            <DialogDescription>
+              Your ticket is reserved but <strong>not yet issued</strong>. Pay now to secure it — unpaid reservations expire shortly.
+            </DialogDescription>
           </DialogHeader>
           {purchaseResult && (
             <div className="space-y-3 py-2">
               <div className="p-4 rounded-lg bg-muted/50 border border-border">
-                <p className="text-xs text-muted-foreground mb-1">Ticket Code</p>
+                <p className="text-xs text-muted-foreground mb-1">Reservation reference</p>
                 <p className="text-xl font-mono font-bold text-foreground tracking-wider">{purchaseResult.ticket_code}</p>
               </div>
               <p className="text-sm text-muted-foreground">
-                Total: <span className="font-semibold text-foreground">{formatPrice(purchaseResult.total_amount)}</span>
+                Amount due: <span className="font-semibold text-foreground">{formatPrice(purchaseResult.total_amount)}</span>
               </p>
             </div>
           )}
-          <Button className="w-full" onClick={() => { setPurchaseResult(null); setSelectedClass(null); setQuantity(1); }}>
-            Done
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                setPurchaseResult(null);
+                setPendingTicketId(null);
+                setSelectedClass(null);
+                setQuantity(1);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button className="flex-1" onClick={() => setCheckoutOpen(true)}>
+              Pay now
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </motion.div>

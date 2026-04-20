@@ -17,6 +17,7 @@ import '../../core/widgets/language_selector.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../auth/widgets/auth_text_field.dart';
 import 'identity_verification_screen.dart';
+import '../wallet/payout_profile_screen.dart';
 import 'terms_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'licenses_screen.dart';
@@ -172,6 +173,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               context,
               MaterialPageRoute(
                 builder: (_) => const IdentityVerificationScreen(),
+              ),
+            );
+          },
+        ),
+        _menuItem(
+          'assets/icons/card-icon.svg',
+          'Payments & Payouts',
+          'Country, currency, mobile money & bank',
+          () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const PayoutProfileScreen(),
               ),
             );
           },

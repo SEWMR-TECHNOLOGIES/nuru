@@ -8,6 +8,9 @@ import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/widgets/expanding_search_action.dart';
 import '../../core/services/ticketing_service.dart';
 import '../../core/l10n/l10n_helper.dart';
+import '../migration/migration_banner.dart';
+import 'widgets/my_ticket_payments_tab.dart';
+
 
 class MyTicketsScreen extends StatefulWidget {
   const MyTicketsScreen({super.key});
@@ -16,7 +19,9 @@ class MyTicketsScreen extends StatefulWidget {
   State<MyTicketsScreen> createState() => _MyTicketsScreenState();
 }
 
-class _MyTicketsScreenState extends State<MyTicketsScreen> {
+class _MyTicketsScreenState extends State<MyTicketsScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController = TabController(length: 2, vsync: this);
   List<dynamic> _tickets = [];
   List<dynamic> _upcomingTickets = [];
   bool _loading = true;
@@ -65,6 +70,9 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> {
   }
 
   @override
+  void dispose() { _tabController.dispose(); super.dispose(); }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -77,44 +85,65 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> {
             onChanged: (v) { _search = v; _page = 1; _load(); },
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: AppColors.primary,
+          unselectedLabelColor: AppColors.textTertiary,
+          indicatorColor: AppColors.primary,
+          indicatorWeight: 2.5,
+          labelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700),
+          tabs: const [
+            Tab(text: 'Tickets'),
+            Tab(text: 'Payments'),
+          ],
+        ),
       ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        color: AppColors.primary,
-        child: _loading
-            ? _buildLoadingSkeleton()
-            : _tickets.isEmpty && _upcomingTickets.isEmpty
-                ? ListView(children: [
-                    SizedBox(height: MediaQuery.of(context).size.height * 0.15),
-                    _emptyState(),
-                  ])
-                : ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      // Upcoming Events sidebar section (matches web right sidebar exactly)
-                      if (_upcomingTickets.isNotEmpty) ...[
-                        Text('UPCOMING EVENTS', style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 1.2)),
-                        const SizedBox(height: 10),
-                        ..._upcomingTickets.take(3).map((t) => _upcomingSidebarCard(t)),
-                        const SizedBox(height: 20),
-                      ],
-                      // All tickets
-                      Text('ALL TICKETS', style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 1.2)),
-                      const SizedBox(height: 10),
-                      if (_tickets.isEmpty)
-                        _emptyState()
-                      else
-                        ..._tickets.map((t) => _ticketCard(t)),
-                      // Pagination
-                      if (_pagination != null && (_pagination!['total_pages'] ?? 1) > 1)
-                        _buildPagination(),
-                    ],
-                  ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _ticketsTab(),
+          const MyTicketPaymentsTab(),
+        ],
       ),
     );
   }
+
+  Widget _ticketsTab() {
+    return RefreshIndicator(
+      onRefresh: _load,
+      color: AppColors.primary,
+      child: _loading
+          ? _buildLoadingSkeleton()
+          : _tickets.isEmpty && _upcomingTickets.isEmpty
+              ? ListView(children: [
+                  SizedBox(height: MediaQuery.of(context).size.height * 0.15),
+                  _emptyState(),
+                ])
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    const MigrationBanner(surface: MigrationSurface.tickets, margin: EdgeInsets.only(bottom: 12)),
+                    if (_upcomingTickets.isNotEmpty) ...[
+                      Text('UPCOMING EVENTS', style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 1.2)),
+                      const SizedBox(height: 10),
+                      ..._upcomingTickets.take(3).map((t) => _upcomingSidebarCard(t)),
+                      const SizedBox(height: 20),
+                    ],
+                    Text('ALL TICKETS', style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 1.2)),
+                    const SizedBox(height: 10),
+                    if (_tickets.isEmpty)
+                      _emptyState()
+                    else
+                      ..._tickets.map((t) => _ticketCard(t)),
+                    if (_pagination != null && (_pagination!['total_pages'] ?? 1) > 1)
+                      _buildPagination(),
+                  ],
+                ),
+    );
+  }
+
 
   Widget _buildLoadingSkeleton() {
     return ListView(
