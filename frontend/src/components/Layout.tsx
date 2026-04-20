@@ -1,4 +1,4 @@
-import { ReactNode, useState, useCallback, useRef } from "react";
+import { ReactNode, useState, useCallback, useRef, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import { ShieldAlert } from "lucide-react";
 import Header from "./Header";
@@ -30,6 +30,20 @@ const Layout = ({ children }: LayoutProps) => {
   const closeLeft = useCallback(() => setLeftDrawerOpen(false), []);
   const openRight = useCallback(() => setRightDrawerOpen(true), []);
   const closeRight = useCallback(() => setRightDrawerOpen(false), []);
+
+  // Auto-close drawers when viewport grows to md+ (desktop sidebar takes over)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const handler = (e: MediaQueryListEvent | MediaQueryList) => {
+      if (e.matches) {
+        setLeftDrawerOpen(false);
+        setRightDrawerOpen(false);
+      }
+    };
+    handler(mq);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   return (
     <div className="h-screen w-screen bg-background font-nunito overflow-hidden px-2 md:px-0 tablet:px-0 lg:px-16">
@@ -67,11 +81,11 @@ const Layout = ({ children }: LayoutProps) => {
           </div>
         </div>
 
-        {/* Mobile Left Drawer (Sidebar) */}
+        {/* Mobile Left Drawer (Sidebar) — full desktop layout */}
         <Sheet open={leftDrawerOpen} onOpenChange={setLeftDrawerOpen}>
-          <SheetContent side="left" className="w-64 p-0 border-none">
-            <div className="h-full overflow-y-auto overscroll-y-contain pt-12 pb-20">
-              <Sidebar onNavigate={() => setLeftDrawerOpen(false)} onReplayTour={() => { setLeftDrawerOpen(false); setTimeout(() => onboardingRef.current?.replay(), 400); }} />
+          <SheetContent side="left" className="w-72 p-0 border-none bg-sidebar !opacity-100">
+            <div className="h-full overflow-hidden">
+              <Sidebar inDrawer onNavigate={() => setLeftDrawerOpen(false)} onReplayTour={() => { setLeftDrawerOpen(false); setTimeout(() => onboardingRef.current?.replay(), 400); }} />
             </div>
           </SheetContent>
         </Sheet>
