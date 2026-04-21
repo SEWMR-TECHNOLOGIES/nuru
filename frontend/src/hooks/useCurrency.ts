@@ -28,11 +28,12 @@ import {
   type SupportedCurrency,
 } from "@/utils/formatPrice";
 
-// Country → currency mapping for our two markets. Extend here when we add
-// a third country and the rest of the app picks it up automatically.
+// Country → currency mapping. INTL is the synthetic fallback used outside
+// our two primary markets (TZ, KE) — defaults the hero/UI to USD.
 const COUNTRY_TO_CURRENCY: Record<RegionCode, SupportedCurrency> = {
   TZ: "TZS",
   KE: "KES",
+  INTL: "USD",
 };
 
 const detectFromTimezone = (): RegionCode | null => {
@@ -93,19 +94,21 @@ export const useCurrency = (): UseCurrencyResult => {
       }
     }
 
-    // 3. Host
+    // 3. Host (nuru.tz / nuru.ke)
     const fromHost =
       typeof window !== "undefined"
         ? regionFromHost(window.location.hostname)
         : null;
 
-    // 4. Timezone
-    const code = (fromHost?.code ?? detectFromTimezone() ?? "TZ") as RegionCode;
+    // 4. Timezone fallback. If neither host nor timezone matches a primary
+    //    region we resolve to "INTL" → USD (international visitor).
+    const code = (fromHost?.code ?? detectFromTimezone() ?? "INTL") as RegionCode;
     const currency = COUNTRY_TO_CURRENCY[code];
 
     return {
       currency,
-      countryCode: code,
+      // Only expose primary country codes externally; INTL is synthetic.
+      countryCode: code === "INTL" ? null : code,
       isResolving: isLoading,
       isFromProfile: false,
       format: (amount, options) =>

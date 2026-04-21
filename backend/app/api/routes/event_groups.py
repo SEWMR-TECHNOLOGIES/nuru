@@ -263,6 +263,11 @@ def _member_dict(db: Session, m: EventGroupMember) -> dict:
     else:
         name = m.guest_name
         phone = m.guest_phone
+    # A member is "joined" once a real Nuru account is linked, OR a guest
+    # has claimed an invite (guest_name set on the row). Pre-seeded guest
+    # slots created when an admin adds a non-Nuru contributor have neither
+    # a user_id nor a guest_name yet — those are still "pending".
+    has_joined = bool(m.user_id) or bool(m.guest_name)
     return {
         "id": str(m.id),
         "user_id": str(m.user_id) if m.user_id else None,
@@ -275,6 +280,7 @@ def _member_dict(db: Session, m: EventGroupMember) -> dict:
         "role": m.role.value if m.role else "contributor",
         "is_admin": m.is_admin,
         "is_guest": m.user_id is None,
+        "has_joined": has_joined,
         "joined_at": m.joined_at.isoformat() if m.joined_at else None,
     }
 
@@ -334,20 +340,23 @@ def _message_dict(db: Session, msg: EventGroupMessage, members_by_id: dict) -> d
 
 def _seed_members(db: Session, group: EventGroup, event: Event):
     """Auto-add organizer + committee + all event contributors (linked Nuru users
-    only — non-Nuru contributors join via invite link)."""
-    seen_users = set()
+    only — non-Nuru contributors join via invite link). Idempotent."""
+    # Preload all existing user_ids in this group to avoid duplicate-key errors
+    # on resync (uq_group_user constraint).
+    existing_user_ids = {
+        row[0] for row in db.query(EventGroupMember.user_id).filter(
+            EventGroupMember.group_id == group.id,
+            EventGroupMember.user_id.isnot(None),
+        ).all()
+    }
+    seen_users = set(existing_user_ids)
 
     # Organizer
-    if event.organizer_id:
-        existing = db.query(EventGroupMember).filter(
-            EventGroupMember.group_id == group.id,
-            EventGroupMember.user_id == event.organizer_id,
-        ).first()
-        if not existing:
-            db.add(EventGroupMember(
-                id=uuid.uuid4(), group_id=group.id, user_id=event.organizer_id,
-                role=GroupMemberRoleEnum.organizer, is_admin=True,
-            ))
+    if event.organizer_id and event.organizer_id not in seen_users:
+        db.add(EventGroupMember(
+            id=uuid.uuid4(), group_id=group.id, user_id=event.organizer_id,
+            role=GroupMemberRoleEnum.organizer, is_admin=True,
+        ))
         seen_users.add(event.organizer_id)
 
     # Committee
@@ -355,7 +364,7 @@ def _seed_members(db: Session, group: EventGroup, event: Event):
         EventCommitteeMember.event_id == event.id,
     ).all()
     for cm in committee:
-        if cm.user_id in seen_users:
+        if not cm.user_id or cm.user_id in seen_users:
             continue
         db.add(EventGroupMember(
             id=uuid.uuid4(), group_id=group.id, user_id=cm.user_id,
@@ -363,7 +372,18 @@ def _seed_members(db: Session, group: EventGroup, event: Event):
         ))
         seen_users.add(cm.user_id)
 
-    # Contributors (linked Nuru users)
+    # Preload existing contributor_id slots so we don't double-add guest rows.
+    existing_contrib_ids = {
+        row[0] for row in db.query(EventGroupMember.contributor_id).filter(
+            EventGroupMember.group_id == group.id,
+            EventGroupMember.contributor_id.isnot(None),
+        ).all()
+    }
+
+    # Contributors — Nuru users get linked rows, non-Nuru get guest slots
+    # (so admins see them in the Members list and can send invite links).
+    # Each insert wrapped in a SAVEPOINT so a single duplicate / FK issue
+    # doesn't abort the whole sync transaction.
     ecs = db.query(EventContributor).options(
         joinedload(EventContributor.contributor),
     ).filter(EventContributor.event_id == event.id).all()
@@ -371,14 +391,33 @@ def _seed_members(db: Session, group: EventGroup, event: Event):
         contributor = ec.contributor
         if not contributor:
             continue
-        if contributor.contributor_user_id and contributor.contributor_user_id not in seen_users:
-            db.add(EventGroupMember(
-                id=uuid.uuid4(), group_id=group.id,
-                user_id=contributor.contributor_user_id,
-                contributor_id=contributor.id,
-                role=GroupMemberRoleEnum.contributor,
-            ))
-            seen_users.add(contributor.contributor_user_id)
+        uid = contributor.contributor_user_id
+        try:
+            if uid:
+                if uid in seen_users:
+                    continue
+                with db.begin_nested():
+                    db.add(EventGroupMember(
+                        id=uuid.uuid4(), group_id=group.id,
+                        user_id=uid, contributor_id=contributor.id,
+                        role=GroupMemberRoleEnum.contributor,
+                    ))
+                seen_users.add(uid)
+            else:
+                if contributor.id in existing_contrib_ids:
+                    continue
+                with db.begin_nested():
+                    db.add(EventGroupMember(
+                        id=uuid.uuid4(), group_id=group.id,
+                        contributor_id=contributor.id,
+                        guest_name=getattr(contributor, "name", None),
+                        guest_phone=getattr(contributor, "phone", None),
+                        role=GroupMemberRoleEnum.guest,
+                    ))
+                existing_contrib_ids.add(contributor.id)
+        except Exception:
+            # Skip this contributor row but keep syncing the rest.
+            continue
     db.commit()
 
 
@@ -631,9 +670,151 @@ def sync_members(
     if not member or not member.is_admin:
         return standard_response(False, "Only group admins can resync")
     event = db.query(Event).filter(Event.id == group.event_id).first()
-    if event:
+    if not event:
+        return standard_response(False, "Event not found")
+    try:
         _seed_members(db, group, event)
+    except Exception as e:
+        db.rollback()
+        import logging
+        logging.exception("sync_members failed for group %s", gid)
+        return standard_response(False, f"Sync failed: {e}")
     return standard_response(True, "Members synced")
+
+
+@router.delete("/{group_id}/members/{member_id}")
+def remove_member(
+    group_id: str,
+    member_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Admin removes a committee member, contributor or guest from the group.
+    Organizer cannot be removed."""
+    try:
+        gid = uuid.UUID(group_id)
+        mid = uuid.UUID(member_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+    admin = db.query(EventGroupMember).filter(
+        EventGroupMember.group_id == gid,
+        EventGroupMember.user_id == current_user.id,
+    ).first()
+    if not admin or not admin.is_admin:
+        return standard_response(False, "Only group admins can remove members")
+    target = db.query(EventGroupMember).filter(
+        EventGroupMember.id == mid,
+        EventGroupMember.group_id == gid,
+    ).first()
+    if not target:
+        return standard_response(False, "Member not found")
+    if target.role == GroupMemberRoleEnum.organizer:
+        return standard_response(False, "Cannot remove the organizer")
+    if target.id == admin.id:
+        return standard_response(False, "Cannot remove yourself")
+    db.delete(target)
+    db.commit()
+    return standard_response(True, "Member removed")
+
+
+@router.post("/{group_id}/members/add-contributor")
+def add_contributor_member(
+    group_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Admin adds an event contributor to the group as a member.
+    Body: { contributor_id }. Linked Nuru users → contributor role,
+    others → guest slot (admin can then share an invite link)."""
+    try:
+        gid = uuid.UUID(group_id)
+    except ValueError:
+        return standard_response(False, "Invalid group ID")
+    contrib_id_raw = body.get("contributor_id")
+    if not contrib_id_raw:
+        return standard_response(False, "contributor_id is required")
+    try:
+        contrib_id = uuid.UUID(str(contrib_id_raw))
+    except ValueError:
+        return standard_response(False, "Invalid contributor_id")
+    admin = db.query(EventGroupMember).filter(
+        EventGroupMember.group_id == gid,
+        EventGroupMember.user_id == current_user.id,
+    ).first()
+    if not admin or not admin.is_admin:
+        return standard_response(False, "Only group admins can add members")
+    group = db.query(EventGroup).filter(EventGroup.id == gid).first()
+    if not group:
+        return standard_response(False, "Group not found")
+    contributor = db.query(UserContributor).filter(UserContributor.id == contrib_id).first()
+    if not contributor:
+        return standard_response(False, "Contributor not found")
+    ec = db.query(EventContributor).filter(
+        EventContributor.event_id == group.event_id,
+        EventContributor.contributor_id == contrib_id,
+    ).first()
+    if not ec:
+        return standard_response(False, "Contributor is not on this event")
+    member = ensure_member_for_contributor(db, group.event_id, contributor)
+    if not member:
+        return standard_response(False, "Could not add member")
+    db.commit()
+    return standard_response(True, "Member added", _member_dict(db, member))
+
+
+@router.get("/{group_id}/addable-contributors")
+def list_addable_contributors(
+    group_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Event contributors not yet in the group — used by the 'Add member' picker."""
+    try:
+        gid = uuid.UUID(group_id)
+    except ValueError:
+        return standard_response(False, "Invalid group ID")
+    admin = db.query(EventGroupMember).filter(
+        EventGroupMember.group_id == gid,
+        EventGroupMember.user_id == current_user.id,
+    ).first()
+    if not admin or not admin.is_admin:
+        return standard_response(False, "Only group admins can view this")
+    group = db.query(EventGroup).filter(EventGroup.id == gid).first()
+    if not group:
+        return standard_response(False, "Group not found")
+    existing_user_ids = {
+        r[0] for r in db.query(EventGroupMember.user_id).filter(
+            EventGroupMember.group_id == gid,
+            EventGroupMember.user_id.isnot(None),
+        ).all()
+    }
+    existing_contrib_ids = {
+        r[0] for r in db.query(EventGroupMember.contributor_id).filter(
+            EventGroupMember.group_id == gid,
+            EventGroupMember.contributor_id.isnot(None),
+        ).all()
+    }
+    ecs = db.query(EventContributor).options(
+        joinedload(EventContributor.contributor),
+    ).filter(EventContributor.event_id == group.event_id).all()
+    out = []
+    for ec in ecs:
+        c = ec.contributor
+        if not c:
+            continue
+        if c.id in existing_contrib_ids:
+            continue
+        if c.contributor_user_id and c.contributor_user_id in existing_user_ids:
+            continue
+        out.append({
+            "contributor_id": str(c.id),
+            "name": c.name,
+            "phone": c.phone,
+            "is_nuru_user": bool(c.contributor_user_id),
+        })
+    out.sort(key=lambda x: (x["name"] or "").lower())
+    return standard_response(True, "Addable contributors", {"contributors": out})
 
 
 # ══════════════════════════════════════════════
@@ -759,6 +940,8 @@ def claim_invite(
         db.add(m)
         inv.used_at = datetime.utcnow()
         db.commit()
+        joiner_name = f"{current_user.first_name or ''} {current_user.last_name or ''}".strip() or current_user.phone or "A new member"
+        _post_join_system_message(db, group.id, joiner_name)
         return standard_response(True, "Joined", {
             "group_id": str(group.id), "member_id": str(m.id), "guest_token": None,
         })
@@ -769,6 +952,7 @@ def claim_invite(
 
     # Reuse existing guest member with the same phone (if any) so chat history persists
     member = None
+    is_new_join = False
     if phone:
         member = db.query(EventGroupMember).filter(
             EventGroupMember.group_id == group.id,
@@ -783,10 +967,16 @@ def claim_invite(
             role=GroupMemberRoleEnum.guest,
         )
         db.add(member)
+        is_new_join = True
     else:
+        # Treat first-time name claim on a pre-seeded slot as a join too.
+        if not member.guest_name:
+            is_new_join = True
         member.guest_name = name
     inv.used_at = datetime.utcnow()
     db.commit()
+    if is_new_join:
+        _post_join_system_message(db, group.id, name)
     token_jwt = _create_guest_token(str(member.id), str(group.id))
     return standard_response(True, "Joined as guest", {
         "group_id": str(group.id),
@@ -1076,6 +1266,19 @@ def scoreboard(
         joinedload(EventContributor.contributions),
     ).filter(EventContributor.event_id == event.id).all()
 
+    # Batch-fetch avatars for all linked Nuru users in ONE query (was N+1).
+    user_ids = [
+        ec.contributor.contributor_user_id
+        for ec in ecs
+        if ec.contributor and ec.contributor.contributor_user_id
+    ]
+    avatar_by_user: dict = {}
+    if user_ids:
+        for uid, url in db.query(UserProfile.user_id, UserProfile.profile_picture_url).filter(
+            UserProfile.user_id.in_(user_ids)
+        ).all():
+            avatar_by_user[uid] = url
+
     rows = []
     total_pledged = 0.0
     total_paid = 0.0
@@ -1097,9 +1300,8 @@ def scoreboard(
             status = "pending"
         else:
             status = "no_target"
-        avatar = None
-        if contributor.contributor_user_id:
-            avatar = _user_avatar(db, contributor.contributor_user_id)
+        avatar = avatar_by_user.get(contributor.contributor_user_id) if contributor.contributor_user_id else None
+        progress = (paid / pledged) if pledged > 0 else (1.0 if paid > 0 else 0.0)
         rows.append({
             "member_id": str(contributor.id),
             "contributor_id": str(contributor.id),
@@ -1113,7 +1315,7 @@ def scoreboard(
             "pledge": pledged,
             "paid": paid,
             "balance": balance,
-            "progress": (paid / pledged) if pledged > 0 else (1.0 if paid > 0 else 0.0),
+            "progress": progress,
             "status": status,
             "last_payment_at": max(
                 (c.contributed_at or c.created_at for c in ec.contributions if c.contributed_at or c.created_at),
@@ -1123,10 +1325,14 @@ def scoreboard(
         total_pledged += pledged
         total_paid += paid
 
-    status_order = {"completed": 0, "in_progress": 1, "pending": 2, "no_target": 3}
-    rows.sort(key=lambda r: (status_order.get(r["status"], 9), -r["paid"], r["display_name"] or ""))
-    for idx, r in enumerate(rows, start=1):
-        r["rank"] = idx
+    # Sort: completed first, then by % desc, then alphabetical (case-insensitive)
+    # within the same percentage band — so "Aisha 80%" comes before "Zawadi 80%".
+    # Sort/rank is done on the frontend.
+    # Sorting/ranking is done client-side (frontend ScoreboardPanel) so the
+    # admin can switch ordering without a re-fetch. We just hand back rows
+    # in a stable alphabetical order.
+    rows.sort(key=lambda r: (r["display_name"] or "").lower())
+    for r in rows:
         if r["last_payment_at"]:
             r["last_payment_at"] = r["last_payment_at"].isoformat()
 
@@ -1202,3 +1408,21 @@ def post_payment_system_message(
     )
     db.add(msg)
     db.commit()
+
+
+def _post_join_system_message(db: Session, group_id: uuid.UUID, joiner_name: str):
+    """Posts '👋 X joined the group' as a system message — best-effort."""
+    try:
+        text = f"👋 {joiner_name} joined the group"
+        msg = EventGroupMessage(
+            id=uuid.uuid4(),
+            group_id=group_id,
+            sender_member_id=None,
+            message_type=GroupMessageTypeEnum.system,
+            content=text,
+            metadata_json={"kind": "join", "joiner_name": joiner_name},
+        )
+        db.add(msg)
+        db.commit()
+    except Exception:
+        db.rollback()

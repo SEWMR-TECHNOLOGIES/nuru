@@ -79,10 +79,11 @@ const CountryConfirmModal = () => {
   }, [userIsLoggedIn, isLoading, user, migrationStatus]);
 
   const handleConfirm = async () => {
+    if (selected === "INTL") return; // INTL is fallback-only, not user-selectable
     setSubmitting(true);
     try {
       const res = await api.profile.confirmCountry({
-        country_code: selected,
+        country_code: selected as "TZ" | "KE",
         source,
       });
       if (!res.success) {

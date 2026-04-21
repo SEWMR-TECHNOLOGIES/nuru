@@ -1,638 +1,384 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { ChevronRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
-import TrendingMoments from "@/components/TrendingMoments";
-import { useLanguage } from "@/lib/i18n/LanguageContext";
+import LivingLedgerHero from "@/components/landing/LivingLedgerHero";
+
+/**
+ * Landing page — copy is grounded in the official Nuru Workspace
+ * Company Profile (v1.0, 19 Apr 2026). No invented features, no
+ * AI-flavoured "step" copy. Slogan: "Plan Smarter. Celebrate Better."
+ */
 
 const Index = () => {
-  const { t } = useLanguage();
   useMeta({
-    title: "Nuru | Event Planning Workspace",
+    title: "Nuru Workspace | Plan Smarter. Celebrate Better.",
     description:
-      "Plan, organize, and manage events with verified providers in one platform.",
+      "Nuru Workspace is the event operating system for organisers, vendors, contributors, guests and partners — one connected workspace from first idea to final celebration.",
   });
 
-  const features = [
+  // ── §3 The Problem Nuru Solves — verbatim recurring questions ──
+  const recurringQuestions = [
+    "Who has paid and who has not paid.",
+    "Where can trusted vendors be found.",
+    "How much money has already been spent.",
+    "Who is handling decorations, food, transport, invitations, or entertainment.",
+    "Which guest has confirmed attendance.",
+    "What happens if a vendor takes money and fails to appear.",
+    "How can everyone stay updated without endless phone calls.",
+    "How can event money be handled transparently and accountably.",
+  ];
+
+  // ── §5–§8 Core experience by audience ──
+  const audiences = [
     {
-      label: "Planning Tools",
-      href: "/features/event-planning",
-      desc: "Timelines, budgets, and task management",
-      number: "01",
-      detail:
-        "Stay on top of every detail with smart checklists, budget tracking, and collaborative task boards",
+      tag: "For organisers",
+      title: "The command centre of your event.",
+      body:
+        "Open a workspace for a wedding, conference, graduation, exhibition, family celebration or business event. Build budgets, invite guests, coordinate committees, collect contributions, sell tickets, and book vendors — all in one place. Control replaces confusion.",
+      points: [
+        "Budgets that update in real time, before pressure becomes crisis.",
+        "Cleaner RSVP and announcement workflows.",
+        "Committees coordinated inside one environment, not scattered chats.",
+      ],
+      cta: { label: "Open a workspace", href: "/register" },
     },
     {
-      label: "Verified Vendors",
-      href: "/features/service-providers",
-      desc: "Trusted professionals for every need",
-      number: "02",
-      detail:
-        "Browse rated vendors, compare packages, and book directly through the platform",
+      tag: "For vendors",
+      title: "A growth and trust platform, not a chase.",
+      body:
+        "List services with pricing, categories, availability and clear booking terms. Photographers, caterers, decorators, venues, MCs, DJs, transport, makeup, security, equipment, accommodation and planners all participate inside a trusted ecosystem with secured payment logic that protects serious work.",
+      points: [
+        "Professional digital presence with verified profile.",
+        "Secured payment arrangements before service begins.",
+        "Opportunities arrive through the system, not manual chasing.",
+      ],
+      cta: { label: "List your services", href: "/register" },
     },
     {
-      label: "Digital Invitations",
-      href: "/features/invitations",
-      desc: "Beautiful invites with RSVP tracking",
-      number: "03",
-      detail:
-        "Send stunning invitations via SMS, email, or link. Track opens and responses in real time",
-    },
-    {
-      label: "NFC Guest Access",
-      href: "/features/nfc-cards",
-      desc: "Tap-to-check-in technology",
-      number: "04",
-      detail:
-        "Issue smart cards for instant check-in, cashless payments, and VIP access control",
-    },
-    {
-      label: "Secure Payments",
-      href: "/features/payments",
-      desc: "Safe transactions, multiple options",
-      number: "05",
-      detail:
-        "Collect contributions, sell tickets, and pay vendors through M-Pesa, cards, and bank transfers",
+      tag: "For partners",
+      title: "Co-host events. Share revenue. See everything.",
+      body:
+        "Hotels, venues, lodges and tourism operators can co-host events with agreed revenue-sharing logic. Sell room categories — Executive, Deluxe, packages — directly under the event experience, with shared, transparent visibility into sales and revenue performance.",
+      points: [
+        "Accommodation and packages tied to the event itself.",
+        "Transparent revenue sharing both sides can audit.",
+        "New demand for hospitality, new income for organisers.",
+      ],
+      cta: { label: "Become a partner", href: "/contact" },
     },
   ];
 
-  const eventTypes = [
-    {
-      name: "Weddings",
-      desc: "Celebrate love stories",
-      image:
-        "https://images.unsplash.com/photo-1519741497674-611481863552?w=600&q=80",
-      size: "large",
-    },
-    {
-      name: "Birthdays",
-      desc: "Mark another year",
-      image:
-        "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=600&q=80",
-      size: "small",
-    },
-    {
-      name: "Memorials",
-      desc: "Honor those we cherish",
-      image:
-        "https://images.unsplash.com/photo-1501973801540-537f08ccae7b?w=600&q=80",
-      size: "medium",
-    },
-    {
-      name: "Corporate",
-      desc: "Elevate your brand",
-      image:
-        "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&q=80",
-      size: "small",
-    },
-    {
-      name: "Graduations",
-      desc: "Celebrate achievements",
-      image:
-        "https://images.unsplash.com/photo-1627556704290-2b1f5853ff78?w=600&q=80",
-      size: "medium",
-    },
-    {
-      name: "Baby Showers",
-      desc: "Welcome new beginnings",
-      image:
-        "https://images.unsplash.com/photo-1555252333-9f8e92e65df9?w=600&q=80",
-      size: "small",
-    },
-    {
-      name: "Anniversaries",
-      desc: "Cherish milestones together",
-      image:
-        "https://images.unsplash.com/photo-1529636798458-92182e662485?w=600&q=80",
-      size: "small",
-    },
+  // ── §9 Why Nuru matters in the local market — eight realities ──
+  const localTruths = [
+    "Family contributions matter.",
+    "Community coordination matters.",
+    "Vendor trust matters.",
+    "Mobile payments matter.",
+    "Flexible guest communication matters.",
+    "Price sensitivity matters.",
+    "Partnership-based events matter.",
+    "Local event culture matters.",
   ];
 
   return (
     <Layout>
-      {/* Full-page SVG Background */}
-      <div className="fixed inset-0 -z-10">
-        <svg
-          viewBox="0 0 1440 1200"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className="w-full h-full object-cover"
-          preserveAspectRatio="xMidYMid slice"
-        >
-          <defs>
-            <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop
-                offset="0%"
-                stopColor="hsl(var(--muted))"
-                stopOpacity="0.3"
-              />
-              <stop offset="100%" stopColor="hsl(var(--background))" />
-            </linearGradient>
-            <linearGradient id="blob1" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop
-                offset="0%"
-                stopColor="hsl(var(--primary))"
-                stopOpacity="0.12"
-              />
-              <stop
-                offset="100%"
-                stopColor="hsl(var(--primary))"
-                stopOpacity="0.03"
-              />
-            </linearGradient>
-            <linearGradient id="blob2" x1="100%" y1="0%" x2="0%" y2="100%">
-              <stop
-                offset="0%"
-                stopColor="hsl(var(--accent))"
-                stopOpacity="0.15"
-              />
-              <stop
-                offset="100%"
-                stopColor="hsl(var(--accent))"
-                stopOpacity="0.03"
-              />
-            </linearGradient>
-            <linearGradient id="blob3" x1="50%" y1="0%" x2="50%" y2="100%">
-              <stop
-                offset="0%"
-                stopColor="hsl(var(--muted-foreground))"
-                stopOpacity="0.06"
-              />
-              <stop
-                offset="100%"
-                stopColor="hsl(var(--muted-foreground))"
-                stopOpacity="0.01"
-              />
-            </linearGradient>
-          </defs>
+      {/* ── 1. Premium "Living Ledger" hero ── */}
+      <LivingLedgerHero />
 
-          <rect width="100%" height="100%" fill="url(#bgGradient)" />
-
-          <motion.path
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 1.5, ease: "easeOut" }}
-            d="M-100 700 Q200 500 500 600 T900 400 T1300 550 T1600 300 L1600 1200 L-100 1200 Z"
-            fill="url(#blob1)"
-          />
-          <motion.path
-            initial={{ opacity: 0, x: 100 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 1.8, delay: 0.2, ease: "easeOut" }}
-            d="M1440 -50 Q1200 150 1100 50 T800 200 T500 100 T200 250 T-100 150 L-100 -50 Z"
-            fill="url(#blob2)"
-          />
-          <motion.ellipse
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 2, delay: 0.4, ease: "easeOut" }}
-            cx="1100"
-            cy="500"
-            rx="450"
-            ry="400"
-            fill="url(#blob3)"
-          />
-          <motion.ellipse
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 2, delay: 0.6, ease: "easeOut" }}
-            cx="200"
-            cy="900"
-            rx="350"
-            ry="300"
-            fill="url(#blob3)"
-          />
-
-          <motion.line
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 2, delay: 0.8 }}
-            x1="900"
-            y1="100"
-            x2="1300"
-            y2="400"
-            stroke="hsl(var(--border))"
-            strokeWidth="1"
-            strokeOpacity="0.2"
-          />
-          <motion.line
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 2, delay: 1 }}
-            x1="1000"
-            y1="150"
-            x2="1350"
-            y2="350"
-            stroke="hsl(var(--border))"
-            strokeWidth="1"
-            strokeOpacity="0.15"
-          />
-        </svg>
-      </div>
-
-      {/* Hero Section - Redesigned */}
-      <section className="min-h-screen relative flex items-center justify-center overflow-hidden">
-        <div className="w-full max-w-6xl mx-auto px-6 lg:px-16 pt-20 pb-20">
-          {/* Centered Content */}
-          <div className="text-center">
-            {/* Main Headline */}
-            <motion.div
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-              className="mb-6"
-            >
-              <h1 className="text-[clamp(3rem,10vw,7rem)] font-heading font-bold leading-[0.95] tracking-tight text-foreground">
-                Every moment
-              </h1>
-              <motion.span
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.3 }}
-                className="text-[clamp(3rem,10vw,7rem)] font-heading font-bold leading-[0.95] tracking-tight text-muted-foreground/60 block"
-              >
-                deserves care.
-              </motion.span>
-            </motion.div>
-
-            {/* Subtle Tagline */}
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.5 }}
-              className="text-lg md:text-xl text-muted-foreground max-w-md mx-auto mb-24"
-            >
-              Plan with clarity. Organize with ease. For every occasion life
-              brings.
-            </motion.p>
-
-            {/* Creative Bento Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 max-w-5xl mx-auto auto-rows-[140px] md:auto-rows-[180px]">
-              {eventTypes.map((event, index) => {
-                // Define grid spans for bento layout
-                const gridClasses = {
-                  large: "col-span-2 row-span-2",
-                  medium: "col-span-2 md:col-span-1 row-span-2",
-                  small: "col-span-1 row-span-1",
-                };
-
-                return (
-                  <motion.div
-                    key={event.name}
-                    initial={{ opacity: 0, y: 30, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{
-                      duration: 0.6,
-                      delay: 0.6 + index * 0.1,
-                      ease: [0.22, 1, 0.36, 1],
-                    }}
-                    whileHover={{
-                      scale: 1.02,
-                      transition: { duration: 0.3 },
-                    }}
-                    className={`
-                      ${gridClasses[event.size as keyof typeof gridClasses]}
-                      relative group cursor-pointer overflow-hidden rounded-2xl
-                    `}
-                  >
-                    {/* Background Image */}
-                    <div className="absolute inset-0">
-                      <img
-                        src={event.image}
-                        alt={event.name}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                      />
-                      {/* Gradient Overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-                    </div>
-
-                    {/* Content */}
-                    <div className="absolute inset-0 p-4 md:p-5 flex flex-col justify-end">
-                      <motion.div
-                        initial={{ y: 10, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        transition={{ delay: 0.8 + index * 0.1 }}
-                      >
-                        <h3
-                          className={`
-                          font-semibold text-white mb-1
-                          ${
-                            event.size === "large"
-                              ? "text-2xl md:text-3xl"
-                              : event.size === "medium"
-                                ? "text-xl md:text-2xl"
-                                : "text-lg"
-                          }
-                        `}
-                        >
-                          {event.name}
-                        </h3>
-                        <p
-                          className={`
-                          text-white/70 leading-relaxed
-                          ${event.size === "small" ? "hidden md:block text-sm" : "text-sm md:text-base"}
-                        `}
-                        >
-                          {event.desc}
-                        </p>
-                      </motion.div>
-                    </div>
-
-                    {/* Hover Glow Effect */}
-                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
-                      <div className="absolute inset-0 bg-gradient-to-t from-primary/20 via-transparent to-transparent" />
-                    </div>
-
-                    {/* Corner Accent */}
-                    <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-white/30 group-hover:bg-white/60 transition-colors duration-300" />
-                  </motion.div>
-                );
-              })}
+      {/* ── 2. Brand statement (§15) ─────────────────────────────── */}
+      <section className="relative border-t border-border/70">
+        <div className="max-w-[1400px] mx-auto px-6 lg:px-12 py-24 lg:py-32">
+          <div className="grid lg:grid-cols-12 gap-10 items-start">
+            <div className="lg:col-span-3 text-[10px] tracking-[0.28em] uppercase text-muted-foreground font-mono">
+              § 01 — Brand
             </div>
-          </div>
-        </div>
-
-        {/* Ambient floating particles */}
-        <motion.div
-          animate={{ y: [0, -15, 0], opacity: [0.2, 0.4, 0.2] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-1/3 left-[8%] w-1 h-1 rounded-full bg-foreground/30 hidden lg:block"
-        />
-        <motion.div
-          animate={{ y: [0, 12, 0], opacity: [0.15, 0.3, 0.15] }}
-          transition={{
-            duration: 6,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: 2,
-          }}
-          className="absolute bottom-1/3 right-[12%] w-1.5 h-1.5 rounded-full bg-foreground/20 hidden lg:block"
-        />
-      </section>
-
-      {/* Features Section - Redesigned */}
-      <section className="py-28 lg:py-40 px-6 lg:px-16 relative overflow-hidden">
-        {/* Subtle background texture */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/[0.03] rounded-full blur-[100px]" />
-          <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-accent/[0.04] rounded-full blur-[80px]" />
-        </div>
-
-        <div className="max-w-7xl mx-auto relative">
-          {/* Header */}
-          <div className="grid lg:grid-cols-2 gap-8 lg:gap-20 mb-20 lg:mb-28">
             <motion.div
-              initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0, y: 24 }}
               whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              viewport={{ once: true }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+              className="lg:col-span-9"
             >
-              <span className="text-sm tracking-[0.2em] uppercase text-muted-foreground mb-4 block font-medium">
-                Platform features
-              </span>
-              <h2 className="text-4xl sm:text-5xl lg:text-6xl font-heading font-bold text-foreground leading-[1.05] tracking-tight">
-                Everything you need,
-                <br />
-                <span className="text-muted-foreground">nothing you don't</span>
-              </h2>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              viewport={{ once: true }}
-              className="flex items-end"
-            >
-              <p className="text-muted-foreground text-lg lg:text-xl leading-relaxed max-w-md">
-                Five powerful tools designed to take your event from concept to
-                celebration. Each one built with real organizers in mind.
+              <p className="font-heading font-medium tracking-[-0.025em] leading-[1.08] text-[clamp(1.75rem,3.5vw,3rem)] text-foreground">
+                Nuru is where{" "}
+                <span className="text-muted-foreground">planning meets confidence</span>{" "}
+                and{" "}
+                <span className="text-muted-foreground">celebration meets simplicity.</span>{" "}
+                It turns stressful preparation into structured progress, uncertainty
+                into visibility, and transactions into trust.
+              </p>
+              <p className="mt-8 text-sm tracking-[0.2em] uppercase text-muted-foreground/80">
+                The name <span className="text-foreground">Nuru</span> means light, clarity, direction.
               </p>
             </motion.div>
           </div>
+        </div>
+      </section>
 
-          {/* Feature Cards - Bento Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
-            {features.map((item, index) => (
-              <motion.div
-                key={item.label}
-                initial={{ opacity: 0, y: 40 }}
+      {/* ── 3. The problem — recurring questions as typographic spread (§3) ── */}
+      <section className="relative bg-foreground text-background overflow-hidden">
+        {/* hairline grid */}
+        <div
+          aria-hidden
+          className="absolute inset-0 opacity-[0.06] pointer-events-none"
+          style={{
+            backgroundImage:
+              "linear-gradient(to right, hsl(var(--background)) 1px, transparent 1px), linear-gradient(to bottom, hsl(var(--background)) 1px, transparent 1px)",
+            backgroundSize: "120px 120px",
+          }}
+        />
+        <div className="relative max-w-[1400px] mx-auto px-6 lg:px-12 py-24 lg:py-32">
+          <div className="grid lg:grid-cols-12 gap-10 mb-16 lg:mb-20">
+            <div className="lg:col-span-3 text-[10px] tracking-[0.28em] uppercase text-background/50 font-mono">
+              § 02 — The problem
+            </div>
+            <div className="lg:col-span-9">
+              <h2 className="font-heading font-semibold tracking-[-0.035em] leading-[0.95] text-[clamp(2.25rem,5.5vw,4.5rem)]">
+                Most events begin with excitement
+                <br />
+                <span className="text-background/40">and end in frustration.</span>
+              </h2>
+              <p className="mt-8 max-w-2xl text-background/60 text-base lg:text-lg leading-relaxed">
+                Spreadsheets, paper notes, cash handling, scattered chats, verbal
+                promises. Organisers, vendors and contributors keep asking the same
+                painful questions, every event, every time.
+              </p>
+            </div>
+          </div>
+
+          <ol className="grid sm:grid-cols-2 lg:grid-cols-2 divide-y divide-background/10 sm:divide-y-0 sm:[&>li:nth-child(odd)]:border-r sm:[&>li]:border-background/10 border-y border-background/10">
+            {recurringQuestions.map((q, i) => (
+              <motion.li
+                key={q}
+                initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: 0.6,
-                  delay: index * 0.1,
-                  ease: [0.22, 1, 0.36, 1],
-                }}
-                viewport={{ once: true }}
-                className={`group ${index === 0 ? "lg:row-span-2" : ""} ${index === 4 ? "md:col-span-2 lg:col-span-1" : ""}`}
+                viewport={{ once: true, margin: "-50px" }}
+                transition={{ duration: 0.5, delay: (i % 4) * 0.06 }}
+                className="px-2 sm:px-8 py-7 lg:py-8 flex gap-5 items-start"
               >
-                <Link
-                  to={item.href}
-                  className={`relative block h-full rounded-3xl border border-border/60 bg-gradient-to-br from-muted/30 via-transparent to-transparent overflow-hidden transition-all duration-500 hover:border-foreground/15 hover:shadow-xl hover:shadow-primary/[0.03] ${index === 0 ? "p-10 lg:p-12" : "p-8 lg:p-10"}`}
-                >
-                  {/* Large faded number */}
-                  <span
-                    className={`absolute top-6 right-6 font-bold text-foreground/[0.04] group-hover:text-foreground/[0.08] transition-colors duration-700 ${index === 0 ? "text-[120px] lg:text-[160px]" : "text-[100px]"}`}
+                <span className="text-[10px] font-mono text-background/40 tabular-nums pt-1.5 w-6 shrink-0">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="font-heading text-lg lg:text-2xl text-background/90 leading-snug tracking-[-0.01em]">
+                  {q}
+                </span>
+              </motion.li>
+            ))}
+          </ol>
+
+          <div className="mt-16 max-w-3xl">
+            <p className="text-background/80 text-lg lg:text-xl leading-relaxed font-heading">
+              Nuru replaces all of that with one professional workspace where the
+              planning, financial and communication lifecycle of an event lives in
+              a single secure environment.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── 4. What Nuru is for — three audiences (§5, §6, §8) ── */}
+      <section className="relative">
+        <div className="max-w-[1400px] mx-auto px-6 lg:px-12 py-24 lg:py-32">
+          <div className="grid lg:grid-cols-12 gap-10 mb-16 lg:mb-20">
+            <div className="lg:col-span-3 text-[10px] tracking-[0.28em] uppercase text-muted-foreground font-mono">
+              § 03 — Built for
+            </div>
+            <div className="lg:col-span-9">
+              <h2 className="font-heading font-semibold tracking-[-0.035em] leading-[0.95] text-[clamp(2.25rem,5.5vw,4.5rem)] text-foreground">
+                One workspace.
+                <br />
+                <span className="text-muted-foreground">Three sides of every event.</span>
+              </h2>
+            </div>
+          </div>
+
+          <div className="space-y-px bg-border/70 border border-border/70 rounded-3xl overflow-hidden">
+            {audiences.map((a, i) => (
+              <motion.article
+                key={a.tag}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-80px" }}
+                transition={{ duration: 0.7, delay: i * 0.08, ease: [0.22, 1, 0.36, 1] }}
+                className="bg-background grid lg:grid-cols-12 gap-8 lg:gap-12 px-6 lg:px-12 py-12 lg:py-16 group"
+              >
+                <div className="lg:col-span-3 flex lg:flex-col justify-between gap-4">
+                  <div>
+                    <div className="text-[10px] tracking-[0.28em] uppercase text-muted-foreground font-mono mb-2">
+                      0{i + 1}
+                    </div>
+                    <div className="font-heading text-xl lg:text-2xl font-medium text-foreground">
+                      {a.tag}
+                    </div>
+                  </div>
+                  <Link
+                    to={a.cta.href}
+                    className="self-start inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-foreground/70 transition-colors group/btn"
                   >
-                    {item.number}
-                  </span>
+                    {a.cta.label}
+                    <ArrowUpRight className="w-4 h-4 transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
+                  </Link>
+                </div>
 
-                  {/* Hover glow */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.04] to-accent/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-
-                  <div className="relative flex flex-col h-full justify-between gap-6">
-                    <div>
-                      <h3
-                        className={`font-bold text-foreground tracking-tight mb-3 ${index === 0 ? "text-2xl lg:text-3xl" : "text-xl lg:text-2xl"}`}
+                <div className="lg:col-span-9">
+                  <h3 className="font-heading font-semibold tracking-[-0.025em] leading-[1.05] text-[clamp(1.75rem,3.2vw,2.75rem)] text-foreground mb-6">
+                    {a.title}
+                  </h3>
+                  <p className="text-muted-foreground text-base lg:text-lg leading-relaxed max-w-2xl mb-8">
+                    {a.body}
+                  </p>
+                  <ul className="grid sm:grid-cols-3 gap-6 lg:gap-8 border-t border-border/70 pt-6">
+                    {a.points.map((p) => (
+                      <li
+                        key={p}
+                        className="text-sm text-foreground/80 leading-relaxed pl-4 border-l border-accent/70"
                       >
-                        {item.label}
-                      </h3>
-                      <p
-                        className={`text-muted-foreground leading-relaxed ${index === 0 ? "text-base lg:text-lg" : "text-sm lg:text-base"}`}
-                      >
-                        {item.detail}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors duration-300">
-                      <span>Learn more</span>
-                      <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" />
-                    </div>
-                  </div>
-
-                  {/* Bottom accent line */}
-                  <div className="absolute bottom-0 left-0 right-0 h-[2px]">
-                    <div className="h-full bg-gradient-to-r from-primary/50 via-accent/40 to-transparent scale-x-0 group-hover:scale-x-100 transition-transform duration-700 origin-left" />
-                  </div>
-                </Link>
-              </motion.div>
+                        {p}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </motion.article>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Statement Section */}
-      <section className="py-24 lg:py-32 px-6 lg:px-16 bg-foreground text-background">
-        <div className="max-w-4xl mx-auto">
-          <motion.p
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-            className="text-2xl sm:text-3xl md:text-4xl font-medium leading-relaxed"
-          >
-            Life is made of moments. Some we look forward to, others we prepare
-            for quietly. Nuru is here to help you organize them all with dignity
-            and care.
-          </motion.p>
+      {/* ── 5. Trust infrastructure (§7) — quiet, dense, premium ── */}
+      <section className="relative border-y border-border/70 bg-muted/30">
+        <div className="max-w-[1400px] mx-auto px-6 lg:px-12 py-24 lg:py-32">
+          <div className="grid lg:grid-cols-12 gap-10 items-start">
+            <div className="lg:col-span-4">
+              <div className="text-[10px] tracking-[0.28em] uppercase text-muted-foreground font-mono mb-6">
+                § 04 — Trust infrastructure
+              </div>
+              <h2 className="font-heading font-semibold tracking-[-0.03em] leading-[1] text-[clamp(2rem,4vw,3.5rem)] text-foreground">
+                Most event problems
+                <br />
+                begin with money.
+              </h2>
+            </div>
+            <div className="lg:col-span-7 lg:col-start-6">
+              <p className="text-foreground/80 text-lg lg:text-xl leading-relaxed font-heading">
+                A vendor fears non-payment. An organiser fears paying in advance and
+                being disappointed. Contributors fear misuse of funds. Buyers fear
+                scams. Nuru reduces every one of these fears through structured
+                payment flows, clear records, controlled release logic and
+                accountability built into the system itself.
+              </p>
+
+              <div className="mt-12 grid sm:grid-cols-2 gap-px bg-border/70 border border-border/70 rounded-2xl overflow-hidden">
+                {[
+                  { k: "Secured", v: "Payment held before service begins." },
+                  { k: "Confirmed", v: "Completion windows for both sides." },
+                  { k: "Reviewed", v: "Disputes follow a fair process." },
+                  { k: "Recorded", v: "Every shilling, audit-grade." },
+                ].map((item) => (
+                  <div key={item.k} className="bg-background p-6">
+                    <div className="text-[10px] tracking-[0.28em] uppercase text-muted-foreground font-mono mb-2">
+                      {item.k}
+                    </div>
+                    <div className="text-foreground font-heading text-base lg:text-lg leading-snug">
+                      {item.v}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Final CTA - Immersive Journey Section */}
-      <section className="relative overflow-hidden">
-        {/* Dark cinematic background */}
-        <div className="bg-foreground text-background relative">
-          {/* Animated grain texture overlay */}
-          <div
-            className="absolute inset-0 opacity-[0.03] pointer-events-none"
-            style={{
-              backgroundImage:
-                "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E\")",
-              backgroundSize: "128px 128px",
-            }}
-          />
-
-          {/* Radial glow accents */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
-          <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-accent/8 rounded-full blur-[100px] pointer-events-none" />
-
-          {/* Top section - Statement */}
-          <div className="pt-32 lg:pt-40 pb-20 px-6 lg:px-16">
-            <div className="max-w-6xl mx-auto">
-              <motion.div
-                initial={{ opacity: 0 }}
-                whileInView={{ opacity: 1 }}
-                transition={{ duration: 1 }}
-                viewport={{ once: true }}
-                className="text-center mb-6"
-              >
-                <span className="inline-block text-sm tracking-[0.3em] uppercase text-background/40 mb-8 font-medium">
-                  Your journey starts here
-                </span>
-              </motion.div>
-
-              <motion.h2
-                initial={{ opacity: 0, y: 40 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-                viewport={{ once: true }}
-                className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-heading font-bold text-center leading-[0.95] tracking-tight mb-8"
-              >
-                <span className="block text-background">From idea</span>
-                <span className="block bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
-                  to unforgettable
-                </span>
-              </motion.h2>
-
-              <motion.p
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.3 }}
-                viewport={{ once: true }}
-                className="text-background/50 text-lg md:text-xl max-w-xl mx-auto text-center leading-relaxed"
-              >
-                Every great celebration follows a path. Nuru walks it with you,
-                from the first spark to the last goodbye.
-              </motion.p>
+      {/* ── 6. Built for local realities (§9) ─────────────────────── */}
+      <section className="relative bg-foreground text-background overflow-hidden">
+        <div className="relative max-w-[1400px] mx-auto px-6 lg:px-12 py-24 lg:py-32">
+          <div className="grid lg:grid-cols-12 gap-10 mb-12 lg:mb-16">
+            <div className="lg:col-span-3 text-[10px] tracking-[0.28em] uppercase text-background/50 font-mono">
+              § 05 — Local realities
+            </div>
+            <div className="lg:col-span-9">
+              <h2 className="font-heading font-semibold tracking-[-0.035em] leading-[0.95] text-[clamp(2.25rem,5.5vw,4.5rem)]">
+                Built around how
+                <br />
+                <span className="text-background/40">our events actually work.</span>
+              </h2>
+              <p className="mt-8 max-w-2xl text-background/60 text-base lg:text-lg leading-relaxed">
+                Many global tools assume universal card usage, highly formalised
+                vendor markets and predictable planning culture. Nuru is built on
+                a different set of truths.
+              </p>
             </div>
           </div>
 
-          {/* Journey Steps - Horizontal timeline on desktop, vertical on mobile */}
-          <div className="px-6 lg:px-16 pb-12">
-            <div className="max-w-6xl mx-auto">
-              {/* Connecting line */}
-              <div className="hidden md:block relative mb-0">
-                <motion.div
-                  initial={{ scaleX: 0 }}
-                  whileInView={{ scaleX: 1 }}
-                  transition={{
-                    duration: 1.5,
-                    delay: 0.5,
-                    ease: [0.22, 1, 0.36, 1],
-                  }}
-                  viewport={{ once: true }}
-                  className="absolute top-[60px] left-[12.5%] right-[12.5%] h-px bg-gradient-to-r from-transparent via-background/20 to-transparent origin-left"
-                />
+          <ul className="border-t border-background/10">
+            {localTruths.map((t, i) => (
+              <motion.li
+                key={t}
+                initial={{ opacity: 0, x: -16 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ duration: 0.5, delay: i * 0.05 }}
+                className="border-b border-background/10 grid grid-cols-12 items-baseline py-5 lg:py-6 group"
+              >
+                <span className="col-span-2 text-[10px] font-mono text-background/40 tabular-nums">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="col-span-10 font-heading font-medium text-2xl lg:text-4xl tracking-[-0.02em] text-background group-hover:text-accent transition-colors duration-500">
+                  {t}
+                </span>
+              </motion.li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      {/* ── 7. Long-term vision (§14) + closing identity (§16) ───── */}
+      <section className="relative">
+        <div className="max-w-[1400px] mx-auto px-6 lg:px-12 py-28 lg:py-40">
+          <div className="grid lg:grid-cols-12 gap-10">
+            <div className="lg:col-span-3 text-[10px] tracking-[0.28em] uppercase text-muted-foreground font-mono">
+              § 06 — Vision
+            </div>
+            <div className="lg:col-span-9">
+              <h2 className="font-heading font-semibold tracking-[-0.04em] leading-[0.92] text-[clamp(2.5rem,7vw,6rem)] text-foreground mb-12">
+                The most trusted
+                <br />
+                event-infrastructure
+                <br />
+                <span className="text-muted-foreground">platform in the region.</span>
+              </h2>
+
+              <div className="grid sm:grid-cols-2 gap-x-12 gap-y-6 max-w-3xl text-foreground/80 text-base lg:text-lg leading-relaxed">
+                <p>A place where any person or organisation can confidently plan, finance, host, monetise and celebrate events of every size.</p>
+                <p>A place where vendors grow real businesses and hospitality partners unlock new demand.</p>
+                <p>A place where communities coordinate important moments smoothly.</p>
+                <p>A place where trust is built into the system itself — not into personal relationships alone.</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-4">
-                {[
-                  {
-                    step: "01",
-                    action: "Dream",
-                    swahili: "Ota",
-                    desc: "Envision your perfect event. We'll help shape it into reality",
-                  },
-                  {
-                    step: "02",
-                    action: "Plan",
-                    swahili: "Panga",
-                    desc: "Organize budgets, timelines, and vendors in one clear dashboard",
-                  },
-                  {
-                    step: "03",
-                    action: "Gather",
-                    swahili: "Kusanya",
-                    desc: "Send invites, track RSVPs, and collect contributions in one place",
-                  },
-                  {
-                    step: "04",
-                    action: "Celebrate",
-                    swahili: "Sherehekea",
-                    desc: "Check-in guests, capture moments, and create memories that last",
-                  },
-                ].map((item, index) => (
-                  <motion.div
-                    key={item.action}
-                    initial={{ opacity: 0, y: 40 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    transition={{
-                      duration: 0.7,
-                      delay: 0.4 + index * 0.15,
-                      ease: [0.22, 1, 0.36, 1],
-                    }}
-                    viewport={{ once: true }}
-                    className="group relative"
+              <div className="mt-20 pt-10 border-t border-border/70">
+                <p className="font-heading font-semibold tracking-[-0.03em] text-2xl lg:text-3xl text-foreground max-w-2xl">
+                  Nuru Workspace is more than software. It is the future of organised celebration.
+                </p>
+                <div className="mt-10 flex flex-col sm:flex-row sm:items-center gap-4">
+                  <Link
+                    to="/register"
+                    className="group inline-flex items-center justify-center gap-2 bg-foreground text-background px-7 h-12 rounded-full text-sm font-medium hover:bg-foreground/90 transition-colors"
                   >
-                    <div className="relative p-8 rounded-3xl border border-background/[0.06] bg-background/[0.03] backdrop-blur-sm hover:bg-background/[0.07] hover:border-background/[0.12] transition-all duration-700 h-full">
-                      {/* Step number with glow */}
-                      <div className="relative mb-6">
-                        <div className="absolute -inset-2 bg-primary/10 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                        <span className="text-5xl font-bold text-background/[0.08] group-hover:text-background/[0.15] transition-colors duration-500">
-                          {item.step}
-                        </span>
-                      </div>
-
-                      {/* Content */}
-                      <div>
-                        <div className="flex items-baseline gap-3 mb-3">
-                          <h4 className="text-2xl md:text-3xl font-bold text-background tracking-tight">
-                            {item.action}
-                          </h4>
-                        </div>
-                        <p className="text-background/40 text-sm leading-relaxed group-hover:text-background/60 transition-colors duration-500">
-                          {item.desc}
-                        </p>
-                      </div>
-
-                      {/* Bottom accent line */}
-                      <div className="absolute bottom-0 left-8 right-8 h-px">
-                        <div className="h-full bg-gradient-to-r from-primary/40 via-accent/30 to-transparent scale-x-0 group-hover:scale-x-100 transition-transform duration-700 origin-left" />
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
+                    Get started free
+                    <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  </Link>
+                  <Link
+                    to="/contact"
+                    className="inline-flex items-center justify-center h-12 px-6 rounded-full text-sm font-medium border border-border text-foreground hover:bg-muted transition-colors"
+                  >
+                    Talk to the team
+                  </Link>
+                  <span className="sm:ml-auto text-[10px] tracking-[0.28em] uppercase text-muted-foreground font-mono">
+                    Plan Smarter. Celebrate Better.
+                  </span>
+                </div>
               </div>
             </div>
           </div>

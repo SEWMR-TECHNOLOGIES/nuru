@@ -370,4 +370,19 @@ export const adminApi = {
   rejectTicketedEvent:   (id: string, reason: string) => aPut<any>(`/admin/ticketed-events/${id}/reject`, { reason }),
   removeTicketedEvent:   (id: string, reason: string) => aPut<any>(`/admin/ticketed-events/${id}/remove`, { reason }),
   deleteTicketedEvent:   (id: string) => aDel<any>(`/admin/ticketed-events/${id}`),
+
+  // Contact Messages (public Contact form submissions)
+  getContactMessages: (params?: { page?: number; limit?: number; status?: string; q?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.page)   qs.set("page",   String(params.page));
+    if (params?.limit)  qs.set("limit",  String(params.limit));
+    if (params?.status) qs.set("status", params.status);
+    if (params?.q)      qs.set("q",      params.q);
+    return aGet<any>(`/admin/contact-messages${qs.toString() ? `?${qs}` : ""}`);
+  },
+  getContactStats:     ()             => aGet<any>("/admin/contact-messages/stats"),
+  getContactMessage:   (id: string)   => aGet<any>(`/admin/contact-messages/${id}`),
+  updateContactStatus: (id: string, status: string) => aPut<any>(`/admin/contact-messages/${id}/status`, { status }),
+  updateContactNotes:  (id: string, notes: string)  => aPut<any>(`/admin/contact-messages/${id}/notes`, { notes }),
+  deleteContactMessage:(id: string)   => aDel<any>(`/admin/contact-messages/${id}`),
 };

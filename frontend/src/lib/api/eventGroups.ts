@@ -41,6 +41,17 @@ export const eventGroupsApi = {
 
   syncMembers: (groupId: string) => post<any>(`/event-groups/${groupId}/sync-members`),
 
+  removeMember: (groupId: string, memberId: string) =>
+    del<any>(`/event-groups/${groupId}/members/${memberId}`),
+
+  addContributorMember: (groupId: string, contributorId: string) =>
+    post<any>(`/event-groups/${groupId}/members/add-contributor`, { contributor_id: contributorId }),
+
+  addableContributors: (groupId: string) =>
+    get<{ contributors: { contributor_id: string; name: string; phone?: string; is_nuru_user: boolean }[] }>(
+      `/event-groups/${groupId}/addable-contributors`,
+    ),
+
   createInvite: (groupId: string, data: { contributor_id?: string; phone?: string; name?: string }) =>
     post<{ token: string; phone?: string; name?: string }>(`/event-groups/${groupId}/invite-link`, data),
 
