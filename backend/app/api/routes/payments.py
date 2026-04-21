@@ -374,6 +374,27 @@ def _sync_target_after_payment(db: Session, tx: Transaction):
         )
         db.add(contribution)
         db.flush()
+
+        # Post the contribution bubble into the event group chat (best-effort).
+        # Mirrors the manual-record path in user_contributors.py so members see
+        # gateway-paid contributions in the workspace chat too.
+        try:
+            from api.routes.event_groups import post_payment_system_message
+            paid_amount = float(contribution.amount or 0)
+            total_paid_after = sum(float(c.amount or 0) for c in ec.contributions)
+            # `ec.contributions` may not yet include the just-flushed row in
+            # this session — guarantee it's counted.
+            if contribution not in ec.contributions:
+                total_paid_after += paid_amount
+            pledge_amount = float(ec.pledge_amount or 0)
+            currency = tx.currency_code or "TZS"
+            post_payment_system_message(
+                db, event_id,
+                contributor_name,
+                paid_amount, pledge_amount, total_paid_after, currency,
+            )
+        except Exception:
+            pass
         return
 
 
