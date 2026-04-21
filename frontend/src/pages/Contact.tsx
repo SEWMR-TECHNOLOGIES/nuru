@@ -8,20 +8,57 @@ import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { contactApi } from "@/lib/api/contact";
 
 const Contact = () => {
   const { t } = useLanguage();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [form, setForm] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    message: "",
+  });
   const { toast } = useToast();
+
+  const update = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    // Lightweight client-side validation (server validates again)
+    if (!form.first_name.trim() || !form.last_name.trim()) {
+      toast({ title: "Please share your name", variant: "destructive" as any });
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      toast({ title: "Please enter a valid email", variant: "destructive" as any });
+      return;
+    }
+    if (form.message.trim().length < 10) {
+      toast({ title: "Tell us a little more (10+ characters)", variant: "destructive" as any });
+      return;
+    }
     setIsSubmitting(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    setIsSubmitted(true);
-    toast({ title: t('message_sent'), description: t('we_get_back') });
+    try {
+      const res = await contactApi.submit({
+        first_name: form.first_name.trim().slice(0, 100),
+        last_name: form.last_name.trim().slice(0, 100),
+        email: form.email.trim().slice(0, 255),
+        message: form.message.trim().slice(0, 4000),
+        source_page: typeof window !== "undefined" ? window.location.pathname : undefined,
+      });
+      if (res.success) {
+        setIsSubmitted(true);
+        toast({ title: t('message_sent'), description: t('we_get_back') });
+      } else {
+        toast({ title: res.message || "Couldn’t send your message", variant: "destructive" as any });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   useMeta({ title: t('contact_us') + " | Nuru", description: "Get in touch with the Nuru team." });
@@ -83,22 +120,22 @@ const Contact = () => {
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div>
                       <label htmlFor="firstName" className="block text-sm font-medium text-foreground mb-2">{t('first_name')}</label>
-                      <Input id="firstName" type="text" required placeholder={t('your_first_name')} className="h-12 rounded-xl border-border bg-muted/50" />
+                      <Input id="firstName" type="text" required maxLength={100} value={form.first_name} onChange={update('first_name')} placeholder={t('your_first_name')} className="h-12 rounded-xl border-border bg-muted/50" />
                     </div>
                     <div>
                       <label htmlFor="lastName" className="block text-sm font-medium text-foreground mb-2">{t('last_name')}</label>
-                      <Input id="lastName" type="text" required placeholder={t('your_last_name')} className="h-12 rounded-xl border-border bg-muted/50" />
+                      <Input id="lastName" type="text" required maxLength={100} value={form.last_name} onChange={update('last_name')} placeholder={t('your_last_name')} className="h-12 rounded-xl border-border bg-muted/50" />
                     </div>
                   </div>
 
                   <div>
                     <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">{t('email')}</label>
-                    <Input id="email" type="email" required placeholder="you@example.com" className="h-12 rounded-xl border-border bg-muted/50" />
+                    <Input id="email" type="email" required maxLength={255} value={form.email} onChange={update('email')} placeholder="you@example.com" className="h-12 rounded-xl border-border bg-muted/50" />
                   </div>
 
                   <div>
                     <label htmlFor="message" className="block text-sm font-medium text-foreground mb-2">{t('message')}</label>
-                    <Textarea id="message" required placeholder={t('tell_us_about')} rows={6} className="rounded-xl border-border bg-muted/50 resize-none" />
+                    <Textarea id="message" required maxLength={4000} value={form.message} onChange={update('message')} placeholder={t('tell_us_about')} rows={6} className="rounded-xl border-border bg-muted/50 resize-none" />
                   </div>
 
                   <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto bg-foreground text-background hover:bg-foreground/90 rounded-full h-12 px-8">

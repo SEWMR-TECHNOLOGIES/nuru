@@ -7,7 +7,7 @@ import {
   Package, Briefcase, Newspaper, Sparkles, Users2,
   BookOpen, CreditCard, Tag, UserCog, BadgeCheck, AlertTriangle,
   BarChart3, MessageCircle, PanelLeftClose, PanelLeft, FileCheck,
-  Ticket, Flag, Activity, Banknote,
+  Ticket, Flag, Activity, Banknote, Inbox,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,7 @@ const navItems = [
   { label: "Bookings", icon: BookOpen, to: "/admin/bookings" },
   { label: "NuruCard Orders", icon: CreditCard, to: "/admin/nuru-cards" },
   { label: "Live Chats", icon: MessageSquare, to: "/admin/chats" },
+  { label: "Contact Messages", icon: Inbox, to: "/admin/contact-messages" },
   { label: "WhatsApp", icon: MessageCircle, to: "/admin/whatsapp" },
   { label: "Support Tickets", icon: HeadphonesIcon, to: "/admin/tickets" },
   { label: "FAQs", icon: HelpCircle, to: "/admin/faqs" },

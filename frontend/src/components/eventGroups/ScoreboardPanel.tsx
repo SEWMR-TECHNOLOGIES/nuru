@@ -2,17 +2,21 @@
  * Premium scoreboard — leaderboard of contributors with pledges, paid,
  * outstanding, and balance. Polls softly every 8s.
  */
-import { useEffect, useState } from "react";
-import { Trophy, TrendingUp, Wallet, Users, Crown, Medal } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Trophy, TrendingUp, Wallet, Users, Crown, Medal, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { eventGroupsApi } from "@/lib/api/eventGroups";
 import { useCurrency } from "@/hooks/useCurrency";
 import { usePolling } from "@/hooks/usePolling";
+
+const PAGE_SIZE = 15;
 
 interface Row {
   member_id: string;
@@ -53,11 +57,25 @@ const ScoreboardPanel = ({ groupId }: { groupId: string }) => {
   const [rows, setRows] = useState<Row[]>(cached?.rows || []);
   const [summary, setSummary] = useState<Summary | null>(cached?.summary || null);
   const [loading, setLoading] = useState(!cached);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
 
   const fetchData = async () => {
     const res = await eventGroupsApi.scoreboard(groupId);
     if (res.success && res.data) {
-      const list: Row[] = (res.data.rows || []).map((r: Row, i: number) => ({ ...r, rank: i + 1 }));
+      const raw: Row[] = res.data.rows || [];
+      // Sort: highest completion % first, then strictly alphabetical within
+      // the same percentage bucket (e.g. all 80% contributors A→Z).
+      const pct = (r: Row) => {
+        const p = r.pledged > 0 ? r.paid / r.pledged : (r.paid > 0 ? 1 : 0);
+        return Math.round(p * 10000); // bucket to 2 decimals to avoid float drift
+      };
+      const sorted = [...raw].sort((a, b) => {
+        const diff = pct(b) - pct(a);
+        if (diff !== 0) return diff;
+        return (a.display_name || "").localeCompare(b.display_name || "", undefined, { sensitivity: "base" });
+      });
+      const list: Row[] = sorted.map((r, i) => ({ ...r, rank: i + 1 }));
       setRows(list);
       setSummary(res.data.summary || null);
       scoreboardCache[groupId] = { rows: list, summary: res.data.summary || null };
@@ -69,8 +87,20 @@ const ScoreboardPanel = ({ groupId }: { groupId: string }) => {
   usePolling(fetchData, 8000, !loading);
 
   const top3 = rows.slice(0, 3);
-  // Show ALL contributors in the leaderboard (not just rank 4+).
-  const leaderboardRows = rows;
+
+  // Filter + paginate the leaderboard.
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) => (r.display_name || "").toLowerCase().includes(q));
+  }, [rows, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  // Reset to page 1 whenever the search changes.
+  useEffect(() => { setPage(1); }, [search]);
 
   return (
     <div className="space-y-5">
@@ -182,11 +212,27 @@ const ScoreboardPanel = ({ groupId }: { groupId: string }) => {
       {/* Full leaderboard */}
       <Card>
         <CardContent className="p-0">
-          <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+          <div className="px-4 py-3 border-b border-border flex items-center gap-2 flex-wrap">
             <Trophy className="w-4 h-4 text-primary" />
             <p className="font-semibold text-sm">Top Contributors</p>
-            <Badge variant="outline" className="ml-auto text-[10px]">{rows.length} {rows.length === 1 ? "contributor" : "contributors"}</Badge>
+            <Badge variant="outline" className="ml-auto text-[10px]">
+              {filtered.length}{search ? ` of ${rows.length}` : ""} {rows.length === 1 ? "contributor" : "contributors"}
+            </Badge>
           </div>
+          {/* Search */}
+          {!loading && rows.length > 0 && (
+            <div className="px-4 py-2.5 border-b border-border bg-muted/30">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search contributors by name…"
+                  className="h-9 pl-8 text-sm"
+                />
+              </div>
+            </div>
+          )}
           {loading ? (
             <div className="divide-y divide-border">
               {[...Array(5)].map((_, i) => (
@@ -202,9 +248,14 @@ const ScoreboardPanel = ({ groupId }: { groupId: string }) => {
               <Trophy className="w-10 h-10 mx-auto mb-2 opacity-30" />
               <p className="text-sm">No contributors yet</p>
             </div>
+          ) : pageRows.length === 0 ? (
+            <div className="p-10 text-center text-muted-foreground">
+              <Search className="w-10 h-10 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">No contributors match “{search}”</p>
+            </div>
           ) : (
             <div className="divide-y divide-border">
-              {leaderboardRows.map((r, index) => {
+              {pageRows.map((r, index) => {
                 const pct = r.pledged > 0 ? Math.min(100, Math.round((r.paid / r.pledged) * 100)) : 0;
                 return (
                   <motion.div
@@ -236,6 +287,32 @@ const ScoreboardPanel = ({ groupId }: { groupId: string }) => {
                   </motion.div>
                 );
               })}
+            </div>
+          )}
+          {/* Pagination */}
+          {!loading && totalPages > 1 && (
+            <div className="px-4 py-2.5 border-t border-border flex items-center justify-between bg-muted/20">
+              <p className="text-[11px] text-muted-foreground">
+                Page {safePage} of {totalPages} · showing {pageRows.length} of {filtered.length}
+              </p>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline" size="icon" className="h-7 w-7"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  variant="outline" size="icon" className="h-7 w-7"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  aria-label="Next page"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

@@ -44,6 +44,10 @@ const LANDING_PAGES = new Set([
   "/features/invitations",
   "/features/nfc-cards",
   "/features/payments",
+  "/features/meetings",
+  "/features/event-groups",
+  "/features/ticketing",
+  "/features/trust",
 ]);
 
 type Variant = "modal" | "banner" | "toast" | "none";
