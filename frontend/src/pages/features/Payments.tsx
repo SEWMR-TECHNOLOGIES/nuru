@@ -1,62 +1,70 @@
-import Layout from "@/components/layout/Layout";
-import FeatureHero from "@/components/features/FeatureHero";
-import FeatureGrid from "@/components/features/FeatureGrid";
-import FeatureStatement from "@/components/features/FeatureStatement";
-import illustrationImg from "@/assets/illustration-payments.jpg";
+import EditorialFeaturePage from "@/components/features/EditorialFeaturePage";
 import { useMeta } from "@/hooks/useMeta";
-import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const Payments = () => {
-  const { t } = useLanguage();
-  const paymentMethods = [
-    { title: "Cards accepted", description: "Visa, Mastercard, and all major credit cards" },
-    { title: "Mobile money", description: "M-Pesa, Mixx by Yas, Airtel Money, HaloPesa" },
-    { title: "Bank transfers", description: "Direct deposits for larger transactions" },
-    { title: "Digital wallets", description: "Apple Pay, Google Pay, and more" },
-    { title: "PayPal", description: "International payments made simple" },
-    { title: "Cash tracking", description: "Record offline payments and keep everything in one place" }
-  ];
-
-  const features = [
-    { title: "Instant confirmations", description: "Automatic receipts and booking confirmations" },
-    { title: "Split payments", description: "Let multiple people contribute to one booking" },
-    { title: "Refund management", description: "Easy handling of cancellations and refunds" },
-    { title: "Financial reports", description: "Track all transactions in one clear view" }
-  ];
-
   useMeta({
-    title: "Secure Payments",
-    description: "Pay and get paid with confidence. Multiple payment options with escrow protection."
+    title: "Built-in Payments & Contributions | Nuru",
+    description:
+      "Mobile money, cards and bank transfers — built into every Nuru event. Contributions, deposits, ticket sales and vendor payouts, settled in 24 hours with full audit trail.",
   });
 
   return (
-    <Layout>
-      <FeatureHero
-        title="Pay and get paid with confidence"
-        description="Secure transactions for bookings, contributions, and vendor payments."
-        imageSrc={illustrationImg}
-        imageAlt="Secure Payments"
-        imagePosition="right"
-      />
-
-      <FeatureGrid
-        title="Multiple ways to pay"
-        subtitle="Accept payments through the methods your guests and vendors prefer."
-        items={paymentMethods}
-        variant="cards"
-      />
-
-      <FeatureGrid
-        title="Clear payment features"
-        subtitle="Tools designed to make financial tracking simple for event organizers."
-        items={features}
-        variant="minimal"
-      />
-
-      <FeatureStatement
-        statement="Trust is the foundation of every transaction. Funds are held securely until service delivery is confirmed."
-      />
-    </Layout>
+    <EditorialFeaturePage
+      kicker="Service · 05 — Payments"
+      title="Money that behaves like a bank, feels like family."
+      lead="Mobile money, cards and bank transfers, built into every workspace. Contributions, ticket sales, deposits and payouts settle within 24 hours — with receipts, dispute protection and a complete audit trail."
+      specs={[
+        { label: "Methods", value: "M-Pesa · Airtel · Tigo · Card · Bank" },
+        { label: "Settlement", value: "≤ 24 hours" },
+        { label: "Receipts", value: "Auto-issued" },
+        { label: "Coverage", value: "TZ · KE · International" },
+      ]}
+      sections={[
+        {
+          title: "Every channel families actually use.",
+          lead: "Contributors choose the method that's natural for them — phone, card or bank — and the money lands in the same place.",
+          bullets: [
+            "M-Pesa, Airtel Money, Tigo Pesa, Halopesa.",
+            "Visa and Mastercard, debit and credit.",
+            "Bank transfer with auto-matching references.",
+            "International contributions in USD.",
+            "Cash recorded manually with receipt.",
+            "QR and link-based contributions.",
+          ],
+        },
+        {
+          title: "Contribution pages that feel personal.",
+          lead: "Share a single secure link. Each contributor sees the event, the cause, and a ledger of who has given. Privacy controls let you hide amounts when needed.",
+          bullets: [
+            "Branded public contribution pages.",
+            "Optional named or anonymous giving.",
+            "Real-time progress towards the goal.",
+            "Per-contributor receipts via SMS / WA / email.",
+            "Refund and reversal flow.",
+            "Embedded in invitations and NuruCards.",
+          ],
+        },
+        {
+          title: "Trust infrastructure, end to end.",
+          lead: "Money moves through licensed processors. Vendor deposits sit in protected payments until milestones are met. Every shilling is recorded.",
+          bullets: [
+            "PCI-DSS aligned card processing.",
+            "Vendor deposit protection.",
+            "Milestone-based release.",
+            "Dispute and reconciliation flow.",
+            "Daily reconciled ledger.",
+            "Tax-ready transaction exports.",
+          ],
+        },
+      ]}
+      cta={{
+        eyebrow: "Built-in payments",
+        title: "Audit-grade. End-to-end.",
+        body: "Open a free workspace and start collecting in minutes.",
+        primary: { label: "Open a workspace", href: "/register" },
+        secondary: { label: "Trust & protection", href: "/features/trust" },
+      }}
+    />
   );
 };
 

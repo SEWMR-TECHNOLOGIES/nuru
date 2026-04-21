@@ -72,6 +72,10 @@ import ServiceProviders from "@/pages/features/ServiceProviders";
 import Invitations from "@/pages/features/Invitations";
 import NfcCards from "@/pages/features/NfcCards";
 import Payments from "@/pages/features/Payments";
+import Meetings from "@/pages/features/Meetings";
+import EventGroups from "@/pages/features/EventGroups";
+import Ticketing from "@/pages/features/Ticketing";
+import Trust from "@/pages/features/Trust";
 import VerifyEmail from "@/pages/VerifyEmail";
 import VerifyPhone from "@/pages/VerifyPhone";
 import ResetPassword from "@/pages/ResetPassword";
@@ -126,6 +130,7 @@ import AdminTicketedEvents from "@/pages/admin/AdminTicketedEvents";
 import AdminNameFlags from "@/pages/admin/AdminNameFlags";
 import AdminMonitoring from "@/pages/admin/AdminMonitoring";
 import AdminPayments from "@/pages/admin/AdminPayments";
+import AdminContactMessages from "@/pages/admin/AdminContactMessages";
 import MyIssues from "@/components/MyIssues";
 import MeetingRoom from "@/pages/MeetingRoom";
 
@@ -240,6 +245,10 @@ function InnerRoutes() {
         <Route path="/features/invitations" element={<Invitations />} />
         <Route path="/features/nfc-cards" element={<NfcCards />} />
         <Route path="/features/payments" element={<Payments />} />
+        <Route path="/features/meetings" element={<Meetings />} />
+        <Route path="/features/event-groups" element={<EventGroups />} />
+        <Route path="/features/ticketing" element={<Ticketing />} />
+        <Route path="/features/trust" element={<Trust />} />
         <Route path="/meet/:roomId" element={<MeetingRoom />} />
 
         {/* Admin Panel */}
@@ -281,6 +290,7 @@ function InnerRoutes() {
           <Route path="ticketed-events" element={<AdminTicketedEvents />} />
           <Route path="monitoring" element={<AdminMonitoring />} />
           <Route path="payments" element={<AdminPayments />} />
+          <Route path="contact-messages" element={<AdminContactMessages />} />
         </Route>
 
 

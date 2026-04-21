@@ -66,9 +66,10 @@ const SettingsPayments = () => {
 
   const handleCountryChange = async (code: RegionCode) => {
     if (code === countryCode) return;
+    if (code === "INTL") return; // International is a synthetic fallback, not user-selectable
     setSavingCountry(code);
     try {
-      const res = await api.profile.confirmCountry({ country_code: code, source: "manual" });
+      const res = await api.profile.confirmCountry({ country_code: code as "TZ" | "KE", source: "manual" });
       if (!res.success) {
         showApiErrors(res, "Failed to update country");
         return;

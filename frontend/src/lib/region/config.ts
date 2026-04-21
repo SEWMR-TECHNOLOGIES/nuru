@@ -1,7 +1,10 @@
 // Region configuration — add new countries here to scale.
 // Keep this file pure data so it can be tree-shaken and unit-tested.
 
-export type RegionCode = "TZ" | "KE";
+export type RegionCode = "TZ" | "KE" | "INTL";
+
+/** Primary, user-selectable region codes (excludes the synthetic INTL fallback). */
+export type PrimaryRegionCode = "TZ" | "KE";
 
 export interface RegionConfig {
   code: RegionCode;
@@ -34,11 +37,21 @@ export const REGIONS: Record<RegionCode, RegionConfig> = {
     flag: "🇰🇪",
     timezones: ["Africa/Nairobi"],
   },
+  INTL: {
+    code: "INTL",
+    name: "International",
+    brandName: "Nuru",
+    host: "nuru.com",
+    flag: "🌍",
+    timezones: [],
+  },
 };
 
-export const SUPPORTED_REGIONS = Object.values(REGIONS);
+// Only TZ + KE are "primary" locales. INTL is a synthetic fallback used
+// when neither host nor timezone resolves to a primary market.
+export const SUPPORTED_REGIONS = [REGIONS.TZ, REGIONS.KE];
 
-/** Map a hostname to a known region, if any. */
+/** Map a hostname to a known primary region, if any. */
 export function regionFromHost(hostname: string): RegionConfig | null {
   const h = hostname.toLowerCase();
   for (const r of SUPPORTED_REGIONS) {
@@ -47,14 +60,16 @@ export function regionFromHost(hostname: string): RegionConfig | null {
   return null;
 }
 
-/** Map an ISO country code to a known region, if any. */
+/** Map an ISO country code to a known primary region, if any. */
 export function regionFromCountry(code: string | null | undefined): RegionConfig | null {
   if (!code) return null;
   const upper = code.toUpperCase();
-  return (REGIONS as Record<string, RegionConfig>)[upper] ?? null;
+  if (upper === "TZ") return REGIONS.TZ;
+  if (upper === "KE") return REGIONS.KE;
+  return null;
 }
 
-/** Map a timezone string to a known region, if any. */
+/** Map a timezone string to a known primary region, if any. */
 export function regionFromTimezone(tz: string | null | undefined): RegionConfig | null {
   if (!tz) return null;
   for (const r of SUPPORTED_REGIONS) {

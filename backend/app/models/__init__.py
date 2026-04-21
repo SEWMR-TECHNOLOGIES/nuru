@@ -103,3 +103,4 @@ from models.event_groups import (
     EventGroupMessageReaction, EventGroupInviteToken,
     GroupMemberRoleEnum, GroupMessageTypeEnum,
 )
+from models.contact import ContactMessage

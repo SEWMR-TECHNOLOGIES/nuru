@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ChevronLeft, Trophy, Users, Lock, Unlock } from "lucide-react";
+import { ChevronLeft, Trophy, Users, Lock, Unlock, Link2, BarChart3 } from "lucide-react";
 import ChatIcon from "@/assets/icons/chat-icon.svg";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { PillTabsNav } from "@/components/ui/pill-tabs";
@@ -17,6 +17,7 @@ import { eventGroupsApi } from "@/lib/api/eventGroups";
 import { toast } from "sonner";
 import ChatPanel from "@/components/eventGroups/ChatPanel";
 import ScoreboardPanel from "@/components/eventGroups/ScoreboardPanel";
+import AnalyticsPanel from "@/components/eventGroups/AnalyticsPanel";
 import MembersDrawer from "@/components/eventGroups/MembersDrawer";
 
 const initials = (n: string) => (n || "?").trim().split(/\s+/).slice(0, 2).map(s => s[0]).join("").toUpperCase();
@@ -61,6 +62,22 @@ const EventGroupWorkspace = () => {
   const eventEnded = eventEndIso ? new Date(eventEndIso) < new Date() : false;
   const canReopen = isAdmin && group?.is_closed && !eventEnded;
   const canClose = isAdmin && !group?.is_closed;
+
+  const copyGroupInvite = async () => {
+    if (!groupId) return;
+    const res = await eventGroupsApi.createInvite(groupId, {});
+    if (res.success && res.data) {
+      const url = `${window.location.origin}/g/${res.data.token}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success("Invite link copied — share with committee & contributors");
+      } catch {
+        toast.success("Invite link ready", { description: url });
+      }
+    } else {
+      toast.error(res.message || "Could not create invite link");
+    }
+  };
 
   const toggleClosed = async () => {
     if (!groupId || !group) return;
@@ -132,6 +149,12 @@ const EventGroupWorkspace = () => {
         {isAdmin && group?.is_closed && eventEnded && (
           <Badge variant="outline" className="text-[10px]">Event ended</Badge>
         )}
+        {isAdmin && !group?.is_closed && (
+          <Button variant="outline" size="sm" onClick={copyGroupInvite} title="Copy a shareable invite link for anyone">
+            <Link2 className="w-4 h-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Copy link</span>
+          </Button>
+        )}
         <Button variant="outline" size="sm" onClick={() => setDrawerOpen(true)}>
           <Users className="w-4 h-4 sm:mr-1.5" />
           <span className="hidden sm:inline">Members</span>
@@ -146,6 +169,7 @@ const EventGroupWorkspace = () => {
           tabs={[
             { value: "chat", label: "Chat", icon: <img src={ChatIcon} alt="" className="w-3.5 h-3.5 icon-adaptive" /> },
             { value: "scoreboard", label: "Contributors", icon: <Users className="w-3.5 h-3.5" /> },
+            { value: "analytics", label: "Analytics", icon: <BarChart3 className="w-3.5 h-3.5" /> },
           ]}
         />
 
@@ -167,6 +191,10 @@ const EventGroupWorkspace = () => {
 
         <TabsContent value="scoreboard">
           <ScoreboardPanel groupId={groupId} />
+        </TabsContent>
+
+        <TabsContent value="analytics">
+          <AnalyticsPanel groupId={groupId} />
         </TabsContent>
       </Tabs>
 
