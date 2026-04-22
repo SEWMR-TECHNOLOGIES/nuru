@@ -255,7 +255,7 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
               _MethodTile(
                 icon: Icons.smartphone,
                 title: 'Mobile Money',
-                subtitle: 'M-Pesa, Tigo Pesa, Airtel Money',
+                subtitle: 'M-Pesa, Mixx by Yas, Airtel Money',
                 selected: _method == 'mobile_money',
                 onTap: () { setState(() => _method = 'mobile_money'); _loadProviders(); },
               ),

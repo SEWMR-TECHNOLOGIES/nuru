@@ -130,7 +130,19 @@ def get_my_ticket_classes(
             EventTicket.status.in_([TicketOrderStatusEnum.approved, TicketOrderStatusEnum.confirmed]),
         ).scalar()
         sold = int(sold)
-        available = tc.quantity - sold
+        # Reservations are unpaid holds; surface them separately so the UI
+        # can show "Sold X · Reserved Y · Available Z".
+        reserved = db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
+            EventTicket.ticket_class_id == tc.id,
+            EventTicket.status == TicketOrderStatusEnum.reserved,
+        ).scalar()
+        reserved = int(reserved)
+        # Pending (paid-pending or awaiting approval) also blocks inventory.
+        blocked_other = db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
+            EventTicket.ticket_class_id == tc.id,
+            EventTicket.status == TicketOrderStatusEnum.pending,
+        ).scalar()
+        available = tc.quantity - sold - reserved - int(blocked_other)
         result.append({
             "id": str(tc.id),
             "name": tc.name,
@@ -138,7 +150,8 @@ def get_my_ticket_classes(
             "price": float(tc.price),
             "quantity": tc.quantity,
             "sold": sold,
-            "available": available,
+            "reserved": reserved,
+            "available": max(0, available),
             "status": tc.status.value if tc.status else "available",
             "display_order": tc.display_order,
         })
@@ -489,6 +502,7 @@ def get_event_tickets(
             "status": t.status.value if t.status else "pending",
             "payment_status": t.payment_status.value if t.payment_status else "pending",
             "checked_in": t.checked_in,
+            "reserved_until": t.reserved_until.isoformat() if t.reserved_until else None,
             "created_at": str(t.created_at) if t.created_at else None,
         })
 

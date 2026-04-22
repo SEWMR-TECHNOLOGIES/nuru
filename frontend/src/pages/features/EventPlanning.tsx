@@ -45,13 +45,13 @@ const EventPlanning = () => {
           ],
         },
         {
-          title: "Built for African celebrations.",
-          lead: "Multi-day weddings, harambees, send-offs, kitchen parties, fundraisers, graduations, conferences. Every workflow respects how families and communities actually run events.",
+          title: "Built for every event.",
+          lead: "Weddings, memorials, send-offs, corporate offsites, fundraisers, graduations, conferences, birthdays. Every workflow respects how families, companies and communities actually run events — anywhere in the world.",
           bullets: [
             "Multi-event programmes (pre-, main, after).",
             "Multiple organisers with shared control.",
             "Family contribution tracking, not just ticket sales.",
-            "Local payment methods built-in (M-Pesa, Airtel, Tigo, banks).",
+            "Local payment methods built-in (M-Pesa, Airtel, Mixx by Yas, banks).",
             "Bilingual interfaces — English and Swahili.",
             "Works on the slowest connections.",
           ],

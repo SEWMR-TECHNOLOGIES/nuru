@@ -233,32 +233,31 @@ const StatusPill = ({ status }: { status: TransactionStatus }) => {
 const ReceiptHero = ({ tx, format }: { tx: Transaction; format: (n: number) => string }) => {
   const isSuccess = ["succeeded", "paid", "credited"].includes(tx.status);
   return (
-    <div className="relative px-6 md:px-8 py-7 bg-gradient-to-br from-primary via-primary to-primary/85 text-primary-foreground overflow-hidden">
-      <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
-      <div className="absolute -bottom-12 -left-6 w-44 h-44 rounded-full bg-white/5 blur-2xl" />
+    <div className="relative px-6 md:px-8 py-7 text-white overflow-hidden" style={{ background: 'linear-gradient(135deg, #FF8A5C 0%, #FF7145 55%, #E85A30 100%)' }}>
+      <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/15 blur-2xl" />
+      <div className="absolute -bottom-12 -left-6 w-44 h-44 rounded-full bg-white/10 blur-2xl" />
 
       <div className="relative flex items-start justify-between">
         <div className="flex items-center gap-2">
           <img src={nuruLogo} alt="Nuru" className="h-8 w-auto" />
-          <span className="text-xs font-bold tracking-[0.18em] uppercase text-primary-foreground/80">Receipt</span>
+          <span className="text-xs font-bold tracking-[0.18em] uppercase text-white/85">Receipt</span>
         </div>
         <StatusPill status={tx.status} />
       </div>
 
       <div className="relative mt-6">
-        <p className="text-xs uppercase tracking-wider text-primary-foreground/70">
+        <p className="text-xs uppercase tracking-wider text-white/75">
           {isSuccess ? "Amount paid" : "Amount"}
         </p>
         <div className="mt-1 flex items-baseline gap-2">
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{format(tx.gross_amount)}</h1>
-          <span className="text-xs font-medium text-primary-foreground/70">{tx.currency_code}</span>
         </div>
-        <p className="mt-1 text-sm text-primary-foreground/80 line-clamp-2">
+        <p className="mt-1 text-sm text-white/85 line-clamp-2">
           {tx.payment_description || tx.description || tx.target_type.replace(/_/g, " ")}
         </p>
       </div>
 
-      <div className="relative mt-5 inline-flex items-center gap-1.5 text-[11px] text-primary-foreground/70 bg-white/10 rounded-full px-2.5 py-1">
+      <div className="relative mt-5 inline-flex items-center gap-1.5 text-[11px] text-white/85 bg-white/15 rounded-full px-2.5 py-1">
         <ShieldCheck className="w-3 h-3" /> Verified by Nuru
       </div>
     </div>
@@ -299,9 +298,9 @@ const ReceiptBody = ({ tx, format }: { tx: Transaction; format: (n: number) => s
             <QRCodeSVG
               value={verifyUrl}
               size={92}
-              level="M"
+              level="H"
               marginSize={0}
-              imageSettings={{ src: nuruLogo, height: 18, width: 18, excavate: true }}
+              imageSettings={{ src: nuruLogo, height: 14, width: 36, excavate: false }}
             />
           </div>
           <p className="mt-1.5 text-[9px] uppercase tracking-wider text-muted-foreground font-medium">

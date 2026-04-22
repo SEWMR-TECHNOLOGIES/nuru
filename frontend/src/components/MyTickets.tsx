@@ -21,6 +21,7 @@ import SearchHeader from "@/components/ui/search-header";
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import MigrationBanner from '@/components/migration/MigrationBanner';
 import MyTicketPaymentsTab from '@/components/tickets/MyTicketPaymentsTab';
+import MyReservations from '@/components/tickets/MyReservations';
 
 const STATUS_STYLES: Record<string, string> = {
   confirmed: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
@@ -311,6 +312,7 @@ const MyTickets = () => {
 
         {/* Right sidebar - upcoming tickets */}
         <div className="space-y-4">
+          <MyReservations />
           {loading ? (
             <div>
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">

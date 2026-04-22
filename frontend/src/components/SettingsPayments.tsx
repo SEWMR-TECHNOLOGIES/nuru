@@ -22,7 +22,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useWorkspaceMeta } from "@/hooks/useWorkspaceMeta";
 import { PaymentSetupModal } from "@/components/payments/PaymentSetupModal";
-import { REGIONS, RegionCode } from "@/lib/region/config";
+import { SUPPORTED_REGIONS, RegionCode, PrimaryRegionCode } from "@/lib/region/config";
 import type { PaymentProfile } from "@/lib/api/payments-types";
 
 /**
@@ -64,17 +64,17 @@ const SettingsPayments = () => {
     profilesQuery.refetch();
   };
 
-  const handleCountryChange = async (code: RegionCode) => {
+  const handleCountryChange = async (code: PrimaryRegionCode) => {
     if (code === countryCode) return;
-    if (code === "INTL") return; // International is a synthetic fallback, not user-selectable
     setSavingCountry(code);
     try {
-      const res = await api.profile.confirmCountry({ country_code: code as "TZ" | "KE", source: "manual" });
+      const res = await api.profile.confirmCountry({ country_code: code, source: "manual" });
       if (!res.success) {
         showApiErrors(res, "Failed to update country");
         return;
       }
-      toast.success(`Switched to ${REGIONS[code].name}`);
+      const region = SUPPORTED_REGIONS.find((r) => r.code === code);
+      toast.success(`Switched to ${region?.name ?? code}`);
       await Promise.all([refetch(), queryClient.invalidateQueries({ queryKey: ["wallets"] })]);
     } finally {
       setSavingCountry(null);
@@ -141,7 +141,7 @@ const SettingsPayments = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid sm:grid-cols-2 gap-3">
-          {(Object.values(REGIONS) as Array<typeof REGIONS[RegionCode]>).map((region) => {
+          {SUPPORTED_REGIONS.map((region) => {
             const active = (user?.country_code ?? countryCode) === region.code;
             const isSaving = savingCountry === region.code;
             const ccy = region.code === "TZ" ? "TZS" : "KES";
@@ -150,7 +150,7 @@ const SettingsPayments = () => {
                 key={region.code}
                 type="button"
                 disabled={isSaving}
-                onClick={() => handleCountryChange(region.code)}
+                onClick={() => handleCountryChange(region.code as PrimaryRegionCode)}
                 className={`text-left rounded-xl border p-4 transition-all disabled:opacity-60 ${active ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border hover:border-primary/40 hover:bg-muted/40"}`}
               >
                 <div className="flex items-center justify-between">

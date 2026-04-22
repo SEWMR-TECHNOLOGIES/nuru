@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import nuruLogo from "@/assets/nuru-logo.png";
 
 const featureLinks = [
+  { label: "All features", to: "/features" },
   { label: "Event Planning", to: "/features/event-planning" },
   { label: "Vendors & Services", to: "/features/service-providers" },
   { label: "Invitations & RSVP", to: "/features/invitations" },
@@ -28,8 +29,8 @@ const Footer = () => {
               className="h-8 w-auto brightness-0 invert mb-6"
             />
             <p className="text-background/60 text-sm leading-relaxed max-w-xs">
-              Plan smarter. Celebrate better. The operating workspace for
-              African celebrations and events.
+              Plan smarter. Run it better. The operating workspace for
+              every event — weddings, conferences, memorials and more.
             </p>
           </div>
 

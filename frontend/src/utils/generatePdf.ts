@@ -464,6 +464,7 @@ export const generateReceiptHtml = (tx: ReceiptTransactionLike): string => {
   const currency = tx.currency_code || 'TZS';
   const fmt = (n: number) => `${currency} ${(n || 0).toLocaleString()}`;
   const logoAbsoluteUrl = new URL(nuruLogoUrl, window.location.origin).href;
+  const logoSquareAbsoluteUrl = new URL(nuruLogoUrl, window.location.origin).href;
 
   const dateStr = (iso?: string | null) => iso
     ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -475,76 +476,124 @@ export const generateReceiptHtml = (tx: ReceiptTransactionLike): string => {
 
   const statusLabel = (tx.status || '').toLowerCase();
   const isPaid = ['succeeded', 'paid', 'credited'].includes(statusLabel);
-  const statusColor = isPaid ? '#16a34a' : statusLabel === 'failed' || statusLabel === 'cancelled' ? '#dc2626' : '#ca8a04';
+  const isFail = ['failed', 'cancelled'].includes(statusLabel);
+  const statusBg = isPaid ? '#ECFDF5' : isFail ? '#FEF2F2' : '#FFFBEB';
+  const statusFg = isPaid ? '#065F46' : isFail ? '#991B1B' : '#92400E';
+  const statusText = isPaid ? 'Paid' : statusLabel ? statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1) : 'Unknown';
 
   const fee = typeof tx.commission_amount === 'number'
     ? tx.commission_amount
     : Math.max(0, (tx.gross_amount || 0) - (tx.net_amount || tx.gross_amount || 0));
   const subtotal = typeof tx.net_amount === 'number' ? tx.net_amount : (tx.gross_amount || 0) - fee;
 
+  const host = (typeof window !== 'undefined' && window.location.hostname.endsWith('nuru.ke')) ? 'nuru.ke' : 'nuru.tz';
+  const verifyUrl = `https://${host}/shared/receipt/${tx.transaction_code}`;
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=0&ecc=H&data=${encodeURIComponent(verifyUrl)}`;
+
+  const description = tx.payment_description || tx.description || `Nuru · ${purpose}`;
+  const methodLabel = tx.provider_name || tx.method_type || '—';
+
   return `
     <!DOCTYPE html>
-    <html><head><title>Receipt ${tx.transaction_code}</title>
+    <html><head><meta charset="utf-8"><title>Receipt ${tx.transaction_code}</title>
     <style>
-      body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
-      .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; border-bottom: 2px solid #e5e7eb; padding-bottom: 20px; }
-      .brand { display: flex; flex-direction: column; align-items: flex-start; }
-      .brand img { height: 40px; margin-bottom: 6px; }
-      .brand .slogan { font-size: 11px; color: #888; font-style: italic; }
-      .header-right { text-align: right; }
-      .header-right h1 { font-size: 20px; margin: 0 0 4px 0; }
-      .header-right h2 { font-size: 13px; color: #666; margin: 0; font-weight: normal; }
-      .status-pill { display:inline-block; padding:4px 12px; border-radius:999px; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px; }
-      .summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin: 18px 0 24px; }
-      .summary-card { background: #f9fafb; border-radius: 8px; padding: 14px 18px; border:1px solid #f1f5f9; }
-      .summary-card .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
-      .summary-card .value { font-size: 16px; font-weight: bold; margin-top: 4px; }
-      .totals { margin-top: 18px; border:1px solid #e5e7eb; border-radius:8px; }
-      .totals .row { display:flex; justify-content:space-between; padding:10px 16px; border-bottom:1px solid #f1f5f9; font-size:13px; }
-      .totals .row:last-child { border-bottom:none; font-weight:bold; font-size:15px; background:#f9fafb; border-radius:0 0 8px 8px; }
-      .footer { margin-top: 32px; font-size: 11px; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 12px; }
-      @media print { body { padding: 20px; } }
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; background: #ffffff; font-family: 'Inter', sans-serif; padding: 24px 16px; color: #0a0a0a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .receipt { width: 720px; max-width: 100%; background: #fff; border-radius: 16px; overflow: hidden; border: 1px solid #eee; }
+      .hero { position: relative; padding: 28px 32px 26px; background: linear-gradient(135deg, #FF8A5C 0%, #FF7145 55%, #E85A30 100%); color: #fff; overflow: hidden; }
+      .hero::before { content: ''; position: absolute; top: -40px; right: -40px; width: 180px; height: 180px; border-radius: 50%; background: rgba(255,255,255,0.10); }
+      .hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; position: relative; }
+      .brand { display: flex; align-items: center; gap: 8px; }
+      .brand img { height: 22px; width: auto; }
+      .brand .label { font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.85; }
+      .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 999px; font-size: 11px; font-weight: 700; background: ${statusBg}; color: ${statusFg}; }
+      .status-pill::before { content: '●'; font-size: 8px; }
+      .amount-block { margin-top: 22px; position: relative; }
+      .amount-block .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.16em; color: rgba(255,255,255,0.55); font-weight: 500; }
+      .amount-block .amount { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; }
+      .amount-block .amount h1 { font-size: 36px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+      .amount-block .amount .ccy { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.55); text-transform: uppercase; letter-spacing: 0.1em; }
+      .amount-block .desc { margin-top: 8px; font-size: 13px; color: rgba(255,255,255,0.7); }
+      .verified { display: inline-flex; align-items: center; gap: 6px; margin-top: 18px; font-size: 11px; background: rgba(255,255,255,0.08); padding: 5px 11px; border-radius: 999px; color: rgba(255,255,255,0.85); position: relative; }
+      .verified svg { width: 11px; height: 11px; }
+      .body { padding: 28px 32px; }
+      .body-row { display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: flex-start; }
+      .details { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 32px; }
+      .detail .k { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: #999; font-weight: 500; }
+      .detail .v { margin-top: 4px; font-size: 14px; font-weight: 500; color: #0a0a0a; word-break: break-word; }
+      .detail .v.mono { font-family: 'Space Mono', monospace; font-weight: 600; font-size: 13px; }
+      .detail .v.cap { text-transform: capitalize; }
+      .qr { text-align: center; }
+      .qr-box { padding: 6px; background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; position: relative; display: inline-block; line-height: 0; }
+      .qr-box img.code { width: 96px; height: 96px; display: block; }
+      .qr-box img.logo { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 24px; height: 24px; object-fit: contain; background: transparent; }
+      .qr .scan { margin-top: 6px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.14em; color: #999; font-weight: 600; }
+      .totals { margin-top: 26px; border: 1px solid #eee; border-radius: 12px; overflow: hidden; }
+      .totals .row { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; font-size: 14px; border-bottom: 1px solid #f1f1f1; }
+      .totals .row:last-child { border-bottom: none; font-weight: 700; }
+      .totals .muted { color: #999; }
+      .reason { margin-top: 18px; padding: 12px 14px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 10px; font-size: 12px; color: #991B1B; }
+      .reason b { display: block; margin-bottom: 2px; }
+      .footer { padding: 16px 32px; background: #fafafa; border-top: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 11px; color: #888; }
+      .footer .badge { padding: 4px 10px; border: 1px solid #e5e5e5; border-radius: 999px; font-size: 10px; color: #666; background: #fff; }
+      @media print {
+        body { background: #fff; padding: 0; }
+        .receipt { border: none; border-radius: 0; width: 100%; }
+      }
+      @page { size: A4; margin: 12mm; }
     </style></head>
     <body>
-      <div class="header">
-        <div class="brand">
-          <img src="${logoAbsoluteUrl}" alt="Nuru" />
-          <span class="slogan">Plan Smarter</span>
+      <div class="receipt">
+        <div class="hero">
+          <div class="hero-top">
+            <div class="brand">
+              <img src="${logoAbsoluteUrl}" alt="Nuru" />
+              <span class="label">Receipt</span>
+            </div>
+            <span class="status-pill">${statusText}</span>
+          </div>
+          <div class="amount-block">
+            <div class="label">${isPaid ? 'Amount paid' : 'Amount'}</div>
+            <div class="amount">
+              <h1>${fmt(tx.gross_amount || 0)}</h1>
+            </div>
+            <div class="desc">${description}</div>
+          </div>
+          <div class="verified"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg> Verified by Nuru</div>
         </div>
-        <div class="header-right">
-          <h1>Payment Receipt</h1>
-          <h2>${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</h2>
-          <div style="margin-top:8px"><span class="status-pill" style="background:${statusColor}1A;color:${statusColor}">${statusLabel || 'unknown'}</span></div>
+
+        <div class="body">
+          <div class="body-row">
+            <div class="details">
+              <div class="detail"><div class="k">Reference</div><div class="v mono">${tx.transaction_code}</div></div>
+              <div class="detail"><div class="k">Date</div><div class="v">${dateStr(tx.initiated_at || tx.created_at)}</div></div>
+              ${tx.completed_at ? `<div class="detail"><div class="k">Completed</div><div class="v">${dateStr(tx.completed_at)}</div></div>` : ''}
+              <div class="detail"><div class="k">Type</div><div class="v cap">${purpose}</div></div>
+              <div class="detail"><div class="k">Method</div><div class="v cap">${methodLabel}</div></div>
+            </div>
+            <div class="qr">
+              <div class="qr-box"><img class="code" src="${qrSrc}" alt="QR" /><img class="logo" src="${logoSquareAbsoluteUrl}" alt="Nuru" /></div>
+              <div class="scan">Scan to verify</div>
+            </div>
+          </div>
+
+          <div class="totals">
+            <div class="row"><span>Amount</span><span>${fmt(subtotal)}</span></div>
+            <div class="row"><span class="muted">Service fee</span><span class="muted">${fee > 0 ? fmt(fee) : 'Free'}</span></div>
+            <div class="row"><span>Total</span><span>${fmt(tx.gross_amount || 0)}</span></div>
+          </div>
+
+          ${tx.failure_reason ? `<div class="reason"><b>Reason</b>${tx.failure_reason}</div>` : ''}
+          ${tx.external_reference ? `<p style="font-size:11px;color:#888;margin-top:14px">Gateway reference: <span style="font-family:'Space Mono',monospace">${tx.external_reference}</span></p>` : ''}
+        </div>
+
+        <div class="footer">
+          <span>Verify at ${host}/shared/receipt/${tx.transaction_code}</span>
+          <span class="badge">© ${new Date().getFullYear()} Nuru</span>
         </div>
       </div>
-
-      <div class="summary">
-        <div class="summary-card"><div class="label">Reference</div><div class="value" style="font-family:monospace;font-size:14px">${tx.transaction_code}</div></div>
-        <div class="summary-card"><div class="label">Purpose</div><div class="value">${purpose}</div></div>
-        <div class="summary-card"><div class="label">Date</div><div class="value" style="font-size:13px">${dateStr(tx.completed_at || tx.initiated_at || tx.created_at)}</div></div>
-        <div class="summary-card"><div class="label">Method</div><div class="value">${tx.provider_name || tx.method_type || '—'}</div></div>
-      </div>
-
-      <h3 style="font-size:14px;margin-bottom:8px">Description</h3>
-      <p style="font-size:13px;color:#555;margin:0 0 18px;padding:12px 14px;background:#f9fafb;border-radius:8px;border:1px solid #f1f5f9">
-        ${tx.payment_description || tx.description || `Nuru · ${purpose}`}
-      </p>
-
-      <div class="totals">
-        <div class="row"><span>Amount</span><span>${fmt(subtotal)}</span></div>
-        <div class="row"><span>Service fee</span><span>${fee > 0 ? fmt(fee) : 'Free'}</span></div>
-        <div class="row"><span>Total ${isPaid ? 'paid' : ''}</span><span>${fmt(tx.gross_amount || 0)}</span></div>
-      </div>
-
-      ${tx.failure_reason ? `
-        <div style="margin-top:18px;padding:12px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b;font-size:12px">
-          <strong>Reason:</strong> ${tx.failure_reason}
-        </div>
-      ` : ''}
-
-      ${tx.external_reference ? `<p style="font-size:11px;color:#888;margin-top:14px">Gateway reference: <span style="font-family:monospace">${tx.external_reference}</span></p>` : ''}
-
-      <div class="footer">Verify this receipt at ${typeof window !== "undefined" ? (window.location.hostname.endsWith("nuru.ke") ? "nuru.ke" : "nuru.tz") : "nuru.tz"}/shared/receipt/${tx.transaction_code} &middot; &copy; ${new Date().getFullYear()} Nuru | SEWMR TECHNOLOGIES</div>
     </body></html>
   `;
 };
+

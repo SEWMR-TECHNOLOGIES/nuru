@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import ReceivedPaymentsPanel from '@/components/payments/ReceivedPaymentsPanel';
+import TicketOfflineClaimsPanel from '@/components/events/TicketOfflineClaimsPanel';
 
 interface EventTicketManagementProps {
   eventId: string;
@@ -315,6 +316,7 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
           title="Ticket payments received"
         />
       )}
+      {isCreator && <TicketOfflineClaimsPanel eventId={eventId} />}
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

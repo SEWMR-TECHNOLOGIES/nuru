@@ -44,7 +44,7 @@ const TOPICS: Topic[] = [
 const FAQS: Faq[] = [
   {
     q: "What is Nuru Workspace?",
-    a: "Nuru Workspace is the operating platform for African celebrations and events. Organisers, vendors, contributors and guests work in one place — planning, payments, RSVPs, ticketing and check-ins, recorded with the rigor of a bank.",
+    a: "Nuru Workspace is the operating platform for every event — weddings, conferences, memorials, fundraisers, corporate events and more, anywhere in the world. Organisers, vendors, contributors and guests work in one place — planning, payments, RSVPs, ticketing and check-ins, recorded with the rigor of a bank.",
     topics: ["Getting started"],
   },
   {
@@ -59,7 +59,7 @@ const FAQS: Faq[] = [
   },
   {
     q: "Which payment methods are supported in Tanzania?",
-    a: "M-Pesa (Vodacom), Airtel Money, Tigo Pesa and Halopesa for mobile money; Visa and Mastercard for cards; and direct bank transfer with auto-matching references. Contributions, ticket purchases and vendor deposits all use the same checkout.",
+    a: "M-Pesa (Vodacom), Airtel Money, Mixx by Yas (formerly Tigo Pesa) and Halopesa for mobile money; Visa and Mastercard for cards; and direct bank transfer with auto-matching references. Contributions, ticket purchases and vendor deposits all use the same checkout.",
     topics: ["Payments", "Tanzania"],
   },
   {
@@ -99,7 +99,7 @@ const FAQS: Faq[] = [
   },
   {
     q: "Can I sell tickets for an event on Nuru?",
-    a: "Yes. Set unlimited tiers (Early, Regular, VIP, Group), accept M-Pesa, Airtel, Tigo, card and bank, and check buyers in at the door with QR or NFC NuruCards. Sales settle within 24 hours.",
+    a: "Yes. Set unlimited tiers (Early, Regular, VIP, Group), accept M-Pesa, Airtel, Mixx by Yas, card and bank, and check buyers in at the door with QR or NFC NuruCards. Sales settle within 24 hours.",
     topics: ["Tickets", "Payments"],
   },
   {
@@ -156,7 +156,7 @@ const FAQs = () => {
   useMeta({
     title: "FAQs — Payments, Vendors, RSVP, Tickets | Nuru",
     description:
-      "Answers about Nuru Workspace: payments and mobile money in Tanzania (M-Pesa, Airtel, Tigo) and Kenya, international USD contributions, vendor verification, RSVP, NuruCards, ticketing and privacy.",
+      "Answers about Nuru Workspace: payments and mobile money in Tanzania (M-Pesa, Airtel, Mixx by Yas) and Kenya, international USD contributions, vendor verification, RSVP, NuruCards, ticketing and privacy.",
   });
 
   const filteredFAQs = useMemo(() => {

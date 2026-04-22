@@ -39,6 +39,7 @@ const LANDING_PAGES = new Set([
   "/",
   "/contact",
   "/faqs",
+  "/features",
   "/features/event-planning",
   "/features/service-providers",
   "/features/invitations",

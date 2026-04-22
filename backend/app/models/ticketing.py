@@ -53,6 +53,9 @@ class EventTicket(Base):
     buyer_name = Column(Text)
     buyer_phone = Column(Text)
     buyer_email = Column(Text)
+    # Set only while status == 'reserved'. Sweep job hard-deletes any row
+    # with reserved_until < now() so inventory frees up automatically.
+    reserved_until = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

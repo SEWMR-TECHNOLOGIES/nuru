@@ -33,10 +33,10 @@ const Ticketing = () => {
           ],
         },
         {
-          title: "Checkout that respects African buyers.",
+          title: "Checkout that respects your buyers.",
           lead: "Mobile money first, card second. Receipts go to SMS, WhatsApp and email. The ticket is also on the buyer's phone in seconds.",
           bullets: [
-            "M-Pesa, Airtel, Tigo, Halopesa.",
+            "M-Pesa, Airtel, Mixx by Yas, Halopesa.",
             "Visa, Mastercard, USD checkout.",
             "Bank transfer with auto-match.",
             "Tickets delivered via SMS, WhatsApp, email.",

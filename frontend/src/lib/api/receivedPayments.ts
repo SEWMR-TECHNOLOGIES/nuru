@@ -30,6 +30,8 @@ export interface ReceivedPayment {
   initiated_at: string | null;
   confirmed_at: string | null;
   completed_at: string | null;
+  /** True for payments confirmed via the offline-claim flow (no gateway txn). */
+  is_offline?: boolean;
 }
 
 export interface ReceivedPaymentsPage {

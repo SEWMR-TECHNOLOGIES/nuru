@@ -191,6 +191,13 @@ const Index = () => {
                 <br />
                 <span className="text-muted-foreground">Three sides of every event.</span>
               </h2>
+              <Link
+                to="/features"
+                className="mt-8 inline-flex items-center gap-1.5 text-sm font-medium text-foreground border-b border-foreground/30 hover:border-foreground transition-colors pb-0.5"
+              >
+                Explore all features
+                <ArrowUpRight className="w-4 h-4" />
+              </Link>
             </div>
           </div>
 
