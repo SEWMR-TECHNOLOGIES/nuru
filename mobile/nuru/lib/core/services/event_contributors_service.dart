@@ -12,6 +12,14 @@ class EventContributorsService {
     return ApiBase.get('/user-contributors/events/$eventId/contributors', queryParams: params, fallbackError: 'Unable to fetch event contributors');
   }
 
+  /// Add a contributor to an event.
+  ///
+  /// Supported optional fields in [data]:
+  ///   - `secondary_phone`: alternate phone to also notify (E.164 or local).
+  ///   - `notify_target`: one of `'primary' | 'secondary' | 'both'`
+  ///     (defaults to `'primary'` server-side).
+  /// The secondary phone is comms-only; it will not be linked to a Nuru
+  /// user account or used by other features.
   static Future<Map<String, dynamic>> addContributorToEvent(String eventId, Map<String, dynamic> data) {
     return ApiBase.postRaw('/user-contributors/events/$eventId/contributors', data);
   }

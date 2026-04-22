@@ -150,13 +150,20 @@ const PrintableTicket = ({ ticket, open, onClose }: PrintableTicketProps) => {
           </div>
 
           <div className="flex flex-col items-center gap-2">
-            <div ref={qrRef} className="p-2 bg-muted/30 rounded-xl border border-border">
+            <div ref={qrRef} className="p-2 bg-white rounded-xl border border-border">
               <QRCodeCanvas
                 value={`https://nuru.tz/ticket/${ticket.ticket_code}`}
-                size={90}
+                size={100}
                 level="H"
                 fgColor="#1a1a2e"
-                bgColor="transparent"
+                bgColor="#ffffff"
+                includeMargin={false}
+                imageSettings={{
+                  src: NuruLogo,
+                  height: 14,
+                  width: 36,
+                  excavate: false,
+                }}
               />
             </div>
             <span className="text-[11px] font-mono text-muted-foreground tracking-wider">{ticket.ticket_code}</span>

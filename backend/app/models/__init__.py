@@ -36,7 +36,7 @@ from models.users import (
     UserCircle, UserFollower, UserSetting, UserActivityLog, UserSession,
     PasswordResetToken, Achievement, UserAchievement, NameValidationFlag,
 )
-from models.nuru_cards import NuruCard, NuruCardOrder
+from models.nuru_cards import NuruCard, NuruCardOrder, NuruCardPricing
 from models.communities import Community, CommunityMember, CommunityPost, CommunityPostImage, CommunityPostGlow
 from models.feeds import (
     UserFeed, UserFeedImage, UserFeedGlow, UserFeedEcho,
@@ -82,6 +82,7 @@ from models.uploads import FileUpload
 from models.appeals import ContentAppeal
 from models.photo_libraries import ServicePhotoLibrary, ServicePhotoLibraryImage
 from models.ticketing import EventTicketClass, EventTicket
+from models.ticket_offline_claims import TicketOfflineClaim
 from models.feed_ranking import (
     UserInteractionLog, UserInterestProfile, AuthorAffinityScore,
     PostQualityScore, FeedImpression,
@@ -104,3 +105,4 @@ from models.event_groups import (
     GroupMemberRoleEnum, GroupMessageTypeEnum,
 )
 from models.contact import ContactMessage
+from models.event_messaging_templates import EventMessagingTemplate

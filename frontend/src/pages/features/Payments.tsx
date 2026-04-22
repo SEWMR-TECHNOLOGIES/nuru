@@ -14,7 +14,7 @@ const Payments = () => {
       title="Money that behaves like a bank, feels like family."
       lead="Mobile money, cards and bank transfers, built into every workspace. Contributions, ticket sales, deposits and payouts settle within 24 hours — with receipts, dispute protection and a complete audit trail."
       specs={[
-        { label: "Methods", value: "M-Pesa · Airtel · Tigo · Card · Bank" },
+        { label: "Methods", value: "M-Pesa · Airtel · Mixx by Yas · Card · Bank" },
         { label: "Settlement", value: "≤ 24 hours" },
         { label: "Receipts", value: "Auto-issued" },
         { label: "Coverage", value: "TZ · KE · International" },
@@ -24,7 +24,7 @@ const Payments = () => {
           title: "Every channel families actually use.",
           lead: "Contributors choose the method that's natural for them — phone, card or bank — and the money lands in the same place.",
           bullets: [
-            "M-Pesa, Airtel Money, Tigo Pesa, Halopesa.",
+            "M-Pesa, Airtel Money, Mixx by Yas, Halopesa.",
             "Visa and Mastercard, debit and credit.",
             "Bank transfer with auto-matching references.",
             "International contributions in USD.",

@@ -98,7 +98,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
 
   // Add contributor form
   const [addMode, setAddMode] = useState<'existing' | 'new'>('new');
-  const [newContributor, setNewContributor] = useState({ name: '', email: '', phone: '', pledge_amount: '', notes: '' });
+  const [newContributor, setNewContributor] = useState({ name: '', email: '', phone: '', pledge_amount: '', notes: '', secondary_phone: '', notify_target: 'primary' as 'primary' | 'secondary' | 'both' });
   const [selectedExistingId, setSelectedExistingId] = useState<string | null>(null);
   const [existingPledgeAmount, setExistingPledgeAmount] = useState('');
   
@@ -111,6 +111,8 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
 
   // Edit pledge
   const [editAmount, setEditAmount] = useState('');
+  const [editSecondaryPhone, setEditSecondaryPhone] = useState('');
+  const [editNotifyTarget, setEditNotifyTarget] = useState<'primary' | 'secondary' | 'both'>('primary');
 
   // Payment history dialog
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
@@ -242,6 +244,8 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
           phone: newContributor.phone,
           pledge_amount: newContributor.pledge_amount ? parseFloat(newContributor.pledge_amount) : 0,
           notes: newContributor.notes || undefined,
+          secondary_phone: newContributor.secondary_phone || undefined,
+          notify_target: newContributor.notify_target,
         });
       }
       toast.success('Contributor added to event');
@@ -280,8 +284,12 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
     if (!editAmount || parseFloat(editAmount) < 0) { toast.error('Enter valid amount'); return; }
     setIsSubmitting(true);
     try {
-      await updateEventContributor(editTarget.id, { pledge_amount: parseFloat(editAmount) });
-      toast.success('Pledge updated');
+      await updateEventContributor(editTarget.id, {
+        pledge_amount: parseFloat(editAmount),
+        secondary_phone: editSecondaryPhone.trim() ? editSecondaryPhone.trim() : null,
+        notify_target: editNotifyTarget,
+      });
+      toast.success('Contributor updated');
       setEditPledgeDialogOpen(false);
       setEditTarget(null);
     } catch (err: any) {
@@ -471,7 +479,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
   };
 
   const resetAddForm = () => {
-    setNewContributor({ name: '', email: '', phone: '', pledge_amount: '', notes: '' });
+    setNewContributor({ name: '', email: '', phone: '', pledge_amount: '', notes: '', secondary_phone: '', notify_target: 'primary' });
     setSelectedExistingId(null);
     setExistingPledgeAmount('');
     setAddMode('new');
@@ -744,16 +752,46 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
               </div>
             </div>
             <div className="divide-y border rounded-lg bg-white">
-              {pendingContributions.map(pc => (
-                <div key={pc.id} className="p-3 flex items-center gap-3">
-                  <Checkbox checked={selectedPending.includes(pc.id)} onCheckedChange={(checked) => setSelectedPending(prev => checked ? [...prev, pc.id] : prev.filter(id => id !== pc.id))} />
-                  <div className="flex-1 min-w-0">
+              {pendingContributions.map((pc: any) => (
+                <div key={pc.id} className="p-3 flex items-start gap-3">
+                  <Checkbox checked={selectedPending.includes(pc.id)} onCheckedChange={(checked) => setSelectedPending(prev => checked ? [...prev, pc.id] : prev.filter(id => id !== pc.id))} className="mt-1" />
+                  <div className="flex-1 min-w-0 space-y-1">
                     <p className="font-medium text-sm">{pc.contributor_name}</p>
                     <p className="text-xs text-muted-foreground">
                       Recorded by {pc.recorded_by || 'Unknown'} {pc.created_at ? `on ${formatDateMedium(pc.created_at)} at ${new Date(pc.created_at.endsWith('Z') || pc.created_at.includes('+') ? pc.created_at : pc.created_at + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
                     </p>
+                    {/* Offline-claim audit trail (when present) */}
+                    {(pc.payment_channel || pc.provider_name || pc.transaction_ref || pc.payer_account) && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        {pc.payment_channel && (
+                          <Badge variant="outline" className="text-[10px] capitalize">
+                            {pc.payment_channel.replace('_', ' ')}
+                          </Badge>
+                        )}
+                        {pc.provider_name && (
+                          <Badge variant="secondary" className="text-[10px]">{pc.provider_name}</Badge>
+                        )}
+                        {pc.transaction_ref && (
+                          <span className="text-[10px] font-mono text-muted-foreground">Ref: {pc.transaction_ref}</span>
+                        )}
+                        {pc.payer_account && (
+                          <span className="text-[10px] text-muted-foreground">From: {pc.payer_account}</span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div className="text-right">
+                  {pc.receipt_image_url && (
+                    <a
+                      href={pc.receipt_image_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block h-12 w-12 rounded-md overflow-hidden border border-border bg-muted flex-shrink-0 hover:ring-2 hover:ring-primary transition-all"
+                      title="Open receipt"
+                    >
+                      <img src={pc.receipt_image_url} alt="Receipt" className="w-full h-full object-cover" />
+                    </a>
+                  )}
+                  <div className="text-right flex-shrink-0">
                     <p className="font-bold text-amber-700">{formatPrice(pc.amount)}</p>
                     {pc.payment_method && <p className="text-xs text-muted-foreground capitalize">{pc.payment_method}</p>}
                   </div>
@@ -842,8 +880,14 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
                             <DropdownMenuItem onClick={() => { setPaymentTarget(ec); setPayment({ amount: '', payment_method: 'cash', payment_reference: '' }); setPaymentDialogOpen(true); }}>
                               <DollarSign className="w-4 h-4 mr-2" />Record Payment
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => { setEditTarget(ec); setEditAmount(String(ec.pledge_amount)); setEditPledgeDialogOpen(true); }}>
-                              <Edit className="w-4 h-4 mr-2" />Update Pledge
+                            <DropdownMenuItem onClick={() => {
+                              setEditTarget(ec);
+                              setEditAmount(String(ec.pledge_amount));
+                              setEditSecondaryPhone(ec.secondary_phone || '');
+                              setEditNotifyTarget((ec.notify_target as any) || 'primary');
+                              setEditPledgeDialogOpen(true);
+                            }}>
+                              <Edit className="w-4 h-4 mr-2" />Edit Contributor
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleViewHistory(ec)}>
                               <Eye className="w-4 h-4 mr-2" />Payment History
@@ -906,6 +950,21 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
                   <div className="space-y-2"><Label>Phone *</Label><Input value={newContributor.phone} onChange={(e) => setNewContributor(p => ({ ...p, phone: e.target.value }))} placeholder="+255..." required /></div>
                 </div>
                 <div className="space-y-2"><Label>Pledge Amount ({currency})</Label><FormattedNumberInput value={newContributor.pledge_amount} onChange={(v) => setNewContributor(p => ({ ...p, pledge_amount: v }))} placeholder="e.g. 20,000" /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Secondary phone <span className="text-xs text-muted-foreground">(optional)</span></Label><Input value={newContributor.secondary_phone} onChange={(e) => setNewContributor(p => ({ ...p, secondary_phone: e.target.value }))} placeholder="+255..." /></div>
+                  <div className="space-y-2">
+                    <Label>Notify</Label>
+                    <Select value={newContributor.notify_target} onValueChange={(v) => setNewContributor(p => ({ ...p, notify_target: v as any }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="primary">Primary only</SelectItem>
+                        <SelectItem value="secondary">Secondary only</SelectItem>
+                        <SelectItem value="both">Both numbers</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground -mt-2">Secondary phone is for notifications only — it won't link to a Nuru account.</p>
                 <div className="space-y-2"><Label>Notes</Label><Textarea value={newContributor.notes} onChange={(e) => setNewContributor(p => ({ ...p, notes: e.target.value }))} rows={2} /></div>
               </div>
             </TabsContent>
@@ -990,20 +1049,45 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
         </DialogContent>
       </Dialog>
 
-      {/* Edit Pledge Dialog */}
+      {/* Edit Contributor Dialog */}
       <Dialog open={editPledgeDialogOpen} onOpenChange={setEditPledgeDialogOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Update Pledge for {editTarget?.contributor?.name}</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Edit {editTarget?.contributor?.name}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Pledge Amount ({currency})</Label>
               <FormattedNumberInput value={editAmount} onChange={(v) => setEditAmount(v)} />
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Secondary phone <span className="text-xs text-muted-foreground">(optional)</span></Label>
+                <Input
+                  value={editSecondaryPhone}
+                  onChange={(e) => setEditSecondaryPhone(e.target.value)}
+                  placeholder="+255..."
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Notify</Label>
+                <Select value={editNotifyTarget} onValueChange={(v) => setEditNotifyTarget(v as any)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="primary">Primary only</SelectItem>
+                    <SelectItem value="secondary">Secondary only</SelectItem>
+                    <SelectItem value="both">Both numbers</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              The secondary number is used only for contribution notifications. It is never linked to a Nuru account or used elsewhere.
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditPledgeDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleUpdatePledge} disabled={isSubmitting}>
-              {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Updating...</> : 'Update Pledge'}
+              {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>

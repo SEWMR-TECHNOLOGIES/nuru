@@ -29,7 +29,7 @@ const Header = () => {
   }, [isOpen]);
 
   const navItems = [
-    { name: "Features", path: "/#features" },
+    { name: "Features", path: "/features" },
     { name: "FAQs", path: "/faqs" },
     { name: "Contact", path: "/contact" },
   ];

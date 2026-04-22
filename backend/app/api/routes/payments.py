@@ -241,6 +241,16 @@ def _sync_target_after_payment(db: Session, tx: Transaction):
             return
         ticket.payment_status = PaymentStatusEnum.completed
         ticket.payment_ref = tx.transaction_code
+        # Gateway-paid tickets are auto-confirmed — funds already received via
+        # SasaPay, no organiser approval needed. Promote the order status so
+        # the ticket appears in /my-tickets, counts toward sold inventory, and
+        # is eligible for QR-code check-in.
+        from models.enums import TicketOrderStatusEnum
+        if ticket.status not in (
+            TicketOrderStatusEnum.cancelled,
+            TicketOrderStatusEnum.rejected,
+        ):
+            ticket.status = TicketOrderStatusEnum.confirmed
         return
 
     # ── Event contributions ────────────────────────────────────────────────
@@ -381,7 +391,11 @@ def _sync_target_after_payment(db: Session, tx: Transaction):
         try:
             from api.routes.event_groups import post_payment_system_message
             paid_amount = float(contribution.amount or 0)
-            total_paid_after = sum(float(c.amount or 0) for c in ec.contributions)
+            total_paid_after = sum(
+                float(c.amount or 0) for c in ec.contributions
+                if c.confirmation_status is None
+                or c.confirmation_status == ContributionStatusEnum.confirmed
+            )
             # `ec.contributions` may not yet include the just-flushed row in
             # this session — guarantee it's counted.
             if contribution not in ec.contributions:
@@ -908,6 +922,140 @@ def _resolve_tx(db: Session, identifier: str) -> Optional[Transaction]:
     )
 
 
+def _resolve_offline_receipt(db: Session, identifier: str) -> Optional[dict]:
+    """Resolve an offline-confirmed payment (ticket claim or contribution)
+    by its transaction_code and return it shaped like a Transaction so the
+    /wallet/receipt UI renders it identically to a gateway payment.
+
+    Falls back to None when nothing matches — callers should treat this as
+    "no receipt available".
+    """
+    from models.ticket_offline_claims import TicketOfflineClaim
+    from models.contributions import (
+        EventContribution, EventContributor, UserContributor,
+    )
+    from models.events import Event as _Event
+    from models.references import Currency as _Currency
+    from models.enums import ContributionStatusEnum
+
+    def _event_currency_code(event: Optional[_Event]) -> str:
+        if event and getattr(event, "currency_id", None):
+            cur = (
+                db.query(_Currency)
+                .filter(_Currency.id == event.currency_id)
+                .first()
+            )
+            if cur and getattr(cur, "code", None):
+                return cur.code.strip()
+        return "TZS"
+
+    # 1. Offline ticket claim
+    claim = (
+        db.query(TicketOfflineClaim)
+        .filter(
+            TicketOfflineClaim.transaction_code == identifier,
+            TicketOfflineClaim.status == "confirmed",
+        )
+        .first()
+    )
+    if claim:
+        event = (
+            db.query(_Event).filter(_Event.id == claim.event_id).first()
+            if claim.event_id else None
+        )
+        confirmed_at = (
+            claim.reviewed_at.isoformat() if getattr(claim, "reviewed_at", None) else None
+        )
+        description = (
+            f"Ticket · {event.name}" if event and event.name
+            else "Ticket payment"
+        )
+        return {
+            "id": f"oc-tkt-{claim.id}",
+            "transaction_code": claim.transaction_code or f"OFFLINE-{str(claim.id)[:8].upper()}",
+            "target_type": PaymentTargetTypeEnum.ticket.value,
+            "target_id": str(claim.issued_ticket_id) if claim.issued_ticket_id else None,
+            "country_code": getattr(event, "country_code", None) if event else None,
+            "currency_code": _event_currency_code(event),
+            "gross_amount": float(claim.amount or 0),
+            "commission_amount": 0.0,
+            "net_amount": float(claim.amount or 0),
+            "method_type": claim.payment_channel,
+            "provider_name": claim.provider_name,
+            "payment_channel": claim.payment_channel,
+            "external_reference": claim.transaction_code,
+            "payment_description": description,
+            "status": TransactionStatusEnum.credited.value,
+            "failure_reason": None,
+            "initiated_at": claim.created_at.isoformat() if getattr(claim, "created_at", None) else confirmed_at,
+            "confirmed_at": confirmed_at,
+            "completed_at": confirmed_at,
+            "_payer_user_id": claim.claimant_user_id,
+            "_beneficiary_user_id": getattr(event, "organizer_id", None) if event else None,
+        }
+
+    # 2. Offline contribution payment
+    contrib = (
+        db.query(EventContribution)
+        .filter(
+            EventContribution.transaction_ref == identifier,
+            EventContribution.payment_channel.isnot(None),
+            EventContribution.confirmation_status == ContributionStatusEnum.confirmed,
+        )
+        .first()
+    )
+    if contrib:
+        event = (
+            db.query(_Event).filter(_Event.id == contrib.event_id).first()
+            if contrib.event_id else None
+        )
+        ec = (
+            db.query(EventContributor)
+            .filter(EventContributor.id == contrib.event_contributor_id)
+            .first()
+            if contrib.event_contributor_id else None
+        )
+        contributor = (
+            db.query(UserContributor)
+            .filter(UserContributor.id == ec.contributor_id)
+            .first()
+            if ec else None
+        )
+        confirmed_at = (
+            contrib.confirmed_at.isoformat() if contrib.confirmed_at else None
+        )
+        description = (
+            f"Contribution · {event.name}" if event and event.name
+            else "Event contribution"
+        )
+        return {
+            "id": f"oc-con-{contrib.id}",
+            "transaction_code": contrib.transaction_ref or f"OFFLINE-{str(contrib.id)[:8].upper()}",
+            "target_type": PaymentTargetTypeEnum.contribution.value,
+            "target_id": str(contrib.event_id) if contrib.event_id else None,
+            "country_code": getattr(event, "country_code", None) if event else None,
+            "currency_code": _event_currency_code(event),
+            "gross_amount": float(contrib.amount or 0),
+            "commission_amount": 0.0,
+            "net_amount": float(contrib.amount or 0),
+            "method_type": contrib.payment_channel,
+            "provider_name": contrib.provider_name,
+            "payment_channel": contrib.payment_channel,
+            "external_reference": contrib.transaction_ref,
+            "payment_description": description,
+            "status": TransactionStatusEnum.credited.value,
+            "failure_reason": None,
+            "initiated_at": contrib.contributed_at.isoformat() if contrib.contributed_at else confirmed_at,
+            "confirmed_at": confirmed_at,
+            "completed_at": confirmed_at,
+            "_payer_user_id": getattr(contributor, "user_id", None) if contributor else None,
+            "_beneficiary_user_id": getattr(event, "organizer_id", None) if event else None,
+        }
+
+    return None
+
+
+
 @router.get("/{transaction_id}/status")
 async def transaction_status(
     transaction_id: str,
@@ -916,6 +1064,16 @@ async def transaction_status(
 ):
     tx = _resolve_tx(db, transaction_id)
     if not tx:
+        # Fallback: offline-confirmed payments aren't in the Transaction
+        # table. Resolve them from the offline-claim tables and return the
+        # same shape so the receipt UI renders identically.
+        offline = _resolve_offline_receipt(db, transaction_id)
+        if offline:
+            payer = offline.pop("_payer_user_id", None)
+            beneficiary = offline.pop("_beneficiary_user_id", None)
+            if current_user.id not in (payer, beneficiary):
+                raise HTTPException(status_code=403, detail="Forbidden.")
+            return api_response(True, "Transaction status.", offline)
         raise HTTPException(status_code=404, detail="Transaction not found.")
     if tx.payer_user_id != current_user.id and tx.beneficiary_user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Forbidden.")
@@ -1000,16 +1158,24 @@ def public_receipt(transaction_code: str, db: Session = Depends(get_db)):
         .filter(Transaction.transaction_code == transaction_code)
         .first()
     )
-    if not tx:
-        raise HTTPException(status_code=404, detail="Receipt not found.")
-    # Only successful payments are shareable — pending/failed receipts leak
-    # nothing meaningful and could be abused for phishing.
-    if tx.status not in (TransactionStatusEnum.paid, TransactionStatusEnum.credited):
-        raise HTTPException(status_code=404, detail="Receipt not available.")
-    safe = _serialize_tx(tx)
-    # Strip ops-only fields. Description already starts with "Nuru · …"
-    safe.pop("failure_reason", None)
-    return api_response(True, "Public receipt.", safe)
+    if tx:
+        # Only successful payments are shareable — pending/failed receipts
+        # leak nothing meaningful and could be abused for phishing.
+        if tx.status not in (TransactionStatusEnum.paid, TransactionStatusEnum.credited):
+            raise HTTPException(status_code=404, detail="Receipt not available.")
+        safe = _serialize_tx(tx)
+        safe.pop("failure_reason", None)
+        return api_response(True, "Public receipt.", safe)
+
+    # Offline-confirmed payment fallback (ticket claim or contribution).
+    offline = _resolve_offline_receipt(db, transaction_code)
+    if offline:
+        offline.pop("_payer_user_id", None)
+        offline.pop("_beneficiary_user_id", None)
+        offline.pop("failure_reason", None)
+        return api_response(True, "Public receipt.", offline)
+
+    raise HTTPException(status_code=404, detail="Receipt not found.")
 
 
 

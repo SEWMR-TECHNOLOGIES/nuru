@@ -5,10 +5,13 @@ import { useCurrency } from "@/hooks/useCurrency";
 // Realistic per-currency contribution magnitudes for the hero figure.
 // These are intentionally not pulled from an API — they're brand statistics
 // shown above the fold, so they must render instantly and never flicker.
+// Hero figures are scaled to read cleanly at one-decimal precision:
+//   TZS → "940.4M"   KES → "36.6M"   USD → "376.2k"
+// (TZS reference 940.4M ≈ KES 36.6M ≈ USD 376.2k at TZS≈25.7/KES, TZS≈2,500/USD.)
 const CONTRIBUTIONS_BY_CURRENCY: Record<string, number> = {
-  TZS: 12_400_000_000, // ~12.4B TZS
-  KES: 480_000_000,    // ~480M KES
-  USD: 4_200_000,      // ~4.2M USD
+  TZS: 940_400_000, // ~940.4M TZS
+  KES: 36_600_000,  // ~36.6M KES
+  USD: 376_200,     // ~376.2k USD
 };
 
 /**
@@ -61,9 +64,18 @@ const formatCompact = (n: number) => {
 // For the contributions figure we want the magnitude in millions with
 // thousand separators on the integer part — e.g. "12,400M" reads cleanly
 // as "twelve thousand four hundred million" without overwhelming the strip.
+// Contribution figure formatter — one decimal precision so figures like
+// "1,240.4M" or "48.2M" or "420.5k" all read consistently across currencies.
 const formatMillions = (n: number) => {
-  const millions = Math.round(n / 1_000_000);
-  return `${millions.toLocaleString("en-US")}M`;
+  if (n >= 1_000_000) {
+    const millions = n / 1_000_000;
+    return `${millions.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`;
+  }
+  if (n >= 1_000) {
+    const thousands = n / 1_000;
+    return `${thousands.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}k`;
+  }
+  return n.toLocaleString("en-US");
 };
 
 // ───────────────────────── Waveform geometry ─────────────────────────
@@ -215,14 +227,14 @@ const LivingLedgerHero = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 1, delay: 0.3 }}
-          className="relative border-y border-border/70 py-8 lg:py-10 mb-12"
+          className="relative border-y border-border/70 pt-12 sm:pt-8 py-8 lg:py-10 mb-12"
         >
-          {/* tiny corner caption */}
-          <figcaption className="absolute top-3 left-0 text-[10px] tracking-[0.25em] uppercase text-muted-foreground/70">
-            Fig. 01 — Contributions, last 90 days
-          </figcaption>
-          <div className="absolute top-3 right-0 text-[10px] tracking-[0.25em] uppercase text-muted-foreground/70">
-            +24.6% MoM
+          {/* tiny corner caption — stacks on mobile to avoid overlap */}
+          <div className="absolute top-3 left-0 right-0 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between text-[10px] tracking-[0.25em] uppercase text-muted-foreground/70">
+            <figcaption className="truncate">
+              Fig. 01 — Contributions, last 90 days
+            </figcaption>
+            <span className="shrink-0">+24.6% MoM</span>
           </div>
 
           {/* Y-axis tick labels */}
@@ -373,6 +385,8 @@ const LivingLedgerHero = () => {
         <div className="mt-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4 text-[10px] tracking-[0.25em] uppercase text-muted-foreground/70">
           <div className="flex items-center gap-6 flex-wrap">
             <span>M-Pesa</span>
+            <span className="opacity-30">/</span>
+            <span>Mixx by Yas</span>
             <span className="opacity-30">/</span>
             <span>Airtel Money</span>
             <span className="opacity-30">/</span>

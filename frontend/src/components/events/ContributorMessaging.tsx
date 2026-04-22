@@ -107,6 +107,15 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  // Saved per-event customisations, keyed by case_type.
+  const [savedTemplates, setSavedTemplates] = useState<Partial<Record<ContributorCase, {
+    message_template: string | null;
+    payment_info: string | null;
+    contact_phone: string | null;
+  }>>>({});
+  const [templatesLoaded, setTemplatesLoaded] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+
   // Filter contributors by case
   const caseFiltered = useMemo(() => {
     return eventContributors.filter(ec => {
@@ -165,25 +174,76 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
   // Get default template for selected case
   const defaultTemplate = DEFAULT_TEMPLATES.find(t => t.case === selectedCase);
 
-  // Set template when case changes
+  // Apply a case's saved values (or fall back to defaults) to the form fields.
+  const applyCaseValues = (caseKey: ContributorCase, saved = savedTemplates) => {
+    const def = DEFAULT_TEMPLATES.find(t => t.case === caseKey);
+    const s = saved[caseKey];
+    setMessageText(s?.message_template ?? def?.template ?? '');
+    if (s?.payment_info != null) setCustomPaymentInfo(s.payment_info);
+    if (s?.contact_phone != null) setContactPhoneOverride(s.contact_phone);
+  };
+
+  // Load saved templates once per event
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await contributorsApi.getMessagingTemplates(eventId);
+        if (cancelled) return;
+        const tpls = (res?.data?.templates || {}) as typeof savedTemplates;
+        setSavedTemplates(tpls);
+        applyCaseValues(selectedCase, tpls);
+      } catch { /* silent */ }
+      finally { if (!cancelled) setTemplatesLoaded(true); }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId]);
+
+  // Set template when case changes — prefer saved, else default
   const handleCaseChange = (value: ContributorCase) => {
     setSelectedCase(value);
-    const template = DEFAULT_TEMPLATES.find(t => t.case === value);
-    if (template) {
-      setMessageText(template.template);
-    }
+    applyCaseValues(value);
     setIsEditing(false);
     setSendResult(null);
     setSearchQuery('');
     setSelectedIds(new Set());
   };
 
-  // Initialize message on first render
+  // Initialize message on first render (default; replaced once saved templates load).
   useEffect(() => {
-    if (defaultTemplate) {
+    if (defaultTemplate && !templatesLoaded) {
       setMessageText(defaultTemplate.template);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Manual "Save" — persists the current case's customisation without sending.
+  const handleSaveTemplate = async () => {
+    setSavingTemplate(true);
+    try {
+      const res = await contributorsApi.saveMessagingTemplate(eventId, selectedCase, {
+        message_template: messageText,
+        payment_info: customPaymentInfo,
+        contact_phone: contactPhoneOverride,
+      });
+      if (res.success) {
+        setSavedTemplates(prev => ({
+          ...prev,
+          [selectedCase]: {
+            message_template: res.data.message_template,
+            payment_info: res.data.payment_info,
+            contact_phone: res.data.contact_phone,
+          },
+        }));
+        toast.success('Template saved for this event');
+      }
+    } catch (err) {
+      showCaughtError(err, 'Failed to save template');
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
 
   // Resolve template variables for preview
   const resolveTemplate = (template: string, contributor: EventContributorSummary): string => {
@@ -392,6 +452,26 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
           </p>
         </div>
 
+        {/* Persistent save block — always visible so users can persist payment
+            info / contact phone / template without entering edit mode. */}
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed bg-muted/30 px-3 py-2">
+          <div className="text-[11px] text-muted-foreground">
+            {savedTemplates[selectedCase]
+              ? 'Saved customisation in use for this case. Update and re-save anytime.'
+              : 'Save these values so you do not have to retype them next time.'}
+          </div>
+          <Button
+            variant="default"
+            size="sm"
+            className="text-xs gap-1"
+            onClick={handleSaveTemplate}
+            disabled={savingTemplate || !messageText.trim()}
+          >
+            {savingTemplate ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+            Save for this event
+          </Button>
+        </div>
+
         {/* Message Template */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -426,16 +506,33 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
                   </Badge>
                 ))}
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs"
-                onClick={() => {
-                  if (defaultTemplate) setMessageText(defaultTemplate.template);
-                }}
-              >
-                Reset to Default
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => {
+                    if (defaultTemplate) setMessageText(defaultTemplate.template);
+                  }}
+                >
+                  Reset to Default
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="text-xs gap-1"
+                  onClick={handleSaveTemplate}
+                  disabled={savingTemplate || !messageText.trim()}
+                >
+                  {savingTemplate ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                  Save for this event
+                </Button>
+                {savedTemplates[selectedCase] && (
+                  <span className="text-[11px] text-muted-foreground">
+                    ✓ Saved customisation in use
+                  </span>
+                )}
+              </div>
             </div>
           ) : (
             <div className="bg-muted/50 rounded-lg p-4 border">

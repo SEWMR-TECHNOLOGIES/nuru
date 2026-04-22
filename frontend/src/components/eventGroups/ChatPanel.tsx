@@ -153,24 +153,44 @@ const SystemMessage = ({ msg, isNew }: { msg: Msg; isNew: boolean }) => {
                 {name}
               </p>
 
-              {pledge > 0 ? (
-                <div className="mt-2">
-                  <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${pct}%` }}
-                      transition={{ duration: 0.6, ease: "easeOut" }}
-                      className="h-full rounded-full bg-emerald-500"
-                    />
+              {pledge > 0 ? (() => {
+                const overpaid = paid > pledge;
+                const extra = Math.max(0, paid - pledge);
+                return (
+                  <div className="mt-2">
+                    <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${pct}%` }}
+                        transition={{ duration: 0.6, ease: "easeOut" }}
+                        className={`h-full rounded-full ${overpaid ? "bg-amber-500" : "bg-emerald-500"}`}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] mt-1">
+                      <span className="text-muted-foreground tabular-nums">
+                        {fmt(paid)} <span className="opacity-60">of</span> {fmt(pledge)}
+                      </span>
+                      <span className="font-bold text-foreground tabular-nums">{pct}%</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] mt-1">
+                      {overpaid ? (
+                        <span className="font-semibold text-amber-600 dark:text-amber-400 tabular-nums">
+                          Over by {fmt(extra)}
+                        </span>
+                      ) : balance > 0 ? (
+                        <span className="tabular-nums text-red-600 dark:text-red-400">
+                          <span className="opacity-80">Balance</span>{" "}
+                          <span className="font-semibold">{fmt(balance)}</span>
+                        </span>
+                      ) : (
+                        <span className="font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                          Fully paid
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between text-[10px] mt-1">
-                    <span className="text-muted-foreground tabular-nums">
-                      {fmt(paid)} <span className="opacity-60">of</span> {fmt(pledge)}
-                    </span>
-                    <span className="font-bold text-foreground tabular-nums">{pct}%</span>
-                  </div>
-                </div>
-              ) : null}
+                );
+              })() : null}
             </div>
           </div>
         </div>

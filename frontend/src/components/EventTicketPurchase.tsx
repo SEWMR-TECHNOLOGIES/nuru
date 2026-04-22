@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, Minus, Plus, MapPin } from "lucide-react";
+import { Loader2, Minus, Plus, MapPin, Clock } from "lucide-react";
 import TicketIcon from "@/assets/icons/ticket-icon.svg";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import CheckoutModal from "@/components/payments/CheckoutModal";
+import ReservationSuccess from "@/components/tickets/ReservationSuccess";
 
 interface EventTicketPurchaseProps {
   eventId: string;
@@ -36,7 +37,9 @@ const EventTicketPurchase = ({ eventId, eventName, event }: EventTicketPurchaseP
   const [selectedClass, setSelectedClass] = useState<TicketClass | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [purchasing, setPurchasing] = useState(false);
+  const [reserving, setReserving] = useState(false);
   const [purchaseResult, setPurchaseResult] = useState<{ ticket_code: string; total_amount: number } | null>(null);
+  const [reservation, setReservation] = useState<any>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
 
@@ -65,6 +68,7 @@ const EventTicketPurchase = ({ eventId, eventName, event }: EventTicketPurchaseP
     setSelectedClass(null);
     setQuantity(1);
     setPurchaseResult(null);
+    setReservation(null);
     setPendingTicketId(null);
     setCheckoutOpen(false);
   };
@@ -84,7 +88,6 @@ const EventTicketPurchase = ({ eventId, eventName, event }: EventTicketPurchaseP
         const data = res.data as any;
         setPurchaseResult({ ticket_code: data.ticket_code, total_amount: data.total_amount });
         setPendingTicketId(data.ticket_id || data.id || null);
-        // Show reservation summary first — checkout opens only after user clicks "Pay now".
         setCheckoutOpen(false);
       } else {
         toast.error(res.message || "Could not reserve ticket");
@@ -93,6 +96,40 @@ const EventTicketPurchase = ({ eventId, eventName, event }: EventTicketPurchaseP
       toast.error("Failed to reserve ticket");
     } finally {
       setPurchasing(false);
+    }
+  };
+
+  /**
+   * Airline-style hold — surfaces the ReservationSuccess card with countdown.
+   */
+  const handleReserve = async () => {
+    if (!selectedClass) return;
+    setReserving(true);
+    try {
+      const res = await ticketingApi.reserveTicket({
+        ticket_class_id: selectedClass.id,
+        quantity,
+      });
+      if (res.success && res.data) {
+        const data = res.data as any;
+        setReservation({
+          ticket_code: data.ticket_code,
+          total_amount: data.total_amount,
+          reserved_until: data.reserved_until,
+          ticket_class_name: selectedClass.name,
+          quantity,
+          event_name: displayName,
+        });
+        setPendingTicketId(data.ticket_id || data.id || null);
+        setPurchaseResult(null);
+        setCheckoutOpen(false);
+      } else {
+        toast.error(res.message || "Could not reserve ticket");
+      }
+    } catch {
+      toast.error("Failed to reserve ticket");
+    } finally {
+      setReserving(false);
     }
   };
 
@@ -182,8 +219,8 @@ const EventTicketPurchase = ({ eventId, eventName, event }: EventTicketPurchaseP
               )}
             </div>
 
-            {/* CheckoutModal nested — opens after "Pay now" */}
-            {selectedClass && purchaseResult && (
+            {/* CheckoutModal nested — opens after "Pay now" (instant or from reservation) */}
+            {selectedClass && (purchaseResult || reservation) && (
               <CheckoutModal
                 open={checkoutOpen}
                 onOpenChange={(v) => {
@@ -192,7 +229,9 @@ const EventTicketPurchase = ({ eventId, eventName, event }: EventTicketPurchaseP
                 }}
                 targetType="event_ticket"
                 targetId={pendingTicketId || selectedClass.id}
-                amount={purchaseResult.total_amount}
+                offlineClaimTargetId={selectedClass.id}
+                offlineClaimQuantity={quantity}
+                amount={(purchaseResult?.total_amount ?? reservation?.total_amount) || 0}
                 allowBank={false}
                 title={`Buy ${quantity} ${selectedClass.name} ticket${quantity > 1 ? "s" : ""}`}
                 description={`Ticket for ${displayName} — ${selectedClass.name} × ${quantity}`}
@@ -207,7 +246,13 @@ const EventTicketPurchase = ({ eventId, eventName, event }: EventTicketPurchaseP
               />
             )}
 
-            {purchaseResult && !checkoutOpen ? (
+            {reservation && !checkoutOpen ? (
+              <ReservationSuccess
+                data={reservation}
+                onPayNow={() => setCheckoutOpen(true)}
+                onClose={() => setOpen(false)}
+              />
+            ) : purchaseResult && !checkoutOpen ? (
               <div className="text-center space-y-3 py-4">
                 <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto">
                   <img src={TicketIcon} alt="" className="w-7 h-7 dark:invert" />
@@ -317,19 +362,38 @@ const EventTicketPurchase = ({ eventId, eventName, event }: EventTicketPurchaseP
                       </span>
                       <span className="font-bold">{formatPrice(selectedClass.price * quantity)}</span>
                     </div>
-                    <Button
-                      className="w-full gap-2"
-                      size="lg"
-                      onClick={handlePurchase}
-                      disabled={purchasing}
-                    >
-                      {purchasing ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <img src={TicketIcon} alt="" className="w-4 h-4 invert" />
-                      )}
-                      Purchase Ticket{quantity > 1 ? "s" : ""}
-                    </Button>
+                    <div className="space-y-2">
+                      <Button
+                        className="w-full gap-2"
+                        size="lg"
+                        onClick={handlePurchase}
+                        disabled={purchasing || reserving}
+                      >
+                        {purchasing ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <img src={TicketIcon} alt="" className="w-4 h-4 invert" />
+                        )}
+                        Pay now
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full gap-2"
+                        size="lg"
+                        onClick={handleReserve}
+                        disabled={purchasing || reserving}
+                      >
+                        {reserving ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Clock className="w-4 h-4" />
+                        )}
+                        Reserve · pay later
+                      </Button>
+                      <p className="text-[11px] text-center text-muted-foreground">
+                        Reserve to hold {quantity > 1 ? "these tickets" : "this ticket"} now and pay before the hold expires.
+                      </p>
+                    </div>
                   </motion.div>
                 )}
               </>

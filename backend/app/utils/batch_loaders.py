@@ -1478,17 +1478,24 @@ def build_pending_contribution_dicts(
     contributions: list,
     *,
     include_status: bool = False,
+    include_audit: bool = True,
 ) -> List[Dict]:
     """
     Bulk-build dicts for EventContribution rows (pending or recorded lists).
     Replaces N+1 queries: 1 EventContributor + 1 UserContributor + 1 User per row.
     Now: 3 batched queries total regardless of list size.
+
+    When ``include_audit`` is True (default — for organiser/auditor views), the
+    extra offline-claim fields (channel, provider, payer account, receipt URL)
+    are included. Set to False for committee members without audit permission
+    to avoid leaking the full payer trail.
     """
     if not contributions:
         return []
 
     ec_ids = {c.event_contributor_id for c in contributions if c.event_contributor_id}
     recorder_ids = {c.recorded_by for c in contributions if c.recorded_by}
+    reviewer_ids = {c.claim_reviewed_by for c in contributions if getattr(c, "claim_reviewed_by", None)}
 
     # Bulk-load EventContributors and their UserContributors
     ec_map: Dict[Any, EventContributor] = {}
@@ -1504,17 +1511,19 @@ def build_pending_contribution_dicts(
         for uc in db.query(UserContributor).filter(UserContributor.id.in_(list(contributor_ids))).all():
             contributor_map[uc.id] = uc
 
-    # Bulk-load recorder users
-    recorder_map: Dict[Any, User] = {}
-    if recorder_ids:
-        for u in db.query(User).filter(User.id.in_(list(recorder_ids))).all():
-            recorder_map[u.id] = u
+    # Bulk-load recorder + reviewer users (single query)
+    user_map: Dict[Any, User] = {}
+    all_user_ids = recorder_ids | reviewer_ids
+    if all_user_ids:
+        for u in db.query(User).filter(User.id.in_(list(all_user_ids))).all():
+            user_map[u.id] = u
 
     out: List[Dict] = []
     for c in contributions:
         ec = ec_map.get(c.event_contributor_id)
         contributor = contributor_map.get(ec.contributor_id) if ec and ec.contributor_id else None
-        recorder = recorder_map.get(c.recorded_by) if c.recorded_by else None
+        recorder = user_map.get(c.recorded_by) if c.recorded_by else None
+        reviewer = user_map.get(c.claim_reviewed_by) if getattr(c, "claim_reviewed_by", None) else None
 
         item = {
             "id": str(c.id),
@@ -1530,6 +1539,19 @@ def build_pending_contribution_dicts(
             item["confirmed_at"] = c.confirmed_at.isoformat() if c.confirmed_at else None
         else:
             item["recorded_by"] = f"{recorder.first_name} {recorder.last_name}" if recorder else None
+
+        # Offline-claim audit trail. Gated by include_audit so committee
+        # members without audit permission don't see payer account / receipt.
+        if include_audit:
+            item["payment_channel"] = getattr(c, "payment_channel", None)
+            item["provider_name"] = getattr(c, "provider_name", None)
+            item["provider_id"] = str(c.provider_id) if getattr(c, "provider_id", None) else None
+            item["payer_account"] = getattr(c, "payer_account", None)
+            item["receipt_image_url"] = getattr(c, "receipt_image_url", None)
+            item["claim_submitted_at"] = c.claim_submitted_at.isoformat() if getattr(c, "claim_submitted_at", None) else None
+            item["claim_reviewed_at"] = c.claim_reviewed_at.isoformat() if getattr(c, "claim_reviewed_at", None) else None
+            item["claim_reviewed_by"] = f"{reviewer.first_name} {reviewer.last_name}" if reviewer else None
+            item["claim_rejection_reason"] = getattr(c, "claim_rejection_reason", None)
         out.append(item)
 
     return out

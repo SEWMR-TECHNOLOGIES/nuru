@@ -280,7 +280,10 @@ def get_public_event(event_id: str, db: Session = Depends(get_db)):
     if settings and settings.contributions_enabled:
         ct = db.query(EventContributionTarget).filter(EventContributionTarget.event_id == eid).first()
         target = float(ct.target_amount) if ct else (float(settings.contribution_target_amount) if settings.contribution_target_amount else 0)
-        current = float(db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(EventContribution.event_id == eid).scalar())
+        current = float(db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(
+            EventContribution.event_id == eid,
+            EventContribution.confirmation_status == "confirmed",
+        ).scalar())
 
         data["contribution_info"] = {
             "enabled": True,
@@ -466,8 +469,14 @@ def public_contribution_page(event_id: str, db: Session = Depends(get_db)):
     settings = db.query(EventSetting).filter(EventSetting.event_id == eid).first()
     ct = db.query(EventContributionTarget).filter(EventContributionTarget.event_id == eid).first()
     target = float(ct.target_amount) if ct else (float(settings.contribution_target_amount) if settings and settings.contribution_target_amount else 0)
-    current = float(db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(EventContribution.event_id == eid).scalar())
-    count = db.query(sa_func.count(EventContribution.id)).filter(EventContribution.event_id == eid).scalar()
+    current = float(db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(
+        EventContribution.event_id == eid,
+        EventContribution.confirmation_status == "confirmed",
+    ).scalar())
+    count = db.query(sa_func.count(EventContribution.id)).filter(
+        EventContribution.event_id == eid,
+        EventContribution.confirmation_status == "confirmed",
+    ).scalar()
 
     organizer = db.query(User).filter(User.id == event.organizer_id).first()
 

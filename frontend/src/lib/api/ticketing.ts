@@ -13,9 +13,29 @@ export interface TicketClass {
   currency?: string;
   quantity: number;
   sold: number;
+  /** Organizer-only: number of tickets currently held by unpaid reservations. */
+  reserved?: number;
   available: number;
   status: string;
   display_order: number;
+}
+
+export interface TicketReservation {
+  id: string;
+  ticket_code: string;
+  ticket_class_id: string;
+  ticket_class?: string;
+  quantity: number;
+  total_amount: number;
+  reserved_until: string | null;
+  seconds_remaining: number;
+  event?: {
+    id?: string;
+    name?: string;
+    start_date?: string | null;
+    location?: string | null;
+    cover_image?: string | null;
+  } | null;
 }
 
 export interface TicketPurchase {
@@ -103,4 +123,39 @@ export const ticketingApi = {
   // Check-in ticket (organizer scans QR)
   checkInTicket: (ticketCode: string) =>
     put<{ ticket_code: string; checked_in_at: string }>(`/ticketing/verify/${ticketCode}/check-in`, {}),
+
+  // ── Reservations (airline-style holds) ────────────────────────────────
+  reserveTicket: (data: { ticket_class_id: string; quantity: number }) =>
+    post<{
+      ticket_id: string;
+      ticket_code: string;
+      quantity: number;
+      total_amount: number;
+      reserved_until: string;
+      seconds_remaining: number;
+    }>(`/ticketing/reserve`, data),
+
+  /** Promote a reservation to a normal pending order so payment can begin. */
+  convertReservation: (ticketId: string) =>
+    post<{
+      ticket_id: string;
+      ticket_code: string;
+      total_amount: number;
+      ticket_class_id: string;
+      quantity: number;
+    }>(`/ticketing/reservations/${ticketId}/convert`, {}),
+
+  cancelReservation: (ticketId: string) =>
+    del(`/ticketing/reservations/${ticketId}`),
+
+  getMyReservations: () =>
+    get<{ reservations: TicketReservation[] }>(`/ticketing/my-reservations`),
+
+  /** Sweep this user's expired reservations. */
+  sweepMyReservations: () =>
+    post<{ deleted: number }>(`/ticketing/my-reservations/sweep`, {}),
+
+  /** Public, idempotent system sweep — fires on app boot until cron is wired. */
+  sweepAllExpiredReservations: () =>
+    post<{ deleted: number }>(`/ticketing/reservations/sweep`, {}),
 };

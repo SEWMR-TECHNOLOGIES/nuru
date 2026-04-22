@@ -17,6 +17,10 @@ export interface UserContributor {
   email?: string | null;
   phone?: string | null;
   notes?: string | null;
+  /** Default secondary phone for contribution notifications. Comms-only — never used to map a Nuru user. */
+  secondary_phone?: string | null;
+  /** Default notification routing applied when adding to an event. */
+  notify_target?: ContributorNotifyTarget;
   created_at?: string;
   updated_at?: string;
 }
@@ -38,6 +42,8 @@ export interface MyContributionEvent {
   last_payment_at?: string | null;
 }
 
+export type ContributorNotifyTarget = "primary" | "secondary" | "both";
+
 export interface EventContributorSummary {
   id: string;
   event_id: string;
@@ -48,6 +54,10 @@ export interface EventContributorSummary {
   balance: number;
   notes?: string | null;
   currency?: string | null;
+  /** Optional secondary phone notified for contribution events. NEVER used to map a Nuru user. */
+  secondary_phone?: string | null;
+  /** Which numbers receive notifications: primary (default), secondary, or both. */
+  notify_target?: ContributorNotifyTarget;
   /** True if this contributor has a live (un-revoked) guest payment link. */
   has_share_link?: boolean;
   /** ISO timestamp the contributor last opened their /c/:token page, if any. */
@@ -97,7 +107,7 @@ export const contributorsApi = {
     get<UserContributor>(`/user-contributors/${contributorId}`),
 
   /** Create a new contributor in address book */
-  create: (data: { name: string; email?: string; phone?: string; notes?: string }) =>
+  create: (data: { name: string; email?: string; phone?: string; notes?: string; secondary_phone?: string; notify_target?: ContributorNotifyTarget }) =>
     post<UserContributor>("/user-contributors/", data),
 
   /** Update a contributor */
@@ -128,11 +138,20 @@ export const contributorsApi = {
     phone?: string;
     pledge_amount?: number;
     notes?: string;
+    /** Optional second phone notified about contribution events. */
+    secondary_phone?: string;
+    /** Routing preference for SMS / WhatsApp / in-app. Defaults to "primary". */
+    notify_target?: ContributorNotifyTarget;
   }) =>
     post<EventContributorSummary>(`/user-contributors/events/${eventId}/contributors`, data),
 
-  /** Update event contributor (pledge amount, notes) */
-  updateEventContributor: (eventId: string, eventContributorId: string, data: { pledge_amount?: number; notes?: string }) =>
+  /** Update event contributor (pledge amount, notes, secondary contact prefs) */
+  updateEventContributor: (eventId: string, eventContributorId: string, data: {
+    pledge_amount?: number;
+    notes?: string;
+    secondary_phone?: string | null;
+    notify_target?: ContributorNotifyTarget;
+  }) =>
     put<EventContributorSummary>(`/user-contributors/events/${eventId}/contributors/${eventContributorId}`, data),
 
   /** Remove contributor from event */
@@ -186,6 +205,13 @@ export const contributorsApi = {
         transaction_ref?: string;
         recorded_by?: string;
         created_at?: string;
+        // Offline-claim audit fields (organiser/auditor view)
+        payment_channel?: "mobile_money" | "bank" | null;
+        provider_name?: string | null;
+        provider_id?: string | null;
+        payer_account?: string | null;
+        receipt_image_url?: string | null;
+        claim_submitted_at?: string | null;
       }[];
       count: number;
     }>(`/user-contributors/events/${eventId}/pending-contributions`),
@@ -230,16 +256,39 @@ export const contributorsApi = {
       is_filtered: boolean;
     }>(`/user-contributors/events/${eventId}/contribution-report${buildQueryString(params)}`),
 
-  /** Send bulk reminder SMS to contributors by case type */
+  /** Send bulk reminder SMS. Server auto-saves the customisation per (event, case_type). */
   sendBulkReminder: (eventId: string, data: {
     case_type: 'no_contribution' | 'partial' | 'completed';
     message_template: string;
     payment_info?: string;
-    /** Per-send override for the inquiry contact phone (defaults to event.reminder_contact_phone, then organiser phone) */
     contact_phone?: string;
     contributor_ids: string[];
   }) =>
     post<{ sent: number; failed: number; errors: string[] }>(`/user-contributors/events/${eventId}/bulk-message`, data),
+
+  /** Fetch saved per-event messaging customisations keyed by case_type. */
+  getMessagingTemplates: (eventId: string) =>
+    get<{
+      templates: Partial<Record<'no_contribution' | 'partial' | 'completed', {
+        message_template: string | null;
+        payment_info: string | null;
+        contact_phone: string | null;
+        updated_at: string | null;
+      }>>;
+    }>(`/user-contributors/events/${eventId}/messaging-templates`),
+
+  /** Save (without sending) a per-event messaging customisation. */
+  saveMessagingTemplate: (
+    eventId: string,
+    caseType: 'no_contribution' | 'partial' | 'completed',
+    data: { message_template?: string; payment_info?: string; contact_phone?: string },
+  ) =>
+    put<{
+      case_type: string;
+      message_template: string | null;
+      payment_info: string | null;
+      contact_phone: string | null;
+    }>(`/user-contributors/events/${eventId}/messaging-templates/${caseType}`, data),
 
   // ============================================================================
   // SELF-CONTRIBUTE — events where the logged-in user is a contributor

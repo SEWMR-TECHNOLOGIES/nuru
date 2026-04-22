@@ -2650,7 +2650,10 @@ def get_contributions(event_id: str, page: int = 1, limit: int = 20, sort_by: st
     total_pages = max(1, math.ceil(total / limit))
     contributions = query.offset((page - 1) * limit).limit(limit).all()
 
-    total_amount = db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(EventContribution.event_id == eid).scalar()
+    total_amount = db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(
+        EventContribution.event_id == eid,
+        EventContribution.confirmation_status == "confirmed",
+    ).scalar()
     ct = db.query(EventContributionTarget).filter(EventContributionTarget.event_id == eid).first()
     settings = db.query(EventSetting).filter(EventSetting.event_id == eid).first()
     target = float(ct.target_amount) if ct else (float(settings.contribution_target_amount) if settings and settings.contribution_target_amount else 0)
@@ -2724,7 +2727,9 @@ def record_contribution(event_id: str, body: dict = Body(...), db: Session = Dep
                 pass
             # Calculate total paid for this contributor
             total_paid = float(db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(
-                EventContribution.event_id == eid, EventContribution.contributor_user_id == contributor_user_id
+                EventContribution.event_id == eid,
+                EventContribution.contributor_user_id == contributor_user_id,
+                EventContribution.confirmation_status == "confirmed",
             ).scalar())
             ct = db.query(EventContributionTarget).filter(EventContributionTarget.event_id == eid).first()
             target = float(ct.target_amount) if ct else 0
@@ -2870,7 +2875,9 @@ def update_contribution_target(event_id: str, body: dict = Body(...), db: Sessio
                 cuser = db.query(User).filter(User.id == uid).first()
                 if cuser and cuser.phone:
                     total_paid = float(db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(
-                        EventContribution.event_id == eid, EventContribution.contributor_user_id == uid
+                        EventContribution.event_id == eid,
+                        EventContribution.contributor_user_id == uid,
+                        EventContribution.confirmation_status == "confirmed",
                     ).scalar())
                     organizer_phone = format_phone_display(current_user.phone) if current_user.phone else None
                     sms_contribution_target_set(cuser.phone, f"{cuser.first_name}", event.name, target_val, total_paid, currency, organizer_phone=organizer_phone)
