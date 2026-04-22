@@ -34,7 +34,7 @@ const isPhotographyService = (service: any): boolean => {
 };
 
 const MyServices = () => {
-  const { format: formatPrice } = useCurrency();
+  const { format: formatPrice, currency } = useCurrency();
   const { t } = useLanguage();
   useWorkspaceMeta({
     title: 'My Services',
@@ -582,8 +582,8 @@ const MyServices = () => {
               <Textarea value={packageForm.description} onChange={(e) => setPackageForm(f => ({ ...f, description: e.target.value }))} placeholder="Brief description..." rows={2} />
             </div>
             <div className="space-y-2">
-              <Label>Price (TZS)</Label>
-              <Input type="number" min="0" value={packageForm.price} onChange={(e) => setPackageForm(f => ({ ...f, price: e.target.value }))} placeholder="e.g. 150000" />
+              <Label>Price ({currency})</Label>
+              <Input type="number" min="0" value={packageForm.price} onChange={(e) => setPackageForm(f => ({ ...f, price: e.target.value }))} placeholder={currency === "KES" ? "e.g. 6000" : "e.g. 150000"} />
             </div>
             <div className="space-y-2">
               <Label>Features (comma-separated)</Label>

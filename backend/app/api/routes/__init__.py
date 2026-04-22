@@ -52,6 +52,8 @@ from .event_groups import router as event_groups_router
 from .public_contributions import router as public_contributions_router
 from .contact import router as contact_router
 from .admin_contact import router as admin_contact_router
+from .ticket_offline_claims import router as ticket_offline_claims_router
+from .ticket_reservations import router as ticket_reservations_router
 
 # All routers to be included in main app
 all_routers = [
@@ -105,6 +107,8 @@ all_routers = [
     public_contributions_router,  # /public/contributions/{token}/...
     contact_router,            # /contact/submit  (public)
     admin_contact_router,      # /admin/contact-messages/...
+    ticket_offline_claims_router,  # /ticketing/{classes,events,offline-claims,my-offline-claims}
+    ticket_reservations_router,    # /ticketing/{reserve,reservations/...,my-reservations,...}
 ]
 
 __all__ = [

@@ -68,6 +68,7 @@ import MigrationWelcomeModal from "@/components/migration/MigrationWelcomeModal"
 import NotFound from "@/pages/NotFound";
 import ScrollToTop from "@/components/ScrollToTop";
 import EventPlanning from "@/pages/features/EventPlanning";
+import FeaturesIndex from "@/pages/features/FeaturesIndex";
 import ServiceProviders from "@/pages/features/ServiceProviders";
 import Invitations from "@/pages/features/Invitations";
 import NfcCards from "@/pages/features/NfcCards";
@@ -240,6 +241,7 @@ function InnerRoutes() {
         <Route path="/g/:token" element={<GuestGroupJoin />} />
         <Route path="/c/:token" element={<PublicContribute />} />
         <Route path="/c/:token/r/:txCode" element={<PublicContributionReceipt />} />
+        <Route path="/features" element={<FeaturesIndex />} />
         <Route path="/features/event-planning" element={<EventPlanning />} />
         <Route path="/features/service-providers" element={<ServiceProviders />} />
         <Route path="/features/invitations" element={<Invitations />} />

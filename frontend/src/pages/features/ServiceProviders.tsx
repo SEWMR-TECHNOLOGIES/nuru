@@ -36,7 +36,7 @@ const ServiceProviders = () => {
           title: "Bookings, contracts, payments — handled.",
           lead: "Every booking is a structured contract with deposit, milestones, deliverables and final settlement. No more verbal agreements, no more missing money.",
           bullets: [
-            "Protected deposits via M-Pesa, Airtel, Tigo, banks, cards.",
+            "Protected deposits via M-Pesa, Airtel, Mixx by Yas, banks, cards.",
             "Milestone-based release, not lump sums.",
             "Automatic receipts for organisers and you.",
             "Dispute and appeal flow when something goes wrong.",

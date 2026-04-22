@@ -120,16 +120,45 @@ def standard_response(
 
 def format_phone_display(phone: str) -> str:
     """
-    Convert international format to local display.
-    For TZ numbers (255...): replace prefix with '0' (e.g. 0764413212).
-    For other numbers: return with + prefix (e.g. +254712345678).
+    Normalize a stored phone number for display in user-facing messages.
+
+    Rules (in order):
+      - Empty / blank          → ""
+      - Already starts with 0  → keep as-is (e.g. "0764413610") — never turns into "+0764..."
+      - Bare 9-digit local     → prefix with "0" (e.g. "764413610" → "0764413610")
+      - TZ international       → display as local 0xx (e.g. "+255764413610" → "0764413610")
+      - Anything else          → display in E.164 with a single leading "+" (e.g. "+254712345678")
     """
     if not phone:
         return ""
-    phone = phone.strip().lstrip("+")
-    if phone.startswith("255") and len(phone) == 12:
-        return "0" + phone[3:]
-    return "+" + phone
+
+    raw = phone.strip()
+    if not raw:
+        return ""
+
+    # Local "0xx..." format — leave it alone, NEVER prepend "+".
+    if raw.startswith("0"):
+        return raw
+
+    # Strip a leading "+" or "00" international prefix to inspect the digits.
+    digits = raw.lstrip("+")
+    if digits.startswith("00"):
+        digits = digits[2:]
+
+    # Tanzanian numbers → display as local 0xx.
+    if digits.startswith("255") and len(digits) == 12:
+        return "0" + digits[3:]
+
+    # Bare 9-digit local mobile (no country code) → prefix with 0.
+    if digits.isdigit() and len(digits) == 9:
+        return "0" + digits
+
+    # Everything else → standard E.164 with a single leading "+".
+    if digits.isdigit():
+        return "+" + digits
+
+    # Fallback: unknown shape, return as entered.
+    return raw
 
 
 # ─────────────────────────────────────────────────────────────────────────────

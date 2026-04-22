@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, HandCoins, Search, ArrowDownRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, HandCoins, Search, ArrowDownRight, Printer } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { receivedPaymentsApi, type ReceivedPayment } from "@/lib/api/receivedPayments";
 import { useCurrency } from "@/hooks/useCurrency";
+import { openPaymentReceipt } from "@/utils/printPaymentReceipt";
+import { useNavigate } from "react-router-dom";
 
 const STATUS_STYLES: Record<string, string> = {
   completed: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
@@ -36,6 +38,7 @@ const RowSkeleton = () => (
 
 const MyContributionPaymentsTab = () => {
   const { format } = useCurrency();
+  const navigate = useNavigate();
   const [payments, setPayments] = useState<ReceivedPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -79,7 +82,7 @@ const MyContributionPaymentsTab = () => {
         <div className="space-y-2">
           {payments.map((p, i) => (
             <motion.div key={p.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
-              <Card className="hover:border-primary/30 transition-colors">
+              <Card className="hover:border-primary/30 transition-colors group">
                 <CardContent className="p-4 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
                     <ArrowDownRight className="w-5 h-5" />
@@ -90,6 +93,9 @@ const MyContributionPaymentsTab = () => {
                       <Badge className={`text-[10px] capitalize border-0 ${STATUS_STYLES[p.status || "pending"] || STATUS_STYLES.pending}`}>
                         {p.status || "pending"}
                       </Badge>
+                      {p.is_offline && (
+                        <Badge variant="outline" className="text-[10px]">Offline</Badge>
+                      )}
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-0.5 truncate font-mono">
                       {p.transaction_code}
@@ -108,6 +114,15 @@ const MyContributionPaymentsTab = () => {
                       <p className="text-[10px] text-muted-foreground">fee {format(p.commission_amount)}</p>
                     )}
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 opacity-60 hover:opacity-100"
+                    title="Open receipt"
+                    onClick={() => openPaymentReceipt(navigate, p)}
+                  >
+                    <Printer className="w-4 h-4" />
+                  </Button>
                 </CardContent>
               </Card>
             </motion.div>

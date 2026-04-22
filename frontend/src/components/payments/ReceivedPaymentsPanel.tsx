@@ -7,13 +7,15 @@
  * place beneficiaries see them.
  */
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, ChevronLeft, ChevronRight, ExternalLink, Search } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, ExternalLink, Search, Printer } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { receivedPaymentsApi } from "@/lib/api/receivedPayments";
 import type { ReceivedPayment, ReceivedPaymentsPage } from "@/lib/api/receivedPayments";
+import { openPaymentReceipt } from "@/utils/printPaymentReceipt";
+import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 
 type Source =
@@ -166,7 +168,8 @@ export default function ReceivedPaymentsPanel({ source, title }: Props) {
                     <th className="text-right py-2 pr-3">Net</th>
                     <th className="text-left py-2 pr-3">Reference</th>
                     <th className="text-left py-2 pr-3">Status</th>
-                    <th className="text-left py-2">Date</th>
+                    <th className="text-left py-2 pr-3">Date</th>
+                    <th className="py-2"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -246,6 +249,7 @@ function StatusBadge({ status }: { status: string | null }) {
 }
 
 function PaymentRow({ p }: { p: ReceivedPayment }) {
+  const navigate = useNavigate();
   return (
     <tr className="border-b border-border/60 last:border-0">
       <td className="py-2 pr-3">
@@ -277,16 +281,33 @@ function PaymentRow({ p }: { p: ReceivedPayment }) {
         )}
       </td>
       <td className="py-2 pr-3">
-        <StatusBadge status={p.status} />
+        <div className="flex items-center gap-1.5">
+          <StatusBadge status={p.status} />
+          {p.is_offline && (
+            <Badge variant="outline" className="text-[10px]">Offline</Badge>
+          )}
+        </div>
       </td>
-      <td className="py-2 text-muted-foreground text-xs">
+      <td className="py-2 pr-3 text-muted-foreground text-xs">
         {fmtDate(p.confirmed_at || p.completed_at || p.initiated_at)}
+      </td>
+      <td className="py-2 text-right">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          title="Open receipt"
+          onClick={() => openPaymentReceipt(navigate, p)}
+        >
+          <Printer className="w-4 h-4" />
+        </Button>
       </td>
     </tr>
   );
 }
 
 function PaymentCard({ p }: { p: ReceivedPayment }) {
+  const navigate = useNavigate();
   return (
     <div className="rounded-md border border-border p-3 space-y-2">
       <div className="flex items-start justify-between gap-2">
@@ -322,9 +343,20 @@ function PaymentCard({ p }: { p: ReceivedPayment }) {
         <span className="font-mono">{p.transaction_code}</span>
         <span>{fmtDate(p.confirmed_at || p.completed_at || p.initiated_at)}</span>
       </div>
-      {(p.provider_name || p.method_type) && (
-        <div className="text-xs text-muted-foreground">
-          via {p.provider_name || p.method_type}
+      {(p.provider_name || p.method_type || p.is_offline) && (
+        <div className="text-xs text-muted-foreground flex items-center justify-between">
+          <span>
+            {p.provider_name || p.method_type ? `via ${p.provider_name || p.method_type}` : ""}
+            {p.is_offline ? " · offline" : ""}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 gap-1 text-xs"
+            onClick={() => openPaymentReceipt(navigate, p)}
+          >
+            <Printer className="w-3.5 h-3.5" /> Print
+          </Button>
         </div>
       )}
     </div>

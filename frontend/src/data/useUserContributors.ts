@@ -34,7 +34,7 @@ export const useUserContributors = () => {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const create = async (data: { name: string; email?: string; phone?: string; notes?: string }) => {
+  const create = async (data: { name: string; email?: string; phone?: string; notes?: string; secondary_phone?: string; notify_target?: 'primary' | 'secondary' | 'both' }) => {
     const res = await contributorsApi.create(data);
     if (res.success) { await fetchAll(); return res.data; }
     throwApiError(res);

@@ -29,7 +29,7 @@ const Meetings = () => {
             "Permission-aware: only invited members join.",
             "Persistent room links per committee.",
             "Calendar invitations and reminders.",
-            "Low-bandwidth mode for African networks.",
+            "Low-bandwidth mode for slower networks.",
           ],
         },
         {

@@ -22,6 +22,12 @@ class UserContributor(Base):
     email = Column(Text)
     phone = Column(Text)
     notes = Column(Text)
+    # Default secondary contact + notification routing (comms-only). These act
+    # as defaults when the contributor is added to an event; the per-event
+    # EventContributor row keeps its own override. secondary_phone is NEVER
+    # used to map a Nuru user account or for any other feature.
+    secondary_phone = Column(Text)
+    notify_target = Column(Text, nullable=False, server_default='primary')
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -57,6 +63,10 @@ class EventContributor(Base):
     contributor_id = Column(UUID(as_uuid=True), ForeignKey('user_contributors.id', ondelete='CASCADE'), nullable=False)
     pledge_amount = Column(Numeric, default=0)
     notes = Column(Text)
+    # Optional secondary phone for this contributor on this event, with a
+    # routing preference. NEVER used for nuru-user mapping — comms only.
+    secondary_phone = Column(Text, nullable=True)
+    notify_target = Column(Text, nullable=False, server_default="primary")  # primary|secondary|both
     # Guest payment link: lets a non-Nuru contributor pay via a public URL.
     # Plain token never lives in DB — only the SHA-256 hash. The plain value
     # is returned ONCE on generation and embedded in the SMS link.
@@ -91,6 +101,17 @@ class EventContribution(Base):
     payment_method = Column(Enum(PaymentMethodEnum, name="payment_method_enum"))
     transaction_ref = Column(Text)
     recorded_by = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    # Offline-claim audit fields — populated when a payer declares
+    # 'I already paid via another method'. organiser reviews & approves.
+    payment_channel = Column(Text, nullable=True)              # mobile_money | bank
+    provider_name = Column(Text, nullable=True)                # free-text fallback (e.g. "Other")
+    provider_id = Column(UUID(as_uuid=True), ForeignKey('payment_providers.id', ondelete='SET NULL'), nullable=True)
+    payer_account = Column(Text, nullable=True)                # phone/account paid from
+    receipt_image_url = Column(Text, nullable=True)
+    claim_submitted_at = Column(DateTime, nullable=True)
+    claim_reviewed_at = Column(DateTime, nullable=True)
+    claim_reviewed_by = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    claim_rejection_reason = Column(Text, nullable=True)
     confirmation_status = Column(Enum(ContributionStatusEnum, name="contribution_status_enum"), default=ContributionStatusEnum.confirmed)
     confirmed_at = Column(DateTime, nullable=True)
     contributed_at = Column(DateTime, server_default=func.now())

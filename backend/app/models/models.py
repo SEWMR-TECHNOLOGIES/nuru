@@ -1432,6 +1432,12 @@ class UserContributor(Base):
     email = Column(Text)
     phone = Column(Text)
     notes = Column(Text)
+    # Default secondary contact + notification routing (comms-only). Acts as
+    # the default when the contributor is added to an event; the per-event
+    # EventContributor row keeps its own override. secondary_phone is NEVER
+    # used to map a Nuru user account or for any other feature.
+    secondary_phone = Column(Text)
+    notify_target = Column(Text, nullable=False, server_default='primary')
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

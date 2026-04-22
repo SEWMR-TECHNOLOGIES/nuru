@@ -6,13 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FormattedNumberInput } from "@/components/ui/formatted-number-input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, Smartphone, Building2, Wallet as WalletIcon, ShieldCheck, ArrowLeft } from "lucide-react";
+import { Loader2, Smartphone, Building2, Wallet as WalletIcon, ShieldCheck, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { showApiErrors } from "@/lib/api/showApiErrors";
 import { useCurrency } from "@/hooks/useCurrency";
 import { cn } from "@/lib/utils";
+import OfflinePaymentClaimModal from "@/components/payments/OfflinePaymentClaimModal";
 import type {
   PaymentTargetType,
   PaymentProvider,
@@ -50,6 +51,14 @@ interface CheckoutModalProps {
   submitLabel?: string;
   /** Called once the transaction reaches a terminal state. */
   onSuccess?: (tx: Transaction) => void;
+  /**
+   * Optional override for the "Already paid?" claim flow. For tickets,
+   * `targetId` may already point at a reservation; the offline-claim API
+   * needs the ticket *class* id instead.
+   */
+  offlineClaimTargetId?: string;
+  /** For ticket offline claims — number of tickets the buyer paid for. */
+  offlineClaimQuantity?: number;
 }
 
 type Method = "wallet" | "mobile_money" | "bank";
@@ -79,6 +88,8 @@ export const CheckoutModal = ({
   description,
   submitLabel,
   onSuccess,
+  offlineClaimTargetId,
+  offlineClaimQuantity,
 }: CheckoutModalProps) => {
   const { currency, countryCode, format } = useCurrency();
   const navigate = useNavigate();
@@ -91,8 +102,21 @@ export const CheckoutModal = ({
   const [phone, setPhone] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [offlineClaimOpen, setOfflineClaimOpen] = useState(false);
 
   const amount = Number(amountStr) || initialAmount || 0;
+
+  // Offline-claim is only meaningful for things the buyer was going to pay
+  // someone else for — contributions and tickets. It makes no sense for
+  // wallet top-ups or vendor service payments (those go through Nuru).
+  // For tickets we require an explicit class id so the backend stores the
+  // claim against the right ticket class (not the reservation row).
+  const offlineId =
+    targetType === "event_ticket"
+      ? offlineClaimTargetId
+      : targetId;
+  const supportsOfflineClaim =
+    (targetType === "event_contribution" || targetType === "event_ticket") && !!offlineId;
 
   // Load providers for the active country.
   const providersQuery = useQuery({
@@ -455,7 +479,7 @@ export const CheckoutModal = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-border bg-muted/20">
+        <div className="px-6 py-4 border-t border-border bg-muted/20 space-y-2">
           {currentStep === "review" ? (
             <Button onClick={handleSubmit} disabled={submitting} size="lg" className="w-full">
               {submitting ? (
@@ -472,8 +496,35 @@ export const CheckoutModal = ({
               Continue
             </Button>
           )}
+
+          {supportsOfflineClaim && currentStep !== "review" && (
+            <button
+              type="button"
+              onClick={() => setOfflineClaimOpen(true)}
+              className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 hover:bg-primary/10 text-primary text-sm font-semibold py-2.5 transition-colors"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              I already paid {targetType === "event_ticket" ? "for this ticket" : "this contribution"}
+            </button>
+          )}
         </div>
       </DialogContent>
+
+      {/* Nested: "Already paid another way" claim flow */}
+      {supportsOfflineClaim && offlineId && (
+        <OfflinePaymentClaimModal
+          open={offlineClaimOpen}
+          onOpenChange={setOfflineClaimOpen}
+          targetType={targetType as "event_contribution" | "event_ticket"}
+          targetId={offlineId}
+          quantity={offlineClaimQuantity ?? 1}
+          defaultAmount={amount > 0 ? amount : undefined}
+          amountEditable={amountEditable}
+          title={targetType === "event_ticket" ? "Already paid for ticket?" : "Already paid your contribution?"}
+          description={description}
+          onSubmitted={() => onOpenChange(false)}
+        />
+      )}
     </Dialog>
   );
 };

@@ -185,6 +185,30 @@ class ApiBase {
     }
   }
 
+  /// Submit a multipart/form-data POST. `fields` are stringified, `files`
+  /// are tuples of (fieldName, absolutePath). Used for offline payment
+  /// claim submissions that include a receipt image.
+  static Future<Map<String, dynamic>> postMultipart(
+    String endpoint, {
+    Map<String, String> fields = const {},
+    List<MapEntry<String, String>> files = const [],
+  }) async {
+    try {
+      final req = http.MultipartRequest('POST', Uri.parse('$baseUrl$endpoint'));
+      req.headers.addAll(await authOnlyHeaders());
+      req.fields.addAll(fields);
+      for (final f in files) {
+        req.files.add(await http.MultipartFile.fromPath(f.key, f.value));
+      }
+      final streamed = await req.send();
+      final res = await http.Response.fromStream(streamed);
+      _checkRateLimit(res, endpoint);
+      return normalizeResponse(res);
+    } catch (_) {
+      return {'success': false, 'message': 'Upload failed', 'data': null};
+    }
+  }
+
   /// Generic request that lets the caller pass arbitrary headers
   /// (used by services that mix auth + guest tokens, e.g. event groups).
   static Future<Map<String, dynamic>> requestWithHeaders({
