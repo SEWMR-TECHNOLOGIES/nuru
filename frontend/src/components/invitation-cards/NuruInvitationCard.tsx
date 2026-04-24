@@ -126,39 +126,39 @@ const TogetherBadge = ({ className = '' }: { className?: string }) => (
 const FooterStrip = ({ qrValue, qrUrl, admits, dressCode }: {
   qrValue: string; qrUrl?: string; admits?: string; dressCode?: string;
 }) => (
-  <div className="bg-neutral-900 rounded-2xl mx-4 mb-3 px-4 py-3 grid grid-cols-3 gap-2 items-center text-white">
+  <div className="relative z-30 bg-neutral-900 rounded-2xl mx-4 mb-3 px-4 py-3 grid grid-cols-[auto_1fr_1fr] gap-3 items-center text-white">
     {/* QR */}
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2">
       <div className="bg-white p-1.5 rounded-md border-2 border-amber-400">
-        <QRCodeCanvas value={qrValue} size={64} level="H" includeMargin={false} />
+        <QRCodeCanvas value={qrValue} size={56} level="H" includeMargin={false} />
       </div>
-      <div className="leading-tight">
-        <p className="text-[10px] font-bold tracking-wider text-amber-400">SCAN TO RSVP</p>
-        <p className="text-[9px] text-neutral-300 mt-0.5">or visit</p>
-        <p className="text-[9px] text-neutral-300 truncate max-w-[100px]">{qrUrl || 'nuru.tz/event'}</p>
+      <div className="leading-tight min-w-0">
+        <p className="text-[9px] font-bold tracking-wider text-amber-400">SCAN TO RSVP</p>
+        <p className="text-[8px] text-neutral-300 mt-0.5">or visit</p>
+        <p className="text-[8px] text-neutral-300 break-all leading-tight max-w-[110px]">{qrUrl || 'nuru.tz/rsvp'}</p>
       </div>
     </div>
     {/* Admits */}
-    <div className="flex items-center gap-2 justify-center">
-      <Ticket className="w-7 h-7 text-amber-400" strokeWidth={1.5} />
-      <div className="leading-tight">
-        <p className="text-[10px] font-bold tracking-wider text-amber-400">INVITE ADMITS</p>
-        <p className="text-[10px] text-neutral-200 mt-0.5">{admits || '1 Guest'}</p>
+    <div className="flex items-center gap-2 justify-center min-w-0">
+      <Ticket className="w-6 h-6 text-amber-400 flex-shrink-0" strokeWidth={1.5} />
+      <div className="leading-tight min-w-0">
+        <p className="text-[9px] font-bold tracking-wider text-amber-400">INVITE ADMITS</p>
+        <p className="text-[10px] text-neutral-200 mt-0.5 truncate">{admits || '1 Guest'}</p>
       </div>
     </div>
     {/* Dress code */}
-    <div className="flex items-center gap-2 justify-center">
-      <Gift className="w-7 h-7 text-amber-400" strokeWidth={1.5} />
-      <div className="leading-tight">
-        <p className="text-[10px] font-bold tracking-wider text-amber-400">DRESS CODE</p>
-        <p className="text-[9px] text-neutral-200 mt-0.5 max-w-[90px]">{dressCode || 'As you feel comfortable'}</p>
+    <div className="flex items-center gap-2 justify-center min-w-0">
+      <Gift className="w-6 h-6 text-amber-400 flex-shrink-0" strokeWidth={1.5} />
+      <div className="leading-tight min-w-0">
+        <p className="text-[9px] font-bold tracking-wider text-amber-400">DRESS CODE</p>
+        <p className="text-[9px] text-neutral-200 mt-0.5 leading-tight line-clamp-2">{dressCode || 'As you feel comfortable'}</p>
       </div>
     </div>
   </div>
 );
 
 const TrustRow = () => (
-  <div className="flex items-center justify-center gap-4 pb-3 pt-1 text-[10px] text-neutral-500">
+  <div className="relative z-30 flex items-center justify-center gap-4 pb-3 pt-1 text-[10px] text-neutral-500 bg-white">
     <span className="flex items-center gap-1"><Shield className="w-3 h-3 text-amber-500" /> Trusted.</span>
     <span className="text-neutral-300">|</span>
     <span className="flex items-center gap-1"><Users className="w-3 h-3 text-amber-500" /> Connected.</span>
@@ -171,10 +171,13 @@ const TrustRow = () => (
 
 const ClassicCard = ({ data }: { data: NuruCardData }) => (
   <div className="relative w-[600px] bg-white" style={{ aspectRatio: '600/840' }}>
-    {/* Right decorative panel — pure SVG, no raster image */}
+    {/* Right decorative panel — bounded so it doesn't overlap the footer */}
     <div
-      className="absolute inset-y-0 right-0 w-[42%] overflow-hidden"
-      style={{ clipPath: 'path("M 60 0 Q 0 200 30 420 Q 60 640 80 840 L 252 840 L 252 0 Z")' }}
+      className="absolute top-0 right-0 w-[42%] overflow-hidden"
+      style={{
+        height: 'calc(100% - 150px)',
+        clipPath: 'path("M 60 0 Q 0 200 30 360 Q 60 540 80 690 L 252 690 L 252 0 Z")',
+      }}
     >
       <DecoPanel tone="warm" />
     </div>
@@ -283,10 +286,13 @@ const ClassicCard = ({ data }: { data: NuruCardData }) => (
 
 const EditorialCard = ({ data }: { data: NuruCardData }) => (
   <div className="relative w-[600px] bg-[#fdfaf3]" style={{ aspectRatio: '600/840' }}>
-    {/* Left decorative panel — pure SVG, no raster image */}
+    {/* Left decorative panel — bounded so it doesn't overlap the footer */}
     <div
-      className="absolute inset-y-0 left-0 w-[44%] overflow-hidden"
-      style={{ clipPath: 'path("M 0 0 L 220 0 Q 280 220 240 440 Q 200 680 220 840 L 0 840 Z")' }}
+      className="absolute top-0 left-0 w-[44%] overflow-hidden"
+      style={{
+        height: 'calc(100% - 150px)',
+        clipPath: 'path("M 0 0 L 220 0 Q 280 200 240 360 Q 200 560 220 690 L 0 690 Z")',
+      }}
     >
       <DecoPanel tone="cream" />
     </div>
