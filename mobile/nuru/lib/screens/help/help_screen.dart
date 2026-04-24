@@ -56,6 +56,24 @@ class _HelpScreenState extends State<HelpScreen> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AiAssistantScreen()),
+        ),
+        backgroundColor: const Color(0xFFD4A53A), // Nuru gold accent
+        foregroundColor: Colors.white,
+        elevation: 6,
+        icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+        label: Text(
+          'Ask Nuru AI',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
         children: [

@@ -578,34 +578,35 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
     except Exception:
         db.rollback()
 
-    # Send WhatsApp (primary) + SMS (fallback) when contributor is added with a pledge amount
+    # Send WhatsApp (primary) + SMS (fallback) when contributor is added with a pledge amount.
+    # Honour notify_target (primary | secondary | both) on the EventContributor.
     pledge_val = float(body.get("pledge_amount", 0))
-    if pledge_val > 0 and contributor.phone:
-        try:
-            from utils.whatsapp import wa_contribution_target_set
+    if pledge_val > 0:
+        from utils.offline_claims import contributor_notify_phones
+        recipients = contributor_notify_phones(ec)
+        if recipients:
             currency = _currency_code(db, event)
             organizer = db.query(User).filter(User.id == event.organizer_id).first()
             organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
-            wa_contribution_target_set(
-                contributor.phone, contributor.name,
-                event.name, pledge_val, 0, currency,
-                organizer_phone=organizer_phone
-            )
-        except Exception:
-            pass
-        # SMS fallback
-        try:
-            from utils.sms import sms_contribution_target_set
-            currency = _currency_code(db, event)
-            organizer = db.query(User).filter(User.id == event.organizer_id).first()
-            organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
-            sms_contribution_target_set(
-                contributor.phone, contributor.name,
-                event.name, pledge_val, 0, currency,
-                organizer_phone=organizer_phone
-            )
-        except Exception:
-            pass
+            for ph in recipients:
+                try:
+                    from utils.whatsapp import wa_contribution_target_set
+                    wa_contribution_target_set(
+                        ph, contributor.name,
+                        event.name, pledge_val, 0, currency,
+                        organizer_phone=organizer_phone
+                    )
+                except Exception:
+                    pass
+                try:
+                    from utils.sms import sms_contribution_target_set
+                    sms_contribution_target_set(
+                        ph, contributor.name,
+                        event.name, pledge_val, 0, currency,
+                        organizer_phone=organizer_phone
+                    )
+                except Exception:
+                    pass
 
     return standard_response(True, "Contributor added to event", _event_contributor_dict(ec))
 
@@ -643,11 +644,13 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
     ec.updated_at = datetime.now(EAT)
     db.commit()
 
-    # Send WhatsApp (primary) + SMS (fallback) when pledge target is changed
+    # Send WhatsApp (primary) + SMS (fallback) when pledge target is changed.
+    # Honour notify_target (primary | secondary | both) on the EventContributor.
     new_pledge = float(ec.pledge_amount or 0)
-    if new_pledge > 0 and new_pledge != old_pledge and ec.contributor and ec.contributor.phone:
-        try:
-            from utils.whatsapp import wa_contribution_target_set
+    if new_pledge > 0 and new_pledge != old_pledge and ec.contributor:
+        from utils.offline_claims import contributor_notify_phones
+        recipients = contributor_notify_phones(ec)
+        if recipients:
             total_paid = sum(
                 float(c.amount or 0) for c in ec.contributions
                 if c.confirmation_status is None
@@ -656,30 +659,25 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
             currency = _currency_code(db, event)
             organizer = db.query(User).filter(User.id == event.organizer_id).first()
             organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
-            wa_contribution_target_set(
-                ec.contributor.phone, ec.contributor.name,
-                event.name, new_pledge, total_paid, currency,
-                organizer_phone=organizer_phone
-            )
-        except Exception:
-            pass
-        try:
-            from utils.sms import sms_contribution_target_set
-            total_paid = sum(
-                float(c.amount or 0) for c in ec.contributions
-                if c.confirmation_status is None
-                or c.confirmation_status == ContributionStatusEnum.confirmed
-            )
-            currency = _currency_code(db, event)
-            organizer = db.query(User).filter(User.id == event.organizer_id).first()
-            organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
-            sms_contribution_target_set(
-                ec.contributor.phone, ec.contributor.name,
-                event.name, new_pledge, total_paid, currency,
-                organizer_phone=organizer_phone
-            )
-        except Exception:
-            pass
+            for ph in recipients:
+                try:
+                    from utils.whatsapp import wa_contribution_target_set
+                    wa_contribution_target_set(
+                        ph, ec.contributor.name,
+                        event.name, new_pledge, total_paid, currency,
+                        organizer_phone=organizer_phone
+                    )
+                except Exception:
+                    pass
+                try:
+                    from utils.sms import sms_contribution_target_set
+                    sms_contribution_target_set(
+                        ph, ec.contributor.name,
+                        event.name, new_pledge, total_paid, currency,
+                        organizer_phone=organizer_phone
+                    )
+                except Exception:
+                    pass
 
     return standard_response(True, "Event contributor updated", _event_contributor_dict(ec))
 
@@ -798,41 +796,40 @@ def record_payment(event_id: str, ec_id: str, body: dict = Body(...), db: Sessio
         except Exception:
             pass
 
-    # Send WhatsApp (primary) + SMS (fallback) to contributor
+    # Send WhatsApp (primary) + SMS (fallback) to contributor.
+    # Honour notify_target (primary | secondary | both) on the EventContributor.
     contributor = ec.contributor
-    if contributor and contributor.phone:
-        try:
-            from utils.whatsapp import wa_contribution_recorded
+    if contributor:
+        from utils.offline_claims import contributor_notify_phones
+        recipients = contributor_notify_phones(ec)
+        if recipients:
             total_paid = sum(float(c.amount or 0) for c in ec.contributions)
             pledge = float(ec.pledge_amount or 0)
             currency = _currency_code(db, event)
             organizer = db.query(User).filter(User.id == event.organizer_id).first()
             organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
             recorder_name = f"{current_user.first_name} {current_user.last_name}" if not is_creator else None
-            wa_contribution_recorded(
-                contributor.phone, contributor.name,
-                event.name, float(amount), pledge, total_paid, currency,
-                organizer_phone=organizer_phone,
-                recorder_name=recorder_name,
-            )
-        except Exception:
-            pass
-        try:
-            from utils.sms import sms_contribution_recorded
-            total_paid = sum(float(c.amount or 0) for c in ec.contributions)
-            pledge = float(ec.pledge_amount or 0)
-            currency = _currency_code(db, event)
-            organizer = db.query(User).filter(User.id == event.organizer_id).first()
-            organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
-            recorder_name = f"{current_user.first_name} {current_user.last_name}" if not is_creator else None
-            sms_contribution_recorded(
-                contributor.phone, contributor.name,
-                event.name, float(amount), pledge, total_paid, currency,
-                organizer_phone=organizer_phone,
-                recorder_name=recorder_name,
-            )
-        except Exception:
-            pass
+            for ph in recipients:
+                try:
+                    from utils.whatsapp import wa_contribution_recorded
+                    wa_contribution_recorded(
+                        ph, contributor.name,
+                        event.name, float(amount), pledge, total_paid, currency,
+                        organizer_phone=organizer_phone,
+                        recorder_name=recorder_name,
+                    )
+                except Exception:
+                    pass
+                try:
+                    from utils.sms import sms_contribution_recorded
+                    sms_contribution_recorded(
+                        ph, contributor.name,
+                        event.name, float(amount), pledge, total_paid, currency,
+                        organizer_phone=organizer_phone,
+                        recorder_name=recorder_name,
+                    )
+                except Exception:
+                    pass
 
     return standard_response(True, "Payment recorded", {
         "id": str(contribution.id),
@@ -864,25 +861,32 @@ def send_thank_you_sms(event_id: str, ec_id: str, body: dict = Body(default={}),
         return standard_response(False, "Event contributor not found")
 
     contributor = ec.contributor
-    if not contributor or not contributor.phone:
+    from utils.offline_claims import contributor_notify_phones
+    recipients = contributor_notify_phones(ec)
+    if not contributor or not recipients:
         return standard_response(False, "Contributor has no phone number")
 
     custom_message = (body.get("custom_message") or "").strip()
     organizer_phone = format_phone_display(current_user.phone) if current_user.phone else None
 
-    # WhatsApp first
-    try:
-        from utils.whatsapp import wa_thank_you
-        wa_thank_you(contributor.phone, contributor.name, event.name, custom_message, organizer_phone=organizer_phone)
-    except Exception:
-        pass
+    sms_failed = False
+    for ph in recipients:
+        # WhatsApp first
+        try:
+            from utils.whatsapp import wa_thank_you
+            wa_thank_you(ph, contributor.name, event.name, custom_message, organizer_phone=organizer_phone)
+        except Exception:
+            pass
 
-    # SMS fallback
-    try:
-        from utils.sms import sms_thank_you
-        sms_thank_you(contributor.phone, contributor.name, event.name, custom_message, organizer_phone=organizer_phone)
-    except Exception as e:
-        return standard_response(False, f"We couldn't send the message. Please try again.")
+        # SMS fallback
+        try:
+            from utils.sms import sms_thank_you
+            sms_thank_you(ph, contributor.name, event.name, custom_message, organizer_phone=organizer_phone)
+        except Exception:
+            sms_failed = True
+
+    if sms_failed:
+        return standard_response(False, "We couldn't send the message. Please try again.")
 
     return standard_response(True, "Thank you sent", {"sent": True})
 
@@ -987,17 +991,19 @@ def bulk_add_contributors(event_id: str, body: dict = Body(...), db: Session = D
                 ec.updated_at = now
                 action = "updated"
 
-                if send_sms and amount > 0 and amount != old_pledge and contributor.phone:
-                    try:
-                        from utils.sms import sms_contribution_target_set
-                        total_paid = sum(float(c.amount or 0) for c in ec.contributions)
-                        sms_contribution_target_set(
-                            contributor.phone, contributor.name,
-                            event.name, amount, total_paid, currency,
-                            organizer_phone=organizer_phone
-                        )
-                    except Exception:
-                        pass
+                if send_sms and amount > 0 and amount != old_pledge:
+                    from utils.offline_claims import contributor_notify_phones
+                    for ph in contributor_notify_phones(ec):
+                        try:
+                            from utils.sms import sms_contribution_target_set
+                            total_paid = sum(float(c.amount or 0) for c in ec.contributions)
+                            sms_contribution_target_set(
+                                ph, contributor.name,
+                                event.name, amount, total_paid, currency,
+                                organizer_phone=organizer_phone
+                            )
+                        except Exception:
+                            pass
             else:
                 ec = EventContributor(
                     id=uuid.uuid4(),
@@ -1011,16 +1017,18 @@ def bulk_add_contributors(event_id: str, body: dict = Body(...), db: Session = D
                 db.flush()
                 action = "added"
 
-                if send_sms and amount > 0 and contributor.phone:
-                    try:
-                        from utils.sms import sms_contribution_target_set
-                        sms_contribution_target_set(
-                            contributor.phone, contributor.name,
-                            event.name, amount, 0, currency,
-                            organizer_phone=organizer_phone
-                        )
-                    except Exception:
-                        pass
+                if send_sms and amount > 0:
+                    from utils.offline_claims import contributor_notify_phones
+                    for ph in contributor_notify_phones(ec):
+                        try:
+                            from utils.sms import sms_contribution_target_set
+                            sms_contribution_target_set(
+                                ph, contributor.name,
+                                event.name, amount, 0, currency,
+                                organizer_phone=organizer_phone
+                            )
+                        except Exception:
+                            pass
 
         else:  # mode == "contributions"
             if not ec:
@@ -1058,18 +1066,20 @@ def bulk_add_contributors(event_id: str, body: dict = Body(...), db: Session = D
                 )
                 db.add(contribution)
 
-                if send_sms and contributor.phone:
-                    try:
-                        from utils.sms import sms_contribution_recorded
-                        total_paid_so_far = sum(float(c.amount or 0) for c in ec.contributions) + amount
-                        pledge = float(ec.pledge_amount or 0)
-                        sms_contribution_recorded(
-                            contributor.phone, contributor.name,
-                            event.name, amount, pledge, total_paid_so_far, currency,
-                            organizer_phone=organizer_phone
-                        )
-                    except Exception:
-                        pass
+                if send_sms:
+                    from utils.offline_claims import contributor_notify_phones
+                    for ph in contributor_notify_phones(ec):
+                        try:
+                            from utils.sms import sms_contribution_recorded
+                            total_paid_so_far = sum(float(c.amount or 0) for c in ec.contributions) + amount
+                            pledge = float(ec.pledge_amount or 0)
+                            sms_contribution_recorded(
+                                ph, contributor.name,
+                                event.name, amount, pledge, total_paid_so_far, currency,
+                                organizer_phone=organizer_phone
+                            )
+                        except Exception:
+                            pass
 
             action = "recorded"
 

@@ -135,9 +135,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         await Future.wait([_loadProfileDetails(), _loadMoments(), _loadEvents()]);
       },
       color: AppColors.primary,
-      child: CustomScrollView(
+      // NestedScrollView lets the header (and the pinned TabBar) collapse as
+      // the inner tab list scrolls down, AND lets a swipe-down on the inner
+      // list reveal the header again. Fixes the "page sticks at the top and
+      // I can no longer scroll back down" lockup caused by the previous
+      // CustomScrollView + SliverFillRemaining(TabBarView) arrangement.
+      child: NestedScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
+        headerSliverBuilder: (context, innerBoxIsScrolled) => [
           SliverToBoxAdapter(child: ProfileHeaderSection(
             fullName: fullName,
             username: username,
@@ -183,17 +188,15 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               ),
             ),
           ),
-          SliverFillRemaining(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                ProfileMomentsTab(moments: _moments, isLoading: _momentsLoading),
-                ProfileEventsTab(events: _events, isLoading: _eventsLoading),
-                ProfileSettingsTab(profile: p, onRefresh: widget.onRefresh),
-              ],
-            ),
-          ),
         ],
+        body: TabBarView(
+          controller: _tabController,
+          children: [
+            ProfileMomentsTab(moments: _moments, isLoading: _momentsLoading),
+            ProfileEventsTab(events: _events, isLoading: _eventsLoading),
+            ProfileSettingsTab(profile: p, onRefresh: widget.onRefresh),
+          ],
+        ),
       ),
     );
   }

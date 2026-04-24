@@ -2,6 +2,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useAuthSync } from "@/hooks/useAuthSync";
+import OpenInAppBanner from "@/components/OpenInAppBanner";
 import { usePageTracking } from "@/hooks/usePageTracking";
 import PrivateRoute from "@/components/PrivateRoute";
 import FullPageLoader from "@/components/FullPageLoader";
@@ -147,6 +148,7 @@ function InnerRoutes() {
   return (
     <>
       <ScrollToTop />
+        <OpenInAppBanner />
         <CookieConsent />
         <RegionSwitcher />
         <CountryConfirmModal />

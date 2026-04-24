@@ -100,5 +100,12 @@
 	<true/>
 	<key>UIFileSharingEnabled</key>
 	<true/>
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:nuru.tz</string>
+		<string>applinks:www.nuru.tz</string>
+		<string>applinks:nuru.ke</string>
+		<string>applinks:www.nuru.ke</string>
+	</array>
 </dict>
 </plist>

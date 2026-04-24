@@ -4,10 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/services/event_contributors_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../wallet/checkout_sheet.dart';
 
 /// Premium "My Contributions" tab — events where the logged-in user is listed
 /// as a contributor. Each card shows pledge / paid / balance + a Pay button
-/// that submits a pending self-contribution awaiting organiser approval.
+/// that opens the same gateway-driven checkout flow used on web.
 class MyContributionsTab extends StatefulWidget {
   const MyContributionsTab({super.key});
   @override
@@ -246,148 +247,25 @@ class _MyContributionsTabState extends State<MyContributionsTab> {
   );
 
   void _openPaySheet(Map<String, dynamic> ev) {
+    final balance = (ev['balance'] as num?)?.toDouble() ?? 0;
+    final eventId = ev['event_id']?.toString();
+    final eventName = ev['event_name']?.toString() ?? 'Event contribution';
+    if (eventId == null || eventId.isEmpty) return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _PaySheet(ev: ev, onSubmitted: _load),
-    );
-  }
-}
-
-class _PaySheet extends StatefulWidget {
-  final Map<String, dynamic> ev;
-  final VoidCallback onSubmitted;
-  const _PaySheet({required this.ev, required this.onSubmitted});
-  @override
-  State<_PaySheet> createState() => _PaySheetState();
-}
-
-class _PaySheetState extends State<_PaySheet> {
-  final _amountCtrl = TextEditingController();
-  final _refCtrl = TextEditingController();
-  final _noteCtrl = TextEditingController();
-  bool _busy = false;
-
-  String get _currency => widget.ev['currency']?.toString() ?? 'TZS';
-  double get _balance => (widget.ev['balance'] as num?)?.toDouble() ?? 0;
-
-  Future<void> _submit() async {
-    final amt = double.tryParse(_amountCtrl.text.replaceAll(RegExp(r'[^\d.]'), ''));
-    if (amt == null || amt <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter an amount greater than zero')));
-      return;
-    }
-    setState(() => _busy = true);
-    final res = await EventContributorsService.selfContribute(widget.ev['event_id']?.toString() ?? '', {
-      'amount': amt,
-      if (_refCtrl.text.trim().isNotEmpty) 'payment_reference': _refCtrl.text.trim(),
-      if (_noteCtrl.text.trim().isNotEmpty) 'note': _noteCtrl.text.trim(),
-    });
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (res['success'] == true) {
-      Navigator.pop(context);
-      widget.onSubmitted();
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Contribution submitted — waiting for organiser approval.'),
-        backgroundColor: Colors.green,
-      ));
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(res['message']?.toString() ?? 'Failed to submit'),
-        backgroundColor: Colors.red,
-      ));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final inset = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
-      padding: EdgeInsets.only(bottom: inset),
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)))),
-          Row(children: [
-            Container(width: 40, height: 40,
-              decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
-              child: Icon(Icons.volunteer_activism, color: AppColors.primary, size: 20)),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Pay contribution',
-                style: GoogleFonts.plusJakartaSans(fontSize: 17, fontWeight: FontWeight.w700)),
-              if (_balance > 0)
-                Text('Outstanding $_currency ${NumberFormat('#,##0').format(_balance)}',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
-            ])),
-          ]),
-          const SizedBox(height: 20),
-          Text('Amount ($_currency)', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
-          TextField(controller: _amountCtrl, keyboardType: TextInputType.number, autofocus: true,
-            style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w600),
-            decoration: InputDecoration(
-              hintText: '50000', filled: true, fillColor: AppColors.surface,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            )),
-          const SizedBox(height: 14),
-          Text('Payment reference (optional)', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
-          TextField(controller: _refCtrl,
-            decoration: InputDecoration(
-              hintText: 'e.g. M-Pesa code QFT3K2L8', filled: true, fillColor: AppColors.surface,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            )),
-          const SizedBox(height: 14),
-          Text('Note to organiser (optional)', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
-          TextField(controller: _noteCtrl, maxLines: 2,
-            decoration: InputDecoration(
-              hintText: 'e.g. Paid via family pool', filled: true, fillColor: AppColors.surface,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            )),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.primary.withOpacity(0.2)),
-            ),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.info_outline, size: 16, color: AppColors.primary),
-              const SizedBox(width: 8),
-              Expanded(child: Text(
-                'Marked as pending. Organiser confirms once they receive the money. You\'ll get a notification.',
-                style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textPrimary, height: 1.4))),
-            ]),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(width: double.infinity, child: ElevatedButton(
-            onPressed: _busy ? null : _submit,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary, foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              elevation: 0,
-            ),
-            child: _busy
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : Text('Submit for approval',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700)),
-          )),
-        ]),
+      builder: (_) => CheckoutSheet(
+        targetType: 'event_contribution',
+        targetId: eventId,
+        amount: balance > 0 ? balance : null,
+        amountEditable: true,
+        allowBank: false,
+        title: 'Pay contribution',
+        description: 'For $eventName',
+        onSuccess: (_) => _load(),
       ),
     );
   }
 }
+

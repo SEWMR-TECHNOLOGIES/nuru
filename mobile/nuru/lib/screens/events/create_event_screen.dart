@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/text_styles.dart';
 import '../../core/services/events_service.dart';
@@ -14,6 +15,8 @@ import 'event_detail_screen.dart';
 import 'map_picker_screen.dart';
 import 'widgets/ticket_class_form.dart';
 import 'widgets/event_ticketing_card.dart';
+import 'widgets/event_recommendations_card.dart';
+import 'widgets/card_template_picker.dart';
 import '../../core/l10n/l10n_helper.dart';
 
 class CreateEventScreen extends StatefulWidget {
@@ -180,11 +183,41 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       final picked = await picker.pickImage(
         source: ImageSource.gallery,
         maxWidth: 1920,
-        imageQuality: 85,
+        imageQuality: 90,
       );
       if (picked == null || !mounted) return;
 
-      final size = await File(picked.path).length();
+      // Crop to 16:9 cover ratio for parity with web cover image experience.
+      final cropped = await ImageCropper().cropImage(
+        sourcePath: picked.path,
+        aspectRatio: const CropAspectRatio(ratioX: 16, ratioY: 9),
+        compressQuality: 88,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Crop cover image',
+            toolbarColor: const Color(0xFF1A1A2E),
+            toolbarWidgetColor: Colors.white,
+            activeControlsWidgetColor: AppColors.primary,
+            backgroundColor: const Color(0xFF1A1A2E),
+            dimmedLayerColor: Colors.black54,
+            cropFrameColor: AppColors.primary,
+            cropGridColor: Colors.white30,
+            lockAspectRatio: true,
+            hideBottomControls: false,
+            showCropGrid: true,
+            initAspectRatio: CropAspectRatioPreset.ratio16x9,
+          ),
+          IOSUiSettings(
+            title: 'Crop cover image',
+            aspectRatioLockEnabled: true,
+            resetAspectRatioEnabled: false,
+            minimumAspectRatio: 16 / 9,
+          ),
+        ],
+      );
+      if (cropped == null || !mounted) return;
+
+      final size = await File(cropped.path).length();
       if (size > _maxCoverImageBytes) {
         if (mounted) {
           AppSnackbar.error(context, 'Cover image must be 5MB or smaller');
@@ -192,7 +225,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         return;
       }
 
-      setState(() => _imagePath = picked.path);
+      setState(() => _imagePath = cropped.path);
     } catch (_) {
       if (mounted) AppSnackbar.error(context, 'Failed to pick image');
     }
@@ -381,6 +414,29 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                     ),
                     const SizedBox(height: 16),
                     _buildOptionalDetailsCard(),
+                    const SizedBox(height: 16),
+                    EventRecommendationsCard(
+                      eventTypeId: _eventTypeId,
+                      eventTypeName: _apiEventTypes
+                          .firstWhere(
+                            (t) => t['id']?.toString() == _eventTypeId,
+                            orElse: () => <String, dynamic>{},
+                          )['name']
+                          ?.toString(),
+                      location: _locationCtrl.text.trim().isEmpty ? null : _locationCtrl.text.trim(),
+                      maxBudget: num.tryParse(_budgetCtrl.text.trim().replaceAll(RegExp(r'[^0-9.]'), '')),
+                    ),
+                    const SizedBox(height: 16),
+                    CardTemplatePicker(
+                      eventId: widget.editEvent?['id']?.toString(),
+                      eventTypeKey: _apiEventTypes
+                          .firstWhere(
+                            (t) => t['id']?.toString() == _eventTypeId,
+                            orElse: () => <String, dynamic>{},
+                          )['name']
+                          ?.toString()
+                          .toLowerCase(),
+                    ),
                     const SizedBox(height: 28),
                     _buildSaveButton(),
                     const SizedBox(height: 40),

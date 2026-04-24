@@ -16,6 +16,7 @@ import '../../services/my_services_screen.dart';
 import '../../cards/nuru_cards_screen.dart';
 import '../../circle/circle_screen.dart';
 import '../../contributors/contributors_screen.dart';
+import '../../contributors/my_contributions_screen.dart';
 import '../../communities/communities_screen.dart';
 import '../../issues/my_issues_screen.dart';
 import '../../removed/removed_content_screen.dart';
@@ -284,6 +285,7 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
           _NavItem(icon: 'assets/icons/card-icon.svg', label: 'Wallet', screen: const WalletScreen()),
           _NavItem(icon: 'assets/icons/calendar-icon.svg', label: context.tr('bookings'), screen: const BookingsScreen()),
           _NavItem(icon: 'assets/icons/contributors-icon.svg', label: context.tr('contributors'), screen: const ContributorsScreen()),
+          _NavItem(icon: 'assets/icons/contributors-icon.svg', label: context.tr('my_contributions'), screen: const MyContributionsScreen()),
         ]),
         _NavSection(id: 'network', label: 'Network', items: [
           _NavItem(icon: 'assets/icons/circle-icon.svg', label: context.tr('my_circle'), screen: const CircleScreen()),

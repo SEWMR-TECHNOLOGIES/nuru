@@ -64,6 +64,27 @@ class EventContributorsService {
     return ApiBase.postRaw('/user-contributors/events/$eventId/bulk-message', data);
   }
 
+  /// Fetch saved per-event messaging customisations keyed by case_type
+  /// (`no_contribution` | `partial` | `completed`).
+  static Future<Map<String, dynamic>> getMessagingTemplates(String eventId) {
+    return ApiBase.get(
+      '/user-contributors/events/$eventId/messaging-templates',
+      fallbackError: 'Unable to load saved templates',
+    );
+  }
+
+  /// Save (without sending) a per-event messaging customisation.
+  static Future<Map<String, dynamic>> saveMessagingTemplate(
+    String eventId,
+    String caseType,
+    Map<String, dynamic> data,
+  ) {
+    return ApiBase.putRaw(
+      '/user-contributors/events/$eventId/messaging-templates/$caseType',
+      data,
+    );
+  }
+
   /// Events where the logged-in user is listed as a contributor.
   static Future<Map<String, dynamic>> getMyContributions({String? search}) {
     final qp = <String, String>{};

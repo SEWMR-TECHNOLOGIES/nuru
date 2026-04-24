@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/services/wallet_service.dart';
@@ -15,11 +16,23 @@ String? _regionFromPhone(String? phone) {
   return null;
 }
 
+/// Returns "TZ" / "KE" if the device locale ends in `_TZ` / `_KE`.
+/// Falls back to null when the locale is unknown or unsupported.
+String? _regionFromDeviceLocale() {
+  try {
+    // Platform.localeName is e.g. "en_TZ" / "sw_TZ" / "en_US".
+    final loc = Platform.localeName.toUpperCase();
+    if (loc.endsWith('_TZ') || loc.endsWith('-TZ')) return 'TZ';
+    if (loc.endsWith('_KE') || loc.endsWith('-KE')) return 'KE';
+  } catch (_) {}
+  return null;
+}
+
 /// CountryConfirmSheet — first-login prompt asking the user to confirm
 /// their country (Tanzania or Kenya). Detection priority:
 ///   1. Backend migration_status.country_guess (phone+ip+history-aware)
 ///   2. Phone prefix on the user record
-///   3. Device locale (TODO)
+///   3. Device locale (Platform.localeName)
 ///   4. Manual / default TZ
 ///
 /// Persists via `/users/me/country`, then refreshes wallet so the UI flips
@@ -59,7 +72,13 @@ class _CountryConfirmSheetState extends State<CountryConfirmSheet> {
         setState(() { _selected = fromPhone; _source = 'phone'; });
         return;
       }
-      // 3) Default TZ — user may override.
+      // 3) Device locale
+      final fromLocale = _regionFromDeviceLocale();
+      if (fromLocale != null) {
+        setState(() { _selected = fromLocale; _source = 'locale'; });
+        return;
+      }
+      // 4) Default TZ — user may override.
       setState(() { _selected = 'TZ'; _source = 'manual'; });
     });
   }

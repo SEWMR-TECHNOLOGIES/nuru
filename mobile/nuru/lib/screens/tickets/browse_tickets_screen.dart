@@ -8,6 +8,8 @@ import '../../core/widgets/expanding_search_action.dart';
 import '../../core/services/ticketing_service.dart';
 import 'my_tickets_screen.dart';
 import '../../core/l10n/l10n_helper.dart';
+import '../../core/widgets/empty_state_illustration.dart';
+import '../wallet/checkout_sheet.dart';
 
 class BrowseTicketsScreen extends StatefulWidget {
   const BrowseTicketsScreen({super.key});
@@ -117,22 +119,28 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
           Expanded(
             child: _loading
                 ? _buildLoadingSkeleton()
-                : _events.isEmpty
-                    ? _buildEmptyState()
-                    : RefreshIndicator(
-                        onRefresh: _load,
-                        color: AppColors.primary,
-                        child: ListView(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          children: [
-                            ..._events.map((e) => _eventCard(e)),
-                            // Pagination
-                            if (_pagination != null && (_pagination!['total_pages'] ?? 1) > 1)
-                              _buildPagination(),
-                            const SizedBox(height: 16),
-                          ],
-                        ),
-                      ),
+                : RefreshIndicator(
+                    onRefresh: _load,
+                    color: AppColors.primary,
+                    child: _events.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              const SizedBox(height: 40),
+                              _buildEmptyState(),
+                            ],
+                          )
+                        : ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            children: [
+                              ..._events.map((e) => _eventCard(e)),
+                              if (_pagination != null && (_pagination!['total_pages'] ?? 1) > 1)
+                                _buildPagination(),
+                              const SizedBox(height: 16),
+                            ],
+                          ),
+                  ),
           ),
         ],
       ),
@@ -155,22 +163,10 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 64, height: 64,
-            decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(32)),
-            child: Center(child: SvgPicture.asset('assets/icons/ticket-icon.svg', width: 28, height: 28,
-                colorFilter: ColorFilter.mode(AppColors.textHint.withOpacity(0.3), BlendMode.srcIn))),
-          ),
-          const SizedBox(height: 14),
-          Text('No ticketed events found', style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textTertiary)),
-          const SizedBox(height: 4),
-          Text('Check back later for upcoming events', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textHint)),
-        ],
-      ),
+    return const EmptyStateIllustration(
+      variant: 'tickets',
+      title: 'No ticketed events found',
+      subtitle: 'Check back soon — fresh events drop every week.',
     );
   }
 
@@ -507,19 +503,38 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
     if (_selectedId == null) return;
     setState(() => _purchasing = true);
     final res = await TicketingService.purchaseTicket(ticketClassId: _selectedId!, quantity: _quantity);
-    if (mounted) {
-      setState(() => _purchasing = false);
-      if (res['success'] == true) {
-        final data = res['data'];
-        setState(() {
-          _purchaseResult = {
-            'ticket_code': data is Map ? data['ticket_code'] : '',
-            'total_amount': data is Map ? data['total_amount'] : 0,
-          };
-        });
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Purchase failed')));
-      }
+    if (!mounted) return;
+    setState(() => _purchasing = false);
+    if (res['success'] == true) {
+      final data = res['data'];
+      final map = data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+      final pendingTicketId = map['ticket_id']?.toString() ?? map['id']?.toString() ?? _selectedId!;
+      final totalAmount = map['total_amount'] is num
+          ? map['total_amount'] as num
+          : num.tryParse(map['total_amount']?.toString() ?? '') ?? 0;
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => CheckoutSheet(
+          targetType: 'event_ticket',
+          targetId: pendingTicketId,
+          amount: totalAmount,
+          allowBank: false,
+          title: 'Buy ${_quantity} ${_selectedClassName()} ticket${_quantity > 1 ? 's' : ''}',
+          description: 'Ticket for ${widget.eventName} — ${_selectedClassName()} × $_quantity',
+          onSuccess: (_) {
+            if (mounted) {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('Payment confirmed — your ticket is now issued.'),
+              ));
+            }
+          },
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Purchase failed')));
     }
   }
 

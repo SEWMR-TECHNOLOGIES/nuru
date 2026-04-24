@@ -503,7 +503,7 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> with TickerProvid
             const SizedBox(height: 20),
             OutlinedButton.icon(
               onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.arrow_back_rounded, size: 18),
+              icon: const Icon(Icons.chevron_left_rounded, size: 18),
               label: const Text('Go Back'),
               style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white24)),
             ),

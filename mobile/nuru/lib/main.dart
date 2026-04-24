@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'core/theme/app_theme.dart';
+import 'core/services/deep_link_service.dart';
 import 'providers/auth_provider.dart';
 import 'providers/locale_provider.dart';
 import 'providers/wallet_provider.dart';
@@ -45,16 +46,20 @@ void main() {
 class NuruApp extends StatefulWidget {
   const NuruApp({super.key});
 
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   State<NuruApp> createState() => _NuruAppState();
 }
 
 class _NuruAppState extends State<NuruApp> {
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _requestAllPermissions();
+      DeepLinkService.instance.init(NuruApp.navigatorKey);
     });
   }
 
@@ -77,6 +82,7 @@ class _NuruAppState extends State<NuruApp> {
     return MaterialApp(
       title: 'Nuru',
       debugShowCheckedModeBanner: false,
+      navigatorKey: NuruApp.navigatorKey,
       theme: AppTheme.lightTheme,
       home: const SplashScreen(),
       builder: (context, child) => RateLimitOverlay(child: child ?? const SizedBox.shrink()),

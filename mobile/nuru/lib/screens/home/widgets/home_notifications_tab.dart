@@ -12,6 +12,9 @@ import '../../public_profile/public_profile_screen.dart';
 import '../../events/event_public_view_screen.dart';
 import 'shared_widgets.dart';
 import '../../../core/l10n/l10n_helper.dart';
+import '../../../core/utils/haptics.dart';
+import '../../../core/widgets/swipe_action_tile.dart';
+import '../../../core/widgets/empty_state_illustration.dart';
 
 class HomeNotificationsTab extends StatefulWidget {
   final List<dynamic> notifications;
@@ -73,6 +76,7 @@ class _HomeNotificationsTabState extends State<HomeNotificationsTab> {
             if (widget.notifications.isNotEmpty)
               GestureDetector(
                 onTap: () async {
+                  Haptics.medium();
                   await SocialService.markAllNotificationsRead();
                   widget.onRefresh();
                 },
@@ -119,15 +123,89 @@ class _HomeNotificationsTabState extends State<HomeNotificationsTab> {
           if (widget.isLoading)
             ...List.generate(5, (_) => const Padding(padding: EdgeInsets.only(bottom: 10), child: ShimmerCard(height: 72)))
           else if (widget.notifications.isEmpty)
-            _emptyState()
+            const EmptyStateIllustration(
+              variant: 'messages',
+              title: 'No notifications yet',
+              subtitle: "We'll let you know the moment something happens.",
+            )
           else
-            ...widget.notifications.map((n) {
-              final data = n is Map<String, dynamic> ? n : <String, dynamic>{};
-              return _notificationItem(context, data);
-            }),
+            ..._buildGroupedNotifications(context),
         ],
       ),
     );
+  }
+
+  /// Group notifications by relative day buckets:
+  /// Today · Yesterday · This week · Earlier
+  List<Widget> _buildGroupedNotifications(BuildContext context) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final weekStart = today.subtract(Duration(days: now.weekday - 1));
+
+    final buckets = <String, List<Map<String, dynamic>>>{
+      'Today': [],
+      'Yesterday': [],
+      'This week': [],
+      'Earlier': [],
+    };
+
+    for (final n in widget.notifications) {
+      final data = n is Map<String, dynamic> ? n : <String, dynamic>{};
+      final ts = data['created_at']?.toString() ?? '';
+      DateTime? d;
+      try { d = DateTime.parse(ts).toLocal(); } catch (_) {}
+      String key;
+      if (d == null) {
+        key = 'Earlier';
+      } else {
+        final day = DateTime(d.year, d.month, d.day);
+        if (day == today) {
+          key = 'Today';
+        } else if (day == yesterday) {
+          key = 'Yesterday';
+        } else if (!day.isBefore(weekStart)) {
+          key = 'This week';
+        } else {
+          key = 'Earlier';
+        }
+      }
+      buckets[key]!.add(data);
+    }
+
+    final widgets = <Widget>[];
+    buckets.forEach((label, items) {
+      if (items.isEmpty) return;
+      widgets.add(Padding(
+        padding: const EdgeInsets.fromLTRB(2, 8, 2, 8),
+        child: Text(
+          label.toUpperCase(),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textTertiary,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ));
+      for (final data in items) {
+        final id = (data['id'] ?? data.hashCode).toString();
+        widgets.add(SwipeActionTile(
+          dismissKey: ValueKey('notif-$id'),
+          leadingIcon: Icons.mark_email_read_outlined,
+          leadingLabel: 'Mark read',
+          onArchive: () async {
+            if (data['is_read'] != true && data['read'] != true && data['id'] != null) {
+              await SocialService.markNotificationRead(data['id'].toString());
+              widget.onRefresh();
+            }
+            return false;
+          },
+          child: _notificationItem(context, data),
+        ));
+      }
+    });
+    return widgets;
   }
 
   Widget _emptyState() {
@@ -161,7 +239,7 @@ class _HomeNotificationsTabState extends State<HomeNotificationsTab> {
       onTap: () async {
         final id = data['id']?.toString();
         if (id != null && !isRead) await SocialService.markNotificationRead(id);
-        onRefresh();
+        widget.onRefresh();
         _navigateForNotification(context, data);
       },
       child: Container(
@@ -243,7 +321,7 @@ class _HomeNotificationsTabState extends State<HomeNotificationsTab> {
     } else if (['follow', 'circle_add', 'circle_request', 'circle_accepted'].contains(type) && actorId != null) {
       Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: actorId)));
     } else if (['glow', 'comment', 'echo', 'mention'].contains(type) && refId.isNotEmpty) {
-      onTabChanged?.call(0);
+      widget.onTabChanged?.call(0);
     } else if (['booking_request', 'booking_accepted', 'booking_rejected'].contains(type)) {
       Navigator.push(context, MaterialPageRoute(builder: (_) => const MyServicesScreen()));
     } else if (['content_removed', 'post_removed', 'moment_removed'].contains(type)) {

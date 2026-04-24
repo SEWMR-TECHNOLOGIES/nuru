@@ -87,12 +87,16 @@ class SocialService {
     }
   }
 
-  /// POST /posts — create a new post with FormData (multipart)
+  /// POST /posts — create a new post with FormData (multipart).
+  /// When [postType] is 'event_share', the [eventId] is attached so the feed
+  /// renders the Rich Event Card (parity with web ShareEventToFeed).
   static Future<Map<String, dynamic>> createPost({
     required String content,
     String visibility = 'public',
     String? location,
     List<String>? imagePaths,
+    String? postType,
+    String? eventId,
   }) async {
     try {
       final uri = Uri.parse('$_baseUrl/posts');
@@ -103,6 +107,8 @@ class SocialService {
       request.fields['content'] = content;
       request.fields['visibility'] = visibility;
       if (location != null) request.fields['location'] = location;
+      if (postType != null) request.fields['post_type'] = postType;
+      if (eventId != null) request.fields['event_id'] = eventId;
 
       if (imagePaths != null) {
         for (final path in imagePaths) {
