@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/services/wallet_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../providers/wallet_provider.dart';
 
 /// PayoutProfileScreen — manage saved mobile money / bank accounts that Nuru
@@ -28,8 +29,18 @@ class _PayoutProfileScreenState extends State<PayoutProfileScreen> {
     final res = await WalletService.listProfiles();
     if (!mounted) return;
     setState(() {
-      _profiles = ((res['data']?['profiles'] as List?) ?? const [])
-          .cast<Map<String, dynamic>>();
+      final data = res['data'];
+      List rawList = const [];
+      if (data is Map) {
+        final p = data['profiles'];
+        if (p is List) rawList = p;
+      } else if (data is List) {
+        rawList = data;
+      }
+      _profiles = rawList
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
       _loading = false;
     });
   }
@@ -63,13 +74,7 @@ class _PayoutProfileScreenState extends State<PayoutProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        leading: const BackButton(color: AppColors.textPrimary),
-        title: const Text('Payout methods',
-          style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
-      ),
+      appBar: const NuruSubPageAppBar(title: 'Payout methods'),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openAdd,
         backgroundColor: AppColors.primary,
@@ -123,7 +128,7 @@ class _PayoutProfileScreenState extends State<PayoutProfileScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(children: [
-                                  Text((p['account_name'] ?? '').toString(),
+                                  Text((p['account_holder_name'] ?? p['account_name'] ?? '').toString(),
                                     style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                                   const SizedBox(width: 6),
                                   if (p['is_default'] == true)
@@ -135,10 +140,10 @@ class _PayoutProfileScreenState extends State<PayoutProfileScreen> {
                                     ),
                                 ]),
                                 const SizedBox(height: 2),
-                                Text((p['account_number'] ?? '').toString(),
+                                Text(((isMobile ? p['phone_number'] : p['account_number']) ?? '').toString(),
                                   style: const TextStyle(color: AppColors.textTertiary, fontSize: 12)),
                                 Text(
-                                  '${(p['provider']?['display_name'] ?? p['provider_id'] ?? '').toString()} · ${(p['currency_code'] ?? '').toString()}',
+                                  '${(p['provider']?['name'] ?? p['provider']?['display_name'] ?? p['network_name'] ?? p['bank_name'] ?? p['provider_id'] ?? '').toString()} · ${(p['currency_code'] ?? '').toString()}',
                                   style: const TextStyle(color: AppColors.textTertiary, fontSize: 11),
                                 ),
                               ],
@@ -180,6 +185,11 @@ class _AddProfileSheetState extends State<_AddProfileSheet> {
   bool _setDefault = true;
   List<Map<String, dynamic>> _providers = [];
 
+  static const _inputBorder = OutlineInputBorder(
+    borderSide: BorderSide(color: AppColors.border, width: 1),
+    borderRadius: BorderRadius.all(Radius.circular(16)),
+  );
+
   final _name = TextEditingController();
   final _number = TextEditingController();
   final _phone = TextEditingController();
@@ -196,9 +206,19 @@ class _AddProfileSheetState extends State<_AddProfileSheet> {
     final country = context.read<WalletProvider>().currency == 'KES' ? 'KE' : 'TZ';
     final res = await WalletService.listProviders(countryCode: country, payout: true);
     if (!mounted) return;
-    final list = ((res['data']?['providers'] as List?) ?? const [])
-        .cast<Map<String, dynamic>>()
+    final data = res['data'];
+    List rawList = const [];
+    if (data is List) {
+      rawList = data;
+    } else if (data is Map) {
+      final p = data['providers'];
+      if (p is List) rawList = p;
+    }
+    final list = rawList
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
         .where((p) => (p['provider_type'] ?? '') == (_method == 'mobile_money' ? 'mobile_money' : 'bank'))
+        .where((p) => _isProviderEnabled(p))
         .toList();
     setState(() {
       _providers = list;
@@ -207,6 +227,38 @@ class _AddProfileSheetState extends State<_AddProfileSheet> {
         _providerId = list.first['id'] as String;
       }
     });
+  }
+
+  bool _isProviderEnabled(Map<String, dynamic> provider) {
+    final active = provider['is_active'];
+    if (active == false) return false;
+    final payoutEnabled = provider['supports_payout'] ?? provider['is_payout_enabled'];
+    return payoutEnabled != false;
+  }
+
+  String _providerLabel(Map<String, dynamic> provider) {
+    return (provider['name'] ?? provider['display_name'] ?? provider['code'] ?? '').toString();
+  }
+
+  String _providerCode(Map<String, dynamic> provider) {
+    return (provider['code'] ?? '').toString();
+  }
+
+  String get _currency => context.read<WalletProvider>().currency;
+
+  InputDecoration _fieldDecoration({required String hintText}) {
+    return const InputDecoration().copyWith(
+      hintText: hintText,
+      filled: true,
+      fillColor: AppColors.surface,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+      border: _inputBorder,
+      enabledBorder: _inputBorder,
+      focusedBorder: const OutlineInputBorder(
+        borderSide: BorderSide(color: AppColors.primary, width: 1.4),
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -220,15 +272,22 @@ class _AddProfileSheetState extends State<_AddProfileSheet> {
     }
     setState(() => _busy = true);
     final country = context.read<WalletProvider>().currency == 'KES' ? 'KE' : 'TZ';
+    final provider = _providers.firstWhere(
+      (p) => p['id'] == _providerId,
+      orElse: () => <String, dynamic>{},
+    );
     final res = await WalletService.createProfile({
-      'method_type': _method,
+      'method_type': _method == 'bank_account' ? 'bank' : 'mobile_money',
       'provider_id': _providerId,
       'country_code': country,
-      'account_name': _name.text.trim(),
+      'currency_code': _currency,
+      'account_holder_name': _name.text.trim(),
       'account_number': _number.text.trim(),
-      if (_phone.text.trim().isNotEmpty) 'phone': _phone.text.trim(),
-      if (_branch.text.trim().isNotEmpty) 'bank_branch': _branch.text.trim(),
-      'set_default': _setDefault,
+      if (_method == 'mobile_money' && _phone.text.trim().isNotEmpty) 'phone_number': _phone.text.trim(),
+      if (_method == 'mobile_money') 'network_name': _providerLabel(provider).isNotEmpty ? _providerLabel(provider) : _providerCode(provider),
+      if (_method == 'bank_account') 'bank_name': _providerLabel(provider).isNotEmpty ? _providerLabel(provider) : _providerCode(provider),
+      if (_method == 'bank_account' && _branch.text.trim().isNotEmpty) 'bank_branch': _branch.text.trim(),
+      'is_default': _setDefault,
     });
     setState(() => _busy = false);
     if (!mounted) return;
@@ -293,22 +352,22 @@ class _AddProfileSheetState extends State<_AddProfileSheet> {
                           border: Border.all(color: selected ? AppColors.primary : AppColors.border),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Text(p['display_name']?.toString() ?? '',
+                        child: Text(_providerLabel(p),
                           style: TextStyle(fontWeight: FontWeight.w600, color: selected ? AppColors.primary : AppColors.textPrimary, fontSize: 12)),
                       ),
                     );
                   }).toList(),
                 ),
               const SizedBox(height: 14),
-              TextField(controller: _name, decoration: const InputDecoration(labelText: 'Account name', border: OutlineInputBorder())),
+              TextField(controller: _name, decoration: _fieldDecoration(hintText: 'Account name')),
               const SizedBox(height: 10),
-              TextField(controller: _number, decoration: const InputDecoration(labelText: 'Account number', border: OutlineInputBorder())),
+              TextField(controller: _number, decoration: _fieldDecoration(hintText: 'Account number')),
               const SizedBox(height: 10),
               if (_method == 'mobile_money')
                 TextField(controller: _phone, keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Phone (international)', hintText: '+255712345678', border: OutlineInputBorder())),
+                  decoration: _fieldDecoration(hintText: 'Phone (international)')),
               if (_method == 'bank_account')
-                TextField(controller: _branch, decoration: const InputDecoration(labelText: 'Branch (optional)', border: OutlineInputBorder())),
+                TextField(controller: _branch, decoration: _fieldDecoration(hintText: 'Branch (optional)')),
               const SizedBox(height: 8),
               SwitchListTile(
                 value: _setDefault,

@@ -67,6 +67,9 @@ class _EventContributionsTabState extends State<EventContributionsTab>
   String _reminderContactOverride = '';
   final Set<String> _messagingSelected = {};
   bool _sendingMessages = false;
+  bool _savingTemplate = false;
+  // Per-case persisted customisations: {message_template, payment_info, contact_phone}
+  final Map<String, Map<String, String?>> _savedTemplates = {};
 
   @override
   bool get wantKeepAlive => true;
@@ -81,6 +84,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
     _load();
     if (widget.isCreator) _loadPending();
     _setDefaultTemplate();
+    if (widget.isCreator) _loadSavedTemplates();
   }
 
   @override
@@ -91,6 +95,68 @@ class _EventContributionsTabState extends State<EventContributionsTab>
 
   void _setDefaultTemplate() {
     _messageTemplate = _getDefaultTemplate(_messagingCase);
+  }
+
+  /// Pull the organiser's saved per-case messaging customisations and
+  /// apply the entry for the currently active case.
+  Future<void> _loadSavedTemplates() async {
+    final res = await EventsService.getMessagingTemplates(widget.eventId);
+    if (!mounted || res['success'] != true) return;
+    final tpls = res['data']?['templates'];
+    if (tpls is! Map) return;
+    setState(() {
+      _savedTemplates.clear();
+      tpls.forEach((k, v) {
+        if (v is Map) {
+          _savedTemplates[k.toString()] = {
+            'message_template': v['message_template']?.toString(),
+            'payment_info': v['payment_info']?.toString(),
+            'contact_phone': v['contact_phone']?.toString(),
+          };
+        }
+      });
+      _applySavedForCase(_messagingCase);
+    });
+  }
+
+  /// Apply saved values (or defaults) for [caseKey] to the form fields.
+  void _applySavedForCase(String caseKey) {
+    final s = _savedTemplates[caseKey];
+    _messageTemplate = s?['message_template']?.isNotEmpty == true
+        ? s!['message_template']!
+        : _getDefaultTemplate(caseKey);
+    if (s?['payment_info'] != null) _paymentInfo = s!['payment_info']!;
+    if (s?['contact_phone'] != null) _reminderContactOverride = s!['contact_phone']!;
+  }
+
+  Future<void> _saveCurrentTemplate() async {
+    if (_messageTemplate.trim().isEmpty) return;
+    setState(() => _savingTemplate = true);
+    final res = await EventsService.saveMessagingTemplate(
+      widget.eventId,
+      _messagingCase,
+      {
+        'message_template': _messageTemplate,
+        'payment_info': _paymentInfo,
+        'contact_phone': _reminderContactOverride.trim(),
+      },
+    );
+    if (!mounted) return;
+    setState(() {
+      _savingTemplate = false;
+      if (res['success'] == true) {
+        _savedTemplates[_messagingCase] = {
+          'message_template': _messageTemplate,
+          'payment_info': _paymentInfo,
+          'contact_phone': _reminderContactOverride.trim(),
+        };
+      }
+    });
+    if (res['success'] == true) {
+      AppSnackbar.success(context, 'Template saved for this event');
+    } else {
+      AppSnackbar.error(context, res['message'] ?? 'Failed to save template');
+    }
   }
 
   String _getDefaultTemplate(String caseType) {
@@ -1997,7 +2063,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                 child: GestureDetector(
                   onTap: () => setState(() {
                     _messagingCase = key;
-                    _messageTemplate = _getDefaultTemplate(key);
+                    _applySavedForCase(key);
                     // Auto-select all matching contributors when switching case
                     _messagingSelected.clear();
                     final matching = _eventContributors.where((ec) {
@@ -2194,6 +2260,47 @@ class _EventContributionsTabState extends State<EventContributionsTab>
           ),
           Text('Variables: {name}, {event_name}, {event_title}, {payment}',
               style: appText(size: 10, color: AppColors.textTertiary)),
+          const SizedBox(height: 8),
+
+          // Save-for-this-event row (mirrors web persistent save block).
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceVariant.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.border, style: BorderStyle.solid),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _savedTemplates[_messagingCase] != null
+                        ? 'Saved customisation in use for this case.'
+                        : 'Save these values so you do not have to retype them next time.',
+                    style: appText(size: 10, color: AppColors.textTertiary, height: 1.4),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: (_savingTemplate || _messageTemplate.trim().isEmpty)
+                      ? null
+                      : _saveCurrentTemplate,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    minimumSize: const Size(0, 32),
+                  ),
+                  child: _savingTemplate
+                      ? const SizedBox(
+                          width: 12, height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : Text('Save', style: appText(size: 11, weight: FontWeight.w700, color: Colors.white)),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 12),
 
           // Preview + Send buttons (matching web layout)

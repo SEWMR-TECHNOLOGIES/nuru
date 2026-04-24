@@ -280,16 +280,24 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.3)),
+                Text(name,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.3)),
                 if (phone.isNotEmpty)
-                  Text(phone, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary, height: 1.3)),
+                  Text(phone,
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary, height: 1.3)),
                 if (email.isNotEmpty)
-                  Text(email, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary, height: 1.3)),
+                  Text(email,
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary, height: 1.3)),
                 if (notes.isNotEmpty)
                   Text(notes, style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textHint, height: 1.3),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
                 if (createdAt.isNotEmpty)
-                  Text(SocialService.getTimeAgo(createdAt), style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textHint)),
+                  Text(SocialService.getTimeAgo(createdAt),
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textHint)),
               ],
             ),
           ),

@@ -232,7 +232,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: AppColors.border.withOpacity(0.4), width: 0.7),
                         ),
-                        child: const Icon(Icons.chevron_left_rounded, size: 20, color: AppColors.textPrimary),
+                        child: const Icon(Icons.chevron_left_rounded, size: 22, color: AppColors.textPrimary),
                       ),
                     ),
                   ],

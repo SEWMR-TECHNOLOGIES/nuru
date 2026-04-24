@@ -1,0 +1,23 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["TEAMID.tz.nuru.app"],
+        "components": [
+          { "/": "/event/*" },
+          { "/": "/ticket/*" },
+          { "/": "/u/*" },
+          { "/": "/services/view/*" },
+          { "/": "/post/*" },
+          { "/": "/moment/*" },
+          { "/": "/c/*" },
+          { "/": "/rsvp/*" }
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["TEAMID.tz.nuru.app"]
+  }
+}

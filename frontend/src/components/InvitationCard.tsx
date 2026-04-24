@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Download, Loader2 } from 'lucide-react';
+import { Download, Loader2, ImageIcon } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { eventsApi } from '@/lib/api/events';
-import { getRandomTemplateForEvent, SvgCardTemplate } from '@/components/invitation-cards/SvgTemplateRegistry';
-import SvgCardRenderer, { SvgCardData } from '@/components/invitation-cards/SvgCardRenderer';
+import NuruInvitationCard, { NuruCardData, NuruCardVariant } from '@/components/invitation-cards/NuruInvitationCard';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { cn } from '@/lib/utils';
 
 interface InvitationCardProps {
   eventId: string;
@@ -16,21 +18,21 @@ interface InvitationCardProps {
   guestId?: string;
 }
 
-const normalizeTypeKey = (eventType?: string): string => {
-  if (!eventType) return 'wedding';
-  const raw = eventType.toLowerCase().replace(/[\s_-]+/g, '');
-  const keys = ['wedding', 'birthday', 'corporate', 'memorial', 'anniversary', 'conference', 'graduation', 'sendoff'];
-  if (keys.includes(raw)) return raw;
-  for (const key of keys) {
-    if (raw.includes(key) || key.includes(raw)) return key;
+const formatDate = (dateStr: string) => {
+  if (!dateStr) return '';
+  try {
+    return new Date(dateStr)
+      .toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+      .toUpperCase();
+  } catch {
+    return dateStr;
   }
-  return 'wedding';
 };
 
-const formatDate = (dateStr: string) =>
-  new Date(dateStr).toLocaleDateString('en-GB', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  });
+const formatTime = (start?: string, end?: string) => {
+  if (!start) return '';
+  return end ? `${start} – ${end}` : start;
+};
 
 const InvitationCard = ({ eventId, open, onClose, isOrganizer = false, guestId }: InvitationCardProps) => {
   const { t } = useLanguage();
@@ -38,7 +40,7 @@ const InvitationCard = ({ eventId, open, onClose, isOrganizer = false, guestId }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
-  const [template, setTemplate] = useState<SvgCardTemplate | null>(null);
+  const [variant, setVariant] = useState<NuruCardVariant>('classic');
 
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -48,112 +50,92 @@ const InvitationCard = ({ eventId, open, onClose, isOrganizer = false, guestId }
     setError(null);
     eventsApi.getInvitationCard(eventId, guestId)
       .then((res) => {
-        if (res.success) {
-          setData(res.data);
-          const typeKey = normalizeTypeKey(res.data?.event?.event_type);
-          setTemplate(getRandomTemplateForEvent(typeKey));
-        } else {
-          setError(res.message || 'Failed to load invitation');
-        }
+        if (res.success) setData(res.data);
+        else setError(res.message || 'Failed to load invitation');
       })
       .catch(() => setError('Failed to load invitation card'))
       .finally(() => setLoading(false));
   }, [open, eventId, guestId]);
 
   const isConfirmedGuest = (data?.guest?.rsvp_status || '').toLowerCase() === 'confirmed';
-  const canDownload = isConfirmedGuest;
+  const canDownload = isOrganizer || isConfirmedGuest;
 
-  const buildQrValue = () => {
-    if (data?.guest?.attendee_id) return data.guest.attendee_id;
-    if (data?.invitation_code) return data.invitation_code;
-    return data?.event?.id || '';
-  };
+  const buildQrValue = () =>
+    data?.guest?.attendee_id || data?.invitation_code || data?.qr_code_data || data?.event?.id || eventId;
 
-  const buildCardData = (): SvgCardData => ({
+  const buildCardData = (): NuruCardData => ({
     guestName: data?.guest?.name || '',
-    secondName: '',
     eventTitle: data?.event?.title || 'Event',
-    date: data?.event?.start_date ? formatDate(data.event.start_date) : '',
-    time: data?.event?.start_time || '',
-    venue: data?.event?.venue || data?.event?.location || '',
-    address: '',
-    dressCode: data?.event?.dress_code || '',
+    date: formatDate(data?.event?.start_date),
+    time: formatTime(data?.event?.start_time, data?.event?.end_time),
+    venue: (data?.event?.venue || data?.event?.location || '').toUpperCase(),
+    organizer: data?.event?.organizer_name || data?.event?.host_name || data?.event?.organization || '',
+    description: data?.event?.description || data?.event?.invitation_message ||
+      'Join us for an unforgettable event filled with meaningful moments, great company and lasting memories.',
+    dressCode: data?.event?.dress_code || 'As you feel comfortable',
+    admits: data?.guest?.admits ? `${data.guest.admits} Guest${data.guest.admits > 1 ? 's' : ''}` : '1 Guest',
     qrValue: buildQrValue(),
+    qrUrl: data?.invitation_url || 'nuru.tz/event',
   });
 
-  const handleDownloadPdf = useCallback(() => {
-    if (!cardRef.current) return;
+  const captureCanvas = async () => {
+    if (!cardRef.current) return null;
+    return await html2canvas(cardRef.current, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+    });
+  };
+
+  const handleDownloadPng = useCallback(async () => {
     setDownloading(true);
-
     try {
-      const clone = cardRef.current.cloneNode(true) as HTMLElement;
+      const canvas = await captureCanvas();
+      if (!canvas) return;
+      const link = document.createElement('a');
+      link.download = `${data?.event?.title || 'invitation'}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDownloading(false);
+    }
+  }, [data]);
 
-      // Convert QR canvases to images for print
-      const canvases = cardRef.current.querySelectorAll('canvas');
-      const clonedCanvases = clone.querySelectorAll('canvas');
-      canvases.forEach((canvas, i) => {
-        try {
-          const img = document.createElement('img');
-          img.src = canvas.toDataURL('image/png');
-          img.width = canvas.width;
-          img.height = canvas.height;
-          img.style.width = canvas.style.width || `${canvas.width}px`;
-          img.style.height = canvas.style.height || `${canvas.height}px`;
-          clonedCanvases[i]?.parentNode?.replaceChild(img, clonedCanvases[i]);
-        } catch (_) { /* cross-origin canvas */ }
-      });
-
-      const cardHtml = clone.outerHTML;
-      const title = data?.event?.title || 'Invitation';
-      const guestName = data?.guest?.name || '';
-
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-<title>${title}${guestName ? ` · ${guestName}` : ''}</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    display: flex; justify-content: center; align-items: center;
-    min-height: 100vh; background: #f5f5f5;
-  }
-  .card-wrapper {
-    width: 480px; margin: 0 auto;
-  }
-  .card-wrapper svg {
-    width: 100%; height: auto;
-  }
-  @media print {
-    body { background: white; }
-    .card-wrapper { box-shadow: none; }
-  }
-  @page { size: auto; margin: 8mm; }
-</style>
-</head><body>
-<div class="card-wrapper">${cardHtml}</div>
-</body></html>`;
-
-      const w = window.open('', '_blank');
-      if (w) {
-        w.document.write(html);
-        w.document.close();
-        setTimeout(() => {
-          w.print();
-          setDownloading(false);
-        }, 600);
-      } else {
-        setDownloading(false);
-      }
-    } catch (err) {
-      console.error('PDF print failed:', err);
+  const handleDownloadPdf = useCallback(async () => {
+    setDownloading(true);
+    try {
+      const canvas = await captureCanvas();
+      if (!canvas) return;
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const ratio = canvas.width / canvas.height;
+      let w = pageW - 20;
+      let h = w / ratio;
+      if (h > pageH - 20) { h = pageH - 20; w = h * ratio; }
+      const x = (pageW - w) / 2;
+      const y = (pageH - h) / 2;
+      pdf.addImage(imgData, 'PNG', x, y, w, h, undefined, 'FAST');
+      pdf.save(`${data?.event?.title || 'invitation'}.pdf`);
+    } catch (e) {
+      console.error(e);
+    } finally {
       setDownloading(false);
     }
   }, [data]);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg p-0 overflow-hidden border-0 bg-transparent shadow-none">
+      <DialogContent className="max-w-3xl p-0 overflow-hidden border-0 bg-transparent shadow-none">
         <DialogHeader className="sr-only">
-          <DialogTitle>{t("invitation_card")}</DialogTitle>
+          <DialogTitle>{t('invitation_card') || 'Invitation Card'}</DialogTitle>
         </DialogHeader>
+
         {loading ? (
           <div className="flex items-center justify-center py-16 bg-card rounded-2xl">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -163,26 +145,65 @@ const InvitationCard = ({ eventId, open, onClose, isOrganizer = false, guestId }
             <p className="text-destructive">{error}</p>
             <Button variant="outline" onClick={onClose} className="mt-4">Close</Button>
           </div>
-        ) : data && template ? (
+        ) : data ? (
           <div className="bg-card rounded-2xl overflow-hidden shadow-2xl">
-            <div className="max-h-[80vh] overflow-y-auto">
-              <div ref={cardRef} className="relative">
-                <SvgCardRenderer template={template} data={buildCardData()} />
+            {/* Variant picker */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3 border-b border-border bg-muted/40">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground mr-1">Design:</span>
+                {(['classic', 'editorial'] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setVariant(v)}
+                    className={cn(
+                      'px-3 py-1.5 rounded-full text-xs font-medium border transition',
+                      variant === v
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-background text-foreground border-border hover:bg-muted'
+                    )}
+                  >
+                    {v === 'classic' ? 'Classic' : 'Editorial'}
+                  </button>
+                ))}
               </div>
             </div>
+
+            {/* Card preview */}
+            <div className="max-h-[75vh] overflow-y-auto bg-neutral-100 p-4 flex justify-center">
+              <div className="origin-top scale-[0.85] sm:scale-100">
+                <NuruInvitationCard ref={cardRef} variant={variant} data={buildCardData()} />
+              </div>
+            </div>
+
+            {/* Actions */}
             <div className="flex flex-wrap justify-end items-center gap-2 p-4 border-t border-border bg-muted/30">
               {!canDownload && (
                 <span className="text-xs text-muted-foreground mr-auto">
                   {isOrganizer
-                    ? "This guest hasn't confirmed yet. Cards can only be downloaded for confirmed guests."
-                    : "Only confirmed guests can download invitation cards."
-                  }
+                    ? "This guest hasn't confirmed yet."
+                    : 'Only confirmed guests can download invitation cards.'}
                 </span>
               )}
               <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
-              <Button size="sm" onClick={handleDownloadPdf} className="gap-2" disabled={!canDownload || downloading}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleDownloadPng}
+                disabled={!canDownload || downloading}
+                className="gap-2"
+              >
+                {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+                PNG
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleDownloadPdf}
+                disabled={!canDownload || downloading}
+                className="gap-2"
+              >
                 {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                Download Card
+                Download PDF
               </Button>
             </div>
           </div>

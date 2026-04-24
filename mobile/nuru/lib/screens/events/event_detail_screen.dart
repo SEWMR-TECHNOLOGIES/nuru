@@ -22,7 +22,9 @@ import 'widgets/event_tickets_tab.dart';
 import 'widgets/event_committee_tab.dart';
 import 'widgets/event_services_tab.dart';
 import 'widgets/event_meetings_tab.dart';
+import 'widgets/event_schedule_tab.dart';
 import 'create_event_screen.dart';
+import 'widgets/share_event_to_feed_sheet.dart';
 import 'widgets/venue_map_preview.dart';
 import 'report_preview_screen.dart';
 import 'budget_assistant_screen.dart';
@@ -135,7 +137,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
   List<String> _computeVisibleTabs() {
     if (_permissions == null) return ['overview'];
     if (!_hasManagementAccess) return ['overview'];
-    if (_isCreator) return const ['overview', 'checklist', 'budget', 'expenses', 'services', 'committee', 'contributions', 'guests', 'rsvp', 'meetings', 'tickets', 'check_in'];
+    if (_isCreator) return const ['overview', 'checklist', 'budget', 'expenses', 'services', 'committee', 'contributions', 'guests', 'rsvp', 'schedule', 'meetings', 'tickets', 'check_in'];
 
     final tabs = <String>['overview', 'checklist'];
     if (_asBool(_permissions?['can_view_budget']) || _asBool(_permissions?['can_manage_budget'])) tabs.add('budget');
@@ -144,7 +146,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
     if (_asBool(_permissions?['can_manage_committee'])) tabs.add('committee');
     if (_asBool(_permissions?['can_view_contributions']) || _asBool(_permissions?['can_manage_contributions'])) tabs.add('contributions');
     if (_asBool(_permissions?['can_view_guests']) || _asBool(_permissions?['can_manage_guests'])) tabs.add('guests');
-    tabs.addAll(['rsvp', 'meetings', 'tickets']);
+    tabs.addAll(['rsvp', 'schedule', 'meetings', 'tickets']);
     if (_asBool(_permissions?['can_check_in_guests'])) tabs.add('check_in');
     return tabs;
   }
@@ -426,6 +428,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
       );
       case 'guests': return EventGuestsTab(eventId: widget.eventId, permissions: _permissions);
       case 'rsvp': return EventRsvpTab(eventId: widget.eventId);
+      case 'schedule': return EventScheduleTab(eventId: widget.eventId);
       case 'meetings': return EventMeetingsTab(eventId: widget.eventId, isCreator: _isCreator, permissions: _permissions, eventName: extractStr((_event ?? {})['title']));
       case 'tickets': return EventTicketsTab(eventId: widget.eventId, permissions: _permissions);
       // workspace tab removed — Group Chat lives on the overview as a CTA card
@@ -679,7 +682,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
             )));
           }),
           if (isCreator) _actionTile(Icons.delete_outline_rounded, context.trw('delete_event'), () { Navigator.pop(ctx); _confirmDelete(); }, isDestructive: true),
-          _actionTile(Icons.share_rounded, context.trw('share_event'), () { Navigator.pop(ctx); }),
+          _actionTile(Icons.share_rounded, context.trw('share_event'), () {
+            Navigator.pop(ctx);
+            if (_event != null) {
+              ShareEventToFeedSheet.show(context, _event!);
+            }
+          }),
           const SizedBox(height: 16),
         ]),
       ),

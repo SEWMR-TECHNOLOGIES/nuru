@@ -217,7 +217,7 @@ class _DirectionsScreenState extends State<DirectionsScreen> {
               child: Row(
                 children: [
                   _circleButton(
-                    icon: Icons.arrow_back_rounded,
+                    icon: Icons.chevron_left_rounded,
                     onTap: () => Navigator.pop(context),
                   ),
                   const SizedBox(width: 12),

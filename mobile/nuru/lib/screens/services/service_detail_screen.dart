@@ -13,6 +13,7 @@ import '../../core/widgets/app_snackbar.dart';
 import 'public_service_screen.dart';
 import 'service_verification_screen.dart';
 import '../../core/l10n/l10n_helper.dart';
+import '../../core/utils/haptics.dart';
 
 /// Owner's Service Detail — matches web ServiceDetail.tsx
 /// Tabs: Overview, Calendar, Reviews
@@ -202,17 +203,34 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
           // Hero gallery
           SliverToBoxAdapter(child: _heroGallery(images, title, category, isPending, location)),
 
-          // KPI Strip
+          // KPI Dashboard — 6 metrics mirroring web ServiceDetail
           SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Row(children: [
-              _kpiCard('Revenue', totalRevenue > 0 ? _fmtPrice(totalRevenue.toInt()) : '—', AppColors.success),
-              const SizedBox(width: 8),
-              _kpiCard('Rating', rating is num && rating > 0 ? (rating as num).toStringAsFixed(1) : '—', Colors.amber),
-              const SizedBox(width: 8),
-              _kpiCard('Upcoming', '${upcomingBookings.length}', AppColors.primary),
-              const SizedBox(width: 8),
-              _kpiCard('Done', '${s['completed_events'] ?? 0}', AppColors.blue),
+            child: Column(children: [
+              Row(children: [
+                _kpiCard('Revenue', totalRevenue > 0 ? _fmtPrice(totalRevenue.toInt()) : '—', AppColors.success),
+                const SizedBox(width: 8),
+                _kpiCard('Rating', rating is num && rating > 0 ? (rating as num).toStringAsFixed(1) : '—', Colors.amber),
+                const SizedBox(width: 8),
+                _kpiCard('Reviews', '$reviewCount', AppColors.blue),
+              ]),
+              const SizedBox(height: 8),
+              Row(children: [
+                _kpiCard('Upcoming', '${upcomingBookings.length}', AppColors.primary),
+                const SizedBox(width: 8),
+                _kpiCard('Completed', '${s['completed_events'] ?? 0}', AppColors.blue),
+                const SizedBox(width: 8),
+                _kpiCard(
+                  'Completion',
+                  () {
+                    final done = (s['completed_events'] is num) ? (s['completed_events'] as num).toInt() : 0;
+                    final total = done + upcomingBookings.length;
+                    if (total == 0) return '—';
+                    return '${((done / total) * 100).round()}%';
+                  }(),
+                  AppColors.success,
+                ),
+              ]),
             ]),
           )),
 
@@ -257,6 +275,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                 return Expanded(
                   child: GestureDetector(
                     onTap: () {
+                      Haptics.selection();
                       setState(() => _activeTab = i);
                       if (i == 1) _ensureCalendarLoaded();
                       if (i == 2) _ensureReviewsLoaded();
@@ -404,8 +423,10 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
     switch (label) {
       case 'Revenue': return Icons.attach_money_rounded;
       case 'Rating': return Icons.star_rounded;
+      case 'Reviews': return Icons.rate_review_outlined;
       case 'Upcoming': return Icons.calendar_today_rounded;
-      case 'Done': return Icons.trending_up_rounded;
+      case 'Completed': case 'Done': return Icons.check_circle_outline_rounded;
+      case 'Completion': return Icons.trending_up_rounded;
       default: return Icons.info_outline;
     }
   }

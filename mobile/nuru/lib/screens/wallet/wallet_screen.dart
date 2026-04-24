@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/money_format.dart';
+import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../providers/wallet_provider.dart';
+import '../bookings/bookings_screen.dart';
 import 'checkout_sheet.dart';
 import 'receipt_screen.dart';
 import 'payout_profile_screen.dart';
@@ -17,7 +19,8 @@ class WalletScreen extends StatefulWidget {
   State<WalletScreen> createState() => _WalletScreenState();
 }
 
-class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderStateMixin {
+class _WalletScreenState extends State<WalletScreen>
+    with SingleTickerProviderStateMixin {
   late final TabController _tabs;
 
   @override
@@ -54,17 +57,20 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        leading: const BackButton(color: AppColors.textPrimary),
-        title: const Text('Wallet', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+      appBar: NuruSubPageAppBar(
+        title: 'Wallet',
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_outlined, color: AppColors.textPrimary),
+            icon: const Icon(
+              Icons.settings_outlined,
+              color: AppColors.textPrimary,
+            ),
             tooltip: 'Payout settings',
             onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const PayoutProfileScreen()));
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PayoutProfileScreen()),
+              );
             },
           ),
         ],
@@ -76,8 +82,18 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
               children: [
-                const MigrationBanner(surface: MigrationSurface.wallet, margin: EdgeInsets.only(bottom: 12)),
-                _BalanceHero(provider: p, onTopUp: _openTopUp),
+                const MigrationBanner(
+                  surface: MigrationSurface.wallet,
+                  margin: EdgeInsets.only(bottom: 12),
+                ),
+                _BalanceHero(
+                  provider: p,
+                  onTopUp: _openTopUp,
+                  onPay: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const BookingsScreen()),
+                  ),
+                ),
                 const SizedBox(height: 18),
                 _ActivityTabs(controller: _tabs),
                 const SizedBox(height: 8),
@@ -86,8 +102,15 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                   child: TabBarView(
                     controller: _tabs,
                     children: [
-                      _LedgerList(entries: p.ledger, currency: p.currency, loading: p.loading),
-                      _TransactionList(transactions: p.transactions, loading: p.loading),
+                      _LedgerList(
+                        entries: p.ledger,
+                        currency: p.currency,
+                        loading: p.loading,
+                      ),
+                      _TransactionList(
+                        transactions: p.transactions,
+                        loading: p.loading,
+                      ),
                     ],
                   ),
                 ),
@@ -105,7 +128,12 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
 class _BalanceHero extends StatelessWidget {
   final WalletProvider provider;
   final VoidCallback onTopUp;
-  const _BalanceHero({required this.provider, required this.onTopUp});
+  final VoidCallback onPay;
+  const _BalanceHero({
+    required this.provider,
+    required this.onTopUp,
+    required this.onPay,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -120,10 +148,21 @@ class _BalanceHero extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.account_balance_wallet_outlined, color: AppColors.textOnDarkMuted, size: 16),
+              const Icon(
+                Icons.account_balance_wallet_outlined,
+                color: AppColors.textOnDarkMuted,
+                size: 16,
+              ),
               const SizedBox(width: 6),
-              Text('AVAILABLE BALANCE',
-                style: TextStyle(color: AppColors.textOnDarkMuted, fontSize: 10, letterSpacing: 1.4, fontWeight: FontWeight.w700)),
+              Text(
+                'AVAILABLE BALANCE',
+                style: TextStyle(
+                  color: AppColors.textOnDarkMuted,
+                  fontSize: 10,
+                  letterSpacing: 1.4,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -131,22 +170,49 @@ class _BalanceHero extends StatelessWidget {
                   color: Colors.white.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: Text(provider.currency,
-                  style: const TextStyle(color: AppColors.textOnDark, fontSize: 11, fontWeight: FontWeight.w700)),
+                child: Text(
+                  provider.currency,
+                  style: const TextStyle(
+                    color: AppColors.textOnDark,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             formatMoney(provider.availableBalance, currency: provider.currency),
-            style: const TextStyle(color: AppColors.textOnDark, fontSize: 30, fontWeight: FontWeight.w800, letterSpacing: -0.6),
+            style: const TextStyle(
+              color: AppColors.textOnDark,
+              fontSize: 30,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.6,
+            ),
           ),
           const SizedBox(height: 14),
           Row(
             children: [
-              Expanded(child: _MiniStat(label: 'Pending', value: formatMoney(provider.pendingBalance, currency: provider.currency))),
+              Expanded(
+                child: _MiniStat(
+                  label: 'Pending',
+                  value: formatMoney(
+                    provider.pendingBalance,
+                    currency: provider.currency,
+                  ),
+                ),
+              ),
               const SizedBox(width: 8),
-              Expanded(child: _MiniStat(label: 'Reserved', value: formatMoney(provider.reservedBalance, currency: provider.currency))),
+              Expanded(
+                child: _MiniStat(
+                  label: 'Reserved',
+                  value: formatMoney(
+                    provider.reservedBalance,
+                    currency: provider.currency,
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -162,7 +228,26 @@ class _BalanceHero extends StatelessWidget {
                     foregroundColor: AppColors.surfaceDark,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onPay,
+                  icon: const Icon(Icons.send_outlined, size: 18),
+                  label: const Text('Pay'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textOnDark,
+                    side: BorderSide(color: Colors.white.withOpacity(0.25)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     textStyle: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -171,7 +256,12 @@ class _BalanceHero extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const PayoutProfileScreen()));
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PayoutProfileScreen(),
+                      ),
+                    );
                   },
                   icon: const Icon(Icons.north_east, size: 18),
                   label: const Text('Withdraw'),
@@ -179,7 +269,9 @@ class _BalanceHero extends StatelessWidget {
                     foregroundColor: AppColors.textOnDark,
                     side: BorderSide(color: Colors.white.withOpacity(0.25)),
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     textStyle: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -208,10 +300,24 @@ class _MiniStat extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label.toUpperCase(),
-            style: TextStyle(color: AppColors.textOnDarkMuted, fontSize: 10, letterSpacing: 1.2, fontWeight: FontWeight.w700)),
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              color: AppColors.textOnDarkMuted,
+              fontSize: 10,
+              letterSpacing: 1.2,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(value, style: const TextStyle(color: AppColors.textOnDark, fontSize: 14, fontWeight: FontWeight.w700)),
+          Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.textOnDark,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
@@ -259,25 +365,37 @@ class _LedgerList extends StatelessWidget {
   final List<Map<String, dynamic>> entries;
   final String currency;
   final bool loading;
-  const _LedgerList({required this.entries, required this.currency, required this.loading});
+  const _LedgerList({
+    required this.entries,
+    required this.currency,
+    required this.loading,
+  });
 
   @override
   Widget build(BuildContext context) {
-    if (loading && entries.isEmpty) return const Center(child: CircularProgressIndicator());
-    if (entries.isEmpty) return const _EmptyState(text: 'No wallet activity yet.');
+    if (loading && entries.isEmpty)
+      return const Center(child: CircularProgressIndicator());
+    if (entries.isEmpty)
+      return const _EmptyState(text: 'No wallet activity yet.');
     return ListView.separated(
       itemCount: entries.length,
       padding: const EdgeInsets.symmetric(vertical: 8),
-      separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.divider),
+      separatorBuilder: (_, __) =>
+          const Divider(height: 1, color: AppColors.divider),
       itemBuilder: (_, i) {
         final e = entries[i];
         final type = (e['entry_type'] ?? '').toString();
         final isCredit = ['credit', 'release', 'settlement'].contains(type);
         final amount = (e['amount'] ?? 0) as num;
         return ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 4,
+            vertical: 4,
+          ),
           leading: CircleAvatar(
-            backgroundColor: isCredit ? AppColors.successSoft : AppColors.warningSoft,
+            backgroundColor: isCredit
+                ? AppColors.successSoft
+                : AppColors.warningSoft,
             child: Icon(
               isCredit ? Icons.south_west : Icons.north_east,
               color: isCredit ? AppColors.success : AppColors.warning,
@@ -303,8 +421,13 @@ class _LedgerList extends StatelessWidget {
                   color: isCredit ? AppColors.success : AppColors.textPrimary,
                 ),
               ),
-              Text('Bal ${formatMoney((e['balance_after'] ?? 0) as num, currency: currency)}',
-                style: const TextStyle(fontSize: 10, color: AppColors.textTertiary)),
+              Text(
+                'Bal ${formatMoney((e['balance_after'] ?? 0) as num, currency: currency)}',
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: AppColors.textTertiary,
+                ),
+              ),
             ],
           ),
         );
@@ -322,24 +445,37 @@ class _TransactionList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (loading && transactions.isEmpty) return const Center(child: CircularProgressIndicator());
-    if (transactions.isEmpty) return const _EmptyState(text: 'No transactions yet.');
+    if (loading && transactions.isEmpty)
+      return const Center(child: CircularProgressIndicator());
+    if (transactions.isEmpty)
+      return const _EmptyState(text: 'No transactions yet.');
     return ListView.separated(
       itemCount: transactions.length,
       padding: const EdgeInsets.symmetric(vertical: 8),
-      separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.divider),
+      separatorBuilder: (_, __) =>
+          const Divider(height: 1, color: AppColors.divider),
       itemBuilder: (_, i) {
         final tx = transactions[i];
         final status = (tx['status'] ?? '').toString();
         return ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 4,
+            vertical: 4,
+          ),
           onTap: () {
-            Navigator.push(context, MaterialPageRoute(
-              builder: (_) => ReceiptScreen(transactionCode: (tx['transaction_code'] ?? '').toString()),
-            ));
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ReceiptScreen(
+                  transactionCode: (tx['transaction_code'] ?? '').toString(),
+                ),
+              ),
+            );
           },
           title: Text(
-            (tx['description'] ?? (tx['target_type'] ?? '').toString().replaceAll('_', ' ')).toString(),
+            (tx['description'] ??
+                    (tx['target_type'] ?? '').toString().replaceAll('_', ' '))
+                .toString(),
             style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
           ),
           subtitle: Text(
@@ -350,8 +486,13 @@ class _TransactionList extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(formatMoney((tx['gross_amount'] ?? 0) as num, currency: (tx['currency_code'] ?? '').toString()),
-                style: const TextStyle(fontWeight: FontWeight.w700)),
+              Text(
+                formatMoney(
+                  (tx['gross_amount'] ?? 0) as num,
+                  currency: (tx['currency_code'] ?? '').toString(),
+                ),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
               const SizedBox(height: 2),
               _StatusChip(status: status),
             ],
@@ -371,20 +512,33 @@ class _StatusChip extends StatelessWidget {
     Color bg, fg;
     switch (status) {
       case 'succeeded':
-        bg = AppColors.successSoft; fg = AppColors.success; break;
+        bg = AppColors.successSoft;
+        fg = AppColors.success;
+        break;
       case 'pending':
       case 'processing':
-        bg = AppColors.warningSoft; fg = AppColors.warning; break;
+        bg = AppColors.warningSoft;
+        fg = AppColors.warning;
+        break;
       case 'failed':
       case 'cancelled':
-        bg = AppColors.errorSoft; fg = AppColors.error; break;
+        bg = AppColors.errorSoft;
+        fg = AppColors.error;
+        break;
       default:
-        bg = AppColors.surfaceMuted; fg = AppColors.textSecondary;
+        bg = AppColors.surfaceMuted;
+        fg = AppColors.textSecondary;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(4)),
-      child: Text(status, style: TextStyle(color: fg, fontSize: 9, fontWeight: FontWeight.w700)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(color: fg, fontSize: 9, fontWeight: FontWeight.w700),
+      ),
     );
   }
 }

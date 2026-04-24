@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/services/event_groups_service.dart';
 import 'widgets/chat_panel.dart';
 import 'widgets/scoreboard_panel.dart';
+import 'widgets/analytics_panel.dart';
 import 'widgets/members_sheet.dart';
 
 /// Premium event group workspace — Chat + Scoreboard tabs.
@@ -26,7 +27,7 @@ class _EventGroupWorkspaceScreenState extends State<EventGroupWorkspaceScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(length: 3, vsync: this);
     _load();
   }
 
@@ -142,6 +143,7 @@ class _EventGroupWorkspaceScreenState extends State<EventGroupWorkspaceScreen>
           tabs: const [
             Tab(icon: Icon(Icons.chat_bubble_outline, size: 16), text: 'Chat'),
             Tab(icon: Icon(Icons.emoji_events_outlined, size: 16), text: 'Scoreboard'),
+            Tab(icon: Icon(Icons.insights_outlined, size: 16), text: 'Analytics'),
           ],
         ),
       ),
@@ -156,6 +158,7 @@ class _EventGroupWorkspaceScreenState extends State<EventGroupWorkspaceScreen>
                   isClosed: isClosed,
                 ),
                 ScoreboardPanel(groupId: widget.groupId),
+                AnalyticsPanel(groupId: widget.groupId),
               ],
             ),
     );
