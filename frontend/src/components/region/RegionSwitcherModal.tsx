@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Globe, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,9 @@ const RegionSwitcherModal = ({
   switchUrl,
   onDismiss,
 }: Props) => {
-  return (
+  if (typeof document === "undefined") return null;
+
+  const content = (
     <AnimatePresence>
       {open && (
         <>
@@ -110,6 +113,8 @@ const RegionSwitcherModal = ({
       )}
     </AnimatePresence>
   );
+
+  return createPortal(content, document.body);
 };
 
 export default RegionSwitcherModal;

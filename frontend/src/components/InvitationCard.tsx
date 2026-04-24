@@ -75,7 +75,8 @@ const InvitationCard = ({ eventId, open, onClose, isOrganizer = false, guestId }
     dressCode: data?.event?.dress_code || 'As you feel comfortable',
     admits: data?.guest?.admits ? `${data.guest.admits} Guest${data.guest.admits > 1 ? 's' : ''}` : '1 Guest',
     qrValue: buildQrValue(),
-    qrUrl: data?.invitation_url || 'nuru.tz/event',
+    qrUrl: data?.invitation_url
+      || (data?.invitation_code ? `nuru.tz/rsvp/${data.invitation_code}` : 'nuru.tz/rsvp'),
   });
 
   const captureCanvas = async () => {
