@@ -241,6 +241,16 @@ def create_contributor(body: dict = Body(...), db: Session = Depends(get_db), cu
     if nt not in ("primary", "secondary", "both"):
         nt = "primary"
 
+    # Normalize secondary phone to international digits-only (no '+'),
+    # matching the primary phone storage convention. Prevents downstream
+    # WhatsApp / SMS gateways from receiving a stray '+'.
+    secondary_raw = (body.get("secondary_phone") or "").strip() or None
+    if secondary_raw:
+        try:
+            secondary_raw = validate_phone_number(secondary_raw)
+        except ValueError as e:
+            return standard_response(False, f"Secondary phone: {e}")
+
     c = UserContributor(
         id=uuid.uuid4(),
         user_id=current_user.id,
@@ -249,7 +259,7 @@ def create_contributor(body: dict = Body(...), db: Session = Depends(get_db), cu
         email=(body.get("email") or "").strip() or None,
         phone=phone,
         notes=(body.get("notes") or "").strip() or None,
-        secondary_phone=(body.get("secondary_phone") or "").strip() or None,
+        secondary_phone=secondary_raw,
         notify_target=nt,
         created_at=now,
         updated_at=now,
@@ -306,7 +316,13 @@ def update_contributor(contributor_id: str, body: dict = Body(...), db: Session 
     if "notes" in body:
         c.notes = (body["notes"] or "").strip() or None
     if "secondary_phone" in body:
-        c.secondary_phone = (body["secondary_phone"] or "").strip() or None
+        sp = (body["secondary_phone"] or "").strip() or None
+        if sp:
+            try:
+                sp = validate_phone_number(sp)
+            except ValueError as e:
+                return standard_response(False, f"Secondary phone: {e}")
+        c.secondary_phone = sp
     if "notify_target" in body:
         nt = (body["notify_target"] or "primary").strip().lower()
         c.notify_target = nt if nt in ("primary", "secondary", "both") else "primary"
@@ -536,11 +552,18 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
         return standard_response(False, "This contributor is already added to this event")
 
     # Fall back to address-book defaults when not explicitly provided.
+    # Always normalize an explicitly-provided secondary phone to international
+    # digits-only (no '+') so downstream WA/SMS senders don't choke.
     raw_secondary = body.get("secondary_phone")
     if raw_secondary is None:
         ec_secondary = (getattr(contributor, "secondary_phone", None) or None)
     else:
         ec_secondary = (raw_secondary or "").strip() or None
+        if ec_secondary:
+            try:
+                ec_secondary = validate_phone_number(ec_secondary)
+            except ValueError as e:
+                return standard_response(False, f"Secondary phone: {e}")
 
     raw_notify = body.get("notify_target")
     if raw_notify is None:
@@ -636,7 +659,13 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
     if "notes" in body:
         ec.notes = (body["notes"] or "").strip() or None
     if "secondary_phone" in body:
-        ec.secondary_phone = (body["secondary_phone"] or "").strip() or None
+        sp = (body["secondary_phone"] or "").strip() or None
+        if sp:
+            try:
+                sp = validate_phone_number(sp)
+            except ValueError as e:
+                return standard_response(False, f"Secondary phone: {e}")
+        ec.secondary_phone = sp
     if "notify_target" in body:
         nt = (body["notify_target"] or "primary").strip().lower()
         ec.notify_target = nt if nt in ("primary", "secondary", "both") else "primary"
