@@ -28,6 +28,12 @@ export const profileApi = {
     get<UserProfile & { is_following?: boolean; is_followed_by?: boolean; mutual_followers_count?: number }>(`/users/${userId}`),
 
   /**
+   * Get user profile by username in a single round-trip (no search step)
+   */
+  getByUsername: (username: string) =>
+    get<UserProfile & { is_following?: boolean; is_followed_by?: boolean; mutual_followers_count?: number }>(`/users/by-username/${encodeURIComponent(username)}`),
+
+  /**
    * Update current user profile
    */
   update: (formData: FormData) => putFormData<UserProfile>("/users/profile", formData),
@@ -158,4 +164,18 @@ export const profileApi = {
    * Get verification status
    */
   getVerificationStatus: () => get<{ status: string; submitted_at?: string; verified_at?: string; rejection_reason?: string }>("/users/verify-identity/status"),
+
+  // ============================================================================
+  // COUNTRY / CURRENCY (Phase 3 — payments)
+  // ============================================================================
+
+  /**
+   * Confirm or update the user's country of residence. The backend will
+   * derive the matching currency (TZ→TZS, KE→KES) and provision a wallet.
+   */
+  confirmCountry: (data: { country_code: "TZ" | "KE"; source?: "ip" | "phone" | "locale" | "manual" }) =>
+    post<{ country_code: string; currency_code: string; country_source: string }>(
+      "/users/profile/country",
+      data
+    ),
 };

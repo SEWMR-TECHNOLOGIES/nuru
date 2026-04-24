@@ -15,19 +15,36 @@ import { useToast } from '@/hooks/use-toast';
 import { useNuruCard, useNuruCardTypes } from '@/data/useNuruCards';
 import { Skeleton } from '@/components/ui/skeleton';
 import { QRCodeSVG } from 'qrcode.react';
-import { nuruCardsApi } from '@/lib/api/nuruCards';
+import { nuruCardsApi, type NuruCardPricing } from '@/lib/api/nuruCards';
 import html2canvas from 'html2canvas';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { useCurrency } from '@/hooks/useCurrency';
 
 const NuruCards = () => {
+  const { t } = useLanguage();
   useWorkspaceMeta({
     title: 'Nuru Cards',
     description: 'Get your Nuru Card for seamless event check-ins and exclusive benefits.'
   });
 
   const { toast } = useToast();
+  const { currency, format: formatCurrency } = useCurrency();
   const { card, loading: cardLoading, error: cardError, upgradeCard, refetch } = useNuruCard();
   const { cardTypes, loading: typesLoading } = useNuruCardTypes();
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Pricing pulled from `nuru_card_pricing` table — replaces hardcoded "TZS 50,000".
+  const [pricing, setPricing] = useState<NuruCardPricing[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    nuruCardsApi.getPricing(currency).then((res) => {
+      if (!cancelled && res.success) setPricing(res.data || []);
+    });
+    return () => { cancelled = true; };
+  }, [currency]);
+
+  const premiumPrice = pricing.find((p) => p.card_type === 'premium')?.amount ?? 0;
+  const standardPrice = pricing.find((p) => p.card_type === 'standard')?.amount ?? 0;
 
   // Order dialog state
   const [orderOpen, setOrderOpen] = useState(false);
@@ -242,7 +259,7 @@ const NuruCards = () => {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold mb-2">Nuru Cards</h1>
-          <p className="text-muted-foreground">Get your Nuru Card for seamless event check-ins</p>
+          <p className="text-muted-foreground">Get your Nuru Card for instant event check-ins</p>
         </div>
 
         {/* Hero */}
@@ -251,7 +268,7 @@ const NuruCards = () => {
             <div className="w-16 h-16 rounded-full bg-nuru-yellow/20 flex items-center justify-center mx-auto mb-4">
               <CreditCard className="w-8 h-8 text-primary" />
             </div>
-            <h2 className="text-2xl font-bold mb-2">Experience Seamless Event Check-ins</h2>
+            <h2 className="text-2xl font-bold mb-2">Tap and Walk In</h2>
             <p className="text-muted-foreground mb-6">Skip the queues and check in instantly with your Nuru Card.</p>
             <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground flex-wrap">
               {['Instant Check-in', 'Secure & Verified', 'Digital Convenience'].map(t => (
@@ -276,7 +293,7 @@ const NuruCards = () => {
               <CardDescription>Perfect for event attendees</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="text-3xl font-bold">TZS 0</div>
+              <div className="text-3xl font-bold">{formatCurrency(standardPrice)}</div>
               <ul className="space-y-3">
                 {regularFeatures.map((f, i) => (
                   <li key={i} className="flex items-center gap-3">
@@ -307,7 +324,7 @@ const NuruCards = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold">TZS 50,000</span>
+                <span className="text-3xl font-bold">{formatCurrency(premiumPrice)}</span>
                 <span className="text-muted-foreground">/year</span>
               </div>
               <ul className="space-y-3">
@@ -368,7 +385,7 @@ const NuruCards = () => {
                     </div>
                     <div className="text-right">
                       <Badge variant={order.status === 'delivered' ? 'default' : 'outline'} className="capitalize">{order.status}</Badge>
-                      {order.amount > 0 && <p className="text-sm font-medium mt-1">TZS {Number(order.amount).toLocaleString()}</p>}
+                      {order.amount > 0 && <p className="text-sm font-medium mt-1">{formatCurrency(Number(order.amount))}</p>}
                     </div>
                   </div>
                 ))}

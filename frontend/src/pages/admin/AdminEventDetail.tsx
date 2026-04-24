@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ChevronLeft, CalendarDays, MapPin, Users, Clock, User } from "lucide-react";
+import VenueMapPreview from "@/components/VenueMapPreview";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { adminApi } from "@/lib/api/admin";
@@ -114,6 +115,15 @@ export default function AdminEventDetail() {
           <p className="font-semibold text-foreground text-sm">{event.guest_count ?? event.rsvp_count ?? "—"}</p>
         </div>
       </div>
+
+      {event.venue_coordinates && event.venue_coordinates.latitude && event.venue_coordinates.longitude && (
+        <VenueMapPreview
+          latitude={event.venue_coordinates.latitude}
+          longitude={event.venue_coordinates.longitude}
+          venueName={event.venue || event.location || undefined}
+          address={event.venue_address || undefined}
+        />
+      )}
 
       {/* Organizer */}
       {event.organizer && (

@@ -18,11 +18,13 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useUserService } from '@/hooks/useUserService';
 import { servicesApi, userServicesApi } from '@/lib/api/services';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import { ServiceDetailLoadingSkeleton } from '@/components/ui/ServiceLoadingSkeleton';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserService, ServicePackage, ServiceReview } from '@/lib/api/types';
 import LocationIcon from '@/assets/icons/location-icon.svg';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
+import ReceivedPaymentsPanel from '@/components/payments/ReceivedPaymentsPanel';
 
 interface BookedDate {
   date: string;
@@ -38,6 +40,8 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
 
 const ServiceDetail = () => {
+  const { format: formatPrice } = useCurrency();
+  const { t } = useLanguage();
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -50,7 +54,7 @@ const ServiceDetail = () => {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [activeTab, setActiveTab] = useState<'overview' | 'calendar' | 'reviews'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'calendar' | 'reviews' | 'payments'>('overview');
   const [introMedia, setIntroMedia] = useState<Array<{ id: string; media_type: string; media_url: string }>>([]);
 
   useWorkspaceMeta({
@@ -68,13 +72,14 @@ const ServiceDetail = () => {
     }
   }, [service]);
 
-  // Fetch intro media separately for fresh data
+  // Intro media: only fetch separately if it isn't already inlined in the service payload
   useEffect(() => {
     if (!id) return;
+    if (introMedia.length > 0) return;
     userServicesApi.getIntroMedia(id).then(res => {
       if (res.success && res.data) setIntroMedia(Array.isArray(res.data) ? res.data : []);
     }).catch(() => {});
-  }, [id]);
+  }, [id, introMedia.length]);
 
   const loadReviews = useCallback(async () => {
     if (!id) return;
@@ -86,20 +91,26 @@ const ServiceDetail = () => {
     finally { setReviewsLoading(false); }
   }, [id]);
 
-  useEffect(() => { if (id) loadReviews(); }, [id, loadReviews]);
-
+  // Lazy: only fetch reviews when the reviews tab is opened (once)
+  const [reviewsLoaded, setReviewsLoaded] = useState(false);
   useEffect(() => {
-    if (!id) return;
-    const loadCalendar = async () => {
-      setCalendarLoading(true);
-      try {
-        const res = await servicesApi.getCalendar(id);
-        if (res.success && res.data?.booked_dates) setBookedDates(res.data.booked_dates);
-      } catch { /* silent */ }
-      finally { setCalendarLoading(false); }
-    };
-    loadCalendar();
-  }, [id]);
+    if (activeTab === 'reviews' && id && !reviewsLoaded) {
+      setReviewsLoaded(true);
+      loadReviews();
+    }
+  }, [activeTab, id, reviewsLoaded, loadReviews]);
+
+  // Lazy: only fetch calendar when the calendar tab is opened (once)
+  const [calendarLoaded, setCalendarLoaded] = useState(false);
+  useEffect(() => {
+    if (activeTab !== 'calendar' || !id || calendarLoaded) return;
+    setCalendarLoaded(true);
+    setCalendarLoading(true);
+    servicesApi.getCalendar(id).then((res) => {
+      if (res.success && res.data?.booked_dates) setBookedDates(res.data.booked_dates);
+    }).catch(() => {}).finally(() => setCalendarLoading(false));
+  }, [activeTab, id, calendarLoaded]);
+
 
   const getImageUrl = (img: any): string => {
     if (typeof img === 'string') return img;
@@ -170,10 +181,11 @@ const ServiceDetail = () => {
     { key: 'overview', label: 'Overview' },
     { key: 'calendar', label: 'Calendar' },
     { key: 'reviews', label: `Reviews (${reviewCount})` },
+    { key: 'payments', label: 'Payments' },
   ] as const;
 
   return (
-    <div className="max-w-5xl mx-auto pb-16">
+    <div className="pb-16">
 
       {/* ─── TOP BAR ─── */}
       <div className="flex items-center justify-between py-4 px-1 mb-2">
@@ -280,7 +292,7 @@ const ServiceDetail = () => {
       {/* ─── QUICK ACTIONS ─── */}
       <div className="flex flex-wrap gap-2 mb-6">
         <Button variant="outline" size="sm" asChild>
-          <Link to={`/services/events/${id}`}><img src={calendarIcon} alt="calendar" className="w-4 h-4 mr-1.5 inline dark:invert" />My Events</Link>
+          <Link to={`/services/events/${id}`}><img src={calendarIcon} alt="calendar" className="w-4 h-4 mr-1.5 inline dark:invert" />{t("my_events")}</Link>
         </Button>
         {isPhotography && (
           <Button variant="outline" size="sm" asChild>
@@ -642,7 +654,16 @@ const ServiceDetail = () => {
         </motion.div>
       )}
 
-      {/* ─── LIGHTBOX ─── */}
+      {/* ─── TAB: PAYMENTS ─── */}
+      {activeTab === 'payments' && id && (
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
+          <ReceivedPaymentsPanel
+            source={{ kind: 'service', serviceId: id }}
+            title="Payments received for this service"
+          />
+        </motion.div>
+      )}
+
       <AnimatePresence>
         {lightboxOpen && hasImages && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}

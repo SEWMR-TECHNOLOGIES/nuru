@@ -105,7 +105,7 @@ async function handlePost(postId: string, apiBase: string, shortPath?: string) {
 
   const authorName = post?.author?.name || '';
   const title = (post?.content?.slice(0, 60) || (authorName ? `${authorName} on Nuru` : "Shared on Nuru"));
-  const description = post?.content?.slice(0, 160) || `${authorName ? authorName + ' shared something on' : 'Check out this moment on'} Nuru – your all-in-one event planning platform.`;
+  const description = post?.content?.slice(0, 160) || `${authorName ? authorName + ' shared something on' : 'Check out this moment on'} Nuru – your all-in-one event planning workspace.`;
   
   // Extract first non-video image for OG preview
   let rawImage = '';
@@ -180,10 +180,45 @@ async function handlePhotoLibrary(token: string, apiBase: string) {
   const eventName = library?.event?.name || "";
   const photoCount = library?.photo_count || 0;
   const title = (eventName ? `${libraryName}` : libraryName).slice(0, 60);
-  const description = `View ${photoCount} photo${photoCount !== 1 ? "s" : ""} from ${eventName || "this event"} on Nuru – your all-in-one event planning platform.`;
+  const description = `View ${photoCount} photo${photoCount !== 1 ? "s" : ""} from ${eventName || "this event"} on Nuru – your all-in-one event planning workspace.`;
   const rawImage = library?.photos?.[0]?.url || library?.event?.cover_image_url || '';
   const image = optimizeImageForOG(rawImage, fallbackImage);
   const canonicalUrl = `${siteUrl}/shared/photo-library/${token}`;
+
+  return buildHtmlPage(title, description, image, canonicalUrl);
+}
+
+// ── Meeting OG handler ─────────────────────────────────
+async function handleMeeting(roomId: string, apiBase: string) {
+  const fallbackImage = `${siteUrl}/logo.png`;
+  let meeting: any = null;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`${apiBase}/meetings/room/${roomId}`, { signal: controller.signal });
+    clearTimeout(timeout);
+    const json = await res.json();
+    if (json.success && json.data) meeting = json.data;
+  } catch (e) {
+    console.error("Failed to fetch meeting:", e);
+  }
+
+  const meetingTitle = meeting?.title || "Video Meeting";
+  const eventName = meeting?.event?.name || "";
+  const scheduledAt = meeting?.scheduled_at
+    ? new Date(meeting.scheduled_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })
+    : "";
+  const creatorName = meeting?.creator?.name || "";
+
+  const title = (eventName ? `${meetingTitle} – ${eventName}` : meetingTitle).slice(0, 60);
+  const descParts = ["Join this video meeting on Nuru."];
+  if (scheduledAt) descParts.unshift(`📅 ${scheduledAt}`);
+  if (creatorName) descParts.push(`Hosted by ${creatorName}.`);
+  const description = descParts.join(" ").slice(0, 160);
+
+  const rawImage = meeting?.event?.cover_image || '';
+  const image = optimizeImageForOG(rawImage, fallbackImage);
+  const canonicalUrl = `${siteUrl}/meet/${roomId}`;
 
   return buildHtmlPage(title, description, image, canonicalUrl);
 }
@@ -193,7 +228,9 @@ serve(async (req) => {
   const url = new URL(req.url);
   const userAgent = req.headers.get("user-agent") || "";
 
-  let resourceType: "post" | "rsvp" | "photo-library" | null = null;
+  console.log(`[og-meta] Request: ${url.pathname}${url.search} UA: ${userAgent.slice(0, 60)}`);
+
+  let resourceType: "post" | "rsvp" | "photo-library" | "meeting" | null = null;
   let resourceId: string | null = null;
   let shortPath: string | undefined;
 
@@ -203,19 +240,21 @@ serve(async (req) => {
   const typeParam = url.searchParams.get("type");
 
   if (shortParam) {
-    // Short URL: decode base64url to UUID
     resourceType = "post";
     resourceId = decodeShortId(shortParam);
     shortPath = `/s/${shortParam}`;
   } else if (idParam) {
     if (typeParam === "rsvp") resourceType = "rsvp";
     else if (typeParam === "photo-library") resourceType = "photo-library";
+    else if (typeParam === "meeting") resourceType = "meeting";
     else resourceType = "post";
     resourceId = idParam;
   }
 
   // Check path patterns as fallback
   if (!resourceId) {
+    const meetMatch = url.pathname.match(/\/meet\/([A-Za-z0-9_-]+)/i);
+    if (meetMatch) { resourceType = "meeting"; resourceId = meetMatch[1]; }
     const postMatch = url.pathname.match(/\/shared\/post\/([a-f0-9-]+)/i);
     if (postMatch) { resourceType = "post"; resourceId = postMatch[1]; }
     const shortMatch = url.pathname.match(/\/s\/([A-Za-z0-9_-]+)/i);
@@ -227,8 +266,11 @@ serve(async (req) => {
   }
 
   if (!resourceType || !resourceId) {
+    console.log(`[og-meta] No resource found for path: ${url.pathname} search: ${url.search}`);
     return new Response("Missing resource ID", { status: 400 });
   }
+
+  console.log(`[og-meta] Resolved: type=${resourceType} id=${resourceId} isBot=${BOT_UA_REGEX.test(userAgent)}`);
 
   // For real browsers, redirect to the SPA with ?r=1
   if (!BOT_UA_REGEX.test(userAgent)) {
@@ -237,8 +279,9 @@ serve(async (req) => {
       redirectPath = `${siteUrl}/rsvp/${resourceId}?r=1`;
     } else if (resourceType === "photo-library") {
       redirectPath = `${siteUrl}/shared/photo-library/${resourceId}?r=1`;
+    } else if (resourceType === "meeting") {
+      redirectPath = `${siteUrl}/meet/${resourceId}?r=1`;
     } else if (shortPath) {
-      // Short URL for real users: redirect to the SPA short route
       redirectPath = `${siteUrl}${shortPath}?r=1`;
     } else {
       redirectPath = `${siteUrl}/shared/post/${resourceId}?r=1`;
@@ -259,6 +302,8 @@ serve(async (req) => {
     html = await handleRsvp(resourceId, API_BASE);
   } else if (resourceType === "photo-library") {
     html = await handlePhotoLibrary(resourceId, API_BASE);
+  } else if (resourceType === "meeting") {
+    html = await handleMeeting(resourceId, API_BASE);
   } else {
     html = await handlePost(resourceId, API_BASE, shortPath);
   }

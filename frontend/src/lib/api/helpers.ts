@@ -4,7 +4,17 @@
 
 import type { ApiResponse } from "./types";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://api.nuru.tz/api/v1";
+// Use env var if set, otherwise fall back to relative path (works behind NGINX proxy)
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+
+/**
+ * Security headers added to every request
+ */
+const getSecurityHeaders = (): Record<string, string> => ({
+  "X-Client-Id": "nuru-web-v1",
+  "X-Request-Time": Date.now().toString(),
+  "X-Platform": "web",
+});
 
 /**
  * Get authorization headers with token if available
@@ -13,6 +23,7 @@ export const getAuthHeaders = (): HeadersInit => {
   const token = localStorage.getItem("access_token") || localStorage.getItem("token");
   return {
     "Content-Type": "application/json",
+    ...getSecurityHeaders(),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 };
@@ -38,16 +49,31 @@ export async function request<T>(
   try {
     const response = await fetch(url, config);
 
+    // Handle 429 globally - rate limited
+    if (response.status === 429) {
+      const retryHeader = response.headers.get("Retry-After");
+      const retryAfter = retryHeader ? parseInt(retryHeader, 10) : 60;
+      const isAuth = endpoint.startsWith("/auth/") || endpoint.startsWith("/users/signup") || endpoint.startsWith("/users/verify-otp") || endpoint.startsWith("/users/request-otp");
+      window.dispatchEvent(new CustomEvent("api:rate-limited", {
+        detail: { retryAfter: isNaN(retryAfter) ? 60 : retryAfter, context: isAuth ? "auth" : "general" },
+      }));
+    }
+
     // Handle 401 globally - token expired or invalid
+    // Skip redirect on public pages (shared posts, photo libraries, RSVP, etc.)
     if (response.status === 401) {
       const currentToken = localStorage.getItem("access_token") || localStorage.getItem("token");
+      const publicPaths = ["/shared/", "/s/", "/c/", "/rsvp/", "/ticket/", "/meet/", "/contact", "/faqs", "/register", "/login", "/verify-", "/reset-password", "/privacy-policy", "/terms", "/vendor-agreement", "/organiser-agreement", "/cancellation-policy", "/cookie-policy", "/features/"];
+      const isPublicPage = publicPaths.some(p => window.location.pathname.startsWith(p));
       if (currentToken) {
         localStorage.removeItem("access_token");
         localStorage.removeItem("token");
         localStorage.removeItem("refresh_token");
-        // Show message and redirect
-        const event = new CustomEvent("auth:session-expired");
-        window.dispatchEvent(event);
+        // Only redirect on protected pages, not public ones
+        if (!isPublicPage) {
+          const event = new CustomEvent("auth:session-expired");
+          window.dispatchEvent(event);
+        }
       }
     }
 
@@ -146,12 +172,21 @@ export async function postFormData<T>(endpoint: string, formData: FormData): Pro
     const response = await fetch(url, {
       method: "POST",
       headers: {
+        ...getSecurityHeaders(),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       credentials: "include",
       body: formData,
     });
-    
+
+    if (response.status === 429) {
+      const retryHeader = response.headers.get("Retry-After");
+      const retryAfter = retryHeader ? parseInt(retryHeader, 10) : 60;
+      window.dispatchEvent(new CustomEvent("api:rate-limited", {
+        detail: { retryAfter: isNaN(retryAfter) ? 60 : retryAfter, context: "general" },
+      }));
+    }
+
     const json = await response.json().catch(() => null);
     
     if (json && typeof json === "object" && "success" in json) {
@@ -193,12 +228,21 @@ export async function putFormData<T>(endpoint: string, formData: FormData): Prom
     const response = await fetch(url, {
       method: "PUT",
       headers: {
+        ...getSecurityHeaders(),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       credentials: "include",
       body: formData,
     });
-    
+
+    if (response.status === 429) {
+      const retryHeader = response.headers.get("Retry-After");
+      const retryAfter = retryHeader ? parseInt(retryHeader, 10) : 60;
+      window.dispatchEvent(new CustomEvent("api:rate-limited", {
+        detail: { retryAfter: isNaN(retryAfter) ? 60 : retryAfter, context: "general" },
+      }));
+    }
+
     const json = await response.json().catch(() => null);
     
     if (json && typeof json === "object" && "success" in json) {

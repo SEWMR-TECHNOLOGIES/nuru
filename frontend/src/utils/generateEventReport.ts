@@ -4,8 +4,7 @@
  */
 
 import nuruLogoUrl from '@/assets/nuru-logo.png';
-import { formatPrice } from '@/utils/formatPrice';
-
+import { formatMoney } from '@/utils/formatPrice';
 interface EventReportData {
   title: string;
   description?: string;

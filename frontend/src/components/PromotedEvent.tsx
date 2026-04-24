@@ -3,6 +3,7 @@ import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { Button } from '@/components/ui/button';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface PromotedEventProps {
   title: string;
@@ -13,6 +14,7 @@ interface PromotedEventProps {
 }
 
 const PromotedEvent = ({ title, date, location, image, attendees }: PromotedEventProps) => {
+  const { t } = useLanguage();
   return (
     <div className="bg-card rounded-lg border border-border overflow-hidden">
       {/* Header — subtle accent, no shadow */}

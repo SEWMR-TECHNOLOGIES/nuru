@@ -8,6 +8,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import NuruLogo from '@/assets/nuru-logo.png';
 import { get, put } from '@/lib/api/helpers';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface TicketInfo {
   ticket_code: string;
@@ -33,6 +34,7 @@ interface TicketInfo {
 }
 
 const TicketVerification = () => {
+  const { t } = useLanguage();
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
   const [ticket, setTicket] = useState<TicketInfo | null>(null);

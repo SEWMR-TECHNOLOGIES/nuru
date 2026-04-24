@@ -12,6 +12,7 @@ import { useUserSearch, type SearchedUser } from "@/hooks/useUserSearch";
 import { authApi } from "@/lib/api/auth";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { toast } from "sonner";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface UserSearchInputProps {
   onSelect: (user: SearchedUser) => void;
@@ -21,6 +22,7 @@ interface UserSearchInputProps {
 }
 
 const UserSearchInput = ({ onSelect, placeholder = "Search by email or phone...", disabled, allowRegister = true }: UserSearchInputProps) => {
+  const { t } = useLanguage();
   const [query, setQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [registering, setRegistering] = useState(false);

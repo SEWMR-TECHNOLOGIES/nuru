@@ -7,6 +7,7 @@ import { Shield, FileText, CheckCircle, Loader2, AlertTriangle } from "lucide-re
 import { agreementsApi, type AgreementType } from "@/lib/api/agreements";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface AgreementModalProps {
   open: boolean;
@@ -48,6 +49,7 @@ const AGREEMENT_META: Record<AgreementType, {
 };
 
 const AgreementModal = ({ open, onClose, onAccepted, agreementType, updateSummary }: AgreementModalProps) => {
+  const { t } = useLanguage();
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showFullDoc, setShowFullDoc] = useState(false);

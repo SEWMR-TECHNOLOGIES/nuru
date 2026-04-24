@@ -4,6 +4,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { eventsApi } from '@/lib/api/events';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface InvitationQRDialogProps {
   eventId: string;
@@ -12,6 +13,7 @@ interface InvitationQRDialogProps {
 }
 
 const InvitationQRDialog = ({ eventId, open, onClose }: InvitationQRDialogProps) => {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [qrValue, setQrValue] = useState('');
@@ -42,7 +44,7 @@ const InvitationQRDialog = ({ eventId, open, onClose }: InvitationQRDialogProps)
   }, [open, eventId]);
 
   const formattedDate = eventDate
-    ? new Date(eventDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+    ? new Date(eventDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
     : '';
 
   return (

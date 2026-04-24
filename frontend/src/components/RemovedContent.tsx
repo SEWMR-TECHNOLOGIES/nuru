@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 type RemovedItem = {
   id: string;
@@ -178,7 +179,7 @@ function RemovedCard({ item, onAppealSubmitted }: { item: RemovedItem; onAppealS
             ? 'border-green-500/20 bg-green-500/5'
             : 'border-destructive/20 bg-destructive/5'
         }`}>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Admin Response</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Nuru Response</p>
           <p className="text-sm text-foreground">{item.appeal.admin_notes}</p>
         </div>
       )}
@@ -231,6 +232,7 @@ let _cachedPosts: any[] | null = null;
 let _cachedMoments: any[] | null = null;
 
 export default function RemovedContent() {
+  const { t } = useLanguage();
   const [posts, setPosts] = useState<RemovedItem[]>(_cachedPosts as any || []);
   const [moments, setMoments] = useState<RemovedItem[]>(_cachedMoments as any || []);
   const [loading, setLoading] = useState(!_cachedPosts);
@@ -276,12 +278,12 @@ export default function RemovedContent() {
   const total = posts.length + moments.length;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+    <div className="px-4 py-6 space-y-6">
       {/* Header */}
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <AlertTriangle className="w-5 h-5 text-destructive" />
-          <h1 className="text-xl font-bold text-foreground">Removed Content</h1>
+          <h1 className="text-xl font-bold text-foreground">{t("removed_content")}</h1>
         </div>
         <p className="text-sm text-muted-foreground">
           Content removed by our team. You have <strong>7 days</strong> from removal to submit an appeal before it's permanently deleted.

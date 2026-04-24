@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Integer, Text, Enum, UniqueConstraint, Numeric
+from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Integer, Text, Enum, UniqueConstraint, Numeric, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -35,6 +35,17 @@ class UserFeed(Base):
     share_expires_at = Column(DateTime)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # High-value composite indexes for feed ranking & timeline queries.
+    # `(is_active, created_at)` accelerates the global candidate scan;
+    # `(user_id, is_active, created_at)` accelerates per-user listings used by
+    # /posts/me and the followed-users branch of candidate generation.
+    __table_args__ = (
+        Index('idx_user_feeds_active_created', 'is_active', 'created_at'),
+        Index('idx_user_feeds_user_active_created', 'user_id', 'is_active', 'created_at'),
+        Index('idx_user_feeds_visibility_created', 'visibility', 'created_at'),
+        Index('idx_user_feeds_shared_event', 'shared_event_id'),
+    )
 
     # Relationships
     user = relationship("User", back_populates="feeds")

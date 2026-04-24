@@ -130,73 +130,27 @@ def _comment_dict(db, comment, current_user_id=None, include_replies_preview=Tru
 
 
 def _post_dict(db, post, current_user_id=None):
-    user = db.query(User).filter(User.id == post.user_id).first()
-    profile = db.query(UserProfile).filter(UserProfile.user_id == post.user_id).first() if user else None
-    images = db.query(UserFeedImage).filter(UserFeedImage.feed_id == post.id).all()
-    glow_count = db.query(sa_func.count(UserFeedGlow.id)).filter(UserFeedGlow.feed_id == post.id).scalar() or 0
-    echo_count = db.query(sa_func.count(UserFeedEcho.id)).filter(UserFeedEcho.feed_id == post.id).scalar() or 0
-    spark_count = db.query(sa_func.count(UserFeedSpark.id)).filter(UserFeedSpark.feed_id == post.id).scalar() or 0
-    comment_count = db.query(sa_func.count(UserFeedComment.id)).filter(UserFeedComment.feed_id == post.id, UserFeedComment.is_active == True).scalar() or 0
+    """Single-post serializer (kept for single-item endpoints like create/update).
+    For list endpoints, use build_post_dicts() from utils.batch_loaders instead."""
+    from utils.batch_loaders import build_post_dicts
+    results = build_post_dicts(db, [post], current_user_id)
+    return results[0] if results else {}
 
-    has_glowed = False
-    has_echoed = False
-    has_saved = False
-    if current_user_id:
-        has_glowed = db.query(UserFeedGlow).filter(UserFeedGlow.feed_id == post.id, UserFeedGlow.user_id == current_user_id).first() is not None
-        has_echoed = db.query(UserFeedEcho).filter(UserFeedEcho.feed_id == post.id, UserFeedEcho.user_id == current_user_id).first() is not None
-        has_saved = db.query(UserFeedSaved).filter(UserFeedSaved.feed_id == post.id, UserFeedSaved.user_id == current_user_id).first() is not None
 
-    result = {
-        "id": str(post.id),
-        "author": {
-            "id": str(user.id) if user else None,
-            "name": f"{user.first_name} {user.last_name}" if user else None,
-            "username": user.username if user else None,
-            "avatar": profile.profile_picture_url if profile else None,
-            "is_verified": user.is_identity_verified if user else False,
-        },
-        "content": post.content, "images": [{"url": img.image_url, "media_type": getattr(img, 'media_type', None) or 'image'} for img in images],
-        "location": post.location,
-        "visibility": post.visibility.value if post.visibility else "public",
-        "post_type": post.post_type or "post",
-        "glow_count": glow_count, "echo_count": echo_count,
-        "spark_count": spark_count, "comment_count": comment_count,
-        "has_glowed": has_glowed, "has_echoed": has_echoed, "has_saved": has_saved,
-        "is_pinned": db.query(UserFeedPinned).filter(UserFeedPinned.feed_id == post.id).first() is not None,
-        "created_at": post.created_at.isoformat() if post.created_at else None,
-    }
 
-    # Include shared event data if this is an event_share post
-    if post.post_type == "event_share" and post.shared_event_id:
-        event = db.query(Event).filter(Event.id == post.shared_event_id).first()
-        if event:
-            from models import EventImage
-            event_images = db.query(EventImage).filter(EventImage.event_id == event.id).all()
-            cover = event.cover_image_url
-            gallery = [img.image_url for img in event_images] if event_images else []
-            if cover and cover not in gallery:
-                gallery.insert(0, cover)
+# ──────────────────────────────────────────────
+# MY POSTS — must be before /{post_id} wildcard
+# ──────────────────────────────────────────────
 
-            result["shared_event"] = {
-                "id": str(event.id),
-                "title": event.name,
-                "description": event.description,
-                "start_date": event.start_date.isoformat() if event.start_date else None,
-                "end_date": event.end_date.isoformat() if event.end_date else None,
-                "start_time": event.start_time.strftime("%H:%M") if event.start_time else None,
-                "location": event.location,
-                "cover_image": cover,
-                "images": gallery,
-                "event_type": event.event_type.name if event.event_type else None,
-                "sells_tickets": getattr(event, 'sells_tickets', False) or False,
-                "is_public": getattr(event, 'is_public', False) or False,
-                "expected_guests": event.expected_guests,
-                "dress_code": event.dress_code,
-            }
-            result["share_expires_at"] = post.share_expires_at.isoformat() if post.share_expires_at else None
-
-    return result
-
+@router.get("/me")
+def get_my_posts(page: int = 1, limit: int = 30, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Get current user's own posts (all visibility levels)."""
+    page = max(1, page)
+    limit = max(1, min(limit, 50))
+    query = db.query(UserFeed).filter(UserFeed.user_id == current_user.id, UserFeed.is_active == True).order_by(UserFeed.created_at.desc())
+    from utils.batch_loaders import build_post_dicts
+    items, pagination = paginate(query, page, limit)
+    return standard_response(True, "Your posts retrieved", {"posts": build_post_dicts(db, items, current_user.id), "pagination": pagination})
 
 
 # ──────────────────────────────────────────────
@@ -265,9 +219,9 @@ def get_saved_posts(page: int = 1, limit: int = 20, db: Session = Depends(get_db
         .filter(UserFeedSaved.user_id == current_user.id, UserFeed.is_active == True)
         .order_by(UserFeedSaved.created_at.desc())
     )
+    from utils.batch_loaders import build_post_dicts
     items, pagination = paginate(query, page, limit)
-    posts = [_post_dict(db, p, current_user.id) for p in items]
-    # Mark all as saved
+    posts = build_post_dicts(db, items, current_user.id)
     for p in posts:
         p["is_saved"] = True
     return standard_response(True, "Saved posts retrieved", {"saved_posts": posts, "pagination": pagination})
@@ -283,24 +237,27 @@ def get_feed(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Intelligent ranked feed. Uses multi-factor scoring algorithm:
-    FinalScore = W1×EngagementPrediction + W2×RelationshipStrength
-               + W3×InterestMatch + W4×RecencyDecay + W5×ContentQuality
-               + W6×DiversityPenalty + W7×ExplorationBoost
-
-    Query params:
-      - mode: "ranked" (default, intelligent) or "chronological" (legacy)
-      - session_id: optional client session ID for impression deduplication
+    Intelligent ranked feed with Redis caching (TTL 2 min).
     """
+    from core.redis import cache_get, cache_set, CacheKeys
+
+    uid = str(current_user.id)
+    cache_key = CacheKeys.for_feed(uid, page, limit, mode)
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return standard_response(True, "Feed retrieved", cached)
+
     if mode == "chronological":
-        # Legacy fallback
         query = _visible_feed_query(db, current_user.id).order_by(UserFeed.created_at.desc())
         items, pagination = paginate(query, page, limit)
-        return standard_response(True, "Feed retrieved", {
-            "posts": [_post_dict(db, p, current_user.id) for p in items],
+        from utils.batch_loaders import build_post_dicts
+        result = {
+            "posts": build_post_dicts(db, items, current_user.id),
             "pagination": pagination,
             "feed_mode": "chronological",
-        })
+        }
+        cache_set(cache_key, result, ttl_seconds=120)
+        return standard_response(True, "Feed retrieved", result)
 
     # ── Ranked Feed ──
     try:
@@ -309,43 +266,47 @@ def get_feed(
             UserInteractionLog,
         )
 
-        # Check if user has enough interaction history for personalization
         interaction_count = db.query(sa_func.count(UserInteractionLog.id)).filter(
             UserInteractionLog.user_id == current_user.id
         ).scalar() or 0
 
         if interaction_count < 10:
-            # Cold start: use engagement-based ranking
             posts, pagination = get_cold_start_feed(db, current_user.id, page, limit)
         else:
             posts, pagination = generate_ranked_feed(
                 db, current_user.id, page, limit, session_id
             )
 
-        return standard_response(True, "Feed retrieved", {
-            "posts": [_post_dict(db, p, current_user.id) for p in posts],
+        from utils.batch_loaders import build_post_dicts
+        result = {
+            "posts": build_post_dicts(db, posts, current_user.id),
             "pagination": pagination,
             "feed_mode": "ranked" if interaction_count >= 10 else "cold_start",
-        })
+        }
+        cache_set(cache_key, result, ttl_seconds=120)
+        return standard_response(True, "Feed retrieved", result)
 
     except Exception as e:
-        # Graceful fallback to chronological on any ranking error
         import traceback
         traceback.print_exc()
+        from utils.batch_loaders import build_post_dicts
         query = _visible_feed_query(db, current_user.id).order_by(UserFeed.created_at.desc())
         items, pagination = paginate(query, page, limit)
-        return standard_response(True, "Feed retrieved", {
-            "posts": [_post_dict(db, p, current_user.id) for p in items],
+        result = {
+            "posts": build_post_dicts(db, items, current_user.id),
             "pagination": pagination,
             "feed_mode": "chronological_fallback",
-        })
+        }
+        cache_set(cache_key, result, ttl_seconds=120)
+        return standard_response(True, "Feed retrieved", result)
 
 
 @router.get("/explore")
 def get_explore(page: int = 1, limit: int = 20, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     query = _visible_feed_query(db, current_user.id).order_by(UserFeed.created_at.desc())
+    from utils.batch_loaders import build_post_dicts
     items, pagination = paginate(query, page, limit)
-    return standard_response(True, "Explore posts retrieved", {"posts": [_post_dict(db, p, current_user.id) for p in items], "pagination": pagination})
+    return standard_response(True, "Explore posts retrieved", {"posts": build_post_dicts(db, items, current_user.id), "pagination": pagination})
 
 
 @router.get("/user/{user_id}")
@@ -374,16 +335,25 @@ def get_user_posts(user_id: str, page: int = 1, limit: int = 20, db: Session = D
                 )
             )
     query = query.order_by(UserFeed.created_at.desc())
+    from utils.batch_loaders import build_post_dicts
     items, pagination = paginate(query, page, limit)
-    return standard_response(True, "User posts retrieved", {"posts": [_post_dict(db, p, current_user.id) for p in items], "pagination": pagination})
+    return standard_response(True, "User posts retrieved", {"posts": build_post_dicts(db, items, current_user.id), "pagination": pagination})
 
 @router.get("/public/trending")
 def get_public_trending_posts(limit: int = 12, db: Session = Depends(get_db)):
-    """Public endpoint - returns trending public posts with images, sorted by engagement."""
+    """Public endpoint - trending posts with Redis cache (TTL 5 min)."""
+    from core.redis import cache_get, cache_set, CacheKeys
     from sqlalchemy import or_, desc
+    from utils.batch_loaders import build_post_dicts
 
-    # Only public, active posts that have at least one image
-    posts_with_images = (
+    limit = min(limit, 50)
+
+    cache_key = CacheKeys.for_trending(limit)
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return standard_response(True, "Trending moments", cached)
+
+    top_posts = (
         db.query(UserFeed)
         .filter(
             UserFeed.is_active == True,
@@ -394,28 +364,22 @@ def get_public_trending_posts(limit: int = 12, db: Session = Depends(get_db)):
         )
         .join(UserFeedImage, UserFeedImage.feed_id == UserFeed.id)
         .distinct()
+        .order_by(
+            desc(
+                (UserFeed.glow_count * 2) + (UserFeed.echo_count * 3) + (UserFeed.spark_count)
+            ),
+            desc(UserFeed.created_at),
+        )
+        .limit(limit)
         .all()
     )
 
-    if not posts_with_images:
+    if not top_posts:
         return standard_response(True, "No public moments", [])
 
-    # Score by engagement (glows + echoes + comments)
-    scored = []
-    for post in posts_with_images:
-        glows = db.query(sa_func.count(UserFeedGlow.id)).filter(UserFeedGlow.feed_id == post.id).scalar() or 0
-        echoes = db.query(sa_func.count(UserFeedEcho.id)).filter(UserFeedEcho.feed_id == post.id).scalar() or 0
-        comments = db.query(sa_func.count(UserFeedComment.id)).filter(
-            UserFeedComment.feed_id == post.id, UserFeedComment.is_active == True
-        ).scalar() or 0
-        score = glows * 2 + echoes * 3 + comments
-        scored.append((post, score))
-
-    # Sort by score desc, then by newest
-    scored.sort(key=lambda x: (-x[1], x[0].created_at), reverse=False)
-    top = [p for p, _ in scored[:limit]]
-
-    return standard_response(True, "Trending moments", [_post_dict(db, p) for p in top])
+    result = build_post_dicts(db, top_posts)
+    cache_set(cache_key, result, ttl_seconds=300)  # 5 min TTL
+    return standard_response(True, "Trending moments", result)
 
 
 @router.get("/{post_id}/public")
@@ -519,6 +483,9 @@ async def create_post(
                     pass
 
     db.commit()
+    from core.redis import invalidate_user_feed, invalidate_trending
+    invalidate_user_feed(str(current_user.id))
+    invalidate_trending()
     return standard_response(True, "Post created successfully", _post_dict(db, post, current_user.id))
 
 
@@ -537,6 +504,8 @@ def update_post(post_id: str, body: dict = Body(...), db: Session = Depends(get_
         post.visibility = FeedVisibilityEnum(body["visibility"])
     post.updated_at = datetime.now(EAT)
     db.commit()
+    from core.redis import invalidate_user_feed
+    invalidate_user_feed(str(current_user.id))
     return standard_response(True, "Post updated successfully", _post_dict(db, post, current_user.id))
 
 
@@ -551,6 +520,9 @@ def delete_post(post_id: str, db: Session = Depends(get_db), current_user: User 
         return standard_response(False, "Post not found")
     post.is_active = False
     db.commit()
+    from core.redis import invalidate_user_feed, invalidate_trending
+    invalidate_user_feed(str(current_user.id))
+    invalidate_trending()
     return standard_response(True, "Post deleted successfully")
 
 
@@ -661,8 +633,9 @@ def get_comments(
     else:  # newest
         query = query.order_by(UserFeedComment.created_at.desc())
 
+    from utils.batch_loaders import build_comment_dicts
     items, pagination = paginate(query, page, limit)
-    data = [_comment_dict(db, c, current_user.id) for c in items]
+    data = build_comment_dicts(db, items, current_user.id)
     return standard_response(True, "Comments retrieved", {"comments": data, "pagination": pagination})
 
 
@@ -682,8 +655,9 @@ def get_comment_replies(
         UserFeedComment.is_active == True,
     ).order_by(UserFeedComment.created_at.asc())
 
+    from utils.batch_loaders import build_comment_dicts
     items, pagination = paginate(query, page, limit)
-    data = [_comment_dict(db, c, current_user.id, include_replies_preview=False) for c in items]
+    data = build_comment_dicts(db, items, current_user.id, include_replies_preview=False)
     return standard_response(True, "Replies retrieved", {"comments": data, "pagination": pagination})
 
 

@@ -101,8 +101,18 @@ def search_events(
     limit: int = 20,
     db: Session = Depends(get_db),
 ):
-    """Searches and filters public events."""
+    """Searches and filters public events. Cached 2 min for anonymous traffic."""
     from models import EventStatusEnum
+    from core.redis import cache_get, cache_set
+
+    # Cache key combines all filter params
+    cache_key = (
+        f"events:search:q={q or ''}:t={event_type_id or ''}:loc={location or ''}"
+        f":sa={start_after or ''}:sb={start_before or ''}:p{page}:l{limit}"
+    )
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return standard_response(True, "Public events retrieved successfully", cached)
 
     query = db.query(Event).filter(Event.is_public == True, Event.status == EventStatusEnum.confirmed)
 
@@ -137,13 +147,16 @@ def search_events(
     total_pages = max(1, math.ceil(total / limit))
     events = query.offset((page - 1) * limit).limit(limit).all()
 
-    return standard_response(True, "Public events retrieved successfully", {
-        "events": [_public_event_dict(db, e) for e in events],
+    from utils.batch_loaders import build_public_event_dicts
+    payload = {
+        "events": build_public_event_dicts(db, events),
         "pagination": {
             "page": page, "limit": limit, "total_items": total,
             "total_pages": total_pages, "has_next": page < total_pages, "has_previous": page > 1,
         },
-    })
+    }
+    cache_set(cache_key, payload, ttl_seconds=120)
+    return standard_response(True, "Public events retrieved successfully", payload)
 
 
 # ──────────────────────────────────────────────
@@ -151,10 +164,15 @@ def search_events(
 # ──────────────────────────────────────────────
 @router.get("/featured")
 def get_featured_events(limit: int = 10, db: Session = Depends(get_db)):
-    """Returns featured/trending public events."""
+    """Returns featured/trending public events. Cached 5 min for anonymous traffic."""
     from models import EventStatusEnum, PromotedEvent
+    from core.redis import cache_get, cache_set
 
-    # Promoted events first, then by guest count
+    cache_key = f"events:featured:l{limit}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return standard_response(True, "Featured events retrieved successfully", cached)
+
     promoted_ids = [
         r[0] for r in db.query(PromotedEvent.event_id)
         .filter(PromotedEvent.is_active == True).all()
@@ -170,7 +188,10 @@ def get_featured_events(limit: int = 10, db: Session = Depends(get_db)):
     else:
         events = query.order_by(Event.created_at.desc()).limit(limit).all()
 
-    return standard_response(True, "Featured events retrieved successfully", [_public_event_dict(db, e) for e in events])
+    from utils.batch_loaders import build_public_event_dicts
+    data = build_public_event_dicts(db, events)
+    cache_set(cache_key, data, ttl_seconds=300)
+    return standard_response(True, "Featured events retrieved successfully", data)
 
 
 # ──────────────────────────────────────────────
@@ -184,8 +205,17 @@ def get_nearby_events(
     limit: int = 20,
     db: Session = Depends(get_db),
 ):
-    """Returns events near a location."""
+    """Returns events near a location. Cached 3 min by rounded coordinates."""
     from models import EventStatusEnum
+    from core.redis import cache_get, cache_set
+
+    # Round coordinates to ~1km grid for effective cache hit rate
+    lat_key = round(latitude, 2)
+    lon_key = round(longitude, 2)
+    cache_key = f"events:nearby:{lat_key}:{lon_key}:r{radius_km}:l{limit}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return standard_response(True, "Nearby events retrieved successfully", cached)
 
     # Simple bounding box filter (~1 degree ≈ 111km)
     degree_offset = radius_km / 111.0
@@ -200,6 +230,7 @@ def get_nearby_events(
     ids = [r[0] for r in event_ids]
 
     if not ids:
+        cache_set(cache_key, [], ttl_seconds=180)
         return standard_response(True, "No nearby events found", [])
 
     events = (
@@ -209,7 +240,10 @@ def get_nearby_events(
         .limit(limit).all()
     )
 
-    return standard_response(True, "Nearby events retrieved successfully", [_public_event_dict(db, e) for e in events])
+    from utils.batch_loaders import build_public_event_dicts
+    data = build_public_event_dicts(db, events)
+    cache_set(cache_key, data, ttl_seconds=180)
+    return standard_response(True, "Nearby events retrieved successfully", data)
 
 
 # ──────────────────────────────────────────────
@@ -223,6 +257,13 @@ def get_public_event(event_id: str, db: Session = Depends(get_db)):
     except ValueError:
         return standard_response(False, "Invalid event ID format")
 
+    # Cache public event detail for 2 minutes (payload is anonymous-safe)
+    from core.redis import cache_get, cache_set
+    cache_key = f"public_event:{event_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return standard_response(True, "Event retrieved successfully", cached)
+
     event = db.query(Event).filter(Event.id == eid).first()
     if not event:
         return standard_response(False, "Event not found")
@@ -230,14 +271,19 @@ def get_public_event(event_id: str, db: Session = Depends(get_db)):
     if not event.is_public:
         return standard_response(False, "This event is not publicly visible")
 
-    data = _public_event_dict(db, event)
+    from utils.batch_loaders import build_public_event_dicts
+    built = build_public_event_dicts(db, [event])
+    data = built[0] if built else _public_event_dict(db, event)
 
     # Add contribution info if enabled
     settings = db.query(EventSetting).filter(EventSetting.event_id == eid).first()
     if settings and settings.contributions_enabled:
         ct = db.query(EventContributionTarget).filter(EventContributionTarget.event_id == eid).first()
         target = float(ct.target_amount) if ct else (float(settings.contribution_target_amount) if settings.contribution_target_amount else 0)
-        current = float(db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(EventContribution.event_id == eid).scalar())
+        current = float(db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(
+            EventContribution.event_id == eid,
+            EventContribution.confirmation_status == "confirmed",
+        ).scalar())
 
         data["contribution_info"] = {
             "enabled": True,
@@ -257,6 +303,7 @@ def get_public_event(event_id: str, db: Session = Depends(get_db)):
             "end_time": si.end_time.isoformat() if si.end_time else None,
         } for si in schedule]
 
+    cache_set(cache_key, data, ttl_seconds=120)
     return standard_response(True, "Event retrieved successfully", data)
 
 
@@ -422,8 +469,14 @@ def public_contribution_page(event_id: str, db: Session = Depends(get_db)):
     settings = db.query(EventSetting).filter(EventSetting.event_id == eid).first()
     ct = db.query(EventContributionTarget).filter(EventContributionTarget.event_id == eid).first()
     target = float(ct.target_amount) if ct else (float(settings.contribution_target_amount) if settings and settings.contribution_target_amount else 0)
-    current = float(db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(EventContribution.event_id == eid).scalar())
-    count = db.query(sa_func.count(EventContribution.id)).filter(EventContribution.event_id == eid).scalar()
+    current = float(db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(
+        EventContribution.event_id == eid,
+        EventContribution.confirmation_status == "confirmed",
+    ).scalar())
+    count = db.query(sa_func.count(EventContribution.id)).filter(
+        EventContribution.event_id == eid,
+        EventContribution.confirmation_status == "confirmed",
+    ).scalar()
 
     organizer = db.query(User).filter(User.id == event.organizer_id).first()
 

@@ -21,6 +21,7 @@ import { photoLibrariesApi, PhotoLibrary } from '@/lib/api/photoLibraries';
 import { showApiErrors, showCaughtError } from '@/lib/api';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import PhotosIcon from '@/assets/icons/photos-icon.svg';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const MAX_IMAGE_MB = 10;
 const STORAGE_LIMIT_MB = 200;
@@ -29,6 +30,7 @@ const STORAGE_LIMIT_MB = 200;
 const _libCache: Record<string, { library: PhotoLibrary; ts: number }> = {};
 
 const PhotoLibraryDetail = () => {
+  const { t } = useLanguage();
   const { libraryId } = useParams<{ libraryId: string }>();
   const navigate = useNavigate();
   const cached = libraryId ? _libCache[libraryId] : null;
@@ -148,7 +150,7 @@ const PhotoLibraryDetail = () => {
   /* ─── SKELETON LOADING STATE ─── */
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto pb-16">
+      <div className="pb-16">
         <div className="flex items-center gap-3 py-4 px-1 mb-4">
           <Skeleton className="w-20 h-4" />
         </div>
@@ -180,11 +182,11 @@ const PhotoLibraryDetail = () => {
   const storageColor = storagePct > 90 ? 'text-destructive' : storagePct > 70 ? 'text-amber-600' : 'text-emerald-600';
 
   return (
-    <div className="max-w-5xl mx-auto pb-16">
+    <div className="pb-16">
 
       {/* ─── TOP BAR ─── */}
-      <div className="flex items-center justify-between py-4 px-1 mb-2">
-        <div className="flex gap-2">
+      <div className="flex items-center justify-between gap-2 py-4 px-1 mb-2">
+        <div className="flex gap-2 flex-wrap min-w-0">
           <Button variant="outline" size="sm" onClick={copyShareLink}>
             {copied ? <Check className="w-4 h-4 mr-1.5 text-emerald-500" /> : <img src={ShareIcon} alt="" className="w-4 h-4 mr-1.5 dark:invert opacity-70" />}
             {copied ? 'Copied!' : 'Share'}
@@ -202,7 +204,7 @@ const PhotoLibraryDetail = () => {
             </span>
           )}
         </div>
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Go back">
+        <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => navigate(-1)} aria-label="Go back">
           <ChevronLeft className="w-5 h-5" />
         </Button>
       </div>
@@ -376,7 +378,7 @@ const PhotoLibraryDetail = () => {
                   <button
                     onClick={(e) => { e.stopPropagation(); downloadFile(photo.url, photo.original_name || `photo-${idx + 1}.jpg`); }}
                     className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors shadow inline-flex"
-                    title="Download"
+                    title={t("download")}
                   >
                     <Download className="w-4 h-4 text-foreground" />
                   </button>

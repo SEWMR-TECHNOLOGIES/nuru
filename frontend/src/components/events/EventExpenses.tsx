@@ -27,7 +27,7 @@ import { usePolling } from '@/hooks/usePolling';
 import { toast } from 'sonner';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { showCaughtError } from '@/lib/api';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import { formatDateMedium } from '@/utils/formatDate';
 import { eventsApi } from '@/lib/api/events';
 import { generateExpenseReportHtml } from '@/utils/generatePdf';
@@ -35,6 +35,7 @@ import ReportPreviewDialog from '@/components/ReportPreviewDialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { EventPermissions } from '@/hooks/useEventPermissions';
 import ServiceProviderSearch from './ServiceProviderSearch';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface EventExpensesProps {
   eventId: string;
@@ -65,6 +66,8 @@ const ITEMS_PER_PAGE = 10;
 const _expensesCache = new Map<string, { expenses: any[]; summary: any }>();
 
 const EventExpenses = ({ eventId, eventTitle, eventBudget, totalRaised = 0, permissions }: EventExpensesProps) => {
+  const { format: formatPrice } = useCurrency();
+  const { t } = useLanguage();
   const canManage = permissions?.can_manage_expenses || permissions?.is_creator;
   const canView = permissions?.can_view_expenses || permissions?.can_manage_expenses || permissions?.is_creator;
 

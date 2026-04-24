@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Integer, Numeric, Text, Enum, String
+from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Integer, Numeric, Text, Enum, String, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -58,8 +58,24 @@ class Event(Base):
     dress_code = Column(String(100))
     special_instructions = Column(Text)
     card_template_id = Column(UUID(as_uuid=True), ForeignKey('invitation_card_templates.id', ondelete='SET NULL'), nullable=True)
+    # Optional fallback phone used in contributor reminder/bulk messages
+    # (defaults to organiser's phone if NULL).
+    reminder_contact_phone = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        # Hot paths: list user's events newest-first, filter by status
+        Index('idx_events_organizer_start', 'organizer_id', 'start_date'),
+        Index('idx_events_organizer_status', 'organizer_id', 'status'),
+        Index('idx_events_status_start', 'status', 'start_date'),
+        # Public/discover feeds
+        Index('idx_events_public_start', 'is_public', 'start_date'),
+        # Ticket-approval moderation queue
+        Index('idx_events_ticket_approval_status', 'ticket_approval_status'),
+        # Created_at desc for chronological sweeps
+        Index('idx_events_created_at', 'created_at'),
+    )
 
     # Relationships
     organizer = relationship("User", back_populates="organized_events")
@@ -86,6 +102,7 @@ class Event(Base):
     ticket_classes = relationship("EventTicketClass", back_populates="event")
     tickets = relationship("EventTicket", back_populates="event")
     card_template = relationship("InvitationCardTemplate", back_populates="events")
+    meetings = relationship("EventMeeting", back_populates="event", cascade="all, delete-orphan")
 
 
 class EventTypeService(Base):

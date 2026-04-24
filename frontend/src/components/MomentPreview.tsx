@@ -3,6 +3,7 @@ import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import CustomImageIcon from '@/assets/icons/image-icon.svg';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface LocationData {
   latitude: number;
@@ -18,6 +19,7 @@ interface MomentPreviewProps {
 }
 
 const MomentPreview = ({ text, previews, location, mediaFiles }: MomentPreviewProps) => {
+  const { t } = useLanguage();
   const { data: currentUser } = useCurrentUser();
   
   // Don't show preview if nothing to display
@@ -30,7 +32,7 @@ const MomentPreview = ({ text, previews, location, mediaFiles }: MomentPreviewPr
       return (
         <img
           src={currentUser.avatar}
-          alt="Profile"
+          alt={t("profile")}
           className="w-full h-full object-cover"
         />
       );

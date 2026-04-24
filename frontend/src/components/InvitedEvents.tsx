@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Clock, CheckCircle, XCircle, HelpCircle, Loader2, Printer, Timer, QrCode } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, HelpCircle, Loader2, Timer, QrCode } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
@@ -11,8 +11,8 @@ import { eventsApi } from '@/lib/api/events';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
 import InvitationCard from './InvitationCard';
-import InvitationQRDialog from './InvitationQRDialog';
 import { getEventCountdown } from '@/utils/getEventCountdown';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const rsvpStyles: Record<string, string> = {
   pending: 'bg-amber-100 text-amber-800',
@@ -29,11 +29,12 @@ const rsvpIcons: Record<string, any> = {
 };
 
 const InvitedEvents = () => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  
   const [qrEventId, setQrEventId] = useState<string | null>(null);
   const [respondingAction, setRespondingAction] = useState<{ eventId: string; status: string } | null>(null);
 
@@ -126,7 +127,8 @@ const InvitedEvents = () => {
           return (
             <article
               key={event.id}
-              className="bg-card rounded-lg border border-border transition-colors relative"
+              className="bg-card rounded-lg border border-border transition-colors relative cursor-pointer hover:border-primary/30"
+              onClick={() => navigate(`/event/${event.id}`)}
             >
               {/* Diagonal status badge */}
               <div className="absolute top-0 right-0 z-10 overflow-hidden rounded-tr-lg" style={{ width: '90px', height: '90px', pointerEvents: 'none' }}>
@@ -184,10 +186,17 @@ const InvitedEvents = () => {
                         </span>
                       )}
                       {event.location && (
-                        <span className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/event/${event.id}#venue`);
+                          }}
+                          className="flex items-center gap-1 text-primary hover:text-primary/80 hover:underline transition-colors cursor-pointer"
+                          title="View venue on map"
+                        >
                           <img src={LocationIcon} alt="Location" className="w-4 h-4" />
                           {event.location}
-                        </span>
+                        </button>
                       )}
                     </div>
 
@@ -264,25 +273,12 @@ const InvitedEvents = () => {
                           variant="outline"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedEventId(event.id);
-                          }}
-                        >
-                          <Printer className="w-4 h-4 mr-1" />
-                          Invitation Card
-                        </Button>
-                      )}
-                      {rsvpStatus === 'confirmed' && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
                             setQrEventId(event.id);
                           }}
                           className="gap-1.5"
                         >
                           <QrCode className="w-4 h-4" />
-                          Show QR
+                          View Invitation
                         </Button>
                       )}
                     </div>
@@ -294,16 +290,8 @@ const InvitedEvents = () => {
         })}
       </div>
 
-      {selectedEventId && (
-        <InvitationCard
-          eventId={selectedEventId}
-          open={!!selectedEventId}
-          onClose={() => setSelectedEventId(null)}
-        />
-      )}
-
       {qrEventId && (
-        <InvitationQRDialog
+        <InvitationCard
           eventId={qrEventId}
           open={!!qrEventId}
           onClose={() => setQrEventId(null)}

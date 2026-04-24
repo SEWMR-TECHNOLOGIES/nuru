@@ -118,10 +118,39 @@ def _booking_dict(db, b):
     }
 
 
+def _filter_bookings_by_search(items, term):
+    """Filter already-built booking dicts by search term across user-visible fields."""
+    if not term:
+        return items
+    t = term.strip().lower()
+    if not t:
+        return items
+    out = []
+    for b in items:
+        haystack_parts = [
+            str(b.get("service_name") or ""),
+            str(b.get("event_name") or ""),
+            str(b.get("client_name") or ""),
+            str(b.get("vendor_name") or ""),
+            str(b.get("status") or ""),
+            str(b.get("notes") or ""),
+            str(b.get("vendor_notes") or ""),
+        ]
+        if t in " ".join(haystack_parts).lower():
+            out.append(b)
+    return out
+
+
 @router.get("/")
-def get_my_bookings(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_my_bookings(
+    search: str = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from utils.batch_loaders import build_booking_dicts
     bookings = db.query(ServiceBookingRequest).filter(ServiceBookingRequest.requester_user_id == current_user.id).order_by(ServiceBookingRequest.created_at.desc()).all()
-    items = [_booking_dict(db, b) for b in bookings]
+    items = build_booking_dicts(db, bookings)
+    items = _filter_bookings_by_search(items, search)
     summary = {
         "total": len(items),
         "pending": sum(1 for b in items if b["status"] == "pending"),
@@ -134,13 +163,18 @@ def get_my_bookings(db: Session = Depends(get_db), current_user: User = Depends(
 
 
 @router.get("/received")
-def get_received_bookings(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # Find bookings for services owned by the current user
+def get_received_bookings(
+    search: str = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from utils.batch_loaders import build_booking_dicts
     my_service_ids = [s.id for s in db.query(UserService.id).filter(UserService.user_id == current_user.id).all()]
     if not my_service_ids:
         return standard_response(True, "Received bookings retrieved successfully", {"bookings": [], "summary": {"total": 0, "pending": 0, "accepted": 0, "rejected": 0, "completed": 0, "cancelled": 0}})
     bookings = db.query(ServiceBookingRequest).filter(ServiceBookingRequest.user_service_id.in_(my_service_ids)).order_by(ServiceBookingRequest.created_at.desc()).all()
-    items = [_booking_dict(db, b) for b in bookings]
+    items = build_booking_dicts(db, bookings)
+    items = _filter_bookings_by_search(items, search)
     summary = {
         "total": len(items),
         "pending": sum(1 for b in items if b["status"] == "pending"),
@@ -185,6 +219,28 @@ def update_booking(booking_id: str, body: dict = Body(...), db: Session = Depend
     return standard_response(True, "Booking updated successfully", _booking_dict(db, b))
 
 
+@router.get("/{booking_id}/refund-preview")
+def refund_preview(
+    booking_id: str,
+    cancelling_party: str = "organiser",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Preview the refund breakdown WITHOUT cancelling. Used by the
+    'see your refund before confirming' modal on web + mobile."""
+    try:
+        bid = uuid.UUID(booking_id)
+    except ValueError:
+        return standard_response(False, "Invalid booking ID")
+    b = db.query(ServiceBookingRequest).filter(ServiceBookingRequest.id == bid).first()
+    if not b:
+        return standard_response(False, "Booking not found")
+
+    from services.cancellation_service import calculate
+    breakdown = calculate(db, b, cancelling_party)
+    return standard_response(True, "Refund preview", breakdown.to_dict())
+
+
 @router.post("/{booking_id}/cancel")
 def cancel_booking(booking_id: str, body: dict = Body(default={}), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
@@ -196,10 +252,40 @@ def cancel_booking(booking_id: str, body: dict = Body(default={}), db: Session =
     if not b:
         return standard_response(False, "Booking not found")
 
+    # Determine cancelling party (organiser = requester, vendor = service owner).
+    cancelling_party = "organiser"
+    if b.user_service_id:
+        from models import UserService as _US
+        svc = db.query(_US).filter(_US.id == b.user_service_id).first()
+        if svc and str(svc.user_id) == str(current_user.id):
+            cancelling_party = "vendor"
+
+    # Compute the policy-driven refund (Phase 1.2).
+    from services.cancellation_service import calculate
+    from services import escrow_service as escrow
+    from models import EscrowHold
+
+    breakdown = calculate(db, b, cancelling_party)
+
+    # Apply the refund to escrow if any funds are held.
+    hold = db.query(EscrowHold).filter(EscrowHold.booking_id == b.id).first()
+    if hold and breakdown.refund_to_organiser > 0:
+        escrow.refund_to_organiser(
+            db, b, float(breakdown.refund_to_organiser),
+            reason=breakdown.reason_code,
+            actor_id=current_user.id,
+        )
+
     b.status = "cancelled"
+    b.vendor_notes = body.get("reason") or b.vendor_notes
     b.updated_at = datetime.now(EAT)
     db.commit()
-    return standard_response(True, "Booking cancelled successfully")
+
+    return standard_response(True, "Booking cancelled", {
+        "booking_id": str(b.id),
+        "status": "cancelled",
+        "refund": breakdown.to_dict(),
+    })
 
 
 @router.post("/{booking_id}/respond")
@@ -254,13 +340,20 @@ def respond_to_booking(booking_id: str, body: dict = Body(...), db: Session = De
                 from utils.notify import notify_booking_accepted
                 notify_booking_accepted(db, b.requester_user_id, current_user.id, b.event_id, event_name, service_name)
                 db.commit()
-                # SMS
+                # WhatsApp first
+                if requester and requester.phone:
+                    try:
+                        from utils.whatsapp import wa_booking_accepted
+                        wa_booking_accepted(requester.phone, requester.first_name, f"{current_user.first_name} {current_user.last_name}", service_name, event_name)
+                    except Exception:
+                        pass
+                # SMS fallback
                 if requester and requester.phone:
                     from utils.sms import _send
-                    _send(requester.phone, f"Hello {requester.first_name}, {current_user.first_name} {current_user.last_name} has accepted your booking for {service_name} at {event_name}. Open Nuru app for details.")
+                    _send(requester.phone, f"Hello {requester.first_name}, {current_user.first_name} {current_user.last_name} has confirmed your booking for {service_name} at {event_name}. Open Nuru for details.")
             elif new_status == "rejected":
-                from utils.notify import create_notification
-                create_notification(db, b.requester_user_id, current_user.id, "booking_rejected", f"declined your booking for {service_name} at {event_name}", reference_id=b.event_id, reference_type="event")
+                from utils.notify import notify_booking_rejected
+                notify_booking_rejected(db, b.requester_user_id, current_user.id, b.event_id, event_name, service_name)
                 db.commit()
         except Exception:
             pass
@@ -296,11 +389,13 @@ def pay_deposit(booking_id: str, body: dict = Body(...), db: Session = Depends(g
     if not b:
         return standard_response(False, "Booking not found")
 
-    b.deposit_paid = True
-    b.status = "deposit_paid"
-    b.updated_at = datetime.now(EAT)
+    # Logical escrow: record HOLD_DEPOSIT and flip booking to funds_secured.
+    from services import escrow_service as escrow
+    amount = body.get("amount") or float(b.deposit_required or 0)
+    hold = escrow.record_deposit_paid(db, b, amount, actor_id=current_user.id)
     db.commit()
-    return standard_response(True, "Deposit recorded successfully")
+    return standard_response(True, "Deposit recorded — funds secured in escrow",
+                             {"booking_id": str(b.id), "escrow": escrow.serialize_hold(hold, include_transactions=False)})
 
 
 @router.post("/{booking_id}/complete")
@@ -349,8 +444,10 @@ def pay_balance(booking_id: str, body: dict = Body(...), db: Session = Depends(g
     if not b:
         return standard_response(False, "Booking not found")
 
+    from services import escrow_service as escrow
+    amount = body.get("amount")
+    hold = escrow.record_balance_paid(db, b, amount, actor_id=current_user.id)
     b.balance_paid = True
-    b.status = "paid"
-    b.updated_at = datetime.now(EAT)
     db.commit()
-    return standard_response(True, "Balance paid successfully")
+    return standard_response(True, "Balance paid — fully held in escrow",
+                             {"booking_id": str(b.id), "escrow": escrow.serialize_hold(hold, include_transactions=False)})

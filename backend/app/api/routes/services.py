@@ -8,15 +8,16 @@ from typing import List, Optional
 
 import pytz
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload, joinedload
 from sqlalchemy import func as sa_func, or_, case, literal
 
 from core.database import get_db
 from models import (
     EventTypeService, EventService, Event, EventInvitation, EventCommitteeMember,
     ServiceType, UserService, ServicePackage, UserServiceRating,
-    EventServiceStatusEnum,
+    EventServiceStatusEnum, User,
 )
+from core.redis import cache_get, cache_set, cache_delete_pattern
 from utils.auth import get_current_user
 
 from utils.helpers import format_price, standard_response, paginate
@@ -129,7 +130,15 @@ def search_services(
     Supports geo-proximity when lat/lng provided.
     """
 
-    query = db.query(UserService).filter(
+    query = db.query(UserService).options(
+        selectinload(UserService.ratings),
+        selectinload(UserService.images),
+        selectinload(UserService.packages),
+        joinedload(UserService.user).joinedload(User.profile),
+        joinedload(UserService.category),
+        joinedload(UserService.service_type),
+        joinedload(UserService.business_phone),
+    ).filter(
         UserService.is_active == True,
         UserService.is_verified == True,
         UserService.verification_status == "verified"
@@ -189,7 +198,6 @@ def search_services(
             token = auth_header.split(" ")[1]
             payload = decode_token(token)
             if payload:
-                from models import User
                 current_user = db.query(User).filter(User.id == payload.get("user_id")).first()
     except Exception:
         pass
@@ -227,12 +235,14 @@ def search_services(
             ).all()
             user_event_type_service_ids = {str(r[0]) for r in recommended}
 
-    # ── Fetch all matching services for ranking ──
-    # For relevance sorting, we fetch a larger pool and rank in-memory
+    # ── Fetch and rank services ──
+    # For relevance sorting, limit the candidate pool to prevent full-table scan.
+    # Score using denormalized data instead of loading all rows into memory.
     if sort_by == "relevance":
-        all_services = query.all()
+        # Cap candidate pool to 500 instead of loading all rows
+        MAX_RELEVANCE_POOL = 500
+        all_services = query.limit(MAX_RELEVANCE_POOL).all()
 
-        # Score each service
         scored = []
         for s in all_services:
             score = _compute_relevance_score(
@@ -241,12 +251,10 @@ def search_services(
                 user_lat=lat,
                 user_lng=lng
             )
-            # Boost services whose location text matches the search location
             if location and s.location and location.lower() in s.location.lower():
                 score += 15
             scored.append((s, score))
 
-        # Sort by score descending, then by created_at for stability
         scored.sort(key=lambda x: (-x[1], x[0].created_at))
 
         total = len(scored)
@@ -281,8 +289,27 @@ def search_services(
 
         items, pagination = paginate(query, page, limit)
 
+    # ── Batch load completed events count ──
+    service_ids = [s.id for s in items]
+    completed_events_map = {}
+    if service_ids:
+        completed_rows = (
+            db.query(EventService.provider_user_service_id, sa_func.count(EventService.id))
+            .join(Event, Event.id == EventService.event_id)
+            .filter(
+                EventService.provider_user_service_id.in_(service_ids),
+                EventService.service_status != EventServiceStatusEnum.cancelled,
+                or_(
+                    EventService.service_status == EventServiceStatusEnum.completed,
+                    sa_func.coalesce(Event.end_date, Event.start_date) < datetime.now(EAT),
+                ),
+            )
+            .group_by(EventService.provider_user_service_id)
+            .all()
+        )
+        completed_events_map = {str(sid): cnt for sid, cnt in completed_rows}
+
     # ── Build response ──
-    # Collect location & price stats for filters
     all_locations = {}
     global_min_price = None
     global_max_price = None
@@ -345,16 +372,7 @@ def search_services(
             "verified": s.is_verified,
             "availability": s.availability.value if hasattr(s.availability, "value") else s.availability,
             "years_experience": getattr(s, "years_experience", None),
-            "completed_events": db.query(sa_func.count(EventService.id)).join(
-                Event, Event.id == EventService.event_id
-            ).filter(
-                EventService.provider_user_service_id == s.id,
-                EventService.service_status != EventServiceStatusEnum.cancelled,
-                or_(
-                    EventService.service_status == EventServiceStatusEnum.completed,
-                    sa_func.coalesce(Event.end_date, Event.start_date) < datetime.now(EAT),
-                ),
-            ).scalar() or 0,
+            "completed_events": completed_events_map.get(str(s.id), 0),
             "business_phone": {
                 "phone_number": s.business_phone.phone_number,
                 "verification_status": s.business_phone.verification_status.value if hasattr(s.business_phone.verification_status, "value") else str(s.business_phone.verification_status),
@@ -391,7 +409,22 @@ def get_service_details(service_id: str, db: Session = Depends(get_db)):
     except ValueError:
         return standard_response(False, "Invalid service ID")
 
-    service = db.query(UserService).filter(UserService.id == sid).first()
+    # Try cache first (5 min TTL)
+    cache_key = f"service:detail:{service_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return standard_response(True, "Service retrieved successfully", cached)
+
+    service = db.query(UserService).options(
+        selectinload(UserService.ratings).joinedload(UserServiceRating.user).joinedload(User.profile),
+        selectinload(UserService.images),
+        selectinload(UserService.packages),
+        selectinload(UserService.intro_media),
+        joinedload(UserService.user).joinedload(User.profile),
+        joinedload(UserService.category),
+        joinedload(UserService.service_type),
+        joinedload(UserService.business_phone),
+    ).filter(UserService.id == sid).first()
     if not service:
         return standard_response(False, "Service not found")
 
@@ -481,6 +514,7 @@ def get_service_details(service_id: str, db: Session = Depends(get_db)):
         "created_at": service.created_at.isoformat()
     }
 
+    cache_set(cache_key, data, ttl_seconds=300)
     return standard_response(True, "Service retrieved successfully", data)
 
 

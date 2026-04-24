@@ -62,3 +62,20 @@ class NuruCardOrder(Base):
     user = relationship("User", back_populates="nuru_card_orders")
     delivery_country = relationship("Country", back_populates="nuru_card_orders")
     currency = relationship("Currency", back_populates="nuru_card_orders")
+
+
+class NuruCardPricing(Base):
+    """
+    Stores Nuru Card pricing per (card_type, currency_code).
+    Replaces the previously hardcoded "TZS 50,000" so the same card can
+    be priced correctly across markets (TZS for nuru.tz, KES for nuru.ke).
+    """
+    __tablename__ = 'nuru_card_pricing'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    card_type = Column(Text, nullable=False)        # 'standard' | 'premium'
+    currency_code = Column(Text, nullable=False)    # 'TZS' | 'KES'
+    amount = Column(Numeric(14, 2), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

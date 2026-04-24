@@ -3,8 +3,10 @@ import { Link } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const CookiePolicy = () => {
+  const { t } = useLanguage();
   useMeta({
     title: "Cookie Policy | Nuru",
     description: "Learn how Nuru Workspace uses cookies and similar technologies to improve your experience on the platform."
@@ -98,7 +100,7 @@ const CookiePolicy = () => {
       <div className="min-h-screen pt-32 pb-24 px-6">
         <div className="max-w-3xl mx-auto">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="mb-16">
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-foreground tracking-tight mb-6">Cookie Policy</h1>
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-foreground tracking-tight mb-6">{t("cookie_policy")}</h1>
             <p className="text-muted-foreground">Last updated: February 2025</p>
           </motion.div>
 
@@ -128,8 +130,8 @@ const CookiePolicy = () => {
             <h2 className="text-xl font-semibold text-foreground mb-3">Questions about cookies?</h2>
             <p className="text-muted-foreground mb-6">Contact us at privacy@nuru.tz or review our Privacy Policy.</p>
             <div className="flex flex-wrap gap-3">
-              <Button asChild variant="outline" className="rounded-full h-10 px-6"><Link to="/privacy-policy">Privacy Policy</Link></Button>
-              <Button asChild variant="outline" className="rounded-full h-10 px-6"><Link to="/terms">Terms of Service</Link></Button>
+              <Button asChild variant="outline" className="rounded-full h-10 px-6"><Link to="/privacy-policy">{t("privacy_policy")}</Link></Button>
+              <Button asChild variant="outline" className="rounded-full h-10 px-6"><Link to="/terms">{t("terms_of_service")}</Link></Button>
             </div>
           </motion.div>
         </div>

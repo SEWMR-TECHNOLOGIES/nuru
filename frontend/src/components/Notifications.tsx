@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Heart, MessageCircle, UserPlus, Users, Loader2, Briefcase, CheckCircle, ShieldCheck, Lock, AlertTriangle, ExternalLink } from 'lucide-react';
+import { Heart, MessageCircle, UserPlus, Users, Loader2, Briefcase, CheckCircle, ShieldCheck, Lock, AlertTriangle, ExternalLink, Receipt, XCircle, Wallet } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import BellIcon from '@/assets/icons/bell-icon.svg';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
@@ -10,7 +10,9 @@ import { Button } from '@/components/ui/button';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useNotifications } from '@/data/useSocial';
 import { Skeleton } from '@/components/ui/skeleton';
+import SearchHeader from '@/components/ui/search-header';
 import { getTimeAgo } from '@/utils/getTimeAgo';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const getIcon = (type: string) => {
   switch (type) {
@@ -53,6 +55,18 @@ const getIcon = (type: string) => {
     case 'issue_closed':
     case 'issue_updated':
       return <img src={IssueIcon} alt="Issue" className="w-4 h-4 dark:invert" />;
+    case 'payment_succeeded':
+    case 'payout_succeeded':
+      return <Receipt className="w-4 h-4 text-emerald-500" />;
+    case 'payment_failed':
+    case 'payout_failed':
+      return <XCircle className="w-4 h-4 text-destructive" />;
+    case 'payment_refunded':
+      return <Receipt className="w-4 h-4 text-purple-500" />;
+    case 'wallet_credit':
+    case 'wallet_debit':
+    case 'wallet_topup':
+      return <Wallet className="w-4 h-4 text-primary" />;
     default:
       return <img src={BellIcon} alt="Notification" className="w-4 h-4" />;
   }
@@ -154,6 +168,21 @@ const getNavigationTarget = (notification: any): string | null => {
       if (refId && refType === 'issue') return `/my-issues?issue=${refId}`;
       return '/my-issues';
 
+    // ── Payments / wallet ──
+    case 'payment_succeeded':
+    case 'payment_failed':
+    case 'payment_refunded':
+    case 'payout_succeeded':
+    case 'payout_failed': {
+      const code = data.transaction_code || data.code || (refType === 'transaction' ? refId : null);
+      if (code) return `/wallet/receipt/${code}`;
+      return '/wallet';
+    }
+    case 'wallet_credit':
+    case 'wallet_debit':
+    case 'wallet_topup':
+      return '/wallet';
+
     default:
       // Generic fallback: use reference_type to determine route
       if (refId) {
@@ -162,6 +191,7 @@ const getNavigationTarget = (notification: any): string | null => {
         if (refType === 'booking') return `/bookings/${refId}`;
         if (refType === 'service') return `/service/${refId}`;
         if (refType === 'issue') return `/my-issues?issue=${refId}`;
+        if (refType === 'transaction') return `/wallet/receipt/${refId}`;
         if (refType === 'user' && actorId) return `/u/${notification.actor?.username || actorId}`;
       }
       break;
@@ -266,12 +296,14 @@ const NotificationItem = ({ notification, onMarkRead }: { notification: any; onM
 };
 
 const Notifications = () => {
+  const { t } = useLanguage();
   useWorkspaceMeta({
     title: 'Notifications',
     description: 'Stay updated with glows, echoes, event invitations, and more on Nuru.'
   });
 
-  const { notifications, unreadCount, loading, error, refetch, markAllRead, markRead } = useNotifications();
+  const [searchTerm, setSearchTerm] = useState("");
+  const { notifications, unreadCount, loading, error, refetch, markAllRead, markRead } = useNotifications(undefined, searchTerm);
   const [markingRead, setMarkingRead] = useState(false);
 
   const handleMarkAllRead = async () => {
@@ -313,32 +345,34 @@ const Notifications = () => {
 
   return (
     <div className="space-y-4 md:space-y-6 pb-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Notifications</h1>
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl md:text-2xl font-bold text-foreground truncate">Notifications</h1>
           {unreadCount > 0 && (
             <p className="text-sm text-muted-foreground">{unreadCount} unread</p>
           )}
         </div>
-        {notifications.length > 0 && (
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="text-sm text-muted-foreground"
-            onClick={handleMarkAllRead}
-            disabled={markingRead}
-          >
-            {markingRead ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-            Mark all read
-          </Button>
-        )}
+        <div className="flex items-center gap-1">
+          <SearchHeader value={searchTerm} onChange={setSearchTerm} placeholder="Search notifications…" />
+          {notifications.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-sm text-muted-foreground"
+              onClick={handleMarkAllRead}
+              disabled={markingRead}
+            >
+              {markingRead ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+              Mark all read
+            </Button>
+          )}
+        </div>
       </div>
       
       {notifications.length === 0 ? (
         <div className="text-center py-16">
           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-            <img src={BellIcon} alt="Notifications" className="w-7 h-7" />
+            <img src={BellIcon} alt={t("notifications")} className="w-7 h-7" />
           </div>
           <h3 className="font-medium text-foreground mb-1">No notifications yet</h3>
           <p className="text-sm text-muted-foreground">

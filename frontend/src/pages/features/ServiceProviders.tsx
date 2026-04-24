@@ -1,60 +1,70 @@
-import Layout from "@/components/layout/Layout";
-import FeatureHero from "@/components/features/FeatureHero";
-import FeatureGrid from "@/components/features/FeatureGrid";
-import FeatureStatement from "@/components/features/FeatureStatement";
-import illustrationImg from "@/assets/illustration-service-providers.jpg";
+import EditorialFeaturePage from "@/components/features/EditorialFeaturePage";
 import { useMeta } from "@/hooks/useMeta";
 
 const ServiceProviders = () => {
-  const providerTypes = [
-    { title: "Photographers", description: "Capture every precious moment beautifully" },
-    { title: "Caterers", description: "Culinary experiences for every palate" },
-    { title: "DJs and Entertainment", description: "Set the mood and keep guests engaged" },
-    { title: "Venue Decorators", description: "Transform spaces into stunning settings" },
-    { title: "Event Coordinators", description: "Expert guidance from start to finish" },
-    { title: "Florists", description: "Fresh arrangements that elevate any occasion" }
-  ];
-
-  const benefits = [
-    { title: "Verified profiles", description: "Every provider is vetted for quality and reliability" },
-    { title: "Genuine reviews", description: "Read feedback from past clients to make informed decisions" },
-    { title: "Direct messaging", description: "Chat with providers to discuss your needs and get quotes" },
-    { title: "Secure bookings", description: "Book with confidence through our protected platform" }
-  ];
-
   useMeta({
-    title: "Verified Service Providers",
-    description: "Browse and book trusted, top-rated service providers for catering, DJs, photographers, and more."
+    title: "Vendors & Service Providers | Nuru",
+    description:
+      "A growth and trust platform for caterers, decorators, photographers, MCs, venues, transport, sound and entertainment vendors. Verified, bookable, paid on time.",
   });
 
   return (
-    <Layout>
-      <FeatureHero
-        title="Find the right people for your event"
-        description="Connect with trusted, verified professionals who bring your vision to life."
-        imageSrc={illustrationImg}
-        imageAlt="Service Providers"
-        imagePosition="left"
-      />
-
-      <FeatureGrid
-        title="Professionals for every need"
-        subtitle="Our curated network includes specialists across all event service categories."
-        items={providerTypes}
-        variant="cards"
-      />
-
-      <FeatureGrid
-        title="Why choose our network"
-        subtitle="Every provider meets our quality standards for professionalism and service."
-        items={benefits}
-        variant="minimal"
-      />
-
-      <FeatureStatement
-        statement="Great events are made by great people. We connect you with the professionals who make visions reality."
-      />
-    </Layout>
+    <EditorialFeaturePage
+      kicker="Service · 02 — Vendors"
+      title="A growth platform, not a chase."
+      lead="Caterers, decorators, photographers, MCs, transport, sound, lighting, entertainment, venues. Build a verified Nuru profile, accept bookings, get paid through protected payments — and stop chasing money."
+      specs={[
+        { label: "Verification", value: "ID + business" },
+        { label: "Payouts", value: "Protected" },
+        { label: "Reach", value: "Tanzania + Kenya" },
+        { label: "Profile cost", value: "Free" },
+      ]}
+      sections={[
+        {
+          title: "Be discovered by the right organisers.",
+          lead: "Your verified profile, portfolio and reviews work for you 24/7. Organisers find you by category, city, budget and date — and book directly.",
+          bullets: [
+            "Public profile with portfolio gallery.",
+            "Searchable by category, city, price band.",
+            "Reviews tied to real bookings only.",
+            "Built-in messaging with organisers.",
+            "Calendar and availability management.",
+            "Repeat-customer dashboard.",
+          ],
+        },
+        {
+          title: "Bookings, contracts, payments — handled.",
+          lead: "Every booking is a structured contract with deposit, milestones, deliverables and final settlement. No more verbal agreements, no more missing money.",
+          bullets: [
+            "Protected deposits via M-Pesa, Airtel, Mixx by Yas, banks, cards.",
+            "Milestone-based release, not lump sums.",
+            "Automatic receipts for organisers and you.",
+            "Dispute and appeal flow when something goes wrong.",
+            "Tax-ready transaction history.",
+            "Payouts within 24 hours of release.",
+          ],
+        },
+        {
+          title: "Trust earned, displayed, defended.",
+          lead: "Verified identity, verified business, verified reviews. The Nuru badge means an organiser can hire you with the same confidence as a bank counterparty.",
+          bullets: [
+            "National ID / business verification.",
+            "Public verification badge on profile.",
+            "Reviews can't be bought or faked.",
+            "Appeal and remediation flow for disputes.",
+            "Protection against impersonation.",
+            "Visible track record — bookings completed, on-time rate.",
+          ],
+        },
+      ]}
+      cta={{
+        eyebrow: "Become a Nuru vendor",
+        title: "Get verified. Get booked.",
+        body: "Free to join. We earn only when you do.",
+        primary: { label: "Create vendor profile", href: "/register" },
+        secondary: { label: "Trust & protection", href: "/features/trust" },
+      }}
+    />
   );
 };
 

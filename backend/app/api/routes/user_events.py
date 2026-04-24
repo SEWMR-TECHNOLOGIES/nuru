@@ -6,13 +6,14 @@ import math
 import os
 import re
 import uuid
+from collections import defaultdict
 from datetime import datetime
 from typing import List, Optional
 
 import httpx
 import pytz
 from fastapi import APIRouter, Depends, File, Form, UploadFile, Body
-from sqlalchemy import func as sa_func
+from sqlalchemy import func as sa_func, or_
 from sqlalchemy.orm import Session
 
 from core.config import ALLOWED_IMAGE_EXTENSIONS, MAX_EVENT_IMAGES, MAX_IMAGE_SIZE, UPLOAD_SERVICE_URL
@@ -31,7 +32,7 @@ from models import (
 from utils.auth import get_current_user
 from utils.helpers import format_price, standard_response, format_phone_display
 from api.routes.rsvp import generate_rsvp_code
-from utils.validation_functions import validate_tanzanian_phone
+from utils.validation_functions import validate_phone_number
 from utils.sms import (
     sms_guest_added, sms_committee_invite, sms_contribution_recorded,
     sms_contribution_target_set, sms_thank_you, sms_booking_notification,
@@ -152,6 +153,7 @@ def _event_summary(db: Session, event: Event) -> dict:
         "budget": float(event.budget) if event.budget else None,
         "currency": _currency_code(db, event.currency_id),
         "dress_code": event.dress_code, "special_instructions": event.special_instructions,
+        "reminder_contact_phone": event.reminder_contact_phone,
         "rsvp_deadline": settings.rsvp_deadline.isoformat() if settings and settings.rsvp_deadline else None,
         "contribution_enabled": settings.contributions_enabled if settings else False,
         "contribution_target": contribution_target,
@@ -260,12 +262,14 @@ def get_my_permissions(
         return standard_response(False, "Event not found")
 
     is_creator = str(event.organizer_id) == str(current_user.id)
+    print(f"[my-permissions] user_id={current_user.id} event_id={event_id} is_creator={is_creator}")
+
     if is_creator:
         # Creator has all permissions
         perms = {field: True for field in PERMISSION_FIELDS}
-        return standard_response(True, "Permissions retrieved", {
-            "is_creator": True, "role": "creator", **perms,
-        })
+        payload = {"is_creator": True, "role": "creator", **perms}
+        print(f"[my-permissions] payload={payload}")
+        return standard_response(True, "Permissions retrieved", payload)
 
     cm = db.query(EventCommitteeMember).filter(
         EventCommitteeMember.event_id == eid,
@@ -273,9 +277,9 @@ def get_my_permissions(
     ).first()
     if not cm:
         perms = {field: False for field in PERMISSION_FIELDS}
-        return standard_response(True, "Permissions retrieved", {
-            "is_creator": False, "role": None, **perms,
-        })
+        payload = {"is_creator": False, "role": None, **perms}
+        print(f"[my-permissions] payload={payload}")
+        return standard_response(True, "Permissions retrieved", payload)
 
     role_obj = db.query(CommitteeRole).filter(CommitteeRole.id == cm.role_id).first() if cm.role_id else None
     perm_row = db.query(CommitteePermission).filter(CommitteePermission.committee_member_id == cm.id).first()
@@ -296,11 +300,13 @@ def get_my_permissions(
     if perms.get("can_manage_expenses"):
         perms["can_view_expenses"] = True
 
-    return standard_response(True, "Permissions retrieved", {
+    payload = {
         "is_creator": False,
         "role": role_obj.role_name if role_obj else "member",
         **perms,
-    })
+    }
+    print(f"[my-permissions] payload={payload}")
+    return standard_response(True, "Permissions retrieved", payload)
 
 
 # ──────────────────────────────────────────────
@@ -310,6 +316,7 @@ def get_my_permissions(
 def get_all_user_events(
     page: int = 1, limit: int = 20, status: str = "all",
     sort_by: str = "created_at", sort_order: str = "desc",
+    search: Optional[str] = None,
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     """Returns all events created by the authenticated user."""
@@ -323,6 +330,14 @@ def get_all_user_events(
         if hasattr(EventStatusEnum, mapped):
             query = query.filter(Event.status == getattr(EventStatusEnum, mapped))
 
+    if search:
+        term = f"%{search.strip().lower()}%"
+        query = query.filter(or_(
+            sa_func.lower(Event.name).like(term),
+            sa_func.lower(Event.location).like(term),
+            sa_func.lower(Event.description).like(term),
+        ))
+
     sort_col = {"created_at": Event.created_at, "start_date": Event.start_date, "title": Event.name}.get(sort_by, Event.created_at)
     query = query.order_by(sort_col.desc() if sort_order == "desc" else sort_col.asc())
 
@@ -330,8 +345,9 @@ def get_all_user_events(
     total_pages = max(1, math.ceil(total / limit))
     events = query.offset((page - 1) * limit).limit(limit).all()
 
+    from utils.batch_loaders import build_event_summaries
     return standard_response(True, "Events retrieved successfully", {
-        "events": [_event_summary(db, ev) for ev in events],
+        "events": build_event_summaries(db, events),
         "pagination": {"page": page, "limit": limit, "total_items": total, "total_pages": total_pages, "has_next": page < total_pages, "has_previous": page > 1},
     })
 
@@ -381,17 +397,33 @@ def get_invited_events(
     event_order = {eid: i for i, eid in enumerate(paged_ids)}
     events.sort(key=lambda e: event_order.get(e.id, 0))
 
+    # Batch load context
+    from utils.batch_loaders import batch_load_event_context, batch_load_users
+    ctx = batch_load_event_context(db, [e.id for e in events])
+    organizer_map = batch_load_users(db, {e.organizer_id for e in events if e.organizer_id})
+
+    # Batch load current user's attendee record per event
+    att_rows = db.query(EventAttendee).filter(
+        EventAttendee.event_id.in_(paged_ids),
+        EventAttendee.attendee_id == current_user.id,
+    ).all()
+    att_by_event = {str(a.event_id): a for a in att_rows}
+
     results = []
     for ev in events:
+        eid_str = str(ev.id)
+        c = ctx[eid_str]
         inv_or_att = inv_map.get(ev.id)
         is_invitation = isinstance(inv_or_att, EventInvitation)
-        event_type = db.query(EventType).filter(EventType.id == ev.event_type_id).first()
-        vc = db.query(EventVenueCoordinate).filter(EventVenueCoordinate.event_id == ev.id).first()
-        organizer = db.query(User).filter(User.id == ev.organizer_id).first()
-
-        attendee = db.query(EventAttendee).filter(
-            EventAttendee.event_id == ev.id, EventAttendee.attendee_id == current_user.id
-        ).first()
+        et = c["event_type"]; vc = c["vc"]; images = c["images"]
+        cover = ev.cover_image_url
+        if not cover:
+            for img in images:
+                if img.get("is_featured"):
+                    cover = img["image_url"]; break
+            if not cover and images:
+                cover = images[0]["image_url"]
+        attendee = att_by_event.get(eid_str)
 
         if is_invitation:
             inv = inv_or_att
@@ -403,7 +435,6 @@ def get_invited_events(
                 "rsvp_at": inv.rsvp_at.isoformat() if inv.rsvp_at else None,
             }
         else:
-            # Fallback from EventAttendee record
             att_record = inv_or_att
             invitation_data = {
                 "id": None,
@@ -413,19 +444,20 @@ def get_invited_events(
                 "rsvp_at": None,
             }
 
+        org = organizer_map.get(str(ev.organizer_id), {})
         results.append({
-            "id": str(ev.id),
+            "id": eid_str,
             "title": ev.name,
             "description": ev.description,
-            "event_type": {"id": str(event_type.id), "name": event_type.name, "icon": event_type.icon} if event_type else None,
+            "event_type": {"id": str(et.id), "name": et.name, "icon": et.icon} if et else None,
             "start_date": ev.start_date.isoformat() if ev.start_date else None,
             "start_time": ev.start_time.strftime("%H:%M") if ev.start_time else None,
             "end_date": ev.end_date.isoformat() if ev.end_date else None,
             "location": ev.location,
             "venue": vc.venue_name if vc else None,
-            "cover_image": _pick_cover_image(ev, _event_images(db, ev.id)),
+            "cover_image": cover,
             "theme_color": ev.theme_color,
-            "organizer": {"name": f"{organizer.first_name} {organizer.last_name}"} if organizer else None,
+            "organizer": {"name": org.get("name")} if org else None,
             "status": ev.status.value if hasattr(ev.status, "value") else ev.status,
             "invitation": invitation_data,
             "attendee_id": str(attendee.id) if attendee else None,
@@ -460,39 +492,57 @@ def get_committee_events(
     total_pages = max(1, math.ceil(total / limit))
     paged = memberships[(page - 1) * limit : page * limit]
 
+    # Batch fetch events + context
+    paged_event_ids = [cm.event_id for cm in paged]
+    events_map = {e.id: e for e in db.query(Event).filter(Event.id.in_(paged_event_ids)).all()}
+
+    from utils.batch_loaders import batch_load_event_context, batch_load_users
+    ctx = batch_load_event_context(db, list(events_map.keys()))
+    organizer_map = batch_load_users(db, {e.organizer_id for e in events_map.values() if e.organizer_id})
+
+    # Batch roles + perms
+    role_ids = {cm.role_id for cm in paged if cm.role_id}
+    role_map = {r.id: r for r in db.query(CommitteeRole).filter(CommitteeRole.id.in_(list(role_ids))).all()} if role_ids else {}
+    cm_ids = [cm.id for cm in paged]
+    perms_map = {p.committee_member_id: p for p in db.query(CommitteePermission).filter(
+        CommitteePermission.committee_member_id.in_(cm_ids)
+    ).all()} if cm_ids else {}
+
     results = []
     for cm in paged:
-        ev = db.query(Event).filter(Event.id == cm.event_id).first()
+        ev = events_map.get(cm.event_id)
         if not ev:
             continue
-
-        event_type = db.query(EventType).filter(EventType.id == ev.event_type_id).first()
-        vc = db.query(EventVenueCoordinate).filter(EventVenueCoordinate.event_id == ev.id).first()
-        organizer = db.query(User).filter(User.id == ev.organizer_id).first()
-        role = db.query(CommitteeRole).filter(CommitteeRole.id == cm.role_id).first() if cm.role_id else None
-        perms = db.query(CommitteePermission).filter(CommitteePermission.committee_member_id == cm.id).first()
-
-        perm_dict = {}
-        if perms:
-            for field in PERMISSION_FIELDS:
-                perm_dict[field] = getattr(perms, field, False)
-
-        gc = _guest_counts(db, ev.id)
+        eid_str = str(ev.id)
+        c = ctx.get(eid_str, {})
+        et = c.get("event_type"); vc = c.get("vc"); images = c.get("images", [])
+        cover = ev.cover_image_url
+        if not cover:
+            for img in images:
+                if img.get("is_featured"):
+                    cover = img["image_url"]; break
+            if not cover and images:
+                cover = images[0]["image_url"]
+        org = organizer_map.get(str(ev.organizer_id), {})
+        role = role_map.get(cm.role_id) if cm.role_id else None
+        perms = perms_map.get(cm.id)
+        perm_dict = {f: getattr(perms, f, False) for f in PERMISSION_FIELDS} if perms else {}
+        gc = c.get("guest_counts", {})
 
         results.append({
-            "id": str(ev.id),
+            "id": eid_str,
             "title": ev.name,
             "description": ev.description,
-            "event_type": {"id": str(event_type.id), "name": event_type.name, "icon": event_type.icon} if event_type else None,
+            "event_type": {"id": str(et.id), "name": et.name, "icon": et.icon} if et else None,
             "start_date": ev.start_date.isoformat() if ev.start_date else None,
             "start_time": ev.start_time.strftime("%H:%M") if ev.start_time else None,
             "end_date": ev.end_date.isoformat() if ev.end_date else None,
             "location": ev.location,
             "venue": vc.venue_name if vc else None,
-            "cover_image": _pick_cover_image(ev, _event_images(db, ev.id)),
-            "images": _event_images(db, ev.id),
+            "cover_image": cover,
+            "images": images,
             "theme_color": ev.theme_color,
-            "organizer": {"name": f"{organizer.first_name} {organizer.last_name}"} if organizer else None,
+            "organizer": {"name": org.get("name")} if org else None,
             "status": ev.status.value if hasattr(ev.status, "value") else ev.status,
             "committee_membership": {
                 "id": str(cm.id),
@@ -649,8 +699,22 @@ def get_invitation_card(
 # Get Single Event (Detailed)
 # ──────────────────────────────────────────────
 @router.get("/{event_id}")
-def get_event(event_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Returns detailed information about a specific event."""
+def get_event(
+    event_id: str,
+    fields: str = "essential",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Returns detailed information about a specific event.
+
+    fields:
+      - "essential" (default): event meta + counts + viewer_role + inline permissions.
+        Lightweight payload optimized for the Event Management Overview tab.
+        Heavy collections (guests, committee, contributions, service_bookings,
+        schedule, budget_items) are NOT included — request them per-tab via
+        their dedicated endpoints, or pass fields=full.
+      - "full": legacy payload with every child collection eagerly loaded.
+    """
     try:
         eid = uuid.UUID(event_id)
     except ValueError:
@@ -661,44 +725,236 @@ def get_event(event_id: str, db: Session = Depends(get_db), current_user: User =
         return standard_response(False, "Event not found")
 
     is_owner = str(event.organizer_id) == str(current_user.id)
-    is_committee = False
+    cm = None
     if not is_owner:
-        cm = db.query(EventCommitteeMember).filter(EventCommitteeMember.event_id == eid, EventCommitteeMember.user_id == current_user.id).first()
-        is_committee = cm is not None
+        cm = db.query(EventCommitteeMember).filter(
+            EventCommitteeMember.event_id == eid,
+            EventCommitteeMember.user_id == current_user.id,
+        ).first()
+    is_committee = cm is not None
 
     is_invited = False
     if not is_owner and not is_committee:
-        inv = db.query(EventInvitation).filter(EventInvitation.event_id == eid, EventInvitation.invited_user_id == current_user.id).first()
+        inv = db.query(EventInvitation).filter(
+            EventInvitation.event_id == eid,
+            EventInvitation.invited_user_id == current_user.id,
+        ).first()
         is_invited = inv is not None
+
+    viewer_role = "creator" if is_owner else ("committee" if is_committee else ("guest" if is_invited else "public"))
 
     if not is_owner and not is_committee and not is_invited and not event.is_public:
         return standard_response(False, "You do not have permission to view this event")
 
-    data = _event_summary(db, event)
+    # ── Build essential summary (10 batched queries via build_event_summaries) ──
+    from utils.batch_loaders import build_event_summaries
+    summaries = build_event_summaries(db, [event])
+    data = summaries[0] if summaries else _event_summary(db, event)
+    data["viewer_role"] = viewer_role
+    data["is_creator"] = is_owner
+    data["is_committee"] = is_committee
 
-    # Guests
+    # ── Inline permissions so clients don't need a second round-trip ──
+    if is_owner:
+        data["permissions"] = {"is_creator": True, "role": "creator", **{f: True for f in PERMISSION_FIELDS}}
+    elif is_committee and cm is not None:
+        role_obj = db.query(CommitteeRole).filter(CommitteeRole.id == cm.role_id).first() if cm.role_id else None
+        perm_row = db.query(CommitteePermission).filter(CommitteePermission.committee_member_id == cm.id).first()
+        perms = {f: bool(getattr(perm_row, f, False)) if perm_row else False for f in PERMISSION_FIELDS}
+        # Auto-grant view when manage is granted
+        if perms.get("can_manage_contributions"): perms["can_view_contributions"] = True
+        if perms.get("can_manage_budget"):        perms["can_view_budget"] = True
+        if perms.get("can_manage_guests"):        perms["can_view_guests"] = True
+        if perms.get("can_manage_vendors"):       perms["can_view_vendors"] = True
+        if perms.get("can_manage_expenses"):      perms["can_view_expenses"] = True
+        data["permissions"] = {
+            "is_creator": False,
+            "role": role_obj.role_name if role_obj else "member",
+            **perms,
+        }
+    else:
+        data["permissions"] = {
+            "is_creator": False, "role": None,
+            **{f: False for f in PERMISSION_FIELDS},
+        }
+
+    # ── ESSENTIAL MODE: stop here. Tabs lazy-load their own data. ──
+    if fields != "full":
+        return standard_response(True, "Event retrieved successfully", data)
+
+    # ─── FULL MODE: legacy heavy payload (kept for backwards compatibility) ───
     attendees = db.query(EventAttendee).filter(EventAttendee.event_id == eid).all()
-    data["guests"] = [_attendee_dict(db, att) for att in attendees]
-
-    # Committee
     cms = db.query(EventCommitteeMember).filter(EventCommitteeMember.event_id == eid).all()
-    data["committee_members"] = [_member_dict(db, cm) for cm in cms]
-
-    # Contributions
     contributions = db.query(EventContribution).filter(EventContribution.event_id == eid).all()
-    data["contributions"] = [_contribution_dict(db, c, event.currency_id) for c in contributions]
-
-    # Service bookings
-    event_services = db.query(EventService).filter(EventService.event_id == eid).all()
-    data["service_bookings"] = [_service_booking_dict(db, es, event.currency_id) for es in event_services]
-
-    # Schedule
+    event_services_rows = db.query(EventService).filter(EventService.event_id == eid).all()
     schedule_items = db.query(EventScheduleItem).filter(EventScheduleItem.event_id == eid).order_by(EventScheduleItem.display_order.asc()).all()
-    data["schedule"] = [{"id": str(si.id), "title": si.title, "description": si.description, "start_time": si.start_time.isoformat() if si.start_time else None, "end_time": si.end_time.isoformat() if si.end_time else None, "location": si.location, "display_order": si.display_order} for si in schedule_items]
-
-    # Budget
     budget_items = db.query(EventBudgetItem).filter(EventBudgetItem.event_id == eid).all()
-    data["budget_items"] = [{"id": str(bi.id), "category": bi.category, "item_name": bi.item_name, "estimated_cost": float(bi.estimated_cost) if bi.estimated_cost else None, "actual_cost": float(bi.actual_cost) if bi.actual_cost else None, "vendor_name": bi.vendor_name, "vendor_id": str(bi.vendor_id) if bi.vendor_id else None, "vendor": _vendor_summary(bi.vendor) if bi.vendor_id else None, "status": bi.status, "notes": bi.notes} for bi in budget_items]
+
+    # ─── Pre-load all referenced users/contributors/invitations in bulk ───
+    from models import UserServiceImage as _USImg
+    attendee_user_ids = {a.attendee_id for a in attendees if a.attendee_id} | \
+                       {cm.user_id for cm in cms if cm.user_id} | \
+                       {cm.assigned_by for cm in cms if cm.assigned_by}
+    contributor_ids = {a.contributor_id for a in attendees if a.contributor_id}
+    invitation_ids = {a.invitation_id for a in attendees if a.invitation_id}
+    attendee_ids = [a.id for a in attendees]
+    cm_ids_all = [cm.id for cm in cms]
+    role_ids = {cm.role_id for cm in cms if cm.role_id}
+    contribution_ids = [c.id for c in contributions]
+    provider_svc_ids = {es.provider_user_service_id for es in event_services_rows if es.provider_user_service_id}
+    provider_user_ids = {es.provider_user_id for es in event_services_rows if es.provider_user_id}
+    svc_type_ids = {es.service_id for es in event_services_rows if es.service_id}
+    vendor_ids = {bi.vendor_id for bi in budget_items if bi.vendor_id}
+
+    users_bulk = {u.id: u for u in db.query(User).filter(User.id.in_(list(attendee_user_ids | provider_user_ids))).all()} if (attendee_user_ids or provider_user_ids) else {}
+    profiles_bulk = {p.user_id: p for p in db.query(UserProfile).filter(UserProfile.user_id.in_(list(attendee_user_ids))).all()} if attendee_user_ids else {}
+    contributors_bulk = {c.id: c for c in db.query(UserContributor).filter(UserContributor.id.in_(list(contributor_ids))).all()} if contributor_ids else {}
+    invitations_bulk = {i.id: i for i in db.query(EventInvitation).filter(EventInvitation.id.in_(list(invitation_ids))).all()} if invitation_ids else {}
+    plus_ones_by_attendee = defaultdict(list)
+    if attendee_ids:
+        for po in db.query(EventGuestPlusOne).filter(EventGuestPlusOne.attendee_id.in_(attendee_ids)).all():
+            plus_ones_by_attendee[po.attendee_id].append(po)
+    roles_bulk = {r.id: r for r in db.query(CommitteeRole).filter(CommitteeRole.id.in_(list(role_ids))).all()} if role_ids else {}
+    perms_bulk = {p.committee_member_id: p for p in db.query(CommitteePermission).filter(CommitteePermission.committee_member_id.in_(cm_ids_all)).all()} if cm_ids_all else {}
+    thank_you_bulk = {t.contribution_id: t for t in db.query(ContributionThankYouMessage).filter(ContributionThankYouMessage.contribution_id.in_(contribution_ids)).all()} if contribution_ids else {}
+    provider_svcs_bulk = {s.id: s for s in db.query(UserService).filter(UserService.id.in_(list(provider_svc_ids))).all()} if provider_svc_ids else {}
+    svc_types_bulk = {st.id: st for st in db.query(ServiceType).filter(ServiceType.id.in_(list(svc_type_ids))).all()} if svc_type_ids else {}
+    svc_images_bulk = defaultdict(list)
+    if provider_svc_ids:
+        for img in db.query(_USImg).filter(_USImg.user_service_id.in_(list(provider_svc_ids))).order_by(_USImg.is_featured.desc()).all():
+            svc_images_bulk[img.user_service_id].append(img)
+    vendors_bulk = {}
+    if vendor_ids:
+        for v in db.query(UserService).filter(UserService.id.in_(list(vendor_ids))).all():
+            vendors_bulk[v.id] = v
+
+    currency_code = data.get("currency")
+
+    # ─── Build guests ───
+    guests = []
+    for att in attendees:
+        guest_type = att.guest_type.value if hasattr(att.guest_type, "value") else (att.guest_type or "user")
+        name = email = phone = avatar = None
+        if guest_type == "contributor":
+            contributor = contributors_bulk.get(att.contributor_id) if att.contributor_id else None
+            if contributor:
+                name, email, phone = contributor.name, contributor.email, contributor.phone
+            else:
+                name, email, phone = att.guest_name, att.guest_email, att.guest_phone
+        else:
+            u = users_bulk.get(att.attendee_id) if att.attendee_id else None
+            if u:
+                name = f"{u.first_name} {u.last_name}"
+                email, phone = u.email, u.phone
+                p = profiles_bulk.get(u.id)
+                avatar = p.profile_picture_url if p else None
+            else:
+                name = att.guest_name
+        invitation = invitations_bulk.get(att.invitation_id) if att.invitation_id else None
+        plus_ones = plus_ones_by_attendee.get(att.id, [])
+        guests.append({
+            "id": str(att.id), "event_id": str(att.event_id),
+            "guest_type": guest_type,
+            "name": name, "avatar": avatar, "email": email, "phone": phone,
+            "rsvp_status": att.rsvp_status.value if hasattr(att.rsvp_status, "value") else att.rsvp_status,
+            "dietary_requirements": att.dietary_restrictions, "meal_preference": att.meal_preference,
+            "special_requests": att.special_requests,
+            "plus_ones": len(plus_ones), "plus_one_names": [po.name for po in plus_ones],
+            "notes": invitation.notes if invitation else None,
+            "invitation_sent": invitation.sent_at is not None if invitation else False,
+            "invitation_sent_at": invitation.sent_at.isoformat() if invitation and invitation.sent_at else None,
+            "invitation_method": invitation.sent_via if invitation else None,
+            "checked_in": att.checked_in,
+            "checked_in_at": att.checked_in_at.isoformat() if att.checked_in_at else None,
+            "created_at": att.created_at.isoformat() if att.created_at else None,
+        })
+    data["guests"] = guests
+
+    # ─── Build committee ───
+    members_out = []
+    for cm in cms:
+        member_user = users_bulk.get(cm.user_id) if cm.user_id else None
+        profile = profiles_bulk.get(cm.user_id) if cm.user_id else None
+        role = roles_bulk.get(cm.role_id) if cm.role_id else None
+        perms = perms_bulk.get(cm.id)
+        assigned_user = users_bulk.get(cm.assigned_by) if cm.assigned_by else None
+        permissions_list = [api_name for api_name, db_field in PERMISSION_MAP.items() if perms and getattr(perms, db_field, False)]
+        members_out.append({
+            "id": str(cm.id), "event_id": str(cm.event_id),
+            "user_id": str(cm.user_id) if cm.user_id else None,
+            "name": f"{member_user.first_name} {member_user.last_name}" if member_user else "Invited Member",
+            "email": member_user.email if member_user else (cm.invited_email if hasattr(cm, 'invited_email') else None),
+            "phone": member_user.phone if member_user else None,
+            "avatar": profile.profile_picture_url if profile else None,
+            "role": role.role_name if role else None,
+            "role_description": role.description if role else None,
+            "permissions": permissions_list,
+            "status": "active" if cm.user_id else "invited",
+            "assigned_by": {"id": str(assigned_user.id), "name": f"{assigned_user.first_name} {assigned_user.last_name}"} if assigned_user else None,
+            "assigned_at": cm.assigned_at.isoformat() if cm.assigned_at else None,
+            "created_at": cm.created_at.isoformat() if cm.created_at else None,
+        })
+    data["committee_members"] = members_out
+
+    # ─── Build contributions ───
+    contributions_out = []
+    for c in contributions:
+        contributor_user = None
+        if c.event_contributor and c.event_contributor.contributor:
+            contributor_user = c.event_contributor.contributor.user
+        contact = c.contributor_contact or {}
+        thank_you = thank_you_bulk.get(c.id)
+        contributions_out.append({
+            "id": str(c.id), "event_id": str(c.event_id),
+            "contributor_name": f"{contributor_user.first_name} {contributor_user.last_name}" if contributor_user else (c.contributor_name or "Anonymous"),
+            "contributor_email": contributor_user.email if contributor_user else contact.get("email"),
+            "contributor_phone": contributor_user.phone if contributor_user else contact.get("phone"),
+            "contributor_user_id": str(contributor_user.id) if contributor_user else None,
+            "amount": float(c.amount), "currency": currency_code,
+            "payment_method": c.payment_method.value if hasattr(c.payment_method, "value") else c.payment_method,
+            "payment_reference": c.transaction_ref, "status": "confirmed",
+            "is_anonymous": contributor_user is None and (not c.contributor_name or c.contributor_name.lower() == "anonymous"),
+            "thank_you_sent": thank_you.is_sent if thank_you else False,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+            "confirmed_at": c.contributed_at.isoformat() if c.contributed_at else None,
+        })
+    data["contributions"] = contributions_out
+
+    # ─── Build service bookings ───
+    bookings_out = []
+    for es in event_services_rows:
+        svc_type = svc_types_bulk.get(es.service_id) if es.service_id else None
+        provider_svc = provider_svcs_bulk.get(es.provider_user_service_id) if es.provider_user_service_id else None
+        provider_user = users_bulk.get(es.provider_user_id) if es.provider_user_id else None
+        service_image = None
+        if provider_svc:
+            imgs = svc_images_bulk.get(provider_svc.id, [])
+            featured = next((i for i in imgs if i.is_featured), None)
+            if featured:
+                service_image = featured.image_url
+            elif imgs:
+                service_image = imgs[0].image_url
+        bookings_out.append({
+            "id": str(es.id), "event_id": str(es.event_id), "service_id": str(es.service_id),
+            "service": {
+                "title": provider_svc.title if provider_svc else (svc_type.name if svc_type else None),
+                "category": svc_type.category.name if svc_type and hasattr(svc_type, "category") and svc_type.category else None,
+                "provider_name": f"{provider_user.first_name} {provider_user.last_name}" if provider_user else None,
+                "image": service_image,
+                "verification_status": provider_svc.verification_status.value if provider_svc and hasattr(provider_svc.verification_status, "value") else (str(provider_svc.verification_status) if provider_svc and provider_svc.verification_status else "unverified"),
+                "verified": provider_svc.is_verified if provider_svc else False,
+            },
+            "quoted_price": float(es.agreed_price) if es.agreed_price else None,
+            "currency": currency_code,
+            "status": es.service_status.value if hasattr(es.service_status, "value") else es.service_status,
+            "notes": es.notes,
+            "created_at": es.created_at.isoformat() if es.created_at else None,
+        })
+    data["service_bookings"] = bookings_out
+
+    # ─── Schedule + Budget ───
+    data["schedule"] = [{"id": str(si.id), "title": si.title, "description": si.description, "start_time": si.start_time.isoformat() if si.start_time else None, "end_time": si.end_time.isoformat() if si.end_time else None, "location": si.location, "display_order": si.display_order} for si in schedule_items]
+    data["budget_items"] = [{"id": str(bi.id), "category": bi.category, "item_name": bi.item_name, "estimated_cost": float(bi.estimated_cost) if bi.estimated_cost else None, "actual_cost": float(bi.actual_cost) if bi.actual_cost else None, "vendor_name": bi.vendor_name, "vendor_id": str(bi.vendor_id) if bi.vendor_id else None, "vendor": _vendor_summary(vendors_bulk.get(bi.vendor_id)) if bi.vendor_id else None, "status": bi.status, "notes": bi.notes} for bi in budget_items]
 
     return standard_response(True, "Event retrieved successfully", data)
 
@@ -719,6 +975,7 @@ async def create_event(
     budget: Optional[float] = Form(None), currency: Optional[str] = Form(None),
     expected_guests: Optional[int] = Form(None), dress_code: Optional[str] = Form(None),
     special_instructions: Optional[str] = Form(None), rsvp_deadline: Optional[str] = Form(None),
+    reminder_contact_phone: Optional[str] = Form(None),
     contribution_enabled: Optional[bool] = Form(False), contribution_target: Optional[float] = Form(None),
     contribution_description: Optional[str] = Form(None), services: Optional[str] = Form(None),
     images: Optional[List[UploadFile]] = File(None),
@@ -793,6 +1050,7 @@ async def create_event(
         theme_color=theme_color.strip() if theme_color else None,
         dress_code=dress_code.strip() if dress_code else None,
         special_instructions=special_instructions.strip() if special_instructions else None,
+        reminder_contact_phone=reminder_contact_phone.strip() if reminder_contact_phone else None,
         created_at=now, updated_at=now,
     )
     db.add(new_event)
@@ -934,6 +1192,7 @@ async def update_event(
     status: Optional[str] = Form(None), budget: Optional[float] = Form(None),
     currency: Optional[str] = Form(None), expected_guests: Optional[int] = Form(None),
     dress_code: Optional[str] = Form(None), special_instructions: Optional[str] = Form(None),
+    reminder_contact_phone: Optional[str] = Form(None),
     rsvp_deadline: Optional[str] = Form(None), contribution_enabled: Optional[bool] = Form(None),
     contribution_target: Optional[float] = Form(None), contribution_description: Optional[str] = Form(None),
     time: Optional[str] = Form(None), images: Optional[List[UploadFile]] = File(None),
@@ -1033,6 +1292,9 @@ async def update_event(
         event.dress_code = dress_code.strip() if dress_code.strip() else None
     if special_instructions is not None:
         event.special_instructions = special_instructions.strip() if special_instructions.strip() else None
+    if reminder_contact_phone is not None:
+        rcp = reminder_contact_phone.strip()
+        event.reminder_contact_phone = rcp if rcp else None
 
     if errors:
         return standard_response(False, "Validation failed", errors)
@@ -1110,6 +1372,16 @@ async def update_event(
         db.rollback()
         return standard_response(False, f"Failed to update event: {str(e)}")
 
+    # Invalidate public event cache
+    try:
+        from core.redis import cache_delete, cache_delete_pattern
+        cache_delete(f"public_event:{event_id}")
+        cache_delete_pattern("events:featured:*")
+        cache_delete_pattern("events:nearby:*")
+        cache_delete_pattern("events:search:*")
+    except Exception:
+        pass
+
     return standard_response(True, "Event updated successfully", _event_summary(db, event))
 
 
@@ -1145,6 +1417,16 @@ def delete_event(event_id: str, db: Session = Depends(get_db), current_user: Use
     except Exception as e:
         db.rollback()
         return standard_response(False, f"Failed to delete event: {str(e)}")
+
+    # Invalidate public event cache
+    try:
+        from core.redis import cache_delete, cache_delete_pattern
+        cache_delete(f"public_event:{event_id}")
+        cache_delete_pattern("events:featured:*")
+        cache_delete_pattern("events:nearby:*")
+        cache_delete_pattern("events:search:*")
+    except Exception:
+        pass
 
     # Physically unlink all storage files (best-effort, synchronous)
     from utils.helpers import delete_storage_file_sync
@@ -1192,6 +1474,15 @@ def update_event_status(event_id: str, body: dict = Body(...), db: Session = Dep
     except Exception as e:
         db.rollback()
         return standard_response(False, f"Failed to update status: {str(e)}")
+
+    try:
+        from core.redis import cache_delete, cache_delete_pattern
+        cache_delete(f"public_event:{event_id}")
+        cache_delete_pattern("events:featured:*")
+        cache_delete_pattern("events:nearby:*")
+        cache_delete_pattern("events:search:*")
+    except Exception:
+        pass
 
     return standard_response(True, "Event status updated successfully", {
         "id": str(event.id),
@@ -1388,19 +1679,30 @@ def get_guests(event_id: str, page: int = 1, limit: int = 50, rsvp_status: str =
     total_pages = max(1, math.ceil(total / limit))
     attendees = query.order_by(EventAttendee.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
 
-    # Summary counts
-    all_q = db.query(EventAttendee).filter(EventAttendee.event_id == eid)
+    # Summary counts — collapse 6 queries into 1 grouped count + 1 invitation count
+    status_rows = db.query(
+        EventAttendee.rsvp_status, sa_func.count(EventAttendee.id)
+    ).filter(EventAttendee.event_id == eid).group_by(EventAttendee.rsvp_status).all()
+    status_counts = {row[0].value if hasattr(row[0], "value") else str(row[0]): row[1] for row in status_rows}
+    checked_in_count = db.query(sa_func.count(EventAttendee.id)).filter(
+        EventAttendee.event_id == eid, EventAttendee.checked_in == True
+    ).scalar() or 0
+    invitations_sent = db.query(sa_func.count(EventInvitation.id)).filter(
+        EventInvitation.event_id == eid, EventInvitation.sent_at.isnot(None)
+    ).scalar() or 0
+
     summary = {
-        "total": all_q.count(),
-        "confirmed": all_q.filter(EventAttendee.rsvp_status == RSVPStatusEnum.confirmed).count(),
-        "pending": all_q.filter(EventAttendee.rsvp_status == RSVPStatusEnum.pending).count(),
-        "declined": all_q.filter(EventAttendee.rsvp_status == RSVPStatusEnum.declined).count(),
-        "checked_in": all_q.filter(EventAttendee.checked_in == True).count(),
-        "invitations_sent": db.query(EventInvitation).filter(EventInvitation.event_id == eid, EventInvitation.sent_at.isnot(None)).count(),
+        "total": sum(status_counts.values()),
+        "confirmed": status_counts.get("confirmed", 0),
+        "pending": status_counts.get("pending", 0),
+        "declined": status_counts.get("declined", 0),
+        "checked_in": checked_in_count,
+        "invitations_sent": invitations_sent,
     }
 
+    from utils.batch_loaders import build_event_attendee_dicts
     return standard_response(True, "Guests retrieved successfully", {
-        "guests": [_attendee_dict(db, att) for att in attendees],
+        "guests": build_event_attendee_dicts(db, attendees),
         "summary": summary,
         "pagination": {"page": page, "limit": limit, "total_items": total, "total_pages": total_pages, "has_next": page < total_pages, "has_previous": page > 1},
     })
@@ -2027,7 +2329,8 @@ def export_guests(event_id: str, db: Session = Depends(get_db), current_user: Us
         return err
 
     attendees = db.query(EventAttendee).filter(EventAttendee.event_id == eid).all()
-    data = [_attendee_dict(db, att) for att in attendees]
+    from utils.batch_loaders import build_event_attendee_dicts
+    data = build_event_attendee_dicts(db, attendees)
     return standard_response(True, "Guest list exported successfully", data)
 
 
@@ -2077,7 +2380,8 @@ def get_committee_members(event_id: str, db: Session = Depends(get_db), current_
         return standard_response(False, "Event not found")
 
     members = db.query(EventCommitteeMember).filter(EventCommitteeMember.event_id == eid).all()
-    return standard_response(True, "Committee members retrieved successfully", [_member_dict(db, cm) for cm in members])
+    from utils.batch_loaders import build_committee_member_dicts
+    return standard_response(True, "Committee members retrieved successfully", build_committee_member_dicts(db, members, PERMISSION_MAP))
 
 
 @router.post("/{event_id}/committee")
@@ -2346,7 +2650,10 @@ def get_contributions(event_id: str, page: int = 1, limit: int = 20, sort_by: st
     total_pages = max(1, math.ceil(total / limit))
     contributions = query.offset((page - 1) * limit).limit(limit).all()
 
-    total_amount = db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(EventContribution.event_id == eid).scalar()
+    total_amount = db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(
+        EventContribution.event_id == eid,
+        EventContribution.confirmation_status == "confirmed",
+    ).scalar()
     ct = db.query(EventContributionTarget).filter(EventContributionTarget.event_id == eid).first()
     settings = db.query(EventSetting).filter(EventSetting.event_id == eid).first()
     target = float(ct.target_amount) if ct else (float(settings.contribution_target_amount) if settings and settings.contribution_target_amount else 0)
@@ -2389,7 +2696,7 @@ def record_contribution(event_id: str, body: dict = Body(...), db: Session = Dep
     contributor_phone = body.get("contributor_phone")
     if contributor_phone:
         try:
-            contributor_phone = validate_tanzanian_phone(contributor_phone)
+            contributor_phone = validate_phone_number(contributor_phone)
         except ValueError as e:
             return standard_response(False, str(e))
 
@@ -2420,7 +2727,9 @@ def record_contribution(event_id: str, body: dict = Body(...), db: Session = Dep
                 pass
             # Calculate total paid for this contributor
             total_paid = float(db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(
-                EventContribution.event_id == eid, EventContribution.contributor_user_id == contributor_user_id
+                EventContribution.event_id == eid,
+                EventContribution.contributor_user_id == contributor_user_id,
+                EventContribution.confirmation_status == "confirmed",
             ).scalar())
             ct = db.query(EventContributionTarget).filter(EventContributionTarget.event_id == eid).first()
             target = float(ct.target_amount) if ct else 0
@@ -2566,7 +2875,9 @@ def update_contribution_target(event_id: str, body: dict = Body(...), db: Sessio
                 cuser = db.query(User).filter(User.id == uid).first()
                 if cuser and cuser.phone:
                     total_paid = float(db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(
-                        EventContribution.event_id == eid, EventContribution.contributor_user_id == uid
+                        EventContribution.event_id == eid,
+                        EventContribution.contributor_user_id == uid,
+                        EventContribution.confirmation_status == "confirmed",
                     ).scalar())
                     organizer_phone = format_phone_display(current_user.phone) if current_user.phone else None
                     sms_contribution_target_set(cuser.phone, f"{cuser.first_name}", event.name, target_val, total_paid, currency, organizer_phone=organizer_phone)
@@ -2846,7 +3157,8 @@ def get_event_services(event_id: str, db: Session = Depends(get_db), current_use
         return err
 
     services = db.query(EventService).filter(EventService.event_id == eid).all()
-    return standard_response(True, "Event services retrieved successfully", [_service_booking_dict(db, es, event.currency_id) for es in services])
+    from utils.batch_loaders import build_event_service_dicts
+    return standard_response(True, "Event services retrieved successfully", build_event_service_dicts(db, services, _currency_code(db, event.currency_id)))
 
 
 @router.post("/{event_id}/services")

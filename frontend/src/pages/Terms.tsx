@@ -3,8 +3,10 @@ import { Link } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const Terms = () => {
+  const { t } = useLanguage();
   useMeta({
     title: "Terms & Conditions | Nuru",
     description: "Read Nuru Workspace's terms and conditions for using the platform, including bookings, payments, content policies, and social features."
@@ -138,7 +140,7 @@ const Terms = () => {
             </p>
             <div className="flex flex-wrap gap-3 mb-6">
               <Button asChild variant="outline" className="rounded-full h-10 px-6">
-                <Link to="/privacy-policy">Privacy Policy</Link>
+                <Link to="/privacy-policy">{t("privacy_policy")}</Link>
               </Button>
               <Button asChild variant="outline" className="rounded-full h-10 px-6">
                 <Link to="/vendor-agreement">Vendor Agreement</Link>
@@ -147,10 +149,10 @@ const Terms = () => {
                 <Link to="/organiser-agreement">Organiser Agreement</Link>
               </Button>
               <Button asChild variant="outline" className="rounded-full h-10 px-6">
-                <Link to="/cancellation-policy">Cancellation Policy</Link>
+                <Link to="/cancellation-policy">{t("cancellation_policy")}</Link>
               </Button>
               <Button asChild variant="outline" className="rounded-full h-10 px-6">
-                <Link to="/cookie-policy">Cookie Policy</Link>
+                <Link to="/cookie-policy">{t("cookie_policy")}</Link>
               </Button>
             </div>
             <p className="text-sm text-muted-foreground">

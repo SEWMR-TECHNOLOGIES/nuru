@@ -62,16 +62,20 @@ export interface ServiceConfirmedEvent {
 }
 
 export const photoLibrariesApi = {
-  /** Get all libraries for a service */
-  getServiceLibraries: (serviceId: string) =>
-    get<{
+  /** Get all libraries for a service. Optional ``search`` filters by name/description. */
+  getServiceLibraries: (serviceId: string, params?: { search?: string }) => {
+    const qs = params?.search
+      ? `?search=${encodeURIComponent(params.search)}`
+      : "";
+    return get<{
       libraries: PhotoLibrary[];
       total_libraries: number;
       storage_used_bytes: number;
       storage_used_mb: number;
       storage_limit_mb: number;
       storage_remaining_mb: number;
-    }>(`/photo-libraries/service/${serviceId}`),
+    }>(`/photo-libraries/service/${serviceId}${qs}`);
+  },
 
   /** Get a single library with photos */
   getLibrary: (libraryId: string) =>
@@ -114,11 +118,15 @@ export const photoLibrariesApi = {
   deleteLibrary: (libraryId: string) =>
     del(`/photo-libraries/${libraryId}`),
 
-  /** Get confirmed events for a service */
-  getServiceEvents: (serviceId: string) =>
-    get<{ events: ServiceConfirmedEvent[]; total: number; service_title: string }>(
-      `/photo-libraries/service/${serviceId}/events`
-    ),
+  /** Get confirmed events for a service. Optional ``search`` filters by event name/location. */
+  getServiceEvents: (serviceId: string, params?: { search?: string }) => {
+    const qs = params?.search
+      ? `?search=${encodeURIComponent(params.search)}`
+      : "";
+    return get<{ events: ServiceConfirmedEvent[]; total: number; service_title: string }>(
+      `/photo-libraries/service/${serviceId}/events${qs}`,
+    );
+  },
 
   /** Get photo libraries for an event (for event creator) */
   getEventLibraries: (eventId: string) =>

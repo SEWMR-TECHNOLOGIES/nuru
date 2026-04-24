@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { ReactNode } from "react";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface FeatureGridItem {
   title: string;
@@ -15,6 +16,7 @@ interface FeatureGridProps {
 }
 
 const FeatureGrid = ({ title, subtitle, items, variant = "cards" }: FeatureGridProps) => {
+  const { t } = useLanguage();
   return (
     <section className="py-24 lg:py-32 px-6 lg:px-16">
       <div className="max-w-6xl mx-auto">

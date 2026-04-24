@@ -15,8 +15,10 @@ import { useCircles } from '@/data/useSocial';
 import { socialApi } from '@/lib/api/social';
 import UserSearchInput from './events/UserSearchInput';
 import type { SearchedUser } from '@/hooks/useUserSearch';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const Circle = () => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { 
@@ -145,7 +147,7 @@ const Circle = () => {
 
   if (loading) {
     return (
-      <div className="max-w-3xl mx-auto space-y-4">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
           <Skeleton className="h-8 w-40" />
           <Skeleton className="h-10 w-32" />
@@ -166,7 +168,7 @@ const Circle = () => {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -185,20 +187,20 @@ const Circle = () => {
           size="sm"
         >
           <Plus className="w-4 h-4 mr-2" />
-          Add to Circle
+          {t('add_to_circle')}
         </Button>
 
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Add People to Your Circle</DialogTitle>
-              <DialogDescription>Search for a Nuru user by name, email, or phone. They'll receive a request to join your circle.</DialogDescription>
+              <DialogTitle>{t('add_people_circle')}</DialogTitle>
+              <DialogDescription>{t('search_circle_desc')}</DialogDescription>
             </DialogHeader>
-            <UserSearchInput onSelect={handleUserSelected} placeholder="Search by name, email or phone..." disabled={isAdding} />
+            <UserSearchInput onSelect={handleUserSelected} placeholder={t('search_name_email_phone')} disabled={isAdding} />
             {isAdding && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Sending circle request...
+                {t('sending_circle_request')}
               </div>
             )}
           </DialogContent>
@@ -211,8 +213,8 @@ const Circle = () => {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           tabs={[
-            { value: 'members', label: 'Members' },
-            { value: 'requests', label: `Requests${requests.length > 0 ? ` (${requests.length})` : ''}` },
+            { value: 'members', label: t('members') },
+            { value: 'requests', label: `${t('requests')}${requests.length > 0 ? ` (${requests.length})` : ''}` },
           ]}
         />
 
@@ -223,7 +225,7 @@ const Circle = () => {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <Input
-                placeholder="Search in your circle..."
+                placeholder={t('search_in_circle')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"

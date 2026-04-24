@@ -50,7 +50,7 @@ export const authApi = {
     if (firstName) params.append("first_name", firstName);
     if (lastName) params.append("last_name", lastName);
     // Public endpoint — do NOT send auth headers (stale tokens cause 403)
-    const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://api.nuru.tz/api/v1";
+    const BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
     try {
       const res = await fetch(`${BASE_URL}/users/check-username?${params.toString()}`, {
         method: "GET",
@@ -68,7 +68,7 @@ export const authApi = {
    * Validate a name (public endpoint for registration)
    */
   validateName: async (name: string) => {
-    const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://api.nuru.tz/api/v1";
+    const BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
     try {
       const res = await fetch(`${BASE_URL}/users/validate-name?name=${encodeURIComponent(name)}`, {
         method: "GET",

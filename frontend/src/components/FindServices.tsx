@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Star, Loader2, SlidersHorizontal, X, ChevronRight, MapPin, SearchX, LocateFixed } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
@@ -12,8 +12,11 @@ import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useServiceCategories } from '@/data/useServiceCategories';
 import { servicesApi, type ServiceQueryParams } from '@/lib/api/services';
-import { formatPrice } from '@/utils/formatPrice';
+import { prefetchService } from '@/hooks/useUserService';
+import { usePrefetchOnVisible } from '@/hooks/usePrefetchOnVisible';
+import { useCurrency } from '@/hooks/useCurrency';
 import type { UserService } from '@/lib/api/types';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 // ── Skeleton loader ──
 const ServiceCardSkeleton = () => (
@@ -47,7 +50,33 @@ interface FindServicesCache {
 }
 let _findServicesCache: FindServicesCache | null = null;
 
+/** Card shell that wires viewport + hover prefetch for a service. */
+const ServiceCardShell = ({
+  serviceId,
+  onOpen,
+  children,
+}: {
+  serviceId: string;
+  onOpen: () => void;
+  children: ReactNode;
+}) => {
+  const ref = usePrefetchOnVisible<HTMLDivElement>(() => prefetchService(serviceId));
+  return (
+    <div
+      ref={ref}
+      onMouseEnter={() => prefetchService(serviceId)}
+      onFocus={() => prefetchService(serviceId)}
+      onClick={onOpen}
+      className="bg-card border border-border rounded-xl overflow-hidden cursor-pointer group hover:shadow-md transition-all duration-200"
+    >
+      {children}
+    </div>
+  );
+};
+
 const FindServices = () => {
+  const { format: formatPrice } = useCurrency();
+  const { t } = useLanguage();
   useWorkspaceMeta({
     title: 'Find Services',
     description: 'Discover trusted service providers for photography, catering, decoration, and more.'
@@ -301,7 +330,7 @@ const FindServices = () => {
   // ── Loading state ──
   if (loading && initialLoad.current) {
     return (
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="space-y-6">
         <div className="space-y-1">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-5 w-72" />
@@ -317,7 +346,7 @@ const FindServices = () => {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5">
+    <div className="space-y-5">
       {/* ── Header ── */}
       <div>
         <h1 className="text-xl md:text-2xl font-bold text-foreground">
@@ -335,7 +364,7 @@ const FindServices = () => {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Search by name, category, or keyword..."
+            placeholder={t('search_services_placeholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 h-11 bg-card"
@@ -370,7 +399,7 @@ const FindServices = () => {
               : 'bg-muted text-muted-foreground hover:bg-muted/80'
           }`}
         >
-          All Services
+          {t('all_services')}
         </button>
         {apiCategories.map((cat) => (
           <button
@@ -394,10 +423,10 @@ const FindServices = () => {
         <Select value={selectedLocation} onValueChange={setSelectedLocation}>
           <SelectTrigger className="w-auto min-w-[140px] h-9 bg-card text-sm">
             <MapPin className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
-            <SelectValue placeholder="Location" />
+            <SelectValue placeholder={t('location_label')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Locations</SelectItem>
+            <SelectItem value="all">{t('all_locations')}</SelectItem>
             {locations.map(loc => (
               <SelectItem key={loc.name} value={loc.name}>
                 {loc.name} {loc.count > 0 && `(${loc.count})`}
@@ -409,7 +438,7 @@ const FindServices = () => {
         <Select value={sortBy || 'relevance'} onValueChange={(v) => setSortBy(v as any)}>
           <SelectTrigger className="w-auto min-w-[140px] h-9 bg-card text-sm">
             <SlidersHorizontal className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
-            <SelectValue placeholder="Sort" />
+            <SelectValue placeholder={t("sort")} />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="relevance">Most Relevant</SelectItem>
@@ -505,10 +534,10 @@ const FindServices = () => {
           {services.map((provider) => {
             const imageUrl = getImageUrl(provider);
             return (
-              <div
+              <ServiceCardShell
                 key={provider.id}
-                onClick={() => navigate(`/services/view/${provider.id}`)}
-                className="bg-card border border-border rounded-xl overflow-hidden cursor-pointer group hover:shadow-md transition-all duration-200"
+                serviceId={provider.id}
+                onOpen={() => navigate(`/services/view/${provider.id}`)}
               >
                 {/* Image */}
                 <div className="relative aspect-[16/10] bg-muted overflow-hidden">
@@ -593,7 +622,7 @@ const FindServices = () => {
                     )}
                   </div>
                 </div>
-              </div>
+              </ServiceCardShell>
             );
           })}
         </div>

@@ -30,6 +30,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { socialApi } from "@/lib/api/social";
 import { toast } from "sonner";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface ShareEventToFeedProps {
   event: {
@@ -44,6 +45,7 @@ interface ShareEventToFeedProps {
 }
 
 const ShareEventToFeed = ({ event, trigger }: ShareEventToFeedProps) => {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [visibility, setVisibility] = useState<"public" | "circle">("public");
   const [duration, setDuration] = useState<"until" | "lifetime">("lifetime");

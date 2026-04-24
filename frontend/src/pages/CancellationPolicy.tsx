@@ -3,8 +3,10 @@ import { Link } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const CancellationPolicy = () => {
+  const { t } = useLanguage();
   useMeta({
     title: "Cancellation & Refund Policy | Nuru",
     description: "Understand Nuru Workspace's cancellation tiers, refund rules, escrow payment structure, and dispute processes for event bookings."
@@ -215,7 +217,7 @@ const CancellationPolicy = () => {
             <h2 className="text-xl font-semibold text-foreground mb-3">Related Documents</h2>
             <p className="text-muted-foreground mb-4">Review related agreements and policies.</p>
             <div className="flex flex-wrap gap-3 mb-6">
-              <Button asChild variant="outline" className="rounded-full h-10 px-6"><Link to="/terms">Terms of Service</Link></Button>
+              <Button asChild variant="outline" className="rounded-full h-10 px-6"><Link to="/terms">{t("terms_of_service")}</Link></Button>
               <Button asChild variant="outline" className="rounded-full h-10 px-6"><Link to="/vendor-agreement">Vendor Agreement</Link></Button>
               <Button asChild variant="outline" className="rounded-full h-10 px-6"><Link to="/organiser-agreement">Organiser Agreement</Link></Button>
             </div>

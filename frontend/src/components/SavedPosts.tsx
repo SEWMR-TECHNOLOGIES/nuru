@@ -6,6 +6,7 @@ import Moment from './Moment';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const SavedPostsSkeleton = () => (
   <div className="space-y-4 md:space-y-6">
@@ -38,6 +39,7 @@ let _savedPostsCache: any[] = [];
 let _savedPostsHasLoaded = false;
 
 const SavedPosts = () => {
+  const { t } = useLanguage();
   useWorkspaceMeta({ title: 'Saved Posts', description: 'View your saved posts on Nuru.' });
 
   const [posts, setPosts] = useState<any[]>(_savedPostsCache);
@@ -104,7 +106,7 @@ const SavedPosts = () => {
   if (loading) {
     return (
       <div className="space-y-4 md:space-y-6 pb-4">
-        <h1 className="text-2xl md:text-3xl font-bold">Saved Posts</h1>
+        <h1 className="text-2xl md:text-3xl font-bold">{t("saved_posts")}</h1>
         <SavedPostsSkeleton />
       </div>
     );
@@ -112,7 +114,7 @@ const SavedPosts = () => {
 
   return (
     <div className="space-y-4 md:space-y-6 pb-4">
-      <h1 className="text-2xl md:text-3xl font-bold">Saved Posts</h1>
+      <h1 className="text-2xl md:text-3xl font-bold">{t("saved_posts")}</h1>
 
       {posts.length === 0 ? (
         <div className="text-center py-16">

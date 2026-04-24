@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useNavigate } from 'react-router-dom';
 import { eventsApi } from '@/lib/api/events';
 import { getEventCountdown } from '@/utils/getEventCountdown';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const PERMISSION_LABELS: Record<string, string> = {
   can_view_guests: 'View Guests',
@@ -28,6 +29,7 @@ const PERMISSION_LABELS: Record<string, string> = {
 };
 
 const CommitteeEvents = () => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

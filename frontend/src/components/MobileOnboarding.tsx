@@ -6,6 +6,7 @@ import MenuIcon from '@/assets/icons/menu-icon.svg';
 import PanelRightIcon from '@/assets/icons/panel-right-icon.svg';
 import { PanelLeft, PanelRight, Check } from 'lucide-react';
 
+
 const ONBOARDING_KEY = 'nuru_onboarding_seen';
 
 export interface MobileOnboardingRef {

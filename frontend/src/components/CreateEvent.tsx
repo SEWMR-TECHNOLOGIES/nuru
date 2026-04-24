@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ticketingApi } from "@/lib/api/ticketing";
 import type { TicketClass as TicketClassType } from "@/lib/api/ticketing";
-import { X, ChevronLeft, Upload, MapPin } from "lucide-react";
+import { X, ChevronLeft, Upload } from "lucide-react";
 import SvgIcon from '@/components/ui/svg-icon';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import aiIcon from '@/assets/icons/ai-icon.svg';
 import MapLocationPicker from "@/components/MapLocationPicker";
+import VenueMapPreview from "@/components/VenueMapPreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormattedNumberInput } from "@/components/ui/formatted-number-input";
@@ -28,10 +29,12 @@ import EventTicketing from "@/components/EventTicketing";
 import BudgetAssistant from "@/components/BudgetAssistant";
 import AgreementModal from "@/components/AgreementModal";
 import type { TicketClass } from "@/components/EventTicketing";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const CreateEvent: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { t } = useLanguage();
   const editId = searchParams.get("edit");
 
   const [formData, setFormData] = useState({
@@ -47,9 +50,8 @@ const CreateEvent: React.FC = () => {
     venueLongitude: null as number | null,
     venueName: "",
     venueAddress: "",
+    reminderContactPhone: "",
   });
-
-  const [showMapPicker, setShowMapPicker] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [images, setImages] = useState<File[]>([]);
@@ -121,6 +123,7 @@ const CreateEvent: React.FC = () => {
               venueLongitude: (event as any).venue_coordinates?.longitude || null,
               venueName: (event as any).venue || "",
               venueAddress: (event as any).venue_address || "",
+              reminderContactPhone: (event as any).reminder_contact_phone || "",
             });
 
             // Restore ticketing state
@@ -237,6 +240,9 @@ const CreateEvent: React.FC = () => {
       const budgetNumber = formData.budget ? parseFloat(String(formData.budget).replace(/[^0-9.]/g, "")) : null;
       if (budgetNumber !== null && !Number.isNaN(budgetNumber)) form.append("budget", String(budgetNumber));
 
+      // Always send reminder_contact_phone (empty string clears it on update)
+      form.append("reminder_contact_phone", formData.reminderContactPhone.trim());
+
       // Ticketing flags
       form.append("sells_tickets", ticketingEnabled ? "true" : "false");
       form.append("is_public", isPublicEvent ? "true" : "false");
@@ -302,24 +308,26 @@ const CreateEvent: React.FC = () => {
   };
 
   useWorkspaceMeta({
-    title: "Create Event",
+    title: t("create_event"),
     description: "Plan your perfect event with comprehensive tools for weddings, birthdays, memorials, and more.",
   });
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground mb-1 break-words leading-tight">
             {editId ? 'Edit Event' : 'Create New Event'}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {editId ? 'Update your event details' : 'Plan your perfect event with our comprehensive toolkit'}
           </p>
         </div>
         <Button
           variant="ghost"
           size="icon"
+          className="flex-shrink-0"
+          aria-label="Back"
           onClick={() => navigate('/my-events')}
         >
           <ChevronLeft className="w-5 h-5" />
@@ -394,9 +402,9 @@ const CreateEvent: React.FC = () => {
             {/* Title and Location */}
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Event Title</label>
+                <label className="block text-sm font-medium mb-2">{t('event_title_label')}</label>
                 <Input
-                  placeholder="e.g., Sarah & John's Wedding"
+                  placeholder={t('event_title_placeholder')}
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   className={cn(titleTooLong && "border-destructive focus-visible:ring-destructive")}
@@ -408,9 +416,9 @@ const CreateEvent: React.FC = () => {
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Location</label>
+                <label className="block text-sm font-medium mb-2">{t('location_label')}</label>
                 <Input
-                  placeholder="Event venue or address"
+                  placeholder={t('event_venue_placeholder')}
                   value={formData.location}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                   required
@@ -420,52 +428,73 @@ const CreateEvent: React.FC = () => {
             </div>
 
             {/* Venue Map Picker */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium">Pin Venue on Map (optional)</label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowMapPicker(!showMapPicker)}
-                >
-                  <MapPin className="w-4 h-4 mr-1" />
-                  {showMapPicker ? "Hide Map" : "Pick Location"}
-                </Button>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <label className="block text-sm font-medium">{t('pin_venue_map')}</label>
+                {formData.venueLatitude !== null && formData.venueLongitude !== null && (
+                  <span className="text-xs text-muted-foreground">
+                    {formData.venueLatitude.toFixed(5)}, {formData.venueLongitude.toFixed(5)}
+                  </span>
+                )}
               </div>
+
               {formData.venueAddress && (
-                <p className="text-xs text-muted-foreground mb-2">
+                <p className="text-xs text-muted-foreground">
                   📍 {formData.venueAddress}
                 </p>
               )}
-              {showMapPicker && (
-                <MapLocationPicker
-                  onChange={(location) => {
-                    if (location) {
-                      setFormData(prev => ({
-                        ...prev,
-                        venueLatitude: location.latitude,
-                        venueLongitude: location.longitude,
-                        venueAddress: location.address || "",
-                        venueName: location.name || "",
-                        location: prev.location || location.address || location.name || "",
-                      }));
-                    }
-                  }}
-                  value={
-                    formData.venueLatitude && formData.venueLongitude
-                      ? { latitude: formData.venueLatitude, longitude: formData.venueLongitude, name: formData.venueName, address: formData.venueAddress }
-                      : null
+
+              <MapLocationPicker
+                onChange={(location) => {
+                  if (!location) {
+                    setFormData((prev) => ({
+                      ...prev,
+                      venueLatitude: null,
+                      venueLongitude: null,
+                      venueAddress: "",
+                      venueName: "",
+                    }));
+                    return;
                   }
+
+                  setFormData((prev) => ({
+                    ...prev,
+                    venueLatitude: location.latitude,
+                    venueLongitude: location.longitude,
+                    venueAddress: location.address || "",
+                    venueName: location.name || "",
+                    location: prev.location || location.address || location.name || "",
+                  }));
+                }}
+                value={
+                  formData.venueLatitude !== null && formData.venueLongitude !== null
+                    ? {
+                        latitude: formData.venueLatitude,
+                        longitude: formData.venueLongitude,
+                        name: formData.venueName,
+                        address: formData.venueAddress,
+                      }
+                    : null
+                }
+              />
+
+              {formData.venueLatitude !== null && formData.venueLongitude !== null && (
+                <VenueMapPreview
+                  key={`${formData.venueLatitude}-${formData.venueLongitude}`}
+                  latitude={formData.venueLatitude}
+                  longitude={formData.venueLongitude}
+                  venueName={formData.venueName || formData.location || undefined}
+                  address={formData.venueAddress || undefined}
+                  height="240px"
                 />
               )}
             </div>
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-medium mb-2">Description</label>
+              <label className="block text-sm font-medium mb-2">{t('description')}</label>
               <Textarea
-                placeholder="Describe your event..."
+                placeholder={t('describe_event')}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 className={cn(descTooLong && "border-destructive focus-visible:ring-destructive")}
@@ -476,10 +505,27 @@ const CreateEvent: React.FC = () => {
               )}
             </div>
 
+            {/* Reminder contact phone (used in contributor reminder messages) */}
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Reminder contact phone <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <Input
+                type="tel"
+                placeholder="e.g. 0712 345 678"
+                value={formData.reminderContactPhone}
+                onChange={(e) => setFormData({ ...formData, reminderContactPhone: e.target.value })}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Shown in reminder & thank-you messages so contributors know who to call.
+                Defaults to your account phone if left blank.
+              </p>
+            </div>
+
             {/* Date, Time, Guests */}
             <div className="grid md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Event Date</label>
+                <label className="block text-sm font-medium mb-2">{t('event_date')}</label>
                 <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -490,7 +536,7 @@ const CreateEvent: React.FC = () => {
                       )}
                     >
                       <img src={CalendarIcon} alt="Calendar" className="mr-2 h-4 w-4" />
-                      {formData.date ? format(formData.date, "PPP") : "Select date"}
+                      {formData.date ? format(formData.date, "PPP") : t("select_date")}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -505,7 +551,7 @@ const CreateEvent: React.FC = () => {
                 </Popover>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Time</label>
+                <label className="block text-sm font-medium mb-2">{t('time')}</label>
                 <Input
                   type="time"
                   value={formData.time}
@@ -514,7 +560,7 @@ const CreateEvent: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Expected Guests</label>
+                <label className="block text-sm font-medium mb-2">{t('expected_guests')}</label>
                 <FormattedNumberInput
                   placeholder="50"
                   value={formData.expectedGuests}
@@ -530,7 +576,7 @@ const CreateEvent: React.FC = () => {
             {/* Budget */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium">Estimated Budget (TZS)</label>
+                <label className="block text-sm font-medium">{t('estimated_budget')}</label>
                 <Button
                   type="button"
                   variant="outline"
@@ -539,7 +585,7 @@ const CreateEvent: React.FC = () => {
                   onClick={() => setBudgetAssistantOpen(true)}
                 >
                   <img src={aiIcon} alt="" className="w-4 h-4 dark:invert" />
-                  AI Budget Assistant
+                  {t('ai_budget_assistant')}
                 </Button>
               </div>
               <FormattedNumberInput
@@ -589,12 +635,12 @@ const CreateEvent: React.FC = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Event Media</CardTitle>
+            <CardTitle>{t('event_media')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Image Upload */}
             <div>
-              <label className="block text-sm font-medium mb-2">Event Images (optional)</label>
+              <label className="block text-sm font-medium mb-2">{t('event_images_optional')}</label>
               <div className="space-y-4">
                 {previews.length > 0 && (
                   previews.length === 1 ? (
@@ -630,8 +676,8 @@ const CreateEvent: React.FC = () => {
 
                 <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
                   <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground mb-2">Click to upload or drag and drop</p>
-                  <p className="text-sm text-muted-foreground">PNG, JPG, or WEBP (max. 5MB per file)</p>
+                  <p className="text-muted-foreground mb-2">{t('click_upload_drag')}</p>
+                  <p className="text-sm text-muted-foreground">{t('file_format_hint')}</p>
                   <label htmlFor="event-image-upload">
                     <Button
                       type="button"
@@ -639,7 +685,7 @@ const CreateEvent: React.FC = () => {
                       className="mt-4"
                       onClick={() => document.getElementById('event-image-upload')?.click()}
                     >
-                      Choose Files
+                      {t('choose_files')}
                     </Button>
                   </label>
                   <input
@@ -668,13 +714,13 @@ const CreateEvent: React.FC = () => {
 
         <div className="flex justify-end gap-3">
           <Button type="button" variant="outline" onClick={() => navigate(-1)}>
-            Cancel
+            {t("cancel")}
           </Button>
           <Button
             type="submit"
             disabled={!formData.title || !formData.date || !formData.eventType || isSubmitting}
           >
-            {isSubmitting ? (editId ? "Updating event..." : "Creating event...") : (editId ? "Update Event" : "Create Event")}
+            {isSubmitting ? (editId ? t("updating_event") : t("creating_event")) : (editId ? t("update_event") : t("create_event"))}
           </Button>
         </div>
       </form>

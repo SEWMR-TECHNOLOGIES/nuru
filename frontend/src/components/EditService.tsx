@@ -27,8 +27,10 @@ import { ServiceDetailLoadingSkeleton } from '@/components/ui/ServiceLoadingSkel
 import MapLocationPicker from '@/components/MapLocationPicker';
 import type { LocationData } from '@/components/MapLocationPicker';
 import { businessPhoneApi, type BusinessPhone } from '@/lib/api/businessPhone';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const EditService = () => {
+  const { t } = useLanguage();
   useWorkspaceMeta({
     title: 'Edit Service',
     description: 'Update your service details and information.'
@@ -318,9 +320,9 @@ const EditService = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Edit Service</h1>
-        <Button variant="ghost" size="icon" onClick={() => navigate('/my-services')}>
+      <div className="flex items-center gap-2">
+        <h1 className="flex-1 min-w-0 text-xl sm:text-2xl md:text-3xl font-bold break-words leading-tight">Edit Service</h1>
+        <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => navigate('/my-services')} aria-label="Back">
           <ChevronLeft className="w-5 h-5" />
         </Button>
       </div>
@@ -334,17 +336,17 @@ const EditService = () => {
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="title">Service Title</Label>
-              <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g., Professional Photography" required />
+              <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('service_title_placeholder')} required />
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="category">Service Category</Label>
                 <Select value={serviceCategoryId} onValueChange={setServiceCategoryId} required>
-                  <SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('select_category')} /></SelectTrigger>
                   <SelectContent>
                     {loadingCategories ? (
-                      <SelectItem value="loading" disabled>Loading...</SelectItem>
+                      <SelectItem value="loading" disabled>{t("loading")}</SelectItem>
                     ) : (
                       (categories || []).map((cat: any) => (
                         <SelectItem key={cat.id} value={String(cat.id)}>{cat.name}</SelectItem>
@@ -357,10 +359,10 @@ const EditService = () => {
               <div className="space-y-2">
                 <Label htmlFor="type">Service Type</Label>
                 <Select value={serviceTypeId} onValueChange={setServiceTypeId} required>
-                  <SelectTrigger><SelectValue placeholder="Select a type" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('select_service_type')} /></SelectTrigger>
                   <SelectContent>
                     {loadingTypes ? (
-                      <SelectItem value="loading" disabled>Loading...</SelectItem>
+                      <SelectItem value="loading" disabled>{t("loading")}</SelectItem>
                     ) : (
                       (serviceTypes || []).map((type: any) => (
                         <SelectItem key={type.id} value={String(type.id)}>{type.name}</SelectItem>
@@ -373,7 +375,7 @@ const EditService = () => {
 
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
-              <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe your service, expertise, and what makes you unique..." rows={5} required />
+              <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('describe_service_expertise')} rows={5} required />
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
@@ -540,7 +542,7 @@ const EditService = () => {
             {businessPhones.filter(p => p.verification_status === 'verified').length > 0 && (
               <Select value={selectedPhoneId} onValueChange={setSelectedPhoneId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a verified phone" />
+                  <SelectValue placeholder={t('select_verified_phone')} />
                 </SelectTrigger>
                 <SelectContent>
                   {businessPhones.filter(p => p.verification_status === 'verified').map(p => (

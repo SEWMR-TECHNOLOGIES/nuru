@@ -18,12 +18,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { useUserService } from '@/hooks/useUserService';
 import { servicesApi } from '@/lib/api/services';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import { ServiceDetailLoadingSkeleton } from '@/components/ui/ServiceLoadingSkeleton';
 import { UserService, ServicePackage, ServiceReview } from '@/lib/api/types';
 import { showApiErrors } from '@/lib/api';
 import { messagesApi } from '@/lib/api/messages';
 import { toast } from 'sonner';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface BookedDate {
   date: string;
@@ -35,6 +36,8 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
 
 const PublicServiceDetail = () => {
+  const { format: formatPrice } = useCurrency();
+  const { t } = useLanguage();
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -203,7 +206,7 @@ const PublicServiceDetail = () => {
   const ownerAvatar = (service as any).owner_avatar || (service as any).user?.avatar;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-16">
+    <div className="space-y-6 pb-16">
 
       {/* ─── BACK NAV ─── */}
       <div className="flex items-center justify-end py-4 px-1">

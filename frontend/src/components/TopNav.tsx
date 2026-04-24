@@ -6,6 +6,7 @@ import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import ChatIcon from '@/assets/icons/chat-icon.svg';
 import TicketIcon from '@/assets/icons/ticket-icon.svg';
 import { useConversations } from '@/data/useSocial';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const navItems = [
   { icon: HomeIcon, label: 'Home', path: '/', isCustom: true },
@@ -17,6 +18,7 @@ const navItems = [
 ];
 
 const TopNav = () => {
+  const { t } = useLanguage();
   const { unreadCount } = useConversations();
 
   return (

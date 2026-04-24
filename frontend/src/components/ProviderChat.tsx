@@ -3,12 +3,14 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { messagesApi } from '@/lib/api/messages';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 /**
  * ProviderChat - Redirects to the real Messages view.
  * Starts or finds a service-specific conversation with the provider.
  */
 const ProviderChat = () => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const providerId = searchParams.get('providerId');

@@ -1,46 +1,70 @@
-import Layout from "@/components/layout/Layout";
-import FeatureHero from "@/components/features/FeatureHero";
-import FeatureGrid from "@/components/features/FeatureGrid";
-import FeatureStatement from "@/components/features/FeatureStatement";
-import illustrationImg from "@/assets/illustration-event-planning.jpg";
+import EditorialFeaturePage from "@/components/features/EditorialFeaturePage";
 import { useMeta } from "@/hooks/useMeta";
 
 const EventPlanning = () => {
-  const capabilities = [
-    { title: "Timeline management", description: "Set milestones, track progress, and never miss a deadline" },
-    { title: "Budget tracking", description: "Monitor expenses and stay within your planned budget" },
-    { title: "Task assignment", description: "Delegate responsibilities and track completion" },
-    { title: "Vendor coordination", description: "Communicate seamlessly with all your service providers" },
-    { title: "Guest organization", description: "Manage your guest list with ease and precision" },
-    { title: "Smart reminders", description: "Automated notifications keep everyone on schedule" }
-  ];
-
   useMeta({
-    title: "Smart Event Planning",
-    description: "Plan weddings, parties, and ceremonies with clarity using Nuru's intelligent event planning tools."
+    title: "Event Planning Workspace | Nuru",
+    description:
+      "Plan weddings, conferences, graduations, exhibitions, and family celebrations from one workspace. Budgets, timelines, committees, vendors and contributions — all connected.",
   });
 
   return (
-    <Layout>
-      <FeatureHero
-        title="Organize every detail with confidence"
-        description="From intimate gatherings to large occasions, our planning tools help you stay on top of timelines, budgets, and tasks."
-        imageSrc={illustrationImg}
-        imageAlt="Event Planning"
-        imagePosition="right"
-      />
-
-      <FeatureGrid
-        title="Everything you need in one place"
-        subtitle="No more scattered spreadsheets or forgotten tasks. Nuru brings all your planning tools together."
-        items={capabilities}
-        variant="cards"
-      />
-
-      <FeatureStatement
-        statement="Planning an event should feel like a journey, not a burden. We built these tools to help you focus on what truly matters."
-      />
-    </Layout>
+    <EditorialFeaturePage
+      kicker="Service · 01 — Event Planning"
+      title="The command centre of every celebration."
+      lead="Open a workspace for any occasion — wedding, conference, graduation, exhibition, family gathering or business event. Build budgets, invite guests, coordinate committees, collect contributions, sell tickets, and book vendors from one place."
+      specs={[
+        { label: "Event types", value: "Weddings → Conferences" },
+        { label: "Workspace cost", value: "Free to open" },
+        { label: "Coordination", value: "Real-time" },
+        { label: "Records", value: "Audit-grade" },
+      ]}
+      sections={[
+        {
+          title: "One workspace, every moving part.",
+          lead: "Stop juggling spreadsheets, group chats, and notebooks. Nuru consolidates the entire event into a single, transparent surface.",
+          bullets: [
+            "Live budget that updates as expenses are recorded.",
+            "Timelines with milestones, deadlines and reminders.",
+            "Task assignment across organisers and committees.",
+            "Guest list with RSVP, dietary and seating notes.",
+            "Vendor coordination and booking history.",
+            "Real-time progress, no manual follow-up.",
+          ],
+        },
+        {
+          title: "Committees that actually coordinate.",
+          lead: "Add the people running decoration, food, transport, invitations or entertainment. Each committee gets the visibility they need — nothing more, nothing less.",
+          bullets: [
+            "Role-based access for committee members.",
+            "Shared sub-budgets per committee.",
+            "Built-in announcements and group threads.",
+            "Built-in video meetings for committee calls.",
+            "Activity log for every decision and change.",
+            "Handover-ready records when the event ends.",
+          ],
+        },
+        {
+          title: "Built for every event.",
+          lead: "Weddings, memorials, send-offs, corporate offsites, fundraisers, graduations, conferences, birthdays. Every workflow respects how families, companies and communities actually run events — anywhere in the world.",
+          bullets: [
+            "Multi-event programmes (pre-, main, after).",
+            "Multiple organisers with shared control.",
+            "Family contribution tracking, not just ticket sales.",
+            "Local payment methods built-in (M-Pesa, Airtel, Mixx by Yas, banks).",
+            "Bilingual interfaces — English and Swahili.",
+            "Works on the slowest connections.",
+          ],
+        },
+      ]}
+      cta={{
+        eyebrow: "Open a workspace",
+        title: "Plan smarter. Celebrate better.",
+        body: "Free to open, free to invite your committee. You only pay when you transact.",
+        primary: { label: "Create your workspace", href: "/register" },
+        secondary: { label: "See all features", href: "/features/payments" },
+      }}
+    />
   );
 };
 

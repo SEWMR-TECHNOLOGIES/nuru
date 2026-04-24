@@ -16,9 +16,11 @@ import { toast } from 'sonner';
 import { photoLibrariesApi, ServiceConfirmedEvent } from '@/lib/api/photoLibraries';
 import { showApiErrors, showCaughtError } from '@/lib/api';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import PhotosIcon from '@/assets/icons/photos-icon.svg';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
+import SearchHeader from '@/components/ui/search-header';
 
 // ─── Module-level cache ───
 let _eventsCache: Record<string, ServiceConfirmedEvent[]> = {};
@@ -26,6 +28,8 @@ let _eventsTitleCache: Record<string, string> = {};
 let _eventsLoaded: Record<string, boolean> = {};
 
 const ServiceEventsPage = () => {
+  const { format: formatPrice } = useCurrency();
+  const { t } = useLanguage();
   const { serviceId } = useParams<{ serviceId: string }>();
   const navigate = useNavigate();
   const [events, setEvents] = useState<ServiceConfirmedEvent[]>(serviceId ? (_eventsCache[serviceId] || []) : []);
@@ -34,6 +38,7 @@ const ServiceEventsPage = () => {
   const [createLibraryEvent, setCreateLibraryEvent] = useState<ServiceConfirmedEvent | null>(null);
   const [newLibraryPrivacy, setNewLibraryPrivacy] = useState('event_creator_only');
   const [creating, setCreating] = useState(false);
+  const [search, setSearch] = useState('');
   const initialLoad = useRef(!serviceId || !_eventsLoaded[serviceId]);
 
   useWorkspaceMeta({ title: 'Service Events', description: 'Events where your service is confirmed' });
@@ -41,19 +46,22 @@ const ServiceEventsPage = () => {
   const fetchEvents = useCallback(async () => {
     if (!serviceId) return;
     if (initialLoad.current) setLoading(true);
+    if (search) setLoading(true);
     try {
-      const res = await photoLibrariesApi.getServiceEvents(serviceId);
+      const res = await photoLibrariesApi.getServiceEvents(serviceId, search ? { search } : undefined);
       if (res.success && res.data) {
-        _eventsCache[serviceId] = res.data.events;
-        _eventsTitleCache[serviceId] = res.data.service_title;
-        _eventsLoaded[serviceId] = true;
+        if (!search) {
+          _eventsCache[serviceId] = res.data.events;
+          _eventsTitleCache[serviceId] = res.data.service_title;
+          _eventsLoaded[serviceId] = true;
+        }
         initialLoad.current = false;
         setEvents(res.data.events);
         setServiceTitle(res.data.service_title);
       }
     } catch (err) { showCaughtError(err); }
     finally { setLoading(false); }
-  }, [serviceId]);
+  }, [serviceId, search]);
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
 
@@ -245,7 +253,7 @@ const ServiceEventsPage = () => {
   /* ─── SKELETON LOADING ─── */
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto pb-16">
+      <div className="pb-16">
         <div className="flex items-center gap-3 py-4 px-1 mb-4">
           <Skeleton className="w-20 h-4" />
         </div>
@@ -294,11 +302,12 @@ const ServiceEventsPage = () => {
   const hasThumbs = heroThumbs.length > 0;
 
   return (
-    <div className="max-w-5xl mx-auto pb-16">
+    <div className="pb-16">
 
       {/* ─── TOP BAR ─── */}
-      <div className="flex items-center justify-between py-4 px-1 mb-2">
-        <h2 className="text-base font-semibold text-foreground truncate">{serviceTitle || 'My Events'}</h2>
+      <div className="flex items-center justify-between py-4 px-1 mb-2 gap-2">
+        <h2 className="text-base font-semibold text-foreground truncate flex-1 min-w-0">{serviceTitle || 'My Events'}</h2>
+        <SearchHeader value={search} onChange={setSearch} placeholder="Search events…" />
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Go back">
           <ChevronLeft className="w-5 h-5" />
         </Button>
@@ -327,7 +336,7 @@ const ServiceEventsPage = () => {
               <img src={CalendarIcon} alt="" className="w-6 h-6 dark:invert opacity-80" />
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-bold text-foreground">My Events</h1>
+              <h1 className="text-2xl font-bold text-foreground">{t("my_events")}</h1>
               <div className="flex items-center gap-3 mt-1 flex-wrap">
                 {serviceTitle && <span className="text-sm text-muted-foreground font-medium">{serviceTitle}</span>}
                 {serviceTitle && <span className="text-muted-foreground text-sm">·</span>}
@@ -383,7 +392,7 @@ const ServiceEventsPage = () => {
             <section>
               <SectionHeader
                 icon={<img src={CalendarIcon} alt="" className="w-4 h-4 dark:invert text-primary" />}
-                label="Upcoming"
+                label={t("upcoming")}
                 count={upcomingEvents.length}
                 colorClass="bg-primary/10 text-primary"
               />

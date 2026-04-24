@@ -17,6 +17,10 @@ function generateOtp(length = 6): string {
   return otp;
 }
 
+// Rate limit: max 3 OTP requests per phone per hour
+const RATE_LIMIT_MAX = 3;
+const RATE_LIMIT_WINDOW_MINUTES = 60;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -26,11 +30,33 @@ Deno.serve(async (req) => {
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || "";
 
+  // ── Server-secret gate: only the backend may call this function ──
+  const OTP_SERVICE_SECRET = Deno.env.get("OTP_SERVICE_SECRET");
+  if (OTP_SERVICE_SECRET) {
+    const incomingSecret = req.headers.get("x-otp-service-secret");
+    if (incomingSecret !== OTP_SERVICE_SECRET) {
+      console.log("[send-otp] Rejected: missing or invalid x-otp-service-secret header");
+      return new Response(
+        JSON.stringify({ success: false, error: "Unauthorized" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+  }
+
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
     const body = await req.json();
-    const { phone, user_id, purpose } = body;
+    const { phone, user_id, purpose, verified_by_backend } = body;
+
+    // ── Require the backend to confirm the phone belongs to a real user ──
+    if (!verified_by_backend) {
+      console.log("[send-otp] Rejected: request not verified by backend (phone not confirmed in DB)");
+      return new Response(
+        JSON.stringify({ success: false, error: "Phone number must be verified by backend before sending OTP" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (!phone) {
       return new Response(
@@ -41,6 +67,25 @@ Deno.serve(async (req) => {
 
     const cleanPhone = phone.replace(/[^\d]/g, "");
     const otpPurpose = purpose || "phone_verification";
+
+    // ── Rate limiting: check recent OTP requests for this phone ──
+    const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60 * 1000).toISOString();
+    const { count: recentCount, error: countError } = await supabase
+      .from("otp_codes")
+      .select("id", { count: "exact", head: true })
+      .eq("phone", cleanPhone)
+      .gte("created_at", windowStart);
+
+    if (!countError && (recentCount ?? 0) >= RATE_LIMIT_MAX) {
+      console.log(`[send-otp] Rate limited: ${cleanPhone} has ${recentCount} requests in the last hour`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Too many requests. Please wait before trying again.",
+        }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "3600" } }
+      );
+    }
 
     // Invalidate previous unused codes for this phone + purpose
     await supabase
@@ -66,7 +111,7 @@ Deno.serve(async (req) => {
     if (insertError) {
       console.error("[send-otp] DB insert error:", insertError);
       return new Response(
-        JSON.stringify({ success: false, error: "Failed to store OTP" }),
+        JSON.stringify({ success: false, error: "We couldn't store the code. Please try again." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -74,7 +119,6 @@ Deno.serve(async (req) => {
     const channels: string[] = [];
 
     // ── Send via WhatsApp using the whatsapp-send edge function ──
-    // This reuses the exact same proven logic used for invitations, reminders, etc.
     try {
       const waRes = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-send`, {
         method: "POST",

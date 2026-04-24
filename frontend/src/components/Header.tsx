@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { User, LogOut, Bookmark, Search } from 'lucide-react';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 import SvgIcon from '@/components/ui/svg-icon';
 import CameraIcon from '@/assets/icons/camera-icon.svg';
 import SettingsIcon from '@/assets/icons/settings-icon.svg';
@@ -31,6 +33,7 @@ interface HeaderProps {
 
 const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const { t } = useLanguage();
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const navigate = useNavigate();
   const { logout } = useLogout();
@@ -43,7 +46,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
       return (
         <img
           src={currentUser.avatar}
-          alt="Profile"
+          alt={t("profile")}
           className="w-full h-full object-cover"
         />
       );
@@ -110,7 +113,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
         {/* Messages */}
         <NavLink to="/messages">
           <Button variant="ghost" size="icon" className="relative">
-            <SvgIcon src={ChatIcon} alt="Messages" className="w-5 h-5" />
+            <SvgIcon src={ChatIcon} alt={t("messages")} className="w-5 h-5" />
             {messageCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 md:w-5 md:h-5 flex items-center justify-center text-[10px] md:text-xs">
                 {messageCount > 99 ? '99+' : messageCount}
@@ -122,7 +125,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
         {/* Notifications */}
         <NavLink to="/notifications">
           <Button variant="ghost" size="icon" className="relative">
-            <SvgIcon src={BellIcon} alt="Notifications" className="w-5 h-5" />
+            <SvgIcon src={BellIcon} alt={t("notifications")} className="w-5 h-5" />
             {notificationCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 md:w-5 md:h-5 flex items-center justify-center text-[10px] md:text-xs">
                 {notificationCount > 99 ? '99+' : notificationCount}
@@ -176,7 +179,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
                 }}
               >
                 <User className="w-4 h-4" />
-                Profile
+                {t('profile')}
               </Button>
               <Button
                 variant="ghost"
@@ -187,7 +190,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
                 }}
               >
                 <SvgIcon src={SettingsIcon} alt="" className="w-4 h-4" />
-                Settings
+                {t('settings')}
               </Button>
               <Button
                 variant="ghost"
@@ -197,8 +200,8 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
                   navigate('/my-posts');
                 }}
               >
-                <SvgIcon src={CameraIcon} alt="Moments" className="w-4 h-4" />
-                Moments
+                <SvgIcon src={CameraIcon} alt={t("moments")} className="w-4 h-4" />
+                {t('moments')}
               </Button>
               <Button
                 variant="ghost"
@@ -220,7 +223,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
                 }}
               >
                 <Bookmark className="w-4 h-4" />
-                Saved Posts
+                {t('saved_posts')}
               </Button>
               <Separator className="my-1" />
               <Button
@@ -232,7 +235,7 @@ const Header = ({ onMenuToggle, onRightPanelToggle }: HeaderProps) => {
                 }}
               >
                 <LogOut className="w-4 h-4" />
-                Sign Out
+                {t('sign_out')}
               </Button>
             </div>
           </PopoverContent>

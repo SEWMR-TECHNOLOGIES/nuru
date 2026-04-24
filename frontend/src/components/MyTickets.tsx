@@ -9,12 +9,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { PillTabsNav } from "@/components/ui/pill-tabs";
 import { ticketingApi } from "@/lib/api/ticketing";
-import { formatPrice } from "@/utils/formatPrice";
+import { useCurrency } from '@/hooks/useCurrency';
 import { getEventCountdown } from "@/utils/getEventCountdown";
 import { motion } from "framer-motion";
 import PrintableTicket from "@/components/PrintableTicket";
 import CountdownClock from "@/components/CountdownClock";
+import SearchHeader from "@/components/ui/search-header";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
+import MigrationBanner from '@/components/migration/MigrationBanner';
+import MyTicketPaymentsTab from '@/components/tickets/MyTicketPaymentsTab';
+import MyReservations from '@/components/tickets/MyReservations';
 
 const STATUS_STYLES: Record<string, string> = {
   confirmed: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
@@ -77,6 +84,8 @@ const UpcomingSidebarSkeleton = () => (
 );
 
 const MyTickets = () => {
+  const { format: formatPrice } = useCurrency();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [tickets, setTickets] = useState<any[]>(_ticketsCache);
   const [loading, setLoading] = useState(!_ticketsHasLoaded);
@@ -85,23 +94,31 @@ const MyTickets = () => {
   const [pagination, setPagination] = useState<any>(_ticketsPagination);
   const [upcomingTickets, setUpcomingTickets] = useState<any[]>(_upcomingCache);
   const [printTicket, setPrintTicket] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState<"tickets" | "payments">("tickets");
 
   useEffect(() => {
-    if (initialLoad.current) setLoading(true);
+    if (initialLoad.current && !searchTerm) setLoading(true);
+    if (searchTerm) setLoading(true);
+    // Always re-fetch upcoming tickets too — relying on the module cache
+    // hides tickets paid for in the current session and creates the
+    // confusing "sidebar shows tickets, page is empty" state.
     Promise.all([
-      ticketingApi.getMyTickets({ page, limit: 20 }),
+      ticketingApi.getMyTickets({ page, limit: 20, ...(searchTerm ? { search: searchTerm } : {}) }),
       ticketingApi.getMyUpcomingTickets(),
     ]).then(([ticketRes, upRes]) => {
       if (ticketRes.success && ticketRes.data) {
         const d = ticketRes.data as any;
-        const t = d.tickets || [];
-        _ticketsCache = t;
-        _ticketsPagination = d.pagination || null;
-        _ticketsHasLoaded = true;
-        setTickets(t);
+        const tk = d.tickets || [];
+        if (!searchTerm) {
+          _ticketsCache = tk;
+          _ticketsPagination = d.pagination || null;
+          _ticketsHasLoaded = true;
+        }
+        setTickets(tk);
         setPagination(d.pagination || null);
       }
-      if (upRes.success && upRes.data) {
+      if (upRes && upRes.success && upRes.data) {
         const up = (upRes.data as any).tickets || [];
         _upcomingCache = up;
         setUpcomingTickets(up);
@@ -110,26 +127,45 @@ const MyTickets = () => {
       setLoading(false);
       initialLoad.current = false;
     });
-  }, [page]);
+  }, [page, searchTerm]);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="space-y-6">
+      <MigrationBanner surface="tickets" />
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <img src={TicketIcon} alt="Tickets" className="w-5 h-5 dark:invert" />
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <img src={TicketIcon} alt={t("tickets")} className="w-5 h-5 dark:invert" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-foreground">My Tickets</h1>
-            <p className="text-sm text-muted-foreground">All your purchased event tickets</p>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-foreground truncate">{t("my_tickets")}</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">All your purchased event tickets</p>
           </div>
         </div>
-        <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate(-1)}>
-          <ChevronLeft className="w-5 h-5" />
-        </Button>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <SearchHeader value={searchTerm} onChange={(v) => { setPage(1); setSearchTerm(v); }} placeholder="Search by event, code, or class…" />
+          <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate(-1)} aria-label="Back">
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+        </div>
       </div>
 
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "tickets" | "payments")}>
+        <PillTabsNav
+          activeTab={activeTab}
+          onTabChange={(v) => setActiveTab(v as "tickets" | "payments")}
+          tabs={[
+            { value: "tickets", label: "My Tickets" },
+            { value: "payments", label: "Payments" },
+          ]}
+        />
+
+        <TabsContent value="payments" className="space-y-4">
+          <MyTicketPaymentsTab />
+        </TabsContent>
+
+        <TabsContent value="tickets" className="space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main ticket list */}
         <div className="lg:col-span-2 space-y-4">
@@ -276,6 +312,7 @@ const MyTickets = () => {
 
         {/* Right sidebar - upcoming tickets */}
         <div className="space-y-4">
+          <MyReservations />
           {loading ? (
             <div>
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
@@ -341,7 +378,8 @@ const MyTickets = () => {
           ) : null}
         </div>
       </div>
-
+        </TabsContent>
+      </Tabs>
       {printTicket && (
         <PrintableTicket
           ticket={printTicket}

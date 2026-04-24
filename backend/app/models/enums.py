@@ -208,6 +208,7 @@ class TicketOrderStatusEnum(enum.Enum):
     rejected = "rejected"
     cancelled = "cancelled"
     refunded = "refunded"
+    reserved = "reserved"
 
 
 class TicketApprovalStatusEnum(enum.Enum):
@@ -267,3 +268,140 @@ class CircleRequestStatusEnum(enum.Enum):
 class AgreementTypeEnum(enum.Enum):
     vendor_agreement = "vendor_agreement"
     organiser_agreement = "organiser_agreement"
+
+
+class MeetingStatusEnum(enum.Enum):
+    scheduled = "scheduled"
+    in_progress = "in_progress"
+    ended = "ended"
+
+
+class MeetingParticipantRoleEnum(enum.Enum):
+    creator = "creator"
+    co_host = "co_host"
+    participant = "participant"
+
+
+class MeetingJoinRequestStatusEnum(enum.Enum):
+    waiting = "waiting"
+    approved = "approved"
+    rejected = "rejected"
+
+
+# ──────────────────────────────────────────────
+# Escrow / Booking money state machine (Phase 1.1)
+# ──────────────────────────────────────────────
+
+class BookingStateEnum(enum.Enum):
+    """Authoritative booking states — string-compatible with legacy `status` text column."""
+    pending = "pending"                # vendor has not responded
+    accepted = "accepted"              # vendor accepted, awaiting deposit
+    funds_secured = "funds_secured"    # deposit (or full) received → Nuru holds escrow
+    in_progress = "in_progress"        # event day window
+    delivered = "delivered"            # OTP check-in done
+    released = "released"              # escrow released to vendor side
+    refunded = "refunded"              # full/partial refund issued
+    disputed = "disputed"              # dispute open → freezes auto-release
+    rejected = "rejected"
+    cancelled = "cancelled"
+    completed = "completed"            # legacy alias kept for back-compat
+
+
+class EscrowHoldStatusEnum(enum.Enum):
+    pending = "pending"                        # row created, no funds yet
+    held = "held"                              # funds secured (deposit and/or balance)
+    partially_released = "partially_released"
+    released = "released"
+    refunded = "refunded"
+    disputed = "disputed"
+
+
+class EscrowTransactionTypeEnum(enum.Enum):
+    HOLD_DEPOSIT = "HOLD_DEPOSIT"
+    HOLD_BALANCE = "HOLD_BALANCE"
+    RELEASE_TO_VENDOR = "RELEASE_TO_VENDOR"
+    REFUND_TO_ORGANISER = "REFUND_TO_ORGANISER"
+    COMMISSION_TO_NURU = "COMMISSION_TO_NURU"
+    FEE = "FEE"
+    ADJUSTMENT = "ADJUSTMENT"
+    SETTLED_TO_VENDOR = "SETTLED_TO_VENDOR"  # admin marks MPesa/card payout done
+
+
+class CancellationTierEnum(enum.Enum):
+    """Refund-tier classification per service category (Phase 1.2)."""
+    flexible = "flexible"
+    moderate = "moderate"
+    strict = "strict"
+
+
+# ──────────────────────────────────────────────
+# Payments / Wallet (Phase 1)
+# ──────────────────────────────────────────────
+
+class PaymentProviderTypeEnum(enum.Enum):
+    """Type of payout/collection provider an admin can register."""
+    mobile_money = "mobile_money"
+    bank = "bank"
+
+
+class PaymentTargetTypeEnum(enum.Enum):
+    """What the payment is funding — drives credit routing."""
+    contribution = "contribution"
+    ticket = "ticket"
+    booking = "booking"
+    wallet_topup = "wallet_topup"
+    withdrawal = "withdrawal"
+    settlement = "settlement"
+
+
+class TransactionStatusEnum(enum.Enum):
+    """Lifecycle of any money movement."""
+    pending = "pending"          # created, not yet sent to gateway
+    processing = "processing"    # STK pushed / awaiting confirmation
+    paid = "paid"                # funds received in Nuru collection
+    credited = "credited"        # beneficiary wallet credited
+    failed = "failed"
+    reversed = "reversed"
+
+
+class WalletEntryTypeEnum(enum.Enum):
+    """Direction & nature of a wallet ledger entry."""
+    credit = "credit"            # money in
+    debit = "debit"              # money out
+    hold = "hold"                # placed on pending balance
+    release = "release"          # moved from pending → available
+    commission = "commission"    # platform fee
+    refund = "refund"
+    withdrawal = "withdrawal"
+    adjustment = "adjustment"
+
+
+class CountrySourceEnum(enum.Enum):
+    """How the user's country was determined."""
+    ip = "ip"
+    phone_prefix = "phone_prefix"
+    locale = "locale"
+    manual = "manual"
+
+
+class PayoutMethodTypeEnum(enum.Enum):
+    """How a beneficiary wants to be paid out."""
+    mobile_money = "mobile_money"
+    bank = "bank"
+
+
+class WithdrawalRequestStatusEnum(enum.Enum):
+    """Lifecycle of an admin-mediated withdrawal request.
+
+    pending   — submitted by user, funds held; awaiting admin review.
+    approved  — admin acknowledged; funds still pending while paying out.
+    settled   — admin confirmed external payout sent; wallet `withdrawal()` recorded.
+    rejected  — admin declined; held funds released back to available.
+    cancelled — user cancelled before admin action; held funds released.
+    """
+    pending = "pending"
+    approved = "approved"
+    settled = "settled"
+    rejected = "rejected"
+    cancelled = "cancelled"
+

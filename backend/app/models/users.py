@@ -65,7 +65,7 @@ class User(Base):
     user_services = relationship("UserService", back_populates="user")
     service_ratings = relationship("UserServiceRating", back_populates="user")
     organized_events = relationship("Event", back_populates="organizer")
-    contributors = relationship("UserContributor", back_populates="user")
+    contributors = relationship("UserContributor", foreign_keys="UserContributor.user_id", back_populates="user")
     support_tickets = relationship("SupportTicket", back_populates="user")
     notifications = relationship("Notification", back_populates="recipient")
     booking_requests = relationship("ServiceBookingRequest", back_populates="requester")
@@ -100,6 +100,8 @@ class User(Base):
     live_chat_messages = relationship("LiveChatMessage", back_populates="sender")
     service_review_helpfuls = relationship("ServiceReviewHelpful", back_populates="user")
     recorded_expenses = relationship("EventExpense", back_populates="recorder", foreign_keys="[EventExpense.recorded_by]")
+    created_meetings = relationship("EventMeeting", back_populates="creator", foreign_keys="[EventMeeting.created_by]")
+    meeting_participations = relationship("EventMeetingParticipant", back_populates="user", foreign_keys="[EventMeetingParticipant.user_id]")
 
 
 class UserProfile(Base):
@@ -110,6 +112,12 @@ class UserProfile(Base):
     profile_picture_url = Column(Text)
     social_links = Column(JSONB)
     country_id = Column(UUID(as_uuid=True), ForeignKey('countries.id'))
+    # Phase 1 — payments: snapshot the country/currency the user operates in.
+    # Defaults are derived from country_id but stored independently so future
+    # cross-border behaviour stays explicit.
+    country_code = Column(String(2), nullable=True)
+    currency_code = Column(String(3), nullable=True)
+    country_source = Column(Text, nullable=True)  # ip|phone_prefix|locale|manual
     website_url = Column(Text)
     location = Column(Text)
     created_at = Column(DateTime, server_default=func.now())

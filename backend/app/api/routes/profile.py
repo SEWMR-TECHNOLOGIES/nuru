@@ -17,7 +17,7 @@ from models import User, UserProfile, UserIdentityVerification, IdentityDocument
 from utils.auth import get_current_user
 from utils.helpers import standard_response
 from utils.user_payload import build_user_payload
-from utils.validation_functions import validate_username, validate_tanzanian_phone
+from utils.validation_functions import validate_username, validate_phone_number
 
 EAT = pytz.timezone("Africa/Nairobi")
 router = APIRouter(prefix="/users", tags=["Users - Profile"])
@@ -64,6 +64,17 @@ async def update_profile(
             if existing:
                 errors["username"] = "Username is already taken"
 
+    # Validate phone if provided
+    if phone and phone.strip():
+        try:
+            normalized_phone = validate_phone_number(phone.strip())
+            if normalized_phone != (current_user.phone or ''):
+                existing_phone = db.query(User).filter(User.phone == normalized_phone, User.id != current_user.id).first()
+                if existing_phone:
+                    errors["phone"] = "This phone number is already registered to another account"
+        except ValueError as e:
+            errors["phone"] = str(e)
+
     if errors:
         return standard_response(False, "Validation failed", {"errors": errors})
 
@@ -76,9 +87,9 @@ async def update_profile(
         current_user.username = username.strip()
     if phone and phone.strip():
         try:
-            current_user.phone = validate_tanzanian_phone(phone.strip())
-        except ValueError as e:
-            return standard_response(False, str(e))
+            current_user.phone = validate_phone_number(phone.strip())
+        except ValueError:
+            pass  # Already validated above
 
     # Get or create profile
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
@@ -146,6 +157,60 @@ async def update_profile(
 
     payload = build_user_payload(db, current_user)
     return standard_response(True, "Profile updated successfully", payload)
+
+
+# ──────────────────────────────────────────────
+# Country / Currency confirmation (Migration onboarding)
+# ──────────────────────────────────────────────
+
+# Country → currency mapping for the supported launch markets.
+_COUNTRY_TO_CURRENCY = {"TZ": "TZS", "KE": "KES"}
+_VALID_SOURCES = {"phone", "ip", "locale", "manual"}
+
+
+@router.post("/profile/country")
+def confirm_country(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Persist the user's confirmed country + derived currency on UserProfile,
+    and provision a wallet in the matching currency.
+
+    Body: { country_code: "TZ" | "KE", source?: "phone"|"ip"|"locale"|"manual" }
+    """
+    code = (payload.get("country_code") or "").upper()
+    source = (payload.get("source") or "manual").lower()
+    if code not in _COUNTRY_TO_CURRENCY:
+        return standard_response(False, "Unsupported country", {"errors": {"country_code": "Must be TZ or KE."}})
+    if source not in _VALID_SOURCES:
+        source = "manual"
+    currency = _COUNTRY_TO_CURRENCY[code]
+
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    if not profile:
+        profile = UserProfile(user_id=current_user.id)
+        db.add(profile)
+
+    profile.country_code = code
+    profile.currency_code = currency
+    profile.country_source = source
+    profile.updated_at = datetime.now(EAT)
+
+    # Provision the wallet for this currency so the UI flips immediately.
+    try:
+        from services.wallet_service import get_or_create_wallet
+        get_or_create_wallet(db, current_user.id, currency)
+    except Exception:
+        # Wallet creation is best-effort; failure must not break country save.
+        pass
+
+    db.commit()
+    return standard_response(True, "Country confirmed.", {
+        "country_code": code,
+        "currency_code": currency,
+        "country_source": source,
+    })
 
 
 # ──────────────────────────────────────────────

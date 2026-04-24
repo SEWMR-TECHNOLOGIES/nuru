@@ -1,10 +1,10 @@
-import hashlib
+import re
 import re
 from fastapi import APIRouter, Request, Depends
 from sqlalchemy.orm import Session
 from models import User
 from core.database import get_db
-from utils.auth import get_current_user, verify_password
+from utils.auth import get_current_user, verify_password, hash_password
 from utils.helpers import standard_response
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -50,8 +50,8 @@ async def change_password(
     if not verify_password(current_password, current_user.password_hash):
         return standard_response(False, "Current password is incorrect")
 
-    # Update password
-    current_user.password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+    # Update password with bcrypt
+    current_user.password_hash = hash_password(new_password)
     db.commit()
 
     # Send in-app notification

@@ -270,24 +270,63 @@ def generate_candidates(
     # ── Source 5: Trending / high-quality posts platform-wide ──
     if len(candidates) < MAX_CANDIDATES:
         remaining = MAX_CANDIDATES - len(candidates)
-        # Posts with high engagement, excluding already collected
+        trending_filters = [
+            UserFeed.is_active == True,
+            UserFeed.created_at >= cutoff_naive,
+            or_(
+                UserFeed.visibility == FeedVisibilityEnum.public,
+                UserFeed.visibility.is_(None),
+            ),
+        ]
+        # Only add the NOT IN clause when we actually have ids — passing the
+        # scalar `True` as a filter raises in SQLAlchemy 2.x and would mask
+        # the trending source entirely on cold-start users.
+        if candidate_ids:
+            try:
+                trending_filters.append(
+                    ~UserFeed.id.in_([uuid.UUID(pid) for pid in candidate_ids])
+                )
+            except (ValueError, TypeError):
+                pass
         trending_posts = (
             db.query(UserFeed)
-            .filter(
-                UserFeed.is_active == True,
-                UserFeed.created_at >= cutoff_naive,
-                or_(
-                    UserFeed.visibility == FeedVisibilityEnum.public,
-                    UserFeed.visibility.is_(None),
-                ),
-                ~UserFeed.id.in_([uuid.UUID(pid) for pid in candidate_ids]) if candidate_ids else True,
-            )
+            .filter(*trending_filters)
             .order_by(desc(UserFeed.glow_count + UserFeed.echo_count))
             .limit(min(remaining, 500))
             .all()
         )
         _add_candidates(trending_posts)
-    
+
+    # ── Source 6: Recent organic moments (anti-event-share-bias) ──
+    # Pull a pool of recent organic user moments so the feed is never dominated
+    # by event_share posts. These get caught by diversity re-ranking later.
+    if len(candidates) < MAX_CANDIDATES:
+        remaining = MAX_CANDIDATES - len(candidates)
+        organic_filters = [
+            UserFeed.is_active == True,
+            UserFeed.created_at >= cutoff_naive,
+            or_(UserFeed.post_type == 'post', UserFeed.post_type.is_(None)),
+            or_(
+                UserFeed.visibility == FeedVisibilityEnum.public,
+                UserFeed.visibility.is_(None),
+            ),
+        ]
+        if candidate_ids:
+            try:
+                organic_filters.append(
+                    ~UserFeed.id.in_([uuid.UUID(pid) for pid in candidate_ids])
+                )
+            except (ValueError, TypeError):
+                pass
+        organic_recent = (
+            db.query(UserFeed)
+            .filter(*organic_filters)
+            .order_by(desc(UserFeed.created_at))
+            .limit(min(remaining, 400))
+            .all()
+        )
+        _add_candidates(organic_recent)
+
     return candidates[:MAX_CANDIDATES]
 
 
@@ -511,8 +550,9 @@ def generate_ranked_feed(
     2. Load user interest profile & affinity scores
     3. Score all candidates
     4. Apply diversity re-ranking
-    5. Paginate and return
-    6. Log impressions asynchronously
+    5. Filter out posts already shown in this session (anti-repetition)
+    6. Paginate and return
+    7. Log impressions asynchronously
     
     Returns: (posts, pagination_dict)
     """
@@ -576,13 +616,38 @@ def generate_ranked_feed(
         score = compute_final_score(features)
         scored.append((post, score, features))
     
-    # Sort by score descending
-    scored.sort(key=lambda x: -x[1])
+    # Sort by score descending. Use post.id as a deterministic tie-breaker so
+    # results are stable across pagination calls (prevents the same post from
+    # surfacing on multiple pages due to score ties).
+    scored.sort(key=lambda x: (-x[1], str(x[0].id)))
     
     # ── Step 4: Diversity Re-Ranking ──
     scored = apply_diversity_reranking(scored)
     
-    # ── Step 5: Paginate ──
+    # ── Step 5: Anti-repetition — exclude posts already shown to this user
+    # in the current session (or in the last hour if no session).
+    seen_ids: set = set()
+    try:
+        impression_q = db.query(FeedImpression.post_id).filter(
+            FeedImpression.user_id == current_user_id,
+        )
+        if session_id:
+            impression_q = impression_q.filter(FeedImpression.session_id == session_id)
+        else:
+            impression_q = impression_q.filter(
+                FeedImpression.created_at >= (now - timedelta(hours=1))
+            )
+        seen_ids = {str(r[0]) for r in impression_q.all()}
+    except Exception:
+        seen_ids = set()
+    
+    if seen_ids:
+        # Always keep page 1 fresh; only filter on subsequent pages so users
+        # entering the app see the highest-ranked content immediately.
+        if page > 1:
+            scored = [t for t in scored if str(t[0].id) not in seen_ids]
+    
+    # ── Step 6: Paginate ──
     total_items = len(scored)
     total_pages = max(1, math.ceil(total_items / limit))
     page = max(1, min(page, total_pages))
@@ -600,7 +665,7 @@ def generate_ranked_feed(
         "has_previous": page > 1,
     }
     
-    # ── Step 6: Log Impressions (best-effort) ──
+    # ── Step 7: Log Impressions (best-effort) ──
     try:
         for idx, (post, score, features) in enumerate(page_items):
             impression = FeedImpression(
@@ -814,10 +879,10 @@ def log_interaction(
 def recompute_quality_scores(db: Session, max_posts: int = 1000):
     """
     Batch recompute quality scores for recent posts.
-    Called periodically (e.g., every 30 minutes via background task).
+    FIX: Uses batch COUNT queries instead of N+1 per-post queries.
     """
     cutoff = datetime.utcnow() - timedelta(hours=168)  # 7 days
-    
+
     posts = (
         db.query(UserFeed)
         .filter(UserFeed.is_active == True, UserFeed.created_at >= cutoff)
@@ -825,63 +890,99 @@ def recompute_quality_scores(db: Session, max_posts: int = 1000):
         .limit(max_posts)
         .all()
     )
-    
+
+    if not posts:
+        return
+
+    post_ids = [p.id for p in posts]
+    author_ids = list({p.user_id for p in posts})
+
+    # ── Batch load all counts ──
+    # Image counts per post
+    img_counts = {}
+    for pid, cnt in db.query(UserFeedImage.feed_id, sa_func.count(UserFeedImage.id)).filter(
+        UserFeedImage.feed_id.in_(post_ids)
+    ).group_by(UserFeedImage.feed_id).all():
+        img_counts[str(pid)] = cnt
+
+    # Glow counts per post
+    glow_counts = {}
+    for pid, cnt in db.query(UserFeedGlow.feed_id, sa_func.count(UserFeedGlow.id)).filter(
+        UserFeedGlow.feed_id.in_(post_ids)
+    ).group_by(UserFeedGlow.feed_id).all():
+        glow_counts[str(pid)] = cnt
+
+    # Echo counts per post
+    echo_counts = {}
+    for pid, cnt in db.query(UserFeedEcho.feed_id, sa_func.count(UserFeedEcho.id)).filter(
+        UserFeedEcho.feed_id.in_(post_ids)
+    ).group_by(UserFeedEcho.feed_id).all():
+        echo_counts[str(pid)] = cnt
+
+    # Comment counts per post
+    comment_counts = {}
+    for pid, cnt in db.query(UserFeedComment.feed_id, sa_func.count(UserFeedComment.id)).filter(
+        UserFeedComment.feed_id.in_(post_ids), UserFeedComment.is_active == True
+    ).group_by(UserFeedComment.feed_id).all():
+        comment_counts[str(pid)] = cnt
+
+    # Author total glows (credibility) - batch per author
+    author_glows = {}
+    for uid, cnt in db.query(UserFeed.user_id, sa_func.count(UserFeedGlow.id)).join(
+        UserFeedGlow, UserFeedGlow.feed_id == UserFeed.id
+    ).filter(UserFeed.user_id.in_(author_ids)).group_by(UserFeed.user_id).all():
+        author_glows[str(uid)] = cnt
+
+    # Existing quality scores
+    existing_scores = {}
+    for q in db.query(PostQualityScore).filter(PostQualityScore.post_id.in_(post_ids)).all():
+        existing_scores[str(q.post_id)] = q
+
+    # ── Compute scores using batch data ──
     for post in posts:
-        quality = db.query(PostQualityScore).filter(
-            PostQualityScore.post_id == post.id
-        ).first()
-        
+        pid_str = str(post.id)
+        quality = existing_scores.get(pid_str)
+
         if not quality:
             quality = PostQualityScore(post_id=post.id)
             db.add(quality)
-        
+
         # Content richness
         richness = 0.3
         text_len = len(post.content or "")
         if text_len > 50: richness += 0.15
         if text_len > 200: richness += 0.1
-        
-        img_count = db.query(sa_func.count(UserFeedImage.id)).filter(
-            UserFeedImage.feed_id == post.id
-        ).scalar() or 0
-        if img_count > 0: richness += 0.2
-        if img_count > 1: richness += 0.1
+
+        ic = img_counts.get(pid_str, 0)
+        if ic > 0: richness += 0.2
+        if ic > 1: richness += 0.1
         if post.video_url: richness += 0.15
         quality.content_richness = min(1.0, richness)
-        
+
         # Engagement metrics
-        glow_count = db.query(sa_func.count(UserFeedGlow.id)).filter(
-            UserFeedGlow.feed_id == post.id).scalar() or 0
-        echo_count = db.query(sa_func.count(UserFeedEcho.id)).filter(
-            UserFeedEcho.feed_id == post.id).scalar() or 0
-        comment_count = db.query(sa_func.count(UserFeedComment.id)).filter(
-            UserFeedComment.feed_id == post.id, UserFeedComment.is_active == True
-        ).scalar() or 0
-        
-        total = glow_count + echo_count * 2 + comment_count * 1.5
+        gc = glow_counts.get(pid_str, 0)
+        ec = echo_counts.get(pid_str, 0)
+        cc = comment_counts.get(pid_str, 0)
+        total = gc + ec * 2 + cc * 1.5
         quality.total_engagements = int(total)
-        
+
         age_hours = max(0.1, (datetime.utcnow() - post.created_at).total_seconds() / 3600) if post.created_at else 1
         quality.engagement_velocity = total / age_hours
-        
+
         # Author credibility
-        author_total_glows = db.query(sa_func.count(UserFeedGlow.id)).join(
-            UserFeed, UserFeedGlow.feed_id == UserFeed.id
-        ).filter(UserFeed.user_id == post.user_id).scalar() or 0
-        quality.author_credibility = min(1.0, 0.3 + author_total_glows * 0.01)
-        
-        # Category
+        ag = author_glows.get(str(post.user_id), 0)
+        quality.author_credibility = min(1.0, 0.3 + ag * 0.01)
+
         quality.category = detect_category(post.content or "")
-        
-        # Final composite
+
         quality.final_quality_score = min(1.0, (
             quality.content_richness * 0.3
             + quality.author_credibility * 0.3
             + min(1.0, quality.engagement_velocity * 0.1) * 0.4
         ))
-        
+
         quality.last_computed_at = datetime.utcnow()
-    
+
     try:
         db.commit()
     except Exception:
@@ -900,15 +1001,18 @@ def get_cold_start_feed(
 ) -> Tuple[List[UserFeed], Dict]:
     """
     Feed for new users with no interaction history.
-    Strategy:
-    1. High-quality recent posts with images (visual appeal)
-    2. Posts from popular authors (social proof)
-    3. Mix of categories for exploration
-    4. Chronological tiebreaker for freshness
+
+    Strategy (improved):
+      1. Pull a pool of recent public posts (3 days)
+      2. Score using engagement velocity + recency (not raw counters)
+      3. Cap event_share posts to ~30% so organic moments stay visible
+      4. Per-user deterministic shuffle of equal-tier posts so no two users
+         see the exact same chronological sequence on cold start
+      5. Round-robin diversify by category for variety
     """
-    cutoff = datetime.utcnow() - timedelta(hours=72)  # 3 days
-    
-    # Get posts with images, sorted by engagement
+    import random as _random
+    cutoff = datetime.utcnow() - timedelta(hours=72)
+
     posts = (
         db.query(UserFeed)
         .filter(
@@ -919,24 +1023,60 @@ def get_cold_start_feed(
                 UserFeed.visibility.is_(None),
             ),
         )
-        .order_by(
-            desc(UserFeed.glow_count + UserFeed.echo_count),
-            desc(UserFeed.created_at),
-        )
-        .limit(200)
+        .order_by(desc(UserFeed.created_at))
+        .limit(300)
         .all()
     )
-    
-    # Diversify by category
+
+    if not posts:
+        return [], {
+            "page": page, "limit": limit,
+            "total_items": 0, "total_pages": 1,
+            "has_next": False, "has_previous": False,
+        }
+
+    # ── Score each post: recency × engagement velocity ──
+    now_utc = datetime.utcnow()
+
+    def _score(p: UserFeed) -> float:
+        age_h = max(0.5, (now_utc - p.created_at).total_seconds() / 3600.0) if p.created_at else 24.0
+        eng = (p.glow_count or 0) + 2 * (p.echo_count or 0) + 1.5 * (p.spark_count or 0)
+        # Recency-decayed engagement + freshness boost so brand-new posts surface
+        return (eng / (age_h ** 0.7)) + (5.0 / age_h)
+
+    scored = [(p, _score(p)) for p in posts]
+
+    # Per-user deterministic jitter: stable across paginations but unique per user
+    rng = _random.Random(int(uuid.UUID(str(current_user_id)).int) & 0xFFFFFFFF)
+    scored = [(p, s + rng.uniform(0, 0.25) * s) for (p, s) in scored]
+    scored.sort(key=lambda t: -t[1])
+
+    # ── Cap event_share posts to 30% of the pool ──
+    event_share_cap = max(2, int(len(scored) * 0.3))
+    capped: List[UserFeed] = []
+    es_count = 0
+    overflow_event_shares: List[UserFeed] = []
+    for p, _s in scored:
+        if (p.post_type or 'post') == 'event_share':
+            if es_count < event_share_cap:
+                capped.append(p)
+                es_count += 1
+            else:
+                overflow_event_shares.append(p)
+        else:
+            capped.append(p)
+    # Append overflow at the tail so we never lose them entirely
+    capped.extend(overflow_event_shares)
+
+    # ── Round-robin by category for diversity ──
     categorized = defaultdict(list)
-    for p in posts:
+    for p in capped:
         cat = detect_category(p.content or "")
         categorized[cat].append(p)
-    
-    # Round-robin across categories
-    result = []
-    seen = set()
-    while len(result) < len(posts):
+
+    result: List[UserFeed] = []
+    seen: set = set()
+    while len(result) < len(capped):
         added = False
         for cat in list(categorized.keys()):
             if categorized[cat]:
@@ -947,17 +1087,17 @@ def get_cold_start_feed(
                     added = True
         if not added:
             break
-    
+
     total_items = len(result)
     total_pages = max(1, math.ceil(total_items / limit))
     page = max(1, min(page, total_pages))
     start = (page - 1) * limit
     page_items = result[start:start + limit]
-    
+
     pagination = {
         "page": page, "limit": limit,
         "total_items": total_items, "total_pages": total_pages,
         "has_next": page < total_pages, "has_previous": page > 1,
     }
-    
+
     return page_items, pagination

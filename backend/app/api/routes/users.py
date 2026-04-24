@@ -17,7 +17,7 @@ from utils.auth import get_current_user
 from utils.helpers import standard_response, generate_otp, get_expiry, mask_email, mask_phone
 from utils.notification_service import send_verification_email, send_verification_sms, send_otp_with_routing
 from utils.sms import sms_welcome_registered
-from utils.validation_functions import validate_email, validate_tanzanian_phone, validate_password_strength, validate_username
+from utils.validation_functions import validate_email, validate_phone_number, validate_password_strength, validate_username
 from utils.name_validation import validate_name
 from utils.user_payload import build_user_payload
 
@@ -108,9 +108,9 @@ async def signup(request: Request, db: Session = Depends(get_db)):
             return standard_response(False, f"The email '{email}' is already associated with another account. Please use a different one.")
 
     if not phone:
-        return standard_response(False, "Your phone number allows us to verify your account and send important notifications. Please provide a valid Tanzanian number.")
+        return standard_response(False, "Your phone number allows us to verify your account and send important notifications. Please provide a valid phone number.")
     try:
-        formatted_phone = validate_tanzanian_phone(phone)
+        formatted_phone = validate_phone_number(phone)
     except ValueError as e:
         return standard_response(False, str(e))
     if db.query(User).filter(User.phone == formatted_phone).first():
@@ -121,7 +121,8 @@ async def signup(request: Request, db: Session = Depends(get_db)):
     if not validate_password_strength(password):
         return standard_response(False, "Your password must be strong: at least 8 characters long, include one uppercase letter, one lowercase letter, one number, and one special symbol. This ensures your account remains secure.")
 
-    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    from utils.auth import hash_password
+    password_hash = hash_password(password)
 
     user = User(
         first_name=first_name,
@@ -143,6 +144,23 @@ async def signup(request: Request, db: Session = Depends(get_db)):
         db.add(profile)
         db.add(settings)
         db.commit()
+
+        # Backfill: link any existing UserContributor rows whose phone matches
+        # this new user, so they immediately see "My Contributions" populated.
+        try:
+            from models import UserContributor
+            from sqlalchemy import func as _f
+            digits = "".join(ch for ch in (formatted_phone or "") if ch.isdigit())[-9:]
+            if digits:
+                db.query(UserContributor).filter(
+                    UserContributor.contributor_user_id.is_(None),
+                    UserContributor.phone.isnot(None),
+                    _f.right(_f.regexp_replace(UserContributor.phone, r'[^0-9]', '', 'g'), 9) == digits,
+                ).update({UserContributor.contributor_user_id: user.id}, synchronize_session=False)
+                db.commit()
+        except Exception as e:
+            print(f"[register] Failed to backfill contributor links: {e}")
+            db.rollback()
         
     except Exception:
         db.rollback()
@@ -606,6 +624,58 @@ def check_username(
 
 
 # ──────────────────────────────────────────────
+# Public User Profile (by username) — single round-trip lookup
+# ──────────────────────────────────────────────
+@router.get("/by-username/{username}")
+def get_public_user_profile_by_username(
+    username: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Resolve a username and return the full public profile in one call."""
+    uname = (username or "").strip().lstrip("@").lower()
+    if not uname:
+        return standard_response(False, "Username is required")
+
+    target = db.query(User).filter(
+        sa_func.lower(User.username) == uname,
+        User.is_active == True
+    ).first()
+    if not target:
+        return standard_response(False, "User not found")
+
+    payload = build_user_payload(db, target)
+
+    is_following = db.query(UserFollower).filter(
+        UserFollower.follower_id == current_user.id,
+        UserFollower.following_id == target.id
+    ).first() is not None
+    is_followed_by = db.query(UserFollower).filter(
+        UserFollower.follower_id == target.id,
+        UserFollower.following_id == current_user.id
+    ).first() is not None
+    my_following_ids = db.query(UserFollower.following_id).filter(
+        UserFollower.follower_id == current_user.id
+    ).subquery()
+    mutual_count = db.query(sa_func.count(UserFollower.id)).filter(
+        UserFollower.follower_id == target.id,
+        UserFollower.following_id.in_(my_following_ids)
+    ).scalar() or 0
+    post_count = db.query(sa_func.count(UserFeed.id)).filter(
+        UserFeed.user_id == target.id,
+        UserFeed.is_public == True
+    ).scalar() or 0
+
+    payload["is_following"] = is_following
+    payload["is_followed_by"] = is_followed_by
+    payload["mutual_followers_count"] = mutual_count
+    payload["post_count"] = post_count
+    payload.pop("email", None)
+    payload.pop("phone", None)
+    return standard_response(True, "User profile retrieved", payload)
+
+
+# ──────────────────────────────────────────────
 # Public User Profile
 # ──────────────────────────────────────────────
 @router.get("/{user_id}")
@@ -892,10 +962,18 @@ def get_user_public_posts(
     limit = max(1, min(limit, 50))
     offset = (page - 1) * limit
 
-    query = db.query(UserFeed).filter(
-        UserFeed.user_id == uid,
-        UserFeed.is_public == True
-    ).order_by(UserFeed.created_at.desc())
+    # If viewing own profile, show all active posts; otherwise only public
+    if str(uid) == str(current_user.id):
+        query = db.query(UserFeed).filter(
+            UserFeed.user_id == uid,
+            UserFeed.is_active == True,
+        ).order_by(UserFeed.created_at.desc())
+    else:
+        query = db.query(UserFeed).filter(
+            UserFeed.user_id == uid,
+            UserFeed.is_active == True,
+            UserFeed.is_public == True,
+        ).order_by(UserFeed.created_at.desc())
 
     total = query.count()
     posts = query.offset(offset).limit(limit).all()

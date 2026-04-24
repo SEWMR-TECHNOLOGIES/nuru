@@ -6,7 +6,9 @@ import CustomImageIcon from '@/assets/icons/image-icon.svg';
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
-import { useConversations, useConversationMessages, useSendMessage } from '@/data/useSocial';
+import { useConversations, useConversationMessages, useSendMessage, prefetchConversationMessages } from '@/data/useSocial';
+import SearchHeader from '@/components/ui/search-header';
+import { usePrefetchOnVisible } from '@/hooks/usePrefetchOnVisible';
 import { messagesApi } from '@/lib/api/messages';
 import { uploadsApi } from '@/lib/api/uploads';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 /** Get two-letter initials from a name */
 const getInitials = (name?: string) => {
@@ -39,22 +42,53 @@ const isValidAvatar = (url?: string | null): boolean => {
   return true;
 };
 
+/** Conversation row that wires viewport + hover prefetch. */
+const ConversationRowShell = ({
+  conversationId,
+  onOpen,
+  isSelected,
+  children,
+}: {
+  conversationId: string;
+  onOpen: () => void;
+  isSelected: boolean;
+  children: React.ReactNode;
+}) => {
+  const ref = usePrefetchOnVisible<HTMLButtonElement>(() => prefetchConversationMessages(conversationId));
+  return (
+    <button
+      ref={ref}
+      onMouseEnter={() => prefetchConversationMessages(conversationId)}
+      onFocus={() => prefetchConversationMessages(conversationId)}
+      onClick={onOpen}
+      className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${
+        isSelected ? 'bg-primary/10' : 'hover:bg-muted/50'
+      }`}
+    >
+      {children}
+    </button>
+  );
+};
+
 const Messages = () => {
+  const { t } = useLanguage();
   useWorkspaceMeta({
-    title: 'Messages',
+    title: t('messages'),
     description: 'Chat with event organizers, service providers, and your community on Nuru.'
   });
 
   const { data: currentUser } = useCurrentUser();
-  const { conversations, loading: conversationsLoading, error: conversationsError, refetch: refetchConversations, clearUnread } = useConversations();
+  const [convSearch, setConvSearch] = useState('');
+  // Always load the full list — search is applied client-side below for
+  // instant, silent filtering (no refetch, no flicker, no empty-state flash).
+  const { conversations, loading: conversationsLoading, error: conversationsError, refetch: refetchConversations, clearUnread } = useConversations('');
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
-  const { messages, loading: messagesLoading, refetch: refetchMessages, appendMessage } = useConversationMessages(selectedConversationId || '');
-  const { sendMessage, loading: sending } = useSendMessage();
+  const { messages, loading: messagesLoading, refetch: refetchMessages, appendMessage, replaceMessage, removeMessage } = useConversationMessages(selectedConversationId || '');
+  const { sendMessage } = useSendMessage();
 
   const [input, setInput] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
   const [showChatList, setShowChatList] = useState(true);
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [startingChat, setStartingChat] = useState(false);
@@ -97,15 +131,18 @@ const Messages = () => {
     }
   }, [messages]);
 
-  // Poll for new messages every 5 seconds
+  // Poll for new messages every 5 seconds — but only when the tab is visible
+  // to avoid wasted requests + battery drain on background tabs / phones.
   useEffect(() => {
     if (!selectedConversationId) return;
-
-    const interval = setInterval(() => {
-      refetchMessages();
-    }, 5000);
-
-    return () => clearInterval(interval);
+    const tick = () => { if (!document.hidden) refetchMessages(); };
+    const interval = setInterval(tick, 5000);
+    const onVis = () => { if (!document.hidden) refetchMessages(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, [selectedConversationId, refetchMessages]);
 
 
@@ -140,52 +177,70 @@ const Messages = () => {
     if (inputFileRef.current) inputFileRef.current.value = '';
   };
 
+  /**
+   * WhatsApp-style optimistic send (mirrors event-groups ChatPanel):
+   * - Text: push tmp bubble immediately, fire send in background, swap with real on success.
+   * - Image: show pending image bubble immediately (with __sending flag), upload + send in
+   *   background, then swap. Rollback on failure.
+   * No refetch after send — polling will reconcile if needed.
+   */
   const handleSendMessage = async () => {
     if ((!input.trim() && !imageFile) || !selectedConversationId) return;
 
     const messageContent = input.trim();
-    let uploadedUrl: string | undefined;
+    const fileToSend = imageFile;
+    const previewUrl = imagePreview;
+    const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-    // Upload image first if present
-    if (imageFile) {
-      setUploadingImage(true);
-      try {
-        const uploadRes = await uploadsApi.upload(imageFile);
-        if (uploadRes.success && uploadRes.data?.url) {
-          uploadedUrl = uploadRes.data.url;
-        } else {
-          toast.error('Failed to upload image');
-          setUploadingImage(false);
-          return;
-        }
-      } catch {
-        toast.error('Failed to upload image');
-        setUploadingImage(false);
-        return;
-      }
-      setUploadingImage(false);
-    }
-
-    const attachments = uploadedUrl ? [uploadedUrl] : undefined;
-
-    // Optimistic: append message locally for instant feedback
-    const optimisticMsg = {
-      id: `temp-${Date.now()}`,
+    const optimisticMsg: any = {
+      id: tempId,
       content: messageContent,
       is_sender: true,
       sender_id: currentUser?.id,
-      attachments: attachments || [],
+      attachments: previewUrl ? [previewUrl] : [],
       created_at: new Date().toISOString(),
+      __sending: !!fileToSend,
     };
     appendMessage(optimisticMsg);
     setInput('');
-    removeImage();
+    // Clear the file input UI immediately — preview lives inside the optimistic bubble now.
+    setImageFile(null);
+    setImagePreview(null);
+    if (inputFileRef.current) inputFileRef.current.value = '';
 
     try {
-      await sendMessage(selectedConversationId, messageContent, attachments);
-      refetchMessages();
+      let uploadedUrl: string | undefined;
+      if (fileToSend) {
+        const uploadRes = await uploadsApi.upload(fileToSend);
+        if (!uploadRes.success || !uploadRes.data?.url) {
+          throw new Error('upload-failed');
+        }
+        uploadedUrl = uploadRes.data.url;
+      }
+      const attachments = uploadedUrl ? [uploadedUrl] : undefined;
+      const sent = await sendMessage(selectedConversationId, messageContent, attachments);
+      if (sent && (sent as any).id) {
+        // Normalize API shape immediately so the bubble keeps the same time field
+        // and doesn't disappear/reappear on the next DB poll.
+        replaceMessage(tempId, {
+          ...(sent as any),
+          is_sender: true,
+          sender_id: currentUser?.id,
+          created_at: (sent as any).created_at || (sent as any).sent_at || optimisticMsg.created_at,
+          attachments: uploadedUrl ? [uploadedUrl] : optimisticMsg.attachments,
+          __sending: false,
+        });
+      } else {
+        // No id returned — at least clear the sending flag and use uploaded url.
+        replaceMessage(tempId, { ...optimisticMsg, attachments: uploadedUrl ? [uploadedUrl] : optimisticMsg.attachments, __sending: false });
+      }
     } catch (err) {
       console.error('Failed to send message:', err);
+      removeMessage(tempId);
+      if (previewUrl) {
+        try { URL.revokeObjectURL(previewUrl); } catch {}
+      }
+      toast.error(fileToSend ? t('failed_upload_image') : (err instanceof Error ? err.message : 'Failed to send'));
     }
   };
 
@@ -216,7 +271,7 @@ const Messages = () => {
   const handleConfirmNewChat = async () => {
     if (!selectedNewUser) return;
     if (!initialMessage.trim()) {
-      toast.error('Please type a message to start the conversation');
+      toast.error(t('please_type_message'));
       return;
     }
 
@@ -278,8 +333,8 @@ const Messages = () => {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          <p className="text-destructive mb-4">Failed to load messages. Please try again.</p>
-          <Button onClick={() => refetchConversations()}>Retry</Button>
+          <p className="text-destructive mb-4">{t('failed_to_load_messages')}</p>
+          <Button onClick={() => refetchConversations()}>{t('retry')}</Button>
         </div>
       </div>
     );
@@ -289,15 +344,15 @@ const Messages = () => {
     <Dialog open={newChatOpen} onOpenChange={(open) => { setNewChatOpen(open); if (!open) { setInitialMessage(''); setSelectedNewUser(null); } }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>New Conversation</DialogTitle>
+          <DialogTitle>{t('new_conversation')}</DialogTitle>
         </DialogHeader>
         <div className="py-4 space-y-4">
           {!selectedNewUser ? (
             <div>
-              <p className="text-sm text-muted-foreground mb-3">Search for a person to chat with</p>
+              <p className="text-sm text-muted-foreground mb-3">{t('search_person_to_chat')}</p>
               <UserSearchInput 
                 onSelect={handleSelectUser} 
-                placeholder="Search by name, email, or phone..." 
+                placeholder={t('search_by_name_email_phone')}
                 disabled={startingChat}
                 allowRegister={false}
               />
@@ -325,11 +380,11 @@ const Messages = () => {
               
               {/* Message input */}
               <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">Say hello 👋</label>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">{t('say_hello')}</label>
                 <textarea
                   value={initialMessage}
                   onChange={(e) => setInitialMessage(e.target.value)}
-                  placeholder={`Write a message to ${selectedNewUser.first_name}...`}
+                  placeholder={`${t('write_message_to')} ${selectedNewUser.first_name}...`}
                   rows={3}
                   autoFocus
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground resize-none"
@@ -341,7 +396,7 @@ const Messages = () => {
                 disabled={!initialMessage.trim() || startingChat}
                 onClick={handleConfirmNewChat}
               >
-                {startingChat ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Starting...</> : <><Send className="w-4 h-4 mr-2" /> Start Conversation</>}
+                {startingChat ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> {t('starting')}</> : <><Send className="w-4 h-4 mr-2" /> {t('start_conversation')}</>}
               </Button>
             </div>
           )}
@@ -350,19 +405,19 @@ const Messages = () => {
     </Dialog>
   );
 
-  if (conversations.length === 0) {
+  if (conversations.length === 0 && !convSearch) {
     return (
       <>
         {newChatDialog}
         <div className="h-full flex items-center justify-center">
           <div className="text-center">
             <MessageCircle className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground mb-2">No messages yet</p>
+            <p className="text-muted-foreground mb-2">{t('no_messages_yet')}</p>
             <p className="text-sm text-muted-foreground mb-4">
-              Start a conversation with an event organizer or service provider
+              {t('start_conversation_desc')}
             </p>
             <Button onClick={() => setNewChatOpen(true)}>
-              <Plus className="w-4 h-4 mr-2" /> New Message
+              <Plus className="w-4 h-4 mr-2" /> {t('new_message')}
             </Button>
           </div>
         </div>
@@ -376,68 +431,90 @@ const Messages = () => {
     <div className="h-full flex bg-muted/20">
       {/* Chat List */}
       <div className={`${isMobile ? (showChatList ? 'w-full' : 'hidden') : 'w-80'} bg-card border-r border-border overflow-y-auto`}>
-        <div className="p-4 border-b border-border flex items-center justify-between">
-          <h2 className="font-semibold text-lg">Messages</h2>
-          <Button size="sm" className="rounded-lg p-2" aria-label="New message" onClick={() => setNewChatOpen(true)}>
-            <Plus className="w-4 h-4" />
-          </Button>
+        <div className="p-4 border-b border-border flex items-center justify-between gap-2">
+          <h2 className="font-semibold text-lg shrink-0">{t('messages')}</h2>
+          <div className="flex items-center gap-1">
+            <SearchHeader value={convSearch} onChange={setConvSearch} placeholder={t('search_conversations') || 'Search conversations…'} />
+            <Button size="sm" className="rounded-lg p-2" aria-label={t('new_message')} onClick={() => setNewChatOpen(true)}>
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="p-2 space-y-1">
-          {conversations.map((conversation) => {
-            const isSelected = conversation.id === selectedConversationId;
-            
-            // Backend now sends correct participant info based on perspective
-            const displayName = conversation.participant?.name || 'Unknown';
-            const displayAvatar = conversation.participant?.avatar || null;
-            
-            return (
-              <button
-                key={conversation.id}
-                onClick={() => handleSelectConversation(conversation.id)}
-                className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${
-                  isSelected ? 'bg-primary/10' : 'hover:bg-muted/50'
-                }`}
-              >
-                <div className="relative">
-                  <Avatar className={`w-12 h-12 ${isSelected ? 'ring-2 ring-primary/40' : ''}`}>
-                    {isValidAvatar(displayAvatar) ? (
-                      <AvatarImage src={displayAvatar!} alt={displayName} />
-                    ) : null}
-                    <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
-                      {getInitials(displayName)}
-                    </AvatarFallback>
-                  </Avatar>
-                  {conversation.unread_count > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[18px] h-4 bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center rounded-full px-1 ring-2 ring-card">
-                      {conversation.unread_count}
-                    </span>
-                  )}
-                </div>
+          {(() => {
+            // Instant client-side filter — list updates per keystroke
+            // (silent, WhatsApp-style) even before the debounced server reply.
+            const term = convSearch.trim().toLowerCase();
+            const visible = term
+              ? conversations.filter((c: any) => {
+                  const name = (c.participant?.name || '').toLowerCase();
+                  const last = (c.last_message?.content || '').toLowerCase();
+                  const svc = (c.service?.title || '').toLowerCase();
+                  return name.includes(term) || last.includes(term) || svc.includes(term);
+                })
+              : conversations;
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3
-                      className={`font-medium text-sm truncate ${
-                        conversation.unread_count > 0 ? 'text-foreground font-semibold' : 'text-foreground/80'
-                      }`}
-                    >
-                      {displayName}
-                    </h3>
-                    <span className="text-xs text-muted-foreground flex-shrink-0">
-                      {conversation.last_message?.sent_at 
-                        ? new Date(conversation.last_message.sent_at).toLocaleDateString([], { day: '2-digit', month: 'short' })
-                        : ''}
-                    </span>
+            if (visible.length === 0) {
+              return (
+                <div className="text-center text-sm text-muted-foreground py-8 px-3">
+                  {t('no_results') || 'No conversations match your search.'}
+                </div>
+              );
+            }
+
+            return visible.map((conversation) => {
+              const isSelected = conversation.id === selectedConversationId;
+              const displayName = conversation.participant?.name || 'Unknown';
+              const displayAvatar = conversation.participant?.avatar || null;
+
+              return (
+                <ConversationRowShell
+                  key={conversation.id}
+                  conversationId={conversation.id}
+                  isSelected={isSelected}
+                  onOpen={() => handleSelectConversation(conversation.id)}
+                >
+                  <div className="relative">
+                    <Avatar className={`w-12 h-12 ${isSelected ? 'ring-2 ring-primary/40' : ''}`}>
+                      {isValidAvatar(displayAvatar) ? (
+                        <AvatarImage src={displayAvatar!} alt={displayName} />
+                      ) : null}
+                      <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
+                        {getInitials(displayName)}
+                      </AvatarFallback>
+                    </Avatar>
+                    {conversation.unread_count > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[18px] h-4 bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center rounded-full px-1 ring-2 ring-card">
+                        {conversation.unread_count}
+                      </span>
+                    )}
                   </div>
 
-                  <p className={`text-sm truncate mt-0.5 ${conversation.unread_count > 0 ? 'font-medium text-foreground/90' : 'text-muted-foreground'}`}>
-                    {conversation.last_message?.content || 'No messages yet'}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3
+                        className={`font-medium text-sm truncate ${
+                          conversation.unread_count > 0 ? 'text-foreground font-semibold' : 'text-foreground/80'
+                        }`}
+                      >
+                        {displayName}
+                      </h3>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        {conversation.last_message?.sent_at
+                          ? new Date(conversation.last_message.sent_at).toLocaleDateString([], { day: '2-digit', month: 'short' })
+                          : ''}
+                      </span>
+                    </div>
+
+                    <p className={`text-sm truncate mt-0.5 ${conversation.unread_count > 0 ? 'font-medium text-foreground/90' : 'text-muted-foreground'}`}>
+                      {conversation.last_message?.content || t('no_messages_yet')}
+                    </p>
+                  </div>
+                </ConversationRowShell>
+              );
+            });
+          })()}
         </div>
       </div>
 
@@ -470,7 +547,7 @@ const Messages = () => {
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-sm truncate">{headerName}</h3>
-                      <p className="text-xs text-muted-foreground">{isServiceConv ? 'Service Enquiry' : 'Chat'}</p>
+                      <p className="text-xs text-muted-foreground">{isServiceConv ? t('service_enquiry') : t('chat')}</p>
                     </div>
                     {isServiceConv && serviceTitle && (
                       <div className="flex-shrink-0 ml-auto">
@@ -485,7 +562,7 @@ const Messages = () => {
             </div>
 
             {/* Messages area */}
-            <div ref={messagesRef} className="flex-1 p-3 md:p-4 overflow-y-auto space-y-3 bg-muted/10">
+            <div key={selectedConversationId || 'no-conv'} ref={messagesRef} className="flex-1 p-3 md:p-4 overflow-y-auto space-y-3 bg-muted/10">
             {messagesLoading && messages.length === 0 ? (
                 <div className="space-y-4 p-4">
                   {[1,2,3,4,5].map(i => (
@@ -496,7 +573,7 @@ const Messages = () => {
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
-                  <p className="text-muted-foreground">No messages in this conversation</p>
+                  <p className="text-muted-foreground">{t('no_messages_in_conversation')}</p>
                 </div>
               ) : (
                 messages.map((msg, idx) => {
@@ -519,8 +596,8 @@ const Messages = () => {
                     const today = new Date();
                     const yesterday = new Date();
                     yesterday.setDate(today.getDate() - 1);
-                    if (d.toDateString() === today.toDateString()) return 'Today';
-                    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+                    if (d.toDateString() === today.toDateString()) return t('today');
+                    if (d.toDateString() === yesterday.toDateString()) return t('yesterday');
                     return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
                   };
 
@@ -551,13 +628,19 @@ const Messages = () => {
                             : 'bg-card border border-border text-foreground rounded-2xl rounded-bl-md shadow-sm'
                         }`}>
                           {msg.attachments && msg.attachments.length > 0 && (
-                              <div className="mb-2 rounded-lg overflow-hidden">
-                                <img src={msg.attachments[0]} alt="attachment" className="w-full h-32 md:h-40 object-cover" />
+                              <div className="mb-2 rounded-lg overflow-hidden relative">
+                                <img src={msg.attachments[0]} alt="attachment" className={`w-full h-32 md:h-40 object-cover transition-opacity ${msg.__sending ? 'opacity-70' : 'opacity-100'}`} />
+                                {msg.__sending && (
+                                  <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                    <Loader2 className="w-5 h-5 animate-spin text-white" />
+                                  </div>
+                                )}
                               </div>
                           )}
                           {msg.content && <p className="text-sm break-words">{msg.content}</p>}
-                          <p className={`text-[10px] mt-1 ${isSender ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                          <p className={`text-[10px] mt-1 flex items-center gap-1 ${isSender ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
                             {msgDate ? msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                            {msg.__sending && <Loader2 className="w-3 h-3 animate-spin" />}
                           </p>
                         </div>
                       </div>
@@ -567,14 +650,6 @@ const Messages = () => {
               )}
             </div>
 
-            {/* Upload progress indicator */}
-            {uploadingImage && (
-              <div className="px-4 py-2 border-t border-border flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Uploading image...</span>
-              </div>
-            )}
-
             {/* Input area */}
             <div className="p-3 md:p-4 border-t border-border">
               {imagePreview && (
@@ -583,7 +658,7 @@ const Messages = () => {
                   <button
                     onClick={removeImage}
                     className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70 transition-colors"
-                    aria-label="Remove image"
+                    aria-label={t('remove_image')}
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -593,7 +668,7 @@ const Messages = () => {
               <div className="flex items-center gap-2">
                 <div className="flex items-end gap-1 md:gap-2 bg-background rounded-2xl px-3 md:px-4 py-2 flex-1 border border-border shadow-sm">
                   <textarea
-                    placeholder="Type a message..."
+                    placeholder={t('type_a_message')}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={onKeyDown}
@@ -601,11 +676,11 @@ const Messages = () => {
                     className="flex-1 bg-transparent text-foreground text-sm outline-none placeholder:text-muted-foreground min-w-0 resize-none overflow-hidden"
                     style={{ maxHeight: '120px' }}
                     onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 120) + 'px'; }}
-                    aria-label="Type a message"
+                    aria-label={t('type_a_message')}
                   />
 
-                  <label className="p-1.5 hover:bg-muted rounded-full cursor-pointer transition-colors shrink-0" title="Attach image">
-                    <img src={CustomImageIcon} alt="Attach image" className="w-4 h-4 md:w-5 md:h-5" />
+                  <label className="p-1.5 hover:bg-muted rounded-full cursor-pointer transition-colors shrink-0" title={t('attach_image')}>
+                    <img src={CustomImageIcon} alt={t('attach_image')} className="w-4 h-4 md:w-5 md:h-5" />
                     <input
                       ref={inputFileRef}
                       type="file"
@@ -620,17 +695,17 @@ const Messages = () => {
                   size="icon"
                   className="rounded-full w-10 h-10 bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
                   onClick={handleSendMessage}
-                  disabled={(!input.trim() && !imagePreview) || sending || uploadingImage}
-                  aria-label="Send message"
+                  disabled={!input.trim() && !imagePreview}
+                  aria-label={t('send_message_aria')}
                 >
-                  {(sending || uploadingImage) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  <Send className="w-4 h-4" />
                 </Button>
               </div>
             </div>
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center">
-            <p className="text-muted-foreground">Select a conversation to start messaging</p>
+            <p className="text-muted-foreground">{t('select_conversation')}</p>
           </div>
         )}
       </div>

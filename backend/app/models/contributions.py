@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Numeric, Text, Enum, UniqueConstraint
+from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Numeric, Text, Enum, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -15,10 +15,19 @@ class UserContributor(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    # When the contributor is itself a registered Nuru user, link them so they
+    # can see this contribution in their "My Contributions" tab and self-pay.
+    contributor_user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
     name = Column(Text, nullable=False)
     email = Column(Text)
     phone = Column(Text)
     notes = Column(Text)
+    # Default secondary contact + notification routing (comms-only). These act
+    # as defaults when the contributor is added to an event; the per-event
+    # EventContributor row keeps its own override. secondary_phone is NEVER
+    # used to map a Nuru user account or for any other feature.
+    secondary_phone = Column(Text)
+    notify_target = Column(Text, nullable=False, server_default='primary')
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -27,7 +36,8 @@ class UserContributor(Base):
     )
 
     # Relationships
-    user = relationship("User", back_populates="contributors")
+    user = relationship("User", foreign_keys=[user_id], back_populates="contributors")
+    contributor_user = relationship("User", foreign_keys=[contributor_user_id])
     event_contributors = relationship("EventContributor", back_populates="contributor")
 
 
@@ -53,6 +63,19 @@ class EventContributor(Base):
     contributor_id = Column(UUID(as_uuid=True), ForeignKey('user_contributors.id', ondelete='CASCADE'), nullable=False)
     pledge_amount = Column(Numeric, default=0)
     notes = Column(Text)
+    # Optional secondary phone for this contributor on this event, with a
+    # routing preference. NEVER used for nuru-user mapping — comms only.
+    secondary_phone = Column(Text, nullable=True)
+    notify_target = Column(Text, nullable=False, server_default="primary")  # primary|secondary|both
+    # Guest payment link: lets a non-Nuru contributor pay via a public URL.
+    # Plain token never lives in DB — only the SHA-256 hash. The plain value
+    # is returned ONCE on generation and embedded in the SMS link.
+    share_token_hash = Column(Text, nullable=True, index=True)
+    share_token_created_at = Column(DateTime, nullable=True)
+    share_token_expires_at = Column(DateTime, nullable=True)
+    share_token_revoked_at = Column(DateTime, nullable=True)
+    share_link_last_opened_at = Column(DateTime, nullable=True)
+    share_link_sms_last_sent_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -78,11 +101,31 @@ class EventContribution(Base):
     payment_method = Column(Enum(PaymentMethodEnum, name="payment_method_enum"))
     transaction_ref = Column(Text)
     recorded_by = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    # Offline-claim audit fields — populated when a payer declares
+    # 'I already paid via another method'. organiser reviews & approves.
+    payment_channel = Column(Text, nullable=True)              # mobile_money | bank
+    provider_name = Column(Text, nullable=True)                # free-text fallback (e.g. "Other")
+    provider_id = Column(UUID(as_uuid=True), ForeignKey('payment_providers.id', ondelete='SET NULL'), nullable=True)
+    payer_account = Column(Text, nullable=True)                # phone/account paid from
+    receipt_image_url = Column(Text, nullable=True)
+    claim_submitted_at = Column(DateTime, nullable=True)
+    claim_reviewed_at = Column(DateTime, nullable=True)
+    claim_reviewed_by = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    claim_rejection_reason = Column(Text, nullable=True)
     confirmation_status = Column(Enum(ContributionStatusEnum, name="contribution_status_enum"), default=ContributionStatusEnum.confirmed)
     confirmed_at = Column(DateTime, nullable=True)
     contributed_at = Column(DateTime, server_default=func.now())
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        # Lists / totals per event ordered by date
+        Index('idx_event_contributions_event_contributed', 'event_id', 'contributed_at'),
+        # Per-contributor history
+        Index('idx_event_contributions_contributor_date', 'event_contributor_id', 'contributed_at'),
+        # Recorder audit trail
+        Index('idx_event_contributions_recorder', 'recorded_by'),
+    )
 
     # Relationships
     event = relationship("Event", back_populates="contributions")

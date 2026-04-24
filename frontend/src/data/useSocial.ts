@@ -11,10 +11,39 @@ import { throwApiError } from "@/lib/api/showApiErrors";
 // FEED (with module-level cache for scroll preservation)
 // ============================================================================
 
+const FEED_CACHE_KEY = "feedCache";
+const FEED_PAGINATION_KEY = "feedPaginationCache";
+const FEED_LOADED_KEY = "feedHasLoaded";
+
+const readSessionJson = <T,>(key: string, fallback: T): T => {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = sessionStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const persistFeedCache = (items: FeedPost[], pagination: unknown, hasLoaded: boolean) => {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(FEED_CACHE_KEY, JSON.stringify(items));
+    sessionStorage.setItem(FEED_PAGINATION_KEY, JSON.stringify(pagination));
+    sessionStorage.setItem(FEED_LOADED_KEY, hasLoaded ? "1" : "0");
+  } catch {
+    // ignore storage limits and privacy mode failures
+  }
+};
+
 // Module-level cache so feed data survives unmount/remount cycles
-let _feedCache: FeedPost[] = [];
-let _feedPaginationCache: any = null;
-let _feedHasLoaded = false;
+let _feedCache: FeedPost[] = readSessionJson<FeedPost[]>(FEED_CACHE_KEY, []);
+let _feedPaginationCache: any = readSessionJson<any>(FEED_PAGINATION_KEY, null);
+let _feedHasLoaded = typeof window !== "undefined"
+  ? sessionStorage.getItem(FEED_LOADED_KEY) === "1"
+  : false;
+let _feedLastFetchedAt = 0;
+const FEED_STALE_MS = 2 * 60 * 1000; // 2 minutes — revalidate after this
 
 export const useFeed = (initialParams?: FeedQueryParams) => {
   const [items, setItems] = useState<FeedPost[]>(_feedCache);
@@ -32,10 +61,19 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
       const response = await socialApi.getFeed(params || initialParams);
       if (response.success) {
         const feedData = response.data as any;
-        const feedItems = feedData?.posts || feedData?.items || (Array.isArray(feedData) ? feedData : []);
+        const rawItems = feedData?.posts || feedData?.items || (Array.isArray(feedData) ? feedData : []);
+        // Dedupe defensively in case the API returns duplicates within a page.
+        const seen = new Set<string>();
+        const feedItems = rawItems.filter((p: any) => {
+          if (!p || !p.id || seen.has(p.id)) return false;
+          seen.add(p.id);
+          return true;
+        });
         _feedCache = feedItems;
         _feedPaginationCache = feedData?.pagination;
         _feedHasLoaded = true;
+        _feedLastFetchedAt = Date.now();
+        persistFeedCache(feedItems, feedData?.pagination, true);
         setItems(feedItems);
         setPagination(feedData?.pagination);
       } else {
@@ -49,8 +87,13 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
   }, [initialParams]);
 
   useEffect(() => {
-    fetchFeed();
-  }, [fetchFeed]);
+    // Always refresh on mount if cache is stale (or empty), so newly created
+    // posts elsewhere in the app appear without a hard reload. Cached items
+    // remain visible while the refresh runs in the background.
+    const isStale = !_feedHasLoaded || Date.now() - _feedLastFetchedAt > FEED_STALE_MS;
+    if (isStale) fetchFeed();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadMore = async (page: number) => {
     try {
@@ -58,9 +101,15 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
       if (response.success) {
         const feedData = response.data as any;
         const moreItems = feedData?.posts || feedData?.items || (Array.isArray(feedData) ? feedData : []);
-        const combined = [..._feedCache, ...moreItems];
+        // Dedupe by id to prevent the same post appearing repeatedly when
+        // the backend returns overlapping pages.
+        const seen = new Set(_feedCache.map((p: any) => p.id));
+        const fresh = moreItems.filter((p: any) => p && p.id && !seen.has(p.id));
+        const combined = [..._feedCache, ...fresh];
         _feedCache = combined;
         _feedPaginationCache = feedData?.pagination;
+        _feedHasLoaded = true;
+        persistFeedCache(combined, feedData?.pagination, true);
         setItems(combined);
         setPagination(feedData?.pagination);
       }
@@ -631,7 +680,7 @@ const _broadcastNotifCount = (count: number) => {
   _notifListeners.forEach(fn => fn(count));
 };
 
-export const useNotifications = (filter?: "all" | "unread") => {
+export const useNotifications = (filter?: "all" | "unread", search: string = "") => {
   const [notifications, setNotifications] = useState<any[]>(_notificationsCache);
   const [unreadCount, setUnreadCount] = useState(_notificationsUnreadCache);
   const [loading, setLoading] = useState(!_notificationsHasLoaded);
@@ -642,22 +691,30 @@ export const useNotifications = (filter?: "all" | "unread") => {
   useEffect(() => {
     const handler = (count: number) => setUnreadCount(count);
     _notifListeners.add(handler);
-    // Sync on mount in case cache changed while unmounted
     setUnreadCount(_notificationsUnreadCache);
     return () => { _notifListeners.delete(handler); };
   }, []);
 
-  const fetchNotifications = useCallback(async (params?: { page?: number; limit?: number }) => {
-    if (!_notificationsHasLoaded) setLoading(true);
+  const fetchNotifications = useCallback(async (params?: { page?: number; limit?: number; search?: string }) => {
+    const term = params?.search ?? search;
+    if (!_notificationsHasLoaded && !term) setLoading(true);
+    if (term) setLoading(true);
     setError(null);
     try {
-      const response = await socialApi.getNotifications({ ...params, filter });
+      const response = await socialApi.getNotifications({
+        page: params?.page,
+        limit: params?.limit,
+        filter,
+        ...(term ? { search: term } : {}),
+      });
       if (response.success) {
         const data = response.data as any;
         const items = data?.notifications || data?.items || (Array.isArray(data) ? data : []);
         const uc = data?.unread_count || 0;
-        _notificationsCache = items;
-        _notificationsHasLoaded = true;
+        if (!term) {
+          _notificationsCache = items;
+          _notificationsHasLoaded = true;
+        }
         setNotifications(items);
         setPagination(data?.pagination);
         _broadcastNotifCount(uc);
@@ -669,7 +726,7 @@ export const useNotifications = (filter?: "all" | "unread") => {
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [filter, search]);
 
   useEffect(() => {
     fetchNotifications();
@@ -733,13 +790,12 @@ const _broadcastConvCount = (count: number) => {
   _convListeners.forEach(fn => fn(count));
 };
 
-export const useConversations = () => {
+export const useConversations = (search: string = "") => {
   const [conversations, setConversations] = useState<any[]>(_conversationsCache);
   const [unreadCount, setUnreadCount] = useState(_conversationsUnreadCache);
   const [loading, setLoading] = useState(!_conversationsHasLoaded);
   const [error, setError] = useState<string | null>(null);
 
-  // Subscribe to cross-instance count updates
   useEffect(() => {
     const handler = (count: number) => setUnreadCount(count);
     _convListeners.add(handler);
@@ -747,16 +803,22 @@ export const useConversations = () => {
     return () => { _convListeners.delete(handler); };
   }, []);
 
-  const fetchConversations = useCallback(async () => {
-    if (!_conversationsHasLoaded) setLoading(true);
+  const fetchConversations = useCallback(async (overrideSearch?: string) => {
+    const term = overrideSearch ?? search;
+    // Silent refresh: only show skeleton on the very first load (no cached
+    // data and no search term). Subsequent searches/refreshes update the list
+    // in place — WhatsApp-style — without re-mounting the UI.
+    if (!_conversationsHasLoaded && !term) setLoading(true);
     setError(null);
     try {
-      const response = await socialApi.getConversations();
+      const response = await socialApi.getConversations(term ? { search: term } : undefined);
       if (response.success) {
         const data = response.data as any;
         const list = Array.isArray(data) ? data : data?.items || data?.conversations || [];
-        _conversationsCache = list;
-        _conversationsHasLoaded = true;
+        if (!term) {
+          _conversationsCache = list;
+          _conversationsHasLoaded = true;
+        }
         setConversations(list);
         const newCount = list.filter((c: any) => c.unread_count > 0).length;
         _broadcastConvCount(newCount);
@@ -768,7 +830,7 @@ export const useConversations = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [search]);
 
   useEffect(() => {
     fetchConversations();
@@ -789,31 +851,123 @@ export const useConversations = () => {
 };
 
 const _messagesCache = new Map<string, any[]>();
+const _messagesInflight = new Map<string, Promise<void>>();
+// Last successful fetch timestamp per conversation — used to throttle the
+// 5s polling tick so we don't hammer the API with back-to-back requests
+// (e.g., visibility-change firing right after the interval).
+const _messagesLastFetch = new Map<string, number>();
+const FETCH_THROTTLE_MS = 2500;
 
-export const useConversationMessages = (conversationId: string | null) => {
-  const cached = conversationId ? _messagesCache.get(conversationId) : null;
-  const [messages, setMessages] = useState<any[]>(cached || []);
-  const [loading, setLoading] = useState(!cached);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchMessages = useCallback(async () => {
-    if (!conversationId) return;
-    if (!_messagesCache.has(conversationId)) setLoading(true);
-    setError(null);
+/**
+ * Hover-prefetch: warm the message cache for a conversation so opening it is instant.
+ */
+export const prefetchConversationMessages = (conversationId: string): void => {
+  if (!conversationId || _messagesCache.has(conversationId) || _messagesInflight.has(conversationId)) return;
+  const p = (async () => {
     try {
-      const response = await socialApi.getMessages(conversationId);
+      const response = await socialApi.getMessages(conversationId, { limit: 30 });
       if (response.success) {
         const data = response.data as any;
         const items = Array.isArray(data) ? data : data?.items || data?.messages || [];
         _messagesCache.set(conversationId, items);
-        setMessages(items);
+        _messagesLastFetch.set(conversationId, Date.now());
+      }
+    } catch { /* non-fatal */ }
+    finally { _messagesInflight.delete(conversationId); }
+  })();
+  _messagesInflight.set(conversationId, p);
+};
+
+export const useConversationMessages = (conversationId: string | null) => {
+  const cached = conversationId ? _messagesCache.get(conversationId) : null;
+  const [messages, setMessages] = useState<any[]>(cached || []);
+  const [loading, setLoading] = useState(!!conversationId && !cached);
+  const [error, setError] = useState<string | null>(null);
+  // Track which conversation the current `messages` state belongs to so we
+  // never render stale messages from the previous conversation.
+  const activeConvIdRef = useRef<string | null>(conversationId);
+
+  // CRITICAL: When conversationId changes, immediately reset visible messages
+  // to the cache for the NEW conversation (or empty) and flip loading on if
+  // there is no cache yet. This prevents the old conversation's messages from
+  // remaining on screen while the new fetch is in flight.
+  useEffect(() => {
+    activeConvIdRef.current = conversationId;
+    if (!conversationId) {
+      setMessages([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+    const next = _messagesCache.get(conversationId);
+    setMessages(next || []);
+    setLoading(!next);
+    setError(null);
+  }, [conversationId]);
+
+  const fetchMessages = useCallback(async (opts?: { force?: boolean }) => {
+    if (!conversationId) return;
+    const requestedConvId = conversationId;
+    // Throttle background polling — skip if we successfully fetched < 2.5s ago.
+    const last = _messagesLastFetch.get(requestedConvId) || 0;
+    if (!opts?.force && Date.now() - last < FETCH_THROTTLE_MS) return;
+    if (!_messagesCache.has(requestedConvId)) setLoading(true);
+    setError(null);
+    try {
+      const response = await socialApi.getMessages(requestedConvId, { limit: 30 });
+      // Drop response if user has switched conversations meanwhile.
+      if (activeConvIdRef.current !== requestedConvId) return;
+      if (response.success) {
+        const data = response.data as any;
+        const items = Array.isArray(data) ? data : data?.items || data?.messages || [];
+        // Merge with any optimistic "tmp-*" bubbles still on screen so
+        // background polling never wipes a message the user just sent.
+        // Drop optimistic bubbles whose content matches an incoming real
+        // message from the same sender within the last 30 seconds.
+        setMessages(prev => {
+          const optimistic = prev.filter((m: any) => typeof m.id === "string" && m.id.startsWith("tmp-"));
+          if (optimistic.length === 0) {
+            _messagesCache.set(requestedConvId, items);
+            return items;
+          }
+          const parseTs = (s?: string) => {
+            if (!s) return 0;
+            const norm = s.endsWith("Z") || /[+-]\d{2}:?\d{2}$/.test(s) ? s : (s.includes("T") ? `${s}Z` : `${s.replace(" ", "T")}Z`);
+            return new Date(norm).getTime();
+          };
+          const surviving = optimistic.filter((opt: any) => {
+            const optTime = parseTs(opt.created_at);
+            const optContent = (opt.content || "").trim();
+            const optHasAttachment = Array.isArray(opt.attachments) && opt.attachments.length > 0;
+            return !items.some((real: any) => {
+              // A real message matches our optimistic one if it's authored by us.
+              // The server may signal that via is_sender OR matching sender_id.
+              const mine = real.is_sender === true || (opt.sender_id && real.sender_id === opt.sender_id);
+              if (!mine) return false;
+              const sameText = (real.content || "").trim() === optContent;
+              const realHasAttachment = Array.isArray(real.attachments) && real.attachments.length > 0;
+              // Content-only message: text must match. Attachment message: both must have an attachment.
+              const contentMatch = optHasAttachment ? realHasAttachment && sameText : sameText;
+              if (!contentMatch) return false;
+              const realTime = parseTs(real.created_at);
+              // Generous 2-min window to absorb slow networks / clock skew.
+              return Math.abs(realTime - optTime) < 120_000;
+            });
+          });
+          // Append surviving optimistic bubbles at the end — they're the newest.
+          const merged = surviving.length === 0 ? items : [...items, ...surviving];
+          _messagesCache.set(requestedConvId, merged);
+          return merged;
+        });
+        _messagesLastFetch.set(requestedConvId, Date.now());
       } else {
         setError(response.message || "Failed to fetch messages");
       }
     } catch (err) {
+      if (activeConvIdRef.current !== requestedConvId) return;
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
-      setLoading(false);
+      if (activeConvIdRef.current === requestedConvId) setLoading(false);
     }
   }, [conversationId]);
 
@@ -821,16 +975,37 @@ export const useConversationMessages = (conversationId: string | null) => {
     if (conversationId) fetchMessages();
   }, [fetchMessages, conversationId]);
 
-  // FIX: Wrapped in useCallback for stability
+  // Append (de-duped by id) so polling + manual sends don't double-render.
   const appendMessage = useCallback((msg: any) => {
     setMessages(prev => {
+      if (msg?.id && prev.some((m: any) => m.id === msg.id)) return prev;
       const updated = [...prev, msg];
       if (conversationId) _messagesCache.set(conversationId, updated);
       return updated;
     });
   }, [conversationId]);
 
-  return { messages, loading, error, refetch: fetchMessages, setMessages, appendMessage };
+  // Swap an optimistic tmp-* bubble with the real server message in place
+  // (no flicker, no re-sort). Falls back to append if temp not found.
+  const replaceMessage = useCallback((tempId: string, real: any) => {
+    setMessages(prev => {
+      const idx = prev.findIndex((m: any) => m.id === tempId);
+      const updated = idx === -1 ? [...prev, real] : prev.map((m: any, i) => (i === idx ? real : m));
+      if (conversationId) _messagesCache.set(conversationId, updated);
+      return updated;
+    });
+  }, [conversationId]);
+
+  // Remove a failed optimistic bubble.
+  const removeMessage = useCallback((id: string) => {
+    setMessages(prev => {
+      const updated = prev.filter((m: any) => m.id !== id);
+      if (conversationId) _messagesCache.set(conversationId, updated);
+      return updated;
+    });
+  }, [conversationId]);
+
+  return { messages, loading, error, refetch: fetchMessages, setMessages, appendMessage, replaceMessage, removeMessage };
 };
 
 export const useSendMessage = () => {

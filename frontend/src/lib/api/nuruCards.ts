@@ -12,15 +12,31 @@ export interface CardQueryParams {
   card_type?: "standard" | "premium" | "all";
 }
 
+export interface NuruCardPricing {
+  card_type: "standard" | "premium" | string;
+  currency_code: "TZS" | "KES" | string;
+  amount: number;
+}
+
 export const nuruCardsApi = {
   // ============================================================================
-  // CARD TYPES
+  // CARD TYPES & PRICING
   // ============================================================================
 
   /**
    * Get available card types
    */
   getCardTypes: () => get<NuruCardType[]>("/nuru-cards/types"),
+
+  /**
+   * Get card pricing per currency. Pass `currency` (TZS/KES) to filter,
+   * otherwise the full matrix is returned. Backed by the
+   * `nuru_card_pricing` table on the server — never hardcode prices in UI.
+   */
+  getPricing: (currency?: string) =>
+    get<NuruCardPricing[]>(
+      `/nuru-cards/pricing${currency ? `?currency=${encodeURIComponent(currency)}` : ""}`,
+    ),
 
   // ============================================================================
   // USER CARDS

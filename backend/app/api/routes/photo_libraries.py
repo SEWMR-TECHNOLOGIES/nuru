@@ -95,12 +95,13 @@ def _library_dict(library: ServicePhotoLibrary, include_photos: bool = False, ma
 
 
 def _get_service_total_storage(db: Session, service_id) -> int:
-    """Sum up all storage used across all libraries for this service."""
-    libraries = db.query(ServicePhotoLibrary).filter(
+    """Sum up all storage used across all libraries for this service (single SUM query)."""
+    from sqlalchemy import func as sa_func
+    total = db.query(sa_func.coalesce(sa_func.sum(ServicePhotoLibrary.total_size_bytes), 0)).filter(
         ServicePhotoLibrary.user_service_id == service_id,
         ServicePhotoLibrary.is_active == True,
-    ).all()
-    return sum(lib.total_size_bytes or 0 for lib in libraries)
+    ).scalar()
+    return int(total or 0)
 
 
 # ──────────────────────────────────────────────
@@ -109,6 +110,7 @@ def _get_service_total_storage(db: Session, service_id) -> int:
 @router.get("/service/{service_id}")
 def get_service_libraries(
     service_id: str,
+    search: str = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -121,10 +123,19 @@ def get_service_libraries(
     if not service:
         return standard_response(False, "Service not found")
 
-    libraries = db.query(ServicePhotoLibrary).filter(
+    from sqlalchemy import func as sa_func, or_
+
+    q = db.query(ServicePhotoLibrary).filter(
         ServicePhotoLibrary.user_service_id == sid,
         ServicePhotoLibrary.is_active == True,
-    ).order_by(ServicePhotoLibrary.created_at.desc()).all()
+    )
+    if search and search.strip():
+        term = f"%{search.strip().lower()}%"
+        q = q.filter(or_(
+            sa_func.lower(ServicePhotoLibrary.name).like(term),
+            sa_func.lower(ServicePhotoLibrary.description).like(term),
+        ))
+    libraries = q.order_by(ServicePhotoLibrary.created_at.desc()).all()
 
     total_storage_used = _get_service_total_storage(db, sid)
 
@@ -504,6 +515,7 @@ def delete_library(
 @router.get("/service/{service_id}/events")
 def get_service_confirmed_events(
     service_id: str,
+    search: str = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -524,6 +536,17 @@ def get_service_confirmed_events(
             EventServiceStatusEnum.completed,
         ]),
     ).all()
+
+    # Apply search filter on associated event name/location.
+    term = (search or "").strip().lower()
+    if term:
+        event_services = [
+            es for es in event_services
+            if es.event and (
+                term in (es.event.name or "").lower()
+                or term in (es.event.location or "").lower()
+            )
+        ]
 
     now = datetime.now(EAT)
     today_date = now.date()

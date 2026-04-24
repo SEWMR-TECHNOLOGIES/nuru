@@ -9,6 +9,9 @@ class AdminRoleEnum(str, enum.Enum):
     admin = "admin"
     moderator = "moderator"
     support = "support"
+    # Finance ops role — full access to the Admin Payments Dashboard
+    # (ledger, settlements, reconciliation, reports). 'admin' role inherits.
+    finance_admin = "finance_admin"
 
 
 class AdminUser(Base):

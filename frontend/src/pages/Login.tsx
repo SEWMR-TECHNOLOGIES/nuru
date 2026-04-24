@@ -1,7 +1,7 @@
 import { useState } from "react";
 import SuspensionModal from "@/components/SuspensionModal";
 import { motion } from "framer-motion";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff, ChevronLeft, Phone, Mail, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,10 +13,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api, showApiErrorsShadcn } from "@/lib/api";
 import nuruLogo from "@/assets/nuru-logo.png";
 import { CountryPhoneInput, maskPhoneDisplay } from "@/components/ui/country-phone-input";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 type ForgotStep = "choose" | "email" | "phone" | "otp";
 
 const Login = () => {
+  const { t } = useLanguage();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -32,6 +34,8 @@ const Login = () => {
   const [resetOtpChannel, setResetOtpChannel] = useState<"sms" | "whatsapp" | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnUrl = searchParams.get('returnUrl');
   const qc = useQueryClient();
 
   const handleInputChange = (field: string, value: string) => {
@@ -49,7 +53,7 @@ const Login = () => {
     e.preventDefault();
 
     if (!formData.credential || !formData.password) {
-      toast({ title: "Missing fields", description: "Credential and password are required.", variant: "destructive" });
+      toast({ title: t('missing_fields'), description: "Credential and password are required.", variant: "destructive" });
       return;
     }
 
@@ -64,7 +68,7 @@ const Login = () => {
         const user = response.data.user;
 
         if (!user.is_phone_verified) {
-          toast({ title: "Phone not verified", description: "Please verify your phone to continue.", variant: "destructive" });
+          toast({ title: t('verify_your_phone'), description: "Please verify your phone to continue.", variant: "destructive" });
           localStorage.setItem("userId", user.id);
           navigate(`/verify-phone?phone=${user.phone}`);
           return;
@@ -75,8 +79,8 @@ const Login = () => {
         localStorage.setItem("login", Date.now().toString());
 
         qc.setQueryData(["currentUser"], user);
-        toast({ title: "Welcome back!", description: response.message });
-        navigate("/", { replace: true });
+        toast({ title: t('welcome_back_excl'), description: response.message });
+        navigate(returnUrl || "/", { replace: true });
       } else {
         const data = (response as any).data;
         if (data?.suspended) {
@@ -86,17 +90,16 @@ const Login = () => {
         }
       }
     } catch (err) {
-      toast({ title: "Error", description: "Unable to reach server. Try again later.", variant: "destructive" });
+      toast({ title: t('error'), description: "Unable to reach server. Try again later.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ── Email reset ──
   const handleForgotEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.forgotEmail) {
-      toast({ title: "Enter email", description: "We need your email to send reset instructions.", variant: "destructive" });
+      toast({ title: t('email'), description: "We need your email to send reset instructions.", variant: "destructive" });
       return;
     }
 
@@ -104,23 +107,22 @@ const Login = () => {
     try {
       const response = await api.auth.forgotPassword(formData.forgotEmail);
       if (response.success) {
-        toast({ title: "Reset link sent", description: response.message || "Check your email for password reset instructions." });
+        toast({ title: t('success'), description: response.message || "Check your email for password reset instructions." });
         resetForgotState();
       } else {
         showApiErrorsShadcn(response, toast, "Reset Failed");
       }
     } catch (err) {
-      toast({ title: "Error", description: "Unable to send reset link. Try again later.", variant: "destructive" });
+      toast({ title: t('error'), description: "Unable to send reset link. Try again later.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ── Phone reset – send OTP ──
   const handleForgotPhone = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.forgotPhone) {
-      toast({ title: "Enter phone", description: "We need your phone number to send a reset code.", variant: "destructive" });
+      toast({ title: t('phone'), description: "We need your phone number to send a reset code.", variant: "destructive" });
       return;
     }
 
@@ -131,23 +133,22 @@ const Login = () => {
         const msg = (response.message || "").toLowerCase();
         if (msg.includes("whatsapp")) setResetOtpChannel("whatsapp");
         else setResetOtpChannel("sms");
-        toast({ title: "Code sent", description: response.message || "Check your phone for the reset code." });
+        toast({ title: t('success'), description: response.message || "Check your phone for the reset code." });
         setForgotStep("otp");
       } else {
         showApiErrorsShadcn(response, toast, "Reset Failed");
       }
     } catch (err) {
-      toast({ title: "Error", description: "Unable to send reset code. Try again later.", variant: "destructive" });
+      toast({ title: t('error'), description: "Unable to send reset code. Try again later.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ── Verify OTP ──
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.otp.length < 6) {
-      toast({ title: "Enter code", description: "Please enter the 6-digit code sent to your phone.", variant: "destructive" });
+      toast({ title: t('enter_verification_code'), description: "Please enter the 6-digit code sent to your phone.", variant: "destructive" });
       return;
     }
 
@@ -155,20 +156,19 @@ const Login = () => {
     try {
       const response = await api.auth.verifyResetOtp(formData.forgotPhone, formData.otp);
       if (response.success && response.data?.reset_token) {
-        toast({ title: "Verified!", description: "Set your new password." });
+        toast({ title: t('success'), description: "Set your new password." });
         navigate(`/reset-password?token=${response.data.reset_token}`);
         resetForgotState();
       } else {
         showApiErrorsShadcn(response, toast, "Verification Failed");
       }
     } catch (err) {
-      toast({ title: "Error", description: "Unable to verify code. Try again.", variant: "destructive" });
+      toast({ title: t('error'), description: "Unable to verify code. Try again.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ── Resend OTP ──
   const handleResendOtp = async () => {
     setIsLoading(true);
     try {
@@ -177,18 +177,18 @@ const Login = () => {
         const msg = (response.message || "").toLowerCase();
         if (msg.includes("whatsapp")) setResetOtpChannel("whatsapp");
         else setResetOtpChannel("sms");
-        toast({ title: "Code resent", description: response.message || "A new code has been sent." });
+        toast({ title: t('success'), description: response.message || "A new code has been sent." });
       } else {
         showApiErrorsShadcn(response, toast, "Resend Failed");
       }
     } catch {
-      toast({ title: "Error", description: "Unable to resend code.", variant: "destructive" });
+      toast({ title: t('error'), description: "Unable to resend code.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
   };
 
-  useMeta({ title: "Sign In", description: "Sign in to your Nuru account to manage events." });
+  useMeta({ title: t('sign_in'), description: "Sign in to your Nuru account to manage events." });
 
   if (suspensionInfo.open) {
     return (
@@ -201,19 +201,18 @@ const Login = () => {
     );
   }
 
-  // ── Forgot password sub-views ──
   const renderForgotPassword = () => {
     if (forgotStep === "choose") {
       return (
         <div className="space-y-4">
-          <p className="text-sm text-muted-foreground mb-2">How would you like to reset your password?</p>
+          <p className="text-sm text-muted-foreground mb-2">{t('how_reset_password')}</p>
           <Button
             variant="outline"
             className="w-full h-12 rounded-xl justify-start gap-3 text-foreground"
             onClick={() => setForgotStep("email")}
           >
             <Mail className="w-5 h-5" />
-            Reset via email
+            {t('reset_via_email')}
           </Button>
           <Button
             variant="outline"
@@ -221,7 +220,7 @@ const Login = () => {
             onClick={() => setForgotStep("phone")}
           >
             <Phone className="w-5 h-5" />
-            Reset via phone
+            {t('reset_via_phone')}
           </Button>
         </div>
       );
@@ -231,7 +230,7 @@ const Login = () => {
       return (
         <form onSubmit={handleForgotEmail} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">Email address</label>
+            <label className="block text-sm font-medium text-foreground mb-2">{t('email_address')}</label>
             <Input
               type="email"
               placeholder="your.email@example.com"
@@ -246,7 +245,7 @@ const Login = () => {
             className="w-full h-12 bg-foreground text-background hover:bg-foreground/90 rounded-full"
             disabled={isLoading}
           >
-            {isLoading ? "Sending..." : "Send reset link"}
+            {isLoading ? t('sending') : t('send_reset_link')}
           </Button>
         </form>
       );
@@ -256,37 +255,36 @@ const Login = () => {
       return (
         <form onSubmit={handleForgotPhone} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">Phone number</label>
+            <label className="block text-sm font-medium text-foreground mb-2">{t('phone_number')}</label>
             <CountryPhoneInput
               value={formData.forgotPhone}
               onChange={(fullNumber) => handleInputChange("forgotPhone", fullNumber)}
               autoDetect
               autoFocus
             />
-            <p className="text-xs text-muted-foreground mt-1">We'll send a 6-digit code to this number</p>
+            <p className="text-xs text-muted-foreground mt-1">{t('we_send_code')}</p>
           </div>
           <Button
             type="submit"
             className="w-full h-12 bg-foreground text-background hover:bg-foreground/90 rounded-full"
             disabled={isLoading}
           >
-            {isLoading ? "Sending..." : "Send reset code"}
+            {isLoading ? t('sending') : t('send_reset_code')}
           </Button>
         </form>
       );
     }
 
-    // OTP step
     return (
       <form onSubmit={handleVerifyOtp} className="space-y-5">
         <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Enter verification code</label>
+          <label className="block text-sm font-medium text-foreground mb-2">{t('enter_verification_code')}</label>
           <p className="text-xs text-muted-foreground mb-3">
             {resetOtpChannel === "whatsapp"
               ? `A 6-digit code was sent via WhatsApp to ${maskPhoneDisplay(formData.forgotPhone)}`
               : resetOtpChannel === "sms"
               ? `A 6-digit code was sent via SMS to ${maskPhoneDisplay(formData.forgotPhone)}`
-              : "A 6-digit code was sent to your phone number"
+              : t('code_sent_to_phone')
             }
           </p>
 
@@ -295,10 +293,7 @@ const Login = () => {
               resetOtpChannel === "whatsapp" ? "bg-green-500/10 text-green-700 dark:text-green-400" : "bg-blue-500/10 text-blue-700 dark:text-blue-400"
             }`}>
               {resetOtpChannel === "whatsapp" ? <MessageCircle className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
-              {resetOtpChannel === "whatsapp"
-                ? "Check your WhatsApp messages"
-                : "Check your SMS messages"
-              }
+              {resetOtpChannel === "whatsapp" ? t('check_whatsapp') : t('check_sms')}
             </div>
           )}
 
@@ -324,7 +319,7 @@ const Login = () => {
           className="w-full h-12 bg-foreground text-background hover:bg-foreground/90 rounded-full"
           disabled={isLoading || formData.otp.length < 6}
         >
-          {isLoading ? "Verifying..." : "Verify & continue"}
+          {isLoading ? t('verifying') : t('verify_continue')}
         </Button>
         <button
           type="button"
@@ -332,23 +327,23 @@ const Login = () => {
           disabled={isLoading}
           className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
-          Didn't receive a code? Resend
+          {t('didnt_receive_code')}
         </button>
       </form>
     );
   };
 
   const forgotTitle =
-    forgotStep === "choose" ? "Reset password" :
-    forgotStep === "email" ? "Reset via email" :
-    forgotStep === "phone" ? "Reset via phone" :
-    "Enter verification code";
+    forgotStep === "choose" ? t('reset_password') :
+    forgotStep === "email" ? t('reset_via_email') :
+    forgotStep === "phone" ? t('reset_via_phone') :
+    t('enter_verification_code');
 
   const forgotDescription =
-    forgotStep === "choose" ? "Choose how to recover your account" :
-    forgotStep === "email" ? "Enter your email to receive reset instructions" :
-    forgotStep === "phone" ? "Enter your phone number to receive a reset code" :
-    "We sent a 6-digit code to your phone";
+    forgotStep === "choose" ? t('choose_recovery') :
+    forgotStep === "email" ? t('enter_email_reset') :
+    forgotStep === "phone" ? t('enter_phone_reset') :
+    t('code_sent_to_phone');
 
   return (
     <Layout>
@@ -360,10 +355,10 @@ const Login = () => {
           className="w-full max-w-md"
         >
           <h1 className="text-3xl font-bold text-foreground mb-2">
-            {showForgotPassword ? forgotTitle : "Welcome back"}
+            {showForgotPassword ? forgotTitle : t('welcome_back')}
           </h1>
           <p className="text-muted-foreground mb-8">
-            {showForgotPassword ? forgotDescription : "Sign in to continue managing your events"}
+            {showForgotPassword ? forgotDescription : t('sign_in_continue')}
           </p>
 
           {!showForgotPassword ? (
@@ -371,11 +366,11 @@ const Login = () => {
               <form onSubmit={handleLogin} className="space-y-5">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">
-                    Email, phone, or username
+                    {t('email_phone_username')}
                   </label>
                   <Input
                     type="text"
-                    placeholder="Enter your credential"
+                    placeholder={t('enter_credential')}
                     value={formData.credential}
                     onChange={e => handleInputChange("credential", e.target.value)}
                     className="h-12 rounded-xl"
@@ -384,11 +379,11 @@ const Login = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Password</label>
+                  <label className="block text-sm font-medium text-foreground mb-2">{t('password')}</label>
                   <div className="relative">
                     <Input
                       type={showPassword ? "text" : "password"}
-                      placeholder="Enter your password"
+                      placeholder={t('enter_password')}
                       value={formData.password}
                       onChange={e => handleInputChange("password", e.target.value)}
                       className="h-12 pr-12 rounded-xl"
@@ -410,7 +405,7 @@ const Login = () => {
                     onClick={() => { setShowForgotPassword(true); setForgotStep("choose"); }} 
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    Forgot password?
+                    {t('forgot_password_q')}
                   </button>
                 </div>
 
@@ -419,14 +414,14 @@ const Login = () => {
                   className="w-full h-12 bg-foreground text-background hover:bg-foreground/90 rounded-full" 
                   disabled={isLoading}
                 >
-                  {isLoading ? "Signing in..." : "Sign in"}
+                  {isLoading ? t('signing_in') : t('sign_in')}
                 </Button>
               </form>
 
               <p className="text-center mt-8 text-sm text-muted-foreground">
-                Don't have an account?{" "}
+                {t('dont_have_account')}{" "}
                 <Link to="/register" className="text-foreground hover:underline font-medium">
-                  Create one
+                  {t('create_one')}
                 </Link>
               </p>
             </>
@@ -447,7 +442,7 @@ const Login = () => {
                 className="w-full mt-4 text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-1"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
-                {forgotStep === "choose" ? "Back to sign in" : "Back"}
+                {forgotStep === "choose" ? t('back_to_sign_in') : t('back')}
               </button>
             </>
           )}

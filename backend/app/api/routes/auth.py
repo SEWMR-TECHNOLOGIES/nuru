@@ -13,6 +13,8 @@ from utils.auth import (
     get_current_user,
     is_token_expired,
     verify_password,
+    hash_password,
+    migrate_password_if_needed,
     create_access_token,
     create_refresh_token,
     get_user_by_credential,
@@ -20,7 +22,7 @@ from utils.auth import (
 )
 from utils.user_payload import build_user_payload
 from utils.notification_service import send_password_reset_email, send_verification_sms, send_otp_with_routing
-from utils.validation_functions import validate_tanzanian_phone
+from utils.validation_functions import validate_phone_number
 from utils.helpers import standard_response, generate_otp, get_expiry, mask_phone
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -57,8 +59,8 @@ async def signin(request: Request, response: Response, db: Session = Depends(get
     # Normalize phone if it looks like one
     normalized_credential = credential
     try:
-        if re.fullmatch(r'(\+?255|0)?[67]\d{8}', credential) or credential.replace("+", "").isdigit():
-            normalized_credential = validate_tanzanian_phone(credential)
+        if credential.replace("+", "").replace(" ", "").replace("-", "").isdigit():
+            normalized_credential = validate_phone_number(credential)
     except ValueError:
         pass
 
@@ -69,6 +71,10 @@ async def signin(request: Request, response: Response, db: Session = Depends(get
         return standard_response(False, "Invalid credentials. Please try again.")
     if not verify_password(password, user.password_hash):
         return standard_response(False, "Invalid credentials. Please try again.")
+
+    # Migrate legacy SHA-256 hash to bcrypt on successful login
+    migrate_password_if_needed(db, user, password)
+
     if not user.is_active:
         return standard_response(False, "Your account has been deactivated. Contact support at support@nuru.tz")
 
@@ -88,11 +94,14 @@ async def signin(request: Request, response: Response, db: Session = Depends(get
     access_token = create_access_token({"uid": str(user.id)})
     refresh_token = create_refresh_token({"uid": str(user.id)})
 
-    # Set session cookie
+    # Set session cookie (signed JWT, NOT raw UUID — prevents impersonation)
+    from utils.auth import create_session_token
+    session_token = create_session_token(str(user.id))
     response.set_cookie(
         key="session_id",
-        value=str(user.id),
+        value=session_token,
         httponly=True,
+        secure=True,
         max_age=60 * 60 * 24,  # 1 day
         samesite="lax"
     )
@@ -252,8 +261,8 @@ async def reset_password(request: Request, db: Session = Depends(get_db)):
     if not user:
         return standard_response(False, "User not found")
 
-    # Update password
-    user.password_hash = hashlib.sha256(password.encode()).hexdigest()
+    # Update password using bcrypt
+    user.password_hash = hash_password(password)
 
     # Mark token used
     reset.is_used = True
@@ -283,11 +292,12 @@ async def forgot_password_phone(request: Request, db: Session = Depends(get_db))
     if not phone:
         return standard_response(False, "Phone number is required.")
 
-    # Normalize to Tanzanian format
+    # Normalize phone to international format
     try:
-        phone = validate_tanzanian_phone(phone)
+        phone = validate_phone_number(phone)
     except ValueError:
-        return standard_response(False, "Please enter a valid Tanzanian phone number.")
+        # Return same generic message to prevent enumeration via format validation
+        return standard_response(True, "If this phone number is registered, a reset code has been sent.")
 
     user = db.query(User).filter(User.phone == phone).first()
 
@@ -320,9 +330,8 @@ async def forgot_password_phone(request: Request, db: Session = Depends(get_db))
     except Exception:
         print(traceback.format_exc())
 
-    masked = mask_phone(user.phone)
-    channel_info = f" via {channel_label}" if channel_label else ""
-    return standard_response(True, f"If this phone number is registered, a reset code has been sent{channel_info} to {masked}.")
+    # Generic response — don't reveal channel or masked phone to prevent enumeration
+    return standard_response(True, "If this phone number is registered, a reset code has been sent.")
 
 
 # ──────────────────────────────────────────────
@@ -340,7 +349,7 @@ async def verify_reset_otp(request: Request, db: Session = Depends(get_db)):
         return standard_response(False, "Phone number and OTP code are required.")
 
     try:
-        phone = validate_tanzanian_phone(phone)
+        phone = validate_phone_number(phone)
     except ValueError:
         return standard_response(False, "Invalid phone number format.")
 

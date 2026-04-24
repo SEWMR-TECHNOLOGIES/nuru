@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional
 
 import pytz
-from fastapi import APIRouter, Depends, Body, Query
+from fastapi import APIRouter, Depends, Body, Query, File, Form, UploadFile
 from sqlalchemy import func as sa_func, or_, and_
 from sqlalchemy.orm import Session, joinedload
 
@@ -15,13 +15,14 @@ from core.database import get_db
 from models import (
     UserContributor, EventContributor, EventContribution,
     ContributionThankYouMessage,
-    Event, User, Currency,
+    Event, EventImage, User, Currency,
     EventCommitteeMember, CommitteePermission,
     PaymentMethodEnum, ContributionStatusEnum,
+    EventMessagingTemplate,
 )
 from utils.auth import get_current_user
 from utils.helpers import standard_response, format_phone_display
-from utils.validation_functions import validate_tanzanian_phone
+from utils.validation_functions import validate_phone_number
 
 EAT = pytz.timezone("Africa/Nairobi")
 
@@ -36,18 +37,46 @@ def _contributor_dict(c: UserContributor) -> dict:
     return {
         "id": str(c.id),
         "user_id": str(c.user_id),
+        "contributor_user_id": str(c.contributor_user_id) if c.contributor_user_id else None,
         "name": c.name,
         "email": c.email,
         "phone": c.phone,
         "notes": c.notes,
+        # Address-book defaults (comms-only). NEVER used to map a Nuru user.
+        "secondary_phone": getattr(c, "secondary_phone", None),
+        "notify_target": getattr(c, "notify_target", None) or "primary",
         "created_at": c.created_at.isoformat() if c.created_at else None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
     }
 
 
+def _normalize_phone_digits(phone: str) -> str:
+    """Return last 9 digits of a phone for cross-format matching."""
+    if not phone:
+        return ""
+    digits = "".join(ch for ch in phone if ch.isdigit())
+    return digits[-9:] if len(digits) >= 9 else digits
+
+
+def _find_user_by_phone(db: Session, phone: str):
+    """Find a registered Nuru User whose phone matches (last-9-digit comparison)."""
+    if not phone:
+        return None
+    target = _normalize_phone_digits(phone)
+    if not target:
+        return None
+    from sqlalchemy import func as _f
+    matches = db.query(User).filter(
+        User.phone.isnot(None),
+        _f.right(_f.regexp_replace(User.phone, r'[^0-9]', '', 'g'), 9) == target,
+    ).limit(1).all()
+    return matches[0] if matches else None
+
+
 def _event_contributor_dict(ec: EventContributor, show_recorder: bool = False) -> dict:
     total_paid = sum(float(c.amount or 0) for c in ec.contributions if c.confirmation_status is None or c.confirmation_status == ContributionStatusEnum.confirmed)
     pledge = float(ec.pledge_amount or 0)
+    has_link = bool(getattr(ec, "share_token_hash", None)) and not getattr(ec, "share_token_revoked_at", None)
     return {
         "id": str(ec.id),
         "event_id": str(ec.event_id),
@@ -55,11 +84,18 @@ def _event_contributor_dict(ec: EventContributor, show_recorder: bool = False) -
         "contributor": _contributor_dict(ec.contributor) if ec.contributor else None,
         "pledge_amount": pledge,
         "total_paid": total_paid,
-        "balance": max(0, pledge - total_paid),
+        "balance": max(0.0, pledge - total_paid),
         "notes": ec.notes,
+        # Secondary contact + notification routing (comms-only).
+        "secondary_phone": getattr(ec, "secondary_phone", None),
+        "notify_target": getattr(ec, "notify_target", None) or "primary",
+        "has_share_link": has_link,
+        "share_link_last_opened_at": ec.share_link_last_opened_at.isoformat() if getattr(ec, "share_link_last_opened_at", None) else None,
+        "share_link_sms_last_sent_at": ec.share_link_sms_last_sent_at.isoformat() if getattr(ec, "share_link_sms_last_sent_at", None) else None,
         "created_at": ec.created_at.isoformat() if ec.created_at else None,
         "updated_at": ec.updated_at.isoformat() if ec.updated_at else None,
     }
+
 
 
 def _get_event_access(db: Session, event_id, current_user) -> tuple:
@@ -139,6 +175,20 @@ def get_all_contributors(
     })
 
 
+# NOTE: Static routes (e.g. /my-contributions) MUST be registered BEFORE the
+# dynamic /{contributor_id} route, otherwise FastAPI captures them as a
+# contributor_id and returns "Invalid contributor ID". The actual handler for
+# /my-contributions lives further down in this file; we register a thin
+# forwarding route here so it wins the route-matching race.
+@router.get("/my-contributions")
+def my_contributions_early(
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return my_contributions(search=search, db=db, current_user=current_user)  # type: ignore[name-defined]
+
+
 @router.get("/{contributor_id}")
 def get_contributor(contributor_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
@@ -163,7 +213,7 @@ def create_contributor(body: dict = Body(...), db: Session = Depends(get_db), cu
     phone = (body.get("phone") or "").strip() or None
     if phone:
         try:
-            phone = validate_tanzanian_phone(phone)
+            phone = validate_phone_number(phone)
         except ValueError as e:
             return standard_response(False, str(e))
 
@@ -184,13 +234,33 @@ def create_contributor(body: dict = Body(...), db: Session = Depends(get_db), cu
     if existing_name:
         return standard_response(False, "A contributor with this name already exists")
 
+    # Auto-link to a registered Nuru user if their phone matches
+    linked_user = _find_user_by_phone(db, phone) if phone else None
+
+    nt = (body.get("notify_target") or "primary").strip().lower()
+    if nt not in ("primary", "secondary", "both"):
+        nt = "primary"
+
+    # Normalize secondary phone to international digits-only (no '+'),
+    # matching the primary phone storage convention. Prevents downstream
+    # WhatsApp / SMS gateways from receiving a stray '+'.
+    secondary_raw = (body.get("secondary_phone") or "").strip() or None
+    if secondary_raw:
+        try:
+            secondary_raw = validate_phone_number(secondary_raw)
+        except ValueError as e:
+            return standard_response(False, f"Secondary phone: {e}")
+
     c = UserContributor(
         id=uuid.uuid4(),
         user_id=current_user.id,
+        contributor_user_id=linked_user.id if linked_user else None,
         name=name,
         email=(body.get("email") or "").strip() or None,
         phone=phone,
         notes=(body.get("notes") or "").strip() or None,
+        secondary_phone=secondary_raw,
+        notify_target=nt,
         created_at=now,
         updated_at=now,
     )
@@ -228,7 +298,7 @@ def update_contributor(contributor_id: str, body: dict = Body(...), db: Session 
         phone_val = (body["phone"] or "").strip() or None
         if phone_val:
             try:
-                phone_val = validate_tanzanian_phone(phone_val)
+                phone_val = validate_phone_number(phone_val)
             except ValueError as e:
                 return standard_response(False, str(e))
             if phone_val != c.phone:
@@ -240,8 +310,22 @@ def update_contributor(contributor_id: str, body: dict = Body(...), db: Session 
                 if existing_phone:
                     return standard_response(False, f"Phone number {format_phone_display(phone_val)} is already used by contributor '{existing_phone.name}'")
         c.phone = phone_val
+        # Re-link to a registered Nuru user when phone changes
+        linked_user = _find_user_by_phone(db, phone_val) if phone_val else None
+        c.contributor_user_id = linked_user.id if linked_user else None
     if "notes" in body:
         c.notes = (body["notes"] or "").strip() or None
+    if "secondary_phone" in body:
+        sp = (body["secondary_phone"] or "").strip() or None
+        if sp:
+            try:
+                sp = validate_phone_number(sp)
+            except ValueError as e:
+                return standard_response(False, f"Secondary phone: {e}")
+        c.secondary_phone = sp
+    if "notify_target" in body:
+        nt = (body["notify_target"] or "primary").strip().lower()
+        c.notify_target = nt if nt in ("primary", "secondary", "both") else "primary"
 
     c.updated_at = datetime.now(EAT)
     db.commit()
@@ -422,7 +506,7 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
         inline_phone = (body.get("phone") or "").strip() or None
         if inline_phone:
             try:
-                inline_phone = validate_tanzanian_phone(inline_phone)
+                inline_phone = validate_phone_number(inline_phone)
             except ValueError as e:
                 return standard_response(False, str(e))
 
@@ -467,15 +551,39 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
     if existing:
         return standard_response(False, "This contributor is already added to this event")
 
+    # Fall back to address-book defaults when not explicitly provided.
+    # Always normalize an explicitly-provided secondary phone to international
+    # digits-only (no '+') so downstream WA/SMS senders don't choke.
+    raw_secondary = body.get("secondary_phone")
+    if raw_secondary is None:
+        ec_secondary = (getattr(contributor, "secondary_phone", None) or None)
+    else:
+        ec_secondary = (raw_secondary or "").strip() or None
+        if ec_secondary:
+            try:
+                ec_secondary = validate_phone_number(ec_secondary)
+            except ValueError as e:
+                return standard_response(False, f"Secondary phone: {e}")
+
+    raw_notify = body.get("notify_target")
+    if raw_notify is None:
+        ec_notify = (getattr(contributor, "notify_target", None) or "primary")
+    else:
+        ec_notify = (raw_notify or "primary").strip().lower()
+
     ec = EventContributor(
         id=uuid.uuid4(),
         event_id=eid,
         contributor_id=contributor.id,
         pledge_amount=body.get("pledge_amount", 0),
         notes=(body.get("notes") or "").strip() or None,
+        secondary_phone=ec_secondary,
+        notify_target=ec_notify,
         created_at=now,
         updated_at=now,
     )
+    if ec.notify_target not in ("primary", "secondary", "both"):
+        ec.notify_target = "primary"
     db.add(ec)
     db.commit()
 
@@ -485,21 +593,43 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
         joinedload(EventContributor.contributions),
     ).filter(EventContributor.id == ec.id).first()
 
-    # Send SMS when contributor is added with a pledge amount
+    # Auto-add this contributor to the event group workspace if one exists
+    try:
+        from api.routes.event_groups import ensure_member_for_contributor
+        ensure_member_for_contributor(db, eid, contributor)
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    # Send WhatsApp (primary) + SMS (fallback) when contributor is added with a pledge amount.
+    # Honour notify_target (primary | secondary | both) on the EventContributor.
     pledge_val = float(body.get("pledge_amount", 0))
-    if pledge_val > 0 and contributor.phone:
-        try:
-            from utils.sms import sms_contribution_target_set
+    if pledge_val > 0:
+        from utils.offline_claims import contributor_notify_phones
+        recipients = contributor_notify_phones(ec)
+        if recipients:
             currency = _currency_code(db, event)
             organizer = db.query(User).filter(User.id == event.organizer_id).first()
             organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
-            sms_contribution_target_set(
-                contributor.phone, contributor.name,
-                event.name, pledge_val, 0, currency,
-                organizer_phone=organizer_phone
-            )
-        except Exception:
-            pass
+            for ph in recipients:
+                try:
+                    from utils.whatsapp import wa_contribution_target_set
+                    wa_contribution_target_set(
+                        ph, contributor.name,
+                        event.name, pledge_val, 0, currency,
+                        organizer_phone=organizer_phone
+                    )
+                except Exception:
+                    pass
+                try:
+                    from utils.sms import sms_contribution_target_set
+                    sms_contribution_target_set(
+                        ph, contributor.name,
+                        event.name, pledge_val, 0, currency,
+                        organizer_phone=organizer_phone
+                    )
+                except Exception:
+                    pass
 
     return standard_response(True, "Contributor added to event", _event_contributor_dict(ec))
 
@@ -528,26 +658,55 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
         ec.pledge_amount = body["pledge_amount"]
     if "notes" in body:
         ec.notes = (body["notes"] or "").strip() or None
+    if "secondary_phone" in body:
+        sp = (body["secondary_phone"] or "").strip() or None
+        if sp:
+            try:
+                sp = validate_phone_number(sp)
+            except ValueError as e:
+                return standard_response(False, f"Secondary phone: {e}")
+        ec.secondary_phone = sp
+    if "notify_target" in body:
+        nt = (body["notify_target"] or "primary").strip().lower()
+        ec.notify_target = nt if nt in ("primary", "secondary", "both") else "primary"
 
     ec.updated_at = datetime.now(EAT)
     db.commit()
 
-    # Send SMS when pledge target is set/changed (use contributor.phone directly)
+    # Send WhatsApp (primary) + SMS (fallback) when pledge target is changed.
+    # Honour notify_target (primary | secondary | both) on the EventContributor.
     new_pledge = float(ec.pledge_amount or 0)
-    if new_pledge > 0 and new_pledge != old_pledge and ec.contributor and ec.contributor.phone:
-        try:
-            from utils.sms import sms_contribution_target_set
-            total_paid = sum(float(c.amount or 0) for c in ec.contributions)
+    if new_pledge > 0 and new_pledge != old_pledge and ec.contributor:
+        from utils.offline_claims import contributor_notify_phones
+        recipients = contributor_notify_phones(ec)
+        if recipients:
+            total_paid = sum(
+                float(c.amount or 0) for c in ec.contributions
+                if c.confirmation_status is None
+                or c.confirmation_status == ContributionStatusEnum.confirmed
+            )
             currency = _currency_code(db, event)
             organizer = db.query(User).filter(User.id == event.organizer_id).first()
             organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
-            sms_contribution_target_set(
-                ec.contributor.phone, ec.contributor.name,
-                event.name, new_pledge, total_paid, currency,
-                organizer_phone=organizer_phone
-            )
-        except Exception:
-            pass
+            for ph in recipients:
+                try:
+                    from utils.whatsapp import wa_contribution_target_set
+                    wa_contribution_target_set(
+                        ph, ec.contributor.name,
+                        event.name, new_pledge, total_paid, currency,
+                        organizer_phone=organizer_phone
+                    )
+                except Exception:
+                    pass
+                try:
+                    from utils.sms import sms_contribution_target_set
+                    sms_contribution_target_set(
+                        ph, ec.contributor.name,
+                        event.name, new_pledge, total_paid, currency,
+                        organizer_phone=organizer_phone
+                    )
+                except Exception:
+                    pass
 
     return standard_response(True, "Event contributor updated", _event_contributor_dict(ec))
 
@@ -644,25 +803,62 @@ def record_payment(event_id: str, ec_id: str, body: dict = Body(...), db: Sessio
     db.add(contribution)
     db.commit()
 
-    # Send SMS to contributor
-    contributor = ec.contributor
-    if contributor and contributor.phone:
+    # Post into event group workspace (if one exists). Best-effort.
+    # Only announce CONFIRMED contributions — pending committee submissions
+    # must wait for organiser approval before appearing in the group chat,
+    # otherwise members see contributions that may later be rejected.
+    if confirmation_status == ContributionStatusEnum.confirmed:
         try:
-            from utils.sms import sms_contribution_recorded
+            from api.routes.event_groups import post_payment_system_message
+            total_paid_after = sum(
+                float(c.amount or 0) for c in ec.contributions
+                if c.confirmation_status is None
+                or c.confirmation_status == ContributionStatusEnum.confirmed
+            )
+            pledge_amount = float(ec.pledge_amount or 0)
+            currency = _currency_code(db, event)
+            post_payment_system_message(
+                db, eid,
+                ec.contributor.name if ec.contributor else "Someone",
+                float(amount), pledge_amount, total_paid_after, currency,
+            )
+        except Exception:
+            pass
+
+    # Send WhatsApp (primary) + SMS (fallback) to contributor.
+    # Honour notify_target (primary | secondary | both) on the EventContributor.
+    contributor = ec.contributor
+    if contributor:
+        from utils.offline_claims import contributor_notify_phones
+        recipients = contributor_notify_phones(ec)
+        if recipients:
             total_paid = sum(float(c.amount or 0) for c in ec.contributions)
             pledge = float(ec.pledge_amount or 0)
             currency = _currency_code(db, event)
             organizer = db.query(User).filter(User.id == event.organizer_id).first()
             organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
             recorder_name = f"{current_user.first_name} {current_user.last_name}" if not is_creator else None
-            sms_contribution_recorded(
-                contributor.phone, contributor.name,
-                event.name, float(amount), pledge, total_paid, currency,
-                organizer_phone=organizer_phone,
-                recorder_name=recorder_name,
-            )
-        except Exception:
-            pass
+            for ph in recipients:
+                try:
+                    from utils.whatsapp import wa_contribution_recorded
+                    wa_contribution_recorded(
+                        ph, contributor.name,
+                        event.name, float(amount), pledge, total_paid, currency,
+                        organizer_phone=organizer_phone,
+                        recorder_name=recorder_name,
+                    )
+                except Exception:
+                    pass
+                try:
+                    from utils.sms import sms_contribution_recorded
+                    sms_contribution_recorded(
+                        ph, contributor.name,
+                        event.name, float(amount), pledge, total_paid, currency,
+                        organizer_phone=organizer_phone,
+                        recorder_name=recorder_name,
+                    )
+                except Exception:
+                    pass
 
     return standard_response(True, "Payment recorded", {
         "id": str(contribution.id),
@@ -694,18 +890,34 @@ def send_thank_you_sms(event_id: str, ec_id: str, body: dict = Body(default={}),
         return standard_response(False, "Event contributor not found")
 
     contributor = ec.contributor
-    if not contributor or not contributor.phone:
-        return standard_response(False, "Contributor has no phone number for SMS")
+    from utils.offline_claims import contributor_notify_phones
+    recipients = contributor_notify_phones(ec)
+    if not contributor or not recipients:
+        return standard_response(False, "Contributor has no phone number")
 
     custom_message = (body.get("custom_message") or "").strip()
-    try:
-        from utils.sms import sms_thank_you
-        organizer_phone = format_phone_display(current_user.phone) if current_user.phone else None
-        sms_thank_you(contributor.phone, contributor.name, event.name, custom_message, organizer_phone=organizer_phone)
-    except Exception as e:
-        return standard_response(False, f"Failed to send SMS: {str(e)}")
+    organizer_phone = format_phone_display(current_user.phone) if current_user.phone else None
 
-    return standard_response(True, "Thank you sent successfully", {"sent": True})
+    sms_failed = False
+    for ph in recipients:
+        # WhatsApp first
+        try:
+            from utils.whatsapp import wa_thank_you
+            wa_thank_you(ph, contributor.name, event.name, custom_message, organizer_phone=organizer_phone)
+        except Exception:
+            pass
+
+        # SMS fallback
+        try:
+            from utils.sms import sms_thank_you
+            sms_thank_you(ph, contributor.name, event.name, custom_message, organizer_phone=organizer_phone)
+        except Exception:
+            sms_failed = True
+
+    if sms_failed:
+        return standard_response(False, "We couldn't send the message. Please try again.")
+
+    return standard_response(True, "Thank you sent", {"sent": True})
 
 
 # ══════════════════════════════════════════════
@@ -766,7 +978,7 @@ def bulk_add_contributors(event_id: str, body: dict = Body(...), db: Session = D
 
         # Validate & format phone
         try:
-            phone = validate_tanzanian_phone(phone_raw)
+            phone = validate_phone_number(phone_raw)
         except ValueError:
             errors_list.append({"row": row_num, "message": f"Invalid phone for {name}: {phone_raw}"})
             continue
@@ -808,17 +1020,19 @@ def bulk_add_contributors(event_id: str, body: dict = Body(...), db: Session = D
                 ec.updated_at = now
                 action = "updated"
 
-                if send_sms and amount > 0 and amount != old_pledge and contributor.phone:
-                    try:
-                        from utils.sms import sms_contribution_target_set
-                        total_paid = sum(float(c.amount or 0) for c in ec.contributions)
-                        sms_contribution_target_set(
-                            contributor.phone, contributor.name,
-                            event.name, amount, total_paid, currency,
-                            organizer_phone=organizer_phone
-                        )
-                    except Exception:
-                        pass
+                if send_sms and amount > 0 and amount != old_pledge:
+                    from utils.offline_claims import contributor_notify_phones
+                    for ph in contributor_notify_phones(ec):
+                        try:
+                            from utils.sms import sms_contribution_target_set
+                            total_paid = sum(float(c.amount or 0) for c in ec.contributions)
+                            sms_contribution_target_set(
+                                ph, contributor.name,
+                                event.name, amount, total_paid, currency,
+                                organizer_phone=organizer_phone
+                            )
+                        except Exception:
+                            pass
             else:
                 ec = EventContributor(
                     id=uuid.uuid4(),
@@ -832,16 +1046,18 @@ def bulk_add_contributors(event_id: str, body: dict = Body(...), db: Session = D
                 db.flush()
                 action = "added"
 
-                if send_sms and amount > 0 and contributor.phone:
-                    try:
-                        from utils.sms import sms_contribution_target_set
-                        sms_contribution_target_set(
-                            contributor.phone, contributor.name,
-                            event.name, amount, 0, currency,
-                            organizer_phone=organizer_phone
-                        )
-                    except Exception:
-                        pass
+                if send_sms and amount > 0:
+                    from utils.offline_claims import contributor_notify_phones
+                    for ph in contributor_notify_phones(ec):
+                        try:
+                            from utils.sms import sms_contribution_target_set
+                            sms_contribution_target_set(
+                                ph, contributor.name,
+                                event.name, amount, 0, currency,
+                                organizer_phone=organizer_phone
+                            )
+                        except Exception:
+                            pass
 
         else:  # mode == "contributions"
             if not ec:
@@ -879,18 +1095,20 @@ def bulk_add_contributors(event_id: str, body: dict = Body(...), db: Session = D
                 )
                 db.add(contribution)
 
-                if send_sms and contributor.phone:
-                    try:
-                        from utils.sms import sms_contribution_recorded
-                        total_paid_so_far = sum(float(c.amount or 0) for c in ec.contributions) + amount
-                        pledge = float(ec.pledge_amount or 0)
-                        sms_contribution_recorded(
-                            contributor.phone, contributor.name,
-                            event.name, amount, pledge, total_paid_so_far, currency,
-                            organizer_phone=organizer_phone
-                        )
-                    except Exception:
-                        pass
+                if send_sms:
+                    from utils.offline_claims import contributor_notify_phones
+                    for ph in contributor_notify_phones(ec):
+                        try:
+                            from utils.sms import sms_contribution_recorded
+                            total_paid_so_far = sum(float(c.amount or 0) for c in ec.contributions) + amount
+                            pledge = float(ec.pledge_amount or 0)
+                            sms_contribution_recorded(
+                                ph, contributor.name,
+                                event.name, amount, pledge, total_paid_so_far, currency,
+                                organizer_phone=organizer_phone
+                            )
+                        except Exception:
+                            pass
 
             action = "recorded"
 
@@ -966,22 +1184,9 @@ def get_pending_contributions(event_id: str, db: Session = Depends(get_db), curr
         EventContribution.confirmation_status == ContributionStatusEnum.pending,
     ).order_by(EventContribution.created_at.desc()).all()
 
-    items = []
-    for c in pending:
-        ec = db.query(EventContributor).options(
-            joinedload(EventContributor.contributor),
-        ).filter(EventContributor.id == c.event_contributor_id).first()
-        recorder = db.query(User).filter(User.id == c.recorded_by).first() if c.recorded_by else None
-        items.append({
-            "id": str(c.id),
-            "contributor_name": ec.contributor.name if ec and ec.contributor else c.contributor_name,
-            "contributor_phone": ec.contributor.phone if ec and ec.contributor else None,
-            "amount": float(c.amount),
-            "payment_method": c.payment_method.value if c.payment_method else None,
-            "transaction_ref": c.transaction_ref,
-            "recorded_by": f"{recorder.first_name} {recorder.last_name}" if recorder else None,
-            "created_at": c.created_at.isoformat() if c.created_at else None,
-        })
+    from utils.batch_loaders import build_pending_contribution_dicts
+    # Organiser is the auditor of record — always include offline-claim audit fields.
+    items = build_pending_contribution_dicts(db, pending, include_status=False, include_audit=True)
 
     return standard_response(True, "Pending contributions fetched", {"contributions": items, "count": len(items)})
 
@@ -1008,22 +1213,11 @@ def get_my_recorded_contributions(event_id: str, db: Session = Depends(get_db), 
         EventContribution.recorded_by == current_user.id,
     ).order_by(EventContribution.created_at.desc()).all()
 
-    items = []
-    for c in contributions:
-        ec = db.query(EventContributor).options(
-            joinedload(EventContributor.contributor),
-        ).filter(EventContributor.id == c.event_contributor_id).first()
-        items.append({
-            "id": str(c.id),
-            "contributor_name": ec.contributor.name if ec and ec.contributor else c.contributor_name,
-            "contributor_phone": ec.contributor.phone if ec and ec.contributor else None,
-            "amount": float(c.amount),
-            "payment_method": c.payment_method.value if c.payment_method else None,
-            "transaction_ref": c.transaction_ref,
-            "confirmation_status": c.confirmation_status.value if c.confirmation_status else "confirmed",
-            "confirmed_at": c.confirmed_at.isoformat() if c.confirmed_at else None,
-            "created_at": c.created_at.isoformat() if c.created_at else None,
-        })
+    from utils.batch_loaders import build_pending_contribution_dicts
+    # Committee members with `can_manage_contributions` already see amounts;
+    # show full audit (channel, payer account, receipt) to them too.
+    can_audit = bool(perms and getattr(perms, "can_manage_contributions", False))
+    items = build_pending_contribution_dicts(db, contributions, include_status=True, include_audit=can_audit)
 
     return standard_response(True, "Your recorded contributions fetched", {"contributions": items, "count": len(items)})
 
@@ -1045,7 +1239,10 @@ def confirm_contributions(event_id: str, body: dict = Body(...), db: Session = D
         return standard_response(False, "No contribution IDs provided")
 
     now = datetime.now(EAT)
+    currency = _currency_code(db, event)
     confirmed_count = 0
+    notify_targets = []  # collect (phone, msg) tuples for after-commit dispatch
+
     for cid_str in ids:
         try:
             cid = uuid.UUID(cid_str)
@@ -1059,10 +1256,59 @@ def confirm_contributions(event_id: str, body: dict = Body(...), db: Session = D
         if c:
             c.confirmation_status = ContributionStatusEnum.confirmed
             c.confirmed_at = now
+            c.claim_reviewed_at = now
+            c.claim_reviewed_by = current_user.id
             c.updated_at = now
             confirmed_count += 1
 
+            # Approval notification — routed via secondary-phone helper.
+            ec = db.query(EventContributor).options(
+                joinedload(EventContributor.contributor),
+            ).filter(EventContributor.id == c.event_contributor_id).first()
+            if ec:
+                from utils.offline_claims import contributor_notify_phones
+                msg = (
+                    f"Hello {ec.contributor.name if ec.contributor else 'there'}, your contribution of "
+                    f"{currency} {float(c.amount):,.0f} for {event.name} has been "
+                    f"confirmed by the event organiser. Thank you!"
+                )
+                for phone in contributor_notify_phones(ec):
+                    notify_targets.append((phone, msg))
+
+                # Now that the contribution is approved, announce it in the
+                # event group chat. We deliberately skip this on initial
+                # submission so members never see contributions that may
+                # later be rejected.
+                try:
+                    from api.routes.event_groups import post_payment_system_message
+                    total_paid_after = sum(
+                        float(x.amount or 0) for x in ec.contributions
+                        if x.confirmation_status is None
+                        or x.confirmation_status == ContributionStatusEnum.confirmed
+                    )
+                    pledge_amount = float(ec.pledge_amount or 0)
+                    post_payment_system_message(
+                        db, eid,
+                        ec.contributor.name if ec.contributor else "Someone",
+                        float(c.amount or 0), pledge_amount,
+                        total_paid_after, currency,
+                    )
+                except Exception:
+                    pass
+
     db.commit()
+
+    # Fire WhatsApp + SMS-fallback notifications (best-effort, post-commit)
+    try:
+        from utils.notify_channels import notify_user_wa_sms
+        for phone, msg in notify_targets:
+            try:
+                notify_user_wa_sms(phone, msg)
+            except Exception as e:
+                print(f"[confirm-contributions] notify failed: {e}")
+    except Exception:
+        pass
+
     return standard_response(True, f"{confirmed_count} contributions confirmed", {"confirmed": confirmed_count})
 
 
@@ -1083,10 +1329,13 @@ def reject_contributions(event_id: str, body: dict = Body(...), db: Session = De
         return standard_response(False, "Only event creator can reject contributions")
 
     ids = body.get("contribution_ids", [])
+    reason = (body.get("rejection_reason") or "").strip() or None
+    delete_records = bool(body.get("delete", True))  # legacy default = delete
     if not ids:
         return standard_response(False, "No contribution IDs provided")
 
     currency = _currency_code(db, event)
+    now = datetime.now(EAT)
     rejected_count = 0
     for cid_str in ids:
         try:
@@ -1099,33 +1348,45 @@ def reject_contributions(event_id: str, body: dict = Body(...), db: Session = De
             EventContribution.confirmation_status == ContributionStatusEnum.pending,
         ).first()
         if c:
-            # Get contributor info for SMS
             ec = db.query(EventContributor).options(
                 joinedload(EventContributor.contributor),
             ).filter(EventContributor.id == c.event_contributor_id).first()
             recorder = db.query(User).filter(User.id == c.recorded_by).first() if c.recorded_by else None
             recorder_name = f"{recorder.first_name} {recorder.last_name}" if recorder else "a committee member"
 
-            # Send rejection SMS to contributor
-            if ec and ec.contributor and ec.contributor.phone:
+            # Notify contributor (routed via secondary-phone helper).
+            if ec:
                 try:
-                    from utils.sms import _send
+                    from utils.notify_channels import notify_user_wa_sms
+                    from utils.offline_claims import contributor_notify_phones
+                    why = f" Reason: {reason}." if reason else ""
                     msg = (
-                        f"Hello {ec.contributor.name}, "
-                        f"your contribution record of {currency} {float(c.amount):,.0f} for {event.name} "
-                        f"recorded by {recorder_name} has been removed by the event organizer "
-                        f"because the amount could not be verified. "
-                        f"If you believe this is an error, please contact the organizer directly."
+                        f"Hello {ec.contributor.name if ec.contributor else 'there'}, "
+                        f"a contribution record of {currency} {float(c.amount):,.0f} for {event.name} "
+                        f"recorded by {recorder_name} could not be verified by the event organiser.{why} "
+                        f"Please contact the organiser if you believe this is an error."
                     )
-                    _send(ec.contributor.phone, msg)
+                    for phone in contributor_notify_phones(ec):
+                        try:
+                            notify_user_wa_sms(phone, msg)
+                        except Exception:
+                            pass
                 except Exception:
                     pass
 
-            # Delete associated thank you message if any
-            db.query(ContributionThankYouMessage).filter(
-                ContributionThankYouMessage.contribution_id == cid
-            ).delete()
-            db.delete(c)
+            if delete_records:
+                # Delete associated thank-you message if any
+                db.query(ContributionThankYouMessage).filter(
+                    ContributionThankYouMessage.contribution_id == cid
+                ).delete()
+                db.delete(c)
+            else:
+                # Soft-reject: keep the row + audit trail, mark as rejected
+                c.confirmation_status = ContributionStatusEnum.rejected
+                c.claim_reviewed_at = now
+                c.claim_reviewed_by = current_user.id
+                c.claim_rejection_reason = reason
+                c.updated_at = now
             rejected_count += 1
 
     db.commit()
@@ -1270,14 +1531,16 @@ def get_contribution_report(
                     "balance": max(0, pledge - paid_in_range),
                 })
         else:
-            if paid_in_range > 0 or pledge > 0:
-                results.append({
-                    "name": ec.contributor.name if ec.contributor else "Unknown",
-                    "phone": ec.contributor.phone if ec.contributor else None,
-                    "pledged": pledge,
-                    "paid": paid_in_range,
-                    "balance": max(0, pledge - paid_in_range),
-                })
+            # Include ALL event contributors in unfiltered reports — even
+            # those with no pledge/target and no payments yet. Owners want
+            # the full roster on the PDF, not just active payers.
+            results.append({
+                "name": ec.contributor.name if ec.contributor else "Unknown",
+                "phone": ec.contributor.phone if ec.contributor else None,
+                "pledged": pledge,
+                "paid": paid_in_range,
+                "balance": max(0, pledge - paid_in_range),
+            })
 
     # Sort alphabetically
     results.sort(key=lambda r: r["name"])
@@ -1351,6 +1614,34 @@ def send_bulk_contributor_message(event_id: str, body: dict = Body(...), db: Ses
     if len(contributor_ids) > 1000:
         return standard_response(False, "Maximum 1000 recipients per batch")
 
+    # Persist the customisation per (event, case_type) so the organiser
+    # doesn't have to retype the message template, payment info or contact
+    # phone next time. Best-effort — never block the actual send.
+    if case_type in ("no_contribution", "partial", "completed"):
+        try:
+            tpl = db.query(EventMessagingTemplate).filter(
+                EventMessagingTemplate.event_id == eid,
+                EventMessagingTemplate.case_type == case_type,
+            ).first()
+            contact_phone_save = (body.get("contact_phone") or "").strip() or None
+            if tpl:
+                tpl.message_template = message_template
+                tpl.payment_info = payment_info or None
+                tpl.contact_phone = contact_phone_save
+                tpl.updated_by = current_user.id
+            else:
+                db.add(EventMessagingTemplate(
+                    event_id=eid,
+                    case_type=case_type,
+                    message_template=message_template,
+                    payment_info=payment_info or None,
+                    contact_phone=contact_phone_save,
+                    updated_by=current_user.id,
+                ))
+            db.commit()
+        except Exception:
+            db.rollback()
+
     # Fetch event contributors with their contributor details
     ec_uuids = []
     for cid in contributor_ids:
@@ -1395,11 +1686,18 @@ def send_bulk_contributor_message(event_id: str, body: dict = Body(...), db: Ses
                 lines = resolved.split("\n")
                 resolved = "\n".join(line for line in lines if "{payment}" not in line)
 
-        # Append inquiry/contact line with organizer phone
-        organizer = db.query(User).filter(User.id == event.organizer_id).first()
-        organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
-        if organizer_phone:
-            resolved += f"\nKwa maulizo, wasiliana nasi kupitia: {organizer_phone}\nAsante."
+        # Resolve contact phone for the inquiry footer:
+        #   1. Per-send override from body.contact_phone (highest priority)
+        #   2. Per-event default event.reminder_contact_phone
+        #   3. Event organiser's phone (legacy fallback)
+        override_phone = (body.get("contact_phone") or "").strip() or None
+        contact_phone_raw = override_phone or event.reminder_contact_phone or None
+        if not contact_phone_raw:
+            organizer = db.query(User).filter(User.id == event.organizer_id).first()
+            contact_phone_raw = organizer.phone if organizer and organizer.phone else None
+        contact_phone_display = format_phone_display(contact_phone_raw) if contact_phone_raw else None
+        if contact_phone_display:
+            resolved += f"\nKwa maulizo, wasiliana nasi kupitia: {contact_phone_display}\nAsante."
 
         resolved = resolved.strip()
 
@@ -1414,4 +1712,676 @@ def send_bulk_contributor_message(event_id: str, body: dict = Body(...), db: Ses
         "sent": sent,
         "failed": failed,
         "errors": errors[:20],  # Limit error details
+    })
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MY CONTRIBUTIONS — events where the logged-in user is listed as a contributor
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/my-contributions")
+def my_contributions(
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Return all events where the logged-in user is recorded as a contributor
+    (matched via UserContributor.contributor_user_id OR phone-equivalence
+    backfill), with pledge / paid / balance / pending totals per event.
+    """
+    # 1. Find every user_contributors row that points to the current user.
+    #    We match on contributor_user_id (preferred) AND on phone equivalence
+    #    (covers legacy rows where the FK wasn't set yet).
+    me_phone_digits = _normalize_phone_digits(current_user.phone) if getattr(current_user, "phone", None) else ""
+
+    q = db.query(UserContributor).filter(UserContributor.contributor_user_id == current_user.id)
+    contributors = q.all()
+
+    if me_phone_digits:
+        from sqlalchemy import func as _f
+        legacy = db.query(UserContributor).filter(
+            UserContributor.contributor_user_id.is_(None),
+            UserContributor.phone.isnot(None),
+            _f.right(_f.regexp_replace(UserContributor.phone, r'[^0-9]', '', 'g'), 9) == me_phone_digits,
+        ).all()
+        # Opportunistically backfill the FK so future queries are fast.
+        if legacy:
+            for c in legacy:
+                c.contributor_user_id = current_user.id
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+        contributors.extend(legacy)
+
+    if not contributors:
+        return standard_response(True, "No contributions found", {"events": [], "count": 0})
+
+    contributor_ids = [c.id for c in contributors]
+
+    # 2. Fetch every EventContributor row for those contributors, joined with
+    #    the event and contributions.
+    ecs = db.query(EventContributor).options(
+        joinedload(EventContributor.event),
+        joinedload(EventContributor.contributions),
+    ).filter(EventContributor.contributor_id.in_(contributor_ids)).all()
+
+    results = []
+    for ec in ecs:
+        event = ec.event
+        if not event:
+            continue
+        currency = _currency_code(db, event)
+        pledge = float(ec.pledge_amount or 0)
+        paid = sum(
+            float(c.amount or 0)
+            for c in ec.contributions
+            if c.confirmation_status is None or c.confirmation_status == ContributionStatusEnum.confirmed
+        )
+        pending = sum(
+            float(c.amount or 0)
+            for c in ec.contributions
+            if c.confirmation_status == ContributionStatusEnum.pending
+        )
+        organizer = db.query(User).filter(User.id == event.organizer_id).first()
+
+        cover = event.cover_image_url
+        if not cover:
+            featured = (
+                db.query(EventImage)
+                .filter(EventImage.event_id == event.id)
+                .order_by(EventImage.is_featured.desc(), EventImage.created_at.asc())
+                .first()
+            )
+            if featured:
+                cover = featured.image_url
+
+        results.append({
+            "event_id": str(event.id),
+            "event_name": event.name,
+            "event_cover_image_url": cover,
+            "event_start_date": event.start_date.isoformat() if event.start_date else None,
+            "event_location": event.location,
+            "organizer_name": f"{organizer.first_name} {organizer.last_name}".strip() if organizer else None,
+            "event_contributor_id": str(ec.id),
+            "currency": currency,
+            "pledge_amount": pledge,
+            "total_paid": paid,
+            "pending_amount": pending,
+            "balance": max(0, pledge - paid - pending),
+            "last_payment_at": max(
+                (c.contributed_at for c in ec.contributions if c.contributed_at),
+                default=None,
+            ).isoformat() if any(c.contributed_at for c in ec.contributions) else None,
+        })
+
+    # Sort by upcoming event date asc, then by name
+    results.sort(key=lambda r: (r["event_start_date"] or "9999", r["event_name"] or ""))
+
+    if search:
+        term = search.strip().lower()
+        results = [
+            r for r in results
+            if term in (r.get("event_name") or "").lower()
+            or term in (r.get("event_location") or "").lower()
+            or term in (r.get("organizer_name") or "").lower()
+        ]
+
+    return standard_response(True, "My contributions fetched", {
+        "events": results,
+        "count": len(results),
+    })
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Per-event saved messaging templates (composer customisations)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.get("/events/{event_id}/messaging-templates")
+def get_messaging_templates(
+    event_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return saved customisations keyed by case_type for this event.
+
+    Response shape: ``{ templates: { no_contribution: {...}, partial: {...}, completed: {...} } }``
+    Only the event creator or an active committee member may read.
+    """
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID")
+
+    event = db.query(Event).filter(Event.id == eid).first()
+    if not event:
+        return standard_response(False, "Event not found")
+
+    is_creator = str(event.organizer_id) == str(current_user.id)
+    if not is_creator:
+        member = db.query(EventCommitteeMember).filter(
+            EventCommitteeMember.event_id == eid,
+            EventCommitteeMember.user_id == current_user.id,
+            EventCommitteeMember.status == "active",
+        ).first()
+        if not member:
+            return standard_response(False, "Not authorized", status_code=403)
+
+    rows = db.query(EventMessagingTemplate).filter(
+        EventMessagingTemplate.event_id == eid
+    ).all()
+    templates = {}
+    for r in rows:
+        templates[r.case_type] = {
+            "message_template": r.message_template,
+            "payment_info": r.payment_info,
+            "contact_phone": r.contact_phone,
+            "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+        }
+    return standard_response(True, "OK", {"templates": templates})
+
+
+@router.put("/events/{event_id}/messaging-templates/{case_type}")
+def upsert_messaging_template(
+    event_id: str,
+    case_type: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Manually save (without sending) a per-event messaging customisation.
+
+    Use this when the organiser tweaks the template and wants to persist the
+    change without actually sending. The send endpoint also auto-saves.
+    """
+    if case_type not in ("no_contribution", "partial", "completed"):
+        return standard_response(False, "Invalid case_type")
+
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID")
+
+    event = db.query(Event).filter(Event.id == eid).first()
+    if not event:
+        return standard_response(False, "Event not found")
+
+    is_creator = str(event.organizer_id) == str(current_user.id)
+    if not is_creator:
+        member = db.query(EventCommitteeMember).filter(
+            EventCommitteeMember.event_id == eid,
+            EventCommitteeMember.user_id == current_user.id,
+            EventCommitteeMember.status == "active",
+        ).first()
+        if not member:
+            return standard_response(False, "Not authorized", status_code=403)
+
+    message_template = (body.get("message_template") or "").strip() or None
+    payment_info = (body.get("payment_info") or "").strip() or None
+    contact_phone = (body.get("contact_phone") or "").strip() or None
+
+    tpl = db.query(EventMessagingTemplate).filter(
+        EventMessagingTemplate.event_id == eid,
+        EventMessagingTemplate.case_type == case_type,
+    ).first()
+
+    if tpl:
+        tpl.message_template = message_template
+        tpl.payment_info = payment_info
+        tpl.contact_phone = contact_phone
+        tpl.updated_by = current_user.id
+    else:
+        tpl = EventMessagingTemplate(
+            event_id=eid,
+            case_type=case_type,
+            message_template=message_template,
+            payment_info=payment_info,
+            contact_phone=contact_phone,
+            updated_by=current_user.id,
+        )
+        db.add(tpl)
+    db.commit()
+    db.refresh(tpl)
+
+    return standard_response(True, "Saved", {
+        "case_type": case_type,
+        "message_template": tpl.message_template,
+        "payment_info": tpl.payment_info,
+        "contact_phone": tpl.contact_phone,
+    })
+
+
+@router.post("/events/{event_id}/self-contribute")
+async def self_contribute(
+    event_id: str,
+    # Backwards compatible: accept either JSON body OR multipart/form-data.
+    # Multipart unlocks the new offline-claim audit fields + receipt image.
+    amount: Optional[float] = Form(None),
+    payment_reference: Optional[str] = Form(None),
+    note: Optional[str] = Form(None),
+    payment_channel: Optional[str] = Form(None),     # mobile_money | bank
+    provider_id: Optional[str] = Form(None),
+    provider_name: Optional[str] = Form(None),
+    payer_account: Optional[str] = Form(None),
+    transaction_code: Optional[str] = Form(None),
+    receipt_image: Optional[UploadFile] = File(None),
+    body: Optional[dict] = Body(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """A logged-in contributor records a pending payment for an event.
+
+    Two intake modes:
+      * JSON `{ amount, payment_reference?, note? }` — legacy quick path.
+      * multipart/form-data with `payment_channel`, `transaction_code`,
+        optional `receipt_image` etc. — full offline-claim audit trail.
+    Status is always `pending`; the organiser approves/rejects later.
+    """
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID")
+
+    # Merge JSON body fallback (when caller posts JSON instead of form)
+    if body:
+        amount = amount if amount is not None else body.get("amount")
+        payment_reference = payment_reference or body.get("payment_reference")
+        note = note or body.get("note")
+        payment_channel = payment_channel or body.get("payment_channel")
+        provider_id = provider_id or body.get("provider_id")
+        provider_name = provider_name or body.get("provider_name")
+        payer_account = payer_account or body.get("payer_account")
+        transaction_code = transaction_code or body.get("transaction_code")
+
+    try:
+        amount_val = float(amount or 0)
+    except (TypeError, ValueError):
+        return standard_response(False, "Invalid amount")
+    if amount_val <= 0:
+        return standard_response(False, "Amount must be greater than zero")
+
+    payment_reference = (payment_reference or "").strip() or None
+    note = (note or "").strip() or None
+    transaction_code = (transaction_code or "").strip() or None
+    payer_account = (payer_account or "").strip() or None
+    provider_name = (provider_name or "").strip() or None
+    pc = (payment_channel or "").strip().lower() or None
+    if pc and pc not in ("mobile_money", "bank"):
+        return standard_response(False, "payment_channel must be 'mobile_money' or 'bank'")
+
+    provider_uuid = None
+    if provider_id:
+        try:
+            provider_uuid = uuid.UUID(provider_id)
+        except ValueError:
+            return standard_response(False, "Invalid provider_id")
+
+    event = db.query(Event).filter(Event.id == eid).first()
+    if not event:
+        return standard_response(False, "Event not found")
+
+    # Locate the EventContributor row for this user (id link, then phone fallback).
+    me_phone_digits = _normalize_phone_digits(current_user.phone) if getattr(current_user, "phone", None) else ""
+    contributor_q = db.query(UserContributor).filter(
+        UserContributor.contributor_user_id == current_user.id,
+    )
+    candidates = {str(c.id): c for c in contributor_q.all()}
+    if me_phone_digits:
+        from sqlalchemy import func as _f
+        more = db.query(UserContributor).filter(
+            UserContributor.phone.isnot(None),
+            _f.right(_f.regexp_replace(UserContributor.phone, r'[^0-9]', '', 'g'), 9) == me_phone_digits,
+        ).all()
+        for c in more:
+            candidates[str(c.id)] = c
+    if not candidates:
+        return standard_response(False, "You are not listed as a contributor for any event", status_code=403)
+
+    ec = db.query(EventContributor).filter(
+        EventContributor.event_id == eid,
+        EventContributor.contributor_id.in_([c.id for c in candidates.values()]),
+    ).first()
+    if not ec:
+        return standard_response(False, "You are not listed as a contributor for this event", status_code=403)
+
+    contributor = ec.contributor
+
+    # Optional receipt image upload (validated: image-only, ≤5 MB).
+    receipt_url = None
+    if receipt_image and getattr(receipt_image, "filename", None):
+        from utils.offline_claims import upload_receipt_image
+        ok, msg, url = await upload_receipt_image(receipt_image)
+        if not ok:
+            return standard_response(False, msg)
+        receipt_url = url
+
+    contact = {}
+    if getattr(current_user, "phone", None):
+        contact["phone"] = current_user.phone
+    if getattr(current_user, "email", None):
+        contact["email"] = current_user.email
+
+    contributor_name = contributor.name if contributor else f"{current_user.first_name} {current_user.last_name}".strip()
+    now = datetime.now(EAT)
+
+    # Use transaction_code as the canonical reference when given.
+    txn_ref = transaction_code or payment_reference
+
+    # Idempotency / gateway dedupe:
+    # When the contributor pays via the gateway (SasaPay etc.), the payments
+    # webhook (payments.py) already inserts a CONFIRMED EventContribution keyed
+    # by transaction_ref. The web/mobile UI then ALSO posts here with the same
+    # `payment_reference` (= gateway transaction_code) — without this guard we
+    # would create a duplicate row in `pending` state, polluting the organiser's
+    # approval queue with payments that are already settled. Detect that case
+    # and short-circuit, returning the already-confirmed record.
+    if txn_ref:
+        existing = db.query(EventContribution).filter(
+            EventContribution.event_id == eid,
+            EventContribution.transaction_ref == txn_ref,
+        ).first()
+        if existing:
+            return standard_response(True, "Contribution already recorded", {
+                "contribution_id": str(existing.id),
+                "amount": float(existing.amount or 0),
+                "status": (
+                    "confirmed"
+                    if existing.confirmation_status == ContributionStatusEnum.confirmed
+                    else "pending"
+                ),
+                "deduped": True,
+            })
+
+    # Offline claims (no gateway proof) stay pending for organiser review.
+    # Anything submitted via this endpoint without a matching gateway txn is
+    # treated as an "I already paid another way" claim.
+    contribution = EventContribution(
+        id=uuid.uuid4(),
+        event_id=eid,
+        event_contributor_id=ec.id,
+        contributor_name=contributor_name,
+        contributor_contact=contact or None,
+        amount=amount_val,
+        payment_method=None,
+        transaction_ref=txn_ref,
+        recorded_by=current_user.id,
+        payment_channel=pc,
+        provider_id=provider_uuid,
+        provider_name=provider_name,
+        payer_account=payer_account,
+        receipt_image_url=receipt_url,
+        claim_submitted_at=now,
+        confirmation_status=ContributionStatusEnum.pending,
+        contributed_at=now,
+    )
+    db.add(contribution)
+    db.commit()
+    db.refresh(contribution)
+
+    # In-app notification to organiser
+    try:
+        from utils.notify import notify_contribution_pending
+        currency = _currency_code(db, event)
+        notify_contribution_pending(
+            db,
+            recipient_id=event.organizer_id,
+            sender_id=current_user.id,
+            event_id=str(eid),
+            event_title=event.name,
+            contributor_name=contributor_name,
+            amount=amount_val,
+            currency=currency,
+        )
+        db.commit()
+    except Exception as e:
+        print(f"[self-contribute] in-app notify failed: {e}")
+
+    # SMS/WA to organiser
+    try:
+        organizer = db.query(User).filter(User.id == event.organizer_id).first()
+        if organizer and organizer.phone:
+            from utils.notify_channels import notify_user_wa_sms
+            currency = _currency_code(db, event)
+            extra = f" via {pc.replace('_', ' ')}" if pc else ""
+            org_msg = (
+                f"Hello {organizer.first_name}, {contributor_name} just submitted a "
+                f"contribution of {currency} {amount_val:,.0f}{extra} for {event.name}. "
+                f"Open Nuru to confirm or reject this entry."
+            )
+            notify_user_wa_sms(organizer.phone, org_msg)
+    except Exception as e:
+        print(f"[self-contribute] organiser notify failed: {e}")
+
+    return standard_response(True, "Contribution submitted for approval", {
+        "contribution_id": str(contribution.id),
+        "amount": amount_val,
+        "status": "pending",
+        "receipt_image_url": receipt_url,
+    })
+
+
+# ══════════════════════════════════════════════
+# SHARE LINK — let organiser hand a contributor a public payment URL
+# ══════════════════════════════════════════════
+
+def _ensure_can_manage(db: Session, event_id, current_user) -> Event:
+    """Resolve the event and verify the caller can manage contributors."""
+    event, is_creator, _cm, perms = _get_event_access(db, event_id, current_user)
+    if not event:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Event not found.")
+    if not (is_creator or (perms and getattr(perms, "can_manage_contributions", False))):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="You don't have permission to manage contributors here.")
+    return event
+
+
+@router.post("/events/{event_id}/contributors/{ec_id}/share-link")
+def generate_share_link(
+    event_id: str,
+    ec_id: str,
+    body: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate (or regenerate) a public payment URL for one contributor.
+
+    Body (optional): ``{ "regenerate": true }`` — if a token already exists
+    we return the existing URL only when the caller explicitly re-issues.
+    The plain token is returned ONCE; we never expose it again.
+    """
+    from services.share_links import (
+        issue_share_token, build_share_url, host_for_currency,
+        can_send_sms_for_currency,
+    )
+    from fastapi import HTTPException
+
+    event = _ensure_can_manage(db, event_id, current_user)
+    try:
+        ec_uuid = uuid.UUID(ec_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid contributor id.")
+    ec = (
+        db.query(EventContributor)
+        .filter(EventContributor.id == ec_uuid, EventContributor.event_id == event.id)
+        .first()
+    )
+    if not ec:
+        raise HTTPException(status_code=404, detail="Contributor not found on this event.")
+
+    regenerate = bool(body.get("regenerate"))
+    if not regenerate and ec.share_token_hash and not ec.share_token_revoked_at:
+        # Already has a live token — but we don't know the plain text.
+        # Force a regenerate so the host actually receives a usable URL.
+        regenerate = True
+
+    plain = issue_share_token(db, ec)
+    db.commit()
+    db.refresh(ec)
+
+    currency_code = _currency_code(db, event)
+    url = build_share_url(currency_code, plain)
+    return standard_response(True, "Payment link ready.", {
+        "url": url,
+        "host": host_for_currency(currency_code),
+        "currency_code": currency_code,
+        "expires_at": ec.share_token_expires_at.isoformat() if ec.share_token_expires_at else None,
+        "sms_supported": can_send_sms_for_currency(currency_code),
+    })
+
+
+@router.post("/events/{event_id}/contributors/{ec_id}/send-share-sms")
+def send_share_sms(
+    event_id: str,
+    ec_id: str,
+    body: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Send the share link to the contributor's phone via SMS (TZ only for now)."""
+    from services.share_links import (
+        issue_share_token, build_share_url, can_send_sms_for_currency,
+    )
+    from utils.sms import sms_guest_contribution_invite
+    from fastapi import HTTPException
+
+    event = _ensure_can_manage(db, event_id, current_user)
+    try:
+        ec_uuid = uuid.UUID(ec_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid contributor id.")
+    ec = (
+        db.query(EventContributor)
+        .options(joinedload(EventContributor.contributor))
+        .filter(EventContributor.id == ec_uuid, EventContributor.event_id == event.id)
+        .first()
+    )
+    if not ec or not ec.contributor:
+        raise HTTPException(status_code=404, detail="Contributor not found on this event.")
+
+    contributor = ec.contributor
+    if not contributor.phone:
+        raise HTTPException(status_code=400, detail="This contributor doesn't have a phone number.")
+
+    currency_code = _currency_code(db, event)
+    if not can_send_sms_for_currency(currency_code):
+        return standard_response(False, "SMS isn't available for this country yet — please copy the link instead.", {
+            "sms_supported": False,
+        })
+
+    # Always re-issue so the SMS contains a guaranteed-valid token. (We never
+    # have the plain text of an old token in DB, so we couldn't reuse it
+    # anyway.) The previous token becomes invalid — desired for security.
+    plain = issue_share_token(db, ec)
+    url = build_share_url(currency_code, plain)
+    organiser = db.query(User).filter(User.id == event.organizer_id).first()
+    organiser_name = (
+        " ".join(p for p in [getattr(organiser, "first_name", None), getattr(organiser, "last_name", None)] if p).strip()
+        or "Your host"
+    )
+
+    sms_guest_contribution_invite(
+        phone=contributor.phone,
+        contributor_name=contributor.name or "there",
+        organiser_name=organiser_name,
+        event_title=event.name or "the event",
+        pledge_amount=float(ec.pledge_amount or 0),
+        currency=currency_code,
+        payment_url=url,
+    )
+    ec.share_link_sms_last_sent_at = datetime.utcnow()
+    db.commit()
+    return standard_response(True, "Payment link sent by SMS.", {
+        "url": url,
+        "sms_supported": True,
+    })
+
+
+@router.post("/events/{event_id}/contributors/{ec_id}/revoke-share-link")
+def revoke_share_link(
+    event_id: str,
+    ec_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Invalidate the existing public link without removing the contributor."""
+    from fastapi import HTTPException
+    event = _ensure_can_manage(db, event_id, current_user)
+    try:
+        ec_uuid = uuid.UUID(ec_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid contributor id.")
+    ec = (
+        db.query(EventContributor)
+        .filter(EventContributor.id == ec_uuid, EventContributor.event_id == event.id)
+        .first()
+    )
+    if not ec:
+        raise HTTPException(status_code=404, detail="Contributor not found on this event.")
+    ec.share_token_revoked_at = datetime.utcnow()
+    db.commit()
+    return standard_response(True, "Payment link disabled.")
+
+
+# ══════════════════════════════════════════════
+# SECONDARY PHONE — comms-only routing for an event contributor
+# ══════════════════════════════════════════════
+
+@router.post("/events/{event_id}/contributors/{ec_id}/secondary-phone")
+def set_secondary_phone(
+    event_id: str,
+    ec_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Set/clear an event contributor's secondary phone + notify_target.
+
+    Body: { secondary_phone?: str|null, notify_target: 'primary'|'secondary'|'both' }
+
+    The secondary phone is purely a comms address — never used to map a
+    Nuru user account or affect existing contributor functionality.
+    """
+    try:
+        eid = uuid.UUID(event_id)
+        ecid = uuid.UUID(ec_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+
+    event, is_creator, cm, perms = _get_event_access(db, eid, current_user)
+    if not event or (not is_creator and not (cm and perms and perms.can_manage_contributions)):
+        return standard_response(False, "Event not found or access denied")
+
+    ec = db.query(EventContributor).filter(
+        EventContributor.id == ecid, EventContributor.event_id == eid,
+    ).first()
+    if not ec:
+        return standard_response(False, "Event contributor not found")
+
+    if "secondary_phone" in body:
+        raw = (body.get("secondary_phone") or "").strip()
+        if raw:
+            try:
+                raw = validate_phone_number(raw)
+            except ValueError as e:
+                return standard_response(False, str(e))
+            ec.secondary_phone = raw
+        else:
+            ec.secondary_phone = None
+
+    nt = (body.get("notify_target") or "").strip().lower()
+    if nt:
+        if nt not in ("primary", "secondary", "both"):
+            return standard_response(False, "notify_target must be primary, secondary or both")
+        ec.notify_target = nt
+
+    # Sanity: 'secondary' / 'both' require a secondary phone to be set
+    if ec.notify_target in ("secondary", "both") and not ec.secondary_phone:
+        return standard_response(False, "Secondary phone is required for the chosen notify target")
+
+    ec.updated_at = datetime.now(EAT)
+    db.commit()
+    return standard_response(True, "Notification preference updated", {
+        "secondary_phone": ec.secondary_phone,
+        "notify_target": ec.notify_target,
     })

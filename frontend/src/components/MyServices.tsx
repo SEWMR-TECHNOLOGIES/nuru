@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import { Star, CheckCircle, Users, Plus, Edit, Loader2, Camera, MapPin, ChevronRight, BookOpen, Upload, Trash2, X, Music } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import CalendarSVG from '@/assets/icons/calendar-icon.svg';
@@ -23,6 +23,9 @@ import { toast } from 'sonner';
 import { showApiErrors, showCaughtError } from '@/lib/api';
 import { userServicesApi } from '@/lib/api';
 import type { ServiceReview } from '@/lib/api/types';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
+import SearchHeader from '@/components/ui/search-header';
+import MigrationBanner from '@/components/migration/MigrationBanner';
 
 // Detect if a service is photography type
 const isPhotographyService = (service: any): boolean => {
@@ -31,13 +34,16 @@ const isPhotographyService = (service: any): boolean => {
 };
 
 const MyServices = () => {
+  const { format: formatPrice, currency } = useCurrency();
+  const { t } = useLanguage();
   useWorkspaceMeta({
     title: 'My Services',
     description: 'Manage your service offerings, track performance, and connect with event organizers.'
   });
 
   const navigate = useNavigate();
-  const { services, summary, recentReviews, loading, error, refetch } = useUserServices();
+  const [search, setSearch] = useState('');
+  const { services, summary, recentReviews, loading, error, refetch } = useUserServices(search);
 
   const reviews = (recentReviews || []).map((r: any) => ({
     id: r.id,
@@ -219,21 +225,29 @@ const MyServices = () => {
   const getCategoryName = (service: any): string => service.category || service.service_category?.name || 'Uncategorized';
   const getServiceTypeName = (service: any): string => service.service_type_name || service.service_type?.name || '';
 
-  if (loading) return <ServiceLoadingSkeleton />;
+  if (loading && !search) return <ServiceLoadingSkeleton />;
   if (error) return <p className="text-destructive">{error}</p>;
 
   return (
     <div className="space-y-8">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">My Services</h1>
-          <p className="text-muted-foreground mt-1">Your professional portfolio on Nuru</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight break-words leading-tight">{t("my_services")}</h1>
+          <p className="text-sm text-muted-foreground mt-1">Your professional portfolio on Nuru</p>
         </div>
-        <Button size="lg" className="shadow-md" onClick={() => navigate('/services/new')}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add New Service
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <SearchHeader
+            value={search}
+            onChange={setSearch}
+            placeholder="Search your services…"
+          />
+          <Button size="lg" className="shadow-md flex-1 sm:flex-none" onClick={() => navigate('/services/new')}>
+            <Plus className="w-4 h-4 mr-2" />
+            <span className="hidden sm:inline">Add New Service</span>
+            <span className="sm:hidden">Add Service</span>
+          </Button>
+        </div>
       </div>
 
       {/* Stats Row */}
@@ -568,8 +582,8 @@ const MyServices = () => {
               <Textarea value={packageForm.description} onChange={(e) => setPackageForm(f => ({ ...f, description: e.target.value }))} placeholder="Brief description..." rows={2} />
             </div>
             <div className="space-y-2">
-              <Label>Price (TZS)</Label>
-              <Input type="number" min="0" value={packageForm.price} onChange={(e) => setPackageForm(f => ({ ...f, price: e.target.value }))} placeholder="e.g. 150000" />
+              <Label>Price ({currency})</Label>
+              <Input type="number" min="0" value={packageForm.price} onChange={(e) => setPackageForm(f => ({ ...f, price: e.target.value }))} placeholder={currency === "KES" ? "e.g. 6000" : "e.g. 150000"} />
             </div>
             <div className="space-y-2">
               <Label>Features (comma-separated)</Label>

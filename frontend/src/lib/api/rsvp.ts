@@ -3,7 +3,7 @@
  */
 import type { ApiResponse } from "./types";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://api.nuru.tz/api/v1";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
 async function publicRequest<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
   const url = `${BASE_URL}${endpoint}`;
@@ -42,6 +42,9 @@ export interface RSVPData {
     end_date: string | null;
     end_time: string | null;
     location: string | null;
+    venue: string | null;
+    venue_address: string | null;
+    venue_coordinates: { latitude: number; longitude: number } | null;
     dress_code: string | null;
     special_instructions: string | null;
     image_url: string | null;

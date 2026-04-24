@@ -1,46 +1,69 @@
-import Layout from "@/components/layout/Layout";
-import FeatureHero from "@/components/features/FeatureHero";
-import FeatureGrid from "@/components/features/FeatureGrid";
-import FeatureStatement from "@/components/features/FeatureStatement";
-import illustrationImg from "@/assets/illustration-invitations.jpg";
+import EditorialFeaturePage from "@/components/features/EditorialFeaturePage";
 import { useMeta } from "@/hooks/useMeta";
 
 const Invitations = () => {
-  const features = [
-    { title: "Beautiful templates", description: "Customizable designs that match your event's style" },
-    { title: "RSVP tracking", description: "Real-time response monitoring with automatic reminders" },
-    { title: "Guest preferences", description: "Collect dietary requirements and special requests" },
-    { title: "Multi-channel delivery", description: "Send via email, SMS, or shareable links" },
-    { title: "Live analytics", description: "See who viewed, opened, and responded" },
-    { title: "Easy exports", description: "Download guest data anytime in any format" }
-  ];
-
   useMeta({
-    title: "Digital Invitations",
-    description: "Design beautiful digital invitations, manage RSVPs, and track guest engagement in real time."
+    title: "Digital Invitations & RSVP | Nuru",
+    description:
+      "Send personalised digital invitations across SMS, WhatsApp, email and short links. Track RSVPs in real time. Send reminders. Manage seating and dietary notes.",
   });
 
   return (
-    <Layout>
-      <FeatureHero
-        title="Invites that make responding easy"
-        description="Create digital invitations that look great on any device and make RSVP management simple."
-        imageSrc={illustrationImg}
-        imageAlt="Digital Invitations"
-        imagePosition="right"
-      />
-
-      <FeatureGrid
-        title="More than just invitations"
-        subtitle="Our invitation system handles everything from design to delivery to response tracking."
-        items={features}
-        variant="cards"
-      />
-
-      <FeatureStatement
-        statement="Every guest deserves a warm welcome. Beautiful invitations set the tone for memorable gatherings."
-      />
-    </Layout>
+    <EditorialFeaturePage
+      kicker="Service · 03 — Invitations"
+      title="Invitations that arrive — and reply."
+      lead="Beautiful, personalised invitations delivered through SMS, WhatsApp, email or a unique short link. Each guest gets their own page. Each RSVP lands in your dashboard, instantly."
+      specs={[
+        { label: "Channels", value: "SMS · WA · Email · Link" },
+        { label: "Personalisation", value: "Per guest" },
+        { label: "Tracking", value: "Real-time" },
+        { label: "Cost", value: "Per delivery" },
+      ]}
+      sections={[
+        {
+          title: "Personal at scale.",
+          lead: "Each invitation is unique to the guest — their name, table, dress code, programme, and a one-tap RSVP. No more group blasts.",
+          bullets: [
+            "Personalised guest landing pages.",
+            "Multi-language SMS and WhatsApp.",
+            "Built-in design templates by event type.",
+            "Add programme, map and dress code.",
+            "Plus-ones and dietary preferences.",
+            "Resend reminders to non-responders only.",
+          ],
+        },
+        {
+          title: "RSVP that respects organisers.",
+          lead: "See exactly who is coming, who has not responded, and who needs a nudge. Plan seating, food orders and transport off real numbers.",
+          bullets: [
+            "Live RSVP counters by status.",
+            "Filter by family, side, table, or category.",
+            "Export to CSV anytime.",
+            "Auto-reminder schedules.",
+            "Capacity caps and waitlists.",
+            "Seating chart with drag-and-drop.",
+          ],
+        },
+        {
+          title: "Becomes your check-in on the day.",
+          lead: "Every digital invitation is also a check-in token. Pair with NFC NuruCards or QR scan for fast entry — no paper lists, no confusion at the gate.",
+          bullets: [
+            "Scan-to-check-in via NFC or QR.",
+            "Live arrival board for organisers.",
+            "Self check-in for trusted guests.",
+            "Block re-entry / duplicate detection.",
+            "Tag VIPs and protocol arrivals.",
+            "Post-event attendance report.",
+          ],
+        },
+      ]}
+      cta={{
+        eyebrow: "Invitations & RSVP",
+        title: "Send invitations people actually open.",
+        primary: { label: "Try it free", href: "/register" },
+        secondary: { label: "About NuruCards", href: "/features/nfc-cards" },
+      }}
+    />
   );
 };
 

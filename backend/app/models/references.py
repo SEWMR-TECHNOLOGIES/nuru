@@ -1,8 +1,9 @@
-from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Integer, Text, String, UniqueConstraint
+from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Integer, Text, String, UniqueConstraint, Enum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from core.base import Base
+from models.enums import CancellationTierEnum
 
 
 # ──────────────────────────────────────────────
@@ -85,6 +86,11 @@ class ServiceType(Base):
     requires_kyc = Column(Boolean, default=False)
     category_id = Column(UUID(as_uuid=True), ForeignKey('service_categories.id'))
     is_active = Column(Boolean, default=True)
+    cancellation_tier = Column(
+        Enum(CancellationTierEnum, name="cancellation_tier_enum"),
+        nullable=False,
+        server_default="moderate",
+    )
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

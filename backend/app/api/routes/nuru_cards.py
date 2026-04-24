@@ -8,13 +8,48 @@ from fastapi import APIRouter, Depends, Body
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from models import NuruCard, NuruCardOrder, User, EventAttendee
+from models import NuruCard, NuruCardOrder, NuruCardPricing, User, EventAttendee
 from utils.auth import get_current_user
 from utils.helpers import standard_response
-from utils.validation_functions import validate_tanzanian_phone
+from utils.validation_functions import validate_phone_number
 
 EAT = pytz.timezone("Africa/Nairobi")
 router = APIRouter(prefix="/nuru-cards", tags=["Nuru Cards"])
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Pricing — driven by the `nuru_card_pricing` table so every market shows
+# the correct currency without hardcoded values in the frontend.
+# ──────────────────────────────────────────────────────────────────────────
+@router.get("/pricing")
+def get_card_pricing(currency: str | None = None, db: Session = Depends(get_db)):
+    """
+    Returns Nuru Card pricing.
+    Pass `?currency=TZS` (or KES) to filter to a single market, otherwise
+    the full matrix is returned.
+    """
+    q = db.query(NuruCardPricing).filter(NuruCardPricing.is_active == True)
+    if currency:
+        q = q.filter(NuruCardPricing.currency_code == currency.upper())
+    rows = q.all()
+    return standard_response(True, "Pricing retrieved", [{
+        "card_type": r.card_type,
+        "currency_code": r.currency_code,
+        "amount": float(r.amount),
+    } for r in rows])
+
+
+def _get_premium_amount(db: Session, currency_code: str = "TZS") -> float:
+    """Lookup the active premium card price for the given currency."""
+    row = db.query(NuruCardPricing).filter(
+        NuruCardPricing.card_type == "premium",
+        NuruCardPricing.currency_code == currency_code.upper(),
+        NuruCardPricing.is_active == True,
+    ).first()
+    if row:
+        return float(row.amount)
+    # Safe fallback — matches the pre-DB hardcoded value.
+    return 50000.0 if currency_code.upper() == "TZS" else 1950.0
 
 
 @router.get("/")
@@ -111,7 +146,7 @@ def order_card(body: dict = Body(...), db: Session = Depends(get_db), current_us
     delivery_phone = delivery.get("phone", "")
     if delivery_phone:
         try:
-            delivery_phone = validate_tanzanian_phone(delivery_phone)
+            delivery_phone = validate_phone_number(delivery_phone)
         except ValueError as e:
             return standard_response(False, str(e))
 
@@ -128,7 +163,7 @@ def order_card(body: dict = Body(...), db: Session = Depends(get_db), current_us
         delivery_postal_code=delivery.get("postal_code", ""),
         delivery_instructions=body.get("template", ""),
         status="pending",
-        amount=0 if card_type == "standard" else 50000,
+        amount=0 if card_type == "standard" else _get_premium_amount(db, body.get("currency_code") or "TZS"),
         payment_ref=body.get("payment_method", "mpesa"),
         created_at=now,
         updated_at=now,

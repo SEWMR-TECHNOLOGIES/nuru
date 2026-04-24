@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2, Images, ChevronDown, FileText, ChevronRight } from 'lucide-react';
+import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2, Images, ChevronDown, FileText, ChevronRight, Eye } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
@@ -24,26 +24,32 @@ import EventContributions from './events/EventContributions';
 import EventExpenses from './events/EventExpenses';
 import EventBudget from './events/EventBudget';
 import EventChecklist from './events/EventChecklist';
+import EventSchedule from './events/EventSchedule';
 import { useEventContributors } from '@/data/useContributors';
 import { useEvent } from '@/data/useEvents';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { usePolling } from '@/hooks/usePolling';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import { getEventCountdown } from '@/utils/getEventCountdown';
 import { EventManagementSkeleton } from '@/components/ui/EventManagementSkeleton';
 import { eventsApi, showCaughtError } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import { servicesApi } from '@/lib/api/services';
 import { photoLibrariesApi } from '@/lib/api/photoLibraries';
-import { cardTemplatesApi, InvitationCardTemplate } from '@/lib/api/cardTemplates';
+
 import { toast } from 'sonner';
 import { useEventPermissions } from '@/hooks/useEventPermissions';
 import ShareEventToFeed from '@/components/ShareEventToFeed';
 import EventTicketManagement from '@/components/events/EventTicketManagement';
 import EventGuestCheckIn from '@/components/events/EventGuestCheckIn';
+import EventMeetings from '@/components/events/EventMeetings';
+import EventGroupCta from '@/components/eventGroups/EventGroupCta';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const EventManagement = () => {
+  const { format: formatPrice } = useCurrency();
+  const { t } = useLanguage();
   const { id } = useParams();
   const navigate = useNavigate();
   const { data: currentUser } = useCurrentUser();
@@ -65,6 +71,26 @@ const EventManagement = () => {
   });
 
   const [activeTab, setActiveTab] = useState('overview');
+  const [openingWorkspace, setOpeningWorkspace] = useState(false);
+
+  const openWorkspace = useCallback(async () => {
+    if (!id || openingWorkspace) return;
+    setOpeningWorkspace(true);
+    try {
+      const { eventGroupsApi } = await import('@/lib/api/eventGroups');
+      let res = await eventGroupsApi.getForEvent(id);
+      if (!res.success || !res.data?.id) {
+        res = await eventGroupsApi.createForEvent(id);
+      }
+      const groupId = (res.data as any)?.id;
+      if (groupId) navigate(`/event-group/${groupId}`);
+      else toast.error('Could not open workspace');
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not open workspace');
+    } finally {
+      setOpeningWorkspace(false);
+    }
+  }, [id, navigate, openingWorkspace]);
   const [showAddServiceDialog, setShowAddServiceDialog] = useState(false);
   const [serviceSearch, setServiceSearch] = useState('');
   const [deleteServiceId, setDeleteServiceId] = useState<string | null>(null);
@@ -78,11 +104,6 @@ const EventManagement = () => {
   // Photo libraries created by service providers for this event
   const [eventPhotoLibraries, setEventPhotoLibraries] = useState<any[]>([]);
 
-  // Card template state
-  const [allTemplates, setAllTemplates] = useState<InvitationCardTemplate[]>([]);
-  const [assignedTemplateId, setAssignedTemplateId] = useState<string | null>(null);
-  const [templateLoading, setTemplateLoading] = useState(false);
-  const [assigningTemplate, setAssigningTemplate] = useState(false);
   const loadEventServices = async () => {
     if (!id) return;
     setServicesLoading(true);
@@ -106,41 +127,21 @@ const EventManagement = () => {
     } catch { /* silent */ }
   };
 
-  const loadCardTemplates = async () => {
-    if (!id) return;
-    setTemplateLoading(true);
-    try {
-      const [allRes, eventRes] = await Promise.all([
-        cardTemplatesApi.getAll(),
-        cardTemplatesApi.getEventTemplate(id),
-      ]);
-      if (allRes.success && allRes.data) setAllTemplates(allRes.data);
-      if (eventRes.success && eventRes.data) setAssignedTemplateId(eventRes.data.id);
-    } catch { /* silent */ }
-    finally { setTemplateLoading(false); }
-  };
 
-  const handleAssignTemplate = async (templateId: string) => {
-    if (!id) return;
-    setAssigningTemplate(true);
-    try {
-      const value = templateId === 'none' ? null : templateId;
-      const res = await cardTemplatesApi.assignToEvent(id, value);
-      if (res.success) {
-        setAssignedTemplateId(value);
-        toast.success(value ? 'Card template assigned' : 'Card template removed');
-      } else { showCaughtError(res); }
-    } catch (err: any) { showCaughtError(err); }
-    finally { setAssigningTemplate(false); }
-  };
-
+  // Lazy-load services + photo libraries only when the user opens the
+  // Services tab (or the Overview, which renders the completed/total counter).
+  // This avoids two extra round-trips on the very first navigation into a
+  // brand-new event, which is the slowest path.
+  const _servicesLoaded = useRef(false);
   useEffect(() => {
-    if (id) {
+    if (!id) return;
+    const needsServices = activeTab === 'services' || activeTab === 'overview';
+    if (needsServices && !_servicesLoaded.current) {
+      _servicesLoaded.current = true;
       loadEventServices();
       loadEventPhotoLibraries();
-      loadCardTemplates();
     }
-  }, [id]);
+  }, [id, activeTab]);
 
   const completedServices = eventServices.filter((s: any) => s.status === 'completed').length;
   const totalServices = eventServices.length;
@@ -250,30 +251,53 @@ const EventManagement = () => {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <h1 className="text-xl md:text-2xl lg:text-3xl font-bold">{eventTitle}</h1>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {isCreator && event && (
-              <ShareEventToFeed
-                event={{
-                  id: event.id,
-                  title: event.title,
-                  start_date: event.start_date,
-                  location: event.location,
-                  cover_image: (event as any).cover_image || eventImages[0],
-                }}
-                trigger={
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <SvgIcon src={ShareIcon} alt="" className="w-4 h-4 opacity-70" />
-                    Share to Feed
-                  </Button>
-                }
-              />
-            )}
-            <Button variant="ghost" size="icon" onClick={() => navigate('/my-events')}>
-              <ChevronLeft className="w-5 h-5" />
+        {/* Top row: title + back button (back stays on the right, matching other pages). */}
+        <div className="flex items-center gap-2 mb-3">
+          <h1 className="flex-1 min-w-0 text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold break-words leading-tight">
+            {eventTitle}
+          </h1>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="flex-shrink-0 self-center"
+            onClick={() => navigate('/my-events')}
+            aria-label="Back"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          {event && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => navigate(`/event/${event.id}`)}
+              title="View public event page"
+            >
+              <Eye className="w-4 h-4 opacity-70" />
+              <span className="hidden sm:inline">View Public Page</span>
+              <span className="sm:hidden">Public</span>
             </Button>
-          </div>
+          )}
+          {isCreator && event && (
+            <ShareEventToFeed
+              event={{
+                id: event.id,
+                title: event.title,
+                start_date: event.start_date,
+                location: event.location,
+                cover_image: (event as any).cover_image || eventImages[0],
+              }}
+              trigger={
+                <Button variant="outline" size="sm" className="gap-2">
+                  <SvgIcon src={ShareIcon} alt="" className="w-4 h-4 opacity-70" />
+                  <span className="hidden sm:inline">Share to Feed</span>
+                  <span className="sm:hidden">Share</span>
+                </Button>
+              }
+            />
+          )}
         </div>
         <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
           <span className="flex items-center gap-2"><SvgIcon src={CalendarIcon} alt="Calendar" className="w-4 h-4 flex-shrink-0" /><span className="truncate">{eventDate}</span></span>
@@ -315,7 +339,7 @@ const EventManagement = () => {
       {lightboxOpen && hasImages && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={closeLightbox}>
           <div className="relative max-w-[90vw] max-h-[90vh] w-full" onClick={(e) => e.stopPropagation()}>
-            <button onClick={closeLightbox} className="absolute -top-3 -right-3 bg-white rounded-full p-2 shadow z-50" aria-label="Close">✕</button>
+            <button onClick={closeLightbox} className="absolute -top-3 -right-3 bg-white rounded-full p-2 shadow z-50" aria-label={t("close")}>✕</button>
             <img src={eventImages[lightboxIndex]} alt={`zoom ${lightboxIndex}`} className="w-full h-full object-contain rounded" style={{ maxHeight: '80vh' }} />
             {eventImages.length > 1 && (
               <>
@@ -330,12 +354,12 @@ const EventManagement = () => {
       <AlertDialog open={!!deleteServiceId} onOpenChange={() => setDeleteServiceId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Service?</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to remove this service from your event?</AlertDialogDescription>
+            <AlertDialogTitle>{t('remove')} {t('services')}?</AlertDialogTitle>
+            <AlertDialogDescription>{t('are_you_sure')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRemoveService} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove Service</AlertDialogAction>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRemoveService} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{t('remove')} {t('services')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -345,21 +369,26 @@ const EventManagement = () => {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           tabs={[
-            { value: 'overview', label: 'Overview' },
-            { value: 'checklist', label: 'Checklist' },
-            { value: 'budget', label: 'Budget' },
-            { value: 'expenses', label: 'Expenses' },
-            { value: 'services', label: 'Services' },
-            { value: 'committee', label: 'Committee' },
-            { value: 'contributions', label: 'Contributions' },
-            { value: 'guests', label: 'Guests' },
-            { value: 'rsvp', label: 'RSVP' },
-            ...((apiEvent as any)?.sells_tickets ? [{ value: 'tickets', label: 'Tickets' }] : []),
-            ...(isCreator && !isEventEnded ? [{ value: 'check-in', label: 'Check-In' }] : []),
+            { value: 'overview', label: t('overview') },
+            { value: 'checklist', label: t('checklist') },
+            { value: 'budget', label: t('budget') },
+            { value: 'expenses', label: t('expenses') },
+            { value: 'services', label: t('services') },
+            { value: 'committee', label: t('committee') },
+            { value: 'contributions', label: t('contributions') },
+            { value: 'guests', label: t('guests') },
+            { value: 'rsvp', label: t('rsvp') },
+            { value: 'schedule', label: t('schedule') || 'Schedule' },
+            { value: 'meetings', label: 'Meetings' },
+            ...((apiEvent as any)?.sells_tickets ? [{ value: 'tickets', label: t('tickets') }] : []),
+            ...(isCreator && !isEventEnded ? [{ value: 'check-in', label: t('check_in') }] : []),
           ]}
         />
 
         <TabsContent value="overview" className="space-y-4">
+          {/* Group Chat CTA — create or open the event group from here */}
+          <EventGroupCta eventId={id || ''} onOpen={openWorkspace} opening={openingWorkspace} />
+
           {/* Row 1: Financial overview */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <Card className="w-full"><CardContent className="p-5"><div className="flex items-center justify-between"><div className="flex-1"><p className="text-xs text-muted-foreground">Budget Status</p><p className="text-base font-semibold mt-1">{eventBudget}</p><p className="text-xs text-muted-foreground mt-1">Budget allocated</p></div><div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-blue-600" /></div></div></CardContent></Card>
@@ -404,27 +433,6 @@ const EventManagement = () => {
           </div>
           <Card><CardContent className="p-4"><p className="text-[10px] text-muted-foreground mb-1">Event Description</p><p className="text-sm text-muted-foreground">{eventDescription}</p></CardContent></Card>
 
-          {/* Invitation Card Template */}
-          {isCreator && (
-            <Card>
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center">
-                      <FileText className="w-4 h-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold">Invitation Card Template</p>
-                      <p className="text-xs text-muted-foreground">Nuru picks the best design for your event type automatically</p>
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => navigate('/card-templates')} className="text-xs gap-1 text-muted-foreground">
-                    Browse <ChevronRight className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </TabsContent>
 
         <TabsContent value="checklist" className="space-y-6">
@@ -687,7 +695,7 @@ const EventManagement = () => {
         </TabsContent>
 
         <TabsContent value="contributions" className="space-y-6">
-          <EventContributions eventId={id!} eventTitle={eventTitle} eventBudget={apiEvent?.budget ? parseFloat(String(apiEvent.budget).replace(/[^0-9]/g, '')) : undefined} eventEndDate={apiEvent?.start_date} isCreator={isCreator} permissions={permissions} />
+          <EventContributions eventId={id!} eventTitle={eventTitle} eventBudget={apiEvent?.budget ? parseFloat(String(apiEvent.budget).replace(/[^0-9]/g, '')) : undefined} eventEndDate={apiEvent?.start_date} reminderContactPhone={(apiEvent as any)?.reminder_contact_phone || ''} isCreator={isCreator} permissions={permissions} />
         </TabsContent>
 
 
@@ -697,6 +705,14 @@ const EventManagement = () => {
 
         <TabsContent value="rsvp" className="space-y-6">
           <EventRSVP eventId={id || ''} eventTitle={eventTitle} permissions={permissions} />
+        </TabsContent>
+
+        <TabsContent value="schedule" className="space-y-6">
+          <EventSchedule eventId={id!} />
+        </TabsContent>
+
+        <TabsContent value="meetings" className="space-y-6">
+          <EventMeetings eventId={id!} isCreator={isCreator} eventName={eventTitle} />
         </TabsContent>
 
         {(apiEvent as any)?.sells_tickets && (

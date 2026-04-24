@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import { socialApi } from '@/lib/api/social';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const getInitials = (name: string) => {
   const parts = name.trim().split(/\s+/);
@@ -320,6 +321,7 @@ const EchoItem = ({
 const MomentDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const currentUserQuery = useCurrentUser();
   const currentUser = currentUserQuery.data as any;
 
@@ -476,9 +478,9 @@ const MomentDetail = () => {
   if (loading) {
     return (
       <>
-        <div className="flex items-center justify-between mb-3 md:mb-4">
-          <h1 className="text-2xl md:text-3xl font-bold">Moment</h1>
-          <Button variant="ghost" size="icon" onClick={handleBack}>
+        <div className="flex items-center gap-2 mb-3 md:mb-4">
+          <h1 className="flex-1 min-w-0 text-xl sm:text-2xl md:text-3xl font-bold break-words leading-tight">Moment</h1>
+          <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={handleBack} aria-label="Back">
             <ChevronLeft className="w-5 h-5" />
           </Button>
         </div>
@@ -544,22 +546,22 @@ const MomentDetail = () => {
       <Dialog open={appealOpen} onOpenChange={open => { if (!open) { setAppealOpen(false); setAppealReason(""); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Appeal Content Removal</DialogTitle>
-            <DialogDescription>Explain why you believe this moment should be restored. Our team will review your appeal.</DialogDescription>
+            <DialogTitle>{t('appeal_removal')}</DialogTitle>
+            <DialogDescription>{t('appeal_desc')}</DialogDescription>
           </DialogHeader>
-          <Textarea rows={4} placeholder="Describe why this removal was unjustified..." value={appealReason} onChange={e => setAppealReason(e.target.value)} />
+          <Textarea rows={4} placeholder={t('appeal_placeholder')} value={appealReason} onChange={e => setAppealReason(e.target.value)} />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAppealOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setAppealOpen(false)}>{t("cancel")}</Button>
             <Button onClick={handleSubmitAppeal} disabled={submittingAppeal || !appealReason.trim()}>
-              {submittingAppeal ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null} Submit Appeal
+              {submittingAppeal ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null} {t("submit_appeal")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <div className="flex items-center justify-between mb-3 md:mb-4">
-        <h1 className="text-2xl md:text-3xl font-bold">Moment</h1>
-        <Button variant="ghost" size="icon" onClick={handleBack}>
+      <div className="flex items-center gap-2 mb-3 md:mb-4">
+        <h1 className="flex-1 min-w-0 text-xl sm:text-2xl md:text-3xl font-bold break-words leading-tight">Moment</h1>
+        <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={handleBack} aria-label="Back">
           <ChevronLeft className="w-5 h-5" />
         </Button>
       </div>
@@ -569,7 +571,7 @@ const MomentDetail = () => {
         <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 mb-4 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-destructive">This moment has been removed by an administrator.</p>
+            <p className="text-sm font-medium text-destructive">This moment has been removed by Nuru.</p>
             {post.removal_reason && (
               <p className="text-xs text-muted-foreground mt-0.5">Reason: {post.removal_reason}</p>
             )}

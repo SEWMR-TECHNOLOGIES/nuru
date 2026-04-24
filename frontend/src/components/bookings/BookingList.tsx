@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Clock,
@@ -9,7 +9,6 @@ import {
   Eye,
   MoreVertical,
   Filter,
-  Search
 } from 'lucide-react';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
@@ -44,11 +43,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { PillTabsNav } from '@/components/ui/pill-tabs';
 import { useMyBookings, useIncomingBookings } from '@/data/useBookings';
+import CancelBookingDialog from './CancelBookingDialog';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import type { BookingRequest } from '@/lib/api/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
+import SearchHeader from '@/components/ui/search-header';
 
 const BookingListSkeleton = () => (
   <div className="space-y-4">
@@ -85,6 +87,7 @@ const BookingListSkeleton = () => (
 );
 
 const BookingList = () => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'my' | 'incoming'>('my');
   
@@ -117,42 +120,34 @@ const BookingList = () => {
 
 const MyBookingsTab = () => {
   const navigate = useNavigate();
-  const { bookings, summary, loading, error, cancelBooking, refetch } = useMyBookings();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('accepted');
+  const { bookings, summary, loading, error, cancelBooking, refetch } = useMyBookings();
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingRequest | null>(null);
-  const [cancelReason, setCancelReason] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleCancel = async () => {
+  // Re-fetch on search/status change (server-side ?search=)
+  useEffect(() => {
+    refetch({
+      ...(searchQuery ? { search: searchQuery } : {}),
+      ...(statusFilter !== 'all' ? { status: statusFilter as any } : {}),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, statusFilter]);
+
+  const handleCancelConfirm = async (reason: string) => {
     if (!selectedBooking) return;
-    if (!cancelReason.trim()) {
-      toast.error('Please provide a cancellation reason');
-      return;
-    }
-
-    setIsSubmitting(true);
     try {
-      await cancelBooking(selectedBooking.id, cancelReason);
-      toast.success('Booking cancelled');
-      setCancelDialogOpen(false);
+      await cancelBooking(selectedBooking.id, reason);
+      toast.success('Booking cancelled — refund processed per policy');
       setSelectedBooking(null);
-      setCancelReason('');
     } catch (err: any) {
       showCaughtError(err, 'Failed to cancel booking');
-    } finally {
-      setIsSubmitting(false);
+      throw err;
     }
   };
 
-  const filteredBookings = bookings.filter(b => {
-    const matchesSearch = 
-      b.service.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.event_name?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || b.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredBookings = bookings;
 
   if (loading) {
     return <BookingListSkeleton />;
@@ -201,15 +196,9 @@ const MyBookingsTab = () => {
       )}
 
       {/* Filters */}
-      <div className="flex gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search bookings..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
+      <div className="flex gap-2 items-center">
+        <div className="flex-1 flex items-center">
+          <SearchHeader value={searchQuery} onChange={setSearchQuery} placeholder="Search bookings…" alwaysOpen />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-40">
@@ -252,44 +241,23 @@ const MyBookingsTab = () => {
         )}
       </div>
 
-      {/* Cancel Dialog */}
-      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancel Booking</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <p className="text-muted-foreground mb-4">
-              Are you sure you want to cancel this booking? This action cannot be undone.
-            </p>
-            <div className="space-y-2">
-              <Label htmlFor="cancel-reason">Reason for cancellation *</Label>
-              <Textarea
-                id="cancel-reason"
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                placeholder="Please provide a reason..."
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>Keep Booking</Button>
-            <Button variant="destructive" onClick={handleCancel} disabled={isSubmitting}>
-              {isSubmitting ? 'Cancelling...' : 'Cancel Booking'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Cancel Dialog (Phase 1.2 — refund preview before confirm) */}
+      <CancelBookingDialog
+        open={cancelDialogOpen}
+        onOpenChange={setCancelDialogOpen}
+        bookingId={selectedBooking?.id ?? null}
+        cancellingParty="organiser"
+        onConfirm={handleCancelConfirm}
+      />
     </div>
   );
 };
 
 const IncomingBookingsTab = () => {
   const navigate = useNavigate();
-  const { bookings, summary, loading, error, respondToBooking, completeBooking, refetch } = useIncomingBookings();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('pending');
+  const { bookings, summary, loading, error, respondToBooking, completeBooking, refetch } = useIncomingBookings();
   const [responseDialogOpen, setResponseDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingRequest | null>(null);
   const [responseType, setResponseType] = useState<'accept' | 'reject'>('accept');
@@ -300,6 +268,15 @@ const IncomingBookingsTab = () => {
     reason: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Re-fetch on search/status change (server-side ?search=)
+  useEffect(() => {
+    refetch({
+      ...(searchQuery ? { search: searchQuery } : {}),
+      ...(statusFilter !== 'all' ? { status: statusFilter as any } : {}),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, statusFilter]);
 
   const handleRespond = async () => {
     if (!selectedBooking) return;
@@ -337,13 +314,7 @@ const IncomingBookingsTab = () => {
     }
   };
 
-  const filteredBookings = bookings.filter(b => {
-    const matchesSearch = 
-      b.client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.event_name?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || b.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredBookings = bookings;
 
   if (loading) {
     return <BookingListSkeleton />;
@@ -392,15 +363,9 @@ const IncomingBookingsTab = () => {
       )}
 
       {/* Filters */}
-      <div className="flex gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search requests..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
+      <div className="flex gap-2 items-center">
+        <div className="flex-1 flex items-center">
+          <SearchHeader value={searchQuery} onChange={setSearchQuery} placeholder="Search requests…" alwaysOpen />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-40">
@@ -529,6 +494,7 @@ interface BookingCardProps {
 }
 
 const BookingCard = ({ booking, onView, onCancel, onAccept, onReject, onComplete, isVendor }: BookingCardProps) => {
+  const { format: formatPrice } = useCurrency();
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':

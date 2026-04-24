@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useContributorSearch } from "@/hooks/useContributorSearch";
 import type { UserContributor } from "@/lib/api/contributors";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface ContributorSearchInputProps {
   onSelect: (contributor: UserContributor) => void;
@@ -17,6 +18,7 @@ interface ContributorSearchInputProps {
 }
 
 const ContributorSearchInput = ({ onSelect, placeholder = "Search contributor by name or phone...", disabled }: ContributorSearchInputProps) => {
+  const { t } = useLanguage();
   const [query, setQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const { results, loading, search, clear } = useContributorSearch();

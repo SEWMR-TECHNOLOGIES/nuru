@@ -76,7 +76,7 @@ export const useEventContributors = (eventId: string | null) => {
     }
   };
 
-  const updateEventContributor = async (ecId: string, data: { pledge_amount?: number; notes?: string }) => {
+  const updateEventContributor = async (ecId: string, data: { pledge_amount?: number; notes?: string; secondary_phone?: string | null; notify_target?: 'primary' | 'secondary' | 'both' }) => {
     if (!eventId) return null;
     try {
       const response = await contributorsApi.updateEventContributor(eventId, ecId, data);

@@ -2,7 +2,8 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { 
   CheckCircle, Edit, Loader2, 
   Mail, Phone, User as UserIcon, Shield, ShieldCheck, ShieldAlert,
-  Upload, FileText, AlertCircle, Clock, ImagePlus, Users, X, SendHorizonal
+  Upload, FileText, AlertCircle, Clock, ImagePlus, Users, X, SendHorizonal,
+  Image as ImageIcon
 } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { authApi } from "@/lib/api/auth";
@@ -29,13 +30,17 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useNavigate } from "react-router-dom";
 import { useWorkspaceMeta } from "@/hooks/useWorkspaceMeta";
 import { profileApi } from "@/lib/api/profile";
+import { socialApi } from "@/lib/api/social";
 import { showCaughtError } from "@/lib/api";
 import { toast } from "sonner";
 import { formatDateMedium } from "@/utils/formatDate";
 import { useQueryClient } from "@tanstack/react-query";
 import AvatarCropDialog from "@/components/AvatarCropDialog";
+import SmartMedia from '@/components/SmartMedia';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const UserProfile = () => {
+  const { t } = useLanguage();
   const { data: currentUser, isLoading: userLoading } = useCurrentUser();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -69,7 +74,11 @@ const UserProfile = () => {
   });
 
   const [isEditing, setIsEditing] = useState(false);
-  const [activeProfileTab, setActiveProfileTab] = useState("verification");
+  const [activeProfileTab, setActiveProfileTab] = useState("moments");
+  
+  // Moments/Posts state
+  const [myPosts, setMyPosts] = useState<any[]>([]);
+  const [postsLoading, setPostsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [verificationStep, setVerificationStep] = useState<"idle" | "form" | "submitted" | "verified" | "rejected">("idle");
@@ -130,6 +139,22 @@ const UserProfile = () => {
       }
     }
   }, [currentUser]);
+
+  // Fetch user's posts/moments — use same endpoint as MyMoments (/posts/user/:id)
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    setPostsLoading(true);
+    socialApi.getUserPosts(currentUser.id, { limit: 30 })
+      .then(res => {
+        if (res.success && res.data) {
+          const data = res.data as any;
+          const postsList = data?.posts || data?.items || (Array.isArray(data) ? data : []);
+          setMyPosts(postsList);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setPostsLoading(false));
+  }, [currentUser?.id]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -380,7 +405,7 @@ const UserProfile = () => {
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Bio</label>
                     <Textarea value={editData.bio} onChange={(e) => setEditData(prev => ({ ...prev, bio: e.target.value }))} rows={3} placeholder="Tell us about yourself..." />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-medium text-muted-foreground mb-1 block">Email</label>
                       <Input type="email" value={editData.email} onChange={(e) => setEditData(prev => ({ ...prev, email: e.target.value }))} placeholder="your@email.com" />
@@ -460,10 +485,10 @@ const UserProfile = () => {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Events", value: currentUser.event_count ?? 0 },
-          { label: "Services", value: currentUser.service_count ?? 0 },
-          { label: "Followers", value: currentUser.follower_count ?? 0, action: () => openSocialDialog("followers") },
-          { label: "Following", value: currentUser.following_count ?? 0, action: () => openSocialDialog("following") },
+          { label: t("events"), value: currentUser.event_count ?? 0 },
+          { label: t("services"), value: currentUser.service_count ?? 0 },
+          { label: t("followers"), value: currentUser.follower_count ?? 0, action: () => openSocialDialog("followers") },
+          { label: t("following"), value: currentUser.following_count ?? 0, action: () => openSocialDialog("following") },
         ].map(stat => (
           <Card
             key={stat.label}
@@ -501,7 +526,7 @@ const UserProfile = () => {
               <div className="flex flex-col items-center justify-center py-10 text-center">
                 <Users className="w-10 h-10 text-muted-foreground/40 mb-3" />
                 <p className="text-sm text-muted-foreground">
-                  {socialDialog.type === "followers" ? "No followers yet" : "Not following anyone yet"}
+                  {socialDialog.type === "followers" ? t('no_followers_yet') : t('not_following_anyone')}
                 </p>
               </div>
             ) : (
@@ -549,10 +574,73 @@ const UserProfile = () => {
           activeTab={activeProfileTab}
           onTabChange={setActiveProfileTab}
           tabs={[
+            { value: 'moments', label: 'My Moments', icon: <ImageIcon className="w-4 h-4" /> },
             { value: 'verification', label: 'Identity Verification', icon: <Shield className="w-4 h-4" /> },
             { value: 'contact', label: 'Contact Info', icon: <UserIcon className="w-4 h-4" /> },
           ]}
         />
+
+        <TabsContent value="moments">
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg">{t("my_moments")}</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Your shared posts and moments
+              </p>
+            </CardHeader>
+            <CardContent>
+              {postsLoading ? (
+                <div className="grid grid-cols-3 gap-3">
+                  {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="aspect-square rounded-xl" />)}
+                </div>
+              ) : myPosts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <ImageIcon className="w-12 h-12 text-muted-foreground/30 mb-4" />
+                  <p className="font-semibold text-foreground mb-1">No moments yet</p>
+                  <p className="text-sm text-muted-foreground">Share your first moment to see it here</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {myPosts.map((post: any) => {
+                    const rawMedia = post.images || post.media || [];
+                    const firstMedia = rawMedia[0];
+                    const firstUrl = typeof firstMedia === 'string' ? firstMedia : (firstMedia?.image_url || firstMedia?.url || null);
+                    const mediaType = typeof firstMedia === 'string' ? '' : (firstMedia?.media_type || firstMedia?.type || '');
+                    const content = post.content || '';
+                    const isVideo = mediaType?.toString().toLowerCase().includes('video') ||
+                      (firstUrl && (firstUrl.toLowerCase().endsWith('.mp4') || firstUrl.toLowerCase().endsWith('.mov') || firstUrl.toLowerCase().endsWith('.webm') || firstUrl.toLowerCase().includes('/video')));
+
+                    return (
+                      <div
+                        key={post.id}
+                        className="aspect-square rounded-xl overflow-hidden bg-muted/30 border border-border/50 cursor-pointer active:scale-95 transition-all relative group"
+                        onClick={() => navigate('/my-posts')}
+                      >
+                        {firstUrl ? (
+                          isVideo ? (
+                            <div className="w-full h-full bg-muted/50 flex items-center justify-center relative">
+                              <SmartMedia src={firstUrl} alt="" className="w-full h-full object-cover" isVideo={true} compact />
+                            </div>
+                          ) : (
+                            <img src={firstUrl} alt="" className="w-full h-full object-cover" />
+                          )
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center p-3">
+                            <p className="text-xs text-muted-foreground text-center line-clamp-4">{content}</p>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 active:opacity-100 transition-opacity flex items-center justify-center">
+                          <span className="text-white text-xs font-medium">{t("view")}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
 
         <TabsContent value="verification">
           <Card className="border-0 shadow-sm">
@@ -643,7 +731,7 @@ const UserProfile = () => {
                         </div>
                         <label className="cursor-pointer">
                           <Button variant="outline" size="sm" asChild>
-                            <span>{verifyFiles[slot.key] ? "Change" : "Upload"}</span>
+                            <span>{verifyFiles[slot.key] ? "Change" : t("upload")}</span>
                           </Button>
                           <input
                             type="file"

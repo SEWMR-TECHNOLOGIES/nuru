@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { useWorkspaceMeta } from "@/hooks/useWorkspaceMeta";
 import { SVG_TEMPLATES, SvgCardTemplate } from "@/components/invitation-cards/SvgTemplateRegistry";
 import SvgCardRenderer from "@/components/invitation-cards/SvgCardRenderer";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const CATEGORY_LABELS: Record<string, string> = {
   wedding: "Wedding",
@@ -31,6 +32,7 @@ const PREVIEW_DATA = {
 };
 
 const CardTemplatesPage = () => {
+  const { t } = useLanguage();
   useWorkspaceMeta({
     title: "Invitation Card Templates",
     description: "Browse premium SVG invitation card designs for your events.",

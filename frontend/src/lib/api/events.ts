@@ -42,6 +42,7 @@ export interface EventQueryParams {
   status?: "draft" | "published" | "cancelled" | "completed" | "all";
   sort_by?: "created_at" | "start_date" | "title";
   sort_order?: "asc" | "desc";
+  search?: string;
 }
 
 export interface GuestQueryParams {

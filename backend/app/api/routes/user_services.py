@@ -132,8 +132,19 @@ def _service_dict(db, service):
 # Get All My Services
 # ──────────────────────────────────────────────
 @router.get("/")
-def get_my_services(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    services = db.query(UserService).filter(UserService.user_id == current_user.id).all()
+def get_my_services(
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    q = db.query(UserService).filter(UserService.user_id == current_user.id)
+    if search:
+        term = f"%{search.strip().lower()}%"
+        q = q.filter(or_(
+            sa_func.lower(UserService.title).like(term),
+            sa_func.lower(UserService.description).like(term),
+        ))
+    services = q.all()
     service_list = [_service_dict(db, s) for s in services]
 
     # Collect all recent reviews across all services
@@ -306,6 +317,11 @@ async def update_service(
     service.updated_at = datetime.now(EAT)
 
     db.commit()
+    try:
+        from core.redis import cache_delete
+        cache_delete(f"service:detail:{service_id}")
+    except Exception:
+        pass
     return standard_response(True, "Service updated successfully", _service_dict(db, service))
 
 
@@ -326,6 +342,11 @@ def delete_service(service_id: str, db: Session = Depends(get_db), current_user:
     service.is_active = False
     service.updated_at = datetime.now(EAT)
     db.commit()
+    try:
+        from core.redis import cache_delete
+        cache_delete(f"service:detail:{service_id}")
+    except Exception:
+        pass
     return standard_response(True, "Service deactivated successfully")
 
 
@@ -805,8 +826,8 @@ async def add_business_phone(
 
     # Validate and standardize to 255 format
     try:
-        from utils.validation_functions import validate_tanzanian_phone
-        phone_number = validate_tanzanian_phone(raw_phone)
+        from utils.validation_functions import validate_phone_number
+        phone_number = validate_phone_number(raw_phone)
     except ValueError as e:
         return standard_response(False, str(e))
 

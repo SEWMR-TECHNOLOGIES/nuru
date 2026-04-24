@@ -1,27 +1,30 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { Loader2, Search, MapPin, ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Loader2, Search, MapPin, ChevronLeft, ChevronRight, Minus, Plus, Clock } from "lucide-react";
 import SvgIcon from '@/components/ui/svg-icon';
 import TicketIcon from "@/assets/icons/ticket-icon.svg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ticketingApi, TicketClass } from "@/lib/api/ticketing";
-import { formatPrice } from "@/utils/formatPrice";
+import { useCurrency } from '@/hooks/useCurrency';
 import { getEventCountdown } from "@/utils/getEventCountdown";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import CountdownClock from "@/components/CountdownClock";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
+import CheckoutModal from "@/components/payments/CheckoutModal";
+import ReservationSuccess from "@/components/tickets/ReservationSuccess";
 
-// Module-level cache
 let _browseEventsCache: any[] = [];
 let _browseEventsPagination: any = null;
 let _browseEventsHasLoaded = false;
 
 const BrowseTickets = () => {
-  const navigate = useNavigate();
+  const { format: formatPrice } = useCurrency();
+  const { t } = useLanguage();
   const [events, setEvents] = useState<any[]>(_browseEventsCache);
   const [loading, setLoading] = useState(!_browseEventsHasLoaded);
   const initialLoad = useRef(!_browseEventsHasLoaded);
@@ -29,15 +32,17 @@ const BrowseTickets = () => {
   const [pagination, setPagination] = useState<any>(_browseEventsPagination);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Purchase flow
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [ticketClasses, setTicketClasses] = useState<TicketClass[]>([]);
   const [loadingClasses, setLoadingClasses] = useState(false);
   const [selectedClass, setSelectedClass] = useState<TicketClass | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [purchasing, setPurchasing] = useState(false);
+  const [reserving, setReserving] = useState(false);
   const [purchaseResult, setPurchaseResult] = useState<any>(null);
-
+  const [reservation, setReservation] = useState<any>(null);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const loadEvents = async (p = 1, search = "") => {
@@ -47,7 +52,6 @@ const BrowseTickets = () => {
       if (res.success && res.data) {
         const data = res.data as any;
         const evts = data.events || [];
-        // Only cache first page with no search
         if (p === 1 && !search) {
           _browseEventsCache = evts;
           _browseEventsPagination = data.pagination || null;
@@ -60,9 +64,18 @@ const BrowseTickets = () => {
     finally { setLoading(false); initialLoad.current = false; }
   };
 
+  const refreshSelectedEventClasses = async () => {
+    if (!selectedEvent?.id) return;
+    try {
+      const res = await ticketingApi.getTicketClasses(selectedEvent.id);
+      if (res.success && res.data) {
+        setTicketClasses((res.data as any).ticket_classes || []);
+      }
+    } catch {}
+  };
+
   useEffect(() => { loadEvents(page, debouncedSearch); }, [page, debouncedSearch]);
 
-  // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
@@ -70,11 +83,14 @@ const BrowseTickets = () => {
     }, 400);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
   const openEventTickets = async (event: any) => {
     setSelectedEvent(event);
     setSelectedClass(null);
     setQuantity(1);
     setPurchaseResult(null);
+    setPendingTicketId(null);
+    setCheckoutOpen(false);
     setLoadingClasses(true);
     try {
       const res = await ticketingApi.getTicketClasses(event.id);
@@ -93,50 +109,85 @@ const BrowseTickets = () => {
       if (res.success && res.data) {
         const data = res.data as any;
         setPurchaseResult({ ticket_code: data.ticket_code, total_amount: data.total_amount });
-        toast.success("Ticket request sent! Awaiting organizer approval.");
+        setPendingTicketId(data.ticket_id || data.id || null);
+        // Show reservation summary first — user must click "Pay now" to open checkout.
+        setCheckoutOpen(false);
       } else {
-        toast.error((res as any).message || "Purchase failed");
+        toast.error((res as any).message || "Could not reserve ticket");
       }
-    } catch { toast.error("Failed to purchase ticket"); }
-    finally { setPurchasing(false); }
+    } catch {
+      toast.error("Failed to reserve ticket");
+    } finally {
+      setPurchasing(false);
+    }
   };
 
-  // Events are already filtered server-side
+  /**
+   * Airline-style hold: creates a reservation row with a countdown deadline
+   * (returned in `reserved_until`). The ticket isn't issued yet — the user can
+   * pay later from the My Tickets → Reservations panel before it expires.
+   */
+  const handleReserve = async () => {
+    if (!selectedClass) return;
+    setReserving(true);
+    try {
+      const res = await ticketingApi.reserveTicket({ ticket_class_id: selectedClass.id, quantity });
+      if (res.success && res.data) {
+        const data = res.data as any;
+        setReservation({
+          ticket_code: data.ticket_code,
+          total_amount: data.total_amount,
+          reserved_until: data.reserved_until,
+          ticket_class_name: selectedClass.name,
+          quantity,
+          event_name: selectedEvent?.name,
+        });
+        setPendingTicketId(data.ticket_id || data.id || null);
+        setPurchaseResult(null);
+        setCheckoutOpen(false);
+      } else {
+        toast.error((res as any).message || "Could not reserve ticket");
+      }
+    } catch {
+      toast.error("Failed to reserve ticket");
+    } finally {
+      setReserving(false);
+    }
+  };
+
   const filteredEvents = events;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <img src={TicketIcon} alt="Tickets" className="w-5 h-5 dark:invert" />
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <img src={TicketIcon} alt={t("tickets")} className="w-5 h-5 dark:invert" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-foreground">Browse Tickets</h1>
-            <p className="text-sm text-muted-foreground">Find events and purchase tickets</p>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-foreground truncate">{t("browse_tickets")}</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">Find events and purchase tickets</p>
           </div>
         </div>
-        <Link to="/my-tickets">
+        <Link to="/my-tickets" className="flex-shrink-0">
           <Button variant="outline" size="sm" className="gap-2">
             <img src={TicketIcon} alt="" className="w-3.5 h-3.5 dark:invert" />
-            My Tickets
+            <span className="hidden sm:inline">My Tickets</span>
+            <span className="sm:hidden">Mine</span>
           </Button>
         </Link>
       </div>
 
-      {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
-          placeholder="Search events by name or location..."
+          placeholder={t('search_events_tickets')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"
         />
       </div>
 
-      {/* Events Grid */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[...Array(6)].map((_, i) => (
@@ -179,7 +230,6 @@ const BrowseTickets = () => {
                         <img src={TicketIcon} alt="" className="w-10 h-10 dark:invert opacity-20" />
                       </div>
                     )}
-                    {/* Price badge */}
                     <div className="absolute bottom-3 left-3">
                       <Badge className="bg-primary text-primary-foreground shadow-lg text-xs font-bold px-2.5 py-1">
                         From {formatPrice(event.min_price)}
@@ -190,10 +240,16 @@ const BrowseTickets = () => {
                         <Badge variant="destructive" className="text-xs font-bold">Sold Out</Badge>
                       </div>
                     )}
+                    {event.is_owner && event.ticket_approval_status !== 'approved' && (
+                      <div className="absolute top-3 left-3">
+                        <Badge variant="secondary" className="text-[10px] font-semibold shadow">
+                          Pending review
+                        </Badge>
+                      </div>
+                    )}
                   </div>
                   <CardContent className="p-0">
                     <div className="flex">
-                      {/* Stacked date block */}
                       {d && (
                         <div className={`flex flex-col items-center justify-center px-4 py-3 border-r border-border min-w-[60px] ${
                           countdown?.isPast ? 'bg-muted/50' : 'bg-primary/5'
@@ -209,7 +265,6 @@ const BrowseTickets = () => {
                           </span>
                         </div>
                       )}
-                      {/* Event info */}
                       <div className="flex-1 min-w-0 p-3 space-y-1.5">
                         <h3 className="font-semibold text-foreground text-sm line-clamp-2 leading-tight">{event.name}</h3>
                         {event.location && (
@@ -239,7 +294,6 @@ const BrowseTickets = () => {
         </div>
       )}
 
-      {/* Pagination */}
       {pagination && pagination.total_pages > 1 && (
         <div className="flex items-center justify-center gap-3">
           <Button variant="outline" size="sm" disabled={!pagination.has_previous} onClick={() => setPage(p => p - 1)}>
@@ -252,12 +306,20 @@ const BrowseTickets = () => {
         </div>
       )}
 
-      {/* Purchase Dialog */}
-      <Dialog open={!!selectedEvent} onOpenChange={(open) => { if (!open) { setSelectedEvent(null); setPurchaseResult(null); } }}>
+      <Dialog open={!!selectedEvent} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedEvent(null);
+          setSelectedClass(null);
+          setQuantity(1);
+          setPurchaseResult(null);
+          setReservation(null);
+          setPendingTicketId(null);
+          setCheckoutOpen(false);
+        }
+      }}>
         <DialogContent className="max-w-md p-0 overflow-hidden">
           {selectedEvent && (
             <>
-              {/* Event cover */}
               {selectedEvent.cover_image && (
                 <div className="h-36 overflow-hidden">
                   <img src={selectedEvent.cover_image} alt={selectedEvent.name} className="w-full h-full object-cover" />
@@ -280,23 +342,59 @@ const BrowseTickets = () => {
                   )}
                 </div>
 
-                {purchaseResult ? (
+                {selectedClass && (purchaseResult || reservation) && (
+                  <CheckoutModal
+                    open={checkoutOpen}
+                    onOpenChange={async (open) => {
+                      setCheckoutOpen(open);
+                      if (!open) await refreshSelectedEventClasses();
+                    }}
+                    targetType="event_ticket"
+                    targetId={pendingTicketId || selectedClass.id}
+                    offlineClaimTargetId={selectedClass.id}
+                    offlineClaimQuantity={quantity}
+                    amount={(purchaseResult?.total_amount ?? reservation?.total_amount) || 0}
+                    allowBank={false}
+                    title={`Buy ${quantity} ${selectedClass.name} ticket${quantity > 1 ? 's' : ''}`}
+                    description={`Ticket for ${selectedEvent.name} — ${selectedClass.name} × ${quantity}`}
+                    onSuccess={() => {
+                      toast.success("Payment confirmed — your ticket is now issued.", {
+                        description: "View it under My Tickets.",
+                      });
+                      setCheckoutOpen(false);
+                      setSelectedEvent(null);
+                      setSelectedClass(null);
+                      setQuantity(1);
+                      setPurchaseResult(null);
+                      setReservation(null);
+                      setPendingTicketId(null);
+                    }}
+                  />
+                )}
+
+                {reservation && !checkoutOpen ? (
+                  <ReservationSuccess
+                    data={reservation}
+                    onPayNow={() => setCheckoutOpen(true)}
+                    onClose={() => setSelectedEvent(null)}
+                  />
+                ) : purchaseResult && !checkoutOpen ? (
                   <div className="text-center space-y-3 py-4">
-                    <div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto">
+                    <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto">
                       <img src={TicketIcon} alt="" className="w-7 h-7 dark:invert" />
                     </div>
                     <div>
-                      <p className="font-bold text-foreground">Ticket Request Sent!</p>
-                      <p className="text-xs text-muted-foreground">Awaiting organizer approval</p>
+                      <p className="font-bold text-foreground">Complete payment to confirm</p>
+                      <p className="text-xs text-muted-foreground">Reserved but not yet issued — pay to secure your ticket</p>
                     </div>
                     <div className="p-3 rounded-lg bg-muted/50 border border-border">
-                      <p className="text-xs text-muted-foreground mb-1">Ticket Code</p>
+                      <p className="text-xs text-muted-foreground mb-1">Reservation reference</p>
                       <p className="text-lg font-mono font-bold text-foreground tracking-wider">{purchaseResult.ticket_code}</p>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Total: <span className="font-semibold text-foreground">{formatPrice(purchaseResult.total_amount)}</span>
+                      Amount due: <span className="font-semibold text-foreground">{formatPrice(purchaseResult.total_amount)}</span>
                     </p>
-                    <Button className="w-full" onClick={() => { setSelectedEvent(null); setPurchaseResult(null); }}>Done</Button>
+                    <Button className="w-full" onClick={() => setCheckoutOpen(true)}>Pay now</Button>
                   </div>
                 ) : loadingClasses ? (
                   <div className="flex items-center justify-center gap-2 py-8">
@@ -360,10 +458,25 @@ const BrowseTickets = () => {
                           <span className="text-muted-foreground">{selectedClass.name} × {quantity}</span>
                           <span className="font-bold">{formatPrice(selectedClass.price * quantity)}</span>
                         </div>
-                        <Button className="w-full gap-2" size="lg" onClick={handlePurchase} disabled={purchasing}>
-                          {purchasing ? <Loader2 className="w-4 h-4 animate-spin" /> : <img src={TicketIcon} alt="" className="w-4 h-4 invert" />}
-                          Purchase Ticket{quantity > 1 ? 's' : ''}
-                        </Button>
+                        <div className="space-y-2">
+                          <Button className="w-full gap-2" size="lg" onClick={handlePurchase} disabled={purchasing || reserving}>
+                            {purchasing ? <Loader2 className="w-4 h-4 animate-spin" /> : <img src={TicketIcon} alt="" className="w-4 h-4 invert" />}
+                            Pay now
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="w-full gap-2"
+                            size="lg"
+                            onClick={handleReserve}
+                            disabled={purchasing || reserving}
+                          >
+                            {reserving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
+                            Reserve · pay later
+                          </Button>
+                          <p className="text-[11px] text-center text-muted-foreground">
+                            Reserve to hold {quantity > 1 ? 'these tickets' : 'this ticket'} now and pay before the hold expires.
+                          </p>
+                        </div>
                       </motion.div>
                     )}
                   </>

@@ -25,6 +25,7 @@ import { useUserServiceKyc } from "@/data/useUserServiceKyc";
 import { userServicesApi, showApiErrors, showCaughtError } from "@/lib/api";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { ServiceLoadingSkeleton } from "@/components/ui/ServiceLoadingSkeleton";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface VerificationItem {
   id: string;
@@ -38,6 +39,7 @@ interface VerificationItem {
 }
 
 const ServiceVerification = () => {
+  const { t } = useLanguage();
   const { serviceId } = useParams<{ serviceId: string }>();
   const navigate = useNavigate();
   const { data: currentUser } = useCurrentUser();
@@ -170,7 +172,7 @@ const ServiceVerification = () => {
 
   return (
     <div className="space-y-6">
-      <div className="max-w-4xl mx-auto">
+      <div className="">
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">

@@ -23,6 +23,7 @@ import { socialApi } from '@/lib/api/social';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useUserSearch } from '@/hooks/useUserSearch';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const getInitials = (name: string) => {
   const parts = name.trim().split(/\s+/);
@@ -75,27 +76,31 @@ const CommunityDetail = () => {
 
   useEffect(() => {
     if (!id) return;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const [cRes, mRes, pRes] = await Promise.all([
-          socialApi.getCommunity(id),
-          socialApi.getCommunityMembers(id),
-          socialApi.getCommunityPosts(id).catch(() => ({ success: false, data: { posts: [] } } as any)),
-        ]);
-        if (cRes.success) setCommunity(cRes.data);
-        if (mRes.success) {
-          const md = mRes.data as any;
-          setMembers(md?.members || (Array.isArray(md) ? md : []));
-        }
-        if (pRes.success) {
-          const pd = pRes.data as any;
-          setPosts(pd?.posts || (Array.isArray(pd) ? pd : []));
-        }
-      } catch { /* silent */ }
-      finally { setLoading(false); }
-    };
-    load();
+    let cancelled = false;
+    setLoading(true);
+    // Reset stale data when switching communities
+    setMembers([]); setPosts([]);
+
+    // Essential: community details first — this unblocks the page render
+    socialApi.getCommunity(id).then((cRes) => {
+      if (cancelled) return;
+      if (cRes.success) setCommunity(cRes.data);
+    }).catch(() => {}).finally(() => { if (!cancelled) setLoading(false); });
+
+    // Secondary data loads in parallel without blocking the main UI
+    socialApi.getCommunityMembers(id).then((mRes) => {
+      if (cancelled || !mRes.success) return;
+      const md = mRes.data as any;
+      setMembers(md?.members || (Array.isArray(md) ? md : []));
+    }).catch(() => {});
+
+    socialApi.getCommunityPosts(id).then((pRes) => {
+      if (cancelled || !pRes.success) return;
+      const pd = pRes.data as any;
+      setPosts(pd?.posts || (Array.isArray(pd) ? pd : []));
+    }).catch(() => {});
+
+    return () => { cancelled = true; };
   }, [id]);
 
   const handleJoin = async () => {
@@ -212,7 +217,7 @@ const CommunityDetail = () => {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="space-y-6">
         <Skeleton className="h-40 w-full rounded-lg" />
         <Skeleton className="h-6 w-1/3" />
         <Skeleton className="h-4 w-2/3" />
@@ -228,14 +233,14 @@ const CommunityDetail = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div>
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+        <div className="flex items-center gap-2 mb-3">
+          <h1 className="flex-1 min-w-0 text-lg sm:text-2xl font-bold text-foreground break-words leading-tight">
             {community.name}
           </h1>
-          <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => navigate('/communities')}>
+          <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => navigate('/communities')} aria-label="Back">
             <ChevronLeft className="w-5 h-5" />
           </Button>
         </div>

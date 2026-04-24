@@ -3,8 +3,9 @@ import readXlsxFile from 'read-excel-file';
 import { format } from 'date-fns';
 import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import { 
-  DollarSign, Plus, Search, Filter, MoreVertical, Edit, Trash, Send, Download, TrendingUp, Users, Clock, Loader2, Eye, ChevronLeft, ChevronRight, UserPlus, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, ShieldCheck, UserCheck, CalendarIcon
+  DollarSign, Plus, Search, Filter, MoreVertical, Edit, Trash, Send, Download, TrendingUp, Users, Clock, Loader2, Eye, ChevronLeft, ChevronRight, UserPlus, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, ShieldCheck, UserCheck, CalendarIcon, Link as LinkIcon
 } from 'lucide-react';
+import ShareContributorLinkDialog from './ShareContributorLinkDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,7 +27,7 @@ import { usePolling } from '@/hooks/usePolling';
 import { toast } from 'sonner';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { showCaughtError } from '@/lib/api';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
 import { formatDateMedium } from '@/utils/formatDate';
 import ContributionsSkeletonLoader from './ContributionsSkeletonLoader';
 import ContributorDetailDialog from './ContributorDetailDialog';
@@ -39,12 +40,16 @@ import type { EventPermissions } from '@/hooks/useEventPermissions';
 import ContributorMessaging from './ContributorMessaging';
 import SvgIcon from '@/components/ui/svg-icon';
 import ChatIcon from '@/assets/icons/chat-icon.svg';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
+import ReceivedPaymentsPanel from '@/components/payments/ReceivedPaymentsPanel';
 
 interface EventContributionsProps {
   eventId: string;
   eventTitle?: string;
   eventBudget?: number;
   eventEndDate?: string;
+  /** event.reminder_contact_phone — used as default in bulk reminder dialog */
+  reminderContactPhone?: string;
   isCreator?: boolean;
   permissions?: EventPermissions;
 }
@@ -62,7 +67,9 @@ const PAYMENT_METHODS = [
 
 const ITEMS_PER_PAGE = 10;
 
-const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, isCreator = true, permissions }: EventContributionsProps) => {
+const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, reminderContactPhone, isCreator = true, permissions }: EventContributionsProps) => {
+  const { format: formatPrice } = useCurrency();
+  const { t } = useLanguage();
   const canManage = permissions?.can_manage_contributions || permissions?.is_creator;
   const canView = permissions?.can_view_contributions || permissions?.is_creator;
   // New contributor-based hooks
@@ -84,13 +91,14 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
   const [detailContributor, setDetailContributor] = useState<EventContributorSummary | null>(null);
   const [paymentTarget, setPaymentTarget] = useState<EventContributorSummary | null>(null);
   const [editTarget, setEditTarget] = useState<EventContributorSummary | null>(null);
+  const [shareLinkTarget, setShareLinkTarget] = useState<EventContributorSummary | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState('contributors');
   const [currentPage, setCurrentPage] = useState(1);
 
   // Add contributor form
   const [addMode, setAddMode] = useState<'existing' | 'new'>('new');
-  const [newContributor, setNewContributor] = useState({ name: '', email: '', phone: '', pledge_amount: '', notes: '' });
+  const [newContributor, setNewContributor] = useState({ name: '', email: '', phone: '', pledge_amount: '', notes: '', secondary_phone: '', notify_target: 'primary' as 'primary' | 'secondary' | 'both' });
   const [selectedExistingId, setSelectedExistingId] = useState<string | null>(null);
   const [existingPledgeAmount, setExistingPledgeAmount] = useState('');
   
@@ -103,6 +111,8 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
 
   // Edit pledge
   const [editAmount, setEditAmount] = useState('');
+  const [editSecondaryPhone, setEditSecondaryPhone] = useState('');
+  const [editNotifyTarget, setEditNotifyTarget] = useState<'primary' | 'secondary' | 'both'>('primary');
 
   // Payment history dialog
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
@@ -142,6 +152,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
   const [addingAsGuests, setAddingAsGuests] = useState(false);
   const [guestBatchDialogOpen, setGuestBatchDialogOpen] = useState(false);
   const [messagingOpen, setMessagingOpen] = useState(false);
+  const [paymentsOpen, setPaymentsOpen] = useState(false);
 
   // Pause polling when any dialog is open to prevent form disruption
   const anyDialogOpen = addContributorDialogOpen || paymentDialogOpen || editPledgeDialogOpen || thankYouDialogOpen || reportDateDialogOpen || reportPreviewOpen || historyDialogOpen || bulkDialogOpen || guestBatchDialogOpen;
@@ -233,6 +244,8 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
           phone: newContributor.phone,
           pledge_amount: newContributor.pledge_amount ? parseFloat(newContributor.pledge_amount) : 0,
           notes: newContributor.notes || undefined,
+          secondary_phone: newContributor.secondary_phone || undefined,
+          notify_target: newContributor.notify_target,
         });
       }
       toast.success('Contributor added to event');
@@ -271,8 +284,12 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
     if (!editAmount || parseFloat(editAmount) < 0) { toast.error('Enter valid amount'); return; }
     setIsSubmitting(true);
     try {
-      await updateEventContributor(editTarget.id, { pledge_amount: parseFloat(editAmount) });
-      toast.success('Pledge updated');
+      await updateEventContributor(editTarget.id, {
+        pledge_amount: parseFloat(editAmount),
+        secondary_phone: editSecondaryPhone.trim() ? editSecondaryPhone.trim() : null,
+        notify_target: editNotifyTarget,
+      });
+      toast.success('Contributor updated');
       setEditPledgeDialogOpen(false);
       setEditTarget(null);
     } catch (err: any) {
@@ -421,90 +438,34 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
       (a.contributor?.name || '').localeCompare(b.contributor?.name || '')
     );
 
-    const reportDate = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-
-    // Title rows
-    const titleRow = [
-      { value: 'Nuru — Plan Smarter', fontWeight: 'bold' as const, fontSize: 14 },
-      null, null, null, null, null,
-    ];
-    const reportTitleRow = [
-      { value: `Contribution Report: ${eventTitle || 'Event'}`, fontWeight: 'bold' as const, fontSize: 12 },
-      null, null, null, null, null,
-    ];
-    const dateRow = [
-      { value: `Generated: ${reportDate}`, fontSize: 10, color: '#666666' },
-      null, null, null, null, null,
-    ];
-    const emptyRow = [null, null, null, null, null, null];
-
-    // Summary rows
-    const summaryRows = [
-      [
-        { value: 'Summary', fontWeight: 'bold' as const, fontSize: 11 },
-        null, null, null, null, null,
-      ],
-      [
-        { value: 'Total Collected:', fontWeight: 'bold' as const },
-        { value: `${currency} ${summary.total_paid.toLocaleString()}` },
-        null,
-        { value: 'Total Pledged:', fontWeight: 'bold' as const },
-        { value: `${currency} ${summary.total_pledged.toLocaleString()}` },
-        null,
-      ],
-      [
-        { value: 'Shortfall:', fontWeight: 'bold' as const },
-        { value: `${currency} ${Math.max(0, summary.total_pledged - summary.total_paid).toLocaleString()}` },
-        null,
-        ...(eventBudget ? [
-          { value: 'Event Budget:', fontWeight: 'bold' as const },
-          { value: `${currency} ${eventBudget.toLocaleString()}` },
-          null,
-        ] : [null, null, null]),
-      ],
-    ];
-
     const HEADER_ROW = [
-      { value: 'S/N', fontWeight: 'bold' as const, backgroundColor: '#f0f0f0' },
-      { value: 'Contributor', fontWeight: 'bold' as const, backgroundColor: '#f0f0f0' },
-      { value: 'Phone', fontWeight: 'bold' as const, backgroundColor: '#f0f0f0' },
-      { value: 'Pledged', fontWeight: 'bold' as const, backgroundColor: '#f0f0f0' },
-      { value: 'Paid', fontWeight: 'bold' as const, backgroundColor: '#f0f0f0' },
-      { value: 'Balance', fontWeight: 'bold' as const, backgroundColor: '#f0f0f0' },
+      { value: 'S/N', type: String, fontWeight: 'bold' as const },
+      { value: 'Contributor', type: String, fontWeight: 'bold' as const },
+      { value: 'Phone', type: String, fontWeight: 'bold' as const },
+      { value: 'Pledged', type: String, fontWeight: 'bold' as const },
+      { value: 'Paid', type: String, fontWeight: 'bold' as const },
+      { value: 'Balance', type: String, fontWeight: 'bold' as const },
     ];
 
     const dataRows = sortedContributors.map((ec, i) => [
-      { type: Number as any, value: i + 1 },
-      { type: String as any, value: ec.contributor?.name || 'Unknown' },
-      { type: String as any, value: ec.contributor?.phone || '—' },
-      { type: Number as any, value: ec.pledge_amount || 0 },
-      { type: Number as any, value: ec.total_paid || 0 },
-      { type: Number as any, value: ec.balance || 0 },
+      { value: String(i + 1), type: String },
+      { value: ec.contributor?.name || 'Unknown', type: String },
+      { value: ec.contributor?.phone || '—', type: String },
+      { value: ec.pledge_amount || 0, type: Number },
+      { value: ec.total_paid || 0, type: Number },
+      { value: ec.balance || 0, type: Number },
     ]);
 
     const totalsRow = [
-      { value: '', fontWeight: 'bold' as const },
-      { value: `Total (${sortedContributors.length})`, fontWeight: 'bold' as const },
-      { value: '' },
-      { type: Number as any, value: summary.total_pledged, fontWeight: 'bold' as const },
-      { type: Number as any, value: summary.total_paid, fontWeight: 'bold' as const },
-      { type: Number as any, value: summary.total_balance, fontWeight: 'bold' as const },
+      { value: '', type: String },
+      { value: `Total (${sortedContributors.length})`, type: String, fontWeight: 'bold' as const },
+      { value: '', type: String },
+      { value: summary.total_pledged || 0, type: Number, fontWeight: 'bold' as const },
+      { value: summary.total_paid || 0, type: Number, fontWeight: 'bold' as const },
+      { value: summary.total_balance || 0, type: Number, fontWeight: 'bold' as const },
     ];
 
-    const footerRows = [
-      emptyRow,
-      [
-        { value: `Generated by Nuru Events Workspace · © ${new Date().getFullYear()} Nuru | SEWMR TECHNOLOGIES`, fontSize: 9, color: '#999999' },
-        null, null, null, null, null,
-      ],
-    ];
-
-    await writeXlsxFile([
-      titleRow, reportTitleRow, dateRow, emptyRow,
-      ...summaryRows, emptyRow,
-      HEADER_ROW, ...dataRows, totalsRow,
-      ...footerRows,
-    ] as any, {
+    await writeXlsxFile([HEADER_ROW, ...dataRows, totalsRow] as any, {
       fileName: `${(eventTitle || 'Event').replace(/\s+/g, '_')}_Contributions.xlsx`,
       columns: [
         { width: 6 },
@@ -518,7 +479,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
   };
 
   const resetAddForm = () => {
-    setNewContributor({ name: '', email: '', phone: '', pledge_amount: '', notes: '' });
+    setNewContributor({ name: '', email: '', phone: '', pledge_amount: '', notes: '', secondary_phone: '', notify_target: 'primary' });
     setSelectedExistingId(null);
     setExistingPledgeAmount('');
     setAddMode('new');
@@ -731,11 +692,25 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
           )}
           {isCreator && eventContributors.length > 0 && (
             <Button variant="outline" size="sm" onClick={() => setMessagingOpen(!messagingOpen)}>
-              <SvgIcon src={ChatIcon} alt="Messages" className="w-4 h-4 mr-2" />{messagingOpen ? 'Hide' : ''} Messaging
+              <SvgIcon src={ChatIcon} alt={t("messages")} className="w-4 h-4 mr-2" />{messagingOpen ? 'Hide' : ''} Messaging
+            </Button>
+          )}
+          {isCreator && (
+            <Button variant="outline" size="sm" onClick={() => setPaymentsOpen(!paymentsOpen)}>
+              <DollarSign className="w-4 h-4 mr-2" />{paymentsOpen ? 'Hide ' : ''}Payments
             </Button>
           )}
         </div>
       </div>
+
+      {/* Share payment link with a single contributor */}
+      <ShareContributorLinkDialog
+        open={!!shareLinkTarget}
+        onOpenChange={(v) => { if (!v) setShareLinkTarget(null); }}
+        eventId={eventId}
+        contributor={shareLinkTarget}
+        onChanged={refetchEC}
+      />
 
       {/* Contributor Messaging */}
       {isCreator && messagingOpen && (
@@ -743,6 +718,15 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
           eventId={eventId}
           eventTitle={eventTitle}
           eventContributors={eventContributors}
+          defaultContactPhone={reminderContactPhone}
+        />
+      )}
+
+      {/* Received contribution payments */}
+      {isCreator && paymentsOpen && (
+        <ReceivedPaymentsPanel
+          source={{ kind: 'event-contributions', eventId }}
+          title="Contribution payments received"
         />
       )}
 
@@ -750,34 +734,64 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
       {isCreator && pendingContributions.length > 0 && (
         <Card className="border-amber-200 bg-amber-50/50">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-amber-600" />
-                <h3 className="font-semibold text-amber-800">Awaiting Confirmation ({pendingContributions.length})</h3>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <ShieldCheck className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                <h3 className="font-semibold text-amber-800 text-sm sm:text-base truncate">Awaiting Confirmation ({pendingContributions.length})</h3>
               </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setSelectedPending(selectedPending.length === pendingContributions.length ? [] : pendingContributions.map(p => p.id))}>
-                  {selectedPending.length === pendingContributions.length ? 'Deselect All' : 'Select All'}
+              <div className="grid grid-cols-3 sm:flex gap-2 w-full sm:w-auto">
+                <Button size="sm" variant="outline" className="px-2 sm:px-3" onClick={() => setSelectedPending(selectedPending.length === pendingContributions.length ? [] : pendingContributions.map(p => p.id))}>
+                  <span className="truncate text-xs sm:text-sm">{selectedPending.length === pendingContributions.length ? 'Deselect' : 'Select All'}</span>
                 </Button>
-                <Button size="sm" variant="destructive" onClick={handleRejectPending} disabled={selectedPending.length === 0 || confirmingPending}>
-                  {confirmingPending ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />...</> : <><Trash className="w-4 h-4 mr-1" />Reject ({selectedPending.length})</>}
+                <Button size="sm" variant="destructive" className="px-2 sm:px-3" onClick={handleRejectPending} disabled={selectedPending.length === 0 || confirmingPending}>
+                  {confirmingPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Trash className="w-4 h-4 sm:mr-1" /><span className="hidden sm:inline">Reject </span><span className="text-xs sm:text-sm">({selectedPending.length})</span></>}
                 </Button>
-                <Button size="sm" onClick={handleConfirmPending} disabled={selectedPending.length === 0 || confirmingPending}>
-                  {confirmingPending ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Confirming...</> : <><CheckCircle2 className="w-4 h-4 mr-1" />Confirm ({selectedPending.length})</>}
+                <Button size="sm" className="px-2 sm:px-3" onClick={handleConfirmPending} disabled={selectedPending.length === 0 || confirmingPending}>
+                  {confirmingPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle2 className="w-4 h-4 sm:mr-1" /><span className="hidden sm:inline">Confirm </span><span className="text-xs sm:text-sm">({selectedPending.length})</span></>}
                 </Button>
               </div>
             </div>
             <div className="divide-y border rounded-lg bg-white">
-              {pendingContributions.map(pc => (
-                <div key={pc.id} className="p-3 flex items-center gap-3">
-                  <Checkbox checked={selectedPending.includes(pc.id)} onCheckedChange={(checked) => setSelectedPending(prev => checked ? [...prev, pc.id] : prev.filter(id => id !== pc.id))} />
-                  <div className="flex-1 min-w-0">
+              {pendingContributions.map((pc: any) => (
+                <div key={pc.id} className="p-3 flex items-start gap-3">
+                  <Checkbox checked={selectedPending.includes(pc.id)} onCheckedChange={(checked) => setSelectedPending(prev => checked ? [...prev, pc.id] : prev.filter(id => id !== pc.id))} className="mt-1" />
+                  <div className="flex-1 min-w-0 space-y-1">
                     <p className="font-medium text-sm">{pc.contributor_name}</p>
                     <p className="text-xs text-muted-foreground">
                       Recorded by {pc.recorded_by || 'Unknown'} {pc.created_at ? `on ${formatDateMedium(pc.created_at)} at ${new Date(pc.created_at.endsWith('Z') || pc.created_at.includes('+') ? pc.created_at : pc.created_at + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
                     </p>
+                    {/* Offline-claim audit trail (when present) */}
+                    {(pc.payment_channel || pc.provider_name || pc.transaction_ref || pc.payer_account) && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        {pc.payment_channel && (
+                          <Badge variant="outline" className="text-[10px] capitalize">
+                            {pc.payment_channel.replace('_', ' ')}
+                          </Badge>
+                        )}
+                        {pc.provider_name && (
+                          <Badge variant="secondary" className="text-[10px]">{pc.provider_name}</Badge>
+                        )}
+                        {pc.transaction_ref && (
+                          <span className="text-[10px] font-mono text-muted-foreground">Ref: {pc.transaction_ref}</span>
+                        )}
+                        {pc.payer_account && (
+                          <span className="text-[10px] text-muted-foreground">From: {pc.payer_account}</span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div className="text-right">
+                  {pc.receipt_image_url && (
+                    <a
+                      href={pc.receipt_image_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block h-12 w-12 rounded-md overflow-hidden border border-border bg-muted flex-shrink-0 hover:ring-2 hover:ring-primary transition-all"
+                      title="Open receipt"
+                    >
+                      <img src={pc.receipt_image_url} alt="Receipt" className="w-full h-full object-cover" />
+                    </a>
+                  )}
+                  <div className="text-right flex-shrink-0">
                     <p className="font-bold text-amber-700">{formatPrice(pc.amount)}</p>
                     {pc.payment_method && <p className="text-xs text-muted-foreground capitalize">{pc.payment_method}</p>}
                   </div>
@@ -866,8 +880,14 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
                             <DropdownMenuItem onClick={() => { setPaymentTarget(ec); setPayment({ amount: '', payment_method: 'cash', payment_reference: '' }); setPaymentDialogOpen(true); }}>
                               <DollarSign className="w-4 h-4 mr-2" />Record Payment
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => { setEditTarget(ec); setEditAmount(String(ec.pledge_amount)); setEditPledgeDialogOpen(true); }}>
-                              <Edit className="w-4 h-4 mr-2" />Update Pledge
+                            <DropdownMenuItem onClick={() => {
+                              setEditTarget(ec);
+                              setEditAmount(String(ec.pledge_amount));
+                              setEditSecondaryPhone(ec.secondary_phone || '');
+                              setEditNotifyTarget((ec.notify_target as any) || 'primary');
+                              setEditPledgeDialogOpen(true);
+                            }}>
+                              <Edit className="w-4 h-4 mr-2" />Edit Contributor
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleViewHistory(ec)}>
                               <Eye className="w-4 h-4 mr-2" />Payment History
@@ -877,6 +897,9 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
                                 <Send className="w-4 h-4 mr-2" />Send Thank You
                               </DropdownMenuItem>
                             )}
+                            <DropdownMenuItem onClick={() => setShareLinkTarget(ec)}>
+                              <LinkIcon className="w-4 h-4 mr-2" />Share payment link
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleAddAsGuest(ec.id)}>
                               <UserCheck className="w-4 h-4 mr-2" />Add as Guest
                             </DropdownMenuItem>
@@ -927,6 +950,21 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
                   <div className="space-y-2"><Label>Phone *</Label><Input value={newContributor.phone} onChange={(e) => setNewContributor(p => ({ ...p, phone: e.target.value }))} placeholder="+255..." required /></div>
                 </div>
                 <div className="space-y-2"><Label>Pledge Amount ({currency})</Label><FormattedNumberInput value={newContributor.pledge_amount} onChange={(v) => setNewContributor(p => ({ ...p, pledge_amount: v }))} placeholder="e.g. 20,000" /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Secondary phone <span className="text-xs text-muted-foreground">(optional)</span></Label><Input value={newContributor.secondary_phone} onChange={(e) => setNewContributor(p => ({ ...p, secondary_phone: e.target.value }))} placeholder="+255..." /></div>
+                  <div className="space-y-2">
+                    <Label>Notify</Label>
+                    <Select value={newContributor.notify_target} onValueChange={(v) => setNewContributor(p => ({ ...p, notify_target: v as any }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="primary">Primary only</SelectItem>
+                        <SelectItem value="secondary">Secondary only</SelectItem>
+                        <SelectItem value="both">Both numbers</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground -mt-2">Secondary phone is for notifications only — it won't link to a Nuru account.</p>
                 <div className="space-y-2"><Label>Notes</Label><Textarea value={newContributor.notes} onChange={(e) => setNewContributor(p => ({ ...p, notes: e.target.value }))} rows={2} /></div>
               </div>
             </TabsContent>
@@ -1011,20 +1049,45 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, is
         </DialogContent>
       </Dialog>
 
-      {/* Edit Pledge Dialog */}
+      {/* Edit Contributor Dialog */}
       <Dialog open={editPledgeDialogOpen} onOpenChange={setEditPledgeDialogOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Update Pledge for {editTarget?.contributor?.name}</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Edit {editTarget?.contributor?.name}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Pledge Amount ({currency})</Label>
               <FormattedNumberInput value={editAmount} onChange={(v) => setEditAmount(v)} />
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Secondary phone <span className="text-xs text-muted-foreground">(optional)</span></Label>
+                <Input
+                  value={editSecondaryPhone}
+                  onChange={(e) => setEditSecondaryPhone(e.target.value)}
+                  placeholder="+255..."
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Notify</Label>
+                <Select value={editNotifyTarget} onValueChange={(v) => setEditNotifyTarget(v as any)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="primary">Primary only</SelectItem>
+                    <SelectItem value="secondary">Secondary only</SelectItem>
+                    <SelectItem value="both">Both numbers</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              The secondary number is used only for contribution notifications. It is never linked to a Nuru account or used elsewhere.
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditPledgeDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleUpdatePledge} disabled={isSubmitting}>
-              {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Updating...</> : 'Update Pledge'}
+              {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>

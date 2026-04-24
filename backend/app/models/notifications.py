@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Text, Enum
+from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Text, Enum, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -23,6 +23,15 @@ class Notification(Base):
     message_data = Column(JSONB, server_default="'{}'::jsonb")
     is_read = Column(Boolean, default=False)
     created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        # Primary list query: recipient's inbox newest-first
+        Index('idx_notifications_recipient_created', 'recipient_id', 'created_at'),
+        # Unread badge count: recipient + is_read partial fits well as composite
+        Index('idx_notifications_recipient_unread', 'recipient_id', 'is_read'),
+        # Dedupe / lookup by reference (e.g., aggregate likes on a post)
+        Index('idx_notifications_reference', 'reference_type', 'reference_id'),
+    )
 
     # Relationships
     recipient = relationship("User", back_populates="notifications")

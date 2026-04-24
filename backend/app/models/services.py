@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Integer, Numeric, Text, Enum, UniqueConstraint, CheckConstraint
+from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Integer, Numeric, Text, Enum, UniqueConstraint, CheckConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -39,6 +39,16 @@ class UserService(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        # Owner's services — newest first
+        Index('idx_user_services_user_active_created', 'user_id', 'is_active', 'created_at'),
+        # Marketplace browsing: active services by category
+        Index('idx_user_services_active_category', 'is_active', 'category_id'),
+        Index('idx_user_services_active_type', 'is_active', 'service_type_id'),
+        # Verified providers list
+        Index('idx_user_services_verified_active', 'is_verified', 'is_active'),
+    )
 
     # Relationships
     user = relationship("User", back_populates="user_services")
@@ -107,6 +117,10 @@ class UserServiceRating(Base):
 
     __table_args__ = (
         CheckConstraint('rating >= 1 AND rating <= 5', name='ck_rating_range'),
+        # Service rating aggregate / list newest-first
+        Index('idx_user_service_ratings_service_created', 'user_service_id', 'created_at'),
+        # User's own reviews
+        Index('idx_user_service_ratings_user', 'user_id'),
     )
 
     # Relationships

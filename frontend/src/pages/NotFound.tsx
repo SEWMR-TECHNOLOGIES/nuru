@@ -1,15 +1,17 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Home, Search, ArrowLeft } from "lucide-react";
+import { Home, Search } from "lucide-react";
 import Layout from "@/components/layout/Layout";
 import notFoundImg from "@/assets/404-illustration.jpg";
 import { useMeta } from "@/hooks/useMeta";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 const NotFound = () => {
+  const { t } = useLanguage();
   useMeta({
-    title: "Page Not Found - Nuru",
-    description: "The page you're looking for doesn't exist. Return to Nuru and continue planning your perfect events."
+    title: t('page_not_found') + " - Nuru",
+    description: "The page you're looking for doesn't exist."
   });
 
   return (
@@ -38,7 +40,7 @@ const NotFound = () => {
                   transition={{ delay: 0.3, duration: 0.6 }}
                   className="text-4xl font-bold text-foreground"
                 >
-                  Oops! Page Not Found
+                  {t('oops_not_found')}
                 </motion.h1>
                 <motion.p
                   initial={{ opacity: 0, y: 20 }}
@@ -46,7 +48,7 @@ const NotFound = () => {
                   transition={{ delay: 0.4, duration: 0.6 }}
                   className="text-lg text-muted-foreground max-w-md mx-auto lg:mx-0"
                 >
-                  The page you're looking for seems to have wandered off like a guest looking for the perfect event. Let's get you back on track!
+                  {t('page_wandered')}
                 </motion.p>
               </div>
 
@@ -59,15 +61,14 @@ const NotFound = () => {
                 <Button 
                   asChild 
                   size="lg"
-                  className="bg-black hover:bg-gray-800 text-white"
+                  className="bg-foreground hover:bg-foreground/90 text-background"
                 >
                   <Link to="/" className="inline-flex items-center">
                     <Home className="w-5 h-5 mr-2" />
-                    Back to Home
+                    {t('back_to_home')}
                   </Link>
                 </Button>
 
-                
                 <Button 
                   asChild 
                   variant="outline" 
@@ -76,7 +77,7 @@ const NotFound = () => {
                 >
                   <Link to="/contact" className="inline-flex items-center">
                     <Search className="w-5 h-5 mr-2" />
-                    Need Help?
+                    {t('need_help')}
                   </Link>
                 </Button>
               </motion.div>
@@ -88,35 +89,23 @@ const NotFound = () => {
                 className="pt-8"
               >
                 <p className="text-sm text-muted-foreground mb-4">
-                  Popular pages you might be looking for:
+                  {t('popular_pages')}
                 </p>
                 <div className="flex flex-wrap gap-2 justify-center lg:justify-start">
-                  <Link 
-                    to="/features/event-planning" 
-                    className="text-sm text-accent-brand hover:text-accent-brand/80 hover:underline transition-colors"
-                  >
-                    Event Planning
+                  <Link to="/features/event-planning" className="text-sm text-accent-brand hover:text-accent-brand/80 hover:underline transition-colors">
+                    {t('event_planning')}
                   </Link>
                   <span className="text-muted-foreground">•</span>
-                  <Link 
-                    to="/features/service-providers" 
-                    className="text-sm text-accent-brand hover:text-accent-brand/80 hover:underline transition-colors"
-                  >
-                    Service Providers
+                  <Link to="/features/service-providers" className="text-sm text-accent-brand hover:text-accent-brand/80 hover:underline transition-colors">
+                    {t('service_providers')}
                   </Link>
                   <span className="text-muted-foreground">•</span>
-                  <Link 
-                    to="/faqs" 
-                    className="text-sm text-accent-brand hover:text-accent-brand/80 hover:underline transition-colors"
-                  >
-                    FAQs
+                  <Link to="/faqs" className="text-sm text-accent-brand hover:text-accent-brand/80 hover:underline transition-colors">
+                    {t('faq')}
                   </Link>
                   <span className="text-muted-foreground">•</span>
-                  <Link 
-                    to="/contact" 
-                    className="text-sm text-accent-brand hover:text-accent-brand/80 hover:underline transition-colors"
-                  >
-                    Contact
+                  <Link to="/contact" className="text-sm text-accent-brand hover:text-accent-brand/80 hover:underline transition-colors">
+                    {t('contact_us')}
                   </Link>
                 </div>
               </motion.div>
@@ -128,11 +117,7 @@ const NotFound = () => {
               transition={{ delay: 0.3, duration: 0.6 }}
               className="relative"
             >
-              <img
-                src={notFoundImg}
-                alt="Page not found illustration"
-                className="w-full max-w-lg mx-auto rounded-2xl shadow-lg"
-              />
+              <img src={notFoundImg} alt="Page not found illustration" className="w-full max-w-lg mx-auto rounded-2xl shadow-lg" />
               <div className="absolute inset-0 bg-accent-brand/5 rounded-2xl"></div>
             </motion.div>
           </div>

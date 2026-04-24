@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUserContributors } from '@/data/useUserContributors';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
@@ -13,10 +14,14 @@ import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
 import ContributorListSkeleton from '@/components/ui/ContributorListSkeleton';
 import type { UserContributor } from '@/lib/api/contributors';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { validateMobileMoneyPhone } from '@/lib/validators/phone';
+import { getActiveRegion } from '@/lib/region/host';
 
 const ITEMS_PER_PAGE = 10;
 
 const MyContributors = () => {
+  const { t } = useLanguage();
   useWorkspaceMeta({ title: 'My Contributors', description: 'Manage your contributor address book' });
   const { contributors, loading, create, update, remove } = useUserContributors();
   const { confirm, ConfirmDialog } = useConfirmDialog();
@@ -24,7 +29,7 @@ const MyContributors = () => {
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<UserContributor | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', notes: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', notes: '', secondary_phone: '', notify_target: 'primary' as 'primary' | 'secondary' | 'both' });
   const [submitting, setSubmitting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -39,34 +44,66 @@ const MyContributors = () => {
 
   const openAdd = () => {
     setEditTarget(null);
-    setForm({ name: '', email: '', phone: '', notes: '' });
+    setForm({ name: '', email: '', phone: '', notes: '', secondary_phone: '', notify_target: 'primary' });
     setDialogOpen(true);
   };
 
   const openEdit = (c: UserContributor) => {
     setEditTarget(c);
-    setForm({ name: c.name, email: c.email || '', phone: c.phone || '', notes: c.notes || '' });
+    setForm({
+      name: c.name,
+      email: c.email || '',
+      phone: c.phone || '',
+      notes: c.notes || '',
+      secondary_phone: c.secondary_phone || '',
+      notify_target: (c.notify_target as any) || 'primary',
+    });
     setDialogOpen(true);
   };
 
+  const region = getActiveRegion().code;
+
+  const primaryCheck = form.phone.trim() ? validateMobileMoneyPhone(form.phone, region) : null;
+  const secondaryCheck = form.secondary_phone.trim() ? validateMobileMoneyPhone(form.secondary_phone, region) : null;
+
   const handleSubmit = async () => {
     if (!form.name.trim()) { toast.error('Name is required'); return; }
+    if (primaryCheck && !primaryCheck.ok) { toast.error(primaryCheck.message); return; }
+    if (secondaryCheck && !secondaryCheck.ok) { toast.error(secondaryCheck.message); return; }
+    if (
+      primaryCheck?.ok && secondaryCheck?.ok &&
+      primaryCheck.e164 === secondaryCheck.e164
+    ) {
+      toast.error('Secondary phone must be different from the primary number.');
+      return;
+    }
+    // Notify target consistency: if user picked secondary/both, secondary must be present.
+    if ((form.notify_target === 'secondary' || form.notify_target === 'both') && !form.secondary_phone.trim()) {
+      toast.error('Add a secondary phone number first, or change the notify option.');
+      return;
+    }
     setSubmitting(true);
     try {
+      const normalizedPrimary = primaryCheck?.ok ? primaryCheck.e164 : (form.phone.trim() || undefined);
+      const normalizedSecondary = secondaryCheck?.ok ? secondaryCheck.e164 : (form.secondary_phone.trim() || undefined);
       if (editTarget) {
         await update(editTarget.id, {
           name: form.name.trim(),
           email: form.email.trim() || undefined,
-          phone: form.phone.trim() || undefined,
+          phone: normalizedPrimary,
           notes: form.notes.trim() || undefined,
+          secondary_phone: normalizedSecondary || null,
+          notify_target: form.notify_target,
         } as any);
         toast.success('Contributor updated');
       } else {
         await create({
           name: form.name.trim(),
           email: form.email.trim() || undefined,
-          phone: form.phone.trim() || undefined,
+          phone: normalizedPrimary,
           notes: form.notes.trim() || undefined,
+          secondary_phone: normalizedSecondary,
+          notify_target: form.notify_target,
         });
         toast.success('Contributor added');
       }
@@ -95,24 +132,24 @@ const MyContributors = () => {
     <div className="space-y-4">
       <ConfirmDialog />
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-bold">My Contributors</h1>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add</Button>
+        <h1 className="text-lg sm:text-xl font-bold truncate min-w-0 flex-1">{t("my_contributors")}</h1>
+        <Button size="sm" className="flex-shrink-0" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />{t("add")}</Button>
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Your personal address book of contributors. Add them to any event quickly.
+        {t('contributor_address_book')}
       </p>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input placeholder="Search contributors..." value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} className="pl-9" />
+        <Input placeholder={t('search_contributors')} value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} className="pl-9" />
       </div>
 
       {filtered.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <Users className="w-10 h-10 mx-auto mb-3 opacity-40" />
-          <p className="font-medium">{search ? 'No contributors found' : 'No contributors yet'}</p>
-          <p className="text-sm mt-1">{search ? 'Try a different search term' : 'Add your first contributor to get started'}</p>
+          <p className="font-medium">{search ? t('no_contributors_found') : t('no_contributors_yet')}</p>
+          <p className="text-sm mt-1">{search ? t('try_different_search') : t('add_first_contributor')}</p>
         </div>
       ) : (
         <Card>
@@ -138,7 +175,7 @@ const MyContributors = () => {
             {totalPages > 1 && (
               <div className="flex items-center justify-between p-4 border-t">
                 <p className="text-sm text-muted-foreground">
-                  Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} of {filtered.length}
+                  {t('showing')} {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} {t('of_total')} {filtered.length}
                 </p>
                 <div className="flex items-center gap-1">
                   <Button variant="outline" size="icon" className="h-8 w-8" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}><ChevronLeft className="w-4 h-4" /></Button>
@@ -160,17 +197,51 @@ const MyContributors = () => {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{editTarget ? 'Edit Contributor' : 'Add Contributor'}</DialogTitle>
+            <DialogTitle>{editTarget ? t('edit_contributor') : t('add_contributor')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div><Label>Name *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Full name" /></div>
-            <div><Label>Phone</Label><Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="0712 345 678" /></div>
-            <div><Label>Email</Label><Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@example.com" /></div>
-            <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional notes" rows={2} /></div>
+            <div><Label>{t('name')} *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder={t('full_name_placeholder')} autoComplete="off" /></div>
+            <div>
+              <Label>{t('phone')}</Label>
+              <Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="0712 345 678" autoComplete="off" />
+              {primaryCheck && !primaryCheck.ok && (
+                <p className="text-[11px] text-destructive mt-1">{primaryCheck.message}</p>
+              )}
+            </div>
+            <div><Label>{t('email')}</Label><Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@example.com" autoComplete="off" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Secondary phone <span className="text-xs text-muted-foreground">(optional)</span></Label>
+                <Input
+                  value={form.secondary_phone}
+                  onChange={e => setForm(f => ({ ...f, secondary_phone: e.target.value }))}
+                  placeholder="0712 345 678"
+                  autoComplete="off"
+                />
+                {secondaryCheck && !secondaryCheck.ok && (
+                  <p className="text-[11px] text-destructive mt-1">{secondaryCheck.message}</p>
+                )}
+              </div>
+              <div>
+                <Label>Notify</Label>
+                <Select value={form.notify_target} onValueChange={(v) => setForm(f => ({ ...f, notify_target: v as any }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="primary">Primary only</SelectItem>
+                    <SelectItem value="secondary">Secondary only</SelectItem>
+                    <SelectItem value="both">Both numbers</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              The secondary number is used only for contribution notifications. It is never linked to a Nuru account or used elsewhere.
+            </p>
+            <div><Label>{t('notes')}</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder={t('optional_notes')} rows={2} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={submitting}>{submitting && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}{editTarget ? 'Save Changes' : 'Add Contributor'}</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>{t("cancel")}</Button>
+            <Button onClick={handleSubmit} disabled={submitting}>{submitting && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}{editTarget ? t('save_changes') : t('add_contributor')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

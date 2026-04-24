@@ -34,6 +34,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from 'sonner';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 // ──────────────────────────────────────────────
 // Helper: get initials from a name string
@@ -524,9 +525,9 @@ const PostDetail = () => {
   if (loading) {
     return (
       <>
-        <div className="flex items-center justify-between mb-3 md:mb-4">
-          <h1 className="text-2xl md:text-3xl font-bold">Moment</h1>
-          <Button variant="ghost" size="icon" onClick={handleBack}>
+        <div className="flex items-center gap-2 mb-3 md:mb-4">
+          <h1 className="flex-1 min-w-0 text-xl sm:text-2xl md:text-3xl font-bold break-words leading-tight">Moment</h1>
+          <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={handleBack} aria-label="Back">
             <ChevronLeft className="w-5 h-5" />
           </Button>
         </div>
@@ -579,7 +580,17 @@ const PostDetail = () => {
   // Shared event detection
   const isEventShare = post.post_type === 'event_share' && !!post.shared_event;
   const sharedEvent = post.shared_event;
-  const eventImages = sharedEvent?.images?.length ? sharedEvent.images : (sharedEvent?.cover_image ? [sharedEvent.cover_image] : []);
+  const normalizeImg = (i: any): string | null =>
+    !i ? null : (typeof i === 'string' ? i : (i.image_url || i.url || i.src || null));
+  const eventImages: string[] = (() => {
+    const raw = sharedEvent?.images;
+    const list = Array.isArray(raw) && raw.length
+      ? raw.map(normalizeImg).filter(Boolean) as string[]
+      : [];
+    if (list.length) return list;
+    const cover = normalizeImg(sharedEvent?.cover_image);
+    return cover ? [cover] : [];
+  })();
 
   const isOwner = currentUser && (post.user?.id === currentUser.id || post.author?.id === currentUser.id);
   const isRemoved = post.is_active === false;
@@ -603,9 +614,9 @@ const PostDetail = () => {
         </DialogContent>
       </Dialog>
 
-        <div className="flex items-center justify-between mb-3 md:mb-4">
-          <h1 className="text-2xl md:text-3xl font-bold">Moment</h1>
-          <Button variant="ghost" size="icon" onClick={handleBack}>
+        <div className="flex items-center gap-2 mb-3 md:mb-4">
+          <h1 className="flex-1 min-w-0 text-xl sm:text-2xl md:text-3xl font-bold break-words leading-tight">Moment</h1>
+          <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={handleBack} aria-label="Back">
             <ChevronLeft className="w-5 h-5" />
           </Button>
         </div>
@@ -615,7 +626,7 @@ const PostDetail = () => {
         <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 mb-4 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-destructive">This post has been removed by an administrator.</p>
+            <p className="text-sm font-medium text-destructive">This post has been removed by Nuru.</p>
             {post.removal_reason && (
               <p className="text-xs text-muted-foreground mt-0.5">Reason: {post.removal_reason}</p>
             )}

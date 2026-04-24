@@ -32,6 +32,28 @@ from .whatsapp_admin import router as whatsapp_admin_router
 from .issues import router as issues_router
 from .agreements import router as agreements_router
 from .card_templates import router as card_templates_router
+from .meetings import router as meetings_router
+
+from .meeting_documents import router as meeting_documents_router
+from .meeting_og import router as meeting_og_router
+from .combined import router as combined_router
+from .escrow import router as escrow_router
+from .delivery_otp import router as delivery_otp_router
+from .wallet import router as wallet_router
+from .payment_profiles import router as payment_profiles_router
+from .payments import router as payments_router
+from .admin_payments import router as admin_payments_router
+from .withdrawals import router as withdrawals_router
+from .admin_withdrawals import router as admin_withdrawals_router
+from .migration import router as migration_router
+from .admin_payments_ops import router as admin_payments_ops_router
+from .received_payments import router as received_payments_router
+from .event_groups import router as event_groups_router
+from .public_contributions import router as public_contributions_router
+from .contact import router as contact_router
+from .admin_contact import router as admin_contact_router
+from .ticket_offline_claims import router as ticket_offline_claims_router
+from .ticket_reservations import router as ticket_reservations_router
 
 # All routers to be included in main app
 all_routers = [
@@ -66,6 +88,27 @@ all_routers = [
     issues_router,             # /issues/...
     agreements_router,         # /agreements/...
     card_templates_router,     # /card-templates/... + /events/.../card-template
+    meetings_router,           # /events/.../meetings
+    meeting_documents_router,  # /events/.../meetings/.../agenda + minutes
+    meeting_og_router,         # /meetings/room/:roomId (public OG)
+    combined_router,           # /combined/... (aggregated endpoints)
+    escrow_router,             # /escrow/...
+    delivery_otp_router,       # /delivery-otp/...
+    wallet_router,             # /wallet/...
+    payment_profiles_router,   # /payment-profiles/...
+    payments_router,           # /payments/...
+    admin_payments_router,     # /admin/payments/...
+    withdrawals_router,        # /withdrawals/...
+    admin_withdrawals_router,  # /admin/withdrawals/...
+    migration_router,          # /users/me/migration-status
+    admin_payments_ops_router, # /admin/payments/{summary,ledger,settlements,beneficiaries,reconciliation,reports}
+    received_payments_router,  # /received-payments/{events,services}/...
+    event_groups_router,       # /event-groups/...
+    public_contributions_router,  # /public/contributions/{token}/...
+    contact_router,            # /contact/submit  (public)
+    admin_contact_router,      # /admin/contact-messages/...
+    ticket_offline_claims_router,  # /ticketing/{classes,events,offline-claims,my-offline-claims}
+    ticket_reservations_router,    # /ticketing/{reserve,reservations/...,my-reservations,...}
 ]
 
 __all__ = [
@@ -100,4 +143,5 @@ __all__ = [
     "all_routers",
     "agreements_router",
     "card_templates_router",
+    "meetings_router",
 ]

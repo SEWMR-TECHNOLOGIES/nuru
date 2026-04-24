@@ -9,8 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { CalendarDays, MapPin, Clock, User, Shirt, Info, Check, XCircle, Loader2 } from "lucide-react";
+import VenueMapPreview from "@/components/VenueMapPreview";
 import { motion } from "framer-motion";
 import nuruLogo from "@/assets/nuru-logo.png";
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const formatRsvpDate = (dateStr?: string | null) => {
   if (!dateStr) return null;
@@ -226,13 +228,28 @@ export default function RSVPConfirmation() {
                 </div>
               )}
 
-              {event.location && (
+              {(event.location || event.venue) && (
                 <div className="flex items-start gap-3">
                   <div className="w-9 h-9 rounded-lg bg-accent/20 flex items-center justify-center shrink-0">
                     <MapPin className="h-4 w-4 text-accent-foreground" />
                   </div>
-                  <p className="text-sm font-medium">{event.location}</p>
+                  <div>
+                    <p className="text-sm font-medium">{event.venue || event.location}</p>
+                    {event.venue_address && event.venue_address !== event.venue && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{event.venue_address}</p>
+                    )}
+                  </div>
                 </div>
+              )}
+
+              {event.venue_coordinates && (
+                <VenueMapPreview
+                  latitude={event.venue_coordinates.latitude}
+                  longitude={event.venue_coordinates.longitude}
+                  venueName={event.venue || event.location || undefined}
+                  address={event.venue_address || undefined}
+                  height="180px"
+                />
               )}
 
               {event.organizer_name && (

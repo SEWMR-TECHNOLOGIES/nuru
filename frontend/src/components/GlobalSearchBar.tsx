@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useGlobalSearch } from '@/hooks/useGlobalSearch';
 import type { SearchPerson, SearchEvent, SearchService } from '@/lib/api/search';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const getInitials = (name: string) => {
   const parts = name.trim().split(/\s+/);
@@ -46,6 +47,7 @@ interface GlobalSearchBarProps {
 }
 
 const GlobalSearchBar = ({ className, autoFocus, onNavigate, fullScreen }: GlobalSearchBarProps) => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { query, setQuery, results, loading, isOpen, setIsOpen, totalResults } = useGlobalSearch();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -202,7 +204,7 @@ const GlobalSearchBar = ({ className, autoFocus, onNavigate, fullScreen }: Globa
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => { if (query.trim() && totalResults > 0) setIsOpen(true); }}
-          placeholder="Search people, events, services..."
+          placeholder={t('search_people_events')}
           className="pl-10 pr-10 py-2.5 bg-muted/50 border-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 rounded-xl text-sm"
           autoComplete="off"
           autoFocus={autoFocus}

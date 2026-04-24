@@ -12,13 +12,37 @@ import type { PaginatedResponse } from "./types";
 export interface UserContributor {
   id: string;
   user_id: string;
+  contributor_user_id?: string | null;
   name: string;
   email?: string | null;
   phone?: string | null;
   notes?: string | null;
+  /** Default secondary phone for contribution notifications. Comms-only — never used to map a Nuru user. */
+  secondary_phone?: string | null;
+  /** Default notification routing applied when adding to an event. */
+  notify_target?: ContributorNotifyTarget;
   created_at?: string;
   updated_at?: string;
 }
+
+/** A row returned by GET /user-contributors/my-contributions */
+export interface MyContributionEvent {
+  event_id: string;
+  event_name: string;
+  event_cover_image_url?: string | null;
+  event_start_date?: string | null;
+  event_location?: string | null;
+  organizer_name?: string | null;
+  event_contributor_id: string;
+  currency: string;
+  pledge_amount: number;
+  total_paid: number;
+  pending_amount: number;
+  balance: number;
+  last_payment_at?: string | null;
+}
+
+export type ContributorNotifyTarget = "primary" | "secondary" | "both";
 
 export interface EventContributorSummary {
   id: string;
@@ -30,6 +54,16 @@ export interface EventContributorSummary {
   balance: number;
   notes?: string | null;
   currency?: string | null;
+  /** Optional secondary phone notified for contribution events. NEVER used to map a Nuru user. */
+  secondary_phone?: string | null;
+  /** Which numbers receive notifications: primary (default), secondary, or both. */
+  notify_target?: ContributorNotifyTarget;
+  /** True if this contributor has a live (un-revoked) guest payment link. */
+  has_share_link?: boolean;
+  /** ISO timestamp the contributor last opened their /c/:token page, if any. */
+  share_link_last_opened_at?: string | null;
+  /** ISO timestamp we last sent the share-link SMS, if any. */
+  share_link_sms_last_sent_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -73,7 +107,7 @@ export const contributorsApi = {
     get<UserContributor>(`/user-contributors/${contributorId}`),
 
   /** Create a new contributor in address book */
-  create: (data: { name: string; email?: string; phone?: string; notes?: string }) =>
+  create: (data: { name: string; email?: string; phone?: string; notes?: string; secondary_phone?: string; notify_target?: ContributorNotifyTarget }) =>
     post<UserContributor>("/user-contributors/", data),
 
   /** Update a contributor */
@@ -104,11 +138,20 @@ export const contributorsApi = {
     phone?: string;
     pledge_amount?: number;
     notes?: string;
+    /** Optional second phone notified about contribution events. */
+    secondary_phone?: string;
+    /** Routing preference for SMS / WhatsApp / in-app. Defaults to "primary". */
+    notify_target?: ContributorNotifyTarget;
   }) =>
     post<EventContributorSummary>(`/user-contributors/events/${eventId}/contributors`, data),
 
-  /** Update event contributor (pledge amount, notes) */
-  updateEventContributor: (eventId: string, eventContributorId: string, data: { pledge_amount?: number; notes?: string }) =>
+  /** Update event contributor (pledge amount, notes, secondary contact prefs) */
+  updateEventContributor: (eventId: string, eventContributorId: string, data: {
+    pledge_amount?: number;
+    notes?: string;
+    secondary_phone?: string | null;
+    notify_target?: ContributorNotifyTarget;
+  }) =>
     put<EventContributorSummary>(`/user-contributors/events/${eventId}/contributors/${eventContributorId}`, data),
 
   /** Remove contributor from event */
@@ -162,6 +205,13 @@ export const contributorsApi = {
         transaction_ref?: string;
         recorded_by?: string;
         created_at?: string;
+        // Offline-claim audit fields (organiser/auditor view)
+        payment_channel?: "mobile_money" | "bank" | null;
+        provider_name?: string | null;
+        provider_id?: string | null;
+        payer_account?: string | null;
+        receipt_image_url?: string | null;
+        claim_submitted_at?: string | null;
       }[];
       count: number;
     }>(`/user-contributors/events/${eventId}/pending-contributions`),
@@ -206,12 +256,98 @@ export const contributorsApi = {
       is_filtered: boolean;
     }>(`/user-contributors/events/${eventId}/contribution-report${buildQueryString(params)}`),
 
-  /** Send bulk reminder SMS to contributors by case type */
+  /** Send bulk reminder SMS. Server auto-saves the customisation per (event, case_type). */
   sendBulkReminder: (eventId: string, data: {
     case_type: 'no_contribution' | 'partial' | 'completed';
     message_template: string;
     payment_info?: string;
+    contact_phone?: string;
     contributor_ids: string[];
   }) =>
     post<{ sent: number; failed: number; errors: string[] }>(`/user-contributors/events/${eventId}/bulk-message`, data),
+
+  /** Fetch saved per-event messaging customisations keyed by case_type. */
+  getMessagingTemplates: (eventId: string) =>
+    get<{
+      templates: Partial<Record<'no_contribution' | 'partial' | 'completed', {
+        message_template: string | null;
+        payment_info: string | null;
+        contact_phone: string | null;
+        updated_at: string | null;
+      }>>;
+    }>(`/user-contributors/events/${eventId}/messaging-templates`),
+
+  /** Save (without sending) a per-event messaging customisation. */
+  saveMessagingTemplate: (
+    eventId: string,
+    caseType: 'no_contribution' | 'partial' | 'completed',
+    data: { message_template?: string; payment_info?: string; contact_phone?: string },
+  ) =>
+    put<{
+      case_type: string;
+      message_template: string | null;
+      payment_info: string | null;
+      contact_phone: string | null;
+    }>(`/user-contributors/events/${eventId}/messaging-templates/${caseType}`, data),
+
+  // ============================================================================
+  // SELF-CONTRIBUTE — events where the logged-in user is a contributor
+  // ============================================================================
+
+  /** Events where the current user is recorded as a contributor */
+  getMyContributions: (params?: { search?: string }) =>
+    get<{ events: MyContributionEvent[]; count: number }>(`/user-contributors/my-contributions${params?.search ? `?search=${encodeURIComponent(params.search)}` : ""}`),
+
+  /** Submit a pending self-contribution; organiser approves/rejects later */
+  selfContribute: (
+    eventId: string,
+    data: { amount: number; payment_reference?: string; note?: string },
+  ) =>
+    post<{ contribution_id: string; amount: number; status: 'pending' }>(
+      `/user-contributors/events/${eventId}/self-contribute`,
+      data,
+    ),
+
+  // ============================================================================
+  // GUEST PAYMENT LINKS — host-side actions for the /c/:token flow
+  // ============================================================================
+
+  /**
+   * Generate (or rotate) a share token for a single contributor.
+   * The plain token is returned ONCE inside `url`; the server stores only the hash.
+   */
+  generateShareLink: (
+    eventId: string,
+    eventContributorId: string,
+    data?: { regenerate?: boolean },
+  ) =>
+    post<{
+      url: string;
+      token: string;
+      host: string;
+      currency_code: string;
+      expires_at: string | null;
+      sms_supported: boolean;
+    }>(
+      `/user-contributors/events/${eventId}/contributors/${eventContributorId}/share-link`,
+      data ?? {},
+    ),
+
+  /** Send the freshly-issued share link to the contributor by SMS (TZ for now). */
+  sendShareLinkSms: (
+    eventId: string,
+    eventContributorId: string,
+    data?: { custom_message?: string },
+  ) =>
+    post<{ sent: boolean; sms_supported?: boolean; sms_last_sent_at?: string | null }>(
+      `/user-contributors/events/${eventId}/contributors/${eventContributorId}/share-link/send-sms`,
+      data ?? {},
+    ),
+
+  /** Disable the contributor's share link so the URL stops working. */
+  revokeShareLink: (eventId: string, eventContributorId: string) =>
+    post<{ revoked: boolean }>(
+      `/user-contributors/events/${eventId}/contributors/${eventContributorId}/revoke-share-link`,
+      {},
+    ),
 };

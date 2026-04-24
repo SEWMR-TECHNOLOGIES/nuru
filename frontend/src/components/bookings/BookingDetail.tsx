@@ -9,9 +9,10 @@ import {
   CheckCircle,
   XCircle,
   DollarSign,
-  FileText,
   Phone,
-  Mail
+  Mail,
+  Eye,
+  Info
 } from 'lucide-react';
 import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
@@ -21,12 +22,33 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { useBooking } from '@/data/useBookings';
-import { formatPrice } from '@/utils/formatPrice';
+import { useCurrency } from '@/hooks/useCurrency';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import EscrowStatusCard from './EscrowStatusCard';
+import DeliveryOtpCard from './DeliveryOtpCard';
+import PayDepositDialog from './PayDepositDialog';
 
 const BookingDetail = () => {
+  const { format: formatPrice } = useCurrency();
+  const { t } = useLanguage();
   const { id } = useParams();
   const navigate = useNavigate();
   const { booking, loading, error, refetch } = useBooking(id || null);
+  const { data: currentUser } = useCurrentUser();
+  const [payDepositOpen, setPayDepositOpen] = useState(false);
+
+  const isSelfBooking =
+    !!booking && !!currentUser &&
+    booking.provider?.id === currentUser.id &&
+    booking.client?.id === currentUser.id;
+
+  const [perspectiveOverride, setPerspectiveOverride] = useState<'organiser' | 'vendor' | null>(null);
+
+  const detectedRole: 'organiser' | 'vendor' =
+    booking && currentUser && booking.provider?.id === currentUser.id ? 'vendor' : 'organiser';
+
+  const viewerRole: 'organiser' | 'vendor' = perspectiveOverride ?? detectedRole;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -71,9 +93,9 @@ const BookingDetail = () => {
   if (error || !booking) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Booking Details</h1>
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+        <div className="flex items-center gap-2">
+          <h1 className="flex-1 min-w-0 text-xl sm:text-2xl md:text-3xl font-bold break-words leading-tight">Booking Details</h1>
+          <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => navigate(-1)} aria-label="Back">
             <ChevronLeft className="w-5 h-5" />
           </Button>
         </div>
@@ -85,15 +107,43 @@ const BookingDetail = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Booking Details</h1>
-          <p className="text-muted-foreground mt-1">Booking #{booking.id.slice(0, 8)}</p>
+      <div className="flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold break-words leading-tight">Booking Details</h1>
+          <p className="text-muted-foreground mt-1 text-sm truncate">Booking #{booking.id.slice(0, 8)}</p>
         </div>
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => navigate(-1)} aria-label="Back">
           <ChevronLeft className="w-5 h-5" />
         </Button>
       </div>
+
+      {/* Self-booking perspective toggle */}
+      {isSelfBooking && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-4 flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-2 text-sm">
+              <Info className="w-4 h-4 text-primary" />
+              <span>You booked your own service. Switch perspectives to test both flows.</span>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant={viewerRole === 'organiser' ? 'default' : 'outline'}
+                onClick={() => setPerspectiveOverride('organiser')}
+              >
+                <Eye className="w-3.5 h-3.5 mr-1" /> View as Organiser
+              </Button>
+              <Button
+                size="sm"
+                variant={viewerRole === 'vendor' ? 'default' : 'outline'}
+                onClick={() => setPerspectiveOverride('vendor')}
+              >
+                <Eye className="w-3.5 h-3.5 mr-1" /> View as Vendor
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid md:grid-cols-3 gap-6">
         {/* Main Content */}
@@ -105,7 +155,7 @@ const BookingDetail = () => {
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-4">
-                <div className="w-20 h-20 rounded-lg overflow-hidden bg-muted">
+                <div className="w-20 h-20 rounded-lg overflow-hidden bg-muted flex-shrink-0">
                   {(() => {
                     const img = booking.service.primary_image 
                       || (booking.service as any).image 
@@ -123,8 +173,8 @@ const BookingDetail = () => {
                     );
                   })()}
                 </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-lg">{booking.service.title}</h3>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-lg truncate">{booking.service.title}</h3>
                   <p className="text-muted-foreground">{booking.service.category}</p>
                   <Button 
                     variant="link" 
@@ -188,6 +238,72 @@ const BookingDetail = () => {
               )}
             </CardContent>
           </Card>
+
+          {/* Service Provider + Client — side-by-side on desktop */}
+          <div className="grid sm:grid-cols-2 gap-4">
+            {booking.provider && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">Service Provider</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="w-10 h-10">
+                      <AvatarImage src={booking.provider.avatar || (booking.provider as any).avatar_url || (booking.provider as any).profile_picture_url} />
+                      <AvatarFallback>{booking.provider.name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{booking.provider.name}</p>
+                      {booking.provider.rating && (
+                        <p className="text-xs text-muted-foreground">⭐ {booking.provider.rating}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    {booking.provider.phone && (
+                      <a href={`tel:${booking.provider.phone}`} className="flex items-center gap-2 text-sm text-primary hover:underline">
+                        <Phone className="w-3.5 h-3.5" /> {booking.provider.phone}
+                      </a>
+                    )}
+                    {booking.provider.email && (
+                      <a href={`mailto:${booking.provider.email}`} className="flex items-center gap-2 text-sm text-primary hover:underline truncate">
+                        <Mail className="w-3.5 h-3.5 flex-shrink-0" /> <span className="truncate">{booking.provider.email}</span>
+                      </a>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">Client</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <Avatar className="w-10 h-10">
+                    <AvatarImage src={booking.client.avatar || (booking.client as any).avatar_url || (booking.client as any).profile_picture_url} />
+                    <AvatarFallback>{booking.client.name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{booking.client.name}</p>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  {booking.client.phone && (
+                    <a href={`tel:${booking.client.phone}`} className="flex items-center gap-2 text-sm text-primary hover:underline">
+                      <Phone className="w-3.5 h-3.5" /> {booking.client.phone}
+                    </a>
+                  )}
+                  {booking.client.email && (
+                    <a href={`mailto:${booking.client.email}`} className="flex items-center gap-2 text-sm text-primary hover:underline truncate">
+                      <Mail className="w-3.5 h-3.5 flex-shrink-0" /> <span className="truncate">{booking.client.email}</span>
+                    </a>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
           {/* Message & Requirements */}
           {(booking.message || booking.special_requirements) && (
@@ -254,18 +370,18 @@ const BookingDetail = () => {
                     <div className="text-right">
                       <span className="font-semibold">{formatPrice(booking.deposit_required)}</span>
                       {booking.deposit_paid ? (
-                        <Badge className="ml-2 bg-green-100 text-green-800">Paid</Badge>
+                        <Badge className="ml-2 bg-emerald-500/10 text-emerald-700">Paid</Badge>
                       ) : (
-                        <Badge className="ml-2 bg-yellow-100 text-yellow-800">Pending</Badge>
+                        <Badge className="ml-2 bg-amber-500/10 text-amber-700">Pending</Badge>
                       )}
                     </div>
                   </div>
                 )}
               </div>
-              {booking.status === 'accepted' && !booking.deposit_paid && booking.deposit_required && (
+              {viewerRole === 'organiser' && booking.status === 'accepted' && !booking.deposit_paid && booking.deposit_required && (
                 <>
                   <Separator />
-                  <Button className="w-full">
+                  <Button className="w-full" onClick={() => setPayDepositOpen(true)}>
                     <DollarSign className="w-4 h-4 mr-2" />
                     Pay Deposit
                   </Button>
@@ -280,82 +396,11 @@ const BookingDetail = () => {
             </CardContent>
           </Card>
 
-          {/* Provider Info */}
-          {booking.provider && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Service Provider</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <Avatar>
-                    <AvatarImage src={booking.provider.avatar || (booking.provider as any).avatar_url || (booking.provider as any).profile_picture_url} />
-                    <AvatarFallback>{booking.provider.name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-medium">{booking.provider.name}</p>
-                    {booking.provider.rating && (
-                      <p className="text-sm text-muted-foreground">⭐ {booking.provider.rating} rating</p>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  {booking.provider.phone && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Phone className="w-4 h-4 text-muted-foreground" />
-                      <a href={`tel:${booking.provider.phone}`} className="text-primary hover:underline">
-                        {booking.provider.phone}
-                      </a>
-                    </div>
-                  )}
-                  {booking.provider.email && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Mail className="w-4 h-4 text-muted-foreground" />
-                      <a href={`mailto:${booking.provider.email}`} className="text-primary hover:underline">
-                        {booking.provider.email}
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {/* On-site delivery check-in (Phase 1.3) */}
+          {booking.id && <DeliveryOtpCard bookingId={booking.id} viewerRole={viewerRole} />}
 
-          {/* Client Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Client</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-3">
-                <Avatar>
-                  <AvatarImage src={booking.client.avatar || (booking.client as any).avatar_url || (booking.client as any).profile_picture_url} />
-                  <AvatarFallback>{booking.client.name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-medium">{booking.client.name}</p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                {booking.client.phone && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Phone className="w-4 h-4 text-muted-foreground" />
-                    <a href={`tel:${booking.client.phone}`} className="text-primary hover:underline">
-                      {booking.client.phone}
-                    </a>
-                  </div>
-                )}
-                {booking.client.email && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Mail className="w-4 h-4 text-muted-foreground" />
-                    <a href={`mailto:${booking.client.email}`} className="text-primary hover:underline">
-                      {booking.client.email}
-                    </a>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Escrow status */}
+          {booking.id && <EscrowStatusCard bookingId={booking.id} viewerRole={viewerRole} />}
 
           {/* Dates */}
           <Card>
@@ -378,6 +423,17 @@ const BookingDetail = () => {
           </Card>
         </div>
       </div>
+
+      {/* Pay Deposit dialog */}
+      {booking.deposit_required && (
+        <PayDepositDialog
+          open={payDepositOpen}
+          onOpenChange={setPayDepositOpen}
+          bookingId={booking.id}
+          amount={Number(booking.deposit_required)}
+          onSuccess={() => refetch()}
+        />
+      )}
     </div>
   );
 };

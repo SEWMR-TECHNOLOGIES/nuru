@@ -10,13 +10,16 @@ import { getTimeAgo } from '@/utils/getTimeAgo';
 import { Loader2, TrendingUp } from 'lucide-react';
 import { feedSessionId } from '@/hooks/useFeedTracking';
 import { socialApi } from '@/lib/api/social';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const SCROLL_KEY = 'feedScrollPosition';
+const LAST_VISIT_KEY = 'feedLastVisitedAt';
 
 const getScrollContainer = () =>
   document.querySelector('.flex-1.overflow-y-auto') as HTMLElement | null;
 
 const Feed = () => {
+  const { t } = useLanguage();
   const { items: apiPosts, loading, error, refetch, loadMore, pagination } = useFeed({
     limit: 15,
     mode: 'ranked',
@@ -24,6 +27,7 @@ const Feed = () => {
   });
   const hasLoadedOnce = useRef(false);
   const scrollRestoredRef = useRef(false);
+  const restoreAttemptsRef = useRef(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [trendingPosts, setTrendingPosts] = useState<any[]>([]);
@@ -31,14 +35,16 @@ const Feed = () => {
   const triedTrending = useRef(false);
 
   const currentPage = pagination?.page || 1;
-  const totalPages = pagination?.pages || 1;
-  const hasMore = currentPage < totalPages;
+  const totalPages = pagination?.total_pages ?? pagination?.pages ?? 1;
+  const hasMore = pagination?.has_next ?? (currentPage < totalPages);
 
   useEffect(() => {
     if (!loading && apiPosts.length >= 0) {
       hasLoadedOnce.current = true;
     }
   }, [loading, apiPosts]);
+
+  // Note: revalidation on mount is handled inside useFeed() (stale-while-revalidate).
 
   // Save scroll position before navigating away
   useEffect(() => {
@@ -47,23 +53,35 @@ const Feed = () => {
 
     const handleScroll = () => {
       sessionStorage.setItem(SCROLL_KEY, String(container.scrollTop));
+      sessionStorage.setItem(LAST_VISIT_KEY, String(Date.now()));
     };
+
+    handleScroll();
     container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
   // Restore scroll position after data is ready (only once per mount)
   useEffect(() => {
-    if (scrollRestoredRef.current || loading) return;
+    if (scrollRestoredRef.current || loading || apiPosts.length === 0) return;
     const savedPosition = sessionStorage.getItem(SCROLL_KEY);
     if (savedPosition) {
-      scrollRestoredRef.current = true;
-      requestAnimationFrame(() => {
+      const targetPosition = parseInt(savedPosition, 10);
+      const restoreScroll = () => {
         const container = getScrollContainer();
-        if (container) {
-          container.scrollTop = parseInt(savedPosition, 10);
+        if (!container) return;
+
+        container.scrollTop = targetPosition;
+        if (Math.abs(container.scrollTop - targetPosition) <= 2 || restoreAttemptsRef.current >= 6) {
+          scrollRestoredRef.current = true;
+          return;
         }
-      });
+
+        restoreAttemptsRef.current += 1;
+        requestAnimationFrame(restoreScroll);
+      };
+
+      requestAnimationFrame(restoreScroll);
     }
   }, [loading, apiPosts]);
 
@@ -178,7 +196,14 @@ const Feed = () => {
     description: "See the latest events, weddings, birthdays, and community posts on Nuru."
   });
 
+  // Empty state must only appear once BOTH the primary feed and the trending
+  // fallback have settled. Otherwise mobile briefly flashes "no posts yet"
+  // before content arrives. `triedTrending.current` is set as soon as the
+  // fallback fetch is kicked off, so we wait for it to also complete.
   const showSkeleton = loading && !hasLoadedOnce.current && posts.length === 0;
+  const fallbackPending =
+    posts.length === 0 && (!triedTrending.current || trendingLoading);
+  const canShowEmpty = !loading && !trendingLoading && triedTrending.current;
 
   if (showSkeleton) {
     return (
@@ -218,7 +243,7 @@ const Feed = () => {
     <div className="space-y-4 md:space-y-6 pb-4">
       <CreatePostBox />
 
-      {displayPosts.length === 0 && !loading && !trendingLoading && (
+      {displayPosts.length === 0 && canShowEmpty && !fallbackPending && (
         <div className="text-center py-8">
           <p className="text-muted-foreground text-sm">No posts yet. Be the first to share something with the community!</p>
         </div>
@@ -253,8 +278,8 @@ const Feed = () => {
         <div key={post.id}>
           <Moment post={post} />
 
-          {/* Ad skeleton slot after every 3rd post */}
-          {(index + 1) % 3 === 0 && index < posts.length - 1 && (
+          {/* Ad / promoted slot after every 3rd post */}
+          {(index + 1) % 3 === 0 && index < displayPosts.length - 1 && (
             index % 6 === 2 ? (
               <div className="mt-4 md:mt-6">
                 <AdCardSkeleton />

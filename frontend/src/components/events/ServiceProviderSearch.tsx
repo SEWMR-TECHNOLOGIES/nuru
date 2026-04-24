@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { searchApi, type SearchService } from '@/lib/api/search';
 import { Loader2, Store } from 'lucide-react';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface ServiceProviderSearchProps {
   value: string;
@@ -10,6 +11,7 @@ interface ServiceProviderSearchProps {
 }
 
 const ServiceProviderSearch = ({ value, onChange, placeholder = 'Search or type vendor name' }: ServiceProviderSearchProps) => {
+  const { t } = useLanguage();
   const [query, setQuery] = useState(value);
   const [results, setResults] = useState<SearchService[]>([]);
   const [loading, setLoading] = useState(false);

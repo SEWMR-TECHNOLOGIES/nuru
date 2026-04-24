@@ -6,6 +6,7 @@ import CalendarIcon from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import TicketIcon from '@/assets/icons/ticket-icon.svg';
 import PrintIcon from '@/assets/icons/print-icon.svg';
+import videoChatIcon from '@/assets/video-chat-icon.svg';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -17,7 +18,9 @@ import { useServices } from '@/data/useUserServices';
 import { useFollowSuggestions, useCircles } from '@/data/useSocial';
 import { eventsApi } from '@/lib/api/events';
 import { ticketingApi } from '@/lib/api/ticketing';
-import { formatPrice } from '@/utils/formatPrice';
+import { meetingsApi } from '@/lib/api/meetings';
+import { useCurrency } from '@/hooks/useCurrency';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 // Loading skeleton for sidebar cards
 const SidebarCardSkeleton = ({ title, count = 3 }: { title: string; count?: number }) => (
@@ -56,6 +59,8 @@ const ROLE_LABELS: Record<string, string> = {
 
 // ── Ticket-Selling Events Section ──
 const TicketEventsSection = ({ navigate }: { navigate: (path: string) => void }) => {
+  const { format: formatPrice } = useCurrency();
+  const { t } = useLanguage();
   const [ticketEvents, setTicketEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const loadedRef = useRef(false);
@@ -115,6 +120,96 @@ const TicketEventsSection = ({ navigate }: { navigate: (path: string) => void })
     </div>
   );
 };
+
+// ── My Meetings Section ──
+const MyMeetingsSection = ({ navigate }: { navigate: (path: string) => void }) => {
+  const [meetings, setMeetings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchMeetings = useCallback(async (isInitial = false) => {
+    try {
+      const res = await meetingsApi.myMeetings();
+      if (res.success && res.data) {
+        const data = res.data as any[];
+        const active = data.filter((m: any) => m.status !== 'ended').slice(0, 5);
+        setMeetings(active);
+      }
+    } catch { /* silent */ }
+    finally { if (isInitial) setLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    fetchMeetings(true);
+  }, [fetchMeetings]);
+
+  // Poll every 30s
+  useEffect(() => {
+    const interval = setInterval(() => fetchMeetings(), 30000);
+    return () => clearInterval(interval);
+  }, [fetchMeetings]);
+
+  // Show nothing only after initial load completes with no meetings
+  if (loading) return null;
+  if (meetings.length === 0) return null;
+
+  return (
+    <div className="bg-card rounded-lg border border-border overflow-hidden">
+      <div className="px-4 pt-4 pb-2 flex items-center gap-2">
+        <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center">
+          <SvgIcon src={videoChatIcon} className="w-3.5 h-3.5" />
+        </div>
+        <h2 className="font-semibold text-foreground text-sm">My Meetings</h2>
+      </div>
+      <div className="px-2 pb-3 space-y-1">
+        {meetings.map((meeting) => {
+          const isLive = meeting.status === 'in_progress';
+          const scheduledDate = meeting.scheduled_at
+            ? new Date(meeting.scheduled_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+            : '';
+          const scheduledTime = meeting.scheduled_at
+            ? new Date(meeting.scheduled_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            : '';
+
+          return (
+            <div
+              key={meeting.id}
+              className={`flex gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${
+                isLive
+                  ? 'bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-200 dark:ring-emerald-800'
+                  : 'hover:bg-muted/50'
+              }`}
+              onClick={() => navigate(`/meet/${meeting.room_id}?eventId=${meeting.event_id}&meetingId=${meeting.id}`)}
+            >
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                isLive ? 'bg-emerald-100 dark:bg-emerald-900' : 'bg-primary/10'
+              }`}>
+                <SvgIcon src={videoChatIcon} className={`w-4 h-4 ${isLive ? 'text-emerald-600 dark:text-emerald-400' : ''}`} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <h3 className="font-medium text-sm text-foreground truncate">{meeting.title}</h3>
+                  {isLive && (
+                    <Badge className="bg-emerald-500 text-white text-[9px] h-4 px-1.5 animate-pulse">LIVE</Badge>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  {meeting.event_name || 'Event'}
+                </p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[10px] text-muted-foreground">{scheduledDate} · {scheduledTime}</span>
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                    <Users className="w-2.5 h-2.5" /> {meeting.participant_count}
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 
 // ── My Upcoming Tickets Section ──
 const MyTicketsSection = ({ navigate }: { navigate: (path: string) => void }) => {
@@ -236,6 +331,7 @@ const MyTicketsSection = ({ navigate }: { navigate: (path: string) => void }) =>
 };
 
 const RightSidebar = ({ onNavigate }: { onNavigate?: () => void } = {}) => {
+  const { t } = useLanguage();
   const rawNavigate = useNavigate();
   const navigate = useCallback((path: string) => {
     rawNavigate(path);
@@ -404,6 +500,9 @@ const RightSidebar = ({ onNavigate }: { onNavigate?: () => void } = {}) => {
         </div>
       ) : null /* No card when no upcoming events */}
 
+      {/* My Meetings */}
+      <MyMeetingsSection navigate={navigate} />
+
       {/* My Upcoming Tickets */}
       <MyTicketsSection navigate={navigate} />
 
@@ -511,7 +610,7 @@ const RightSidebar = ({ onNavigate }: { onNavigate?: () => void } = {}) => {
                   ) : addedUserIds.has(user.id) ? (
                     "Sent ✓"
                   ) : (
-                    "Add"
+                    t("add")
                   )}
                 </Button>
               </div>

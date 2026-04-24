@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Plus } from 'lucide-react';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface PledgeDialogProps {
   eventId: string;
@@ -13,6 +14,7 @@ interface PledgeDialogProps {
 }
 
 const PledgeDialog = ({ eventId, onPledgeAdded }: PledgeDialogProps) => {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',

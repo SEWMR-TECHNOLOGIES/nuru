@@ -218,7 +218,7 @@ class User(Base):
     user_services = relationship("UserService", back_populates="user")
     service_ratings = relationship("UserServiceRating", back_populates="user")
     organized_events = relationship("Event", back_populates="organizer")
-    contributors = relationship("UserContributor", back_populates="user")
+    contributors = relationship("UserContributor", foreign_keys="UserContributor.user_id", back_populates="user")
     support_tickets = relationship("SupportTicket", back_populates="user")
     notifications = relationship("Notification", back_populates="recipient")
     booking_requests = relationship("ServiceBookingRequest", back_populates="requester")
@@ -1198,6 +1198,8 @@ class Event(Base):
     theme_color = Column(String(7))
     dress_code = Column(String(100))
     special_instructions = Column(Text)
+    # Optional fallback phone used in contributor reminder/bulk messages.
+    reminder_contact_phone = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -1423,10 +1425,19 @@ class UserContributor(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    # Link to a registered Nuru user when the contributor has an account, so
+    # they can see this contribution in their "My Contributions" tab.
+    contributor_user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
     name = Column(Text, nullable=False)
     email = Column(Text)
     phone = Column(Text)
     notes = Column(Text)
+    # Default secondary contact + notification routing (comms-only). Acts as
+    # the default when the contributor is added to an event; the per-event
+    # EventContributor row keeps its own override. secondary_phone is NEVER
+    # used to map a Nuru user account or for any other feature.
+    secondary_phone = Column(Text)
+    notify_target = Column(Text, nullable=False, server_default='primary')
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -1435,7 +1446,8 @@ class UserContributor(Base):
     )
 
     # Relationships
-    user = relationship("User", back_populates="contributors")
+    user = relationship("User", foreign_keys=[user_id], back_populates="contributors")
+    contributor_user = relationship("User", foreign_keys=[contributor_user_id])
     event_contributors = relationship("EventContributor", back_populates="contributor")
 
 
