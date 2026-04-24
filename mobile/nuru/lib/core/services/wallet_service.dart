@@ -26,11 +26,17 @@ class WalletService {
     bool collection = true,
     bool? payout,
   }) {
+    String? purpose;
+    if (payout == true) {
+      purpose = 'payout';
+    } else if (collection) {
+      purpose = 'collection';
+    }
+
     final params = <String, String>{
       'country_code': countryCode,
-      'collection': collection ? 'true' : 'false',
+      if (purpose != null) 'purpose': purpose,
     };
-    if (payout != null) params['payout'] = payout ? 'true' : 'false';
     return ApiBase.get(
       '/payments/providers',
       queryParams: params,
@@ -41,7 +47,12 @@ class WalletService {
   static Future<Map<String, dynamic>> initiatePayment({
     required String targetType,
     String? targetId,
+    String? beneficiaryUserId,
     required num amount,
+    String? countryCode,
+    String? currencyCode,
+    String? methodType,
+    String? paymentChannel,
     String? providerId,
     String? phone,
     String? accountNumber,
@@ -51,11 +62,16 @@ class WalletService {
     return ApiBase.post('/payments/initiate', {
       'target_type': targetType,
       if (targetId != null) 'target_id': targetId,
-      'amount': amount,
+      if (beneficiaryUserId != null) 'beneficiary_user_id': beneficiaryUserId,
+      'gross_amount': amount,
+      if (countryCode != null) 'country_code': countryCode,
+      if (currencyCode != null) 'currency_code': currencyCode,
+      if (methodType != null) 'method_type': methodType,
+      if (paymentChannel != null) 'payment_channel': paymentChannel,
       if (providerId != null) 'provider_id': providerId,
-      if (phone != null) 'phone': phone,
+      if (phone != null) 'phone_number': phone,
       if (accountNumber != null) 'account_number': accountNumber,
-      if (description != null) 'description': description,
+      if (description != null) 'payment_description': description,
       'use_wallet': useWallet,
     });
   }

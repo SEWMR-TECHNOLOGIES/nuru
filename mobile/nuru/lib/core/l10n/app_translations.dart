@@ -187,6 +187,7 @@ class AppTranslations {
     'bookings': {'en': 'Bookings', 'sw': 'Bookings'},
     'my_bookings': {'en': 'My Bookings', 'sw': 'Bookings Zangu'},
     'booked': {'en': 'Booked', 'sw': 'Imewekwa'},
+    'booking_details': {'en': 'Booking Details', 'sw': 'Maelezo ya Booking'},
 
     // ── Profile ──
     'profile': {'en': 'Profile', 'sw': 'Wasifu'},

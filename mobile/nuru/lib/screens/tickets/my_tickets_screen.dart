@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/widgets/expanding_search_action.dart';
@@ -37,14 +39,47 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
     'cancelled': AppColors.textTertiary,
   };
 
+  static const _cacheKey = 'cache_my_tickets_v1';
+  static const _cacheUpcomingKey = 'cache_my_tickets_upcoming_v1';
+
   @override
   void initState() {
     super.initState();
-    _load();
+    _hydrateFromCache().then((_) => _load());
+  }
+
+  Future<void> _hydrateFromCache() async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      final raw = sp.getString(_cacheKey);
+      final upRaw = sp.getString(_cacheUpcomingKey);
+      if (!mounted) return;
+      setState(() {
+        if (raw != null) {
+          final decoded = jsonDecode(raw);
+          if (decoded is List) _tickets = decoded;
+        }
+        if (upRaw != null) {
+          final decoded = jsonDecode(upRaw);
+          if (decoded is List) _upcomingTickets = decoded;
+        }
+        if (_tickets.isNotEmpty || _upcomingTickets.isNotEmpty) _loading = false;
+      });
+    } catch (_) {/* ignore cache errors */}
+  }
+
+  Future<void> _persistCache() async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      await sp.setString(_cacheKey, jsonEncode(_tickets));
+      await sp.setString(_cacheUpcomingKey, jsonEncode(_upcomingTickets));
+    } catch (_) {/* ignore */}
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    if (_tickets.isEmpty && _upcomingTickets.isEmpty) {
+      setState(() => _loading = true);
+    }
     final results = await Future.wait([
       TicketingService.getMyTickets(page: _page, search: _search.isNotEmpty ? _search : null),
       TicketingService.getMyUpcomingTickets(),
@@ -66,6 +101,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
           _upcomingTickets = upData is Map ? (upData['tickets'] ?? []) : (upData is List ? upData : []);
         }
       });
+      _persistCache();
     }
   }
 
@@ -646,6 +682,9 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
                             data: 'https://nuru.tz/ticket/$ticketCode',
                             version: QrVersions.auto,
                             size: 90,
+                            errorCorrectionLevel: QrErrorCorrectLevel.H,
+                            embeddedImage: const AssetImage('assets/images/nuru-logo-square.png'),
+                            embeddedImageStyle: const QrEmbeddedImageStyle(size: Size(18, 18)),
                           ),
                         ),
                         const SizedBox(height: 6),

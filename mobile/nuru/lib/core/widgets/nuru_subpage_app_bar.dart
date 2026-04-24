@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 
+/// Standard sub-page AppBar.
+///
+/// Back affordance is a chevron-left inside a soft rounded white tile,
+/// matching the Nuru mobile design system across all sub-pages.
 class NuruSubPageAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final List<Widget>? actions;
@@ -26,14 +29,31 @@ class NuruSubPageAppBar extends StatelessWidget implements PreferredSizeWidget {
       backgroundColor: AppColors.surface,
       elevation: 0,
       scrolledUnderElevation: 0,
-      leading: IconButton(
-        icon: SvgPicture.asset(
-          'assets/icons/chevron-left-icon.svg',
-          width: 22,
-          height: 22,
-          colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn),
+      leadingWidth: 64,
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 12, top: 6, bottom: 6),
+        child: Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onBack ?? () => Navigator.of(context).maybePop(),
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border.withOpacity(0.4), width: 0.7),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.chevron_left_rounded,
+                size: 24,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
         ),
-        onPressed: onBack ?? () => Navigator.of(context).maybePop(),
       ),
       title: Text(
         title,

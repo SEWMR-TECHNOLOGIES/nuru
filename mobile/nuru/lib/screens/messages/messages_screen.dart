@@ -606,12 +606,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final _msgCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   final _picker = ImagePicker();
+  final _threadSearchCtrl = TextEditingController();
   List<dynamic> _messages = [];
   bool _loading = true;
   bool _sending = false;
+  bool _showThreadSearch = false;
+  String _threadSearch = '';
   Timer? _pollTimer;
   String? _currentUserId;
   File? _selectedImage;
+  Map<String, dynamic>? _replyTo;
 
   List<String> _extractAttachmentUrls(dynamic attachments) {
     if (attachments is! List) return const [];
@@ -649,6 +653,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _pollTimer?.cancel();
     _msgCtrl.dispose();
     _scrollCtrl.dispose();
+    _threadSearchCtrl.dispose();
     super.dispose();
   }
 
@@ -874,9 +879,39 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     ],
                   ),
                 ),
+                IconButton(
+                  icon: Icon(_showThreadSearch ? Icons.close_rounded : Icons.search_rounded, size: 22, color: AppColors.textSecondary),
+                  splashRadius: 20,
+                  onPressed: () => setState(() {
+                    _showThreadSearch = !_showThreadSearch;
+                    if (!_showThreadSearch) { _threadSearch = ''; _threadSearchCtrl.clear(); }
+                  }),
+                ),
               ],
             ),
           ),
+          if (_showThreadSearch)
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              color: AppColors.surface,
+              child: TextField(
+                controller: _threadSearchCtrl,
+                autofocus: true,
+                onChanged: (v) => setState(() => _threadSearch = v.trim().toLowerCase()),
+                style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary, decorationThickness: 0),
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: 'Search in conversation…',
+                  hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary),
+                  prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.textTertiary),
+                  filled: true,
+                  fillColor: AppColors.surfaceVariant,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+                ),
+              ),
+            ),
 
           // Messages with date grouping
           Expanded(
@@ -895,13 +930,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           ),
                         ]),
                       )
-                    : ListView.builder(
-                        controller: _scrollCtrl,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        itemCount: _messages.length,
-                        itemBuilder: (_, i) {
-                          final msg = _messages[i];
-                          if (msg is! Map) return const SizedBox.shrink();
+                    : Builder(builder: (_) {
+                        final visible = _threadSearch.isEmpty
+                            ? _messages
+                            : _messages.where((m) {
+                                if (m is! Map) return false;
+                                final t = (m['content']?.toString() ?? m['message_text']?.toString() ?? '').toLowerCase();
+                                return t.contains(_threadSearch);
+                              }).toList();
+                        return ListView.builder(
+                          controller: _scrollCtrl,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          itemCount: visible.length,
+                          itemBuilder: (_, i) {
+                            final msg = visible[i];
+                            if (msg is! Map) return const SizedBox.shrink();
                           final time = msg['created_at']?.toString() ?? msg['sent_at']?.toString() ?? '';
                           final msgDate = _parseTime(time);
                           
@@ -911,7 +954,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             if (i == 0) {
                               showDateSep = true;
                             } else {
-                              final prevMsg = _messages[i - 1];
+                              final prevMsg = visible[i - 1];
                               final prevTime = prevMsg is Map ? (prevMsg['created_at']?.toString() ?? prevMsg['sent_at']?.toString() ?? '') : '';
                               final prevDate = _parseTime(prevTime);
                               if (prevDate == null) {
@@ -938,8 +981,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                               _messageBubble(msg),
                             ],
                           );
-                        },
-                      ),
+                          },
+                        );
+                      }),
           ),
 
           // Composer

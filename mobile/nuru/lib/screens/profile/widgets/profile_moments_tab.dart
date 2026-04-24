@@ -95,12 +95,28 @@ class ProfileMomentsTab extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 if (isVideo)
-                  // Use NuruVideoPlayer for video content, matching the feed
-                  NuruVideoPlayer(
-                    url: firstImage ?? '',
-                    thumbnailUrl: thumbnailUrl,
-                    height: double.infinity,
-                    borderRadius: BorderRadius.circular(8),
+                  Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      NuruVideoPlayer(
+                        url: firstImage ?? '',
+                        thumbnailUrl: thumbnailUrl,
+                        height: double.infinity,
+                        showControls: false,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      Center(
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.38),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
+                        ),
+                      ),
+                    ],
                   )
                 else if (firstImage != null && firstImage.isNotEmpty)
                   CachedNetworkImage(

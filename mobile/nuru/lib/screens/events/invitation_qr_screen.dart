@@ -141,13 +141,14 @@ class _InvitationQRScreenState extends State<InvitationQRScreen> {
                         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 30, offset: const Offset(0, 10))],
                       ),
                       child: Column(children: [
-                        // QR code rendered as a simple text-based placeholder since we can't use qrcode.react
-                        // We'll use a CustomPaint or a package. For now, use a Container with the value.
                         QrImageView(
                           data: _qrValue,
                           version: QrVersions.auto,
                           size: 200,
                           backgroundColor: Colors.white,
+                          errorCorrectionLevel: QrErrorCorrectLevel.H,
+                          embeddedImage: const AssetImage('assets/images/nuru-logo-square.png'),
+                          embeddedImageStyle: const QrEmbeddedImageStyle(size: Size(38, 38)),
                           errorStateBuilder: (ctx, err) => Center(
                             child: Text('QR Error', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.error)),
                           ),

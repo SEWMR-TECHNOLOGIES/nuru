@@ -24,6 +24,7 @@ import EventContributions from './events/EventContributions';
 import EventExpenses from './events/EventExpenses';
 import EventBudget from './events/EventBudget';
 import EventChecklist from './events/EventChecklist';
+import EventSchedule from './events/EventSchedule';
 import { useEventContributors } from '@/data/useContributors';
 import { useEvent } from '@/data/useEvents';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -377,6 +378,7 @@ const EventManagement = () => {
             { value: 'contributions', label: t('contributions') },
             { value: 'guests', label: t('guests') },
             { value: 'rsvp', label: t('rsvp') },
+            { value: 'schedule', label: t('schedule') || 'Schedule' },
             { value: 'meetings', label: 'Meetings' },
             ...((apiEvent as any)?.sells_tickets ? [{ value: 'tickets', label: t('tickets') }] : []),
             ...(isCreator && !isEventEnded ? [{ value: 'check-in', label: t('check_in') }] : []),
@@ -703,6 +705,10 @@ const EventManagement = () => {
 
         <TabsContent value="rsvp" className="space-y-6">
           <EventRSVP eventId={id || ''} eventTitle={eventTitle} permissions={permissions} />
+        </TabsContent>
+
+        <TabsContent value="schedule" className="space-y-6">
+          <EventSchedule eventId={id!} />
         </TabsContent>
 
         <TabsContent value="meetings" className="space-y-6">

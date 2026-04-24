@@ -459,8 +459,16 @@ def _send_receipt_sms(db: Session, ec: EventContributor, tx: Transaction, token:
     contributor = (
         db.query(UserContributor).filter(UserContributor.id == ec.contributor_id).first()
     )
-    phone = getattr(contributor, "phone", None)
-    if not phone:
+    # Honour notify_target on the EventContributor (primary | secondary | both).
+    from utils.offline_claims import contributor_notify_phones
+    # Make sure the helper sees the contributor relationship even if not eagerly loaded.
+    if contributor is not None and getattr(ec, "contributor", None) is None:
+        try:
+            ec.contributor = contributor  # type: ignore[attr-defined]
+        except Exception:
+            pass
+    recipients = contributor_notify_phones(ec)
+    if not recipients:
         return
 
     event = db.query(Event).filter(Event.id == ec.event_id).first()
@@ -469,12 +477,13 @@ def _send_receipt_sms(db: Session, ec: EventContributor, tx: Transaction, token:
     receipt_url = f"https://{host_for_currency(currency)}/c/{token}/r/{tx.transaction_code}"
 
     from utils.sms import sms_guest_contribution_receipt
-    sms_guest_contribution_receipt(
-        phone=phone,
-        contributor_name=name,
-        event_title=event_title,
-        amount=float(tx.gross_amount or 0),
-        currency=currency,
-        transaction_code=tx.transaction_code,
-        receipt_url=receipt_url,
-    )
+    for ph in recipients:
+        sms_guest_contribution_receipt(
+            phone=ph,
+            contributor_name=name,
+            event_title=event_title,
+            amount=float(tx.gross_amount or 0),
+            currency=currency,
+            transaction_code=tx.transaction_code,
+            receipt_url=receipt_url,
+        )

@@ -228,7 +228,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
         children: [
           _floatingButton(
             onTap: () => Navigator.pop(context),
-            child: const Icon(Icons.arrow_back_rounded, color: Color(0xFF202124), size: 22),
+            child: const Icon(Icons.chevron_left_rounded, color: Color(0xFF202124), size: 24),
           ),
           const SizedBox(width: 10),
           Expanded(

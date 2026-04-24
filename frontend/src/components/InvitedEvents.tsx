@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { eventsApi } from '@/lib/api/events';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
-import InvitationQRDialog from './InvitationQRDialog';
+import InvitationCard from './InvitationCard';
 import { getEventCountdown } from '@/utils/getEventCountdown';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
@@ -278,7 +278,7 @@ const InvitedEvents = () => {
                           className="gap-1.5"
                         >
                           <QrCode className="w-4 h-4" />
-                          Show QR
+                          View Invitation
                         </Button>
                       )}
                     </div>
@@ -291,7 +291,7 @@ const InvitedEvents = () => {
       </div>
 
       {qrEventId && (
-        <InvitationQRDialog
+        <InvitationCard
           eventId={qrEventId}
           open={!!qrEventId}
           onClose={() => setQrEventId(null)}

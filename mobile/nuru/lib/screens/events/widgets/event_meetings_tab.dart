@@ -406,7 +406,7 @@ class _EventMeetingsTabState extends State<EventMeetingsTab> {
                           child: SizedBox(
                             height: 52,
                             child: OutlinedButton.icon(
-                              icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                              icon: const Icon(Icons.chevron_left_rounded, size: 18),
                               label: Text(_t('go_back'), style: const TextStyle(fontWeight: FontWeight.w600)),
                               style: OutlinedButton.styleFrom(
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -682,7 +682,7 @@ class _EventMeetingsTabState extends State<EventMeetingsTab> {
                         OutlinedButton(
                           onPressed: () => setModalState(() => currentStep = 0),
                           style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-                          child: const Icon(Icons.arrow_back_rounded, size: 18),
+                          child: const Icon(Icons.chevron_left_rounded, size: 18),
                         ),
                         const SizedBox(width: 10),
                         Expanded(child: SizedBox(height: 52, child: FilledButton.icon(

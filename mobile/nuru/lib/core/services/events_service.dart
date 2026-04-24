@@ -254,9 +254,11 @@ class EventsService {
         request.fields['venue_address'] = venueAddress;
       if (reminderContactPhone != null)
         request.fields['reminder_contact_phone'] = reminderContactPhone;
+      if (imagePath != null && imagePath.isNotEmpty) {
         request.files.add(
           await http.MultipartFile.fromPath('cover_image', imagePath),
         );
+      }
       final streamedRes = await request.send();
       final body = await streamedRes.stream.bytesToString();
       return jsonDecode(body);
@@ -444,6 +446,14 @@ class EventsService {
   static Future<Map<String, dynamic>> sendBulkReminder(
     String eventId, Map<String, dynamic> data,
   ) => EventContributorsService.sendBulkReminder(eventId, data);
+
+  /// Saved per-event SMS templates (mirrors web Contributor Messaging).
+  static Future<Map<String, dynamic>> getMessagingTemplates(String eventId) =>
+      EventContributorsService.getMessagingTemplates(eventId);
+
+  static Future<Map<String, dynamic>> saveMessagingTemplate(
+    String eventId, String caseType, Map<String, dynamic> data,
+  ) => EventContributorsService.saveMessagingTemplate(eventId, caseType, data);
 
   static Future<Map<String, dynamic>> addContributorsAsGuests(
     String eventId, Map<String, dynamic> data,

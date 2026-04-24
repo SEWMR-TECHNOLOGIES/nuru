@@ -61,6 +61,26 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- App Links: open https://nuru.tz/* and https://nuru.ke/* in the app -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="nuru.tz" />
+                <data android:host="www.nuru.tz" />
+                <data android:host="nuru.ke" />
+                <data android:host="www.nuru.ke" />
+                <data android:pathPrefix="/event/" />
+                <data android:pathPrefix="/ticket/" />
+                <data android:pathPrefix="/u/" />
+                <data android:pathPrefix="/services/view/" />
+                <data android:pathPrefix="/post/" />
+                <data android:pathPrefix="/moment/" />
+                <data android:pathPrefix="/c/" />
+                <data android:pathPrefix="/rsvp/" />
+            </intent-filter>
         </activity>
         <!-- UCrop activity for image_cropper -->
         <activity

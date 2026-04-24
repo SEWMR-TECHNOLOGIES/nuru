@@ -20,6 +20,7 @@ import '../messages/messages_screen.dart';
 import '../profile/profile_screen.dart';
 import 'widgets/moment_card.dart';
 import 'widgets/post_detail_modal.dart';
+import 'widgets/trending_rail.dart';
 import 'widgets/create_post_box.dart';
 import 'widgets/event_card.dart';
 import 'widgets/stats_row.dart';
@@ -34,6 +35,7 @@ import '../../core/l10n/l10n_helper.dart';
 import '../onboarding/country_confirm_sheet.dart';
 import '../migration/migration_welcome_sheet.dart';
 import '../../providers/migration_provider.dart';
+import '../events/create_event_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -314,14 +316,60 @@ class _HomeScreenState extends State<HomeScreen> {
     return [];
   }
 
-  int get _totalEvents => _myEvents.length;
-  int get _upcomingEvents => _myEvents.where((e) {
-    final s = e['status']?.toString() ?? '';
-    if (s == 'cancelled' || s == 'draft') return false;
-    final d = e['start_date'] ?? '';
-    if (d.isEmpty) return true;
-    try { return DateTime.parse(d).isAfter(DateTime.now()); } catch (_) { return false; }
+  // ── Premium 4-bucket KPI counts (matches web My Events) ──
+  bool _isCancelledOrDraft(dynamic e) {
+    final s = (e is Map ? e['status']?.toString() : '') ?? '';
+    return s == 'cancelled' || s == 'draft';
+  }
+
+  DateTime? _eventStart(dynamic e) {
+    final d = (e is Map ? e['start_date']?.toString() : '') ?? '';
+    if (d.isEmpty) return null;
+    try { return DateTime.parse(d); } catch (_) { return null; }
+  }
+
+  int get _kpiUpcoming => _myEvents.where((e) {
+    if (_isCancelledOrDraft(e)) return false;
+    final d = _eventStart(e);
+    return d == null || d.isAfter(DateTime.now());
   }).length;
+
+  int get _kpiThisMonth => _myEvents.where((e) {
+    if (_isCancelledOrDraft(e)) return false;
+    final d = _eventStart(e);
+    final now = DateTime.now();
+    return d != null && d.year == now.year && d.month == now.month;
+  }).length;
+
+  int get _kpiDrafts => _myEvents.where((e) =>
+      (e is Map ? e['status']?.toString() : '') == 'draft').length;
+
+  int get _kpiPast => _myEvents.where((e) {
+    if (_isCancelledOrDraft(e)) return false;
+    final d = _eventStart(e);
+    return d != null && d.isBefore(DateTime.now());
+  }).length;
+
+  int get _kpiCompleted => _myEvents.where((e) {
+    final status = (e is Map ? e['status']?.toString() : '') ?? '';
+    if (status == 'completed') return true;
+    if (_isCancelledOrDraft(e)) return false;
+    final d = _eventStart(e);
+    return d != null && d.isBefore(DateTime.now());
+  }).length;
+
+  int get _kpiTotalGuests => _myEvents.fold<int>(0, (sum, e) {
+    if (e is! Map) return sum;
+    final raw = e['expected_guests'] ?? e['guest_count'] ?? 0;
+    if (raw is num) return sum + raw.toInt();
+    return sum + (int.tryParse(raw.toString()) ?? 0);
+  });
+
+  // Backward-compat (used by ProfileScreen)
+  int get _totalEvents => _myEvents.length;
+  int get _upcomingEvents => _kpiUpcoming;
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -425,15 +473,16 @@ class _HomeScreenState extends State<HomeScreen> {
         child: ListView.builder(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-          itemCount: _feedPosts.length + 2 + (_feedLoadingMore ? 1 : 0) + (!_feedLoading && _feedFallbackTried && _feedPosts.isEmpty ? 1 : 0),
+          itemCount: _feedPosts.length + 3 + (_feedLoadingMore ? 1 : 0) + (!_feedLoading && _feedFallbackTried && _feedPosts.isEmpty ? 1 : 0),
           itemBuilder: (context, index) {
             if (index == 0) return Padding(padding: const EdgeInsets.only(bottom: 16), child: CreatePostBox(onPostCreated: () => _loadFeed(refresh: true)));
-            if (index == 1 && (_feedLoading || (_feedPosts.isEmpty && !_feedFallbackTried))) {
+            if (index == 1) return const TrendingRail();
+            if (index == 2 && (_feedLoading || (_feedPosts.isEmpty && !_feedFallbackTried))) {
               return Column(children: List.generate(3, (_) => const Padding(padding: EdgeInsets.only(bottom: 16), child: ShimmerCard(height: 220))));
             }
-            if (index == 1 && !_feedLoading && _feedFallbackTried && _feedPosts.isEmpty) return const EmptyState(icon: Icons.dynamic_feed_rounded, title: 'No posts yet', subtitle: 'Be the first to share something with the community!');
-            if (index == 1) return const SizedBox.shrink();
-            final postIndex = index - 2;
+            if (index == 2 && !_feedLoading && _feedFallbackTried && _feedPosts.isEmpty) return const EmptyState(icon: Icons.dynamic_feed_rounded, title: 'No posts yet', subtitle: 'Be the first to share something with the community!');
+            if (index == 2) return const SizedBox.shrink();
+            final postIndex = index - 3;
             if (postIndex >= _feedPosts.length) return const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))));
             final post = _feedPosts[postIndex];
             final postMap = post is Map<String, dynamic> ? post : <String, dynamic>{};
@@ -447,7 +496,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _eventsContent() {
     return StatefulBuilder(
       builder: (context, setLocalState) {
-        final events = _eventsSubTab == 0 ? _myEvents : _eventsSubTab == 1 ? _invitedEvents : _committeeEvents;
+        final rawEvents = _eventsSubTab == 0 ? _myEvents : _eventsSubTab == 1 ? _invitedEvents : _committeeEvents;
+        // Mirror web: no date-range filter, just full list (search is server-side).
+        final events = rawEvents;
+        final showStats = !_loading && _myEvents.isNotEmpty;
         return RefreshIndicator(
           onRefresh: () async => await _loadEvents(),
           color: AppColors.primary,
@@ -455,30 +507,80 @@ class _HomeScreenState extends State<HomeScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
             children: [
-              Text('Events', style: GoogleFonts.plusJakartaSans(fontSize: 26, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -0.5, height: 1.1)),
-              const SizedBox(height: 4),
-              Text('Manage all your events', style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textTertiary, height: 1.4)),
+              // ── Header (title + New Event) ──
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('My Events', style: GoogleFonts.plusJakartaSans(fontSize: 26, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -0.5, height: 1.1)),
+                        const SizedBox(height: 4),
+                        Text('Plan, manage, and track all your events in one place', style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textTertiary, height: 1.4)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 132,
+                    child: PremiumButton(
+                      label: 'New Event',
+                      icon: Icons.add_rounded,
+                      onPressed: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateEventScreen()));
+                      },
+                      height: 44,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // ── Stats row (only when there are events) ──
+              if (showStats) ...[
+                StatsRow(items: [
+                  StatItem('Total Events', '$_totalEvents'),
+                  StatItem('Upcoming', '$_kpiUpcoming'),
+                  StatItem('Completed', '$_kpiCompleted'),
+                  StatItem('Total Guests', '$_kpiTotalGuests'),
+                ]),
+                const SizedBox(height: 16),
+              ],
+
+              // ── Tabs ──
+              PillTabs(tabs: const ['My Events', 'Invited', 'Committee', 'My Contributions'], selected: _eventsSubTab, onChanged: (i) => setLocalState(() => _eventsSubTab = i)),
               const SizedBox(height: 16),
-              StatsRow(items: [
-                StatItem('Total', '$_totalEvents'),
-                StatItem('Upcoming', '$_upcomingEvents'),
-                StatItem('Invited', '${_invitedEvents.length}'),
-                StatItem('Committee', '${_committeeEvents.length}'),
-              ]),
-              const SizedBox(height: 16),
-              PillTabs(tabs: const ['My Events', 'Invited', 'Committee', 'Contributing'], selected: _eventsSubTab, onChanged: (i) => setLocalState(() => _eventsSubTab = i)),
-              const SizedBox(height: 12),
-              if (_eventsSubTab == 0) _eventsSearchBar(setLocalState),
-              if (_eventsSubTab == 0) const SizedBox(height: 12),
+
+              // ── Search (right-aligned, premium pill) — only on My Events tab ──
+              if (_eventsSubTab == 0) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Flexible(child: _eventsSearchBar(setLocalState)),
+                  ],
+                ),
+                const SizedBox(height: 14),
+              ],
+
               if (_eventsSubTab == 3)
                 const MyContributionsTab()
               else if (_loading) ...List.generate(3, (_) => const Padding(padding: EdgeInsets.only(bottom: 16), child: ShimmerCard()))
               else if (events.isEmpty)
                 EmptyState(
                   icon: _eventsSubTab == 0 ? Icons.calendar_month_outlined : _eventsSubTab == 1 ? Icons.mail_outline_rounded : Icons.groups_outlined,
-                  title: _eventsSubTab == 0 ? 'No events yet' : _eventsSubTab == 1 ? 'No invitations' : 'No committee events',
-                  subtitle: _eventsSubTab == 0 ? 'Create your first event' : _eventsSubTab == 1 ? 'No invitations yet' : 'Not on any committees',
-                  action: _eventsSubTab == 0 ? SizedBox(width: 180, child: PremiumButton(label: 'Create Event', icon: Icons.add_rounded, onPressed: () {}, height: 44)) : null,
+                  title: _eventsSubTab == 0
+                      ? (_eventsSearch.isNotEmpty ? 'No matches' : 'No Events Yet')
+                      : _eventsSubTab == 1 ? 'No invitations' : 'No committee events',
+                  subtitle: _eventsSubTab == 0
+                      ? (_eventsSearch.isNotEmpty
+                          ? 'Nothing matched "$_eventsSearch". Try a different keyword.'
+                          : 'Create your first event to start planning, managing guests, and tracking contributions.')
+                      : _eventsSubTab == 1 ? 'No invitations yet' : 'Not on any committees',
+                  action: _eventsSubTab == 0 && _eventsSearch.isEmpty
+                      ? SizedBox(width: 200, child: PremiumButton(label: 'Create Your First Event', icon: Icons.add_rounded, onPressed: () {
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateEventScreen()));
+                        }, height: 44))
+                      : null,
                 )
               else ...events.map((e) => Padding(
                 padding: const EdgeInsets.only(bottom: 16),
@@ -511,39 +613,44 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _eventsSearchBar(StateSetter setLocalState) {
-    return TextField(
-      controller: TextEditingController(text: _eventsSearch)
-        ..selection = TextSelection.collapsed(offset: _eventsSearch.length),
-      onChanged: (v) {
-        _eventsSearchDebounce?.cancel();
-        _eventsSearchDebounce = Timer(const Duration(milliseconds: 350), () {
-          setState(() => _eventsSearch = v);
-          _loadEvents();
-        });
-      },
-      style: GoogleFonts.plusJakartaSans(fontSize: 14),
-      decoration: InputDecoration(
-        isDense: true,
-        hintText: 'Search my events…',
-        hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary),
-        prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.textTertiary),
-        suffixIcon: _eventsSearch.isEmpty
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textTertiary),
-                onPressed: () {
-                  _eventsSearchDebounce?.cancel();
-                  setState(() => _eventsSearch = '');
-                  _loadEvents();
-                },
-                splashRadius: 18,
-              ),
-        filled: true,
-        fillColor: AppColors.surfaceVariant,
-        contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 320),
+      child: TextField(
+        controller: TextEditingController(text: _eventsSearch)
+          ..selection = TextSelection.collapsed(offset: _eventsSearch.length),
+        onChanged: (v) {
+          _eventsSearchDebounce?.cancel();
+          _eventsSearchDebounce = Timer(const Duration(milliseconds: 350), () {
+            setState(() => _eventsSearch = v);
+            _loadEvents();
+          });
+        },
+        style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary),
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: 'Search by title, location…',
+          hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary),
+          prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.textTertiary),
+          suffixIcon: _eventsSearch.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textTertiary),
+                  onPressed: () {
+                    _eventsSearchDebounce?.cancel();
+                    setState(() => _eventsSearch = '');
+                    _loadEvents();
+                  },
+                  splashRadius: 18,
+                ),
+          filled: true,
+          fillColor: AppColors.surface,
+          contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide(color: AppColors.borderLight, width: 1)),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide(color: AppColors.borderLight, width: 1)),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide(color: AppColors.primary, width: 1.5)),
+        ),
       ),
     );
   }
+
 }

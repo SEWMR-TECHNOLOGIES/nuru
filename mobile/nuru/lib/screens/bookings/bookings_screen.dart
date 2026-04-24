@@ -7,6 +7,7 @@ import '../../core/services/user_services_service.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../../widgets/cancel_booking_dialog.dart';
 import '../migration/migration_banner.dart';
+import 'booking_detail_screen.dart';
 
 class BookingsScreen extends StatefulWidget {
   const BookingsScreen({super.key});
@@ -426,15 +427,24 @@ class _BookingCard extends StatelessWidget {
 
     final statusColor = _statusColor(status);
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderLight),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return GestureDetector(
+      onTap: id.isEmpty
+          ? null
+          : () async {
+              await Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => BookingDetailScreen(bookingId: id, startAsVendor: isVendor),
+              ));
+              await onAfterAction();
+            },
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.borderLight),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -494,6 +504,7 @@ class _BookingCard extends StatelessWidget {
             ),
           ],
         ],
+        ),
       ),
     );
   }
