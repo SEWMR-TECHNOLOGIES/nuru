@@ -340,7 +340,7 @@ export const contributorsApi = {
     data?: { custom_message?: string },
   ) =>
     post<{ sent: boolean; sms_supported?: boolean; sms_last_sent_at?: string | null }>(
-      `/user-contributors/events/${eventId}/contributors/${eventContributorId}/share-link/send-sms`,
+      `/user-contributors/events/${eventId}/contributors/${eventContributorId}/send-share-sms`,
       data ?? {},
     ),
 

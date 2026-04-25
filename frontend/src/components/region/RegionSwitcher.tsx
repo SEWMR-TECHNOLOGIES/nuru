@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useRegionDetect } from "@/hooks/useRegionDetect";
 import RegionSwitcherModal from "./RegionSwitcherModal";
@@ -65,10 +66,25 @@ const RegionSwitcher = () => {
   const { shouldSuggest, currentRegion, detectedRegion, buildSwitchUrl, dismiss } =
     useRegionDetect();
 
+  // Track viewport so we can downgrade the toast variant to a full-width
+  // banner on mobile — the sonner toast hugs the right edge and gets cut off
+  // below ~480 px, especially on .ke / .tz cross-region suggestions where
+  // the action label is long ("Switch 🇹🇿").
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth < 640 : false,
+  );
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   if (!shouldSuggest || !currentRegion || !detectedRegion) return null;
 
-  const variant = pickVariant(pathname);
+  let variant = pickVariant(pathname);
   if (variant === "none") return null;
+  // On phones, never use the floating toast — it's not reliably visible.
+  if (variant === "toast" && isMobile) variant = "banner";
 
   const switchUrl = buildSwitchUrl(detectedRegion);
 

@@ -27,6 +27,7 @@ import { FormattedNumberInput } from "@/components/ui/formatted-number-input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import nuruLogo from "@/assets/nuru-logo.png";
 import {
   publicContributionsApi,
   isTerminalSuccess,
@@ -193,9 +194,9 @@ export default function PublicContribute() {
       <div className="max-w-md mx-auto px-4 py-6 space-y-5">
         {/* Brand */}
         <header className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">N</div>
-            <span className="text-sm font-semibold text-foreground">Nuru · {state.host}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <img src={nuruLogo} alt="Nuru" className="h-8 w-auto object-contain" />
+            <span className="text-xs text-muted-foreground truncate">{state.host}</span>
           </div>
           <Button
             variant="ghost"

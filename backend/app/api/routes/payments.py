@@ -412,6 +412,98 @@ def _sync_target_after_payment(db: Session, tx: Transaction):
         return
 
 
+def _event_contributor_paid_total(ec, confirmed_enum) -> float:
+    return sum(
+        float(c.amount or 0)
+        for c in getattr(ec, "contributions", [])
+        if c.confirmation_status is None or c.confirmation_status == confirmed_enum
+    )
+
+
+def _notify_event_contributor_payment_recorded(db: Session, tx: Transaction) -> None:
+    """Notify contributor phones according to primary/secondary/both after gateway payments."""
+    if tx.target_type != PaymentTargetTypeEnum.contribution or not tx.target_id:
+        return
+
+    try:
+        from sqlalchemy.orm import joinedload
+        from models.events import Event
+        from models.contributions import EventContributor, UserContributor
+        from models.enums import ContributionStatusEnum
+        from utils.helpers import format_phone_display
+        from utils.offline_claims import contributor_notify_phones
+
+        payer = db.query(User).filter(User.id == tx.payer_user_id).first() if tx.payer_user_id else None
+        if not payer:
+            return
+
+        ec = (
+            db.query(EventContributor)
+            .options(joinedload(EventContributor.contributor), joinedload(EventContributor.contributions))
+            .join(UserContributor, UserContributor.id == EventContributor.contributor_id)
+            .filter(
+                EventContributor.event_id == tx.target_id,
+                UserContributor.contributor_user_id == tx.payer_user_id,
+            )
+            .first()
+        )
+        if not ec and getattr(payer, "phone", None):
+            from sqlalchemy import func as _sa_func
+            digits = "".join(ch for ch in str(payer.phone) if ch.isdigit())[-9:]
+            if digits:
+                ec = (
+                    db.query(EventContributor)
+                    .options(joinedload(EventContributor.contributor), joinedload(EventContributor.contributions))
+                    .join(UserContributor, UserContributor.id == EventContributor.contributor_id)
+                    .filter(
+                        EventContributor.event_id == tx.target_id,
+                        _sa_func.right(
+                            _sa_func.regexp_replace(UserContributor.phone, r'[^0-9]', '', 'g'),
+                            9,
+                        ) == digits,
+                    )
+                    .first()
+                )
+        if not ec or not ec.contributor:
+            return
+
+        recipients = contributor_notify_phones(ec)
+        if not recipients:
+            return
+
+        event = db.query(Event).filter(Event.id == tx.target_id).first()
+        organizer = db.query(User).filter(User.id == event.organizer_id).first() if event and event.organizer_id else None
+        organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
+        amount = float(tx.net_amount or tx.gross_amount or 0)
+        total_paid = _event_contributor_paid_total(ec, ContributionStatusEnum.confirmed)
+        pledge = float(ec.pledge_amount or 0)
+        currency = tx.currency_code or "TZS"
+        event_name = event.name if event else "your event"
+        contributor_name = ec.contributor.name or _payer_label(payer)
+
+        for phone in recipients:
+            try:
+                from utils.whatsapp import wa_contribution_recorded
+                wa_contribution_recorded(
+                    phone, contributor_name, event_name,
+                    amount, pledge, total_paid, currency,
+                    organizer_phone=organizer_phone,
+                )
+            except Exception as e:
+                print(f"[payments] WA contribution recorded failed for {phone}: {e}")
+            try:
+                from utils.sms import sms_contribution_recorded
+                sms_contribution_recorded(
+                    phone, contributor_name, event_name,
+                    amount, pledge, total_paid, currency,
+                    organizer_phone=organizer_phone,
+                )
+            except Exception as e:
+                print(f"[payments] SMS contribution recorded failed for {phone}: {e}")
+    except Exception as e:
+        print(f"[payments] contributor payment notify failed: {e}")
+
+
 def _notify_payment_received(db: Session, tx: Transaction) -> None:
     """Fan-out SMS notifications for a successfully credited payment.
 
@@ -445,8 +537,15 @@ def _notify_payment_received(db: Session, tx: Transaction) -> None:
     method = (tx.provider_name or tx.method_type or "").strip() or None
     code = tx.transaction_code
 
-    # ── 1. Confirm to the payer (skip for top-ups: same person as recipient)
-    if payer_phone and tx.target_type != PaymentTargetTypeEnum.wallet_topup:
+    # ── 1. Confirm to the payer (skip contribution fan-out here; it is routed
+    # by EventContributor.notify_target via _notify_event_contributor_payment_recorded).
+    if (
+        payer_phone
+        and tx.target_type not in (
+            PaymentTargetTypeEnum.wallet_topup,
+            PaymentTargetTypeEnum.contribution,
+        )
+    ):
         try:
             sms_payment_confirmed_to_payer(
                 phone=payer_phone, payer_name=payer_name,
@@ -455,6 +554,9 @@ def _notify_payment_received(db: Session, tx: Transaction) -> None:
             )
         except Exception as e:
             print(f"[payments] sms_payment_confirmed_to_payer failed: {e}")
+
+    if tx.target_type == PaymentTargetTypeEnum.contribution:
+        _notify_event_contributor_payment_recorded(db, tx)
 
     # ── 2. Notify the recipient (specialised per target type)
     target_label = None
