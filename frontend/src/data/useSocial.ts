@@ -14,6 +14,7 @@ import { throwApiError } from "@/lib/api/showApiErrors";
 const FEED_CACHE_KEY = "feedCache";
 const FEED_PAGINATION_KEY = "feedPaginationCache";
 const FEED_LOADED_KEY = "feedHasLoaded";
+const FEED_FETCHED_AT_KEY = "feedFetchedAt";
 
 const readSessionJson = <T,>(key: string, fallback: T): T => {
   if (typeof window === "undefined") return fallback;
@@ -25,36 +26,63 @@ const readSessionJson = <T,>(key: string, fallback: T): T => {
   }
 };
 
-const persistFeedCache = (items: FeedPost[], pagination: unknown, hasLoaded: boolean) => {
+const persistFeedCache = (items: FeedPost[], pagination: unknown, hasLoaded: boolean, fetchedAt = Date.now()) => {
   if (typeof window === "undefined") return;
   try {
     sessionStorage.setItem(FEED_CACHE_KEY, JSON.stringify(items));
     sessionStorage.setItem(FEED_PAGINATION_KEY, JSON.stringify(pagination));
     sessionStorage.setItem(FEED_LOADED_KEY, hasLoaded ? "1" : "0");
+    sessionStorage.setItem(FEED_FETCHED_AT_KEY, String(fetchedAt));
   } catch {
     // ignore storage limits and privacy mode failures
   }
+};
+
+const mergeFeedItems = (freshItems: FeedPost[], existingItems: FeedPost[]) => {
+  if (existingItems.length === 0) return freshItems;
+  if (freshItems.length === 0) return existingItems;
+
+  const seen = new Set<string>();
+  const merged: FeedPost[] = [];
+  [...freshItems, ...existingItems].forEach((item: any) => {
+    if (!item?.id || seen.has(item.id)) return;
+    seen.add(item.id);
+    merged.push(item);
+  });
+  return merged;
+};
+
+const feedListeners = new Set<(items: FeedPost[], pagination: any) => void>();
+const notifyFeedSubscribers = () => {
+  feedListeners.forEach((listener) => listener(_feedCache, _feedPaginationCache));
 };
 
 // Module-level cache so feed data survives unmount/remount cycles
 let _feedCache: FeedPost[] = readSessionJson<FeedPost[]>(FEED_CACHE_KEY, []);
 let _feedPaginationCache: any = readSessionJson<any>(FEED_PAGINATION_KEY, null);
 let _feedHasLoaded = typeof window !== "undefined"
-  ? sessionStorage.getItem(FEED_LOADED_KEY) === "1"
+  ? sessionStorage.getItem(FEED_LOADED_KEY) === "1" || _feedCache.length > 0
   : false;
-let _feedLastFetchedAt = 0;
+let _feedLastFetchedAt = typeof window !== "undefined"
+  ? Number(sessionStorage.getItem(FEED_FETCHED_AT_KEY) || 0)
+  : 0;
 const FEED_STALE_MS = 2 * 60 * 1000; // 2 minutes — revalidate after this
 
 export const useFeed = (initialParams?: FeedQueryParams) => {
   const [items, setItems] = useState<FeedPost[]>(_feedCache);
   const [loading, setLoading] = useState(!_feedHasLoaded);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<any>(_feedPaginationCache);
 
   const fetchFeed = useCallback(async (params?: FeedQueryParams) => {
     // Only show loading on very first load (no cached data)
-    if (!_feedHasLoaded) {
+    const hasRenderableCache = _feedHasLoaded || _feedCache.length > 0;
+    if (!hasRenderableCache) {
       setLoading(true);
+      setRefreshing(false);
+    } else {
+      setRefreshing(true);
     }
     setError(null);
     try {
@@ -69,13 +97,16 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
           seen.add(p.id);
           return true;
         });
-        _feedCache = feedItems;
+        const nextItems = hasRenderableCache ? mergeFeedItems(feedItems, _feedCache) : feedItems;
+        const fetchedAt = Date.now();
+        _feedCache = nextItems;
         _feedPaginationCache = feedData?.pagination;
         _feedHasLoaded = true;
-        _feedLastFetchedAt = Date.now();
-        persistFeedCache(feedItems, feedData?.pagination, true);
-        setItems(feedItems);
+        _feedLastFetchedAt = fetchedAt;
+        persistFeedCache(nextItems, feedData?.pagination, true, fetchedAt);
+        setItems(nextItems);
         setPagination(feedData?.pagination);
+        notifyFeedSubscribers();
       } else {
         setError(response.message || "Failed to fetch feed");
       }
@@ -83,15 +114,34 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     } 
   }, [initialParams]);
 
   useEffect(() => {
+    const listener = (nextItems: FeedPost[], nextPagination: any) => {
+      setItems(nextItems);
+      setPagination(nextPagination);
+      setLoading(false);
+      setRefreshing(false);
+    };
+    feedListeners.add(listener);
+
     // Always refresh on mount if cache is stale (or empty), so newly created
     // posts elsewhere in the app appear without a hard reload. Cached items
     // remain visible while the refresh runs in the background.
     const isStale = !_feedHasLoaded || Date.now() - _feedLastFetchedAt > FEED_STALE_MS;
     if (isStale) fetchFeed();
+    else {
+      setLoading(false);
+      setRefreshing(false);
+    }
+    const refresh = () => fetchFeed();
+    window.addEventListener("nuru:feed-refresh", refresh);
+    return () => {
+      feedListeners.delete(listener);
+      window.removeEventListener("nuru:feed-refresh", refresh);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -118,7 +168,7 @@ export const useFeed = (initialParams?: FeedQueryParams) => {
     }
   };
 
-  return { items, loading, error, pagination, refetch: fetchFeed, loadMore };
+  return { items, loading, refreshing, error, pagination, refetch: fetchFeed, loadMore };
 };
 
 // ============================================================================
