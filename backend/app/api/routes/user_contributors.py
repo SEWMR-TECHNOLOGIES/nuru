@@ -200,6 +200,9 @@ def get_contributor(contributor_id: str, db: Session = Depends(get_db), current_
     if not c:
         return standard_response(False, "Contributor not found")
 
+    old_secondary_phone = getattr(c, "secondary_phone", None)
+    old_notify_target = (getattr(c, "notify_target", None) or "primary")
+
     return standard_response(True, "Contributor fetched", _contributor_dict(c))
 
 
@@ -281,6 +284,11 @@ def update_contributor(contributor_id: str, body: dict = Body(...), db: Session 
     if not c:
         return standard_response(False, "Contributor not found")
 
+    # Capture pre-mutation values so we can decide which linked event_contributor rows
+    # are still "in sync" with the address-book defaults and should be cascaded.
+    old_secondary_phone = c.secondary_phone
+    old_notify_target = (c.notify_target or "primary")
+
     if "name" in body and body["name"]:
         new_name = body["name"].strip()
         if new_name != c.name:
@@ -326,6 +334,16 @@ def update_contributor(contributor_id: str, body: dict = Body(...), db: Session 
     if "notify_target" in body:
         nt = (body["notify_target"] or "primary").strip().lower()
         c.notify_target = nt if nt in ("primary", "secondary", "both") else "primary"
+
+    if "secondary_phone" in body or "notify_target" in body:
+        linked_event_rows = db.query(EventContributor).filter(EventContributor.contributor_id == cid).all()
+        for ec in linked_event_rows:
+            ec_secondary = getattr(ec, "secondary_phone", None)
+            ec_notify = (getattr(ec, "notify_target", None) or "primary")
+            if (not ec_secondary or ec_secondary == old_secondary_phone) and ec_notify == old_notify_target:
+                ec.secondary_phone = c.secondary_phone
+                ec.notify_target = c.notify_target
+                ec.updated_at = datetime.now(EAT)
 
     c.updated_at = datetime.now(EAT)
     db.commit()
@@ -2259,10 +2277,6 @@ def send_share_sms(
     if not ec or not ec.contributor:
         raise HTTPException(status_code=404, detail="Contributor not found on this event.")
 
-    contributor = ec.contributor
-    if not contributor.phone:
-        raise HTTPException(status_code=400, detail="This contributor doesn't have a phone number.")
-
     currency_code = _currency_code(db, event)
     if not can_send_sms_for_currency(currency_code):
         return standard_response(False, "SMS isn't available for this country yet — please copy the link instead.", {
@@ -2280,15 +2294,21 @@ def send_share_sms(
         or "Your host"
     )
 
-    sms_guest_contribution_invite(
-        phone=contributor.phone,
-        contributor_name=contributor.name or "there",
-        organiser_name=organiser_name,
-        event_title=event.name or "the event",
-        pledge_amount=float(ec.pledge_amount or 0),
-        currency=currency_code,
-        payment_url=url,
-    )
+    from utils.offline_claims import contributor_notify_phones
+    recipients = contributor_notify_phones(ec)
+    if not recipients:
+        raise HTTPException(status_code=400, detail="This contributor doesn't have a phone number for the selected notify option.")
+
+    for phone in recipients:
+        sms_guest_contribution_invite(
+            phone=phone,
+            contributor_name=ec.contributor.name or "there",
+            organiser_name=organiser_name,
+            event_title=event.name or "the event",
+            pledge_amount=float(ec.pledge_amount or 0),
+            currency=currency_code,
+            payment_url=url,
+        )
     ec.share_link_sms_last_sent_at = datetime.utcnow()
     db.commit()
     return standard_response(True, "Payment link sent by SMS.", {

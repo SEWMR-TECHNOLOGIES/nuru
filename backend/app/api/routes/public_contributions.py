@@ -476,14 +476,11 @@ def _send_receipt_sms(db: Session, ec: EventContributor, tx: Transaction, token:
     name = (contributor.name if contributor else "") or "Contributor"
     receipt_url = f"https://{host_for_currency(currency)}/c/{token}/r/{tx.transaction_code}"
 
-    from utils.sms import sms_guest_contribution_receipt
     for ph in recipients:
-        sms_guest_contribution_receipt(
-            phone=ph,
-            contributor_name=name,
-            event_title=event_title,
-            amount=float(tx.gross_amount or 0),
-            currency=currency,
-            transaction_code=tx.transaction_code,
-            receipt_url=receipt_url,
+        from utils.notify_channels import notify_user_wa_sms
+        notify_user_wa_sms(
+            ph,
+            f"Hello {name}, your payment of {currency} {float(tx.gross_amount or 0):,.0f} "
+            f"for {event_title} was successful. Ref: {tx.transaction_code}. "
+            f"View your receipt anytime: {receipt_url}",
         )
