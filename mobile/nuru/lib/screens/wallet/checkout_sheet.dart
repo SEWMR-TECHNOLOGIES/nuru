@@ -193,13 +193,42 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
       _toast('Enter a valid amount');
       return;
     }
-    if (_method == 'mobile_money' && _phoneCtrl.text.trim().isEmpty) {
-      _toast('Enter your mobile number');
-      return;
+    if (_method == 'mobile_money') {
+      if (_phoneCtrl.text.trim().isEmpty) {
+        _toast('Enter your mobile number');
+        return;
+      }
+      // Make sure providers have loaded and one is selected before we
+      // hit /payments/initiate. Without provider_id the gateway has no
+      // way to push an STK prompt and the request silently fails.
+      if (_loadingProviders) {
+        _toast('Loading payment providers… please try again in a moment');
+        return;
+      }
+      if (_providers.isEmpty) {
+        await _loadProviders();
+        if (_providers.isEmpty) {
+          _toast('No mobile money providers available for your country');
+          return;
+        }
+      }
+      if (_providerId == null || !_providers.any((p) => p['id'] == _providerId)) {
+        _providerId = _providers.first['id'] as String?;
+      }
+      if (_providerId == null) {
+        _toast('Pick a mobile money provider');
+        return;
+      }
     }
-    if (_method == 'bank' && _accountCtrl.text.trim().isEmpty) {
-      _toast('Enter your account number');
-      return;
+    if (_method == 'bank') {
+      if (_accountCtrl.text.trim().isEmpty) {
+        _toast('Enter your account number');
+        return;
+      }
+      if (_providerId == null) {
+        _toast('Pick a bank');
+        return;
+      }
     }
 
     setState(() {
@@ -227,7 +256,10 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
         description: paymentDescription,
       );
       if (res['success'] != true || res['data'] == null) {
-        _toast(res['message']?.toString() ?? 'Failed to start payment');
+        // Surface the real backend message so the user knows WHY the push
+        // never arrived (e.g. "Provider unavailable", "Invalid phone").
+        final msg = res['message']?.toString().trim();
+        _toast((msg != null && msg.isNotEmpty) ? msg : 'Failed to start payment');
         return;
       }
       final data = Map<String, dynamic>.from(res['data'] as Map);
@@ -270,7 +302,10 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
       }
       return;
     } catch (e) {
-      _toast('Something went wrong');
+      // Surface the actual exception so we don't silently swallow auth /
+      // network / validation failures (which is what made this look like
+      // "the button does nothing").
+      _toast('Payment error: $e');
       return;
     } finally {
       if (mounted) setState(() => _busy = false);

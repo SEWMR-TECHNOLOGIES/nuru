@@ -82,14 +82,52 @@ async def upload_receipt_image(
     return True, "ok", result["data"]["url"]
 
 
+def _clean_notify_target(value: Optional[str]) -> str:
+    target = (value or "").strip().lower()
+    return target if target in ("primary", "secondary", "both") else ""
+
+
+def contributor_notify_target(ec) -> str:
+    """Resolve the effective routing preference for an event contributor.
+
+    Event contributors can override the address-book default, but older rows
+    often only have the database default ``primary`` even though the manager
+    later set the address-book contributor to ``secondary`` or ``both``. When
+    the event row has no event-specific secondary phone, inherit the address
+    book preference so event/payment/invitation messages don't get stuck on
+    primary-only.
+    """
+    ec_target = _clean_notify_target(getattr(ec, "notify_target", None)) if ec else ""
+    contributor = getattr(ec, "contributor", None) if ec else None
+    contributor_target = _clean_notify_target(getattr(contributor, "notify_target", None))
+    ec_secondary = (getattr(ec, "secondary_phone", None) or "").strip() if ec else ""
+
+    if ec_target in ("secondary", "both"):
+        return ec_target
+    if ec_target == "primary":
+        if not ec_secondary and contributor_target in ("secondary", "both"):
+            return contributor_target
+        return "primary"
+    return contributor_target or "primary"
+
+
 def contributor_notify_phones(ec) -> List[str]:
     """Return phone numbers to message for a given EventContributor row,
     honouring the notify_target preference. Falls back to whatever phone is
     populated when one side is missing. Always de-duplicated.
+
+    NOTE: Older event_contributor rows (created before the per-event
+    secondary_phone column existed) often have ec.secondary_phone == NULL
+    even when the underlying user_contributor address-book entry has one.
+    We transparently fall back to the contributor's secondary_phone so
+    notify_target='secondary' / 'both' actually delivers, instead of
+    silently degrading to primary-only.
     """
     primary = (getattr(ec.contributor, "phone", None) or "").strip() if ec and ec.contributor else ""
     secondary = (getattr(ec, "secondary_phone", None) or "").strip()
-    target = (getattr(ec, "notify_target", None) or "primary").lower()
+    if not secondary and ec and ec.contributor:
+        secondary = (getattr(ec.contributor, "secondary_phone", None) or "").strip()
+    target = contributor_notify_target(ec)
 
     out: List[str] = []
     if target == "secondary":
@@ -118,7 +156,7 @@ def contributor_notify_user_ids(ec) -> List[str]:
     is 'primary' or 'both'. When set to 'secondary', no in-app notification
     is created (the SMS/WA flow handles delivery).
     """
-    target = (getattr(ec, "notify_target", None) or "primary").lower()
+    target = contributor_notify_target(ec)
     if target == "secondary":
         return []
     user_id = getattr(ec.contributor, "contributor_user_id", None) if ec and ec.contributor else None

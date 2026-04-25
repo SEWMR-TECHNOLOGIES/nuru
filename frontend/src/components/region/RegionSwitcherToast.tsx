@@ -25,6 +25,10 @@ const RegionSwitcherToast = ({ open, suggestedRegion, switchUrl, onDismiss }: Pr
       description: `Switch to ${suggestedRegion.brandName} for a more local experience.`,
       icon: <Globe className="h-4 w-4" />,
       duration: 12000,
+      // Keep the toast inside the viewport on smaller screens — without
+      // this the action label ("Switch 🇹🇿") pushed the card off the
+      // right edge on phones visiting a cross-region domain.
+      className: "max-w-[calc(100vw-2rem)] sm:max-w-md",
       action: {
         label: `Switch ${suggestedRegion.flag}`,
         onClick: () => {
