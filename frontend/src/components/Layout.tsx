@@ -49,7 +49,7 @@ const Layout = ({ children }: LayoutProps) => {
     <div className="h-screen w-screen bg-background font-nunito overflow-hidden px-2 md:px-0 tablet:px-0 lg:px-16">
       <div className="h-full bg-card rounded-lg flex flex-col relative md:overflow-hidden">
         {/* Scrollable wrapper on mobile: header + topnav + content all scroll together */}
-        <div className="flex-1 flex flex-col md:contents overflow-y-auto overscroll-y-contain">
+        <div data-feed-scroll-container className="flex-1 flex flex-col md:contents overflow-y-auto overscroll-y-contain">
           {/* Header scrolls away naturally on mobile */}
           <div className="shrink-0">
             <Header
@@ -70,7 +70,7 @@ const Layout = ({ children }: LayoutProps) => {
 
             <main className="flex-1 md:overflow-hidden">
               <div className="flex flex-col lg:flex-row h-full w-full bg-slate-50/30">
-                <div className="flex-1 md:overflow-y-auto md:overscroll-y-contain px-3 md:px-4 lg:px-6 pt-4 pb-20 md:pb-8">
+                <div data-feed-scroll-container className="flex-1 md:overflow-y-auto md:overscroll-y-contain px-3 md:px-4 lg:px-6 pt-4 pb-20 md:pb-8">
                   {children ?? <Outlet />}
                 </div>
                 <div className="hidden lg:block lg:w-80 overflow-y-auto overscroll-y-contain px-4 pt-4 pb-20 lg:pb-8 border-l border-border">

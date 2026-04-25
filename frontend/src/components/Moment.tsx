@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from 'sonner';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { saveFeedScrollPosition } from '@/lib/feedSession';
 
 interface SharedEvent {
   id: string;
@@ -175,10 +176,7 @@ const Moment = ({ post }: MomentProps) => {
 
 
   const handlePostClick = () => {
-    const scrollContainer = document.querySelector('.flex-1.overflow-y-auto');
-    if (scrollContainer) {
-      sessionStorage.setItem('feedScrollPosition', scrollContainer.scrollTop.toString());
-    }
+    saveFeedScrollPosition(viewTrackingRef.current);
     navigate(`/post/${post.id}`);
   };
 

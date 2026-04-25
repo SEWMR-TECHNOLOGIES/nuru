@@ -11,16 +11,17 @@ import { Loader2, TrendingUp } from 'lucide-react';
 import { feedSessionId } from '@/hooks/useFeedTracking';
 import { socialApi } from '@/lib/api/social';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
-
-const SCROLL_KEY = 'feedScrollPosition';
-const LAST_VISIT_KEY = 'feedLastVisitedAt';
-
-const getScrollContainer = () =>
-  document.querySelector('.flex-1.overflow-y-auto') as HTMLElement | null;
+import {
+  getFeedMaxScroll,
+  getFeedScrollContainer,
+  readSavedFeedScrollPosition,
+  saveFeedScrollPosition,
+  setFeedScrollTop,
+} from '@/lib/feedSession';
 
 const Feed = () => {
   const { t } = useLanguage();
-  const { items: apiPosts, loading, error, refetch, loadMore, pagination } = useFeed({
+  const { items: apiPosts, loading, refreshing, error, refetch, loadMore, pagination } = useFeed({
     limit: 15,
     mode: 'ranked',
     session_id: feedSessionId,
@@ -30,6 +31,7 @@ const Feed = () => {
   const restoreAttemptsRef = useRef(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const [trendingPosts, setTrendingPosts] = useState<any[]>([]);
   const [trendingLoading, setTrendingLoading] = useState(false);
   const triedTrending = useRef(false);
@@ -46,44 +48,76 @@ const Feed = () => {
 
   // Note: revalidation on mount is handled inside useFeed() (stale-while-revalidate).
 
-  // Save scroll position before navigating away
+  // Save scroll position before navigating away. We DO NOT call the handler
+  // immediately on mount — doing so would overwrite the saved position with
+  // the freshly-mounted scrollTop of 0, defeating restoration.
   useEffect(() => {
-    const container = getScrollContainer();
-    if (!container) return;
-
+    let container: HTMLElement | null = null;
+    let windowListener = false;
+    let raf = 0;
     const handleScroll = () => {
-      sessionStorage.setItem(SCROLL_KEY, String(container.scrollTop));
-      sessionStorage.setItem(LAST_VISIT_KEY, String(Date.now()));
+      saveFeedScrollPosition(rootRef.current);
     };
 
-    handleScroll();
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    return () => container.removeEventListener('scroll', handleScroll);
+    // Defer container lookup until layout settles, so getComputedStyle sees
+    // the right responsive overflow values.
+    const attach = () => {
+      const scrollTarget = getFeedScrollContainer(rootRef.current);
+      if (scrollTarget === window) {
+        windowListener = true;
+        window.addEventListener('scroll', handleScroll, { passive: true });
+      } else {
+        container = scrollTarget as HTMLElement;
+        container.addEventListener('scroll', handleScroll, { passive: true });
+      }
+    };
+    raf = requestAnimationFrame(attach);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      // Persist final position so it survives unmount on navigation.
+      saveFeedScrollPosition(rootRef.current);
+      if (container) container.removeEventListener('scroll', handleScroll);
+      if (windowListener) window.removeEventListener('scroll', handleScroll);
+    };
   }, []);
 
-  // Restore scroll position after data is ready (only once per mount)
+  // Restore scroll position after content is in the DOM (only once per mount).
+  // We retry across frames because the scrollHeight grows as posts paint and
+  // images report their dimensions.
   useEffect(() => {
-    if (scrollRestoredRef.current || loading || apiPosts.length === 0) return;
-    const savedPosition = sessionStorage.getItem(SCROLL_KEY);
-    if (savedPosition) {
-      const targetPosition = parseInt(savedPosition, 10);
-      const restoreScroll = () => {
-        const container = getScrollContainer();
-        if (!container) return;
+    if (scrollRestoredRef.current) return;
+    if (apiPosts.length === 0 && trendingPosts.length === 0) return;
+    const targetPosition = readSavedFeedScrollPosition();
+    if (!targetPosition) {
+      scrollRestoredRef.current = true;
+      return;
+    }
 
-        container.scrollTop = targetPosition;
-        if (Math.abs(container.scrollTop - targetPosition) <= 2 || restoreAttemptsRef.current >= 6) {
-          scrollRestoredRef.current = true;
-          return;
-        }
+    const restoreScroll = () => {
+      const container = getFeedScrollContainer(rootRef.current);
 
+      // Wait for the document to be tall enough to seek to the saved offset.
+      const maxScroll = getFeedMaxScroll(container);
+      if (maxScroll < targetPosition && restoreAttemptsRef.current < 30) {
         restoreAttemptsRef.current += 1;
         requestAnimationFrame(restoreScroll);
-      };
+        return;
+      }
 
+      setFeedScrollTop(container, targetPosition);
+      const currentTop = container === window ? window.scrollY : (container as HTMLElement).scrollTop;
+      if (Math.abs(currentTop - targetPosition) <= 4 || restoreAttemptsRef.current >= 30) {
+        scrollRestoredRef.current = true;
+        return;
+      }
+
+      restoreAttemptsRef.current += 1;
       requestAnimationFrame(restoreScroll);
-    }
-  }, [loading, apiPosts]);
+    };
+
+    requestAnimationFrame(restoreScroll);
+  }, [apiPosts.length, trendingPosts.length]);
 
   // Infinite scroll via IntersectionObserver
   const handleLoadMore = useCallback(async () => {
@@ -200,14 +234,19 @@ const Feed = () => {
   // fallback have settled. Otherwise mobile briefly flashes "no posts yet"
   // before content arrives. `triedTrending.current` is set as soon as the
   // fallback fetch is kicked off, so we wait for it to also complete.
-  const showSkeleton = loading && !hasLoadedOnce.current && posts.length === 0;
+  // Only flash skeletons on the very first load (no posts available from any
+  // source). On subsequent re-mounts (back-navigation) the module-level cache
+  // hydrates `apiPosts` instantly, so we should NEVER show skeletons —
+  // background revalidation updates posts in place.
+  const showSkeleton =
+    loading && !hasLoadedOnce.current && apiPosts.length === 0 && posts.length === 0;
   const fallbackPending =
     posts.length === 0 && (!triedTrending.current || trendingLoading);
   const canShowEmpty = !loading && !trendingLoading && triedTrending.current;
 
   if (showSkeleton) {
     return (
-      <div className="space-y-4 md:space-y-6 pb-4">
+      <div ref={rootRef} className="space-y-4 md:space-y-6 pb-4">
         <CreatePostBox />
         {[1, 2, 3].map((i) => (
           <div key={i} className="bg-card rounded-lg shadow-sm border border-border p-4">
@@ -229,7 +268,7 @@ const Feed = () => {
 
   if (error && posts.length === 0) {
     return (
-      <div className="space-y-4 md:space-y-6 pb-4">
+      <div ref={rootRef} className="space-y-4 md:space-y-6 pb-4">
         <CreatePostBox />
         <div className="text-center py-12">
           <p className="text-destructive mb-4">Failed to load feed. Please try again.</p>
@@ -240,8 +279,15 @@ const Feed = () => {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6 pb-4">
+    <div ref={rootRef} className="space-y-4 md:space-y-6 pb-4">
       <CreatePostBox />
+
+      {refreshing && displayPosts.length > 0 && (
+        <div className="flex items-center justify-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1.5 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <span>Updating moments</span>
+        </div>
+      )}
 
       {displayPosts.length === 0 && canShowEmpty && !fallbackPending && (
         <div className="text-center py-8">
