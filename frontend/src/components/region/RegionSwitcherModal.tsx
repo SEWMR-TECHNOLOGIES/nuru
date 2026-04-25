@@ -38,18 +38,18 @@ const RegionSwitcherModal = ({
             className="fixed inset-0 z-[100] bg-background/70 backdrop-blur-sm"
             onClick={onDismiss}
           />
-          <motion.div
-            key="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="region-switch-title"
-            initial={{ opacity: 0, y: 24, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 16, scale: 0.97 }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed left-1/2 top-1/2 z-[101] w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 -translate-y-1/2 max-h-[calc(100vh-2rem)] overflow-y-auto overscroll-contain"
-          >
-            <div className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+          <div className="fixed inset-0 z-[101] flex items-center justify-center p-3 sm:p-4 pointer-events-none">
+            <motion.div
+              key="modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="region-switch-title"
+              initial={{ opacity: 0, y: 24, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.97 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              className="pointer-events-auto relative w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card shadow-2xl"
+            >
               <button
                 onClick={onDismiss}
                 aria-label="Close"
@@ -107,8 +107,8 @@ const RegionSwitcherModal = ({
                   </Button>
                 </div>
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>
