@@ -2,7 +2,6 @@ import { X, Loader2, Navigation, Globe, Users } from 'lucide-react';
 import { useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { socialApi } from '@/lib/api/social';
-import { useFeed } from '@/data/useSocial';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -83,8 +82,6 @@ const CreatePostBox = () => {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   
-  const { refetch: refetchFeed } = useFeed();
-
   const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const filesArray = Array.from(e.target.files);
@@ -292,8 +289,8 @@ const CreatePostBox = () => {
         throw new Error(response.message || 'Failed to create post');
       }
       
-      // Refresh the feed
-      refetchFeed();
+      // Refresh the mounted feed softly without mounting a second feed hook here.
+      window.dispatchEvent(new Event('nuru:feed-refresh'));
       
       // Clear form on success
       setText('');

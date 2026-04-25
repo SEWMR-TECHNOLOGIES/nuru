@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import ShareMenu from '@/components/ShareMenu';
 import { useNavigate } from 'react-router-dom';
 import { encodeId } from '@/utils/shortId';
+import { saveFeedScrollPosition } from '@/lib/feedSession';
 import {
   Popover,
   PopoverContent,
@@ -81,10 +82,7 @@ const Post = ({ post }: PostProps) => {
   // Share logic moved to ShareMenu component
 
   const handlePostClick = () => {
-    const scrollContainer = document.querySelector('.flex-1.overflow-y-auto');
-    if (scrollContainer) {
-      sessionStorage.setItem('feedScrollPosition', scrollContainer.scrollTop.toString());
-    }
+    saveFeedScrollPosition();
     navigate(`/post/${post.id}`, { state: { post } });
   };
 
