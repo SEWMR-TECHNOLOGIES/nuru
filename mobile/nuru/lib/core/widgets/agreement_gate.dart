@@ -49,7 +49,7 @@ class _AgreementSheetState extends State<_AgreementSheet> {
   bool _loading = false;
 
   TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.3}) =>
-      GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+      GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color, height: height);
 
   String get _title => widget.agreementType == 'vendor_agreement'
       ? 'Vendor Agreement'

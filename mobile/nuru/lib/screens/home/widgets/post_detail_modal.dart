@@ -221,7 +221,7 @@ class _PostDetailModalState extends State<PostDetailModal> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             child: Row(
               children: [
-                Text('Moment', style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                Text('Moment', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                 const Spacer(),
                 GestureDetector(
                   onTap: () => Navigator.pop(context),
@@ -248,10 +248,10 @@ class _PostDetailModalState extends State<PostDetailModal> {
 
                   // Content
                   if (_title.isNotEmpty)
-                    Text(_title, style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
+                    Text(_title, style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
                   if (_title.isNotEmpty && _content.isNotEmpty) const SizedBox(height: 6),
                   if (_content.isNotEmpty)
-                    Text(_content, style: GoogleFonts.plusJakartaSans(fontSize: 15, color: AppColors.textPrimary, height: 1.6)),
+                    Text(_content, style: GoogleFonts.inter(fontSize: 15, color: AppColors.textPrimary, height: 1.6)),
 
                   // Media
                   if (_images.isNotEmpty) ...[
@@ -270,7 +270,7 @@ class _PostDetailModalState extends State<PostDetailModal> {
 
                   // Echoes header
                   Text('$_commentCount ${_commentCount == 1 ? 'Echo' : 'Echoes'}',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                    style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                   const SizedBox(height: 12),
 
                   // Echoes list
@@ -285,8 +285,8 @@ class _PostDetailModalState extends State<PostDetailModal> {
                             SvgPicture.asset('assets/icons/echo-icon.svg', width: 32, height: 32,
                               colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
                             const SizedBox(height: 8),
-                            Text('No echoes yet', style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textTertiary)),
-                            Text('Be the first to share your thoughts', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textHint)),
+                            Text('No echoes yet', style: GoogleFonts.inter(fontSize: 14, color: AppColors.textTertiary)),
+                            Text('Be the first to share your thoughts', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textHint)),
                           ],
                         ),
                       ),
@@ -322,8 +322,8 @@ class _PostDetailModalState extends State<PostDetailModal> {
                     padding: const EdgeInsets.only(bottom: 6),
                     child: Row(
                       children: [
-                        Text('Replying to ', style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
-                        Text(_replyToName!, style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary)),
+                        Text('Replying to ', style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
+                        Text(_replyToName!, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary)),
                         const Spacer(),
                         GestureDetector(
                           onTap: () => setState(() { _replyToId = null; _replyToName = null; }),
@@ -340,10 +340,10 @@ class _PostDetailModalState extends State<PostDetailModal> {
                         padding: const EdgeInsets.symmetric(horizontal: 14),
                         child: TextField(
                           controller: _commentController,
-                          style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary),
+                          style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary),
                           decoration: InputDecoration(
                             hintText: _replyToName != null ? 'Write a reply...' : 'Write an echo...',
-                            hintStyle: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textHint),
+                            hintStyle: GoogleFonts.inter(fontSize: 14, color: AppColors.textHint),
                             border: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(vertical: 10),
                           ),
@@ -400,11 +400,11 @@ class _PostDetailModalState extends State<PostDetailModal> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(children: [
-                Flexible(child: Text(_authorName, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                Flexible(child: Text(_authorName, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
                     maxLines: 1, overflow: TextOverflow.ellipsis)),
                 // Verification badge removed
               ]),
-              Text(_timeAgo, style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
+              Text(_timeAgo, style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
             ],
           ),
         ),
@@ -427,7 +427,7 @@ class _PostDetailModalState extends State<PostDetailModal> {
     final initials = name.split(' ').map((w) => w.isNotEmpty ? w[0] : '').take(2).join().toUpperCase();
     return Container(
       color: AppColors.surfaceVariant,
-      child: Center(child: Text(initials, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textSecondary))),
+      child: Center(child: Text(initials, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textSecondary))),
     );
   }
 
@@ -503,7 +503,7 @@ class _PostDetailModalState extends State<PostDetailModal> {
         children: [
           SvgPicture.asset(svgAsset, width: 20, height: 20, colorFilter: ColorFilter.mode(color, BlendMode.srcIn)),
           const SizedBox(width: 5),
-          Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w500, color: color)),
+          Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: color)),
         ],
       ),
     );
@@ -605,25 +605,25 @@ class _EchoItemWidgetState extends State<_EchoItemWidget> {
                   children: [
                     Row(
                       children: [
-                        Flexible(child: Text(_name, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                        Flexible(child: Text(_name, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
                             maxLines: 1, overflow: TextOverflow.ellipsis)),
                         // Verification badge removed
                         const SizedBox(width: 6),
-                        Text(_timeAgo, style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textHint)),
+                        Text(_timeAgo, style: GoogleFonts.inter(fontSize: 10, color: AppColors.textHint)),
                       ],
                     ),
                     const SizedBox(height: 3),
-                    Text(_content, style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textPrimary, height: 1.5)),
+                    Text(_content, style: GoogleFonts.inter(fontSize: 13, color: AppColors.textPrimary, height: 1.5)),
                     const SizedBox(height: 6),
                     // Actions
                     Row(
                       children: [
-                        Text('❤️ $_glowCount', style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
+                        Text('❤️ $_glowCount', style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
                         const SizedBox(width: 16),
                         if (widget.depth < 4)
                           GestureDetector(
                             onTap: () => widget.onReply(widget.comment['id']?.toString() ?? '', _name),
-                            child: Text('Reply', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary)),
+                            child: Text('Reply', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary)),
                           ),
                       ],
                     ),
@@ -636,7 +636,7 @@ class _EchoItemWidgetState extends State<_EchoItemWidget> {
                           child: _loadingReplies
                               ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.primary))
                               : Text('View $_replyCount ${_replyCount == 1 ? 'reply' : 'replies'}',
-                                  style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary)),
+                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary)),
                         ),
                       ),
                     if (_showReplies && _replies.isNotEmpty)
@@ -644,7 +644,7 @@ class _EchoItemWidgetState extends State<_EchoItemWidget> {
                         onTap: () => setState(() => _showReplies = false),
                         child: Padding(
                           padding: const EdgeInsets.only(top: 6),
-                          child: Text('Hide replies', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textTertiary)),
+                          child: Text('Hide replies', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textTertiary)),
                         ),
                       ),
                   ],
@@ -670,7 +670,7 @@ class _EchoItemWidgetState extends State<_EchoItemWidget> {
     final initials = _name.split(' ').map((w) => w.isNotEmpty ? w[0] : '').take(2).join().toUpperCase();
     return Container(
       color: AppColors.surfaceVariant,
-      child: Center(child: Text(initials, style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary))),
+      child: Center(child: Text(initials, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary))),
     );
   }
 }

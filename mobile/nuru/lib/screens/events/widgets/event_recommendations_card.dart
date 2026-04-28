@@ -139,7 +139,7 @@ class _EventRecommendationsCardState extends State<EventRecommendationsCard> {
         Row(children: [
           Expanded(
             child: Text('Service providers',
-                style: GoogleFonts.plusJakartaSans(
+                style: GoogleFonts.inter(
                     fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.textPrimary)),
           ),
           TextButton.icon(
@@ -148,7 +148,7 @@ class _EventRecommendationsCardState extends State<EventRecommendationsCard> {
                 ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.refresh_rounded, size: 16, color: AppColors.primary),
             label: Text(_loading ? 'Finding...' : (_fetched ? 'Refresh' : 'Find providers'),
-                style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primary)),
           ),
         ]),
         const SizedBox(height: 4),
@@ -156,7 +156,7 @@ class _EventRecommendationsCardState extends State<EventRecommendationsCard> {
           widget.eventTypeName != null && widget.eventTypeName!.isNotEmpty
               ? 'Recommended for ${widget.eventTypeName!.toLowerCase()}'
               : 'Pick an event type to see recommendations',
-          style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary),
+          style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary),
         ),
         const SizedBox(height: 12),
 
@@ -166,7 +166,7 @@ class _EventRecommendationsCardState extends State<EventRecommendationsCard> {
             child: Center(
               child: Text('Tap "Find providers" to discover service providers for your event.',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+                  style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
             ),
           )
         else if (_loading && _services.isEmpty)
@@ -180,10 +180,10 @@ class _EventRecommendationsCardState extends State<EventRecommendationsCard> {
             child: Center(
               child: Column(children: [
                 Text('No service providers found.',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+                    style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
                 const SizedBox(height: 4),
                 Text('Try adjusting event type, location or budget.',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textHint)),
+                    style: GoogleFonts.inter(fontSize: 11, color: AppColors.textHint)),
               ]),
             ),
           )
@@ -260,11 +260,11 @@ class _EventRecommendationsCardState extends State<EventRecommendationsCard> {
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.25)),
+                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.25)),
               if (category != null && category.isNotEmpty) ...[
                 const SizedBox(height: 2),
                 Text(category, maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary)),
+                    style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary)),
               ],
               const SizedBox(height: 6),
               Row(children: [
@@ -272,9 +272,9 @@ class _EventRecommendationsCardState extends State<EventRecommendationsCard> {
                   const Icon(Icons.star_rounded, size: 11, color: Color(0xFFE8A33D)),
                   const SizedBox(width: 2),
                   Text('${(rating as num).toStringAsFixed(1)}',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                      style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                   if (reviews != null) Text(' ($reviews)',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 9, color: AppColors.textTertiary)),
+                      style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary)),
                   const SizedBox(width: 8),
                 ],
                 if (location != null && location.isNotEmpty)
@@ -286,7 +286,7 @@ class _EventRecommendationsCardState extends State<EventRecommendationsCard> {
                       const SizedBox(width: 2),
                       Expanded(
                         child: Text(location, maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.plusJakartaSans(fontSize: 9, color: AppColors.textTertiary)),
+                            style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary)),
                       ),
                     ]),
                   ),
@@ -294,7 +294,7 @@ class _EventRecommendationsCardState extends State<EventRecommendationsCard> {
               if (price != null && price.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Text(price,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.primary)),
+                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.primary)),
               ],
             ]),
           ),

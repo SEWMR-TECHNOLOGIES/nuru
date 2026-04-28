@@ -57,11 +57,11 @@ class _MyContributionsTabState extends State<MyContributionsTab> {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: TextField(
         onChanged: _onSearchChanged,
-        style: GoogleFonts.plusJakartaSans(fontSize: 14),
+        style: GoogleFonts.inter(fontSize: 14),
         decoration: InputDecoration(
           isDense: true,
           hintText: 'Search contributing events…',
-          hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary),
+          hintStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary),
           prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.textTertiary),
           filled: true,
           fillColor: AppColors.surfaceVariant,
@@ -105,14 +105,14 @@ class _MyContributionsTabState extends State<MyContributionsTab> {
               ),
               const SizedBox(height: 16),
               Text(_searchTerm.isEmpty ? 'No contributions yet' : 'No matches',
-                style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700)),
+                style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700)),
               const SizedBox(height: 6),
               Text(
                 _searchTerm.isEmpty
                     ? 'When an organiser adds you as a contributor to their event, it will appear here so you can pay your pledge in one tap.'
                     : 'No contributing events match "$_searchTerm".',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary, height: 1.4),
+                style: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary, height: 1.4),
               ),
             ]),
           )
@@ -168,7 +168,7 @@ class _MyContributionsTabState extends State<MyContributionsTab> {
           ),
           Positioned(left: 14, right: 14, bottom: 10, child: Text(name,
             maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700))),
+            style: GoogleFonts.inter(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700))),
           if (isComplete)
             Positioned(top: 10, right: 10, child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -176,7 +176,7 @@ class _MyContributionsTabState extends State<MyContributionsTab> {
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 const Icon(Icons.check_circle, color: Colors.white, size: 12),
                 const SizedBox(width: 4),
-                Text('Complete', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                Text('Complete', style: GoogleFonts.inter(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
               ]),
             )),
         ]),
@@ -202,16 +202,16 @@ class _MyContributionsTabState extends State<MyContributionsTab> {
               const SizedBox(height: 6),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 Text('${(pct * 100).round()}% complete',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
+                  style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
                 if (pending > 0)
                   Text('$currency ${_fmt(pending)} pending',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.amber.shade700, fontWeight: FontWeight.w600)),
+                    style: GoogleFonts.inter(fontSize: 11, color: Colors.amber.shade700, fontWeight: FontWeight.w600)),
               ]),
             ],
             if (org != null && org.isNotEmpty) ...[
               const SizedBox(height: 10),
               Text('Organised by $org',
-                style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
+                style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
             ],
             const SizedBox(height: 12),
             SizedBox(width: double.infinity, child: ElevatedButton.icon(
@@ -226,7 +226,7 @@ class _MyContributionsTabState extends State<MyContributionsTab> {
               label: Text(isComplete
                   ? 'Fully paid'
                   : balance > 0 ? 'Pay $currency ${_fmt(balance)}' : 'Make a contribution',
-                style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600)),
+                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
             )),
           ]),
         ),
@@ -239,10 +239,10 @@ class _MyContributionsTabState extends State<MyContributionsTab> {
     decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10)),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(label.toUpperCase(),
-        style: GoogleFonts.plusJakartaSans(fontSize: 9, color: AppColors.textTertiary, letterSpacing: 0.5, fontWeight: FontWeight.w600)),
+        style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary, letterSpacing: 0.5, fontWeight: FontWeight.w600)),
       const SizedBox(height: 2),
       Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
-        style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: color ?? AppColors.textPrimary)),
+        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: color ?? AppColors.textPrimary)),
     ]),
   );
 

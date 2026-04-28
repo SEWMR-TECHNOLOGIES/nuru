@@ -39,7 +39,7 @@ class EmptyStateIllustration extends StatelessWidget {
           Text(
             title,
             textAlign: TextAlign.center,
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.inter(
               fontSize: 16, fontWeight: FontWeight.w700,
               color: AppColors.textPrimary, height: 1.3,
             ),
@@ -49,7 +49,7 @@ class EmptyStateIllustration extends StatelessWidget {
             Text(
               subtitle!,
               textAlign: TextAlign.center,
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.inter(
                 fontSize: 13, color: AppColors.textTertiary, height: 1.45,
               ),
             ),

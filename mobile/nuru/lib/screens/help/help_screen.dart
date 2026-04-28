@@ -38,7 +38,7 @@ class _HelpScreenState extends State<HelpScreen> {
   ];
 
   TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.3}) =>
-      GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+      GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color, height: height);
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +67,7 @@ class _HelpScreenState extends State<HelpScreen> {
         icon: const Icon(Icons.auto_awesome_rounded, size: 18),
         label: Text(
           'Ask Nuru AI',
-          style: GoogleFonts.plusJakartaSans(
+          style: GoogleFonts.inter(
             fontSize: 13,
             fontWeight: FontWeight.w700,
             color: Colors.white,

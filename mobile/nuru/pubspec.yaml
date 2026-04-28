@@ -41,6 +41,14 @@ dependencies:
   csv: ^6.0.0
   livekit_client: ^2.3.1
   app_links: ^6.3.2
+  # Voice notes (microphone capture). The emoji picker is implemented
+  # in-house at lib/widgets/nuru_emoji_picker.dart, so we no longer ship
+  # the heavyweight `emoji_picker_flutter` package.
+  record: ^6.0.0
+  audioplayers: ^6.1.0
+  # Native CallKit / ConnectionService UI for incoming voice calls — used by
+  # the global incoming-call poller (see lib/core/services/incoming_call_service.dart).
+  flutter_callkit_incoming: ^2.5.4
 
 dev_dependencies:
   flutter_test:

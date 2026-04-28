@@ -13,7 +13,7 @@ class AppSnackbar {
           const Icon(Icons.error_outline_rounded, color: Colors.white, size: 18),
           const SizedBox(width: 10),
           Expanded(
-             child: Text(msg, style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13, height: 1.4)),
+             child: Text(msg, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13, height: 1.4)),
           ),
         ],
       ),
@@ -35,7 +35,7 @@ class AppSnackbar {
           const Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 18),
           const SizedBox(width: 10),
           Expanded(
-             child: Text(msg, style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13, height: 1.4)),
+             child: Text(msg, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13, height: 1.4)),
           ),
         ],
       ),
@@ -57,7 +57,7 @@ class AppSnackbar {
           const Icon(Icons.info_outline_rounded, color: Colors.white, size: 18),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(msg, style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13, height: 1.4)),
+            child: Text(msg, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13, height: 1.4)),
           ),
         ],
       ),

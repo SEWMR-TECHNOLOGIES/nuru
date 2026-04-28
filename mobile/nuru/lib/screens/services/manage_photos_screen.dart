@@ -31,7 +31,7 @@ class _ManagePhotosScreenState extends State<ManagePhotosScreen> {
   static String get _baseUrl => ApiService.baseUrl;
 
   TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary}) =>
-      GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color);
+      GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color);
 
   Future<Map<String, String>> _headers() async {
     final token = await SecureTokenStorage.getToken();

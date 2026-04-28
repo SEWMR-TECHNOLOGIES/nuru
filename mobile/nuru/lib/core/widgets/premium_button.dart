@@ -94,7 +94,7 @@ class _PremiumButtonState extends State<PremiumButton>
                         ],
                         Text(
                           widget.label,
-                          style: GoogleFonts.plusJakartaSans(
+                          style: GoogleFonts.inter(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: widget.outlined ? AppColors.textPrimary : Colors.white,

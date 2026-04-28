@@ -38,10 +38,10 @@ class PrivacyPolicyScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('${i + 1}. ${s['title']}',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
+                    style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
                 const SizedBox(height: 8),
                 Text(s['content']!,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textSecondary, height: 1.6)),
+                    style: GoogleFonts.inter(fontSize: 14, color: AppColors.textSecondary, height: 1.6)),
               ],
             ),
           );

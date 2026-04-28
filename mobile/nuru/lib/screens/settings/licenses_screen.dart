@@ -34,7 +34,7 @@ class LicensesScreen extends StatelessWidget {
         children: [
           Text(
             'This app uses the following open source packages. We are grateful to the open source community.',
-            style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary, height: 1.5),
+            style: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary, height: 1.5),
           ),
           const SizedBox(height: 20),
           ..._packages.map((p) => Container(
@@ -49,15 +49,15 @@ class LicensesScreen extends StatelessWidget {
               Expanded(child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(p['name']!, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                  Text(p['name']!, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                   const SizedBox(height: 2),
-                  Text(p['license']!, style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
+                  Text(p['license']!, style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
                 ],
               )),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(6)),
-                child: Text(p['license']!, style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                child: Text(p['license']!, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
               ),
             ]),
           )),

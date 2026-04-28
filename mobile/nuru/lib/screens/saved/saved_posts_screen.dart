@@ -39,7 +39,7 @@ class _SavedPostsScreenState extends State<SavedPostsScreen> {
   }
 
   TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary}) =>
-      GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color);
+      GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color);
 
   @override
   Widget build(BuildContext context) {

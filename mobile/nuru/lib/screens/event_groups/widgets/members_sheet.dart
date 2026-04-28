@@ -77,7 +77,7 @@ class _MembersSheetState extends State<MembersSheet> {
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
           child: Row(children: [
             Text('Members (${_members.length})',
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 16)),
+                style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 16)),
             const Spacer(),
             if (widget.isAdmin)
               TextButton.icon(
@@ -117,11 +117,11 @@ class _MembersSheetState extends State<MembersSheet> {
                         backgroundImage: m['avatar_url'] != null ? NetworkImage(m['avatar_url']) : null,
                         child: m['avatar_url'] == null
                             ? Text(_initials(m['display_name'] ?? '?'),
-                                style: GoogleFonts.plusJakartaSans(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 12))
+                                style: GoogleFonts.inter(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 12))
                             : null,
                       ),
                       title: Text(m['display_name'] ?? '',
-                          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 14)),
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14)),
                       subtitle: Wrap(spacing: 4, children: [
                         if (m['role'] != null) _chip(m['role'], AppColors.textSecondary),
                         if (m['is_admin'] == true) _chip('admin', AppColors.primary, filled: true),
@@ -151,7 +151,7 @@ class _MembersSheetState extends State<MembersSheet> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(label,
-          style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w600, color: c)),
+          style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: c)),
     );
   }
 }

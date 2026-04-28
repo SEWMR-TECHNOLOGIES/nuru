@@ -52,7 +52,7 @@ class ProfileHeaderSection extends StatelessWidget {
   });
 
   TextStyle _pf({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.3, double letterSpacing = 0}) =>
-      GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height, letterSpacing: letterSpacing);
+      GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color, height: height, letterSpacing: letterSpacing);
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +79,7 @@ class ProfileHeaderSection extends StatelessWidget {
           child: coverImage == null ? CustomPaint(painter: _CoverPatternPainter()) : null,
         ),
         Positioned.fill(child: Center(
-          child: Text('Plan Smarter', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: 1.2,
+          child: Text('Plan Smarter', style: GoogleFonts.inter(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: 1.2,
             shadows: [Shadow(color: Colors.black.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 2))])),
         )),
         Positioned(left: 20, bottom: -44,

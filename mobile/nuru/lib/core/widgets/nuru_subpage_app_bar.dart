@@ -57,7 +57,7 @@ class NuruSubPageAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       title: Text(
         title,
-        style: GoogleFonts.plusJakartaSans(
+        style: GoogleFonts.inter(
           fontSize: 18,
           fontWeight: FontWeight.w700,
           color: AppColors.textPrimary,

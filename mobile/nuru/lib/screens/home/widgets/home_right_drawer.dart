@@ -101,7 +101,7 @@ class HomeRightDrawer extends StatelessWidget {
               Expanded(
                 child: Text(
                   context.trw('quick_view'),
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.inter(
                     fontSize: 18, fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary, height: 1.2,
                   ),
@@ -250,7 +250,7 @@ class _SectionHeader extends StatelessWidget {
       Expanded(
         child: Text(
           title.toUpperCase(),
-          style: GoogleFonts.plusJakartaSans(
+          style: GoogleFonts.inter(
             fontSize: 11, fontWeight: FontWeight.w700,
             color: AppColors.textTertiary, letterSpacing: 1.2, height: 1.0,
           ),
@@ -265,7 +265,7 @@ class _SectionHeader extends StatelessWidget {
           ),
           child: Text(
             '$count',
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.inter(
               fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textSecondary,
             ),
           ),
@@ -306,7 +306,7 @@ class _SectionHeaderAction extends StatelessWidget {
       Expanded(
         child: Text(
           title.toUpperCase(),
-          style: GoogleFonts.plusJakartaSans(
+          style: GoogleFonts.inter(
             fontSize: 11, fontWeight: FontWeight.w700,
             color: AppColors.textTertiary, letterSpacing: 1.2, height: 1.0,
           ),
@@ -322,7 +322,7 @@ class _SectionHeaderAction extends StatelessWidget {
           ),
           child: Text(
             action,
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.inter(
               fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary,
             ),
           ),
@@ -377,7 +377,7 @@ class _UpcomingEventCard extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(
                   title.toString(),
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.inter(
                     fontSize: 13, fontWeight: FontWeight.w600,
                     color: AppColors.textPrimary, height: 1.3,
                   ),
@@ -389,7 +389,7 @@ class _UpcomingEventCard extends StatelessWidget {
                   const SizedBox(width: 4),
                   Text(
                     _formatDateShort(date.toString()),
-                    style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary, height: 1.2),
+                    style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary, height: 1.2),
                   ),
                 ]),
                 if (location.isNotEmpty) ...[
@@ -400,7 +400,7 @@ class _UpcomingEventCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         location,
-                        style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary, height: 1.2),
+                        style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary, height: 1.2),
                         maxLines: 1, overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -419,7 +419,7 @@ class _UpcomingEventCard extends StatelessWidget {
               ),
               child: Text(
                 role,
-                style: GoogleFonts.plusJakartaSans(
+                style: GoogleFonts.inter(
                   fontSize: 9, fontWeight: FontWeight.w600,
                   color: role == 'creator' ? AppColors.primary : AppColors.textTertiary,
                   height: 1.0,
@@ -495,19 +495,19 @@ class _TicketCard extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(
                   eventName, maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   isToday ? context.trw('today') : (d != null ? _formatDateShort(startDate) : 'Date TBD'),
-                  style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary),
+                  style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary),
                 ),
                 const SizedBox(height: 6),
                 Wrap(spacing: 6, runSpacing: 4, children: [
                   if (ticketCode.isNotEmpty) _CodeBadge(code: ticketCode),
                   _StatusBadge(status: status),
                   if (quantity > 1)
-                    Text('×$quantity', style: GoogleFonts.plusJakartaSans(fontSize: 9, color: AppColors.textTertiary)),
+                    Text('×$quantity', style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary)),
                 ]),
               ]),
             ),
@@ -559,14 +559,14 @@ class _TicketedEventCard extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(
                   eventName,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.3),
+                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.3),
                   maxLines: 1, overflow: TextOverflow.ellipsis,
                 ),
                 if (startDate.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
                     _formatDateShort(startDate),
-                    style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary, height: 1.2),
+                    style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary, height: 1.2),
                   ),
                 ],
                 const SizedBox(height: 6),
@@ -580,7 +580,7 @@ class _TicketedEventCard extends StatelessWidget {
                       ),
                       child: Text(
                         '${context.trw('from')} ${_formatCompactMoney(minPrice)}',
-                        style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                        style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                       ),
                     ),
                   if (soldOut) ...[
@@ -593,7 +593,7 @@ class _TicketedEventCard extends StatelessWidget {
                       ),
                       child: Text(
                         context.trw('sold_out'),
-                        style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.error),
+                        style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.error),
                       ),
                     ),
                   ],
@@ -646,14 +646,14 @@ class _ServicesGrid extends StatelessWidget {
                 child: imgUrl != null
                     ? Image.network(imgUrl, width: 56, height: 56, fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => Center(child: Text(initials,
-                          style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textTertiary))))
+                          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textTertiary))))
                     : Center(child: Text(initials,
-                        style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textTertiary))),
+                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textTertiary))),
               ),
               const SizedBox(height: 8),
               Text(
                 title,
-                style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
                 textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
               ),
             ]),
@@ -734,7 +734,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                     : Center(
                         child: Text(
                           fullName.isNotEmpty ? fullName[0].toUpperCase() : '?',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.primary),
+                          style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.primary),
                         ),
                       ),
               ),
@@ -746,7 +746,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                   children: [
                     Text(
                       fullName.isNotEmpty ? fullName : '@$username',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.2),
+                      style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.2),
                       maxLines: 1, overflow: TextOverflow.ellipsis,
                     ),
                     if (username.isNotEmpty && fullName.isNotEmpty)
@@ -754,7 +754,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
                           '@$username',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary, height: 1.2),
+                          style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary, height: 1.2),
                           maxLines: 1, overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -763,7 +763,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                         padding: const EdgeInsets.only(top: 3),
                         child: Text(
                           bio,
-                          style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textSecondary, height: 1.3),
+                          style: GoogleFonts.inter(fontSize: 11, color: AppColors.textSecondary, height: 1.3),
                           maxLines: 1, overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -792,7 +792,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                       ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : Text(
                           _followed ? context.trw('following') : context.trw('follow'),
-                          style: GoogleFonts.plusJakartaSans(
+                          style: GoogleFonts.inter(
                             fontSize: 12, fontWeight: FontWeight.w700,
                             color: _followed ? AppColors.textSecondary : Colors.white,
                           ),
@@ -828,12 +828,12 @@ class _EmptyState extends StatelessWidget {
         const SizedBox(height: 16),
         Text(
           context.trw('all_caught_up'),
-          style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.2),
+          style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.2),
         ),
         const SizedBox(height: 6),
         Text(
           context.trw('nothing_here_yet'),
-          style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary, height: 1.3),
+          style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary, height: 1.3),
         ),
       ]),
     );
@@ -911,7 +911,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
           Expanded(
             child: Text(
               context.trw('my_meetings').toUpperCase(),
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.inter(
                 fontSize: 11, fontWeight: FontWeight.w700,
                 color: AppColors.textTertiary, letterSpacing: 1.2, height: 1.0,
               ),
@@ -988,7 +988,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                         Flexible(
                           child: Text(
                             title,
-                            style: GoogleFonts.plusJakartaSans(
+                            style: GoogleFonts.inter(
                               fontSize: 13, fontWeight: FontWeight.w600,
                               color: AppColors.textPrimary, height: 1.3,
                             ),
@@ -1005,7 +1005,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                             ),
                             child: Text(
                               'LIVE',
-                              style: GoogleFonts.plusJakartaSans(
+                              style: GoogleFonts.inter(
                                 fontSize: 8, fontWeight: FontWeight.w700, color: Colors.white,
                               ),
                             ),
@@ -1016,7 +1016,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                         const SizedBox(height: 2),
                         Text(
                           eventName,
-                          style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary, height: 1.3),
+                          style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary, height: 1.3),
                           maxLines: 1, overflow: TextOverflow.ellipsis,
                         ),
                       ],
@@ -1026,14 +1026,14 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                         const SizedBox(width: 4),
                         Text(
                           '$dateStr · $timeStr',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 9, color: AppColors.textTertiary),
+                          style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary),
                         ),
                         const SizedBox(width: 12),
                         const Icon(Icons.people_outline_rounded, size: 10, color: AppColors.textTertiary),
                         const SizedBox(width: 3),
                         Text(
                           '$participantCount',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 9, color: AppColors.textTertiary),
+                          style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary),
                         ),
                       ]),
                     ]),
@@ -1094,7 +1094,7 @@ class _SmallAvatar extends StatelessWidget {
       child: Center(
         child: Text(
           name.isNotEmpty ? name[0].toUpperCase() : '?',
-          style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textSecondary, height: 1.0),
+          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textSecondary, height: 1.0),
         ),
       ),
     );
@@ -1136,7 +1136,7 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(
         status,
-        style: GoogleFonts.plusJakartaSans(fontSize: 9, color: AppColors.textTertiary),
+        style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary),
       ),
     );
   }

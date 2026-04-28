@@ -71,67 +71,151 @@ class _AuthTextFieldState extends State<AuthTextField> {
         // Label
         AnimatedDefaultTextStyle(
           duration: const Duration(milliseconds: 200),
-          style: GoogleFonts.plusJakartaSans(
+          style: GoogleFonts.inter(
             fontSize: 13,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w500,
             color: _focused ? AppColors.primary : AppColors.textSecondary,
             height: 1.2,
+            letterSpacing: 0.1,
           ),
           child: Padding(
-            padding: const EdgeInsets.only(left: 2, bottom: 8),
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
             child: Text(widget.label),
           ),
         ),
 
-        // Field
+        // Field — premium: subtle gradient border on focus, soft shadow lift
         AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(18),
+            gradient: _focused
+                ? LinearGradient(
+                    colors: [
+                      AppColors.primary.withOpacity(0.10),
+                      AppColors.primary.withOpacity(0.02),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: _focused ? null : Colors.white,
             boxShadow: _focused
-                ? [BoxShadow(color: AppColors.primary.withOpacity(0.08), blurRadius: 16, offset: const Offset(0, 4))]
-                : [],
+                ? [
+                    BoxShadow(
+                      color: AppColors.primary.withOpacity(0.18),
+                      blurRadius: 24,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 8),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.035),
+                      blurRadius: 14,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
           ),
-          child: TextFormField(
-            controller: widget.controller,
-            obscureText: widget.obscureText,
-            keyboardType: widget.keyboardType,
-            validator: widget.validator,
-            inputFormatters: widget.inputFormatters,
-            maxLength: widget.maxLength,
-            autofocus: widget.autofocus,
-            onChanged: widget.onChanged,
-            autovalidateMode: AutovalidateMode.onUserInteraction,
-            style: GoogleFonts.plusJakartaSans(fontSize: 15, color: AppColors.textPrimary, fontWeight: FontWeight.w500, height: 1.4),
-            onTap: () => setState(() => _focused = true),
-            onEditingComplete: () => setState(() => _focused = false),
-            onTapOutside: (_) {
-              setState(() => _focused = false);
-              FocusScope.of(context).unfocus();
-            },
-            decoration: InputDecoration(
-              hintText: widget.hintText ?? widget.label,
-              counterText: '',
-              prefixIcon: widget.prefixIcon != null
-                  ? Padding(
-                      padding: const EdgeInsets.only(left: 16, right: 12),
-                      child: Icon(widget.prefixIcon, size: 20,
-                        color: _focused ? AppColors.primary : AppColors.textHint,
-                      ),
-                    )
-                  : null,
-              prefixIconConstraints: widget.prefixIcon != null ? const BoxConstraints(minWidth: 48) : null,
-              suffixIcon: widget.suffixIcon,
-              filled: true,
-              fillColor: _focused ? AppColors.surface : AppColors.surfaceVariant,
-              hintStyle: GoogleFonts.plusJakartaSans(color: AppColors.textHint, fontSize: 14, height: 1.4),
-              errorStyle: GoogleFonts.plusJakartaSans(color: AppColors.error, fontSize: 12, height: 1.2),
-              contentPadding: EdgeInsets.symmetric(horizontal: widget.prefixIcon != null ? 0 : 20, vertical: 17),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.borderLight, width: 1)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
-              errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.error, width: 1)),
-              focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.error, width: 1.5)),
+          padding: const EdgeInsets.all(1.5),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16.5),
+            ),
+            child: TextFormField(
+              controller: widget.controller,
+              obscureText: widget.obscureText,
+              keyboardType: widget.keyboardType,
+              validator: widget.validator,
+              inputFormatters: widget.inputFormatters,
+              maxLength: widget.maxLength,
+              autofocus: widget.autofocus,
+              onChanged: widget.onChanged,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              cursorColor: AppColors.primary,
+              cursorWidth: 1.6,
+              cursorRadius: const Radius.circular(2),
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w500,
+                height: 1.4,
+              ),
+              onTap: () => setState(() => _focused = true),
+              onEditingComplete: () => setState(() => _focused = false),
+              onTapOutside: (_) {
+                setState(() => _focused = false);
+                FocusScope.of(context).unfocus();
+              },
+              decoration: InputDecoration(
+                hintText: widget.hintText ?? widget.label,
+                counterText: '',
+                prefixIcon: widget.prefixIcon != null
+                    ? Padding(
+                        padding: const EdgeInsets.only(left: 18, right: 12),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: Icon(
+                            widget.prefixIcon,
+                            key: ValueKey(_focused),
+                            size: 20,
+                            color: _focused
+                                ? AppColors.primary
+                                : AppColors.textHint,
+                          ),
+                        ),
+                      )
+                    : null,
+                prefixIconConstraints: widget.prefixIcon != null
+                    ? const BoxConstraints(minWidth: 50)
+                    : null,
+                suffixIcon: widget.suffixIcon,
+                filled: true,
+                fillColor: Colors.white,
+                hintStyle: GoogleFonts.inter(
+                  color: AppColors.textHint,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  height: 1.4,
+                ),
+                errorStyle: GoogleFonts.inter(
+                  color: AppColors.error,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  height: 1.2,
+                ),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: widget.prefixIcon != null ? 0 : 20,
+                  vertical: 18,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16.5),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16.5),
+                  borderSide: BorderSide(
+                    color: const Color(0xFFE5E7EB),
+                    width: 1.2,
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16.5),
+                  borderSide: BorderSide.none,
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16.5),
+                  borderSide: const BorderSide(
+                      color: AppColors.error, width: 1.2),
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16.5),
+                  borderSide: const BorderSide(
+                      color: AppColors.error, width: 1.6),
+                ),
+              ),
             ),
           ),
         ),

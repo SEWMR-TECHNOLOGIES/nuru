@@ -103,7 +103,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
               Icon(Icons.error_outline, size: 48, color: AppColors.error.withOpacity(0.6)),
               const SizedBox(height: 12),
               Text(_error ?? 'Booking not found',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textTertiary),
+                  style: GoogleFonts.inter(fontSize: 14, color: AppColors.textTertiary),
                   textAlign: TextAlign.center),
               const SizedBox(height: 16),
               OutlinedButton(onPressed: _load, child: const Text('Retry')),
@@ -141,11 +141,11 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(status.toUpperCase(),
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.inter(
                         fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: color)),
                 const SizedBox(height: 2),
                 Text('Booking #$shortId',
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.inter(
                         fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
               ],
             ),
@@ -215,13 +215,13 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.inter(
                         fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
                     maxLines: 2, overflow: TextOverflow.ellipsis),
                 if (category.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(category,
-                      style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+                      style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
                 ],
               ],
             ),
@@ -235,7 +235,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
         color: AppColors.surfaceVariant,
         alignment: Alignment.center,
         child: Text(s,
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.inter(
                 fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textTertiary)),
       );
 
@@ -292,7 +292,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(name,
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.inter(
                   fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
           const SizedBox(height: 8),
           if (phone.isNotEmpty)
@@ -386,11 +386,11 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(s.label,
-                      style: GoogleFonts.plusJakartaSans(
+                      style: GoogleFonts.inter(
                           fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                   const SizedBox(height: 2),
                   Text(s.subtitle,
-                      style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
+                      style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
                 ],
               ),
             ),
@@ -416,7 +416,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
           },
           icon: const Icon(Icons.do_not_disturb_alt_outlined, color: AppColors.error),
           label: Text('Cancel booking',
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.inter(
                   fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.error)),
           style: OutlinedButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 14),
@@ -445,7 +445,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title,
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.inter(
                   fontSize: 11, fontWeight: FontWeight.w700,
                   letterSpacing: 0.6, color: AppColors.textTertiary)),
           const SizedBox(height: 10),
@@ -469,12 +469,12 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(text,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.inter(
                         fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                 if (sub != null) ...[
                   const SizedBox(height: 2),
                   Text(sub,
-                      style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
+                      style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
                 ],
               ],
             ),
@@ -493,7 +493,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(text,
-                style: GoogleFonts.plusJakartaSans(
+                style: GoogleFonts.inter(
                     fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
           ),
         ],
@@ -512,7 +512,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             const SizedBox(width: 6),
             Expanded(
               child: Text(text,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.inter(
                       fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
                   maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
@@ -530,9 +530,9 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label,
-              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+              style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
           Text('TZS ${_formatAmount(v)}',
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.inter(
                   fontSize: highlight ? 15 : 13,
                   fontWeight: highlight ? FontWeight.w800 : FontWeight.w600,
                   color: highlight ? AppColors.primary : AppColors.textPrimary)),

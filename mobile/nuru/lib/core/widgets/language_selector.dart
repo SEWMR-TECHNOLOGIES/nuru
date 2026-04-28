@@ -6,7 +6,7 @@ import '../theme/app_colors.dart';
 import '../../core/l10n/l10n_helper.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-/// Compact language toggle widget showing flag + code
+/// Modern segmented language toggle — premium pill with sliding indicator.
 class LanguageToggle extends StatelessWidget {
   final bool showLabel;
   final double size;
@@ -18,34 +18,108 @@ class LanguageToggle extends StatelessWidget {
     final locale = context.watch<LocaleProvider>();
     final isEn = locale.isEnglish;
 
-    return GestureDetector(
-      onTap: () => locale.toggleLocale(),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.8),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.borderLight, width: 1),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              isEn ? '🇬🇧' : '🇹🇿',
-              style: TextStyle(fontSize: size * 0.65),
-            ),
-            if (showLabel) ...[
-              const SizedBox(width: 6),
-              Text(
-                isEn ? 'EN' : 'SW',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+    const double segW = 40;
+    const double segH = 30;
+    const double pad = 3;
+
+    return Container(
+      padding: const EdgeInsets.all(pad),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.primary.withOpacity(0.35), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(0.9),
+            blurRadius: 0,
+            spreadRadius: 1.5,
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Row sets the Stack's size so the AnimatedPositioned has room to slide.
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(width: segW, height: segH),
+              SizedBox(width: segW, height: segH),
+            ],
+          ),
+          // Sliding indicator — animates between EN and SW slots.
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+            left: isEn ? 0 : segW,
+            top: 0,
+            child: IgnorePointer(
+              child: Container(
+                width: segW,
+                height: segH,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(999),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withOpacity(0.30),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
               ),
+            ),
+          ),
+          // Tappable labels on top of the indicator.
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _seg(label: 'EN', active: isEn,
+                  onTap: () => locale.setLocale('en'),
+                  width: segW, height: segH),
+              _seg(label: 'SW', active: !isEn,
+                  onTap: () => locale.setLocale('sw'),
+                  width: segW, height: segH),
             ],
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _seg({
+    required String label,
+    required bool active,
+    required VoidCallback onTap,
+    required double width,
+    required double height,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      shape: const StadiumBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const StadiumBorder(),
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: Center(
+            child: AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.6,
+                color: active ? Colors.white : AppColors.primary,
+              ),
+              child: Text(label),
+            ),
+          ),
         ),
       ),
     );
@@ -99,7 +173,7 @@ class LanguageSettingsCard extends StatelessWidget {
                   children: [
                     Text(
                       context.tr('language'),
-                      style: GoogleFonts.plusJakartaSans(
+                      style: GoogleFonts.inter(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
@@ -107,7 +181,7 @@ class LanguageSettingsCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       locale.isEnglish ? 'English' : 'Kiswahili',
-                      style: GoogleFonts.plusJakartaSans(
+                      style: GoogleFonts.inter(
                         fontSize: 11,
                         color: AppColors.textTertiary,
                       ),
@@ -180,7 +254,7 @@ class _LanguageOption extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               label,
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.inter(
                 fontSize: 13,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                 color: selected ? AppColors.primary : AppColors.textSecondary,

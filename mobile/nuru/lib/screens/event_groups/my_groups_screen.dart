@@ -72,10 +72,10 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('My Groups', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 18, color: AppColors.textPrimary)),
+            Text('My Groups', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 18, color: AppColors.textPrimary)),
             Text(
               unread > 0 ? '$unread unread' : 'All your event chat workspaces',
-              style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary),
+              style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary),
             ),
           ],
         ),
@@ -118,9 +118,9 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
                             const SizedBox(height: 80),
                             Icon(Icons.chat_bubble_outline, size: 56, color: AppColors.textTertiary.withOpacity(0.4)),
                             const SizedBox(height: 12),
-                            Center(child: Text('No groups yet', style: GoogleFonts.plusJakartaSans(color: AppColors.textSecondary, fontWeight: FontWeight.w600))),
+                            Center(child: Text('No groups yet', style: GoogleFonts.inter(color: AppColors.textSecondary, fontWeight: FontWeight.w600))),
                             const SizedBox(height: 4),
-                            Center(child: Text('Join an event to start chatting', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary))),
+                            Center(child: Text('Join an event to start chatting', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary))),
                           ],
                         )
                       : ListView.separated(
@@ -173,7 +173,7 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
                 ),
                 child: imageUrl == null
                     ? Center(child: Text(_initials(g['name'] ?? '?'),
-                        style: GoogleFonts.plusJakartaSans(color: AppColors.primary, fontWeight: FontWeight.w800)))
+                        style: GoogleFonts.inter(color: AppColors.primary, fontWeight: FontWeight.w800)))
                     : null,
               ),
               const SizedBox(width: 12),
@@ -185,7 +185,7 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
                       Expanded(
                         child: Text(g['name'] ?? '',
                             maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textPrimary)),
+                            style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textPrimary)),
                       ),
                       if (closed) Padding(
                         padding: const EdgeInsets.only(left: 4),
@@ -193,14 +193,14 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
                       ),
                       const SizedBox(width: 6),
                       Text(_timeAgo(lastMsg?['created_at'] ?? g['created_at']),
-                          style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary)),
+                          style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary)),
                     ]),
                     const SizedBox(height: 2),
                     Row(children: [
                       Expanded(
                         child: Text(preview,
                             maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textSecondary)),
+                            style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary)),
                       ),
                       if (unread > 0) Container(
                         margin: const EdgeInsets.only(left: 6),
@@ -209,20 +209,20 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
                         constraints: const BoxConstraints(minWidth: 20),
                         child: Text(unread > 99 ? '99+' : '$unread',
                             textAlign: TextAlign.center,
-                            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                            style: GoogleFonts.inter(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
                       ),
                     ]),
                     const SizedBox(height: 4),
                     Row(children: [
                       Icon(Icons.group_outlined, size: 12, color: AppColors.textTertiary),
                       const SizedBox(width: 4),
-                      Text('${g['member_count'] ?? 0}', style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary)),
+                      Text('${g['member_count'] ?? 0}', style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary)),
                       if (g['event_name'] != null) ...[
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text('· ${g['event_name']}',
                               maxLines: 1, overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary)),
+                              style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary)),
                         ),
                       ],
                     ]),
