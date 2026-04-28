@@ -6,7 +6,6 @@ import '../../core/services/events_service.dart';
 import '../../core/services/user_services_service.dart';
 import '../../core/utils/prefetch_helper.dart';
 import 'public_service_screen.dart';
-import '../../core/l10n/l10n_helper.dart';
 
 class FindServicesScreen extends StatefulWidget {
   const FindServicesScreen({super.key});
@@ -22,6 +21,11 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
   String? _selectedCategory;
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
+  bool _showTrustBanner = true;
+  final Set<String> _favorites = <String>{};
+
+  // Top categories shown as fixed chips like the reference design.
+  static const _topCategories = ['Catering', 'Decor', 'Photography'];
 
   @override
   void initState() {
@@ -38,7 +42,11 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     final results = await Future.wait([
-      EventsService.getServices(limit: 50, category: _selectedCategory, search: _searchQuery.isNotEmpty ? _searchQuery : null),
+      EventsService.getServices(
+        limit: 50,
+        category: _selectedCategory,
+        search: _searchQuery.isNotEmpty ? _searchQuery : null,
+      ),
       EventsService.getServiceCategories(),
     ]);
     if (mounted) {
@@ -47,7 +55,9 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
         final svcRes = results[0];
         if (svcRes['success'] == true) {
           final data = svcRes['data'];
-          _services = data is List ? data : (data is Map ? (data['services'] ?? data['items'] ?? []) : []);
+          _services = data is List
+              ? data
+              : (data is Map ? (data['services'] ?? data['items'] ?? []) : []);
         }
         final catRes = results[1];
         if (catRes['success'] == true) {
@@ -65,126 +75,309 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
     return v.toString();
   }
 
-  TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.3}) =>
-      GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+  TextStyle _f({
+    required double size,
+    FontWeight weight = FontWeight.w500,
+    Color color = AppColors.textPrimary,
+    double height = 1.3,
+    double? letterSpacing,
+  }) =>
+      GoogleFonts.inter(
+        fontSize: size, fontWeight: weight, color: color,
+        height: height, letterSpacing: letterSpacing);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: AppBar(
-        backgroundColor: AppColors.surface, elevation: 0,
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leadingWidth: 56,
         leading: IconButton(
-          icon: SvgPicture.asset('assets/icons/chevron-left-icon.svg', width: 22, height: 22,
-            colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
+          icon: const Icon(Icons.arrow_back_rounded,
+            size: 24, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text('Find Services', style: _f(size: 18, weight: FontWeight.w700)),
-        centerTitle: false,
+        centerTitle: true,
+        title: Text('Vendors',
+          style: _f(size: 17, weight: FontWeight.w700, letterSpacing: -0.2)),
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Column(
-              children: [
-                Container(
-                  height: 42,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(12)),
-                  child: TextField(
-                    controller: _searchCtrl,
-                    style: _f(size: 14),
-                    decoration: InputDecoration(
-                      hintText: 'Search by name, category, or keyword...',
-                      hintStyle: _f(size: 14, color: AppColors.textHint),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                      icon: SvgPicture.asset('assets/icons/search-icon.svg', width: 18, height: 18,
-                        colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
-                    ),
-                    onSubmitted: (q) { setState(() => _searchQuery = q); _load(); },
-                  ),
-                ),
-                if (_categories.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 34,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        _filterChip('All', _selectedCategory == null, () { setState(() => _selectedCategory = null); _load(); }),
-                        ..._categories.map((c) {
-                          final name = _str(c['name']);
-                          final id = c['id']?.toString();
-                          return _filterChip(name.isNotEmpty ? name : 'Category', _selectedCategory == id, () { setState(() => _selectedCategory = id); _load(); });
-                        }),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          // Results count
-          if (!_loading && _services.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text('${_services.length} service providers', style: _f(size: 12, color: AppColors.textTertiary)),
-              ),
-            ),
+          _searchBar(),
+          const SizedBox(height: 14),
+          _categoryChips(),
+          const SizedBox(height: 14),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-                : _services.isEmpty
-                    ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        const Icon(Icons.work_off_outlined, size: 48, color: AppColors.textHint),
-                        const SizedBox(height: 12),
-                        Text('No services found', style: _f(size: 14, color: AppColors.textTertiary)),
-                        const SizedBox(height: 4),
-                        Text('Try adjusting your search or filters', style: _f(size: 12, color: AppColors.textHint)),
-                      ]))
-                    : RefreshIndicator(
-                        onRefresh: _load,
-                        color: AppColors.primary,
-                        child: ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                          itemCount: _services.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 12),
-                          itemBuilder: (_, i) => _serviceCard(_services[i] as Map<String, dynamic>),
-                        ),
-                      ),
+                : RefreshIndicator(
+                    onRefresh: _load,
+                    color: AppColors.primary,
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                      children: [
+                        if (_showTrustBanner) ...[
+                          _trustBanner(),
+                          const SizedBox(height: 14),
+                        ],
+                        if (_services.isEmpty)
+                          _emptyState()
+                        else
+                          ..._services.map((s) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _vendorCard(s as Map<String, dynamic>),
+                          )),
+                      ],
+                    ),
+                  ),
           ),
         ],
       ),
     );
   }
 
-  Widget _filterChip(String label, bool selected, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+  Widget _searchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+       child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
         decoration: BoxDecoration(
-          color: selected ? AppColors.primary : AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(20),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: const Color(0xFFEDEDEF), width: 1),
         ),
-        child: Text(label, style: _f(size: 12, weight: FontWeight.w600, color: selected ? Colors.white : AppColors.textSecondary)),
+        child: Row(children: [
+          const Icon(Icons.search_rounded, size: 20, color: Color(0xFF8E8E93)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _searchCtrl,
+              cursorColor: Colors.black,
+              textAlignVertical: TextAlignVertical.center,
+              style: _f(size: 14, color: Colors.black),
+              decoration: InputDecoration(
+                isDense: true,
+                filled: false,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                focusedErrorBorder: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                hintText: 'Search vendors or services',
+                hintStyle: _f(size: 14, weight: FontWeight.w400, color: const Color(0xFF9E9E9E)),
+              ),
+              onSubmitted: (q) {
+                setState(() => _searchQuery = q);
+                _load();
+              },
+            ),
+          ),
+        ]),
       ),
     );
   }
 
-  Widget _serviceCard(Map<String, dynamic> service) {
+  Widget _categoryChips() {
+    return SizedBox(
+      height: 36,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        children: [
+          _filterChip('All', _selectedCategory == null, () {
+            setState(() => _selectedCategory = null);
+            _load();
+          }),
+          ..._topCategories.map((name) {
+            final selected = _selectedCategory == name;
+            return _filterChip(name, selected, () {
+              setState(() => _selectedCategory = name);
+              _load();
+            });
+          }),
+          _moreChip(),
+        ],
+      ),
+    );
+  }
+
+  Widget _filterChip(String label, bool selected, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primary : const Color(0xFFF9F9F9),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: selected ? AppColors.primary : const Color(0xFFEFEFEF),
+              width: 1,
+            ),
+          ),
+          child: Center(
+            child: Text(label,
+              style: _f(size: 11, weight: FontWeight.w600,
+                color: AppColors.textPrimary)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _moreChip() {
+    return GestureDetector(
+      onTap: _showCategorySheet,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF9F9F9),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFEFEFEF), width: 1),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text('More',
+            style: _f(size: 11, weight: FontWeight.w600, color: AppColors.textPrimary)),
+          const SizedBox(width: 4),
+          const Icon(Icons.keyboard_arrow_down_rounded,
+            size: 16, color: AppColors.textPrimary),
+        ]),
+      ),
+    );
+  }
+
+  void _showCategorySheet() {
+    if (_categories.isEmpty) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      isScrollControlled: true,
+      useSafeArea: true,
+      constraints: const BoxConstraints(minWidth: double.infinity),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('All categories', style: _f(size: 16, weight: FontWeight.w800)),
+            const SizedBox(height: 12),
+            Wrap(spacing: 8, runSpacing: 8,
+              children: _categories.map((c) {
+                final name = _str(c['name']);
+                final id = c['id']?.toString() ?? name;
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _selectedCategory = id);
+                    _load();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceVariant,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Text(name, style: _f(size: 13, weight: FontWeight.w600)),
+                  ),
+                );
+              }).toList()),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _trustBanner() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF6DD),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 46, height: 52,
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(10),
+                topRight: Radius.circular(10),
+                bottomLeft: Radius.circular(23),
+                bottomRight: Radius.circular(23),
+              ),
+            ),
+            alignment: Alignment.center,
+            child: const Icon(Icons.check_rounded,
+              size: 26, color: Colors.black),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text('Trusted Vendors,\nPerfect Events',
+                        style: _f(size: 14, weight: FontWeight.w800, height: 1.25)),
+                    ),
+                    GestureDetector(
+                      onTap: () => setState(() => _showTrustBanner = false),
+                      child: SvgPicture.asset('assets/icons/close-icon.svg',
+                        width: 16, height: 16,
+                        colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Text('Book reliable vendors and make your event unforgettable.',
+                        style: _f(size: 11, color: AppColors.textSecondary, height: 1.35)),
+                    ),
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.primary.withOpacity(0.5), width: 1.2),
+                      ),
+                      child: Text('View Guide',
+                        style: _f(size: 11, weight: FontWeight.w600, color: AppColors.primary)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _vendorCard(Map<String, dynamic> service) {
     final serviceId = service['id']?.toString() ?? '';
-    final name = _str(service['title'], fallback: _str(service['name'], fallback: 'Service'));
-    final category = _str(service['service_category'], fallback: _str(service['category_name'], fallback: _str(service['service_type_name'])));
-    final location = _str(service['location']);
+    final name = _str(service['title'], fallback: _str(service['name'], fallback: 'Vendor'));
+    final category = _str(service['service_category'],
+      fallback: _str(service['category_name'], fallback: _str(service['service_type_name'])));
     final rating = (service['rating'] ?? service['average_rating'] ?? 0).toDouble();
     final reviewCount = service['review_count'] ?? 0;
-    final description = _str(service['short_description'], fallback: _str(service['description']));
     final images = service['images'] as List? ?? [];
     final primaryImage = service['primary_image']?.toString();
     String? cover;
@@ -194,127 +387,117 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
       final first = images[0];
       cover = first is Map ? (first['image_url'] ?? first['url'])?.toString() : first?.toString();
     }
-
-    // Price display — match web: min_price – max_price or base_price
-    String priceDisplay = '';
-    final minPrice = service['min_price'] ?? service['base_price'] ?? service['starting_price'];
-    final maxPrice = service['max_price'];
-    if (minPrice != null && maxPrice != null) {
-      priceDisplay = 'TZS ${_formatNum(minPrice)} – ${_formatNum(maxPrice)}';
-    } else if (minPrice != null) {
-      priceDisplay = 'From TZS ${_formatNum(minPrice)}';
-    } else {
-      priceDisplay = 'Price on request';
-    }
+    final isFav = _favorites.contains(serviceId);
 
     return PrefetchOnVisible(
       onVisible: () {
         if (serviceId.isEmpty) return;
         PrefetchHelper.prefetch('service:$serviceId',
-            () => UserServicesService.getServiceDetail(serviceId));
+          () => UserServicesService.getServiceDetail(serviceId));
       },
       child: GestureDetector(
         onTap: serviceId.isEmpty
-            ? null
-            : () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => PublicServiceScreen(serviceId: serviceId)),
-                ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.borderLight, width: 1),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 2))],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Image with category badge
-          if (cover != null)
-            Stack(
-              children: [
-                Image.network(cover, height: 160, width: double.infinity, fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(height: 160, color: AppColors.surfaceVariant, child: const Center(child: Icon(Icons.image_outlined, size: 32, color: AppColors.textHint)))),
-                if (category.isNotEmpty)
-                  Positioned(
-                    bottom: 8, left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(6)),
-                      child: Text(category, style: _f(size: 10, weight: FontWeight.w600, color: AppColors.textSecondary)),
-                    ),
-                  ),
-              ],
-            )
-          else
-            Container(
-              height: 100, color: AppColors.surfaceVariant,
-              child: Center(child: Text(name.length >= 2 ? name.substring(0, 2).toUpperCase() : name.toUpperCase(), style: _f(size: 24, weight: FontWeight.w700, color: AppColors.textHint))),
-            ),
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Title + Rating
-                Row(
+          ? null
+          : () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => PublicServiceScreen(serviceId: serviceId))),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFEEEEF1), width: 1),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: cover != null
+                  ? Image.network(cover, width: 88, height: 88, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _imagePlaceholder(name))
+                  : _imagePlaceholder(name),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(child: Text(name, style: _f(size: 15, weight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                    if (rating > 0) ...[
-                      const SizedBox(width: 8),
-                      Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.star_rounded, size: 14, color: Colors.amber.shade600),
-                        const SizedBox(width: 2),
-                        Text('$rating', style: _f(size: 12, weight: FontWeight.w600)),
-                        if (reviewCount > 0) Text(' ($reviewCount)', style: _f(size: 11, color: AppColors.textTertiary)),
-                      ]),
-                    ],
+                    Row(children: [
+                      Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: _f(size: 16, weight: FontWeight.w800))),
+                      GestureDetector(
+                        onTap: () => setState(() {
+                          if (isFav) { _favorites.remove(serviceId); }
+                          else { _favorites.add(serviceId); }
+                        }),
+                        child: SvgPicture.asset(
+                          isFav ? 'assets/icons/heart-filled-icon.svg'
+                                : 'assets/icons/heart-icon.svg',
+                          width: 20, height: 20,
+                          colorFilter: ColorFilter.mode(
+                            isFav ? AppColors.error : AppColors.textTertiary,
+                            BlendMode.srcIn),
+                        ),
+                      ),
+                    ]),
+                    const SizedBox(height: 6),
+                    Text(category.isNotEmpty ? category : 'Service',
+                      style: _f(size: 13, color: AppColors.textSecondary)),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      Icon(Icons.star_rounded, size: 15, color: Colors.black),
+                      const SizedBox(width: 4),
+                      Text(rating > 0 ? rating.toStringAsFixed(1) : '—',
+                        style: _f(size: 13, weight: FontWeight.w700)),
+                      const SizedBox(width: 4),
+                      Text('(${reviewCount is num ? reviewCount.toInt() : 0})',
+                        style: _f(size: 13, color: AppColors.textTertiary)),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF6DD),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text('Book Now',
+                          style: _f(size: 13, weight: FontWeight.w700, color: const Color(0xFF8A6A00))),
+                      ),
+                    ]),
                   ],
                 ),
-                // Location
-                if (location.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Row(children: [
-                    SvgPicture.asset('assets/icons/location-icon.svg', width: 13, height: 13, colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
-                    const SizedBox(width: 4),
-                    Expanded(child: Text(location, style: _f(size: 11, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                  ]),
-                ],
-                // Description
-                if (description.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(description, style: _f(size: 12, color: AppColors.textSecondary, height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis),
-                ],
-                // Price
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.only(top: 8),
-                  decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.borderLight, width: 0.5))),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Flexible(child: Text(priceDisplay, style: _f(size: 13, weight: FontWeight.w700, color: AppColors.primary))),
-                      SvgPicture.asset('assets/icons/chevron-right-icon.svg', width: 16, height: 16, colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
         ),
       ),
-    ),
     );
   }
 
-  String _formatNum(dynamic n) {
-    final num val = n is num ? n : (num.tryParse(n.toString()) ?? 0);
-    if (val >= 1000000) return '${(val / 1000000).toStringAsFixed(1)}M';
-    if (val >= 1000) return '${(val / 1000).toStringAsFixed(0)}K';
-    return val.toStringAsFixed(0);
+  Widget _imagePlaceholder(String name) {
+    return Container(
+      width: 72, height: 72, color: AppColors.surfaceVariant,
+      child: Center(
+        child: Text(
+          name.length >= 2 ? name.substring(0, 2).toUpperCase() : name.toUpperCase(),
+          style: _f(size: 18, weight: FontWeight.w800, color: AppColors.textHint),
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyState() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 60),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        SvgPicture.asset('assets/icons/package-icon.svg',
+          width: 44, height: 44,
+          colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
+        const SizedBox(height: 12),
+        Text('No vendors found', style: _f(size: 14, color: AppColors.textTertiary)),
+        const SizedBox(height: 4),
+        Text('Try adjusting your search or filters', style: _f(size: 12, color: AppColors.textHint)),
+      ]),
+    );
   }
 }

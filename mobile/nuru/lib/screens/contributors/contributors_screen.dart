@@ -62,13 +62,13 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(context.trw('delete_contributor'), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
-        content: Text(context.trw('confirm_remove_contributor'), style: GoogleFonts.plusJakartaSans()),
+        title: Text(context.trw('delete_contributor'), style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+        content: Text(context.trw('confirm_remove_contributor'), style: GoogleFonts.inter()),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(context.trw('delete'), style: GoogleFonts.plusJakartaSans(color: AppColors.error, fontWeight: FontWeight.w600)),
+            child: Text(context.trw('delete'), style: GoogleFonts.inter(color: AppColors.error, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -112,7 +112,7 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
             children: [
               Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
               const SizedBox(height: 20),
-              Text(context.trw('edit_contributor'), style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700)),
+              Text(context.trw('edit_contributor'), style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700)),
               const SizedBox(height: 16),
               _editField(nameCtrl, 'Name'),
               const SizedBox(height: 10),
@@ -154,7 +154,7 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
-                  child: Text(context.trw('save_changes'), style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700)),
+                  child: Text(context.trw('save_changes'), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700)),
                 ),
               ),
             ],
@@ -168,10 +168,10 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
     return TextField(
       controller: ctrl,
       keyboardType: type,
-      style: GoogleFonts.plusJakartaSans(fontSize: 14),
+      style: GoogleFonts.inter(fontSize: 14),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary),
+        labelStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary),
         filled: true,
         fillColor: AppColors.surfaceVariant,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -197,8 +197,8 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
                 indicatorWeight: 3,
                 labelColor: AppColors.primary,
                 unselectedLabelColor: AppColors.textTertiary,
-                labelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700),
-                unselectedLabelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
+                labelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700),
+                unselectedLabelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
                 tabs: const [
                   Tab(text: 'Contributors'),
                   Tab(text: 'My Contributions'),
@@ -241,9 +241,9 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
           child: const Center(child: Icon(Icons.volunteer_activism_outlined, size: 28, color: AppColors.textHint)),
         ),
         const SizedBox(height: 16),
-        Text('No contributors yet', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        Text('No contributors yet', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
         const SizedBox(height: 6),
-        Text('Your contributor address book will appear here', style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary)),
+        Text('Your contributor address book will appear here', style: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary)),
       ],
     );
   }
@@ -272,7 +272,7 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
             decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.primarySoft),
             child: Center(child: Text(
               name.isNotEmpty ? name[0].toUpperCase() : '?',
-              style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primary),
+              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primary),
             )),
           ),
           const SizedBox(width: 12),
@@ -282,22 +282,22 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
               children: [
                 Text(name,
                     maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.3)),
+                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.3)),
                 if (phone.isNotEmpty)
                   Text(phone,
                       maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary, height: 1.3)),
+                      style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary, height: 1.3)),
                 if (email.isNotEmpty)
                   Text(email,
                       maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary, height: 1.3)),
+                      style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary, height: 1.3)),
                 if (notes.isNotEmpty)
-                  Text(notes, style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textHint, height: 1.3),
+                  Text(notes, style: GoogleFonts.inter(fontSize: 11, color: AppColors.textHint, height: 1.3),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
                 if (createdAt.isNotEmpty)
                   Text(SocialService.getTimeAgo(createdAt),
                       maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textHint)),
+                      style: GoogleFonts.inter(fontSize: 10, color: AppColors.textHint)),
               ],
             ),
           ),
@@ -313,12 +313,12 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
               PopupMenuItem(value: 'edit', child: Row(children: [
                 const Icon(Icons.edit_rounded, size: 16, color: AppColors.textSecondary),
                 const SizedBox(width: 8),
-                Text(context.trw('edit'), style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+                Text(context.trw('edit'), style: GoogleFonts.inter(fontSize: 13)),
               ])),
               PopupMenuItem(value: 'delete', child: Row(children: [
                 const Icon(Icons.delete_rounded, size: 16, color: AppColors.error),
                 const SizedBox(width: 8),
-                Text(context.trw('delete'), style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.error)),
+                Text(context.trw('delete'), style: GoogleFonts.inter(fontSize: 13, color: AppColors.error)),
               ])),
             ],
           ),

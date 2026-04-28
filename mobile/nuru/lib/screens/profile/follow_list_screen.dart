@@ -57,7 +57,7 @@ class _FollowListScreenState extends State<FollowListScreen> {
         elevation: 0,
         title: Text(
           title,
-          style: GoogleFonts.plusJakartaSans(
+          style: GoogleFonts.inter(
             fontSize: 18,
             fontWeight: FontWeight.w700,
             color: AppColors.textPrimary,
@@ -70,7 +70,7 @@ class _FollowListScreenState extends State<FollowListScreen> {
               ? Center(
                   child: Text(
                     widget.followers ? 'No followers yet' : 'Not following anyone yet',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textTertiary),
+                    style: GoogleFonts.inter(fontSize: 14, color: AppColors.textTertiary),
                   ),
                 )
               : RefreshIndicator(
@@ -102,7 +102,7 @@ class _FollowListScreenState extends State<FollowListScreen> {
                           child: (avatar == null || avatar.isEmpty)
                               ? Text(
                                   name.isNotEmpty ? name[0].toUpperCase() : '?',
-                                  style: GoogleFonts.plusJakartaSans(
+                                  style: GoogleFonts.inter(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
                                     color: AppColors.textTertiary,
@@ -112,10 +112,10 @@ class _FollowListScreenState extends State<FollowListScreen> {
                         ),
                         title: Text(
                           name,
-                          style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600),
+                          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
                         ),
                         subtitle: username.isNotEmpty
-                            ? Text('@$username', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary))
+                            ? Text('@$username', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary))
                             : null,
                         onTap: id.isEmpty
                             ? null

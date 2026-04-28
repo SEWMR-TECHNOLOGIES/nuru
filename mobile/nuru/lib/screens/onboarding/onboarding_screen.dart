@@ -1,19 +1,47 @@
-import 'dart:math' show min, pi, cos, sin, sqrt;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:smooth_page_indicator/smooth_page_indicator.dart';
+import 'package:animate_do/animate_do.dart';
 
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/nuru_logo.dart';
-import '../../core/widgets/language_selector.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../../providers/auth_provider.dart';
 import '../auth/login_screen.dart';
 
-// Main Screen
+// ─────────────────────────────────────────────────────────────────────────────
+// Brand palette
+// ─────────────────────────────────────────────────────────────────────────────
+const Color _kGold = Color(0xFFF5B400);
+const Color _kGoldSoft = Color(0xFFFFF4D6);
+const Color _kInk = Color(0xFF111111);
+const Color _kInkSoft = Color(0xFF6B7280);
+const Color _kCream = Color(0xFFFFFBF2);
+const Color _kSurface = Colors.white;
+const Color _kBorder = Color(0xFFEFE7D6);
 
+TextStyle _f({
+  required double size,
+  FontWeight weight = FontWeight.w500,
+  Color color = _kInk,
+  double height = 1.2,
+  double letterSpacing = 0,
+}) =>
+    GoogleFonts.inter(
+      fontSize: size,
+      fontWeight: weight,
+      color: color,
+      height: height,
+      letterSpacing: letterSpacing,
+    );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Onboarding screen — logic preserved (skip / next / completeOnboarding / routes)
+// ─────────────────────────────────────────────────────────────────────────────
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -26,42 +54,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   final PageController _pageController = PageController();
   int _page = 0;
 
-  late final AnimationController _textController;
-
-  List<String> _getTitles(BuildContext context) => [
-    context.trw('onboarding_title_1'),
-    context.trw('onboarding_title_2'),
-    context.trw('onboarding_title_3'),
-  ];
-
-  List<String> _getSubtitles(BuildContext context) => [
-    context.trw('onboarding_desc_1'),
-    context.trw('onboarding_desc_2'),
-    context.trw('onboarding_desc_3'),
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _textController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 520),
-    )..forward();
-  }
-
   @override
   void dispose() {
     _pageController.dispose();
-    _textController.dispose();
     super.dispose();
   }
 
-  void _onPageChanged(int page) {
-    setState(() => _page = page);
-    _textController
-      ..reset()
-      ..forward();
-  }
+  void _onPageChanged(int page) => setState(() => _page = page);
 
   void _skip() {
     context.read<AuthProvider>().completeOnboarding();
@@ -88,517 +87,85 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   @override
   Widget build(BuildContext context) {
-    final isLast = _page == 2;
-
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark.copyWith(
         statusBarColor: Colors.transparent,
-        systemNavigationBarColor: const Color(0xFFE8EEF5),
+        systemNavigationBarColor: _kCream,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xFFE8EEF5),
-        body: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, box) {
-              final hp = box.maxWidth < 360 ? 18.0 : 24.0;
-
-              return Column(
-                children: [
-                  // ── Top bar: language toggle + logo + skip ──
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(hp, 8, hp, 0),
-                    child: SizedBox(
-                      height: 44,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          const Align(
-                            alignment: Alignment.centerLeft,
-                            child: LanguageToggle(showLabel: true, size: 24),
-                          ),
-                          const Center(child: NuruLogo(size: 22)),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton(
-                              onPressed: _skip,
-                              style: TextButton.styleFrom(
-                                foregroundColor: AppColors.textTertiary,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                ),
-                                minimumSize: const Size(52, 36),
-                              ),
-                              child: Text(
-                                context.trw('skip'),
-                                style: _font(size: 13, weight: FontWeight.w600),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // ── Pages ──
-                  Expanded(
-                    child: PageView.builder(
-                      controller: _pageController,
-                      itemCount: 3,
-                      onPageChanged: _onPageChanged,
-                      itemBuilder: (ctx, index) {
-                        final titles = _getTitles(ctx);
-                        final subtitles = _getSubtitles(ctx);
-                        return _OnboardingPage(
-                          index: index,
-                          title: titles[index],
-                          subtitle: subtitles[index],
-                          textController: _textController,
-                        );
-                      },
-                    ),
-                  ),
-
-                  // ── Dots ──
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _DotRow(activeIndex: _page),
-                  ),
-
-                  // ── CTA ──
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(hp, 0, hp, 14),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 54,
-                      child: ElevatedButton(
-                        onPressed: _next,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        ),
-                        child: Text(
-                          isLast
-                              ? context.trw('get_started')
-                              : context.trw('next'),
-                          style: _font(
-                            size: 17,
-                            weight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// Page wrapper
-
-class _OnboardingPage extends StatelessWidget {
-  final int index;
-  final String title;
-  final String subtitle;
-  final AnimationController textController;
-
-  const _OnboardingPage({
-    required this.index,
-    required this.title,
-    required this.subtitle,
-    required this.textController,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, box) {
-        final hp = box.maxWidth < 360 ? 18.0 : 24.0;
-        final titleSize = (box.maxHeight * 0.05).clamp(26.0, 38.0);
-        final subtitleSize = (box.maxHeight * 0.021).clamp(13.0, 16.0);
-
-        return Padding(
-          padding: EdgeInsets.symmetric(horizontal: hp),
-          child: Column(
-            children: [
-              SizedBox(height: box.maxHeight * 0.01),
-              // Scene takes ~55% of available height
-              Flexible(flex: 55, child: _sceneByIndex(index)),
-              SizedBox(height: box.maxHeight * 0.02),
-              // Text takes ~40%
-              Flexible(
-                flex: 40,
-                child: FadeTransition(
-                  opacity: CurvedAnimation(
-                    parent: textController,
-                    curve: Curves.easeOut,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          title,
-                          textAlign: TextAlign.center,
-                          style: _font(
-                            size: titleSize,
-                            weight: FontWeight.w800,
-                            color: AppColors.textPrimary,
-                            height: 1.1,
-                            letterSpacing: -0.6,
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: box.maxHeight * 0.018),
-                      Flexible(
-                        child: Text(
-                          subtitle,
-                          textAlign: TextAlign.center,
-                          maxLines: 4,
-                          overflow: TextOverflow.ellipsis,
-                          style: _font(
-                            size: subtitleSize,
-                            weight: FontWeight.w500,
-                            color: AppColors.textSecondary,
-                            height: 1.45,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(height: box.maxHeight * 0.01),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _sceneByIndex(int i) {
-    switch (i) {
-      case 0:
-        return const _WorkspaceScene();
-      case 1:
-        return const _MultiEventScene();
-      case 2:
-        return const _TicketsScene();
-      default:
-        return const SizedBox.shrink();
-    }
-  }
-}
-
-// PAGE 1 — Stacked cards (like reference: rotated card stack with CTA chip)
-
-class _WorkspaceScene extends StatefulWidget {
-  const _WorkspaceScene();
-
-  @override
-  State<_WorkspaceScene> createState() => _WorkspaceSceneState();
-}
-
-class _WorkspaceSceneState extends State<_WorkspaceScene> {
-  int _frontIndex = 2; // Start with Vendors (front card) on top
-
-  // Card order: index 0 = back-most, index 2 = front-most
-  static const _cardConfigs = [
-    _CardConfig(
-      'Contributions',
-      'Track & manage',
-      'assets/images/onboarding_contributions.png',
-    ),
-    _CardConfig(
-      'Invitations',
-      'Send & track RSVPs',
-      'assets/images/onboarding_invitations.png',
-    ),
-    _CardConfig(
-      'Vendors',
-      'Discover & book',
-      'assets/images/onboarding_vendors.png',
-    ),
-  ];
-
-  void _swipeNext() {
-    setState(() => _frontIndex = (_frontIndex + 1) % _cardConfigs.length);
-  }
-
-  void _swipePrev() {
-    setState(
-      () => _frontIndex =
-          (_frontIndex - 1 + _cardConfigs.length) % _cardConfigs.length,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, box) {
-        final sceneW = box.maxWidth;
-        final sceneH = box.maxHeight;
-        final cardW = (sceneW * 0.62).clamp(160.0, 260.0);
-        final cardH = (cardW * 1.15).clamp(180.0, 300.0);
-
-        // Build the 3 card positions with rotation/offset
-        final positions = [
-          // Back card (rotated left)
-          _CardPosition(
-            left: sceneW * 0.08,
-            top: sceneH * 0.12,
-            angle: -0.18,
-            color: const Color(0xFFD5DEE8),
-            highlighted: false,
-            chipText: null,
-          ),
-          // Middle card (slight rotation)
-          _CardPosition(
-            left: sceneW * 0.14,
-            top: sceneH * 0.06,
-            angle: -0.06,
-            color: const Color(0xFFE4EAF1),
-            highlighted: false,
-            chipText: null,
-          ),
-          // Front card (prominent)
-          _CardPosition(
-            right: sceneW * 0.06,
-            top: sceneH * 0.03,
-            angle: 0.06,
-            color: Colors.white,
-            highlighted: true,
-            chipText: 'View Details',
-          ),
-        ];
-
-        // Map card configs to positions based on _frontIndex
-        final orderedCards = <Widget>[];
-        for (int posIdx = 0; posIdx < 3; posIdx++) {
-          // posIdx 0 = back, 1 = middle, 2 = front
-          final cardIdx =
-              (_frontIndex - 2 + posIdx + _cardConfigs.length * 2) %
-              _cardConfigs.length;
-          final card = _cardConfigs[cardIdx];
-          final pos = positions[posIdx];
-
-          orderedCards.add(
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 350),
-              curve: Curves.easeOutCubic,
-              left: pos.left,
-              right: pos.right,
-              top: pos.top,
-              child: AnimatedRotation(
-                turns: pos.angle / (2 * pi),
-                duration: const Duration(milliseconds: 350),
-                curve: Curves.easeOutCubic,
-                child: _StackedCard(
-                  width: cardW,
-                  height: cardH,
-                  color: pos.color,
-                  label: card.label,
-                  sublabel: card.sublabel,
-                  highlighted: pos.highlighted,
-                  chipText: pos.chipText,
-                  backgroundImage: card.image,
-                ),
-              ),
-            ),
-          );
-        }
-
-        return GestureDetector(
-          onHorizontalDragEnd: (details) {
-            if (details.primaryVelocity != null) {
-              if (details.primaryVelocity! < -100) {
-                _swipeNext();
-              } else if (details.primaryVelocity! > 100) {
-                _swipePrev();
-              }
-            }
-          },
-          child: Center(
-            child: SizedBox(
-              width: sceneW,
-              height: sceneH,
-              child: Stack(
-                alignment: Alignment.center,
-                clipBehavior: Clip.none,
-                children: orderedCards,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _CardConfig {
-  final String label;
-  final String sublabel;
-  final String image;
-  const _CardConfig(this.label, this.sublabel, this.image);
-}
-
-class _CardPosition {
-  final double? left;
-  final double? right;
-  final double top;
-  final double angle;
-  final Color color;
-  final bool highlighted;
-  final String? chipText;
-
-  const _CardPosition({
-    this.left,
-    this.right,
-    required this.top,
-    required this.angle,
-    required this.color,
-    required this.highlighted,
-    this.chipText,
-  });
-}
-
-class _StackedCard extends StatelessWidget {
-  final double width;
-  final double height;
-  final Color color;
-  final String label;
-  final String sublabel;
-  final bool highlighted;
-  final String? chipText;
-  final String? backgroundImage;
-
-  const _StackedCard({
-    required this.width,
-    required this.height,
-    required this.color,
-    required this.label,
-    required this.sublabel,
-    this.highlighted = false,
-    this.chipText,
-    this.backgroundImage,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: highlighted
-              ? AppColors.border.withOpacity(0.4)
-              : AppColors.border.withOpacity(0.25),
-          width: 0.7,
-        ),
-        boxShadow: highlighted
-            ? [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                ),
-              ]
-            : [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
-        child: Stack(
+        backgroundColor: _kCream,
+        body: Stack(
           children: [
-            if (backgroundImage != null)
-              Positioned.fill(
-                child: Opacity(
-                  opacity: 0.35,
-                  child: Image.asset(
-                    backgroundImage!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            // ── Pages (full-bleed so page 1 image can extend edge-to-edge) ──
+            Positioned.fill(
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: 3,
+                onPageChanged: _onPageChanged,
+                itemBuilder: (ctx, index) {
+                  switch (index) {
+                    case 0:
+                      return const _Page1BrandIntro();
+                    case 1:
+                      return const _Page2Workspace();
+                    case 2:
+                      return _Page3Collaboration(onGetStarted: _next, onSignIn: _skip);
+                    default:
+                      return const SizedBox.shrink();
+                  }
+                },
+              ),
+            ),
+
+            // ── Skip (top-right, persistent) ──
+            Positioned(
+              top: 0,
+              right: 0,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8, top: 4),
+                  child: TextButton(
+                    onPressed: _skip,
+                    style: TextButton.styleFrom(
+                      foregroundColor: _kInkSoft,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      minimumSize: const Size(52, 36),
+                    ),
+                    child: Text(
+                      'Skip',
+                      style: _f(size: 14, weight: FontWeight.w600, color: _kInkSoft),
+                    ),
                   ),
                 ),
               ),
-            Padding(
-              padding: EdgeInsets.all(width * 0.08),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.asset(
-                      'assets/images/nuru-logo-square.png',
-                      width: (width * 0.14).clamp(24.0, 40.0),
-                      height: (width * 0.14).clamp(24.0, 40.0),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: (width * 0.14).clamp(24.0, 40.0),
-                        height: (width * 0.14).clamp(24.0, 40.0),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
+            ),
+
+            // ── Page indicator (bottom, above optional CTA) ──
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 20,
+              child: SafeArea(
+                top: false,
+                child: Center(
+                  child: AnimatedSmoothIndicator(
+                    activeIndex: _page,
+                    count: 3,
+                    effect: const WormEffect(
+                      activeDotColor: _kGold,
+                      dotColor: Color(0xFFE3DCC8),
+                      dotHeight: 8,
+                      dotWidth: 8,
+                      spacing: 8,
+                      type: WormType.normal,
+                    ),
+                    onDotClicked: (i) => _pageController.animateToPage(
+                      i,
+                      duration: const Duration(milliseconds: 380),
+                      curve: Curves.easeOutCubic,
                     ),
                   ),
-                  const Spacer(),
-                  Text(
-                    label,
-                    style: _font(
-                      size: (width * 0.08).clamp(14.0, 20.0),
-                      weight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  SizedBox(height: height * 0.01),
-                  Text(
-                    sublabel,
-                    style: _font(
-                      size: (width * 0.052).clamp(10.0, 13.0),
-                      weight: FontWeight.w500,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  if (chipText != null) ...[
-                    SizedBox(height: height * 0.04),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: (width * 0.06).clamp(10.0, 16.0),
-                        vertical: (height * 0.025).clamp(6.0, 10.0),
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A1A2E),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        chipText!,
-                        style: _font(
-                          size: (width * 0.048).clamp(9.0, 12.0),
-                          weight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
+                ),
               ),
             ),
           ],
@@ -608,90 +175,730 @@ class _StackedCard extends StatelessWidget {
   }
 }
 
-// PAGE 2 — Profile-style rows (like reference: avatar + name + follow)
-// Adapted for Nuru: event feature rows without specific event type names
+// ═════════════════════════════════════════════════════════════════════════════
+// Shared title widget — gold-highlighted keywords (no translation key changes)
+// ═════════════════════════════════════════════════════════════════════════════
+class _HighlightedTitle extends StatelessWidget {
+  final String text;
+  final List<String> highlights;
+  final TextStyle baseStyle;
+  final TextStyle highlightStyle;
+  final TextAlign textAlign;
 
-class _MultiEventScene extends StatelessWidget {
-  const _MultiEventScene();
+  const _HighlightedTitle({
+    required this.text,
+    required this.highlights,
+    required this.baseStyle,
+    required this.highlightStyle,
+    this.textAlign = TextAlign.center,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final features = [
-      _FeatureRow(
-        label: 'Vendor Management',
-        sub: '2,400+ vendors',
-        highlighted: false,
-      ),
-      _FeatureRow(
-        label: 'Event Planning',
-        sub: 'All event types',
-        highlighted: true,
-      ),
-      _FeatureRow(
-        label: 'Guest Management',
-        sub: 'Unlimited guests',
-        highlighted: false,
-      ),
-    ];
+    if (highlights.isEmpty) {
+      return Text(text, textAlign: textAlign, style: baseStyle);
+    }
+    final sorted = [...highlights]..sort((a, b) => b.length.compareTo(a.length));
+    final pattern = sorted.map(RegExp.escape).join('|');
+    final re = RegExp('($pattern)', caseSensitive: false);
 
+    final spans = <TextSpan>[];
+    int last = 0;
+    for (final m in re.allMatches(text)) {
+      if (m.start > last) {
+        spans.add(TextSpan(text: text.substring(last, m.start), style: baseStyle));
+      }
+      spans.add(TextSpan(text: m.group(0), style: highlightStyle));
+      last = m.end;
+    }
+    if (last < text.length) {
+      spans.add(TextSpan(text: text.substring(last), style: baseStyle));
+    }
+    return RichText(
+      textAlign: textAlign,
+      text: TextSpan(style: baseStyle, children: spans),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PAGE 1 — Brand Introduction
+// Full-bleed hero image at bottom, top-only rounded corners, soft top blur fade.
+// Floating white feature panel overlaps bottom of image.
+// ═════════════════════════════════════════════════════════════════════════════
+class _Page1BrandIntro extends StatelessWidget {
+  const _Page1BrandIntro();
+
+  @override
+  Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, box) {
-        final cardW = min(box.maxWidth * 0.9, 360.0);
+        final hp = box.maxWidth < 360 ? 18.0 : 24.0;
+        final titleSize = (box.maxHeight * 0.040).clamp(26.0, 32.0);
 
-        return Center(
-          child: SizedBox(
-            width: cardW,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Tilted badge
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Transform.rotate(
-                    angle: 0.1,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.06),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
+        // Image starts ~ below the title block
+        final imageTop = box.maxHeight * 0.40;
+        // Panel sits near bottom (above dots)
+        final panelBottom = 64.0;
+
+        return Stack(
+          children: [
+            // ── Full-bleed bottom hero image (rounded TOP corners only) ──
+            Positioned(
+              left: 0,
+              right: 0,
+              top: imageTop,
+              bottom: 0,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.asset(
+                      'assets/images/onboarding_workspace.png',
+                      fit: BoxFit.cover,
+                      alignment: Alignment.topCenter,
+                      errorBuilder: (_, __, ___) => Container(color: _kGoldSoft),
+                    ),
+                    // Soft cream blur fade at the top of the image
+                    Align(
+                      alignment: Alignment.topCenter,
+                      child: Container(
+                        height: 90,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              _kCream,
+                              _kCream.withOpacity(0.85),
+                              _kCream.withOpacity(0.0),
+                            ],
+                            stops: const [0.0, 0.45, 1.0],
                           ),
-                        ],
-                      ),
-                      child: Text(
-                        'Unlimited Events',
-                        style: _font(
-                          size: 10,
-                          weight: FontWeight.w700,
-                          color: AppColors.textPrimary,
                         ),
                       ),
                     ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── Header content (logo + title + subtitle) ──
+            SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(hp, 56, hp, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Nuru wordmark logo
+                    FadeIn(
+                      duration: const Duration(milliseconds: 420),
+                      child: Image.asset(
+                        'assets/images/nuru-logo.png',
+                        height: (box.maxHeight * 0.085).clamp(54.0, 72.0),
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => Text(
+                          'nuru',
+                          style: _f(size: 44, weight: FontWeight.w800, color: _kInk),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: box.maxHeight * 0.024),
+
+                    // Title — exact reference text
+                    FadeIn(
+                      duration: const Duration(milliseconds: 480),
+                      delay: const Duration(milliseconds: 80),
+                      child: _HighlightedTitle(
+                        text: 'Plan Smarter.\nCelebrate Better.',
+                        highlights: const ['Smarter.', 'Better.'],
+                        baseStyle: _f(
+                          size: titleSize,
+                          weight: FontWeight.w800,
+                          color: _kInk,
+                          height: 1.18,
+                          letterSpacing: -0.6,
+                        ),
+                        highlightStyle: _f(
+                          size: titleSize,
+                          weight: FontWeight.w800,
+                          color: _kGold,
+                          height: 1.18,
+                          letterSpacing: -0.6,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: box.maxHeight * 0.016),
+
+                    // Subtitle
+                    FadeIn(
+                      duration: const Duration(milliseconds: 540),
+                      delay: const Duration(milliseconds: 140),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          'Nuru is your all-in-one platform to plan, organize, and manage events effortlessly. Everything you need, in one place.',
+                          textAlign: TextAlign.center,
+                          style: _f(
+                            size: 13.5,
+                            weight: FontWeight.w500,
+                            color: _kInkSoft,
+                            height: 1.55,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── Full-width feature panel pinned to bottom (rounded top only) ──
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: FadeInUp(
+                duration: const Duration(milliseconds: 560),
+                delay: const Duration(milliseconds: 180),
+                from: 24,
+                child: const _FeaturePanel(
+                  items: [
+                    _FeatureItem(Icons.event_available_rounded, 'Create & Manage\nEvents',
+                        svgAsset: 'assets/icons/calendar-icon.svg'),
+                    _FeatureItem(Icons.group_add_rounded, 'Invite & Connect\nPeople',
+                        svgAsset: 'assets/icons/contributors-icon.svg'),
+                    _FeatureItem(Icons.account_balance_wallet_rounded,
+                        'Contributions\n& Payments',
+                        svgAsset: 'assets/icons/card-icon.svg'),
+                    _FeatureItem(Icons.storefront_rounded, 'Vendors\n& Services',
+                        svgAsset: 'assets/icons/package-icon.svg'),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _FeatureItem {
+  final IconData icon;
+  final String label;
+  final String? svgAsset;
+  const _FeatureItem(this.icon, this.label, {this.svgAsset});
+}
+
+/// Renders an SVG asset (with color tint) when [svgAsset] is non-null,
+/// otherwise falls back to the provided material [icon].
+Widget _featureGlyph({
+  required String? svgAsset,
+  required IconData icon,
+  required Color color,
+  required double size,
+}) {
+  if (svgAsset != null) {
+    return SvgPicture.asset(
+      svgAsset,
+      width: size,
+      height: size,
+      colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+    );
+  }
+  return Icon(icon, color: color, size: size);
+}
+
+class _FeaturePanel extends StatelessWidget {
+  final List<_FeatureItem> items;
+  const _FeaturePanel({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 28, 12, 64),
+      decoration: const BoxDecoration(
+        color: _kSurface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x1A000000),
+            blurRadius: 24,
+            offset: Offset(0, -8),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: items.map((it) {
+          return Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _featureGlyph(
+                  svgAsset: it.svgAsset,
+                  icon: it.icon,
+                  color: _kInk,
+                  size: 28,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  it.label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  style: _f(
+                    size: 11,
+                    weight: FontWeight.w600,
+                    color: _kInk,
+                    height: 1.25,
                   ),
                 ),
-                const SizedBox(height: 10),
-                // Feature rows
-                ...List.generate(features.length, (i) {
-                  final f = features[i];
-                  return Padding(
-                    padding: EdgeInsets.only(
-                      bottom: i < features.length - 1 ? 10 : 0,
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PAGE 2 — Workspace ecosystem with skyline footer
+// ═════════════════════════════════════════════════════════════════════════════
+class _Page2Workspace extends StatelessWidget {
+  const _Page2Workspace();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        final hp = box.maxWidth < 360 ? 18.0 : 24.0;
+        final titleSize = (box.maxHeight * 0.038).clamp(24.0, 30.0);
+
+        // Reserve bottom area for the ecosystem panel
+        final panelHeight = box.maxHeight * 0.56;
+
+        return Stack(
+          children: [
+            // ── Header content (title + subtitle) ──
+            SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(hp, 60, hp, 0),
+                child: Column(
+                  children: [
+                    FadeIn(
+                      duration: const Duration(milliseconds: 480),
+                      child: _HighlightedTitle(
+                        text: 'Everything your\nevent needs\nin one workspace.',
+                        highlights: const ['one workspace.'],
+                        baseStyle: _f(
+                          size: titleSize,
+                          weight: FontWeight.w800,
+                          color: _kInk,
+                          height: 1.2,
+                          letterSpacing: -0.5,
+                        ),
+                        highlightStyle: _f(
+                          size: titleSize,
+                          weight: FontWeight.w800,
+                          color: _kGold,
+                          height: 1.2,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
                     ),
-                    child: _EventFeatureCard(
-                      label: f.label,
-                      sub: f.sub,
-                      highlighted: f.highlighted,
+                    SizedBox(height: box.maxHeight * 0.016),
+                    FadeIn(
+                      duration: const Duration(milliseconds: 540),
+                      delay: const Duration(milliseconds: 100),
+                      child: Text(
+                        'From budgeting and ticketing to vendor booking,\ncontributions, and guest management —\nNuru keeps everything organized and transparent.',
+                        textAlign: TextAlign.center,
+                        style: _f(
+                          size: 12.5,
+                          weight: FontWeight.w500,
+                          color: _kInkSoft,
+                          height: 1.55,
+                        ),
+                      ),
                     ),
-                  );
-                }),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── Ecosystem panel pinned to bottom (full width, rounded top) ──
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: panelHeight,
+              child: FadeInUp(
+                duration: const Duration(milliseconds: 560),
+                from: 24,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: _kSurface,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0x1A000000),
+                        blurRadius: 24,
+                        offset: Offset(0, -8),
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    children: [
+                      // Skyline along the bottom of the panel
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 50,
+                        child: IgnorePointer(
+                          child: Opacity(
+                            opacity: 0.85,
+                            child: Image.asset(
+                              'assets/images/onboarding_skyline.png',
+                              fit: BoxFit.fitWidth,
+                              height: 90,
+                              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Ecosystem
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 18, 12, 56),
+                        child: const _WorkspaceEcosystem(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _WorkspaceEcosystem extends StatelessWidget {
+  const _WorkspaceEcosystem();
+
+  @override
+  Widget build(BuildContext context) {
+    const features = <_FeatureItem>[
+      _FeatureItem(Icons.confirmation_number_rounded, 'Ticketing &\nCheck-in',
+          svgAsset: 'assets/icons/ticket-icon.svg'),
+      _FeatureItem(Icons.account_balance_wallet_rounded,
+          'Contributions\n& Payments',
+          svgAsset: 'assets/icons/card-icon.svg'),
+      _FeatureItem(Icons.person_add_alt_1_rounded, 'Guest List &\nInvitations',
+          svgAsset: 'assets/icons/user-profile-icon.svg'),
+      _FeatureItem(Icons.chat_bubble_rounded, 'Chat &\nAnnouncements',
+          svgAsset: 'assets/icons/chat-icon.svg'),
+      _FeatureItem(Icons.storefront_rounded, 'Vendors &\nServices',
+          svgAsset: 'assets/icons/package-icon.svg'),
+      _FeatureItem(Icons.pie_chart_rounded, 'Budget &\nExpenses'),
+    ];
+
+    return LayoutBuilder(
+      builder: (ctx, box) {
+        final size = math.min(box.maxWidth, box.maxHeight);
+        final radius = size * 0.34;
+        final centerCardSize = size * 0.22;
+
+        return Center(
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: Stack(
+              alignment: Alignment.center,
+              clipBehavior: Clip.none,
+              children: [
+                CustomPaint(
+                  size: Size(size, size),
+                  painter: _DottedCirclePainter(
+                    radius: radius,
+                    color: const Color(0xFFCFC6AE),
+                  ),
+                ),
+                Container(
+                  width: centerCardSize,
+                  height: centerCardSize,
+                  decoration: BoxDecoration(
+                    color: _kSurface,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: _kBorder, width: 1),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(10),
+                  child: Image.asset(
+                    'assets/images/nuru-logo.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Image.asset(
+                      'assets/images/nuru-logo-square.png',
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+                for (int i = 0; i < features.length; i++)
+                  _orbitChild(
+                    radius: radius,
+                    angleDeg: -90 + (360 / features.length) * i,
+                    child: _OrbitBubble(
+                      item: features[i],
+                      iconColor: _bubbleColors[i % _bubbleColors.length],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  static const List<Color> _bubbleColors = [
+    Color(0xFF6D5BD0), // ticketing - purple
+    Color(0xFF1E9E5C), // payments - green
+    Color(0xFF2E86DE), // guest - blue
+    Color(0xFFE08A1E), // chat - amber
+    Color(0xFFD03B3B), // vendors - red
+    Color(0xFF1E9E5C), // budget - green
+  ];
+
+  Widget _orbitChild({
+    required double radius,
+    required double angleDeg,
+    required Widget child,
+  }) {
+    final a = angleDeg * math.pi / 180;
+    final dx = math.cos(a) * radius;
+    final dy = math.sin(a) * radius;
+    return Transform.translate(offset: Offset(dx, dy), child: child);
+  }
+}
+
+class _OrbitBubble extends StatelessWidget {
+  final _FeatureItem item;
+  final Color iconColor;
+  const _OrbitBubble({required this.item, required this.iconColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 90,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: _kSurface,
+              shape: BoxShape.circle,
+              border: Border.all(color: _kBorder, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: _featureGlyph(
+              svgAsset: item.svgAsset,
+              icon: item.icon,
+              color: iconColor,
+              size: 22,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            item.label,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            style: _f(
+              size: 10,
+              weight: FontWeight.w600,
+              color: _kInk,
+              height: 1.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DottedCirclePainter extends CustomPainter {
+  final double radius;
+  final Color color;
+  _DottedCirclePainter({required this.radius, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final paint = Paint()..color = color..style = PaintingStyle.fill;
+    const dotCount = 70;
+    for (int i = 0; i < dotCount; i++) {
+      final a = (i / dotCount) * 2 * math.pi;
+      final p = Offset(
+        center.dx + math.cos(a) * radius,
+        center.dy + math.sin(a) * radius,
+      );
+      canvas.drawCircle(p, 1.4, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DottedCirclePainter old) =>
+      old.radius != radius || old.color != color;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PAGE 3 — Collaboration with phone mockup, floating chips, plant + shapes
+// CTA + Sign in footer live ONLY on this page.
+// ═════════════════════════════════════════════════════════════════════════════
+class _Page3Collaboration extends StatelessWidget {
+  final VoidCallback onGetStarted;
+  final VoidCallback onSignIn;
+  const _Page3Collaboration({required this.onGetStarted, required this.onSignIn});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        final hp = box.maxWidth < 360 ? 18.0 : 24.0;
+        final titleSize = (box.maxHeight * 0.038).clamp(24.0, 30.0);
+
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(hp, 56, hp, 16),
+            child: Column(
+              children: [
+                FadeIn(
+                  duration: const Duration(milliseconds: 480),
+                  child: _HighlightedTitle(
+                    text: 'Connect. Collaborate.\nMake every moment\nmemorable.',
+                    highlights: const [
+                      'Make every moment\nmemorable.',
+                    ],
+                    baseStyle: _f(
+                      size: titleSize,
+                      weight: FontWeight.w800,
+                      color: _kInk,
+                      height: 1.2,
+                      letterSpacing: -0.5,
+                    ),
+                    highlightStyle: _f(
+                      size: titleSize,
+                      weight: FontWeight.w800,
+                      color: _kGold,
+                      height: 1.2,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ),
+                SizedBox(height: box.maxHeight * 0.014),
+                FadeIn(
+                  duration: const Duration(milliseconds: 540),
+                  delay: const Duration(milliseconds: 100),
+                  child: Text(
+                    'Work with your committee, communicate in real time,\nhost meetings, share updates and make your\nevent experience seamless for everyone.',
+                    textAlign: TextAlign.center,
+                    style: _f(
+                      size: 12.5,
+                      weight: FontWeight.w500,
+                      color: _kInkSoft,
+                      height: 1.55,
+                    ),
+                  ),
+                ),
+                SizedBox(height: box.maxHeight * 0.012),
+
+                // Hero meeting scene
+                Expanded(
+                  child: FadeInUp(
+                    duration: const Duration(milliseconds: 560),
+                    from: 24,
+                    child: const _MeetingHero(),
+                  ),
+                ),
+
+                // Bottom space reserved for the page indicator dots
+                const SizedBox(height: 44),
+
+                // CTA button — last page only
+                SizedBox(
+                  width: double.infinity,
+                  height: 58,
+                  child: ElevatedButton(
+                    onPressed: onGetStarted,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _kGold,
+                      foregroundColor: _kInk,
+                      elevation: 0,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          "Let's Get Started",
+                          style: _f(size: 16, weight: FontWeight.w700, color: _kInk),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: const BoxDecoration(
+                            color: _kInk,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 18,
+                            color: _kGold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Already have an account? ',
+                      style: _f(size: 13, weight: FontWeight.w500, color: _kInkSoft),
+                    ),
+                    GestureDetector(
+                      onTap: onSignIn,
+                      child: Text(
+                        'Sign in',
+                        style: _f(size: 13, weight: FontWeight.w800, color: _kGold),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -701,122 +908,334 @@ class _MultiEventScene extends StatelessWidget {
   }
 }
 
-class _FeatureRow {
-  final String label;
-  final String sub;
-  final bool highlighted;
-
-  const _FeatureRow({
-    required this.label,
-    required this.sub,
-    required this.highlighted,
-  });
-}
-
-class _EventFeatureCard extends StatelessWidget {
-  final String label;
-  final String sub;
-  final bool highlighted;
-
-  const _EventFeatureCard({
-    required this.label,
-    required this.sub,
-    required this.highlighted,
-  });
+class _MeetingHero extends StatelessWidget {
+  const _MeetingHero();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: highlighted ? Colors.white : const Color(0xFFF2F5F8),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: highlighted
-              ? AppColors.border.withOpacity(0.5)
-              : AppColors.border.withOpacity(0.3),
-          width: 0.7,
-        ),
-        boxShadow: highlighted
-            ? [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ]
-            : null,
-      ),
-      child: Row(
-        children: [
-          // Avatar circle with Nuru logo
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8EEF5),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.border.withOpacity(0.4),
-                width: 0.7,
-              ),
-            ),
-            child: Center(
-              child: ClipOval(
-                child: Image.asset(
-                  'assets/images/nuru-logo-square.png',
-                  width: 24,
-                  height: 24,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    width: 24,
-                    height: 24,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+    return LayoutBuilder(
+      builder: (ctx, box) {
+        final phoneH = box.maxHeight * 0.92;
+        final phoneW = phoneH * 0.50;
+        final orbitRadius = math.min(box.maxWidth, box.maxHeight) * 0.46;
+
+        return Center(
+          child: SizedBox(
+            width: box.maxWidth,
+            height: box.maxHeight,
+            child: Stack(
+              alignment: Alignment.center,
+              clipBehavior: Clip.none,
               children: [
-                Text(
-                  label,
-                  style: _font(
-                    size: 14,
-                    weight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                // Soft dotted orbit
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _DottedCirclePainter(
+                      radius: orbitRadius,
+                      color: _kGold.withOpacity(0.35),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  sub,
-                  style: _font(
-                    size: 11.5,
-                    weight: FontWeight.w500,
-                    color: AppColors.textTertiary,
+
+                // Phone mockup
+                _PhoneMockup(width: phoneW, height: phoneH),
+
+                // Floating chips
+                Positioned(
+                  top: box.maxHeight * 0.06,
+                  left: 0,
+                  child: const _FeatureChip(
+                    color: Color(0xFFEDE7FF),
+                    iconColor: Color(0xFF6D5BD0),
+                    icon: Icons.videocam_rounded,
+                    svgAsset: 'assets/icons/video-icon.svg',
+                    label: 'Video\nMeetings',
                   ),
+                ),
+                Positioned(
+                  top: box.maxHeight * 0.16,
+                  right: 0,
+                  child: const _FeatureChip(
+                    color: Color(0xFFE6F6E1),
+                    iconColor: Color(0xFF3E9B2F),
+                    icon: Icons.campaign_rounded,
+                    svgAsset: 'assets/icons/bell-icon.svg',
+                    label: 'Live\nUpdates',
+                  ),
+                ),
+                Positioned(
+                  bottom: box.maxHeight * 0.30,
+                  left: 0,
+                  child: const _FeatureChip(
+                    color: Color(0xFFFFE9CF),
+                    iconColor: Color(0xFFE08A1E),
+                    icon: Icons.chat_rounded,
+                    svgAsset: 'assets/icons/chat-icon.svg',
+                    label: 'Quick\nChats',
+                  ),
+                ),
+                Positioned(
+                  bottom: box.maxHeight * 0.18,
+                  right: 0,
+                  child: const _FeatureChip(
+                    color: Color(0xFFFFE1E1),
+                    iconColor: Color(0xFFD03B3B),
+                    icon: Icons.calendar_today_rounded,
+                    svgAsset: 'assets/icons/calendar-icon.svg',
+                    label: 'Event\nReminders',
+                  ),
+                ),
+
+                // Plant decor (bottom left)
+                Positioned(
+                  bottom: 0,
+                  left: 6,
+                  child: _PlantDecor(),
+                ),
+
+                // Geometric shapes (bottom right)
+                Positioned(
+                  bottom: 4,
+                  right: 8,
+                  child: _GeometricShapes(),
                 ),
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-            decoration: BoxDecoration(
-              color: highlighted
-                  ? const Color(0xFF1A1A2E)
-                  : const Color(0xFFE8EEF5),
-              borderRadius: BorderRadius.circular(999),
+        );
+      },
+    );
+  }
+}
+
+class _PhoneMockup extends StatelessWidget {
+  final double width;
+  final double height;
+  const _PhoneMockup({required this.width, required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: _kInk,
+        borderRadius: BorderRadius.circular(38),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.30),
+            blurRadius: 28,
+            offset: const Offset(0, 16),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(5),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(34),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // In-app rendered meeting grid (no external image)
+            Container(color: const Color(0xFF111317)),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(8, 32, 8, 56),
+              child: _MeetingGrid(),
             ),
-            child: Text(
-              highlighted ? 'Active' : 'Explore',
-              style: _font(
-                size: 11,
-                weight: FontWeight.w700,
-                color: highlighted ? Colors.white : AppColors.textSecondary,
+            // Status bar
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                height: 24,
+                color: Colors.black.withOpacity(0.55),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                alignment: Alignment.center,
+                child: Row(
+                  children: [
+                    Text('18:01',
+                        style: _f(size: 10, color: Colors.white, weight: FontWeight.w600)),
+                    const Spacer(),
+                    const Icon(Icons.signal_cellular_alt_rounded,
+                        size: 10, color: Colors.white),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.wifi_rounded, size: 10, color: Colors.white),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.battery_full_rounded, size: 10, color: Colors.white),
+                  ],
+                ),
+              ),
+            ),
+            // Notch
+            Positioned(
+              top: 4,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  width: width * 0.34,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ),
+            ),
+            // Call controls bar
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black.withOpacity(0.85)],
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: const [
+                    _CallControl(icon: Icons.mic_rounded),
+                    _CallControl(icon: Icons.videocam_rounded),
+                    _CallControl(icon: Icons.screen_share_rounded),
+                    _CallControl(icon: Icons.more_horiz_rounded),
+                    _CallControl(icon: Icons.call_end_rounded, danger: true),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CallControl extends StatelessWidget {
+  final IconData icon;
+  final bool danger;
+  const _CallControl({required this.icon, this.danger = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        color: danger ? const Color(0xFFE53935) : Colors.white24,
+        shape: BoxShape.circle,
+      ),
+      child: Icon(icon, color: Colors.white, size: 12),
+    );
+  }
+}
+
+// 2x2 meeting grid rendered fully in-app (no external photo).
+class _MeetingGrid extends StatelessWidget {
+  const _MeetingGrid();
+
+  static const _tiles = <_MeetingTile>[
+    _MeetingTile(initials: 'AK', name: 'Amani', bg: Color(0xFF8B5E3C), accent: Color(0xFFFFD8A8)),
+    _MeetingTile(initials: 'NJ', name: 'Neema', bg: Color(0xFF2E5266), accent: Color(0xFFB8E0F2)),
+    _MeetingTile(initials: 'DM', name: 'David', bg: Color(0xFF4A3B2A), accent: Color(0xFFFFE0B2)),
+    _MeetingTile(initials: 'ZM', name: 'Zawadi', bg: Color(0xFF6B4423), accent: Color(0xFFFFCC99)),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.count(
+      crossAxisCount: 2,
+      mainAxisSpacing: 6,
+      crossAxisSpacing: 6,
+      physics: const NeverScrollableScrollPhysics(),
+      childAspectRatio: 0.85,
+      children: _tiles.map((t) => _MeetingTileView(tile: t)).toList(),
+    );
+  }
+}
+
+class _MeetingTile {
+  final String initials;
+  final String name;
+  final Color bg;
+  final Color accent;
+  const _MeetingTile({
+    required this.initials,
+    required this.name,
+    required this.bg,
+    required this.accent,
+  });
+}
+
+class _MeetingTileView extends StatelessWidget {
+  final _MeetingTile tile;
+  const _MeetingTileView({required this.tile});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Soft radial-ish background
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(0, -0.3),
+                radius: 1.0,
+                colors: [tile.bg.withOpacity(0.95), Colors.black.withOpacity(0.85)],
+              ),
+            ),
+          ),
+          // Avatar circle
+          Center(
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: tile.accent,
+                border: Border.all(color: Colors.white.withOpacity(0.6), width: 1),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                tile.initials,
+                style: _f(size: 11, weight: FontWeight.w800, color: tile.bg),
+              ),
+            ),
+          ),
+          // Name pill
+          Positioned(
+            left: 4,
+            bottom: 4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.55),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 5,
+                    height: 5,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFF34C759),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    tile.name,
+                    style: _f(size: 7.5, weight: FontWeight.w600, color: Colors.white),
+                  ),
+                ],
               ),
             ),
           ),
@@ -826,307 +1245,166 @@ class _EventFeatureCard extends StatelessWidget {
   }
 }
 
-// PAGE 3 — Orbital diagram (like reference: central circle + satellite nodes)
-// No Nuru logo in center, use abstract icon instead
-
-class _TicketsScene extends StatelessWidget {
-  const _TicketsScene();
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, box) {
-        final sceneSize = min(box.maxWidth, box.maxHeight) * 0.85;
-        final centerR = sceneSize * 0.14;
-        final orbitR = sceneSize * 0.35;
-        final nodeR = sceneSize * 0.065;
-
-        // Satellite positions equally spaced (72° apart)
-        final satellites = [
-          _Satellite('Tickets', -pi / 2), // top
-          _Satellite('Revenue', -pi / 2 + 2 * pi / 5), // top-right
-          _Satellite('Budgets', -pi / 2 + 4 * pi / 5), // bottom-right
-          _Satellite('Insights', -pi / 2 + 6 * pi / 5), // bottom-left
-          _Satellite('Guests', -pi / 2 + 8 * pi / 5), // top-left
-        ];
-
-        return Center(
-          child: SizedBox(
-            width: sceneSize,
-            height: sceneSize,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Dotted lines connecting satellite nodes
-                CustomPaint(
-                  size: Size(sceneSize, sceneSize),
-                  painter: _DottedConnectionPainter(
-                    satellites: satellites,
-                    orbitR: orbitR,
-                    center: Offset(sceneSize / 2, sceneSize / 2),
-                  ),
-                ),
-                // Orbit ring (outer)
-                Container(
-                  width: orbitR * 2 + nodeR * 2,
-                  height: orbitR * 2 + nodeR * 2,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.border.withOpacity(0.35),
-                      width: 0.8,
-                    ),
-                  ),
-                ),
-                // Inner orbit ring
-                Container(
-                  width: orbitR * 1.3,
-                  height: orbitR * 1.3,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.border.withOpacity(0.2),
-                      width: 0.7,
-                    ),
-                  ),
-                ),
-
-                // Central dark circle
-                Container(
-                  width: centerR * 2,
-                  height: centerR * 2,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFF1A1A2E),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF1A1A2E).withOpacity(0.2),
-                        blurRadius: 20,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Icon(
-                      Icons.language_rounded,
-                      size: centerR * 0.9,
-                      color: Colors.white.withOpacity(0.8),
-                    ),
-                  ),
-                ),
-
-                // Badge
-                Positioned(
-                  top: sceneSize * 0.04,
-                  right: sceneSize * 0.15,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.06),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      'All-in-One',
-                      style: _font(
-                        size: 10,
-                        weight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Satellite nodes
-                ...satellites.map((sat) {
-                  final x = cos(sat.angle) * orbitR;
-                  final y = sin(sat.angle) * orbitR;
-
-                  return Positioned(
-                    left: sceneSize / 2 + x - nodeR,
-                    top: sceneSize / 2 + y - nodeR,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: nodeR * 2,
-                          height: nodeR * 2,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppColors.border.withOpacity(0.4),
-                              width: 0.7,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.04),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Center(
-                            child: Icon(
-                              _iconForSatellite(sat.label),
-                              size: nodeR * 0.85,
-                              color: const Color(0xFF6E8EAE),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  IconData _iconForSatellite(String label) {
-    switch (label) {
-      case 'Tickets':
-        return Icons.confirmation_num_outlined;
-      case 'Revenue':
-        return Icons.trending_up_rounded;
-      case 'Guests':
-        return Icons.people_outline_rounded;
-      case 'Budgets':
-        return Icons.account_balance_wallet_outlined;
-      case 'Insights':
-        return Icons.insights_rounded;
-      default:
-        return Icons.circle_outlined;
-    }
-  }
-}
-
-class _Satellite {
+class _FeatureChip extends StatelessWidget {
+  final Color color;
+  final Color iconColor;
+  final IconData icon;
+  final String? svgAsset;
   final String label;
-  final double angle;
-
-  const _Satellite(this.label, this.angle);
-}
-
-class _DottedConnectionPainter extends CustomPainter {
-  final List<_Satellite> satellites;
-  final double orbitR;
-  final Offset center;
-
-  _DottedConnectionPainter({
-    required this.satellites,
-    required this.orbitR,
-    required this.center,
+  const _FeatureChip({
+    required this.color,
+    required this.iconColor,
+    required this.icon,
+    this.svgAsset,
+    required this.label,
   });
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppColors.border.withOpacity(0.5)
-      ..strokeWidth = 1.2
-      ..style = PaintingStyle.stroke;
-
-    // Draw dotted lines from each satellite to the center
-    for (int i = 0; i < satellites.length; i++) {
-      final x1 = center.dx + cos(satellites[i].angle) * orbitR;
-      final y1 = center.dy + sin(satellites[i].angle) * orbitR;
-
-      _drawDottedLine(canvas, Offset(x1, y1), center, paint);
-    }
-
-    // Also draw dotted lines between adjacent satellites
-    for (int i = 0; i < satellites.length; i++) {
-      final next = (i + 1) % satellites.length;
-      final x1 = center.dx + cos(satellites[i].angle) * orbitR;
-      final y1 = center.dy + sin(satellites[i].angle) * orbitR;
-      final x2 = center.dx + cos(satellites[next].angle) * orbitR;
-      final y2 = center.dy + sin(satellites[next].angle) * orbitR;
-
-      _drawDottedLine(canvas, Offset(x1, y1), Offset(x2, y2), paint);
-    }
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            alignment: Alignment.center,
+            child: _featureGlyph(
+              svgAsset: svgAsset,
+              icon: icon,
+              color: iconColor,
+              size: 16,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: _f(size: 10.5, weight: FontWeight.w700, color: _kInk, height: 1.2),
+          ),
+        ],
+      ),
+    );
   }
+}
 
-  void _drawDottedLine(Canvas canvas, Offset start, Offset end, Paint paint) {
-    final dx = end.dx - start.dx;
-    final dy = end.dy - start.dy;
-    final len = sqrt(dx * dx + dy * dy);
-    if (len == 0) return;
+// Decorative plant (CSS-style minimal pot + leaves)
+class _PlantDecor extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 50,
+      height: 64,
+      child: Stack(
+        alignment: Alignment.bottomCenter,
+        children: [
+          // Pot
+          Positioned(
+            bottom: 0,
+            child: Container(
+              width: 36,
+              height: 24,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(10),
+                  top: Radius.circular(4),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Leaves
+          Positioned(
+            bottom: 18,
+            child: Icon(Icons.spa_rounded, size: 38, color: const Color(0xFF3E9B2F)),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-    final ux = dx / len;
-    final uy = dy / len;
+// Decorative geometric shapes (golden triangle + cream sphere)
+class _GeometricShapes extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 60,
+      height: 40,
+      child: Stack(
+        children: [
+          // Triangle
+          Positioned(
+            left: 0,
+            bottom: 0,
+            child: CustomPaint(
+              size: const Size(34, 28),
+              painter: _TrianglePainter(color: _kGold),
+            ),
+          ),
+          // Sphere
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.10),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-    const dashLen = 4.0;
-    const gapLen = 4.0;
-    double d = 0;
-    while (d < len) {
-      final segEnd = (d + dashLen).clamp(0.0, len);
-      canvas.drawLine(
-        Offset(start.dx + ux * d, start.dy + uy * d),
-        Offset(start.dx + ux * segEnd, start.dy + uy * segEnd),
-        paint,
-      );
-      d += dashLen + gapLen;
-    }
+class _TrianglePainter extends CustomPainter {
+  final Color color;
+  _TrianglePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color..style = PaintingStyle.fill;
+    final path = Path()
+      ..moveTo(0, size.height)
+      ..lineTo(size.width, size.height)
+      ..lineTo(size.width * 0.2, 0)
+      ..close();
+    canvas.drawPath(path, paint);
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// Dots
-
-class _DotRow extends StatelessWidget {
-  final int activeIndex;
-
-  const _DotRow({required this.activeIndex});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(3, (i) {
-        final active = i == activeIndex;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          width: active ? 24 : 6,
-          height: 6,
-          decoration: BoxDecoration(
-            color: active ? AppColors.primary : const Color(0xFFD2DCE7),
-            borderRadius: BorderRadius.circular(999),
-          ),
-        );
-      }),
-    );
-  }
-}
-
-// Shared font helper
-
-TextStyle _font({
-  required double size,
-  FontWeight weight = FontWeight.w500,
-  Color color = AppColors.textPrimary,
-  double height = 1.2,
-  double letterSpacing = 0,
-}) {
-  return GoogleFonts.plusJakartaSans(
-    fontSize: size,
-    fontWeight: weight,
-    color: color,
-    height: height,
-    letterSpacing: letterSpacing,
-  );
 }

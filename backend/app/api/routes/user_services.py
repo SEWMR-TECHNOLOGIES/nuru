@@ -168,6 +168,25 @@ def get_my_services(
             })
 
     # Build summary per API doc
+    # Aggregate booking counts across all of this vendor's services
+    booking_total = 0
+    booking_completed = 0
+    if all_service_ids:
+        booking_rows = (
+            db.query(ServiceBookingRequest.status, sa_func.count(ServiceBookingRequest.id))
+            .filter(ServiceBookingRequest.user_service_id.in_(all_service_ids))
+            .group_by(ServiceBookingRequest.status)
+            .all()
+        )
+        for status_value, count in booking_rows:
+            booking_total += int(count)
+            if str(status_value).lower() in ("completed", "delivered"):
+                booking_completed += int(count)
+
+    completion_rate = round(
+        (booking_completed / booking_total) * 100, 0
+    ) if booking_total > 0 else 0
+
     summary = {
         "total_services": len(service_list),
         "active_services": sum(1 for s in service_list if s["status"] == "active"),
@@ -178,9 +197,41 @@ def get_my_services(
             sum(s["rating"] * s["review_count"] for s in service_list if s["review_count"] > 0) /
             max(sum(s["review_count"] for s in service_list if s["review_count"] > 0), 1), 1
         ) if any(s["review_count"] > 0 for s in service_list) else 0,
+        "total_bookings": booking_total,
+        "completed_bookings": booking_completed,
+        "completion_rate": completion_rate,
     }
 
-    return standard_response(True, "Services retrieved successfully", {"services": service_list, "summary": summary, "recent_reviews": recent_reviews})
+    # Vendor profile snapshot for the My Services hero card
+    vendor_profile = None
+    try:
+        prof = current_user.profile  # may be None
+        # Pull bio/title for headline; fall back to "Service Provider"
+        headline = None
+        if prof and getattr(prof, "bio", None):
+            headline = (prof.bio or "").splitlines()[0][:80] if prof.bio else None
+        # Vendor verification = any verified service
+        is_verified = summary["verified_services"] > 0
+        vendor_profile = {
+            "id": str(current_user.id),
+            "first_name": current_user.first_name,
+            "last_name": current_user.last_name,
+            "full_name": f"{current_user.first_name} {current_user.last_name}".strip(),
+            "headline": headline or "Service Provider",
+            "avatar_url": prof.profile_picture_url if prof else None,
+            "is_verified": is_verified,
+            "average_rating": summary["average_rating"],
+            "total_reviews": summary["total_reviews"],
+        }
+    except Exception:
+        vendor_profile = None
+
+    return standard_response(True, "Services retrieved successfully", {
+        "services": service_list,
+        "summary": summary,
+        "recent_reviews": recent_reviews,
+        "vendor_profile": vendor_profile,
+    })
 
 
 # ──────────────────────────────────────────────

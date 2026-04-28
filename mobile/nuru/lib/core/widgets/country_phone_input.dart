@@ -128,7 +128,7 @@ class _CountryPhoneInputState extends State<CountryPhoneInput> {
           padding: const EdgeInsets.only(left: 2, bottom: 8),
           child: Text(
             'Phone Number',
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.inter(
               fontSize: 13,
               fontWeight: FontWeight.w600,
               color: _focused ? AppColors.primary : AppColors.textSecondary,
@@ -166,7 +166,7 @@ class _CountryPhoneInputState extends State<CountryPhoneInput> {
                       const SizedBox(width: 6),
                       Text(
                         _selected.dialCode,
-                        style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                       ),
                       const SizedBox(width: 4),
                       Icon(Icons.expand_more_rounded, size: 18, color: AppColors.textTertiary),
@@ -181,7 +181,7 @@ class _CountryPhoneInputState extends State<CountryPhoneInput> {
                   controller: widget.controller,
                   keyboardType: TextInputType.phone,
                   validator: widget.validator,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 15, color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+                  style: GoogleFonts.inter(fontSize: 15, color: AppColors.textPrimary, fontWeight: FontWeight.w500),
                   onTap: () => setState(() => _focused = true),
                   onEditingComplete: () => setState(() => _focused = false),
                   onTapOutside: (_) {
@@ -190,7 +190,7 @@ class _CountryPhoneInputState extends State<CountryPhoneInput> {
                   },
                   decoration: InputDecoration(
                     hintText: '7XX XXX XXX',
-                    hintStyle: GoogleFonts.plusJakartaSans(color: AppColors.textHint, fontSize: 15),
+                    hintStyle: GoogleFonts.inter(color: AppColors.textHint, fontSize: 15),
                     filled: false,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                     border: InputBorder.none,
@@ -255,7 +255,7 @@ class _CountrySheetState extends State<_CountrySheet> {
           const SizedBox(height: 20),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Text('Select Country', style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+            child: Text('Select Country', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
           ),
           const SizedBox(height: 16),
           Padding(
@@ -263,10 +263,10 @@ class _CountrySheetState extends State<_CountrySheet> {
             child: TextField(
               controller: _searchCtrl,
               autofocus: true,
-              style: GoogleFonts.plusJakartaSans(fontSize: 15, color: AppColors.textPrimary),
+              style: GoogleFonts.inter(fontSize: 15, color: AppColors.textPrimary),
               decoration: InputDecoration(
                 hintText: 'Search country...',
-                hintStyle: GoogleFonts.plusJakartaSans(color: AppColors.textHint),
+                hintStyle: GoogleFonts.inter(color: AppColors.textHint),
                 prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textTertiary, size: 20),
                 filled: true,
                 fillColor: AppColors.surfaceVariant,
@@ -292,8 +292,8 @@ class _CountrySheetState extends State<_CountrySheet> {
                   selectedTileColor: AppColors.primarySoft,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                   leading: Text(c.flag, style: const TextStyle(fontSize: 26)),
-                  title: Text(c.name, style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: selected ? FontWeight.w700 : FontWeight.w500, color: selected ? AppColors.primary : AppColors.textPrimary)),
-                  trailing: Text(c.dialCode, style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: selected ? AppColors.primary : AppColors.textTertiary)),
+                  title: Text(c.name, style: GoogleFonts.inter(fontSize: 15, fontWeight: selected ? FontWeight.w700 : FontWeight.w500, color: selected ? AppColors.primary : AppColors.textPrimary)),
+                  trailing: Text(c.dialCode, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: selected ? AppColors.primary : AppColors.textTertiary)),
                 );
               },
             ),

@@ -27,6 +27,7 @@ import '../../help/help_screen.dart';
 import '../../settings/settings_screen.dart';
 import '../../wallet/wallet_screen.dart';
 import '../../event_groups/my_groups_screen.dart';
+import '../../messages/messages_screen.dart';
 import '../../../core/l10n/l10n_helper.dart';
 
 /// Modern, organized left drawer that mirrors the web sidebar redesign:
@@ -210,10 +211,10 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(fullName.isNotEmpty ? fullName : 'Welcome',
-              style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.2),
+              style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.2),
               maxLines: 1, overflow: TextOverflow.ellipsis),
             if (username.isNotEmpty) Text('@$username',
-              style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary, height: 1.3)),
+              style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary, height: 1.3)),
           ])),
           GestureDetector(
             onTap: () => Navigator.pop(context),
@@ -243,12 +244,12 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
             Expanded(
               child: TextField(
                 controller: _filterCtrl,
-                style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textPrimary),
+                style: GoogleFonts.inter(fontSize: 13, color: AppColors.textPrimary),
                 decoration: InputDecoration(
                   isDense: true,
                   border: InputBorder.none,
                   hintText: 'Quick jump…',
-                  hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textHint),
+                  hintStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.textHint),
                   contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 ),
               ),
@@ -271,7 +272,7 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
   List<_NavItem> get _pinned => [
         _NavItem(icon: 'assets/icons/home-icon.svg', label: context.tr('home'), tab: 0),
         _NavItem(icon: 'assets/icons/calendar-icon.svg', label: context.tr('my_events'), tab: 1),
-        _NavItem(icon: 'assets/icons/chat-icon.svg', label: context.tr('messages'), tab: 2, badge: widget.unreadMessages),
+        _NavItem(icon: 'assets/icons/chat-icon.svg', label: context.tr('messages'), screen: const MessagesScreen(), badge: widget.unreadMessages),
         _NavItem(icon: 'assets/icons/bell-icon.svg', label: context.tr('notifications'), tab: 3, badge: widget.unreadNotifications),
       ];
 
@@ -323,7 +324,7 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
             Padding(
               padding: const EdgeInsets.all(24),
               child: Text('No matches', textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textHint)),
+                style: GoogleFonts.inter(fontSize: 12, color: AppColors.textHint)),
             )
           else
             ...all.map((i) => _buildItem(context, i)),
@@ -366,7 +367,7 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
         Icon(icon, size: 12, color: AppColors.textHint),
         const SizedBox(width: 6),
         Text(label.toUpperCase(),
-          style: GoogleFonts.plusJakartaSans(
+          style: GoogleFonts.inter(
             fontSize: 10, fontWeight: FontWeight.w700,
             color: AppColors.textHint, letterSpacing: 1.2, height: 1.0,
           )),
@@ -402,7 +403,7 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
                   Expanded(
                     child: Text(
                       section.label.toUpperCase(),
-                      style: GoogleFonts.plusJakartaSans(
+                      style: GoogleFonts.inter(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w700,
                         color: open ? AppColors.textSecondary : AppColors.textHint,
@@ -422,7 +423,7 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
                       ),
                       child: Text(
                         '${section.items.length}',
-                        style: GoogleFonts.plusJakartaSans(
+                        style: GoogleFonts.inter(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
                           color: AppColors.textTertiary,
@@ -487,7 +488,7 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
           duration: const Duration(milliseconds: 1400),
           behavior: SnackBarBehavior.floating,
           content: Text(isFav ? 'Removed from favorites' : 'Added to favorites',
-            style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600)),
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600)),
         ));
       },
       child: AnimatedContainer(
@@ -517,7 +518,7 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
             width: nested ? 17 : 20, height: nested ? 17 : 20,
             colorFilter: ColorFilter.mode(isActive ? AppColors.primary : AppColors.textSecondary, BlendMode.srcIn)),
           SizedBox(width: nested ? 10 : 12),
-          Expanded(child: Text(item.label, style: GoogleFonts.plusJakartaSans(
+          Expanded(child: Text(item.label, style: GoogleFonts.inter(
             fontSize: nested ? 13 : 14,
             fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
             color: isActive ? AppColors.primary : AppColors.textPrimary, height: 1.3))),
@@ -529,7 +530,7 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
           if ((item.badge ?? 0) > 0) Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(color: AppColors.secondary, borderRadius: BorderRadius.circular(8)),
-            child: Text('${item.badge}', style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white, height: 1.0)),
+            child: Text('${item.badge}', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white, height: 1.0)),
           ),
         ]),
       ),
@@ -554,7 +555,7 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             const Icon(Icons.add_rounded, size: 18, color: Colors.white),
             const SizedBox(width: 8),
-            Text(context.tr('create_event'), style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white, height: 1.2)),
+            Text(context.tr('create_event'), style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white, height: 1.2)),
           ]),
         ),
       ),
@@ -574,7 +575,7 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
             SvgPicture.asset('assets/icons/user-profile-icon.svg', width: 18, height: 18,
               colorFilter: const ColorFilter.mode(AppColors.textSecondary, BlendMode.srcIn)),
             const SizedBox(width: 10),
-            Expanded(child: Text(context.tr('profile'), style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.2))),
+            Expanded(child: Text(context.tr('profile'), style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.2))),
             SvgPicture.asset('assets/icons/chevron-right-icon.svg', width: 18, height: 18,
               colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
           ]),
@@ -588,7 +589,7 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
             SvgPicture.asset('assets/icons/logout-icon.svg', width: 18, height: 18,
               colorFilter: const ColorFilter.mode(AppColors.error, BlendMode.srcIn)),
             const SizedBox(width: 10),
-            Expanded(child: Text(context.tr('sign_out'), style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.error, height: 1.2))),
+            Expanded(child: Text(context.tr('sign_out'), style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.error, height: 1.2))),
           ]),
         ),
       ),
@@ -601,13 +602,13 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(context.tr('sign_out'), style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700)),
-        content: Text(context.tr('are_you_sure'), style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textSecondary)),
+        title: Text(context.tr('sign_out'), style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700)),
+        content: Text(context.tr('are_you_sure'), style: GoogleFonts.inter(fontSize: 14, color: AppColors.textSecondary)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false),
-            child: Text(context.tr('cancel'), style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textTertiary))),
+            child: Text(context.tr('cancel'), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textTertiary))),
           TextButton(onPressed: () => Navigator.pop(ctx, true),
-            child: Text(context.tr('sign_out'), style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.error))),
+            child: Text(context.tr('sign_out'), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.error))),
         ],
       ),
     );
@@ -621,7 +622,7 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
     return Container(
       color: AppColors.surfaceVariant,
       child: Center(child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
-        style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textSecondary, height: 1.0))),
+        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textSecondary, height: 1.0))),
     );
   }
 }

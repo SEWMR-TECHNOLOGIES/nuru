@@ -102,10 +102,10 @@ class _MyTicketPaymentsTabState extends State<MyTicketPaymentsTab>
                 _page = 1;
                 _load();
               },
-              style: GoogleFonts.plusJakartaSans(fontSize: 13),
+              style: GoogleFonts.inter(fontSize: 13),
               decoration: InputDecoration(
                 hintText: 'Search by code, event, payer…',
-                hintStyle: GoogleFonts.plusJakartaSans(
+                hintStyle: GoogleFonts.inter(
                     fontSize: 13, color: AppColors.textHint),
                 prefixIcon: const Icon(Icons.search,
                     size: 18, color: AppColors.textTertiary),
@@ -148,13 +148,13 @@ class _MyTicketPaymentsTabState extends State<MyTicketPaymentsTab>
               size: 40, color: AppColors.textHint.withOpacity(0.5)),
           const SizedBox(height: 8),
           Text('No ticket payments yet',
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.inter(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: AppColors.textSecondary)),
           const SizedBox(height: 4),
           Text('Your purchase receipts will appear here.',
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.inter(
                   fontSize: 11, color: AppColors.textTertiary)),
         ]),
       );
@@ -201,7 +201,7 @@ class _MyTicketPaymentsTabState extends State<MyTicketPaymentsTab>
               m['description']?.toString() ?? 'Ticket payment',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.inter(
                   fontWeight: FontWeight.w700,
                   fontSize: 13,
                   color: AppColors.textPrimary),
@@ -212,7 +212,7 @@ class _MyTicketPaymentsTabState extends State<MyTicketPaymentsTab>
                   color: color.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(20)),
               child: Text(status,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.inter(
                       fontSize: 9, fontWeight: FontWeight.w700, color: color)),
             ),
           ]),
@@ -224,19 +224,19 @@ class _MyTicketPaymentsTabState extends State<MyTicketPaymentsTab>
                   fontSize: 10, color: AppColors.textTertiary)),
           if (dateIso != null)
             Text(_formatDate(dateIso.toString()),
-                style: GoogleFonts.plusJakartaSans(
+                style: GoogleFonts.inter(
                     fontSize: 10, color: AppColors.textTertiary)),
         ])),
         const SizedBox(width: 8),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text(formatMoney(gross, currency: currency),
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.inter(
                   fontWeight: FontWeight.w800,
                   fontSize: 13,
                   color: AppColors.textPrimary)),
           if (fee > 0)
             Text('fee ${formatMoney(fee, currency: currency)}',
-                style: GoogleFonts.plusJakartaSans(
+                style: GoogleFonts.inter(
                     fontSize: 9, color: AppColors.textTertiary)),
         ]),
       ]),
@@ -260,7 +260,7 @@ class _MyTicketPaymentsTabState extends State<MyTicketPaymentsTab>
           icon: const Icon(Icons.chevron_left),
         ),
         Text('Page ${p['page']} of ${p['total_pages']}',
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.inter(
                 fontSize: 12, color: AppColors.textSecondary)),
         IconButton(
           onPressed: hasNext

@@ -10,20 +10,16 @@ import '../../services/my_services_screen.dart';
 import '../../removed/removed_content_screen.dart';
 import '../../public_profile/public_profile_screen.dart';
 import '../../events/event_public_view_screen.dart';
-import 'shared_widgets.dart';
-import '../../../core/l10n/l10n_helper.dart';
 import '../../../core/utils/haptics.dart';
 import '../../../core/widgets/swipe_action_tile.dart';
-import '../../../core/widgets/empty_state_illustration.dart';
 
+/// Notifications screen — premium redesign matching the reference mock.
 class HomeNotificationsTab extends StatefulWidget {
   final List<dynamic> notifications;
   final int unreadCount;
   final bool isLoading;
   final VoidCallback onRefresh;
   final ValueChanged<int>? onTabChanged;
-  /// Called (debounced) when the user types in the search field.
-  /// Parent should re-fetch notifications using the query.
   final ValueChanged<String>? onSearch;
 
   const HomeNotificationsTab({
@@ -41,8 +37,10 @@ class HomeNotificationsTab extends StatefulWidget {
 }
 
 class _HomeNotificationsTabState extends State<HomeNotificationsTab> {
-  String _search = '';
+  String _filter = 'All';
   Timer? _debounce;
+
+  static const _filters = ['All', 'Events', 'Tickets', 'Contributions', 'System'];
 
   @override
   void dispose() {
@@ -50,147 +48,196 @@ class _HomeNotificationsTabState extends State<HomeNotificationsTab> {
     super.dispose();
   }
 
-  void _onSearchChanged(String v) {
-    setState(() => _search = v);
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () => widget.onSearch?.call(v));
+  bool _matchesFilter(Map<String, dynamic> n) {
+    if (_filter == 'All') return true;
+    final t = (n['type'] ?? '').toString();
+    switch (_filter) {
+      case 'Events':
+        return t.contains('event') || t.contains('rsvp') || t.contains('committee');
+      case 'Tickets':
+        return t.contains('ticket') || t.contains('booking');
+      case 'Contributions':
+        return t.contains('contribution') || t.contains('payment');
+      case 'System':
+        return t.contains('system') || t.contains('removed') || t.contains('password') ||
+               t.contains('verified') || t.contains('kyc');
+      default:
+        return true;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: () async => widget.onRefresh(),
-      color: AppColors.primary,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+    final filtered = widget.notifications
+        .whereType<Map<String, dynamic>>()
+        .where(_matchesFilter)
+        .toList();
+
+    return Container(
+      color: AppColors.surface,
+      child: Column(
         children: [
-          Row(children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Notifications', style: GoogleFonts.plusJakartaSans(fontSize: 26, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -0.5, height: 1.1)),
-              if (widget.unreadCount > 0) ...[
-                const SizedBox(height: 4),
-                Text('${widget.unreadCount} unread', style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary, height: 1.2)),
-              ],
-            ])),
-            if (widget.notifications.isNotEmpty)
-              GestureDetector(
-                onTap: () async {
-                  Haptics.medium();
-                  await SocialService.markAllNotificationsRead();
-                  widget.onRefresh();
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(8)),
-                  child: Text('Mark all read', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textSecondary, height: 1.2)),
-                ),
-              ),
-          ]),
-          const SizedBox(height: 12),
-          // Search bar (debounced server-side)
-          Container(
-            height: 42,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceVariant,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderLight, width: 0.5),
-            ),
-            child: TextField(
-              onChanged: _onSearchChanged,
-              style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textPrimary),
-              decoration: InputDecoration(
-                hintText: 'Search notifications…',
-                hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textHint),
-                prefixIcon: Padding(
-                  padding: const EdgeInsets.all(11),
-                  child: SvgPicture.asset('assets/icons/search-icon.svg', width: 16, height: 16,
-                      colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
-                ),
-                suffixIcon: _search.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textHint),
-                        onPressed: () { _onSearchChanged(''); },
-                      )
-                    : null,
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 11),
+          _topBar(context),
+          _filterRow(),
+          const SizedBox(height: 4),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async => widget.onRefresh(),
+              color: AppColors.primary,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+                children: [
+                  if (widget.isLoading)
+                    ...List.generate(6, (_) => _skeletonItem())
+                  else if (filtered.isEmpty)
+                    _emptyState()
+                  else
+                    ..._buildGrouped(filtered),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          if (widget.isLoading)
-            ...List.generate(5, (_) => const Padding(padding: EdgeInsets.only(bottom: 10), child: ShimmerCard(height: 72)))
-          else if (widget.notifications.isEmpty)
-            const EmptyStateIllustration(
-              variant: 'messages',
-              title: 'No notifications yet',
-              subtitle: "We'll let you know the moment something happens.",
-            )
-          else
-            ..._buildGroupedNotifications(context),
         ],
       ),
     );
   }
 
-  /// Group notifications by relative day buckets:
-  /// Today · Yesterday · This week · Earlier
-  List<Widget> _buildGroupedNotifications(BuildContext context) {
+  Widget _topBar(BuildContext context) {
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+        child: Row(
+          children: [
+            IconButton(
+              onPressed: () {
+                if (Navigator.canPop(context)) {
+                  Navigator.pop(context);
+                } else {
+                  widget.onTabChanged?.call(0);
+                }
+              },
+              icon: const Icon(Icons.arrow_back_rounded,
+                size: 24, color: AppColors.textPrimary),
+            ),
+            Expanded(
+              child: Center(
+                child: Text(
+                  'Notifications',
+                  style: GoogleFonts.inter(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: () async {
+                Haptics.medium();
+                await SocialService.markAllNotificationsRead();
+                widget.onRefresh();
+              },
+              tooltip: 'Mark all read',
+              icon: const Icon(Icons.more_horiz_rounded,
+                  color: AppColors.textPrimary, size: 24),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _filterRow() {
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: _filters.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (_, i) {
+          final f = _filters[i];
+          final selected = f == _filter;
+          return GestureDetector(
+            onTap: () => setState(() => _filter = f),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+              decoration: BoxDecoration(
+                color: selected ? AppColors.primary : AppColors.surface,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: selected ? AppColors.primary : const Color(0xFFE5E7EB),
+                  width: 1,
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  f,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  List<Widget> _buildGrouped(List<Map<String, dynamic>> items) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
-    final weekStart = today.subtract(Duration(days: now.weekday - 1));
 
     final buckets = <String, List<Map<String, dynamic>>>{
       'Today': [],
       'Yesterday': [],
-      'This week': [],
       'Earlier': [],
     };
 
-    for (final n in widget.notifications) {
-      final data = n is Map<String, dynamic> ? n : <String, dynamic>{};
-      final ts = data['created_at']?.toString() ?? '';
+    for (final n in items) {
+      final ts = n['created_at']?.toString() ?? '';
       DateTime? d;
-      try { d = DateTime.parse(ts).toLocal(); } catch (_) {}
-      String key;
-      if (d == null) {
-        key = 'Earlier';
-      } else {
+      try {
+        final hasTz = ts.endsWith('Z') || RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(ts);
+        d = DateTime.parse(hasTz ? ts : '${ts}Z').toLocal();
+      } catch (_) {}
+      String key = 'Earlier';
+      if (d != null) {
         final day = DateTime(d.year, d.month, d.day);
         if (day == today) {
           key = 'Today';
         } else if (day == yesterday) {
           key = 'Yesterday';
-        } else if (!day.isBefore(weekStart)) {
-          key = 'This week';
-        } else {
-          key = 'Earlier';
         }
       }
-      buckets[key]!.add(data);
+      buckets[key]!.add(n);
     }
 
-    final widgets = <Widget>[];
-    buckets.forEach((label, items) {
-      if (items.isEmpty) return;
-      widgets.add(Padding(
-        padding: const EdgeInsets.fromLTRB(2, 8, 2, 8),
+    final out = <Widget>[];
+    buckets.forEach((label, list) {
+      if (list.isEmpty) return;
+      out.add(Padding(
+        padding: const EdgeInsets.fromLTRB(2, 12, 2, 10),
         child: Text(
-          label.toUpperCase(),
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 10,
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: AppColors.textTertiary,
-            letterSpacing: 1.2,
+            color: AppColors.textPrimary,
           ),
         ),
       ));
-      for (final data in items) {
+      for (final data in list) {
         final id = (data['id'] ?? data.hashCode).toString();
-        widgets.add(SwipeActionTile(
+        out.add(SwipeActionTile(
           dismissKey: ValueKey('notif-$id'),
           leadingIcon: Icons.mark_email_read_outlined,
           leadingLabel: 'Mark read',
@@ -201,109 +248,267 @@ class _HomeNotificationsTabState extends State<HomeNotificationsTab> {
             }
             return false;
           },
-          child: _notificationItem(context, data),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: _notificationItem(context, data),
+          ),
         ));
       }
     });
-    return widgets;
+    return out;
+  }
+
+  Widget _skeletonItem() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(children: [
+        Container(width: 44, height: 44, decoration: BoxDecoration(
+          color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(12))),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(height: 12, width: 180, decoration: BoxDecoration(
+            color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(4))),
+          const SizedBox(height: 6),
+          Container(height: 10, width: 120, decoration: BoxDecoration(
+            color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(4))),
+        ])),
+      ]),
+    );
   }
 
   Widget _emptyState() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 60),
+      padding: const EdgeInsets.symmetric(vertical: 80),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(width: 64, height: 64,
-          decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(32)),
-          child: Center(child: SvgPicture.asset('assets/icons/bell-icon.svg', width: 28, height: 28,
-            colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)))),
+        Container(
+          width: 72, height: 72,
+          decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(36)),
+          child: Center(
+            child: SvgPicture.asset('assets/icons/bell-icon.svg', width: 32, height: 32,
+              colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn)),
+          ),
+        ),
         const SizedBox(height: 16),
-        Text('No notifications yet', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.3)),
+        Text('No notifications yet',
+          style: GoogleFonts.inter(
+            fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
         const SizedBox(height: 6),
-        Text("We'll notify you when something happens", style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary, height: 1.4)),
+        Text("We'll let you know the moment something happens.",
+          style: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary, height: 1.4)),
       ]),
     );
   }
 
   Widget _notificationItem(BuildContext context, Map<String, dynamic> data) {
     final message = (data['message'] ?? data['text'] ?? '').toString();
+    final title = (data['title'] ?? _titleForType(data['type']?.toString() ?? '')).toString();
     final isRead = data['is_read'] == true || data['read'] == true;
     final createdAt = data['created_at']?.toString() ?? '';
     final type = data['type']?.toString() ?? '';
     final actor = data['actor'] is Map<String, dynamic> ? data['actor'] as Map<String, dynamic> : null;
-    final isSystem = actor == null || (actor['is_system'] == true);
-    final actorAvatar = actor?['avatar']?.toString();
-    final actorName = _getActorName(actor);
-    final actorInitials = _getActorInitials(actor);
+    final visual = _visualForType(type);
 
-    return GestureDetector(
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
       onTap: () async {
         final id = data['id']?.toString();
         if (id != null && !isRead) await SocialService.markNotificationRead(id);
         widget.onRefresh();
         _navigateForNotification(context, data);
       },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(color: isRead ? Colors.transparent : AppColors.primarySoft, borderRadius: BorderRadius.circular(12)),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(width: 44, height: 44, child: Stack(clipBehavior: Clip.none, children: [
-            if (isSystem)
-              Container(width: 40, height: 40,
-                decoration: BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.primary.withOpacity(0.2), width: 1)),
-                child: Center(child: SvgPicture.asset('assets/icons/bell-icon.svg', width: 20, height: 20,
-                  colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn))))
-            else
-              Container(width: 40, height: 40,
-                decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.surfaceVariant),
-                clipBehavior: Clip.antiAlias,
-                child: actorAvatar != null && actorAvatar.isNotEmpty
-                    ? CachedNetworkImage(imageUrl: actorAvatar, fit: BoxFit.cover, width: 40, height: 40,
-                        errorWidget: (_, __, ___) => Center(child: Text(actorInitials, style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textTertiary))))
-                    : Center(child: Text(actorInitials, style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textTertiary)))),
-            Positioned(bottom: -2, right: -2,
-              child: Container(width: 20, height: 20,
-                decoration: BoxDecoration(color: AppColors.surface, shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.borderLight, width: 1)),
-                child: Center(child: _iconBadge(type)))),
-          ])),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            RichText(maxLines: 3, overflow: TextOverflow.ellipsis,
-              text: TextSpan(children: [
-                if (!isSystem) TextSpan(text: '$actorName ',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.4)),
-                TextSpan(text: message,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textSecondary, height: 1.4)),
-              ])),
-            if (createdAt.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(_timeAgo(createdAt), style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textHint, height: 1.0)),
-            ],
-          ])),
-          if (!isRead) Container(width: 8, height: 8, margin: const EdgeInsets.only(top: 6),
-            decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle)),
-        ]),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _leadingVisual(type, actor, visual),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.inter(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                      height: 1.3,
+                      letterSpacing: -0.1,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  _buildActorMessage(actor, message),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  _timeAgo(createdAt),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: AppColors.textTertiary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                if (!isRead)
+                  Container(
+                    width: 8, height: 8,
+                    decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _iconBadge(String type) {
-    switch (type) {
-      case 'glow': return const Text('❤️', style: TextStyle(fontSize: 11));
-      case 'comment': case 'echo': return const Icon(Icons.chat_bubble_outline_rounded, size: 12, color: Colors.blue);
-      case 'follow': return const Icon(Icons.person_add_outlined, size: 12, color: Colors.green);
-      case 'circle_add': case 'circle_request': case 'circle_accepted': return const Icon(Icons.group_outlined, size: 12, color: Colors.green);
-      case 'event_invite': case 'committee_invite': case 'rsvp_received':
-        return SvgPicture.asset('assets/icons/calendar-icon.svg', width: 12, height: 12, colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn));
-      case 'booking_request': case 'booking_accepted': case 'booking_rejected': return const Icon(Icons.work_outline_rounded, size: 12, color: Colors.orange);
-      case 'contribution_received': return const Icon(Icons.check_circle_outline_rounded, size: 12, color: Colors.green);
-      case 'content_removed': case 'post_removed': case 'moment_removed': return const Icon(Icons.warning_amber_rounded, size: 12, color: Colors.red);
-      case 'identity_verified': case 'kyc_approved': return const Icon(Icons.verified_user_outlined, size: 12, color: Colors.green);
-      case 'password_changed': case 'password_reset': return const Icon(Icons.lock_outline_rounded, size: 12, color: AppColors.primary);
-      default: return SvgPicture.asset('assets/icons/bell-icon.svg', width: 12, height: 12, colorFilter: const ColorFilter.mode(AppColors.textSecondary, BlendMode.srcIn));
+  // Social/people-driven types: show the actor's avatar.
+  // Everything else: show a colored SVG glyph (Nuru branded).
+  static const _actorTypes = {
+    'follow', 'circle_add', 'circle_request', 'circle_accepted',
+    'glow', 'comment', 'echo', 'mention',
+    'rsvp_received', 'ticket_purchased', 'contribution_received',
+    'booking_request', 'booking_accepted', 'booking_rejected',
+    'event_invite', 'committee_invite',
+  };
+
+  Widget _leadingVisual(String type, Map<String, dynamic>? actor, _Visual visual) {
+    final actorAvatar = actor?['avatar']?.toString();
+    final showActor = _actorTypes.contains(type) &&
+        actorAvatar != null && actorAvatar.isNotEmpty;
+
+    if (showActor) {
+      return Stack(clipBehavior: Clip.none, children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: CachedNetworkImage(
+            imageUrl: actorAvatar,
+            width: 44, height: 44, fit: BoxFit.cover,
+            placeholder: (_, __) => Container(
+              width: 44, height: 44, color: AppColors.surfaceVariant),
+            errorWidget: (_, __, ___) => _glyphTile(visual),
+          ),
+        ),
+        Positioned(
+          right: -2, bottom: -2,
+          child: Container(
+            width: 18, height: 18,
+            decoration: BoxDecoration(
+              color: visual.fg, shape: BoxShape.circle,
+              border: Border.all(color: AppColors.surface, width: 2)),
+            alignment: Alignment.center,
+            child: SvgPicture.asset(visual.svg,
+              width: 9, height: 9,
+              colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
+          ),
+        ),
+      ]);
     }
+    return _glyphTile(visual);
+  }
+
+  Widget _glyphTile(_Visual visual) {
+    return Container(
+      width: 44, height: 44,
+      decoration: BoxDecoration(
+        color: visual.bg, borderRadius: BorderRadius.circular(12)),
+      alignment: Alignment.center,
+      child: SvgPicture.asset(visual.svg,
+        width: 22, height: 22,
+        colorFilter: ColorFilter.mode(visual.fg, BlendMode.srcIn)),
+    );
+  }
+
+  String _titleForType(String type) {
+    switch (type) {
+      case 'event_invite': return 'Event Invite';
+      case 'committee_invite': return 'Committee Invite';
+      case 'rsvp_received': return 'New RSVP';
+      case 'event_update': return 'Event Update';
+      case 'event_reminder': return 'Event Reminder';
+      case 'ticket_sold': return 'New Ticket Sold';
+      case 'ticket_purchased': return 'Ticket Purchased';
+      case 'booking_request': return 'Booking Request';
+      case 'booking_accepted': return 'Vendor Confirmed';
+      case 'booking_rejected': return 'Booking Rejected';
+      case 'contribution_received': return 'New Contribution';
+      case 'payment_received': return 'Payment Received';
+      case 'follow': return 'New Follower';
+      case 'glow': return 'New Like';
+      case 'comment': case 'echo': return 'New Comment';
+      case 'identity_verified': case 'kyc_approved': return 'Identity Verified';
+      case 'password_changed': return 'Password Changed';
+      case 'system_update': return 'System Update';
+      case 'content_removed': case 'post_removed': case 'moment_removed': return 'Content Removed';
+      default: return 'Notification';
+    }
+  }
+
+  _Visual _visualForType(String type) {
+    if (type.contains('ticket')) {
+      return const _Visual(
+        bg: Color(0xFFFFF3D6), fg: Color(0xFFD97706),
+        svg: 'assets/icons/ticket-icon.svg');
+    }
+    if (type.contains('contribution')) {
+      return const _Visual(
+        bg: Color(0xFFE5F8E8), fg: Color(0xFF22C55E),
+        svg: 'assets/icons/card-icon.svg');
+    }
+    if (type == 'payment_received' || type.contains('payment')) {
+      return const _Visual(
+        bg: Color(0xFFFFE4E6), fg: Color(0xFFEF4444),
+        svg: 'assets/icons/card-icon.svg');
+    }
+    if (type.contains('event') || type.contains('rsvp') || type.contains('reminder') || type.contains('committee')) {
+      return const _Visual(
+        bg: Color(0xFFE8E4FF), fg: Color(0xFF6D5BFF),
+        svg: 'assets/icons/calendar-icon.svg');
+    }
+    if (type.contains('booking') || type.contains('vendor')) {
+      return const _Visual(
+        bg: Color(0xFFDDEBFF), fg: Color(0xFF2563EB),
+        svg: 'assets/icons/package-icon.svg');
+    }
+    if (type == 'follow') {
+      return const _Visual(
+        bg: Color(0xFFDDEBFF), fg: Color(0xFF2563EB),
+        svg: 'assets/icons/user-icon.svg');
+    }
+    if (type == 'glow') {
+      return const _Visual(
+        bg: Color(0xFFFFE4E6), fg: Color(0xFFEF4444),
+        svg: 'assets/icons/heart-filled-icon.svg');
+    }
+    if (type.contains('comment') || type == 'echo') {
+      return const _Visual(
+        bg: Color(0xFFDDEBFF), fg: Color(0xFF2563EB),
+        svg: 'assets/icons/chat-icon.svg');
+    }
+    if (type.contains('removed')) {
+      return const _Visual(
+        bg: Color(0xFFFFE4E6), fg: Color(0xFFEF4444),
+        svg: 'assets/icons/info-icon.svg');
+    }
+    if (type.contains('verified') || type.contains('kyc')) {
+      return const _Visual(
+        bg: Color(0xFFE5F8E8), fg: Color(0xFF22C55E),
+        svg: 'assets/icons/verified-icon.svg');
+    }
+    if (type.contains('password')) {
+      return const _Visual(
+        bg: Color(0xFFFFF3D6), fg: Color(0xFFD97706),
+        svg: 'assets/icons/shield-icon.svg');
+    }
+    return const _Visual(
+      bg: Color(0xFFEEEEF1), fg: AppColors.textSecondary,
+      svg: 'assets/icons/bell-icon.svg');
   }
 
   void _navigateForNotification(BuildContext context, Map<String, dynamic> data) {
@@ -331,31 +536,73 @@ class _HomeNotificationsTabState extends State<HomeNotificationsTab> {
     }
   }
 
-  String _getActorInitials(Map<String, dynamic>? actor) {
-    if (actor == null) return 'N';
-    final f = (actor['first_name'] ?? '').toString();
-    final l = (actor['last_name'] ?? '').toString();
-    final initials = '${f.isNotEmpty ? f[0] : ''}${l.isNotEmpty ? l[0] : ''}'.toUpperCase();
-    return initials.isNotEmpty ? initials : 'N';
-  }
+  Widget _buildActorMessage(Map<String, dynamic>? actor, String message) {
+    final firstName = (actor?['first_name'] ?? '').toString().trim();
+    final lastName = (actor?['last_name'] ?? '').toString().trim();
+    final fullName = [firstName, lastName].where((s) => s.isNotEmpty).join(' ');
 
-  String _getActorName(Map<String, dynamic>? actor) {
-    if (actor == null) return 'Nuru';
-    final f = actor['first_name']?.toString() ?? '';
-    final l = actor['last_name']?.toString() ?? '';
-    final full = '$f $l'.trim();
-    return full.isNotEmpty ? full : actor['name']?.toString() ?? 'Nuru';
+    if (fullName.isEmpty) {
+      return Text(
+        message,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: GoogleFonts.inter(
+          fontSize: 12.5,
+          color: AppColors.textSecondary,
+          height: 1.4,
+        ),
+      );
+    }
+
+    return RichText(
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
+      text: TextSpan(
+        style: GoogleFonts.inter(
+          fontSize: 12.5,
+          color: AppColors.textSecondary,
+          height: 1.4,
+        ),
+        children: [
+          TextSpan(
+            text: fullName,
+            style: GoogleFonts.inter(
+              fontSize: 12.5,
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+              height: 1.4,
+            ),
+          ),
+          TextSpan(text: ' $message'),
+        ],
+      ),
+    );
   }
 
   String _timeAgo(String dateStr) {
+    if (dateStr.isEmpty) return '';
     try {
-      final d = DateTime.parse(dateStr);
+      // Server returns UTC without timezone suffix; normalize before parsing.
+      final hasTz = dateStr.endsWith('Z') ||
+          RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(dateStr);
+      final normalized = hasTz ? dateStr : '${dateStr}Z';
+      final d = DateTime.parse(normalized).toLocal();
       final diff = DateTime.now().difference(d);
-      if (diff.inMinutes < 1) return 'Just now';
+      if (diff.inSeconds < 60) return 'Just now';
       if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
       if (diff.inHours < 24) return '${diff.inHours}h ago';
+      if (diff.inDays < 2) return 'Yesterday';
       if (diff.inDays < 7) return '${diff.inDays}d ago';
-      return '${(diff.inDays / 7).floor()}w ago';
+      if (diff.inDays < 30) return '${(diff.inDays / 7).floor()}w ago';
+      if (diff.inDays < 365) return '${(diff.inDays / 30).floor()}mo ago';
+      return '${(diff.inDays / 365).floor()}y ago';
     } catch (_) { return ''; }
   }
+}
+
+class _Visual {
+  final Color bg;
+  final Color fg;
+  final String svg;
+  const _Visual({required this.bg, required this.fg, required this.svg});
 }

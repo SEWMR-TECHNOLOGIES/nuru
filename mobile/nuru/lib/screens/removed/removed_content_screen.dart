@@ -61,7 +61,7 @@ class _RemovedContentScreenState extends State<RemovedContentScreen> with Single
           labelColor: AppColors.primary,
           unselectedLabelColor: AppColors.textTertiary,
           indicatorColor: AppColors.primary,
-          labelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
+          labelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
           tabs: [
             Tab(text: '${context.tr('posts')} (${_removedPosts.length})'),
             Tab(text: '${context.tr('moments')} (${_removedMoments.length})'),
@@ -93,7 +93,7 @@ class _RemovedContentScreenState extends State<RemovedContentScreen> with Single
             ),
             const SizedBox(height: 14),
             Text('No removed ${isPost ? "posts" : "moments"}',
-                style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
           ],
         ),
       );
@@ -130,25 +130,25 @@ class _RemovedContentScreenState extends State<RemovedContentScreen> with Single
             children: [
               const Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.error),
               const SizedBox(width: 6),
-              Expanded(child: Text('Removed: $reason', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.error, height: 1.3))),
+              Expanded(child: Text('Removed: $reason', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.error, height: 1.3))),
             ],
           ),
           if (content.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(content, maxLines: 3, overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textSecondary, height: 1.4)),
+                style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary, height: 1.4)),
           ],
           const SizedBox(height: 10),
           Row(
             children: [
               if (removedAt.isNotEmpty)
-                Text(SocialService.getTimeAgo(removedAt), style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
+                Text(SocialService.getTimeAgo(removedAt), style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
               const Spacer(),
               if (hasAppeal)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(6)),
-                  child: Text('Appeal: $appealStatus', style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                  child: Text('Appeal: $appealStatus', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
                 )
               else
                 GestureDetector(
@@ -156,7 +156,7 @@ class _RemovedContentScreenState extends State<RemovedContentScreen> with Single
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(8)),
-                    child: Text('Appeal', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary)),
+                    child: Text('Appeal', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary)),
                   ),
                 ),
             ],
@@ -173,7 +173,7 @@ class _RemovedContentScreenState extends State<RemovedContentScreen> with Single
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Submit Appeal', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700)),
+        title: Text('Submit Appeal', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700)),
         content: TextField(
           controller: ctrl,
           maxLines: 4,

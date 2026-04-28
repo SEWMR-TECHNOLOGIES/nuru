@@ -33,7 +33,7 @@ class PillTabs extends StatelessWidget {
               alignment: Alignment.center,
               child: Text(
                 tabs[i],
-                style: GoogleFonts.plusJakartaSans(
+                style: GoogleFonts.inter(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: isActive ? Colors.white : AppColors.textSecondary,

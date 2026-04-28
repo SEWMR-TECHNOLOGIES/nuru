@@ -101,7 +101,7 @@ class _SplashScreenState extends State<SplashScreen>
                       child: Center(
                         child: Text(
                           'N',
-                          style: GoogleFonts.plusJakartaSans(
+                          style: GoogleFonts.inter(
                             fontSize: 36,
                             fontWeight: FontWeight.w700,
                             color: Colors.white,
@@ -123,7 +123,7 @@ class _SplashScreenState extends State<SplashScreen>
                   ),
                   child: Text(
                     'EVERY MOMENT DESERVES CARE',
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.inter(
                       color: AppColors.textHint,
                       fontSize: 9,
                       letterSpacing: 2.5,

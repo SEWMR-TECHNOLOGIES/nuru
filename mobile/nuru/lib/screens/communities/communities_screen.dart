@@ -64,7 +64,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with SingleTicker
           labelColor: AppColors.primary,
           unselectedLabelColor: AppColors.textTertiary,
           indicatorColor: AppColors.primary,
-          labelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
+          labelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
           tabs: [
             Tab(text: context.trw('discover')),
             Tab(text: '${context.trw('joined')} (${_myCommunities.length})'),
@@ -102,7 +102,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with SingleTicker
             ),
             const SizedBox(height: 14),
             Text(isDiscover ? context.trw('no_communities_found') : context.trw('not_joined_communities'),
-                style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
           ],
         ),
       );
@@ -173,18 +173,18 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with SingleTicker
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
+                Text(name, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
                 if (description.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(description, maxLines: 2, overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary, height: 1.4)),
+                      style: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary, height: 1.4)),
                 ],
                 const SizedBox(height: 10),
                 Row(
                   children: [
                     const Icon(Icons.people_outline, size: 14, color: AppColors.textHint),
                     const SizedBox(width: 4),
-                    Text('$memberCount ${context.trw('members_count')}', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+                    Text('$memberCount ${context.trw('members_count')}', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
                     const Spacer(),
                     GestureDetector(
                       onTap: () async {
@@ -203,7 +203,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with SingleTicker
                         ),
                         child: Text(
                           joined ? context.trw('leave') : context.trw('join'),
-                          style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600,
+                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600,
                               color: joined ? AppColors.textSecondary : Colors.white),
                         ),
                       ),
@@ -227,7 +227,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with SingleTicker
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(context.trw('create_community'), style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700)),
+        title: Text(context.trw('create_community'), style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

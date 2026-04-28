@@ -75,10 +75,10 @@ class _NuruCardsScreenState extends State<NuruCardsScreen> {
                       children: [
                         const Icon(Icons.credit_card_rounded, size: 32, color: Colors.white),
                         const SizedBox(height: 12),
-                        Text('Nuru Card', style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white, height: 1.2)),
+                        Text('Nuru Card', style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white, height: 1.2)),
                         const SizedBox(height: 6),
                         Text('Instant event check-ins and exclusive benefits',
-                            style: GoogleFonts.plusJakartaSans(fontSize: 13, color: Colors.white.withOpacity(0.8), height: 1.4)),
+                            style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withOpacity(0.8), height: 1.4)),
                         const SizedBox(height: 16),
                         if (_cards.isEmpty)
                           GestureDetector(
@@ -86,7 +86,7 @@ class _NuruCardsScreenState extends State<NuruCardsScreen> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                              child: Text('Order Your Card', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primary)),
+                              child: Text('Order Your Card', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primary)),
                             ),
                           ),
                       ],
@@ -95,21 +95,21 @@ class _NuruCardsScreenState extends State<NuruCardsScreen> {
 
                   if (_cards.isNotEmpty) ...[
                     const SizedBox(height: 20),
-                    Text('Your Cards', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                    Text('Your Cards', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                     const SizedBox(height: 12),
                     ..._cards.map((c) => _cardItem(c)),
                   ],
 
                   if (_orders.isNotEmpty) ...[
                     const SizedBox(height: 20),
-                    Text('Orders', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                    Text('Orders', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                     const SizedBox(height: 12),
                     ..._orders.map((o) => _orderItem(o)),
                   ],
 
                   // Features section
                   const SizedBox(height: 24),
-                  Text('Card Benefits', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                  Text('Card Benefits', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                   const SizedBox(height: 12),
                   _featureRow(Icons.flash_on_rounded, 'Instant Check-in', 'Skip queues with NFC tap'),
                   _featureRow(Icons.qr_code_rounded, 'QR Code', 'Unique code for every event'),
@@ -144,11 +144,11 @@ class _NuruCardsScreenState extends State<NuruCardsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${cardType.toUpperCase()} CARD', style: GoogleFonts.plusJakartaSans(
+                Text('${cardType.toUpperCase()} CARD', style: GoogleFonts.inter(
                     fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1,
                     color: isPremium ? Colors.amber : AppColors.textPrimary)),
                 const SizedBox(height: 3),
-                Text(cardNumber, style: GoogleFonts.plusJakartaSans(fontSize: 14, color: isPremium ? Colors.white70 : AppColors.textSecondary)),
+                Text(cardNumber, style: GoogleFonts.inter(fontSize: 14, color: isPremium ? Colors.white70 : AppColors.textSecondary)),
               ],
             ),
           ),
@@ -158,7 +158,7 @@ class _NuruCardsScreenState extends State<NuruCardsScreen> {
               color: status == 'active' ? AppColors.successSoft : AppColors.errorSoft,
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Text(status, style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w600,
+            child: Text(status, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600,
                 color: status == 'active' ? AppColors.success : AppColors.error)),
           ),
         ],
@@ -188,9 +188,9 @@ class _NuruCardsScreenState extends State<NuruCardsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${type.toUpperCase()} Card Order', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                Text('${type.toUpperCase()} Card Order', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                 if (createdAt.isNotEmpty)
-                  Text(createdAt.split('T').first, style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
+                  Text(createdAt.split('T').first, style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
               ],
             ),
           ),
@@ -200,7 +200,7 @@ class _NuruCardsScreenState extends State<NuruCardsScreen> {
               color: status == 'delivered' ? AppColors.successSoft : AppColors.warningSoft,
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Text(status, style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w600,
+            child: Text(status, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600,
                 color: status == 'delivered' ? AppColors.success : AppColors.warning)),
           ),
         ],
@@ -223,8 +223,8 @@ class _NuruCardsScreenState extends State<NuruCardsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.3)),
-                Text(subtitle, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary, height: 1.3)),
+                Text(title, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.3)),
+                Text(subtitle, style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary, height: 1.3)),
               ],
             ),
           ),
@@ -239,9 +239,9 @@ class _NuruCardsScreenState extends State<NuruCardsScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Order Nuru Card', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700)),
+        title: Text('Order Nuru Card', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700)),
         content: Text('Choose your card type to get started with instant event check-ins.',
-            style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary, height: 1.4)),
+            style: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary, height: 1.4)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(

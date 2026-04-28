@@ -28,9 +28,9 @@ class ProfileEventsTab extends StatelessWidget {
         SvgPicture.asset('assets/icons/calendar-icon.svg', width: 32, height: 32,
           colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
         const SizedBox(height: 14),
-        Text('No events yet', style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        Text('No events yet', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
         const SizedBox(height: 4),
-        Text('Create your first event', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+        Text('Create your first event', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
       ]));
     }
     return ListView.builder(
@@ -63,10 +63,10 @@ class ProfileEventsTab extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                Text(title, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                   maxLines: 1, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 3),
-                if (date.isNotEmpty) Text(_formatDateShort(date), style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
+                if (date.isNotEmpty) Text(_formatDateShort(date), style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
               ])),
               _statusBadge(status),
             ]),
@@ -87,7 +87,7 @@ class ProfileEventsTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(color: c.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
-      child: Text(status[0].toUpperCase() + status.substring(1), style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w600, color: c)),
+      child: Text(status[0].toUpperCase() + status.substring(1), style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: c)),
     );
   }
 

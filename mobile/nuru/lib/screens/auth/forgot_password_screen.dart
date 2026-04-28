@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/country_phone_input.dart';
 import '../../core/widgets/otp_input.dart';
 import '../../core/widgets/app_snackbar.dart';
+import '../../core/widgets/auth_skyline.dart';
 import '../../providers/auth_provider.dart';
 
 import 'widgets/auth_text_field.dart';
@@ -212,78 +213,103 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark.copyWith(
         statusBarColor: Colors.transparent,
-        systemNavigationBarColor: const Color(0xFFE8EEF5),
+        systemNavigationBarColor: Colors.white,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xFFE8EEF5),
-        body: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: _goBack,
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.border.withOpacity(0.4), width: 0.7),
-                        ),
-                        child: const Icon(Icons.chevron_left_rounded, size: 22, color: AppColors.textPrimary),
-                      ),
-                    ),
-                  ],
-                ),
+        backgroundColor: Colors.white,
+        // Keep the decorative wave pinned to the bottom even with keyboard up
+        resizeToAvoidBottomInset: false,
+        body: Stack(
+          children: [
+            // Bottom decorative wave
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: AuthSkyline(
+                color: AppColors.primary,
+                height: 200,
+                opacity: 0.55,
               ),
+            ),
+            // Top-right organic curved accent
+            const Positioned(
+              top: 0, right: 0,
+              child: AuthCornerBlob(
+                color: AppColors.primary,
+                size: 240,
+                opacity: 0.55,
+                alignment: Alignment.topRight,
+              ),
+            ),
+            SafeArea(
+              child: Stack(
+                children: [
 
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.only(
-                    left: 24,
-                    right: 24,
-                    bottom: bottomInset > 0 ? 24 : 40,
+              Column(
+                children: [
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: _goBack,
+                          icon: const Icon(Icons.arrow_back_rounded,
+                              color: AppColors.textPrimary, size: 22),
+                          splashRadius: 22,
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.only(
+                        left: 24,
+                        right: 24,
+                        bottom: bottomInset > 0 ? 24 : 130,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
+                          // Padlock illustration
+                          _LockIllustration(icon: _icon),
+                          const SizedBox(height: 20),
                           Text(
                             _title,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 26,
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(
+                              fontSize: 24,
                               fontWeight: FontWeight.w800,
                               color: AppColors.textPrimary,
-                              letterSpacing: -0.5,
+                              letterSpacing: -0.4,
                               height: 1.15,
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 8),
                           Text(
                             _subtitle,
-                            style: GoogleFonts.plusJakartaSans(
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(
                               fontSize: 14,
-                              color: AppColors.textTertiary,
+                              color: AppColors.textSecondary,
                               height: 1.5,
                             ),
                           ),
+                          const SizedBox(height: 28),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 250),
+                            child: _buildCurrentStep(),
+                          ),
                         ],
                       ),
-                      const SizedBox(height: 28),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 250),
-                        child: _buildCurrentStep(),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -362,9 +388,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                  Text(label, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                   const SizedBox(height: 2),
-                  Text(desc, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+                  Text(desc, style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
                 ],
               ),
             ),
@@ -444,7 +470,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 const SizedBox(width: 8),
                 Text(
                   _otpChannel == 'whatsapp' ? context.tr('check_whatsapp') : context.tr('check_sms'),
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: _otpChannel == 'whatsapp'
@@ -472,7 +498,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             onTap: _loading ? null : _handlePhoneReset,
             child: Text(
               context.tr('didnt_get_code'),
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.inter(
                 fontSize: 13,
                 color: AppColors.primary,
                 fontWeight: FontWeight.w600,
@@ -536,7 +562,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget _ctaBtn({required String label, VoidCallback? onPressed, bool isLoading = false}) {
     return SizedBox(
       width: double.infinity,
-      height: 54,
+      height: 56,
       child: ElevatedButton(
         onPressed: isLoading ? null : onPressed,
         style: ElevatedButton.styleFrom(
@@ -544,12 +570,106 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           foregroundColor: Colors.white,
           disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         ),
         child: isLoading
-            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-            : Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
+            : Text(label, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
       ),
+    );
+  }
+}
+
+/// Decorative padlock-with-refresh illustration shown on the forgot-password
+/// hero, matching the reference design (soft circle, golden lock, confetti).
+class _LockIllustration extends StatelessWidget {
+  final IconData icon;
+  const _LockIllustration({required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 160,
+      width: 220,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Soft background circle
+          Container(
+            width: 150,
+            height: 150,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.10),
+              shape: BoxShape.circle,
+            ),
+          ),
+          // Confetti dots
+          const Positioned(
+            left: 8, top: 24,
+            child: _Dot(color: Color(0xFF22C55E), size: 8),
+          ),
+          const Positioned(
+            right: 12, top: 18,
+            child: _Dot(color: Color(0xFFA855F7), size: 8),
+          ),
+          const Positioned(
+            right: 0, bottom: 28,
+            child: _Dot(color: Color(0xFFFFC233), size: 7),
+          ),
+          const Positioned(
+            left: 18, bottom: 36,
+            child: _Dot(color: Color(0xFFFFC233), size: 6),
+          ),
+          // Main lock icon
+          Container(
+            width: 86,
+            height: 86,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.35),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Icon(icon, size: 44, color: Colors.white),
+          ),
+          // Refresh badge
+          Positioned(
+            right: 50, bottom: 36,
+            child: Container(
+              width: 30,
+              height: 30,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: Color(0xFF111827),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.refresh_rounded,
+                  size: 18, color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Dot extends StatelessWidget {
+  final Color color;
+  final double size;
+  const _Dot({required this.color, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
 }

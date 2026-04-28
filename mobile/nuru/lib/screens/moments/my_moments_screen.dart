@@ -55,17 +55,17 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(context.tr('delete_moment'), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+        title: Text(context.tr('delete_moment'), style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
         content: Text(context.tr('this_action_cannot_be_undone'),
-          style: GoogleFonts.plusJakartaSans(color: AppColors.textSecondary, height: 1.5)),
+          style: GoogleFonts.inter(color: AppColors.textSecondary, height: 1.5)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(context.tr('cancel'), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+            child: Text(context.tr('cancel'), style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(context.tr('delete'), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, color: AppColors.error)),
+            child: Text(context.tr('delete'), style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AppColors.error)),
           ),
         ],
       ),
@@ -106,16 +106,16 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
             children: [
               Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
               const SizedBox(height: 16),
-              Text(context.tr('edit_moment'), style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              Text(context.tr('edit_moment'), style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
               const SizedBox(height: 16),
               TextField(
                 controller: _editController,
                 maxLines: 5,
                 minLines: 3,
-                style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary, height: 1.5),
+                style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary, height: 1.5),
                 decoration: InputDecoration(
                   hintText: "What's on your mind?",
-                  hintStyle: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textHint),
+                  hintStyle: GoogleFonts.inter(fontSize: 14, color: AppColors.textHint),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.borderLight)),
                   focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
                   contentPadding: const EdgeInsets.all(14),
@@ -125,7 +125,7 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
               // Visibility selector
               Row(
                 children: [
-                  Text(context.tr('visibility'), style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                  Text(context.tr('visibility'), style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
                   const SizedBox(width: 12),
                   _visibilityChip('public', 'Public', Icons.public_rounded, setSheetState),
                   const SizedBox(width: 8),
@@ -143,7 +143,7 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         side: const BorderSide(color: AppColors.borderLight),
                       ),
-                      child: Text(context.tr('cancel'), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                      child: Text(context.tr('cancel'), style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -159,7 +159,7 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         elevation: 0,
                       ),
-                      child: Text(context.tr('save_changes'), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, color: Colors.white)),
+                      child: Text(context.tr('save_changes'), style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: Colors.white)),
                     ),
                   ),
                 ],
@@ -185,7 +185,7 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, size: 14, color: selected ? AppColors.primary : AppColors.textTertiary),
           const SizedBox(width: 4),
-          Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600, color: selected ? AppColors.primary : AppColors.textTertiary)),
+          Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: selected ? AppColors.primary : AppColors.textTertiary)),
         ]),
       ),
     );
@@ -260,9 +260,9 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
               colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn))),
         ),
         const SizedBox(height: 16),
-        Text(context.tr('no_moments_yet'), style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        Text(context.tr('no_moments_yet'), style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
         const SizedBox(height: 6),
-        Text(context.tr('share_first_moment'), style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary)),
+        Text(context.tr('share_first_moment'), style: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary)),
       ],
     );
   }
@@ -303,12 +303,12 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(visibility == 'circle' ? Icons.group_rounded : Icons.public_rounded, size: 10, color: AppColors.textTertiary),
                     const SizedBox(width: 3),
-                    Text(visibility, style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w500, color: AppColors.textTertiary)),
+                    Text(visibility, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w500, color: AppColors.textTertiary)),
                   ]),
                 ),
                 const Spacer(),
                 if (createdAt.isNotEmpty)
-                  Text(SocialService.getTimeAgo(createdAt), style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
+                  Text(SocialService.getTimeAgo(createdAt), style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
                 const SizedBox(width: 4),
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_horiz, size: 18, color: AppColors.textHint),
@@ -322,18 +322,18 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
                     PopupMenuItem(value: 'edit', child: Row(children: [
                       const Icon(Icons.edit_rounded, size: 16, color: AppColors.textSecondary),
                       const SizedBox(width: 8),
-                      Text(context.tr('edit'), style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+                      Text(context.tr('edit'), style: GoogleFonts.inter(fontSize: 13)),
                     ])),
                     PopupMenuItem(value: 'visibility', child: Row(children: [
                       Icon(visibility == 'circle' ? Icons.public_rounded : Icons.group_rounded, size: 16, color: AppColors.textSecondary),
                       const SizedBox(width: 8),
-                      Text(visibility == 'circle' ? context.tr('make_public') : context.tr('circle_only'), style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+                      Text(visibility == 'circle' ? context.tr('make_public') : context.tr('circle_only'), style: GoogleFonts.inter(fontSize: 13)),
                     ])),
                     const PopupMenuDivider(),
                     PopupMenuItem(value: 'delete', child: Row(children: [
                       const Icon(Icons.delete_rounded, size: 16, color: AppColors.error),
                       const SizedBox(width: 8),
-                      Text(context.tr('delete'), style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.error)),
+                      Text(context.tr('delete'), style: GoogleFonts.inter(fontSize: 13, color: AppColors.error)),
                     ])),
                   ],
                 ),
@@ -341,7 +341,7 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
             ),
             if (content.isNotEmpty) ...[
               const SizedBox(height: 10),
-              Text(content, style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary, height: 1.5)),
+              Text(content, style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary, height: 1.5)),
             ],
             if (images.isNotEmpty) ...[
               const SizedBox(height: 12),
@@ -352,11 +352,11 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
               children: [
                 SvgPicture.asset('assets/icons/heart-icon.svg', width: 14, height: 14, colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
                 const SizedBox(width: 4),
-                Text('$glowCount ${context.tr('glows')}', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+                Text('$glowCount ${context.tr('glows')}', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
                 const SizedBox(width: 16),
                 SvgPicture.asset('assets/icons/echo-icon.svg', width: 14, height: 14, colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
                 const SizedBox(width: 4),
-                Text('$commentCount ${context.tr('echoes')}', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+                Text('$commentCount ${context.tr('echoes')}', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
               ],
             ),
           ],

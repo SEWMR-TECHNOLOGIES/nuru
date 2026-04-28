@@ -249,16 +249,34 @@ def get_messages(conversation_id: str, page: int = 1, limit: int = 50, db: Sessi
         "is_mine": str(m.sender_id) == str(current_user.id),
         "is_read": m.is_read,
         "reply_to_id": str(m.reply_to_id) if m.reply_to_id else None,
+        # Reply snapshot — survives even if original message is deleted/edited.
+        "reply_snapshot": ({
+            "text": m.reply_snapshot_text,
+            "sender": m.reply_snapshot_sender,
+        } if (getattr(m, "reply_snapshot_text", None) or getattr(m, "reply_snapshot_sender", None)) else None),
+        # Transport-framing version. NULL/'plain' for legacy rows so old
+        # clients keep rendering them as plain text (backward compatible).
+        "encryption_version": getattr(m, "encryption_version", None) or "plain",
         "attachments": m.attachments or [],
         "created_at": m.created_at.isoformat() if m.created_at else None,
     } for m in reversed(messages)]
 
-    return standard_response(True, "Messages retrieved successfully", data)
+    return standard_response(True, "Messages retrieved successfully", {
+        "messages": data,
+        "is_encrypted": bool(getattr(conv, "is_encrypted", False)),
+    })
 
 
 @router.post("/{conversation_id}")
 def send_message(conversation_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Sends a message in an existing conversation."""
+    """Sends a message in an existing conversation.
+
+    Body fields:
+      * ``content`` — text body (required if no attachments)
+      * ``attachments`` — list of uploaded file URLs (or {url,...} dicts)
+      * ``reply_to_id`` — UUID of the message being quoted
+      * ``encryption_version`` — 'plain' (default) or 'v1' (transport-framed)
+    """
     try:
         cid = uuid.UUID(conversation_id)
     except ValueError:
@@ -271,9 +289,38 @@ def send_message(conversation_id: str, body: dict = Body(...), db: Session = Dep
     if str(conv.user_one_id) != str(current_user.id) and str(conv.user_two_id) != str(current_user.id):
         return standard_response(False, "You are not a participant in this conversation")
 
-    content = body.get("content", "").strip()
-    if not content:
-        return standard_response(False, "Message content is required")
+    content = (body.get("content") or "").strip()
+    attachments = body.get("attachments") or []
+    if not content and not attachments:
+        return standard_response(False, "Message content or attachment is required")
+
+    # Resolve reply target → snapshot the original at send-time.
+    reply_to_uuid = None
+    snapshot_text = None
+    snapshot_sender = None
+    raw_reply = body.get("reply_to_id")
+    if raw_reply:
+        try:
+            reply_to_uuid = uuid.UUID(str(raw_reply))
+        except (ValueError, TypeError):
+            reply_to_uuid = None
+        if reply_to_uuid:
+            original = db.query(Message).filter(
+                Message.id == reply_to_uuid,
+                Message.conversation_id == cid,
+            ).first()
+            if original:
+                snap = (original.message_text or "").strip()
+                snapshot_text = snap[:280]  # keep preview short
+                sender_user = db.query(User).filter(User.id == original.sender_id).first()
+                if sender_user:
+                    snapshot_sender = f"{sender_user.first_name or ''} {sender_user.last_name or ''}".strip() or "Unknown"
+            else:
+                reply_to_uuid = None  # silently drop invalid reply target
+
+    enc_version = (body.get("encryption_version") or "").strip().lower() or None
+    if enc_version not in (None, "plain", "v1"):
+        enc_version = None
 
     now = datetime.now(EAT)
     msg = Message(
@@ -281,8 +328,11 @@ def send_message(conversation_id: str, body: dict = Body(...), db: Session = Dep
         sender_id=current_user.id,
         message_text=content,
         is_read=False,
-        reply_to_id=uuid.UUID(body["reply_to_id"]) if body.get("reply_to_id") else None,
-        attachments=body.get("attachments"),
+        reply_to_id=reply_to_uuid,
+        attachments=attachments or None,
+        encryption_version=enc_version,
+        reply_snapshot_text=snapshot_text,
+        reply_snapshot_sender=snapshot_sender,
     )
     db.add(msg)
     conv.updated_at = now
@@ -290,7 +340,16 @@ def send_message(conversation_id: str, body: dict = Body(...), db: Session = Dep
     db.refresh(msg)
 
     return standard_response(True, "Message sent successfully", {
-        "id": str(msg.id), "content": msg.message_text, "sent_at": msg.created_at.isoformat() if msg.created_at else now.isoformat()
+        "id": str(msg.id),
+        "content": msg.message_text,
+        "attachments": msg.attachments or [],
+        "reply_to_id": str(msg.reply_to_id) if msg.reply_to_id else None,
+        "reply_snapshot": ({
+            "text": msg.reply_snapshot_text,
+            "sender": msg.reply_snapshot_sender,
+        } if (msg.reply_snapshot_text or msg.reply_snapshot_sender) else None),
+        "encryption_version": msg.encryption_version or "plain",
+        "sent_at": msg.created_at.isoformat() if msg.created_at else now.isoformat(),
     })
 
 

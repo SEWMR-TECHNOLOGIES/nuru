@@ -1676,61 +1676,108 @@ def send_bulk_contributor_message(event_id: str, body: dict = Body(...), db: Ses
         EventContributor.id.in_(ec_uuids)
     ).all()
 
-    sent = 0
-    failed = 0
-    errors = []
-
-    from utils.sms import _send, SMS_SIGNATURE
-
+    # Build the recipient list once, then hand off to the async batch
+    # pipeline. The endpoint returns 202 Accepted in <1s — actual SMS
+    # dispatch happens in a Celery worker (or inline with a wall-clock
+    # budget when running on Vercel). Idempotency, dedup and retry are
+    # all enforced inside utils.sms_batch.
+    recipients = []
+    invalid = []
     for ec in ecs:
-        contributor = ec.contributor
-        if not contributor or not contributor.phone:
-            failed += 1
-            errors.append(f"{contributor.name if contributor else 'Unknown'}: No phone number")
+        c = ec.contributor
+        if not c or not c.phone:
+            invalid.append(c.name if c else "Unknown")
             continue
+        recipients.append({
+            "phone": c.phone,
+            "name": c.name or "Contributor",
+            "event_contributor_id": str(ec.id),
+        })
 
-        # Resolve template
-        name = contributor.name or "Contributor"
-        resolved = message_template
-        resolved = resolved.replace("{name}", name)
-        resolved = resolved.replace("{event_name}", event.name or "")
-        resolved = resolved.replace("{event_title}", (event.name or "").upper())
+    organiser = db.query(User).filter(User.id == event.organizer_id).first()
+    override_phone = (body.get("contact_phone") or "").strip() or None
 
-        if "{payment}" in resolved:
-            if payment_info:
-                resolved = resolved.replace("{payment}", payment_info)
-            else:
-                # Remove the entire line containing {payment}
-                lines = resolved.split("\n")
-                resolved = "\n".join(line for line in lines if "{payment}" not in line)
+    from utils.sms_batch import build_batch
+    batch_row, _jobs, dedup, was_existing = build_batch(
+        db,
+        event=event,
+        organiser=organiser,
+        recipients=recipients,
+        message_template=message_template,
+        payment_info=payment_info or None,
+        override_contact_phone=override_phone,
+    )
+    batch_id = str(batch_row._mapping["id"])
 
-        # Resolve contact phone for the inquiry footer:
-        #   1. Per-send override from body.contact_phone (highest priority)
-        #   2. Per-event default event.reminder_contact_phone
-        #   3. Event organiser's phone (legacy fallback)
-        override_phone = (body.get("contact_phone") or "").strip() or None
-        contact_phone_raw = override_phone or event.reminder_contact_phone or None
-        if not contact_phone_raw:
-            organizer = db.query(User).filter(User.id == event.organizer_id).first()
-            contact_phone_raw = organizer.phone if organizer and organizer.phone else None
-        contact_phone_display = format_phone_display(contact_phone_raw) if contact_phone_raw else None
-        if contact_phone_display:
-            resolved += f"\nKwa maulizo, wasiliana nasi kupitia: {contact_phone_display}\nAsante."
+    # Decide dispatch mode: prefer Celery+Redis, fall back to inline.
+    mode = "inline"
+    try:
+        from core.celery_app import CELERY_ENABLED
+        from core.redis import redis_available
+        if CELERY_ENABLED and redis_available():
+            from tasks.sms_dispatch import send_batch as send_batch_task
+            send_batch_task.delay(batch_id)
+            mode = "queued"
+    except Exception as e:  # noqa: BLE001
+        print(f"[bulk-message] celery dispatch unavailable, falling back inline: {e}")
 
-        resolved = resolved.strip()
-
+    if mode == "inline":
+        # Vercel / no-broker path: do as much work as we can within the
+        # serverless time budget; the beat task picks up the rest.
         try:
-            _send(contributor.phone, resolved)
-            sent += 1
-        except Exception as e:
-            failed += 1
-            errors.append(f"{name}: {str(e)}")
+            from utils.sms_batch import flush_batch_inline
+            flush_batch_inline(db, batch_id, time_budget_seconds=8.0)
+        except Exception as e:  # noqa: BLE001
+            print(f"[bulk-message] inline flush error: {e}")
 
-    return standard_response(True, f"Sent {sent}, Failed {failed}", {
-        "sent": sent,
-        "failed": failed,
-        "errors": errors[:20],  # Limit error details
-    })
+    return standard_response(
+        True,
+        "Reminder batch accepted" if not was_existing else "Existing batch reused (idempotent)",
+        {
+            "batch_id": batch_id,
+            "queued": int(batch_row._mapping["recipient_count"] or 0),
+            "skipped_self": dedup.self_skipped,
+            "skipped_duplicate": dedup.duplicate_skipped,
+            "skipped_invalid_phone": dedup.invalid_phone + invalid,
+            "mode": mode,
+            "idempotent_replay": was_existing,
+        },
+    )
+
+
+@router.get("/events/{event_id}/bulk-message/{batch_id}")
+def get_bulk_message_status(
+    event_id: str,
+    batch_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Poll the progress of a previously accepted bulk SMS batch."""
+    try:
+        eid = uuid.UUID(event_id)
+        bid = uuid.UUID(batch_id)
+    except ValueError:
+        return standard_response(False, "Invalid id")
+
+    event = db.query(Event).filter(Event.id == eid).first()
+    if not event:
+        return standard_response(False, "Event not found")
+
+    is_creator = str(event.organizer_id) == str(current_user.id)
+    if not is_creator:
+        member = db.query(EventCommitteeMember).filter(
+            EventCommitteeMember.event_id == eid,
+            EventCommitteeMember.user_id == current_user.id,
+            EventCommitteeMember.status == "active"
+        ).first()
+        if not member:
+            return standard_response(False, "Not authorized", status_code=403)
+
+    from utils.sms_batch import batch_status
+    status = batch_status(db, str(bid))
+    if not status or status.get("event_id") != str(eid):
+        return standard_response(False, "Batch not found")
+    return standard_response(True, "Batch status", status)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MY CONTRIBUTIONS — events where the logged-in user is listed as a contributor

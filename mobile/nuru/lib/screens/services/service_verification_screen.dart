@@ -31,7 +31,7 @@ class _ServiceVerificationScreenState extends State<ServiceVerificationScreen> {
   final _picker = ImagePicker();
 
   TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.3}) =>
-      GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+      GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color, height: height);
 
   @override
   void initState() {

@@ -82,9 +82,9 @@ class _InvitationQRScreenState extends State<InvitationQRScreen> {
             ? const Center(child: CircularProgressIndicator(color: Colors.white))
             : _error != null
                 ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Text(_error!, style: GoogleFonts.plusJakartaSans(fontSize: 14, color: Colors.white70)),
+                    Text(_error!, style: GoogleFonts.inter(fontSize: 14, color: Colors.white70)),
                     const SizedBox(height: 12),
-                    TextButton(onPressed: _loadQR, child: Text('Retry', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600))),
+                    TextButton(onPressed: _loadQR, child: Text('Retry', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600))),
                   ]))
                 : Column(children: [
                     // Top bar
@@ -96,7 +96,7 @@ class _InvitationQRScreenState extends State<InvitationQRScreen> {
                           onPressed: () => Navigator.pop(context),
                         ),
                         const Spacer(),
-                        Text('Check-in QR', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+                        Text('Check-in QR', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
                         const Spacer(),
                         const SizedBox(width: 48),
                       ]),
@@ -119,12 +119,12 @@ class _InvitationQRScreenState extends State<InvitationQRScreen> {
                         const SizedBox(height: 16),
                         Text(
                           _eventTitle,
-                          style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, height: 1.2),
+                          style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, height: 1.2),
                           textAlign: TextAlign.center,
                         ),
                         if (_guestName.isNotEmpty) ...[
                           const SizedBox(height: 6),
-                          Text(_guestName, style: GoogleFonts.plusJakartaSans(fontSize: 14, color: Colors.white70)),
+                          Text(_guestName, style: GoogleFonts.inter(fontSize: 14, color: Colors.white70)),
                         ],
                       ]),
                     ),
@@ -150,13 +150,13 @@ class _InvitationQRScreenState extends State<InvitationQRScreen> {
                           embeddedImage: const AssetImage('assets/images/nuru-logo-square.png'),
                           embeddedImageStyle: const QrEmbeddedImageStyle(size: Size(38, 38)),
                           errorStateBuilder: (ctx, err) => Center(
-                            child: Text('QR Error', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.error)),
+                            child: Text('QR Error', style: GoogleFonts.inter(fontSize: 12, color: AppColors.error)),
                           ),
                         ),
                         const SizedBox(height: 12),
                         Text(
                           'Scan for check-in',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary, fontWeight: FontWeight.w500),
+                          style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary, fontWeight: FontWeight.w500),
                         ),
                       ]),
                     ),
@@ -173,7 +173,7 @@ class _InvitationQRScreenState extends State<InvitationQRScreen> {
                               SvgPicture.asset('assets/icons/calendar-icon.svg', width: 14, height: 14,
                                   colorFilter: const ColorFilter.mode(Colors.white70, BlendMode.srcIn)),
                               const SizedBox(width: 6),
-                              Flexible(child: Text(_formatDate(_eventDate), style: GoogleFonts.plusJakartaSans(fontSize: 13, color: Colors.white70), textAlign: TextAlign.center)),
+                              Flexible(child: Text(_formatDate(_eventDate), style: GoogleFonts.inter(fontSize: 13, color: Colors.white70), textAlign: TextAlign.center)),
                             ]),
                           if (_venue.isNotEmpty) ...[
                             const SizedBox(height: 6),
@@ -181,7 +181,7 @@ class _InvitationQRScreenState extends State<InvitationQRScreen> {
                               SvgPicture.asset('assets/icons/location-icon.svg', width: 14, height: 14,
                                   colorFilter: const ColorFilter.mode(Colors.white70, BlendMode.srcIn)),
                               const SizedBox(width: 6),
-                              Flexible(child: Text(_venue, style: GoogleFonts.plusJakartaSans(fontSize: 13, color: Colors.white70), textAlign: TextAlign.center)),
+                              Flexible(child: Text(_venue, style: GoogleFonts.inter(fontSize: 13, color: Colors.white70), textAlign: TextAlign.center)),
                             ]),
                           ],
                         ]),
@@ -193,7 +193,7 @@ class _InvitationQRScreenState extends State<InvitationQRScreen> {
                       padding: const EdgeInsets.fromLTRB(32, 0, 32, 16),
                       child: Text(
                         'Present this QR code at the event entrance for check-in',
-                        style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.white54),
+                        style: GoogleFonts.inter(fontSize: 11, color: Colors.white54),
                         textAlign: TextAlign.center,
                       ),
                     ),

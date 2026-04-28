@@ -10,6 +10,7 @@ from .user_services import router as user_services_router
 from .services import router as services_router
 from .bookings import router as bookings_router
 from .messages import router as messages_router
+from .calls import router as calls_router
 from .notifications import router as notifications_router
 from .posts import router as posts_router
 from .moments import router as moments_router
@@ -66,6 +67,7 @@ all_routers = [
     services_router,      # /services/...
     bookings_router,      # /bookings/...
     messages_router,      # /messages/...
+    calls_router,         # /calls/...
     notifications_router, # /notifications/...
     posts_router,         # /posts/...
     moments_router,       # /moments/...
@@ -121,6 +123,7 @@ __all__ = [
     "services_router",
     "bookings_router",
     "messages_router",
+    "calls_router",
     "notifications_router",
     "posts_router",
     "moments_router",

@@ -881,22 +881,36 @@ def build_conversation_dicts(db: Session, conversations: list, current_user_id) 
     profiles = db.query(UserProfile).filter(UserProfile.user_id.in_(list(other_ids))).all() if other_ids else []
     profile_map = {p.user_id: p for p in profiles}
 
-    # Last message per conversation (window function fallback: bulk fetch + group)
+    # Last + previous (second-most-recent) message per conversation.
+    # We fetch the two newest messages per conversation in a single windowed
+    # query so the conversations list can render two preview lines per card
+    # (matches the design). Falls back gracefully when only one message exists.
     last_msg_map: Dict = {}
+    prev_msg_map: Dict = {}
     if conv_ids:
-        # Fetch latest message id per conversation in a single grouped query
-        latest_ids_subq = db.query(
-            Message.conversation_id,
-            sa_func.max(Message.created_at).label("max_created")
-        ).filter(Message.conversation_id.in_(conv_ids)).group_by(Message.conversation_id).subquery()
-        last_msgs = db.query(Message).join(
-            latest_ids_subq,
-            (Message.conversation_id == latest_ids_subq.c.conversation_id) &
-            (Message.created_at == latest_ids_subq.c.max_created)
-        ).all()
-        for m in last_msgs:
-            # If multiple messages share same created_at (rare), keep the first
-            last_msg_map.setdefault(m.conversation_id, m)
+        from sqlalchemy import desc
+        # Use ROW_NUMBER() window so we can pull the top 2 messages per conv in
+        # one round-trip rather than N+1 per-conv queries.
+        rn = sa_func.row_number().over(
+            partition_by=Message.conversation_id,
+            order_by=desc(Message.created_at),
+        ).label("rn")
+        sub = db.query(Message, rn).filter(
+            Message.conversation_id.in_(conv_ids)
+        ).subquery()
+        rows = db.query(Message).join(
+            sub, Message.id == sub.c.id
+        ).filter(sub.c.rn <= 2).all()
+        # Group by conversation, ordered newest → oldest
+        grouped: Dict = defaultdict(list)
+        for m in rows:
+            grouped[m.conversation_id].append(m)
+        for cid, msgs in grouped.items():
+            msgs.sort(key=lambda x: x.created_at, reverse=True)
+            if msgs:
+                last_msg_map[cid] = msgs[0]
+            if len(msgs) > 1:
+                prev_msg_map[cid] = msgs[1]
 
     # Unread counts (other sender, unread) grouped per conversation
     unread_map: Dict = {}
@@ -930,6 +944,7 @@ def build_conversation_dicts(db: Session, conversations: list, current_user_id) 
         other = user_map.get(other_id) if other_id else None
         profile = profile_map.get(other_id) if other_id else None
         last_msg = last_msg_map.get(conv.id)
+        prev_msg = prev_msg_map.get(conv.id)
         unread = unread_map.get(conv.id, 0)
 
         service_info = None
@@ -942,6 +957,7 @@ def build_conversation_dicts(db: Session, conversations: list, current_user_id) 
                     "title": svc.title,
                     "image": im.image_url if im else None,
                     "provider_id": str(svc.user_id),
+                    "is_verified": bool(getattr(svc, "is_verified", False)),
                 }
 
         participant_name = f"{other.first_name} {other.last_name}" if other else None
@@ -962,6 +978,7 @@ def build_conversation_dicts(db: Session, conversations: list, current_user_id) 
                 "id": str(other.id) if other else None,
                 "name": display_name,
                 "avatar": display_avatar,
+                "is_verified": bool(getattr(other, "is_identity_verified", False)) if other else False,
             },
             "service": service_info,
             "last_message": {
@@ -969,8 +986,18 @@ def build_conversation_dicts(db: Session, conversations: list, current_user_id) 
                 "sent_at": last_msg.created_at.isoformat() if last_msg else None,
                 "is_mine": str(last_msg.sender_id) == cur if last_msg else False,
             } if last_msg else None,
+            # Second-most-recent message — surfaced so the conversations list
+            # can render two preview lines (matches the WhatsApp-style design).
+            "previous_message": {
+                "content": prev_msg.message_text if prev_msg else None,
+                "sent_at": prev_msg.created_at.isoformat() if prev_msg else None,
+                "is_mine": str(prev_msg.sender_id) == cur if prev_msg else False,
+            } if prev_msg else None,
             "unread_count": unread,
             "is_active": conv.is_active,
+            # Surface encryption flag so the chat UI can show/hide the banner.
+            # Defaults to False on legacy rows for backward compatibility.
+            "is_encrypted": bool(getattr(conv, "is_encrypted", False)),
             "updated_at": conv.updated_at.isoformat() if conv.updated_at else None,
         })
     return out

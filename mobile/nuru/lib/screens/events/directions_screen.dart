@@ -235,7 +235,7 @@ class _DirectionsScreenState extends State<DirectionsScreen> {
                         children: [
                           Text(
                             widget.venueName ?? 'Venue',
-                            style: GoogleFonts.plusJakartaSans(
+                            style: GoogleFonts.inter(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
                               color: AppColors.textPrimary,
@@ -330,7 +330,7 @@ class _DirectionsScreenState extends State<DirectionsScreen> {
               ),
               child: Text(
                 _duration ?? '--',
-                style: GoogleFonts.plusJakartaSans(
+                style: GoogleFonts.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                   color: Colors.white,
@@ -344,7 +344,7 @@ class _DirectionsScreenState extends State<DirectionsScreen> {
                 children: [
                   Text(
                     _distance ?? '--',
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,

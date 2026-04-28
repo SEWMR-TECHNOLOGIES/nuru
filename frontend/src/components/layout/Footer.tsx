@@ -29,8 +29,8 @@ const Footer = () => {
               className="h-8 w-auto brightness-0 invert mb-6"
             />
             <p className="text-background/60 text-sm leading-relaxed max-w-xs">
-              Plan smarter. Run it better. The operating workspace for
-              every event — weddings, conferences, memorials and more.
+              Plan smarter. Celebrate Better. The operating workspace for every
+              event — weddings, conferences, memorials and more.
             </p>
           </div>
 
@@ -60,12 +60,18 @@ const Footer = () => {
             </h3>
             <ul className="space-y-3 mb-8">
               <li>
-                <Link to="/contact" className="text-sm text-background/60 hover:text-background transition-colors">
+                <Link
+                  to="/contact"
+                  className="text-sm text-background/60 hover:text-background transition-colors"
+                >
                   Contact
                 </Link>
               </li>
               <li>
-                <Link to="/faqs" className="text-sm text-background/60 hover:text-background transition-colors">
+                <Link
+                  to="/faqs"
+                  className="text-sm text-background/60 hover:text-background transition-colors"
+                >
                   FAQs
                 </Link>
               </li>
@@ -75,27 +81,42 @@ const Footer = () => {
             </h3>
             <ul className="space-y-3">
               <li>
-                <Link to="/privacy-policy" className="text-sm text-background/60 hover:text-background transition-colors">
+                <Link
+                  to="/privacy-policy"
+                  className="text-sm text-background/60 hover:text-background transition-colors"
+                >
                   Privacy
                 </Link>
               </li>
               <li>
-                <Link to="/terms" className="text-sm text-background/60 hover:text-background transition-colors">
+                <Link
+                  to="/terms"
+                  className="text-sm text-background/60 hover:text-background transition-colors"
+                >
                   Terms
                 </Link>
               </li>
               <li>
-                <Link to="/cookie-policy" className="text-sm text-background/60 hover:text-background transition-colors">
+                <Link
+                  to="/cookie-policy"
+                  className="text-sm text-background/60 hover:text-background transition-colors"
+                >
                   Cookies
                 </Link>
               </li>
               <li>
-                <Link to="/vendor-agreement" className="text-sm text-background/60 hover:text-background transition-colors">
+                <Link
+                  to="/vendor-agreement"
+                  className="text-sm text-background/60 hover:text-background transition-colors"
+                >
                   Vendor Agreement
                 </Link>
               </li>
               <li>
-                <Link to="/organiser-agreement" className="text-sm text-background/60 hover:text-background transition-colors">
+                <Link
+                  to="/organiser-agreement"
+                  className="text-sm text-background/60 hover:text-background transition-colors"
+                >
                   Organiser Agreement
                 </Link>
               </li>

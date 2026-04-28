@@ -92,15 +92,15 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                               : _initials(name),
                         ),
                         const SizedBox(height: 12),
-                        Text(name.isNotEmpty ? name : 'Unknown', style: GoogleFonts.plusJakartaSans(
+                        Text(name.isNotEmpty ? name : 'Unknown', style: GoogleFonts.inter(
                             fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                         if (username.isNotEmpty) ...[
                           const SizedBox(height: 2),
-                          Text('@$username', style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textTertiary)),
+                          Text('@$username', style: GoogleFonts.inter(fontSize: 14, color: AppColors.textTertiary)),
                         ],
                         if (bio.isNotEmpty) ...[
                           const SizedBox(height: 8),
-                          Text(bio, textAlign: TextAlign.center, style: GoogleFonts.plusJakartaSans(
+                          Text(bio, textAlign: TextAlign.center, style: GoogleFonts.inter(
                               fontSize: 13, color: AppColors.textSecondary, height: 1.5)),
                         ],
                       ],
@@ -141,7 +141,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                       child: Center(
                         child: Text(
                           _isFollowing ? 'Following' : 'Follow',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600,
+                          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600,
                               color: _isFollowing ? AppColors.textSecondary : Colors.white),
                         ),
                       ),
@@ -195,7 +195,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                             const SizedBox(width: 8),
                             Text(
                               'Message',
-                              style: GoogleFonts.plusJakartaSans(
+                              style: GoogleFonts.inter(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
                                 color: AppColors.textSecondary,
@@ -210,13 +210,13 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                   const SizedBox(height: 24),
 
                   // Posts
-                  Text('Posts', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                  Text('Posts', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                   const SizedBox(height: 12),
 
                   if (_posts.isEmpty)
                     Center(child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 40),
-                      child: Text('No posts yet', style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textTertiary)),
+                      child: Text('No posts yet', style: GoogleFonts.inter(fontSize: 14, color: AppColors.textTertiary)),
                     ))
                   else
                     ..._posts.map((p) {
@@ -237,7 +237,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             if (content.isNotEmpty)
-                              Text(content, style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary, height: 1.5)),
+                              Text(content, style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary, height: 1.5)),
                             if (images.isNotEmpty) ...[
                               const SizedBox(height: 10),
                               ClipRRect(
@@ -251,7 +251,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                             ],
                             if (createdAt.isNotEmpty) ...[
                               const SizedBox(height: 8),
-                              Text(SocialService.getTimeAgo(createdAt), style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
+                              Text(SocialService.getTimeAgo(createdAt), style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
                             ],
                           ],
                         ),
@@ -266,9 +266,9 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   Widget _statItem(String value, String label) {
     return Column(
       children: [
-        Text(value, style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+        Text(value, style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
         const SizedBox(height: 2),
-        Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+        Text(label, style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
       ],
     );
   }
@@ -276,7 +276,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   Widget _initials(String name) {
     return Center(child: Text(
       name.isNotEmpty ? name[0].toUpperCase() : '?',
-      style: GoogleFonts.plusJakartaSans(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.textTertiary),
+      style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.textTertiary),
     ));
   }
 }

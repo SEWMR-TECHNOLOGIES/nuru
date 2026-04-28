@@ -121,7 +121,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
               ),
               onPressed: () => Navigator.pop(context),
             ),
-            title: Text(name, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+            title: Text(name, style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
             flexibleSpace: cover != null && cover.isNotEmpty
                 ? FlexibleSpaceBar(
                     background: CachedNetworkImage(
@@ -148,13 +148,13 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (description.isNotEmpty) ...[
-                      Text(description, style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textSecondary, height: 1.5)),
+                      Text(description, style: GoogleFonts.inter(fontSize: 14, color: AppColors.textSecondary, height: 1.5)),
                       const SizedBox(height: 12),
                     ],
                     Row(children: [
                       const Icon(Icons.people_outline, size: 16, color: AppColors.textHint),
                       const SizedBox(width: 6),
-                      Text('$memberCount members', style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary)),
+                      Text('$memberCount members', style: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary)),
                       const Spacer(),
                       if (!_loading)
                         GestureDetector(
@@ -174,7 +174,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
                             ),
                             child: Text(
                               isMember ? context.trw('leave') : context.trw('join'),
-                              style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600,
+                              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600,
                                   color: isMember ? AppColors.textSecondary : Colors.white),
                             ),
                           ),
@@ -191,7 +191,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
               labelColor: AppColors.primary,
               unselectedLabelColor: AppColors.textTertiary,
               indicatorColor: AppColors.primary,
-              labelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
+              labelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
               tabs: [
                 Tab(text: '${context.tr('posts')} (${_posts.length})'),
                 Tab(text: '${context.tr('members')} (${_members.length})'),
@@ -218,9 +218,9 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Icon(Icons.forum_outlined, size: 32, color: AppColors.textHint),
         const SizedBox(height: 12),
-        Text(context.trw('no_posts_yet'), style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        Text(context.trw('no_posts_yet'), style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
         const SizedBox(height: 4),
-        Text(context.trw('be_first_post'), style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+        Text(context.trw('be_first_post'), style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
       ]));
     }
     return RefreshIndicator(
@@ -267,14 +267,14 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
             ),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(authorName.isNotEmpty ? authorName : 'Member', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              Text(authorName.isNotEmpty ? authorName : 'Member', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
               if (createdAt.isNotEmpty)
-                Text(SocialService.getTimeAgo(createdAt), style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textHint)),
+                Text(SocialService.getTimeAgo(createdAt), style: GoogleFonts.inter(fontSize: 10, color: AppColors.textHint)),
             ])),
           ]),
           if (content.isNotEmpty) ...[
             const SizedBox(height: 10),
-            Text(content, style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary, height: 1.5)),
+            Text(content, style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary, height: 1.5)),
           ],
           if (images.isNotEmpty) ...[
             const SizedBox(height: 10),
@@ -293,11 +293,11 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
           Row(children: [
             const Icon(Icons.favorite_outline, size: 16, color: AppColors.textHint),
             const SizedBox(width: 4),
-            Text('$glowCount', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+            Text('$glowCount', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
             const SizedBox(width: 16),
             const Icon(Icons.chat_bubble_outline, size: 16, color: AppColors.textHint),
             const SizedBox(width: 4),
-            Text('$commentCount', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+            Text('$commentCount', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
           ]),
         ],
       ),
@@ -307,7 +307,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
   Widget _membersTab() {
     if (_membersLoading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
     if (_members.isEmpty) {
-      return Center(child: Text(context.trw('no_members'), style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textTertiary)));
+      return Center(child: Text(context.trw('no_members'), style: GoogleFonts.inter(fontSize: 14, color: AppColors.textTertiary)));
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
@@ -338,9 +338,9 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
             ),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(name.isNotEmpty ? name : 'Unknown', style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              Text(name.isNotEmpty ? name : 'Unknown', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
               if (username.isNotEmpty)
-                Text('@$username', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+                Text('@$username', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
             ])),
           ]),
         );
@@ -368,9 +368,9 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textHint, letterSpacing: 0.5)),
+        Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textHint, letterSpacing: 0.5)),
         const SizedBox(height: 4),
-        Text(value, style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary, height: 1.5)),
+        Text(value, style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary, height: 1.5)),
       ]),
     );
   }
@@ -378,7 +378,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
   Widget _initials(String name) {
     return Center(child: Text(
       name.isNotEmpty ? name[0].toUpperCase() : '?',
-      style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textTertiary),
+      style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textTertiary),
     ));
   }
 }

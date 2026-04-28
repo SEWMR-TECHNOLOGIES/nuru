@@ -14,7 +14,7 @@ class AppTheme {
     double? height,
     double? letterSpacing,
   }) =>
-      GoogleFonts.plusJakartaSans(
+      GoogleFonts.inter(
         fontSize: fontSize,
         fontWeight: fontWeight,
         color: color ?? AppColors.textPrimary,
@@ -30,7 +30,7 @@ class AppTheme {
     double? height,
     double? letterSpacing,
   }) =>
-      GoogleFonts.plusJakartaSans(
+      GoogleFonts.inter(
         fontSize: fontSize,
         fontWeight: fontWeight,
         color: color ?? AppColors.textSecondary,
@@ -46,7 +46,7 @@ class AppTheme {
     double? height,
     double? letterSpacing,
   }) =>
-      GoogleFonts.plusJakartaSans(
+      GoogleFonts.inter(
         fontSize: fontSize,
         fontWeight: fontWeight,
         color: color ?? AppColors.textSecondary,
@@ -55,11 +55,17 @@ class AppTheme {
       );
 
   static ThemeData get lightTheme {
-    return ThemeData(
-      useMaterial3: true,
+    final base = ThemeData.light(useMaterial3: true);
+    return base.copyWith(
       brightness: Brightness.light,
       primaryColor: AppColors.primary,
       scaffoldBackgroundColor: AppColors.background,
+      // Apply Plus Jakarta Sans across the entire Material text system.
+      textTheme: GoogleFonts.interTextTheme(base.textTheme).apply(
+        bodyColor: AppColors.textPrimary,
+        displayColor: AppColors.textPrimary,
+      ),
+      primaryTextTheme: GoogleFonts.interTextTheme(base.primaryTextTheme),
       colorScheme: const ColorScheme.light(
         primary: AppColors.primary,
         secondary: AppColors.secondary,
@@ -70,20 +76,6 @@ class AppTheme {
         onSurface: AppColors.textPrimary,
         error: AppColors.error,
       ),
-      textTheme: TextTheme(
-        displayLarge: GoogleFonts.plusJakartaSans(fontSize: 40, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -1.5, height: 1.05),
-        displayMedium: GoogleFonts.plusJakartaSans(fontSize: 32, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -1.0, height: 1.08),
-        headlineLarge: GoogleFonts.plusJakartaSans(fontSize: 26, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -0.6),
-        headlineMedium: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.w600, color: AppColors.textPrimary, letterSpacing: -0.3),
-        titleLarge: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.textPrimary, letterSpacing: -0.2),
-        titleMedium: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-        bodyLarge: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.textSecondary, height: 1.6),
-        bodyMedium: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.textSecondary, height: 1.5),
-        bodySmall: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.textTertiary, height: 1.4),
-        labelLarge: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white, letterSpacing: 0.3),
-        labelMedium: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textSecondary, letterSpacing: 0.2),
-        labelSmall: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w500, color: AppColors.textTertiary, letterSpacing: 0.3),
-      ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
@@ -91,7 +83,7 @@ class AppTheme {
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          textStyle: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: 0.3),
+          textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: 0.3),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -101,7 +93,7 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           side: const BorderSide(color: AppColors.border, width: 1),
-          textStyle: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: 0.3),
+          textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: 0.3),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -113,8 +105,8 @@ class AppTheme {
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
         errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.error, width: 1)),
         focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.error, width: 1.5)),
-        hintStyle: GoogleFonts.plusJakartaSans(color: AppColors.textHint, fontSize: 14, fontWeight: FontWeight.w400),
-        errorStyle: GoogleFonts.plusJakartaSans(color: AppColors.error, fontSize: 12),
+        hintStyle: GoogleFonts.inter(color: AppColors.textHint, fontSize: 14, fontWeight: FontWeight.w400),
+        errorStyle: GoogleFonts.inter(color: AppColors.error, fontSize: 12),
         prefixIconColor: AppColors.textTertiary,
       ),
       appBarTheme: AppBarTheme(
@@ -123,7 +115,7 @@ class AppTheme {
         scrolledUnderElevation: 0,
         systemOverlayStyle: SystemUiOverlayStyle.dark,
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
-        titleTextStyle: GoogleFonts.plusJakartaSans(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w600),
+        titleTextStyle: GoogleFonts.inter(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w600),
       ),
       checkboxTheme: CheckboxThemeData(
         fillColor: WidgetStateProperty.resolveWith((states) {

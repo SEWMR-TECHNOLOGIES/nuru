@@ -263,8 +263,8 @@ class _ChatPanelState extends State<ChatPanel> {
                       child: Icon(Icons.send_outlined, color: AppColors.primary),
                     ),
                     const SizedBox(height: 12),
-                    Text('No messages yet', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
-                    Text('Say hi to your group 👋', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+                    Text('No messages yet', style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+                    Text('Say hi to your group 👋', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
                   ]),
                 )
               : ListView.builder(
@@ -287,7 +287,7 @@ class _ChatPanelState extends State<ChatPanel> {
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(20)),
                               child: Text(_dayLabel(m['created_at']),
-                                  style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 0.6)),
+                                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 0.6)),
                             ),
                           ),
                         ),
@@ -299,7 +299,7 @@ class _ChatPanelState extends State<ChatPanel> {
                               decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(20)),
                               child: Text(m['content'] ?? '',
                                   textAlign: TextAlign.center,
-                                  style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600)),
+                                  style: GoogleFonts.inter(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600)),
                             ),
                           )
                         else
@@ -329,7 +329,7 @@ class _ChatPanelState extends State<ChatPanel> {
               backgroundColor: AppColors.primarySoft,
               backgroundImage: m['sender_avatar_url'] != null ? NetworkImage(m['sender_avatar_url']) : null,
               child: m['sender_avatar_url'] == null
-                  ? Text(_initials(m['sender_name'] ?? '?'), style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.primary, fontWeight: FontWeight.w700))
+                  ? Text(_initials(m['sender_name'] ?? '?'), style: GoogleFonts.inter(fontSize: 10, color: AppColors.primary, fontWeight: FontWeight.w700))
                   : null,
             ),
             const SizedBox(width: 6),
@@ -344,7 +344,7 @@ class _ChatPanelState extends State<ChatPanel> {
                     Padding(
                       padding: const EdgeInsets.only(left: 4, bottom: 2),
                       child: Text(m['sender_name'],
-                          style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textTertiary)),
+                          style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textTertiary)),
                     ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -373,11 +373,11 @@ class _ChatPanelState extends State<ChatPanel> {
                             ),
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text(m['reply_to']['sender_name'] ?? '',
-                                  style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w700,
+                                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
                                       color: mine ? Colors.white.withOpacity(0.85) : AppColors.primary)),
                               Text(m['reply_to']['content'] ?? '',
                                   maxLines: 1, overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.plusJakartaSans(fontSize: 11,
+                                  style: GoogleFonts.inter(fontSize: 11,
                                       color: mine ? Colors.white.withOpacity(0.8) : AppColors.textSecondary)),
                             ]),
                           ),
@@ -389,7 +389,7 @@ class _ChatPanelState extends State<ChatPanel> {
                           Padding(
                             padding: EdgeInsets.only(top: m['image_url'] != null ? 6 : 0),
                             child: Text(m['content'],
-                                style: GoogleFonts.plusJakartaSans(
+                                style: GoogleFonts.inter(
                                   color: mine ? Colors.white : AppColors.textPrimary,
                                   fontSize: 14, height: 1.3,
                                 )),
@@ -397,7 +397,7 @@ class _ChatPanelState extends State<ChatPanel> {
                         const SizedBox(height: 4),
                         Row(mainAxisSize: MainAxisSize.min, children: [
                           Text(_formatTime(m['created_at']),
-                              style: GoogleFonts.plusJakartaSans(fontSize: 9,
+                              style: GoogleFonts.inter(fontSize: 9,
                                   color: mine ? Colors.white.withOpacity(0.75) : AppColors.textTertiary)),
                           if (mine) ...[
                             const SizedBox(width: 3),
@@ -425,7 +425,7 @@ class _ChatPanelState extends State<ChatPanel> {
                                 Text(r['emoji'], style: const TextStyle(fontSize: 11)),
                                 const SizedBox(width: 3),
                                 Text('${r['count']}',
-                                    style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w700,
+                                    style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
                                         color: r['mine'] == true ? AppColors.primary : AppColors.textSecondary)),
                               ]),
                             ),
@@ -498,10 +498,10 @@ class _ChatPanelState extends State<ChatPanel> {
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Text('Replying to ${_replyTo!['sender_name'] ?? ''}',
-                style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w700)),
+                style: GoogleFonts.inter(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w700)),
             Text(_replyTo!['content'] ?? 'Image',
                 maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textSecondary)),
+                style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary)),
           ]),
         ),
         IconButton(
@@ -521,7 +521,7 @@ class _ChatPanelState extends State<ChatPanel> {
         color: AppColors.surface,
         child: Center(
           child: Text('🔒 This event has ended. Group is read-only.',
-              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+              style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
         ),
       );
     }
@@ -550,7 +550,7 @@ class _ChatPanelState extends State<ChatPanel> {
               minLines: 1, maxLines: 4,
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(border: InputBorder.none, hintText: 'Write a message…'),
-              style: GoogleFonts.plusJakartaSans(fontSize: 14),
+              style: GoogleFonts.inter(fontSize: 14),
             ),
           ),
         ),

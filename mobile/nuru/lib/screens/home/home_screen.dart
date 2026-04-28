@@ -16,7 +16,7 @@ import '../events/event_detail_screen.dart' show EventDetailScreen;
 import '../events/event_public_view_screen.dart';
 import '../events/widgets/my_contributions_tab.dart';
 import '../search/search_screen.dart';
-import '../messages/messages_screen.dart';
+import '../tickets/my_tickets_screen.dart';
 import '../profile/profile_screen.dart';
 import 'widgets/moment_card.dart';
 import 'widgets/post_detail_modal.dart';
@@ -411,31 +411,46 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         body: Column(
           children: [
-            HomeHeader(
-              name: name,
-              avatar: avatar,
-              unreadNotifications: _unreadNotifications,
-              onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
-              onSearchTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchScreen())),
-              onNotificationsTap: () => setState(() => _tab = 3),
-              onRightPanelTap: () => _scaffoldKey.currentState?.openEndDrawer(),
-              onProfileTap: () => setState(() => _tab = 4),
-            ),
+            // Global header is only shown on tabs that need it (Home, Events).
+            // Tickets (3) and Profile (4) own their headers per design.
+            if (_tab == 0 || _tab == 1)
+              HomeHeader(
+                name: name,
+                avatar: avatar,
+                unreadNotifications: _unreadNotifications,
+                onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+                onSearchTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchScreen())),
+                onNotificationsTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => Scaffold(
+                      backgroundColor: AppColors.surface,
+                      body: HomeNotificationsTab(
+                        notifications: _notifications,
+                        unreadCount: _unreadNotifications,
+                        isLoading: _notificationsLoading,
+                        onRefresh: _loadNotifications,
+                        onSearch: (q) => _loadNotifications(search: q),
+                        onTabChanged: (i) {
+                          Navigator.pop(context);
+                          setState(() => _tab = i);
+                        },
+                      ),
+                    ),
+                  ),
+                ).then((_) => _loadNotifications()),
+                onRightPanelTap: () => _scaffoldKey.currentState?.openEndDrawer(),
+                onProfileTap: () => setState(() => _tab = 4),
+              ),
             Expanded(
               child: IndexedStack(
                 index: _tab,
                 children: [
                   _feedContent(),
                   _eventsContent(),
-                  const MessagesScreen(),
-                  HomeNotificationsTab(
-                    notifications: _notifications,
-                    unreadCount: _unreadNotifications,
-                    isLoading: _notificationsLoading,
-                    onRefresh: _loadNotifications,
-                    onSearch: (q) => _loadNotifications(search: q),
-                    onTabChanged: (i) => setState(() => _tab = i),
-                  ),
+                  // Index 2 is reserved for the center "+" create action.
+                  const SizedBox.shrink(),
+                  const MyTicketsScreen(),
                   _profileContent(),
                 ],
               ),
@@ -446,9 +461,16 @@ class _HomeScreenState extends State<HomeScreen> {
           currentTab: _tab,
           unreadMessages: _unreadMessages,
           unreadNotifications: _unreadNotifications,
+          onCreateTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CreateEventScreen()),
+            );
+          },
           onTabChanged: (i) {
+            // Center "+" is handled by onCreateTap; ignore stray index 2 taps.
+            if (i == 2) return;
             setState(() => _tab = i);
-            if (i == 2) _loadUnreadMessages();
           },
         ),
       ),
@@ -514,9 +536,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('My Events', style: GoogleFonts.plusJakartaSans(fontSize: 26, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -0.5, height: 1.1)),
+                        Text('My Events', style: GoogleFonts.inter(fontSize: 26, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -0.5, height: 1.1)),
                         const SizedBox(height: 4),
-                        Text('Plan, manage, and track all your events in one place', style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textTertiary, height: 1.4)),
+                        Text('Plan, manage, and track all your events in one place', style: GoogleFonts.inter(fontSize: 14, color: AppColors.textTertiary, height: 1.4)),
                       ],
                     ),
                   ),
@@ -607,7 +629,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _profileContent() {
     return ProfileScreen(
       profile: _profile,
-      myEventsCount: _totalEvents,
+      myEventsCount: _myEvents.length,
+      ticketsCount: _upcomingTickets.length,
       onRefresh: _loadAllData,
     );
   }
@@ -625,11 +648,11 @@ class _HomeScreenState extends State<HomeScreen> {
             _loadEvents();
           });
         },
-        style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary),
+        style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary),
         decoration: InputDecoration(
           isDense: true,
           hintText: 'Search by title, location…',
-          hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary),
+          hintStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary),
           prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.textTertiary),
           suffixIcon: _eventsSearch.isEmpty
               ? null

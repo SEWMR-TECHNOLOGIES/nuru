@@ -105,11 +105,66 @@ if f"{API_PREFIX}/card-templates" not in registered_paths:
 # ------------------------------------------------------------------
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
+    # Preserve the explicit error_code we set in some routes via exc.detail
+    # being a dict; otherwise wrap the string detail in the standard shape.
+    detail = exc.detail
+    if isinstance(detail, dict):
+        body = {"success": False, "data": None, **detail}
+    else:
+        body = {"success": False, "message": detail, "data": None}
+    return JSONResponse(status_code=exc.status_code, content=body)
+
+
+# ------------------------------------------------------------------
+# Catch-all error handlers
+# ------------------------------------------------------------------
+# Without these, an unhandled exception or upstream timeout reaches the proxy
+# (Vercel/nginx) which returns an HTML error page. The mobile client then
+# can't parse a JSON body and surfaces its generic "Unable to connect — check
+# your internet" fallback, which is misleading because the device is fine —
+# the *server* failed. Returning structured JSON with an explicit error_code
+# lets the client distinguish "request failed" from "no network".
+import asyncio  # noqa: E402
+
+
+@app.exception_handler(asyncio.TimeoutError)
+async def asyncio_timeout_handler(request: Request, exc: asyncio.TimeoutError):
     return JSONResponse(
-        status_code=exc.status_code,
+        status_code=504,
         content={
             "success": False,
-            "message": exc.detail,
+            "error_code": "UPSTREAM_TIMEOUT",
+            "message": "Request took too long. Please try again in a moment.",
+            "data": None,
+        },
+    )
+
+
+@app.exception_handler(TimeoutError)
+async def timeout_handler(request: Request, exc: TimeoutError):
+    return JSONResponse(
+        status_code=504,
+        content={
+            "success": False,
+            "error_code": "UPSTREAM_TIMEOUT",
+            "message": "Request took too long. Please try again in a moment.",
+            "data": None,
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    # Log the real error server-side; never leak the trace to the client.
+    import traceback
+    print(f"[unhandled] {request.method} {request.url.path}: {exc!r}")
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "error_code": "REQUEST_FAILED",
+            "message": "Request failed. Please try again.",
             "data": None,
         },
     )
