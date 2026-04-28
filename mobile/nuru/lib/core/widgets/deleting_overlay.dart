@@ -39,7 +39,7 @@ class DeletingOverlay extends StatelessWidget {
                   const SizedBox(width: 10),
                   Text(
                     label,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textSecondary,

@@ -64,11 +64,11 @@ class _ScoreboardPanelState extends State<ScoreboardPanel> {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary, fontWeight: FontWeight.w600)),
+          Text(label, style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary, fontWeight: FontWeight.w600)),
           Icon(icon, size: 14, color: color),
         ]),
         const SizedBox(height: 6),
-        Text(value, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 16, color: color)),
+        Text(value, style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 16, color: color)),
       ]),
     );
   }
@@ -84,7 +84,7 @@ class _ScoreboardPanelState extends State<ScoreboardPanel> {
             backgroundColor: AppColors.surface,
             backgroundImage: row['avatar_url'] != null ? NetworkImage(row['avatar_url']) : null,
             child: row['avatar_url'] == null
-                ? Text(_initials(row['display_name'] ?? '?'), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, color: AppColors.primary))
+                ? Text(_initials(row['display_name'] ?? '?'), style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: AppColors.primary))
                 : null,
           ),
         ),
@@ -102,14 +102,14 @@ class _ScoreboardPanelState extends State<ScoreboardPanel> {
             border: Border.all(color: ring.withOpacity(0.4)),
           ),
           child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-            Text('#$rank', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 12)),
+            Text('#$rank', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 12)),
             const SizedBox(height: 2),
             Text(row['display_name'] ?? '',
                 maxLines: 1, overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 11, color: AppColors.textPrimary)),
+                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 11, color: AppColors.textPrimary)),
             Text(_money(row['paid']),
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 11, color: AppColors.primary)),
+                style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 11, color: AppColors.primary)),
           ]),
         ),
       ]),
@@ -148,8 +148,8 @@ class _ScoreboardPanelState extends State<ScoreboardPanel> {
               decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Text('Collection Progress', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 13)),
-                  Text('${rate.round()}%', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.primary)),
+                  Text('Collection Progress', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
+                  Text('${rate.round()}%', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.primary)),
                 ]),
                 const SizedBox(height: 8),
                 ClipRRect(
@@ -185,16 +185,16 @@ class _ScoreboardPanelState extends State<ScoreboardPanel> {
                 child: Row(children: [
                   Icon(Icons.emoji_events_outlined, size: 16, color: AppColors.primary),
                   const SizedBox(width: 6),
-                  Text('Leaderboard', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 13)),
+                  Text('Leaderboard', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
                   const Spacer(),
-                  Text('${_rows.length}', style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
+                  Text('${_rows.length}', style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
                 ]),
               ),
               const Divider(height: 1),
               if (_rows.isEmpty)
                 Padding(
                   padding: const EdgeInsets.all(24),
-                  child: Text('No contributors yet', style: GoogleFonts.plusJakartaSans(color: AppColors.textTertiary)),
+                  child: Text('No contributors yet', style: GoogleFonts.inter(color: AppColors.textTertiary)),
                 )
               else
                 ...rest.asMap().entries.map((e) {
@@ -205,14 +205,14 @@ class _ScoreboardPanelState extends State<ScoreboardPanel> {
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(border: Border(top: BorderSide(color: AppColors.borderLight))),
                     child: Row(children: [
-                      SizedBox(width: 24, child: Text('#$rank', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textTertiary))),
+                      SizedBox(width: 24, child: Text('#$rank', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textTertiary))),
                       const SizedBox(width: 4),
                       CircleAvatar(
                         radius: 16,
                         backgroundColor: AppColors.primarySoft,
                         backgroundImage: r['avatar_url'] != null ? NetworkImage(r['avatar_url']) : null,
                         child: r['avatar_url'] == null
-                            ? Text(_initials(r['display_name'] ?? '?'), style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w700))
+                            ? Text(_initials(r['display_name'] ?? '?'), style: GoogleFonts.inter(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w700))
                             : null,
                       ),
                       const SizedBox(width: 10),
@@ -222,10 +222,10 @@ class _ScoreboardPanelState extends State<ScoreboardPanel> {
                             Expanded(
                               child: Text(r['display_name'] ?? '',
                                   maxLines: 1, overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 13)),
+                                  style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
                             ),
                             Text(_money(r['paid']),
-                                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.primary)),
+                                style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.primary)),
                           ]),
                           const SizedBox(height: 4),
                           Row(children: [
@@ -240,11 +240,11 @@ class _ScoreboardPanelState extends State<ScoreboardPanel> {
                             ),
                             const SizedBox(width: 6),
                             SizedBox(width: 28, child: Text('$pct%', textAlign: TextAlign.right,
-                                style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary, fontWeight: FontWeight.w600))),
+                                style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary, fontWeight: FontWeight.w600))),
                           ]),
                           const SizedBox(height: 2),
                           Text('Pledged ${_money(r['pledged'])} · Bal ${_money(r['balance'])}',
-                              style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary)),
+                              style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary)),
                         ]),
                       ),
                     ]),

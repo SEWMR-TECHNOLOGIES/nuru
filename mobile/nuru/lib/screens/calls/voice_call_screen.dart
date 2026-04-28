@@ -1,0 +1,415 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:livekit_client/livekit_client.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/services/calls_service.dart';
+
+/// WhatsApp-style 1:1 voice call screen.
+///
+/// Handles BOTH:
+///   • Outgoing — caller initiates via [VoiceCallScreen.outgoing]. We already
+///     have a LiveKit token from `/calls/start`, so we connect immediately and
+///     show "Calling…" until a remote participant joins.
+///   • Incoming — callee accepts from CallKit / in-app and gets routed here
+///     via [VoiceCallScreen.incoming]. We call `/calls/{id}/answer` to fetch
+///     the LiveKit token, then connect.
+///
+/// Both modes share the same UI: large avatar, name, status line, and the
+/// three-button control row (Mute · Speaker · End).
+class VoiceCallScreen extends StatefulWidget {
+  final String callId;
+  final String peerName;
+  final String? peerAvatar;
+  final bool isOutgoing;
+
+  /// Pre-fetched LiveKit credentials for outgoing calls.
+  /// For incoming calls these stay null and we fetch them via /answer.
+  final String? livekitUrl;
+  final String? livekitToken;
+
+  const VoiceCallScreen({
+    super.key,
+    required this.callId,
+    required this.peerName,
+    this.peerAvatar,
+    required this.isOutgoing,
+    this.livekitUrl,
+    this.livekitToken,
+  });
+
+  factory VoiceCallScreen.outgoing({
+    required String callId,
+    required String peerName,
+    String? peerAvatar,
+    required String livekitUrl,
+    required String livekitToken,
+  }) =>
+      VoiceCallScreen(
+        callId: callId,
+        peerName: peerName,
+        peerAvatar: peerAvatar,
+        isOutgoing: true,
+        livekitUrl: livekitUrl,
+        livekitToken: livekitToken,
+      );
+
+  factory VoiceCallScreen.incoming({
+    required String callId,
+    required String peerName,
+    String? peerAvatar,
+  }) =>
+      VoiceCallScreen(
+        callId: callId,
+        peerName: peerName,
+        peerAvatar: peerAvatar,
+        isOutgoing: false,
+      );
+
+  @override
+  State<VoiceCallScreen> createState() => _VoiceCallScreenState();
+}
+
+class _VoiceCallScreenState extends State<VoiceCallScreen> {
+  Room? _room;
+  EventsListener<RoomEvent>? _listener;
+
+  bool _connecting = true;
+  bool _connected = false; // remote participant has joined
+  bool _muted = false;
+  bool _speakerOn = false;
+  String _status = 'Connecting…';
+
+  Timer? _durationTimer;
+  DateTime? _connectedAt;
+  Duration _elapsed = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    // Mic permission is mandatory for voice calls.
+    final mic = await Permission.microphone.request();
+    if (!mic.isGranted) {
+      _fail('Microphone permission is required');
+      return;
+    }
+
+    String? url = widget.livekitUrl;
+    String? token = widget.livekitToken;
+
+    if (!widget.isOutgoing) {
+      setState(() => _status = 'Connecting…');
+      final res = await CallsService.answer(widget.callId);
+      if (res['success'] == true && res['data'] is Map) {
+        final data = res['data'] as Map;
+        url = data['url']?.toString();
+        token = data['token']?.toString();
+      }
+    }
+
+    if (url == null || token == null || url.isEmpty || token.isEmpty) {
+      _fail('Could not get call credentials');
+      return;
+    }
+
+    setState(() => _status = widget.isOutgoing ? 'Calling…' : 'Connecting…');
+    await _connectLiveKit(url, token);
+  }
+
+  Future<void> _connectLiveKit(String url, String token) async {
+    try {
+      final room = Room(
+        roomOptions: const RoomOptions(
+          adaptiveStream: true,
+          dynacast: true,
+          defaultAudioPublishOptions: AudioPublishOptions(dtx: true),
+        ),
+      );
+      _listener = room.createListener();
+      _listener!
+        ..on<ParticipantConnectedEvent>((_) => _onRemoteJoined())
+        ..on<ParticipantDisconnectedEvent>((_) => _onRemoteLeft())
+        ..on<RoomDisconnectedEvent>((_) => _hangup(notifyServer: false));
+
+      await room.connect(url, token);
+      await room.localParticipant?.setMicrophoneEnabled(true);
+
+      // If the other party is already in the room (we were the callee), mark
+      // connected immediately.
+      final hasRemote = room.remoteParticipants.isNotEmpty;
+      setState(() {
+        _room = room;
+        _connecting = false;
+      });
+      if (hasRemote) _onRemoteJoined();
+    } catch (e) {
+      _fail('Failed to connect: $e');
+    }
+  }
+
+  void _onRemoteJoined() {
+    if (_connected || !mounted) return;
+    setState(() {
+      _connected = true;
+      _status = '00:00';
+      _connectedAt = DateTime.now();
+    });
+    _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted || _connectedAt == null) return;
+      setState(() {
+        _elapsed = DateTime.now().difference(_connectedAt!);
+        _status = _formatDuration(_elapsed);
+      });
+    });
+  }
+
+  void _onRemoteLeft() {
+    // Other side dropped — end the call from our side too.
+    _hangup();
+  }
+
+  Future<void> _toggleMute() async {
+    final lp = _room?.localParticipant;
+    if (lp == null) return;
+    final next = !_muted;
+    await lp.setMicrophoneEnabled(!next);
+    setState(() => _muted = next);
+  }
+
+  Future<void> _toggleSpeaker() async {
+    final next = !_speakerOn;
+    try {
+      // LiveKit speakerOn API name varies between minor versions; fall back
+      // silently if it's not available.
+      // ignore: invalid_use_of_internal_member
+      await Hardware.instance.setSpeakerphoneOn(next);
+    } catch (_) {}
+    setState(() => _speakerOn = next);
+  }
+
+  Future<void> _hangup({bool notifyServer = true}) async {
+    _durationTimer?.cancel();
+    try {
+      await _room?.disconnect();
+    } catch (_) {}
+    if (notifyServer) {
+      // Fire-and-forget; UI shouldn't block on it.
+      // ignore: unawaited_futures
+      CallsService.end(widget.callId);
+    }
+    if (mounted) Navigator.of(context).maybePop();
+  }
+
+  void _fail(String message) {
+    if (!mounted) return;
+    setState(() {
+      _status = message;
+      _connecting = false;
+    });
+    Future.delayed(const Duration(seconds: 2), () => _hangup());
+  }
+
+  String _formatDuration(Duration d) {
+    final mm = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final ss = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    if (d.inHours > 0) {
+      final hh = d.inHours.toString().padLeft(2, '0');
+      return '$hh:$mm:$ss';
+    }
+    return '$mm:$ss';
+  }
+
+  @override
+  void dispose() {
+    _durationTimer?.cancel();
+    _listener?.dispose();
+    _room?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0E1116),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 24),
+            Text(
+              widget.isOutgoing ? 'Voice call' : 'Incoming voice call',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: Colors.white.withValues(alpha: 0.6),
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.3,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              widget.peerName,
+              style: GoogleFonts.inter(
+                fontSize: 26,
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _status,
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                color: Colors.white.withValues(alpha: 0.75),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const Spacer(),
+            _avatar(),
+            const Spacer(),
+            _controls(),
+            const SizedBox(height: 28),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _avatar() {
+    final size = 168.0;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.primary.withValues(alpha: 0.22),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: _connected ? 0.35 : 0.18),
+            blurRadius: _connected ? 32 : 18,
+            spreadRadius: _connected ? 4 : 1,
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: (widget.peerAvatar != null && widget.peerAvatar!.isNotEmpty)
+          ? CachedNetworkImage(
+              imageUrl: widget.peerAvatar!,
+              fit: BoxFit.cover,
+              errorWidget: (_, __, ___) => _avatarFallback(),
+              placeholder: (_, __) => _avatarFallback(),
+            )
+          : _avatarFallback(),
+    );
+  }
+
+  Widget _avatarFallback() {
+    return Center(
+      child: Text(
+        widget.peerName.isNotEmpty ? widget.peerName[0].toUpperCase() : '?',
+        style: GoogleFonts.inter(
+          fontSize: 64,
+          fontWeight: FontWeight.w700,
+          color: AppColors.primaryDark,
+        ),
+      ),
+    );
+  }
+
+  Widget _controls() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _circleBtn(
+          icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded,
+          label: _muted ? 'Unmute' : 'Mute',
+          active: _muted,
+          onTap: _connecting ? null : _toggleMute,
+        ),
+        _endBtn(),
+        _circleBtn(
+          icon: _speakerOn ? Icons.volume_up_rounded : Icons.volume_down_rounded,
+          label: 'Speaker',
+          active: _speakerOn,
+          onTap: _connecting ? null : _toggleSpeaker,
+        ),
+      ],
+    );
+  }
+
+  Widget _circleBtn({
+    required IconData icon,
+    required String label,
+    required bool active,
+    VoidCallback? onTap,
+  }) {
+    final bg = active ? Colors.white : Colors.white.withValues(alpha: 0.14);
+    final fg = active ? const Color(0xFF0E1116) : Colors.white;
+    return Column(
+      children: [
+        InkResponse(
+          onTap: onTap,
+          radius: 38,
+          child: Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: bg),
+            child: Icon(icon, color: fg, size: 28),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: Colors.white.withValues(alpha: 0.7),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _endBtn() {
+    return Column(
+      children: [
+        InkResponse(
+          onTap: _hangup,
+          radius: 44,
+          child: Container(
+            width: 76,
+            height: 76,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Color(0xFFE53935),
+            ),
+            child: Transform.rotate(
+              angle: 2.356, // 135° to mimic the WhatsApp end-call icon
+              child: SvgPicture.asset(
+                'assets/icons/call-icon.svg',
+                width: 30,
+                height: 30,
+                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'End',
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: Colors.white.withValues(alpha: 0.7),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}

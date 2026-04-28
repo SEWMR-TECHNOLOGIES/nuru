@@ -41,6 +41,9 @@ celery_app = Celery(
         "tasks.content_cleanup",
         "tasks.quality_scores",
         "tasks.notifications",
+        "tasks.sms_dispatch",
+        "tasks.payments_verify",
+        "tasks.maintenance",
     ],
 )
 
@@ -77,6 +80,49 @@ celery_app.conf.update(
         "recompute-quality-scores": {
             "task": "tasks.quality_scores.recompute_quality_scores_task",
             "schedule": crontab(minute="*/30"),  # Every 30 minutes
+        },
+        # Re-flushes any sms_send_jobs left 'queued' (Vercel inline runs
+        # that hit the time budget, or failed jobs whose 1h retry window
+        # has elapsed). Cheap — uses the (status,next_retry_at) index.
+        "resume-pending-sms-batches": {
+            "task": "tasks.sms_dispatch.resume_pending_batches",
+            "schedule": crontab(minute="*/5"),
+        },
+        # Re-poll the payment gateway for any stale pending mobile-money
+        # transactions and promote them to paid/failed. Replaces the need
+        # for an external cron pinging POST /payments/verify-pending.
+        "verify-pending-payments": {
+            "task": "tasks.payments_verify.verify_pending_transactions",
+            "schedule": crontab(minute="*/2"),
+        },
+        # Free seat inventory by deleting ticket reservations that were
+        # never paid for before reserved_until elapsed.
+        "sweep-expired-ticket-reservations": {
+            "task": "tasks.payments_verify.sweep_expired_ticket_reservations",
+            "schedule": crontab(minute="*/10"),
+        },
+        # Deactivate moments past their expires_at so the global feed
+        # filter is cheap and content_cleanup can hard-delete them after
+        # 7 days.
+        "expire-moments": {
+            "task": "tasks.maintenance.expire_moments",
+            "schedule": crontab(minute="*/15"),
+        },
+        # Security: drop expired OTPs, password-reset tokens, and sessions.
+        "purge-expired-auth-tokens": {
+            "task": "tasks.maintenance.purge_expired_auth_tokens",
+            "schedule": crontab(minute=0, hour="*"),  # hourly
+        },
+        # Flip stale service_delivery_otps from 'active' to 'expired' so
+        # booking screens reflect the correct state without user action.
+        "expire-stale-delivery-otps": {
+            "task": "tasks.maintenance.expire_stale_delivery_otps",
+            "schedule": crontab(minute="*/10"),
+        },
+        # Analytics retention — drop page_views older than 90 days.
+        "prune-old-page-views": {
+            "task": "tasks.maintenance.prune_old_page_views",
+            "schedule": crontab(minute=30, hour=3),  # daily at 03:30 EAT
         },
     },
 )

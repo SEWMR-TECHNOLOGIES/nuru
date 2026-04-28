@@ -167,22 +167,22 @@ class _CreatePostBoxState extends State<CreatePostBox> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Location Permission Required', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700)),
+        title: Text('Location Permission Required', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700)),
         content: Text(
           'To tag your moment with a location, please allow Nuru to access your location.',
-          style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textSecondary, height: 1.5),
+          style: GoogleFonts.inter(fontSize: 14, color: AppColors.textSecondary, height: 1.5),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Not Now', style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+            child: Text('Not Now', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
           ),
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
               await LocationService.openSettings();
             },
-            child: Text('Open Settings', style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primary)),
+            child: Text('Open Settings', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primary)),
           ),
         ],
       ),
@@ -215,7 +215,7 @@ class _CreatePostBoxState extends State<CreatePostBox> {
             SnackBar(
               content: Text(
                 'Moment shared!',
-                style: GoogleFonts.plusJakartaSans(
+                style: GoogleFonts.inter(
                   fontWeight: FontWeight.w600,
                   height: 1.3,
                 ),
@@ -233,7 +233,7 @@ class _CreatePostBoxState extends State<CreatePostBox> {
             SnackBar(
               content: Text(
                 result['message'] ?? 'Failed to share moment',
-                style: GoogleFonts.plusJakartaSans(height: 1.3),
+                style: GoogleFonts.inter(height: 1.3),
               ),
               backgroundColor: AppColors.error,
               behavior: SnackBarBehavior.floating,
@@ -277,7 +277,7 @@ class _CreatePostBoxState extends State<CreatePostBox> {
                 onTap: () => setState(() => _isExpanded = true),
                 decoration: InputDecoration(
                   hintText: 'Share a moment...',
-                  hintStyle: GoogleFonts.plusJakartaSans(
+                  hintStyle: GoogleFonts.inter(
                     fontSize: 15,
                     color: AppColors.textHint,
                     fontWeight: FontWeight.w400,
@@ -290,7 +290,7 @@ class _CreatePostBoxState extends State<CreatePostBox> {
                   contentPadding: EdgeInsets.zero,
                   isDense: true,
                 ),
-                style: GoogleFonts.plusJakartaSans(
+                style: GoogleFonts.inter(
                   fontSize: 15,
                   color: AppColors.textPrimary,
                   height: 1.5,
@@ -409,7 +409,7 @@ class _CreatePostBoxState extends State<CreatePostBox> {
                     Flexible(
                       child: Text(
                         _locationName!,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: GoogleFonts.inter(
                           fontSize: 11,
                           color: AppColors.textSecondary,
                           fontWeight: FontWeight.w500,
@@ -474,7 +474,7 @@ class _CreatePostBoxState extends State<CreatePostBox> {
                         const SizedBox(width: 4),
                         Text(
                           _visibility == 'public' ? 'Public' : 'Circle',
-                          style: GoogleFonts.plusJakartaSans(
+                          style: GoogleFonts.inter(
                             fontSize: 10,
                             color: AppColors.textSecondary,
                             fontWeight: FontWeight.w500,
@@ -505,7 +505,7 @@ class _CreatePostBoxState extends State<CreatePostBox> {
                           )
                         : Text(
                             'Share Moment',
-                            style: GoogleFonts.plusJakartaSans(
+                            style: GoogleFonts.inter(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                               color: _canSubmit ? Colors.white : AppColors.textHint,

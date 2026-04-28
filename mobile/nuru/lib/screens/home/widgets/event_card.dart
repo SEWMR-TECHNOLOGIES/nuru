@@ -76,7 +76,7 @@ class EventCard extends StatelessWidget {
                       ),
                       child: Text(
                         statusCfg['label'] as String,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: GoogleFonts.inter(
                           fontSize: 9,
                           fontWeight: FontWeight.w600,
                           color: Colors.white,
@@ -102,7 +102,7 @@ class EventCard extends StatelessWidget {
                         ),
                         child: Text(
                           eventType.toString(),
-                          style: GoogleFonts.plusJakartaSans(
+                          style: GoogleFonts.inter(
                             fontSize: 9,
                             fontWeight: FontWeight.w600,
                             color: Colors.white,
@@ -137,7 +137,7 @@ class EventCard extends StatelessWidget {
                               : role == 'committee'
                               ? 'Committee'
                               : 'Invited',
-                          style: GoogleFonts.plusJakartaSans(
+                          style: GoogleFonts.inter(
                             fontSize: 9,
                             fontWeight: FontWeight.w600,
                             color: Colors.white,
@@ -162,7 +162,7 @@ class EventCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           title.toString(),
-                          style: GoogleFonts.plusJakartaSans(
+                          style: GoogleFonts.inter(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                             color: AppColors.textPrimary,
@@ -214,7 +214,7 @@ class EventCard extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       description.toString(),
-                      style: GoogleFonts.plusJakartaSans(
+                      style: GoogleFonts.inter(
                         fontSize: 13,
                         color: AppColors.textTertiary,
                         height: 1.4,
@@ -261,7 +261,7 @@ class EventCard extends StatelessWidget {
                             const SizedBox(width: 6),
                             Text(
                               'Show Invitation QR',
-                              style: GoogleFonts.plusJakartaSans(
+                              style: GoogleFonts.inter(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 color: AppColors.primary,
@@ -340,7 +340,7 @@ class EventCard extends StatelessWidget {
         Flexible(
           child: Text(
             text,
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.inter(
               fontSize: 12,
               color: AppColors.textTertiary,
               height: 1.4,
@@ -375,7 +375,7 @@ class EventCard extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             text,
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.inter(
               fontSize: 10,
               fontWeight: FontWeight.w600,
               color: isPast ? AppColors.textTertiary : AppColors.primary,
@@ -393,7 +393,7 @@ class EventCard extends StatelessWidget {
         children: [
           Text(
             label,
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.inter(
               fontSize: 9,
               color: AppColors.textTertiary,
               letterSpacing: 0.3,
@@ -403,7 +403,7 @@ class EventCard extends StatelessWidget {
           const SizedBox(height: 3),
           Text(
             value,
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.inter(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: AppColors.textPrimary,

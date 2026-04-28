@@ -84,7 +84,7 @@ class _TrendingRailState extends State<TrendingRail> {
                 ),
                 const SizedBox(width: 8),
                 Text('Trending now',
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.inter(
                         fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary, letterSpacing: 0.2)),
               ],
             ),
@@ -135,7 +135,7 @@ class _TrendingRailState extends State<TrendingRail> {
                                       (post['content'] ?? '').toString(),
                                       maxLines: 5,
                                       overflow: TextOverflow.ellipsis,
-                                      style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600),
+                                      style: GoogleFonts.inter(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600),
                                     ),
                                   ),
                                 ),
@@ -163,7 +163,7 @@ class _TrendingRailState extends State<TrendingRail> {
                                 backgroundImage: (avatar != null && avatar.isNotEmpty) ? NetworkImage(avatar) : null,
                                 child: (avatar == null || avatar.isEmpty)
                                     ? Text(_initials(name.isEmpty ? '?' : name),
-                                        style: GoogleFonts.plusJakartaSans(fontSize: 8, fontWeight: FontWeight.w800, color: AppColors.primary))
+                                        style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w800, color: AppColors.primary))
                                     : null,
                               ),
                               const SizedBox(width: 6),
@@ -172,7 +172,7 @@ class _TrendingRailState extends State<TrendingRail> {
                                   name.isEmpty ? 'Community' : name,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
+                                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
                                 ),
                               ),
                             ],
@@ -191,12 +191,12 @@ class _TrendingRailState extends State<TrendingRail> {
                               const Icon(Icons.favorite_rounded, size: 9, color: Colors.white),
                               const SizedBox(width: 3),
                               Text('$glow',
-                                  style: GoogleFonts.plusJakartaSans(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700)),
+                                  style: GoogleFonts.inter(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700)),
                               const SizedBox(width: 6),
                               const Icon(Icons.mode_comment_rounded, size: 9, color: Colors.white),
                               const SizedBox(width: 3),
                               Text('$echo',
-                                  style: GoogleFonts.plusJakartaSans(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700)),
+                                  style: GoogleFonts.inter(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700)),
                             ]),
                           ),
                         ),

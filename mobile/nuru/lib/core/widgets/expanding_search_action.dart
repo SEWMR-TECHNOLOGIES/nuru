@@ -87,11 +87,11 @@ class _ExpandingSearchActionState extends State<ExpandingSearchAction> {
           textInputAction: TextInputAction.search,
           onChanged: _onTextChanged,
           onSubmitted: widget.onChanged,
-          style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary),
+          style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary),
           decoration: InputDecoration(
             isDense: true,
             hintText: widget.hintText,
-            hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary),
+            hintStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary),
             prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.textTertiary),
             suffixIcon: IconButton(
               icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textTertiary),

@@ -127,7 +127,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
           unselectedLabelColor: AppColors.textTertiary,
           indicatorColor: AppColors.primary,
           indicatorWeight: 2.5,
-          labelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700),
+          labelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700),
           tabs: const [
             Tab(text: 'Tickets'),
             Tab(text: 'Payments'),
@@ -160,13 +160,13 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
                   children: [
                     const MigrationBanner(surface: MigrationSurface.tickets, margin: EdgeInsets.only(bottom: 12)),
                     if (_upcomingTickets.isNotEmpty) ...[
-                      Text('UPCOMING EVENTS', style: GoogleFonts.plusJakartaSans(
+                      Text('UPCOMING EVENTS', style: GoogleFonts.inter(
                         fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 1.2)),
                       const SizedBox(height: 10),
                       ..._upcomingTickets.take(3).map((t) => _upcomingSidebarCard(t)),
                       const SizedBox(height: 20),
                     ],
-                    Text('ALL TICKETS', style: GoogleFonts.plusJakartaSans(
+                    Text('ALL TICKETS', style: GoogleFonts.inter(
                       fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 1.2)),
                     const SizedBox(height: 10),
                     if (_tickets.isEmpty)
@@ -186,7 +186,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
       padding: const EdgeInsets.all(16),
       children: [
         // Upcoming skeleton
-        Text('UPCOMING EVENTS', style: GoogleFonts.plusJakartaSans(
+        Text('UPCOMING EVENTS', style: GoogleFonts.inter(
           fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 1.2)),
         const SizedBox(height: 10),
         ...List.generate(2, (_) => Container(
@@ -195,7 +195,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
           decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(14)),
         )),
         const SizedBox(height: 20),
-        Text('ALL TICKETS', style: GoogleFonts.plusJakartaSans(
+        Text('ALL TICKETS', style: GoogleFonts.inter(
           fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 1.2)),
         const SizedBox(height: 10),
         ...List.generate(4, (_) => Container(
@@ -218,10 +218,10 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
               colorFilter: ColorFilter.mode(AppColors.textHint.withOpacity(0.3), BlendMode.srcIn))),
         ),
         const SizedBox(height: 16),
-        Text('No tickets yet', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        Text('No tickets yet', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
         const SizedBox(height: 6),
         Text('Browse events and purchase tickets to see them here',
-            style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary), textAlign: TextAlign.center),
+            style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary), textAlign: TextAlign.center),
         const SizedBox(height: 16),
         GestureDetector(
           onTap: () => Navigator.pushNamed(context, '/tickets'),
@@ -231,7 +231,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
               border: Border.all(color: AppColors.borderLight),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Text('Browse Tickets', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+            child: Text('Browse Tickets', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
           ),
         ),
       ],
@@ -291,9 +291,9 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
                       ),
                       child: Column(
                         children: [
-                          Text('${d.day}', style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.primary, height: 1)),
+                          Text('${d.day}', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.primary, height: 1)),
                           const SizedBox(height: 1),
-                          Text(_monthAbbr(d.month).toUpperCase(), style: GoogleFonts.plusJakartaSans(fontSize: 7, fontWeight: FontWeight.w700, color: AppColors.primary, letterSpacing: 0.5)),
+                          Text(_monthAbbr(d.month).toUpperCase(), style: GoogleFonts.inter(fontSize: 7, fontWeight: FontWeight.w700, color: AppColors.primary, letterSpacing: 0.5)),
                         ],
                       ),
                     ),
@@ -307,7 +307,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(eventName, maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                   if (location.isNotEmpty) ...[
                     const SizedBox(height: 3),
                     Row(children: [
@@ -315,7 +315,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
                           colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
                       const SizedBox(width: 4),
                       Expanded(child: Text(location, maxLines: 1, overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary))),
+                          style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary))),
                     ]),
                   ],
                   // Countdown (matches web CountdownClock compact)
@@ -400,17 +400,17 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               const SizedBox(height: 12),
-                              Text('${d.day}', style: GoogleFonts.plusJakartaSans(
+                              Text('${d.day}', style: GoogleFonts.inter(
                                 fontSize: 22, fontWeight: FontWeight.w800, height: 1,
                                 color: countdown != null && countdown['isPast'] == true ? AppColors.textTertiary : AppColors.primary,
                               )),
                               const SizedBox(height: 2),
-                              Text(_monthAbbr(d.month).toUpperCase(), style: GoogleFonts.plusJakartaSans(
+                              Text(_monthAbbr(d.month).toUpperCase(), style: GoogleFonts.inter(
                                 fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.5,
                                 color: countdown != null && countdown['isPast'] == true ? AppColors.textTertiary : AppColors.primary,
                               )),
                               const SizedBox(height: 2),
-                              Text('${d.year}', style: GoogleFonts.plusJakartaSans(fontSize: 9, color: AppColors.textTertiary)),
+                              Text('${d.year}', style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary)),
                               const SizedBox(height: 12),
                             ],
                           ),
@@ -432,7 +432,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
                         Row(
                           children: [
                             Expanded(child: Text(eventName, maxLines: 1, overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
+                                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -440,7 +440,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
                                 color: statusColor.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: Text(status, style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w600, color: statusColor)),
+                              child: Text(status, style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: statusColor)),
                             ),
                           ],
                         ),
@@ -452,7 +452,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
                                 colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
                             const SizedBox(width: 4),
                             Expanded(child: Text(location, maxLines: 1, overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary))),
+                                style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary))),
                           ]),
                         ],
                         const SizedBox(height: 6),
@@ -471,11 +471,11 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
                                 child: Text(ticketCode, style: GoogleFonts.sourceCodePro(fontSize: 9, color: AppColors.textTertiary, letterSpacing: 0.5)),
                               ),
                             if (ticketClassName.isNotEmpty)
-                              Text(ticketClassName, style: GoogleFonts.plusJakartaSans(fontSize: 9, color: AppColors.textTertiary)),
+                              Text(ticketClassName, style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary)),
                             if (quantity is int && quantity > 1)
-                              Text('×$quantity', style: GoogleFonts.plusJakartaSans(fontSize: 9, color: AppColors.textTertiary)),
+                              Text('×$quantity', style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary)),
                             Text('TZS ${_formatAmount(totalAmount)}',
-                                style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                                style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                           ],
                         ),
                         // Checked in badge
@@ -489,7 +489,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
                               children: [
                                 const Icon(Icons.check_circle, size: 10, color: AppColors.success),
                                 const SizedBox(width: 3),
-                                Text('Checked In', style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.success)),
+                                Text('Checked In', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.success)),
                               ],
                             ),
                           ),
@@ -598,11 +598,11 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(eventName, style: GoogleFonts.plusJakartaSans(
+                    Text(eventName, style: GoogleFonts.inter(
                       fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white, height: 1.3)),
                     if (ticketClass.isNotEmpty) ...[
                       const SizedBox(height: 4),
-                      Text(ticketClass.toUpperCase(), style: GoogleFonts.plusJakartaSans(
+                      Text(ticketClass.toUpperCase(), style: GoogleFonts.inter(
                         fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFFC9A96E), letterSpacing: 3)),
                     ],
                   ],
@@ -637,33 +637,33 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (startDate.isNotEmpty) ...[
-                            Text('DATE', style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w500, color: Colors.grey, letterSpacing: 2)),
+                            Text('DATE', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w500, color: Colors.grey, letterSpacing: 2)),
                             const SizedBox(height: 3),
-                            Text(formatDate(startDate), style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1a1a1a))),
+                            Text(formatDate(startDate), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1a1a1a))),
                             const SizedBox(height: 14),
                           ],
                           if (startTime.isNotEmpty && startTime.length >= 5) ...[
-                            Text('TIME', style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w500, color: Colors.grey, letterSpacing: 2)),
+                            Text('TIME', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w500, color: Colors.grey, letterSpacing: 2)),
                             const SizedBox(height: 3),
-                            Text(startTime.substring(0, 5), style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1a1a1a))),
+                            Text(startTime.substring(0, 5), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1a1a1a))),
                             const SizedBox(height: 14),
                           ],
                           if (location.isNotEmpty) ...[
-                            Text('VENUE', style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w500, color: Colors.grey, letterSpacing: 2)),
+                            Text('VENUE', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w500, color: Colors.grey, letterSpacing: 2)),
                             const SizedBox(height: 3),
-                            Text(location, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1a1a1a))),
+                            Text(location, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1a1a1a))),
                             const SizedBox(height: 14),
                           ],
                           if (buyerName.isNotEmpty) ...[
-                            Text('ATTENDEE', style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w500, color: Colors.grey, letterSpacing: 2)),
+                            Text('ATTENDEE', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w500, color: Colors.grey, letterSpacing: 2)),
                             const SizedBox(height: 3),
-                            Text(buyerName, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1a1a1a))),
+                            Text(buyerName, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1a1a1a))),
                             const SizedBox(height: 14),
                           ],
                           if (quantity > 1) ...[
-                            Text('QUANTITY', style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w500, color: Colors.grey, letterSpacing: 2)),
+                            Text('QUANTITY', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w500, color: Colors.grey, letterSpacing: 2)),
                             const SizedBox(height: 3),
-                            Text('$quantity tickets', style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1a1a1a))),
+                            Text('$quantity tickets', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1a1a1a))),
                           ],
                         ],
                       ),
@@ -709,16 +709,16 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
                         color: statusBgColor(status),
                         borderRadius: BorderRadius.circular(100),
                       ),
-                      child: Text(status.toUpperCase(), style: GoogleFonts.plusJakartaSans(
+                      child: Text(status.toUpperCase(), style: GoogleFonts.inter(
                         fontSize: 10, fontWeight: FontWeight.w600, color: statusFgColor(status), letterSpacing: 1)),
                     ),
                     const SizedBox(width: 12),
                     if (totalAmount != null)
-                      Text('$currency ${_formatAmount(totalAmount)}', style: GoogleFonts.plusJakartaSans(
+                      Text('$currency ${_formatAmount(totalAmount)}', style: GoogleFonts.inter(
                         fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF1a1a1a))),
                     const Spacer(),
                     // Nuru branding
-                    Text('nuru', style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.grey.shade400)),
+                    Text('nuru', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.grey.shade400)),
                   ],
                 ),
               ),
@@ -751,7 +751,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
         color: isPast ? AppColors.surfaceVariant : AppColors.primarySoft,
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(text, style: GoogleFonts.plusJakartaSans(
+      child: Text(text, style: GoogleFonts.inter(
         fontSize: 9, fontWeight: FontWeight.w600,
         color: isPast ? AppColors.textTertiary : AppColors.primary,
       )),
@@ -769,7 +769,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
         children: [
           _paginationButton(Icons.chevron_left, hasPrev, () { _page--; _load(); }),
           const SizedBox(width: 12),
-          Text('Page $_page of $totalPages', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+          Text('Page $_page of $totalPages', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
           const SizedBox(width: 12),
           _paginationButton(Icons.chevron_right, hasNext, () { _page++; _load(); }),
         ],

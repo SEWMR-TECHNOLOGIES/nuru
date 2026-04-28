@@ -133,20 +133,20 @@ class _PublicContributeScreenState extends State<PublicContributeScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Public contribution', style: GoogleFonts.plusJakartaSans(
+                              Text('Public contribution', style: GoogleFonts.inter(
                                   fontSize: 11, color: AppColors.textTertiary, letterSpacing: 0.6)),
                               const SizedBox(height: 4),
                               Text(eventTitle,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.plusJakartaSans(
+                                  style: GoogleFonts.inter(
                                       fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                               if (organiser.isNotEmpty) ...[
                                 const SizedBox(height: 2),
                                 Text('Organised by $organiser',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: GoogleFonts.plusJakartaSans(
+                                    style: GoogleFonts.inter(
                                         fontSize: 12, color: AppColors.textSecondary)),
                               ],
                             ],
@@ -163,7 +163,7 @@ class _PublicContributeScreenState extends State<PublicContributeScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(note,
-                            style: GoogleFonts.plusJakartaSans(
+                            style: GoogleFonts.inter(
                                 fontSize: 13, color: AppColors.textPrimary, height: 1.4)),
                       ),
                     ],
@@ -171,11 +171,11 @@ class _PublicContributeScreenState extends State<PublicContributeScreen> {
                       const SizedBox(height: 16),
                       Row(children: [
                         Text('Suggested amount',
-                            style: GoogleFonts.plusJakartaSans(
+                            style: GoogleFonts.inter(
                                 fontSize: 12, color: AppColors.textTertiary)),
                         const Spacer(),
                         Text('$currency ${suggested.toStringAsFixed(0)}',
-                            style: GoogleFonts.plusJakartaSans(
+                            style: GoogleFonts.inter(
                                 fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                       ]),
                     ],
@@ -191,7 +191,7 @@ class _PublicContributeScreenState extends State<PublicContributeScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         ),
                         child: Text('Continue to payment',
-                            style: GoogleFonts.plusJakartaSans(
+                            style: GoogleFonts.inter(
                                 fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
                       ),
                     ),
@@ -199,7 +199,7 @@ class _PublicContributeScreenState extends State<PublicContributeScreen> {
                     Text(
                       'Pay with Nuru Wallet, mobile money (M-Pesa, Tigo Pesa, Airtel Money), or bank transfer. You\u2019ll get a receipt right after.',
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.plusJakartaSans(
+                      style: GoogleFonts.inter(
                           fontSize: 11, color: AppColors.textTertiary, height: 1.4),
                     ),
                   ],
@@ -221,7 +221,7 @@ class _PublicContributeScreenState extends State<PublicContributeScreen> {
             const SizedBox(height: 16),
             Text('This contribution link is invalid or expired.',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
+                style: GoogleFonts.inter(
                     fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
           ],
         ),

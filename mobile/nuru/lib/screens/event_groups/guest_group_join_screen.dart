@@ -79,11 +79,11 @@ class _GuestGroupJoinScreenState extends State<GuestGroupJoinScreen> {
                         Icon(Icons.link_off, size: 48, color: AppColors.error),
                         const SizedBox(height: 12),
                         Text('Invite unavailable',
-                            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 16)),
+                            style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 16)),
                         const SizedBox(height: 4),
                         Text(_error ?? '',
                             textAlign: TextAlign.center,
-                            style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textSecondary)),
+                            style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary)),
                         const SizedBox(height: 16),
                         ElevatedButton(onPressed: () => Navigator.pop(context), child: const Text('Go back')),
                       ]),
@@ -113,7 +113,7 @@ class _GuestGroupJoinScreenState extends State<GuestGroupJoinScreen> {
                                   ? NetworkImage(_data!['group']['image_url']) : null,
                               child: _data?['group']?['image_url'] == null
                                   ? Text(_initials(_data?['group']?['name'] ?? ''),
-                                      style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.primary))
+                                      style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.primary))
                                   : null,
                             ),
                           ),
@@ -124,16 +124,16 @@ class _GuestGroupJoinScreenState extends State<GuestGroupJoinScreen> {
                         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                           Text("YOU'RE INVITED TO",
                               textAlign: TextAlign.center,
-                              style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.4, color: AppColors.textTertiary)),
+                              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.4, color: AppColors.textTertiary)),
                           const SizedBox(height: 6),
                           Text(_data?['group']?['name'] ?? '',
                               textAlign: TextAlign.center,
-                              style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.w800)),
+                              style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800)),
                           if (_data?['group']?['event_name'] != null) ...[
                             const SizedBox(height: 2),
                             Text('for ${_data!['group']['event_name']}',
                                 textAlign: TextAlign.center,
-                                style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textSecondary)),
+                                style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary)),
                           ],
                           const SizedBox(height: 16),
                           Container(
@@ -144,7 +144,7 @@ class _GuestGroupJoinScreenState extends State<GuestGroupJoinScreen> {
                               const SizedBox(width: 8),
                               Expanded(child: Text(
                                 'Join the group chat & live scoreboard. No account needed — your link gives you secure access to this group only.',
-                                style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textSecondary),
+                                style: GoogleFonts.inter(fontSize: 11, color: AppColors.textSecondary),
                               )),
                             ]),
                           ),

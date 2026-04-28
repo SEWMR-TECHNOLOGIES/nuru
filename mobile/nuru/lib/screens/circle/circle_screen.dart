@@ -98,7 +98,7 @@ class _CircleScreenState extends State<CircleScreen> with SingleTickerProviderSt
           labelColor: AppColors.primary,
           unselectedLabelColor: AppColors.textTertiary,
           indicatorColor: AppColors.primary,
-          labelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
+          labelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
           tabs: [
             Tab(text: '${context.trw('members')} (${_members.length})'),
             Tab(text: '${context.trw('requests')} (${_requests.length})'),
@@ -124,10 +124,10 @@ class _CircleScreenState extends State<CircleScreen> with SingleTickerProviderSt
             decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(12)),
             child: TextField(
               onChanged: (v) => setState(() => _search = v),
-              style: GoogleFonts.plusJakartaSans(fontSize: 14),
+              style: GoogleFonts.inter(fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Search members...',
-                hintStyle: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textHint),
+                hintStyle: GoogleFonts.inter(fontSize: 14, color: AppColors.textHint),
                 prefixIcon: Padding(
                   padding: const EdgeInsets.all(12),
                   child: SvgPicture.asset('assets/icons/search-icon.svg', width: 18, height: 18,
@@ -141,7 +141,7 @@ class _CircleScreenState extends State<CircleScreen> with SingleTickerProviderSt
         ),
         Expanded(
           child: _members.isEmpty
-              ? Center(child: Text(context.trw('no_members_circle'), style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textTertiary)))
+              ? Center(child: Text(context.trw('no_members_circle'), style: GoogleFonts.inter(fontSize: 14, color: AppColors.textTertiary)))
               : RefreshIndicator(
                   onRefresh: _load,
                   color: AppColors.primary,
@@ -187,9 +187,9 @@ class _CircleScreenState extends State<CircleScreen> with SingleTickerProviderSt
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name.isNotEmpty ? name : context.trw('unknown'), style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                Text(name.isNotEmpty ? name : context.trw('unknown'), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                 if (username.isNotEmpty)
-                  Text('@$username', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+                  Text('@$username', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
               ],
             ),
           ),
@@ -198,7 +198,7 @@ class _CircleScreenState extends State<CircleScreen> with SingleTickerProviderSt
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(color: AppColors.errorSoft, borderRadius: BorderRadius.circular(8)),
-              child: Text(context.trw('remove'), style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.error)),
+              child: Text(context.trw('remove'), style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.error)),
             ),
           ),
         ],
@@ -208,7 +208,7 @@ class _CircleScreenState extends State<CircleScreen> with SingleTickerProviderSt
 
   Widget _requestsTab() {
     if (_requests.isEmpty) {
-      return Center(child: Text(context.trw('no_pending_requests'), style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textTertiary)));
+      return Center(child: Text(context.trw('no_pending_requests'), style: GoogleFonts.inter(fontSize: 14, color: AppColors.textTertiary)));
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
@@ -235,13 +235,13 @@ class _CircleScreenState extends State<CircleScreen> with SingleTickerProviderSt
                     : _initials(name),
               ),
               const SizedBox(width: 12),
-              Expanded(child: Text(name.isNotEmpty ? name : context.trw('unknown'), style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
+              Expanded(child: Text(name.isNotEmpty ? name : context.trw('unknown'), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
               GestureDetector(
                 onTap: () => _acceptRequest(reqId),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(8)),
-                  child: Text(context.trw('accept'), style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white)),
+                  child: Text(context.trw('accept'), style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white)),
                 ),
               ),
               const SizedBox(width: 6),
@@ -250,7 +250,7 @@ class _CircleScreenState extends State<CircleScreen> with SingleTickerProviderSt
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(8)),
-                  child: Text(context.trw('decline'), style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                  child: Text(context.trw('decline'), style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
                 ),
               ),
             ],
@@ -263,7 +263,7 @@ class _CircleScreenState extends State<CircleScreen> with SingleTickerProviderSt
   Widget _initials(String name) {
     return Center(child: Text(
       name.isNotEmpty ? name[0].toUpperCase() : '?',
-      style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textTertiary),
+      style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textTertiary),
     ));
   }
 }

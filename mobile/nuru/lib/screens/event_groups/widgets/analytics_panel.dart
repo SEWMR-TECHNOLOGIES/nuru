@@ -165,7 +165,7 @@ class _AnalyticsPanelState extends State<AnalyticsPanel> {
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: Text('No contributions yet',
-                      style: GoogleFonts.plusJakartaSans(color: AppColors.textTertiary, fontSize: 12)),
+                      style: GoogleFonts.inter(color: AppColors.textTertiary, fontSize: 12)),
                 ),
             ]),
           ),
@@ -179,7 +179,7 @@ class _AnalyticsPanelState extends State<AnalyticsPanel> {
           padding: const EdgeInsets.all(24),
           child: Text('Analytics will appear once contributions start coming in.',
               textAlign: TextAlign.center,
-              style: GoogleFonts.plusJakartaSans(color: AppColors.textTertiary, fontSize: 13)),
+              style: GoogleFonts.inter(color: AppColors.textTertiary, fontSize: 13)),
         ),
       );
 
@@ -219,7 +219,7 @@ class _AnalyticsPanelState extends State<AnalyticsPanel> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(k.label,
-                            style: GoogleFonts.plusJakartaSans(
+                            style: GoogleFonts.inter(
                                 fontSize: 10,
                                 color: AppColors.textTertiary,
                                 fontWeight: FontWeight.w600)),
@@ -227,7 +227,7 @@ class _AnalyticsPanelState extends State<AnalyticsPanel> {
                       ],
                     ),
                     Text(k.value,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: GoogleFonts.inter(
                             fontWeight: FontWeight.w800, fontSize: 16, color: k.color)),
                   ],
                 ),
@@ -246,7 +246,7 @@ class _AnalyticsPanelState extends State<AnalyticsPanel> {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(title,
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.inter(
                 fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textPrimary)),
         const SizedBox(height: 12),
         child,
@@ -275,10 +275,10 @@ class _AnalyticsPanelState extends State<AnalyticsPanel> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text('$total',
-                      style: GoogleFonts.plusJakartaSans(
+                      style: GoogleFonts.inter(
                           fontWeight: FontWeight.w800, fontSize: 20, color: AppColors.textPrimary)),
                   Text('people',
-                      style: GoogleFonts.plusJakartaSans(
+                      style: GoogleFonts.inter(
                           fontSize: 10, color: AppColors.textTertiary)),
                 ],
               ),
@@ -297,10 +297,10 @@ class _AnalyticsPanelState extends State<AnalyticsPanel> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(s.label,
-                        style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textPrimary)),
+                        style: GoogleFonts.inter(fontSize: 11, color: AppColors.textPrimary)),
                   ),
                   Text('${s.value} · ${pct.toStringAsFixed(0)}%',
-                      style: GoogleFonts.plusJakartaSans(
+                      style: GoogleFonts.inter(
                           fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textTertiary)),
                 ]),
               );
@@ -356,9 +356,9 @@ class _AnalyticsPanelState extends State<AnalyticsPanel> {
         children: [
           Container(width: 10, height: 10, decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(2))),
           const SizedBox(width: 8),
-          Expanded(child: Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textPrimary))),
+          Expanded(child: Text(label, style: GoogleFonts.inter(fontSize: 12, color: AppColors.textPrimary))),
           Text('TZS ${_money(v)}',
-              style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: c)),
+              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: c)),
         ],
       );
 
@@ -373,26 +373,26 @@ class _AnalyticsPanelState extends State<AnalyticsPanel> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(children: [
-        SizedBox(width: 18, child: Text('$rank.', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, color: AppColors.textTertiary, fontSize: 12))),
+        SizedBox(width: 18, child: Text('$rank.', style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AppColors.textTertiary, fontSize: 12))),
         CircleAvatar(
           radius: 14,
           backgroundColor: AppColors.primarySoft,
           backgroundImage: (avatar != null && avatar.isNotEmpty) ? NetworkImage(avatar) : null,
           child: (avatar == null || avatar.isEmpty)
-              ? Text(initials, style: GoogleFonts.plusJakartaSans(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w700))
+              ? Text(initials, style: GoogleFonts.inter(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w700))
               : null,
         ),
         const SizedBox(width: 10),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
             Text('${pct.toStringAsFixed(0)}% of pledge',
-                style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary)),
+                style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary)),
           ]),
         ),
         Text('TZS ${_money(paid)}',
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, color: AppColors.primary, fontSize: 12)),
+            style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: AppColors.primary, fontSize: 12)),
       ]),
     );
   }

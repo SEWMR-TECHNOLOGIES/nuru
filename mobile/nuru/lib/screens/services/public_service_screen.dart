@@ -4,16 +4,35 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
 import '../../core/services/secure_token_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/user_services_service.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/messages_service.dart';
 import '../../core/widgets/app_snackbar.dart';
+import '../../providers/wallet_provider.dart';
+
 import '../messages/messages_screen.dart';
 import '../../core/l10n/l10n_helper.dart';
 
-/// Public Service Detail — matches web PublicServiceDetail.tsx
+/// Public Service Detail — 2026 redesign matching the customer-facing
+/// service mockup pixel-close.
+///
+/// Layout (per mockup):
+///   • Image carousel hero with circle back button + favorite button +
+///     "1/N" dot indicator (no overlay text on image)
+///   • Title + category chip + rating chip + location chip row (under hero)
+///   • White vendor card with avatar + name + verified pill + headline
+///   • "About This Service" section card
+///   • "What's Included" checkmark list (sourced from packages features +
+///     service-level inclusions)
+///   • Service Packages — relocated, kept fully functional
+///   • Availability Calendar — kept fully functional
+///   • Write a Review + Client Reviews — kept fully functional
+///   • Trust badges — kept
+///   • Sticky bottom bar: Chat (outlined) + Book This Service (gold)
+///     with "Starting from TZS …" label
 class PublicServiceScreen extends StatefulWidget {
   final String serviceId;
   const PublicServiceScreen({super.key, required this.serviceId});
@@ -26,6 +45,7 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
   static String get _baseUrl => ApiService.baseUrl;
   bool _loading = true;
   bool _booking = false;
+  bool _favorited = false;
   Map<String, dynamic> _service = {};
   List<dynamic> _packages = [];
   List<dynamic> _reviews = [];
@@ -34,23 +54,36 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
   bool _calendarLoading = true;
   bool _reviewsLoading = false;
   DateTime _currentMonth = DateTime.now();
+  int _heroIndex = 0;
+  final PageController _heroCtrl = PageController();
 
   // Review form
   int _reviewRating = 0;
   final _reviewCtrl = TextEditingController();
   bool _submittingReview = false;
 
+  // ─── Theme tokens (mockup-matched) ─────────────────────────────
+  static const _bg = Color(0xFFF6F7FB);
+  static const _gold = AppColors.primary; // brand yellow
+  static const _ink = Color(0xFF1C1C24);
+  static const _muted = Color(0xFF6B7280);
+  static const _hairline = Color(0xFFE5E7EB);
+  static const _goldInk = Color(0xFF3A2E07);
+
   TextStyle _f({
     required double size,
     FontWeight weight = FontWeight.w500,
-    Color color = AppColors.textPrimary,
+    Color color = _ink,
     double height = 1.3,
-  }) => GoogleFonts.plusJakartaSans(
-    fontSize: size,
-    fontWeight: weight,
-    color: color,
-    height: height,
-  );
+    double letterSpacing = 0,
+  }) =>
+      GoogleFonts.inter(
+        fontSize: size,
+        fontWeight: weight,
+        color: color,
+        height: height,
+        letterSpacing: letterSpacing,
+      );
 
   @override
   void initState() {
@@ -61,6 +94,7 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
   @override
   void dispose() {
     _reviewCtrl.dispose();
+    _heroCtrl.dispose();
     super.dispose();
   }
 
@@ -77,7 +111,6 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
     setState(() => _loading = true);
     try {
       final headers = await _headers();
-      // Use public endpoint: /services/:id  (same as web PublicServiceDetail)
       final res = await http.get(
         Uri.parse('$_baseUrl/services/${widget.serviceId}'),
         headers: headers,
@@ -96,15 +129,13 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
           _loading = false;
           _service = svc;
           _packages = svc['packages'] is List ? svc['packages'] as List : [];
-          _introMedia = svc['intro_media'] is List
-              ? svc['intro_media'] as List
-              : [];
+          _introMedia =
+              svc['intro_media'] is List ? svc['intro_media'] as List : [];
         });
       } else {
         // Fallback to user-services endpoint
-        final res2 = await UserServicesService.getServiceDetail(
-          widget.serviceId,
-        );
+        final res2 =
+            await UserServicesService.getServiceDetail(widget.serviceId);
         if (!mounted) return;
         final data = res2['data'];
         Map<String, dynamic> svc = {};
@@ -117,9 +148,8 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
           _loading = false;
           _service = svc;
           _packages = svc['packages'] is List ? svc['packages'] as List : [];
-          _introMedia = svc['intro_media'] is List
-              ? svc['intro_media'] as List
-              : [];
+          _introMedia =
+              svc['intro_media'] is List ? svc['intro_media'] as List : [];
         });
       }
     } catch (_) {
@@ -170,10 +200,9 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
     final provider = s['provider'] is Map<String, dynamic>
         ? s['provider'] as Map<String, dynamic>
         : (s['user'] is Map<String, dynamic>
-              ? s['user'] as Map<String, dynamic>
-              : <String, dynamic>{});
-    final providerId =
-        provider['id']?.toString() ??
+            ? s['user'] as Map<String, dynamic>
+            : <String, dynamic>{});
+    final providerId = provider['id']?.toString() ??
         s['user_id']?.toString() ??
         s['provider_id']?.toString() ??
         '';
@@ -281,448 +310,168 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
     return images;
   }
 
-  /// Format price with comma separators, no decimals
+  String get _currency {
+    try {
+      return context.read<WalletProvider>().currency;
+    } catch (_) {
+      return '';
+    }
+  }
+
   String _fmtPrice(dynamic p) {
     if (p == null) return 'Price on request';
     final n = (p is num)
         ? p.toInt()
         : (int.tryParse(p.toString().replaceAll(RegExp(r'[^\d]'), '')) ?? 0);
     if (n == 0) return 'Price on request';
-    return 'TZS ${n.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
+    final body = n.toString().replaceAllMapped(
+        RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+    final svcCur = _service['currency_code']?.toString() ?? '';
+    final cur = svcCur.isNotEmpty ? svcCur : _currency;
+    return cur.isEmpty ? body : '$cur $body';
   }
 
   String _formatPriceDisplay() {
     final min =
-        _service['min_price'] ??
-        _service['starting_price'] ??
-        _service['price'];
+        _service['min_price'] ?? _service['starting_price'] ?? _service['price'];
     if (min != null) return 'From ${_fmtPrice(min)}';
     return 'Price on request';
+  }
+
+  /// Aggregate "What's Included" items from service-level inclusions and
+  /// the first (default) package's features. De-duped, max 8.
+  List<String> _whatsIncluded() {
+    final items = <String>{};
+    final svcInc = _service['inclusions'] ?? _service['features'];
+    if (svcInc is List) {
+      for (final x in svcInc) {
+        final s = x?.toString().trim() ?? '';
+        if (s.isNotEmpty) items.add(s);
+      }
+    }
+    if (_packages.isNotEmpty) {
+      final p0 = _packages.first;
+      if (p0 is Map && p0['features'] is List) {
+        for (final x in (p0['features'] as List)) {
+          final s = x?.toString().trim() ?? '';
+          if (s.isNotEmpty) items.add(s);
+        }
+      }
+    }
+    return items.take(8).toList();
+  }
+
+  // Plain mockup-aligned AppBar: clean chevron-left back arrow,
+  // centered title, optional heart + share actions (no bordered tiles).
+  PreferredSizeWidget _plainAppBar({bool showActions = false}) {
+    return AppBar(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.white,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: true,
+      leadingWidth: 56,
+      leading: IconButton(
+        onPressed: () => Navigator.of(context).maybePop(),
+        icon: const Icon(Icons.arrow_back_rounded,
+            size: 24, color: _ink),
+      ),
+      title: Text(
+        'Service Details',
+        style: _f(size: 17, weight: FontWeight.w700, color: _ink),
+      ),
+      actions: showActions
+          ? [
+              IconButton(
+                tooltip: 'Favorite',
+                icon: Icon(
+                  _favorited
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  color: _favorited ? const Color(0xFFE11D48) : _ink,
+                  size: 22,
+                ),
+                onPressed: () => setState(() => _favorited = !_favorited),
+              ),
+              IconButton(
+                tooltip: 'Share',
+                icon: const Icon(Icons.ios_share_rounded,
+                    color: _ink, size: 21),
+                onPressed: () {},
+              ),
+              const SizedBox(width: 4),
+            ]
+          : null,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        backgroundColor: AppColors.surface,
-        appBar: AppBar(
-          backgroundColor: AppColors.surface,
-          elevation: 0,
-          leading: IconButton(
-            icon: SvgPicture.asset(
-              'assets/icons/chevron-left-icon.svg',
-              width: 22,
-              height: 22,
-              colorFilter: const ColorFilter.mode(
-                AppColors.textPrimary,
-                BlendMode.srcIn,
-              ),
-            ),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ),
+        backgroundColor: Colors.white,
+        appBar: _plainAppBar(),
         body: const Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
+          child: CircularProgressIndicator(color: _gold),
         ),
       );
     }
 
     final s = _service;
     final title = s['title']?.toString() ?? s['name']?.toString() ?? 'Service';
-    final category =
-        (s['service_category'] is Map
-            ? (s['service_category'] as Map<String, dynamic>)['name']
-                  ?.toString()
-            : null) ??
-        s['category_name']?.toString() ??
-        '';
     final description = s['description']?.toString() ?? '';
-    final location = s['location']?.toString() ?? '';
     final rating = (s['rating'] ?? s['average_rating'] ?? 0);
     final reviewCount =
         s['review_count'] ?? s['reviews_count'] ?? _reviews.length;
     final images = _getImages();
-    final availability = s['availability']?.toString() ?? 'available';
-
-    // Provider info
-    final provider = s['provider'] is Map
-        ? s['provider'] as Map
-        : (s['user'] is Map ? s['user'] as Map : {});
-    final ownerName = (() {
-      final first = provider['first_name']?.toString() ?? '';
-      final last = provider['last_name']?.toString() ?? '';
-      final full = '$first $last'.trim();
-      return full.isNotEmpty
-          ? full
-          : (s['owner_name']?.toString() ?? provider['name']?.toString());
-    })();
-    final ownerAvatar =
-        s['owner_avatar']?.toString() ?? provider['avatar']?.toString();
+    final included = _whatsIncluded();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F3F8),
+      backgroundColor: Colors.white,
+      appBar: _plainAppBar(showActions: true),
       body: RefreshIndicator(
         onRefresh: _load,
-        color: AppColors.primary,
+        color: _gold,
         child: CustomScrollView(
           slivers: [
-            // Hero
+            // ─── Hero gallery (full-width, dots + 1/N badge)
+            SliverToBoxAdapter(child: _heroGallery(images)),
+
+            // ─── Title + price row
             SliverToBoxAdapter(
-              child: _heroGallery(images, title, category, location),
+              child: _titlePriceRow(title),
             ),
 
-            // Provider + Rating + Stats strip
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Column(
-                  children: [
-                    // Provider card
-                    if (ownerName != null && ownerName.isNotEmpty)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 8,
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 22,
-                              backgroundColor: AppColors.primary.withOpacity(
-                                0.1,
-                              ),
-                              backgroundImage:
-                                  ownerAvatar != null && ownerAvatar.isNotEmpty
-                                  ? NetworkImage(ownerAvatar)
-                                  : null,
-                              child: ownerAvatar == null || ownerAvatar.isEmpty
-                                  ? Text(
-                                      ownerName
-                                          .split(' ')
-                                          .map((n) => n.isNotEmpty ? n[0] : '')
-                                          .join()
-                                          .toUpperCase()
-                                          .substring(
-                                            0,
-                                            ownerName.split(' ').length > 1
-                                                ? 2
-                                                : 1,
-                                          ),
-                                      style: _f(
-                                        size: 14,
-                                        weight: FontWeight.w700,
-                                        color: AppColors.primary,
-                                      ),
-                                    )
-                                  : null,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Service Provider',
-                                    style: _f(
-                                      size: 10,
-                                      color: AppColors.textTertiary,
-                                    ),
-                                  ),
-                                  Text(
-                                    ownerName,
-                                    style: _f(
-                                      size: 14,
-                                      weight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+            // ─── Vendor row (avatar + name + rating)
+            SliverToBoxAdapter(child: _vendorRow()),
 
-                    // Rating + Quick stats
-                    Row(
-                      children: [
-                        // Rating card
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.04),
-                                  blurRadius: 8,
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Overall Rating',
-                                  style: _f(
-                                    size: 10,
-                                    color: AppColors.textTertiary,
-                                    weight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Text(
-                                      rating is num && rating > 0
-                                          ? (rating as num).toStringAsFixed(1)
-                                          : '0.0',
-                                      style: _f(
-                                        size: 28,
-                                        weight: FontWeight.w800,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: List.generate(
-                                              5,
-                                              (i) => Icon(
-                                                i <
-                                                        (rating is num
-                                                            ? (rating as num)
-                                                                  .round()
-                                                            : 0)
-                                                    ? Icons.star_rounded
-                                                    : Icons
-                                                          .star_outline_rounded,
-                                                size: 14,
-                                                color: Colors.amber,
-                                              ),
-                                            ),
-                                          ),
-                                          Text(
-                                            '$reviewCount reviews',
-                                            style: _f(
-                                              size: 10,
-                                              color: AppColors.textTertiary,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Stats card
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.04),
-                                  blurRadius: 8,
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'On Nuru',
-                                            style: _f(
-                                              size: 9,
-                                              color: AppColors.textTertiary,
-                                              weight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          Text(
-                                            _timeOnPlatform(
-                                              s['created_at']?.toString(),
-                                            ),
-                                            style: _f(
-                                              size: 14,
-                                              weight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Events Done',
-                                            style: _f(
-                                              size: 9,
-                                              color: AppColors.textTertiary,
-                                              weight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          Text(
-                                            '${s['completed_events'] ?? 0}',
-                                            style: _f(
-                                              size: 14,
-                                              weight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Starting',
-                                            style: _f(
-                                              size: 9,
-                                              color: AppColors.textTertiary,
-                                              weight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          Text(
-                                            _formatPriceDisplay(),
-                                            style: _f(
-                                              size: 10,
-                                              weight: FontWeight.w700,
-                                              color: AppColors.primary,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Status',
-                                            style: _f(
-                                              size: 9,
-                                              color: AppColors.textTertiary,
-                                              weight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: availability == 'available'
-                                                  ? AppColors.success
-                                                        .withOpacity(0.1)
-                                                  : AppColors.warning
-                                                        .withOpacity(0.1),
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Container(
-                                                  width: 5,
-                                                  height: 5,
-                                                  decoration: BoxDecoration(
-                                                    color:
-                                                        availability ==
-                                                            'available'
-                                                        ? AppColors.success
-                                                        : AppColors.warning,
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Flexible(
-                                                  child: Text(
-                                                    availability,
-                                                    style: _f(
-                                                      size: 9,
-                                                      weight: FontWeight.w600,
-                                                      color:
-                                                          availability ==
-                                                              'available'
-                                                          ? AppColors.success
-                                                          : AppColors.warning,
-                                                    ),
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+            // ─── Feature highlight chips (per mockup)
+            SliverToBoxAdapter(
+              child: _highlightChipsRow(),
             ),
 
-            // About
+            // ─── About (plain section per mockup — no card chrome)
             if (description.isNotEmpty)
               SliverToBoxAdapter(
-                child: _sectionWrapper(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'About This Service',
-                        style: _f(size: 15, weight: FontWeight.w700),
-                      ),
+                      Text('About this Service',
+                          style: _f(
+                            size: 15.5,
+                            weight: FontWeight.w800,
+                            color: _ink,
+                          )),
                       const SizedBox(height: 8),
                       Text(
                         description,
                         style: _f(
-                          size: 13,
-                          color: AppColors.textSecondary,
-                          height: 1.5,
+                          size: 13.5,
+                          color: _muted,
+                          height: 1.55,
+                          weight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -730,407 +479,684 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
                 ),
               ),
 
-            // Intro Media
-            if (_introMedia.isNotEmpty)
+            // ─── What's Included (plain section per mockup)
+            if (included.isNotEmpty)
               SliverToBoxAdapter(
-                child: _sectionWrapper(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          SvgPicture.asset(
-                            'assets/icons/play-icon.svg',
-                            width: 18,
-                            height: 18,
-                            colorFilter: const ColorFilter.mode(
-                              AppColors.primary,
-                              BlendMode.srcIn,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Introduction',
-                            style: _f(size: 15, weight: FontWeight.w700),
-                          ),
-                        ],
-                      ),
+                      Text("What's Included",
+                          style: _f(
+                            size: 15.5,
+                            weight: FontWeight.w800,
+                            color: _ink,
+                          )),
                       const SizedBox(height: 10),
-                      ..._introMedia.map((media) {
-                        final type = media['media_type']?.toString() ?? '';
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceVariant,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withOpacity(0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Center(
-                                  child: SvgPicture.asset(
-                                    'assets/icons/play-icon.svg',
-                                    width: 20,
-                                    height: 20,
-                                    colorFilter: const ColorFilter.mode(
-                                      AppColors.primary,
-                                      BlendMode.srcIn,
-                                    ),
+                      ...included.map((it) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 18,
+                                  height: 18,
+                                  margin: const EdgeInsets.only(top: 1),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF1B9E47),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.check_rounded,
+                                    size: 12,
+                                    color: Colors.white,
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                type == 'video'
-                                    ? 'Video Introduction'
-                                    : 'Audio Introduction',
-                                style: _f(size: 13, weight: FontWeight.w600),
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(it,
+                                      style: _f(
+                                        size: 13.5,
+                                        weight: FontWeight.w600,
+                                        color: _ink,
+                                        height: 1.4,
+                                      )),
+                                ),
+                              ],
+                            ),
+                          )),
                     ],
                   ),
                 ),
               ),
 
-            // Calendar
-            SliverToBoxAdapter(child: _calendarSection()),
+            // ─── Intro media (relocated, preserved)
+            if (_introMedia.isNotEmpty)
+              SliverToBoxAdapter(
+                child: _sectionCard(
+                  title: 'Introduction',
+                  iconAsset: 'assets/icons/play-icon.svg',
+                  child: Column(
+                    children: _introMedia.map((media) {
+                      final type = (media is Map ? media['media_type'] : '')
+                              ?.toString() ??
+                          '';
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFAFAF7),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _hairline),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: _gold.withOpacity(0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: SvgPicture.asset(
+                                  'assets/icons/play-icon.svg',
+                                  width: 18,
+                                  height: 18,
+                                  colorFilter: const ColorFilter.mode(
+                                      _goldInk, BlendMode.srcIn),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                type == 'video'
+                                    ? 'Video Introduction'
+                                    : 'Audio Introduction',
+                                style: _f(
+                                    size: 13, weight: FontWeight.w700),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
 
-            // Write Review
-            SliverToBoxAdapter(child: _writeReviewSection()),
-
-            // Reviews
-            SliverToBoxAdapter(child: _reviewsSection()),
-
-            // Packages
+            // ─── Packages
             if (_packages.isNotEmpty)
               SliverToBoxAdapter(child: _packagesSection()),
 
-            // Trust badges
+            // ─── Calendar
+            SliverToBoxAdapter(child: _calendarSection()),
+
+            // ─── Write review
+            SliverToBoxAdapter(child: _writeReviewSection()),
+
+            // ─── Reviews
+            SliverToBoxAdapter(child: _reviewsSection(reviewCount, rating)),
+
+            // ─── Trust badges
             SliverToBoxAdapter(child: _trustBadges(s)),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 100)),
+            const SliverToBoxAdapter(child: SizedBox(height: 110)),
           ],
         ),
       ),
-      // Book CTA
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          decoration: const BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Starting from',
-                          style: _f(size: 11, color: Colors.white70),
-                        ),
-                        Text(
-                          _formatPriceDisplay(),
-                          style: _f(
-                            size: 16,
-                            weight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: _booking ? null : _messageProvider,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: AppColors.primary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                    ),
-                    child: _booking
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.primary,
-                            ),
-                          )
-                        : Text(
-                            'Book This Service',
-                            style: _f(
-                              size: 13,
-                              weight: FontWeight.w700,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'No payment until confirmed',
-                style: _f(size: 10, color: Colors.white60),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      ),
+      bottomNavigationBar: _bottomBar(),
     );
   }
 
-  Widget _heroGallery(
-    List<String> images,
-    String title,
-    String category,
-    String location,
-  ) {
-    if (images.isEmpty) {
-      return Container(
-        height: 240,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppColors.primary.withOpacity(0.15),
-              AppColors.primary.withOpacity(0.05),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          bottom: false,
-          child: Stack(
-            children: [
-              Positioned(top: 8, left: 8, child: _backBtn()),
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: const Icon(
-                        Icons.work_outline,
-                        size: 30,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(title, style: _f(size: 24, weight: FontWeight.w800)),
-                    if (category.isNotEmpty)
-                      Text(
-                        category,
-                        style: _f(size: 13, color: AppColors.textTertiary),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Stack(
-      children: [
-        SizedBox(
-          height: 320,
-          width: double.infinity,
-          child: images.length == 1
-              ? CachedNetworkImage(
-                  imageUrl: images[0],
-                  fit: BoxFit.cover,
-                  errorWidget: (_, __, ___) =>
-                      Container(color: AppColors.surfaceVariant),
-                )
-              : PageView.builder(
+  // ════════════════════════════════════════════════════════════════
+  // HERO GALLERY
+  // ════════════════════════════════════════════════════════════════
+  Widget _heroGallery(List<String> images) {
+    // Full-width hero image immediately under the app bar.
+    // 1/N counter sits bottom-right; animated dot indicators bottom-center.
+    return SizedBox(
+      height: 280,
+      width: double.infinity,
+      child: images.isEmpty
+          ? _heroPlaceholder()
+          : Stack(
+              children: [
+                PageView.builder(
+                  controller: _heroCtrl,
                   itemCount: images.length,
+                  onPageChanged: (i) => setState(() => _heroIndex = i),
                   itemBuilder: (_, i) => CachedNetworkImage(
                     imageUrl: images[i],
                     fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) =>
-                        Container(color: AppColors.surfaceVariant),
+                    width: double.infinity,
+                    errorWidget: (_, __, ___) => _heroPlaceholder(),
+                    placeholder: (_, __) => _heroPlaceholder(),
                   ),
                 ),
-        ),
-        Positioned.fill(
-          child: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.transparent,
-                  Colors.transparent,
-                  Colors.black87,
-                ],
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _backBtn(),
-                  if (images.length > 1)
-                    Container(
+                if (images.length > 1)
+                  Positioned(
+                    bottom: 14,
+                    right: 14,
+                    child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
+                          horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: Colors.black45,
-                        borderRadius: BorderRadius.circular(20),
+                        color: Colors.black.withOpacity(0.55),
+                        borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        'View all ${images.length}',
+                        '${_heroIndex + 1}/${images.length}',
                         style: _f(
-                          size: 10,
-                          weight: FontWeight.w600,
+                          size: 11,
+                          weight: FontWeight.w700,
                           color: Colors.white,
                         ),
                       ),
                     ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          bottom: 20,
-          left: 16,
-          right: 16,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (category.isNotEmpty)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
                   ),
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    category,
-                    style: _f(
-                      size: 10,
-                      weight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              Text(
-                title,
-                style: _f(
-                  size: 26,
-                  weight: FontWeight.w800,
-                  color: Colors.white,
-                ),
-              ),
-              if (location.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    SvgPicture.asset(
-                      'assets/icons/location-icon.svg',
-                      width: 14,
-                      height: 14,
-                      colorFilter: const ColorFilter.mode(
-                        Colors.white70,
-                        BlendMode.srcIn,
+                if (images.length > 1)
+                  Positioned(
+                    bottom: 14,
+                    left: 0,
+                    right: 0,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        images.length,
+                        (i) => AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin:
+                              const EdgeInsets.symmetric(horizontal: 3),
+                          width: i == _heroIndex ? 18 : 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: i == _heroIndex
+                                ? Colors.white
+                                : Colors.white60,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    Text(location, style: _f(size: 12, color: Colors.white70)),
-                  ],
-                ),
+                  ),
               ],
+            ),
+    );
+  }
+
+  Widget _heroPlaceholder() => Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              _gold.withOpacity(0.3),
+              _gold.withOpacity(0.1),
             ],
           ),
         ),
-      ],
+        child: const Center(
+          child: Icon(Icons.work_outline, size: 56, color: _goldInk),
+        ),
+      );
+
+  // (Removed unused _circleBtn — replaced by AppBar IconButtons.)
+
+  // ════════════════════════════════════════════════════════════════
+  // TITLE BLOCK
+  // ════════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════
+  // TITLE + PRICE ROW (mockup: title left, "From / TZS … / per event" right)
+  // ════════════════════════════════════════════════════════════════
+  Widget _titlePriceRow(String title) {
+    final min = _service['min_price'] ??
+        _service['starting_price'] ??
+        _service['price'];
+    final unit = (_service['price_unit']?.toString() ?? 'event').trim();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: _f(
+                size: 22,
+                weight: FontWeight.w800,
+                color: _ink,
+                height: 1.2,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('From',
+                  style: _f(
+                      size: 11,
+                      weight: FontWeight.w600,
+                      color: _muted)),
+              const SizedBox(height: 2),
+              Text(
+                min == null ? 'On request' : _fmtPrice(min),
+                style: _f(
+                    size: 17,
+                    weight: FontWeight.w800,
+                    color: _ink),
+              ),
+              if (unit.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text('/ $unit',
+                      style: _f(
+                          size: 11,
+                          weight: FontWeight.w600,
+                          color: _muted)),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
-  /// Only use chevron-left SVG — no arrow icons
-  Widget _backBtn() => GestureDetector(
-    onTap: () => Navigator.pop(context),
-    child: Container(
-      width: 36,
-      height: 36,
-      decoration: const BoxDecoration(
-        color: Colors.black38,
-        shape: BoxShape.circle,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: SvgPicture.asset(
-          'assets/icons/chevron-left-icon.svg',
-          width: 20,
-          height: 20,
-          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-        ),
-      ),
-    ),
-  );
+  // ════════════════════════════════════════════════════════════════
+  // VENDOR ROW (avatar · name + verified · rating row) — clean inline,
+  // no card/shadow per mockup.
+  // ════════════════════════════════════════════════════════════════
+  Widget _vendorRow() {
+    final s = _service;
+    final provider = s['provider'] is Map
+        ? s['provider'] as Map
+        : (s['user'] is Map ? s['user'] as Map : {});
+    final first = provider['first_name']?.toString() ?? '';
+    final last = provider['last_name']?.toString() ?? '';
+    final ownerName = '$first $last'.trim().isNotEmpty
+        ? '$first $last'.trim()
+        : (s['owner_name']?.toString() ??
+            provider['name']?.toString() ??
+            'Service Provider');
+    final ownerAvatar = s['owner_avatar']?.toString() ??
+        provider['avatar']?.toString() ??
+        '';
+    final isVerified = s['is_verified'] == true ||
+        provider['is_verified'] == true ||
+        s['verification_status'] == 'verified';
+    final ratingNum = ((s['rating'] ?? s['average_rating'] ?? 0) as num)
+        .toDouble();
+    final reviewCount =
+        (s['review_count'] ?? s['reviews_count'] ?? _reviews.length) ?? 0;
 
-  Widget _sectionWrapper({required Widget child}) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 4),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _gold.withOpacity(0.15),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: ownerAvatar.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl: ownerAvatar,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) =>
+                        _avatarFallback(ownerName),
+                  )
+                : _avatarFallback(ownerName),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        ownerName,
+                        style: _f(
+                            size: 13.5,
+                            weight: FontWeight.w800,
+                            color: _ink),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (isVerified) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF6CF),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.verified_rounded,
+                                size: 11, color: Color(0xFF1B9E47)),
+                            const SizedBox(width: 3),
+                            Text('Verified Vendor',
+                                style: _f(
+                                  size: 9.5,
+                                  weight: FontWeight.w800,
+                                  color: _goldInk,
+                                )),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                if (ratingNum > 0) ...[
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      const Icon(Icons.star_rounded,
+                          size: 13, color: Color(0xFFB45309)),
+                      const SizedBox(width: 3),
+                      Text(
+                        '${ratingNum.toStringAsFixed(1)} ($reviewCount ${reviewCount == 1 ? 'review' : 'reviews'})',
+                        style: _f(
+                          size: 11.5,
+                          weight: FontWeight.w700,
+                          color: _muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // (Removed _chipsRow — superseded by _highlightChipsRow per mockup.)
+
+
+  // ════════════════════════════════════════════════════════════════
+  // FEATURE HIGHLIGHT CHIPS (per mockup: Custom Design, Premium Quality,
+  // On-time Setup, 24/7 Support — sourced from service highlights or
+  // package features. Shows up to 4 thin-icon pill chips.)
+  // ════════════════════════════════════════════════════════════════
+  Widget _highlightChipsRow() {
+    final raw = <String>[];
+    final h = _service['highlights'];
+    if (h is List) {
+      for (final x in h) {
+        final s = x?.toString().trim() ?? '';
+        if (s.isNotEmpty) raw.add(s);
+      }
+    }
+    if (raw.isEmpty) {
+      // Fallback: first features from inclusions
+      final inc = _whatsIncluded();
+      raw.addAll(inc);
+    }
+    if (raw.isEmpty) return const SizedBox.shrink();
+    final items = raw.take(4).toList();
+
+    IconData _iconFor(String label) {
+      final l = label.toLowerCase();
+      if (l.contains('design')) return Icons.brush_outlined;
+      if (l.contains('premium') || l.contains('quality')) {
+        return Icons.workspace_premium_outlined;
+      }
+      if (l.contains('time') || l.contains('setup') || l.contains('fast')) {
+        return Icons.schedule_outlined;
+      }
+      if (l.contains('support') || l.contains('24')) {
+        return Icons.support_agent_outlined;
+      }
+      if (l.contains('verified') || l.contains('trust')) {
+        return Icons.verified_outlined;
+      }
+      return Icons.check_circle_outline;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: items
+            .map((label) => Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F5F7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(_iconFor(label), size: 13, color: _muted),
+                      const SizedBox(width: 5),
+                      Text(label,
+                          style: _f(
+                              size: 11.5,
+                              weight: FontWeight.w600,
+                              color: _ink)),
+                    ],
+                  ),
+                ))
+            .toList(),
+      ),
+    );
+  }
+
+  // (Removed unused _chip helper.)
+
+  // (Removed unused _vendorCard — superseded by inline _vendorRow above.)
+
+  Widget _avatarFallback(String name) {
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'P';
+    return Center(
+      child: Text(initial,
+          style: _f(size: 18, weight: FontWeight.w800, color: _goldInk)),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // SECTION CARD
+  // ════════════════════════════════════════════════════════════════
+  Widget _sectionCard({
+    required String title,
+    String? iconAsset,
+    IconData? iconData,
+    Widget? trailing,
+    required Widget child,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: _hairline),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                if (iconAsset != null) ...[
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: _gold.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: SvgPicture.asset(iconAsset,
+                          width: 14,
+                          height: 14,
+                          colorFilter: const ColorFilter.mode(
+                              _goldInk, BlendMode.srcIn)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ] else if (iconData != null) ...[
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: _gold.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(iconData, size: 15, color: _goldInk),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: Text(title,
+                      style: _f(
+                          size: 15.5,
+                          weight: FontWeight.w800,
+                          color: _ink)),
+                ),
+                if (trailing != null) trailing,
+              ],
+            ),
+            const SizedBox(height: 14),
+            child,
           ],
         ),
-        child: child,
       ),
     );
   }
 
+  // ════════════════════════════════════════════════════════════════
+  // PACKAGES (relocated, full feature parity)
+  // ════════════════════════════════════════════════════════════════
+  Widget _packagesSection() {
+    return _sectionCard(
+      title: 'Service Packages',
+      iconData: Icons.inventory_2_outlined,
+      child: Column(
+        children: _packages.asMap().entries.map((e) {
+          final idx = e.key;
+          final pkg = e.value is Map<String, dynamic>
+              ? e.value as Map<String, dynamic>
+              : <String, dynamic>{};
+          final features =
+              pkg['features'] is List ? (pkg['features'] as List) : [];
+          final isTop = idx == 0;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isTop
+                  ? const Color(0xFFFFF8E0)
+                  : const Color(0xFFFAFAF7),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                  color: isTop ? _gold.withOpacity(0.4) : _hairline),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              pkg['name']?.toString() ?? 'Package',
+                              style: _f(
+                                  size: 14, weight: FontWeight.w800),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (isTop) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _gold,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                'Most Popular',
+                                style: _f(
+                                  size: 9,
+                                  weight: FontWeight.w800,
+                                  color: _goldInk,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Text(
+                      _fmtPrice(pkg['price']),
+                      style: _f(
+                          size: 13.5,
+                          weight: FontWeight.w800,
+                          color: _ink),
+                    ),
+                  ],
+                ),
+                if ((pkg['description']?.toString() ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(pkg['description'].toString(),
+                      style: _f(
+                          size: 11.5,
+                          color: _muted,
+                          weight: FontWeight.w500)),
+                ],
+                if (features.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  ...features.map((f) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.check_rounded,
+                                size: 14, color: Color(0xFF1B9E47)),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(f.toString(),
+                                  style: _f(
+                                      size: 11.5,
+                                      color: _ink,
+                                      weight: FontWeight.w600)),
+                            ),
+                          ],
+                        ),
+                      )),
+                ],
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // CALENDAR (preserved logic, restyled)
+  // ════════════════════════════════════════════════════════════════
   Widget _calendarSection() {
     final year = _currentMonth.year;
     final month = _currentMonth.month;
@@ -1138,254 +1164,148 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
     final daysInMonth = DateTime(year, month + 1, 0).day;
     final today = DateTime.now();
     final months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
+      'January','February','March','April','May','June',
+      'July','August','September','October','November','December',
     ];
-    final dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    final dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8),
-          ],
-        ),
-        child: _calendarLoading
-            ? const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(30),
-                  child: CircularProgressIndicator(color: AppColors.primary),
-                ),
-              )
-            : Column(
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(5),
-                          child: SvgPicture.asset(
-                            'assets/icons/calendar-icon.svg',
-                            colorFilter: const ColorFilter.mode(
-                              AppColors.primary,
-                              BlendMode.srcIn,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Availability',
-                              style: _f(size: 15, weight: FontWeight.w700),
-                            ),
-                            Text(
-                              'Green dates are open for booking',
-                              style: _f(
-                                size: 10,
-                                color: AppColors.textTertiary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      GestureDetector(
-                        onTap: () => setState(
-                          () => _currentMonth = DateTime(year, month - 1),
-                        ),
-                        child: Container(
-                          width: 30,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: AppColors.borderLight),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(5),
-                            child: SvgPicture.asset(
-                              'assets/icons/chevron-left-icon.svg',
-                              colorFilter: const ColorFilter.mode(
-                                AppColors.textPrimary,
-                                BlendMode.srcIn,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '${months[month - 1]} $year',
-                        style: _f(size: 14, weight: FontWeight.w700),
-                      ),
-                      GestureDetector(
-                        onTap: () => setState(
-                          () => _currentMonth = DateTime(year, month + 1),
-                        ),
-                        child: Container(
-                          width: 30,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: AppColors.borderLight),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(5),
-                            child: SvgPicture.asset(
-                              'assets/icons/chevron-right-icon.svg',
-                              colorFilter: const ColorFilter.mode(
-                                AppColors.textPrimary,
-                                BlendMode.srcIn,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: dayLabels
-                        .map(
-                          (d) => Expanded(
-                            child: Center(
-                              child: Text(
-                                d,
-                                style: _f(
-                                  size: 10,
-                                  weight: FontWeight.w600,
-                                  color: AppColors.textTertiary,
-                                ),
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                  const SizedBox(height: 4),
-                  ...List.generate(6, (week) {
-                    return Row(
-                      children: List.generate(7, (dow) {
-                        final idx = week * 7 + dow;
-                        final dayNum = idx - firstDay + 1;
-                        if (dayNum < 1 || dayNum > daysInMonth)
-                          return const Expanded(child: SizedBox(height: 36));
-                        final dateStr =
-                            '${year.toString()}-${month.toString().padLeft(2, '0')}-${dayNum.toString().padLeft(2, '0')}';
-                        final isToday =
-                            today.year == year &&
-                            today.month == month &&
-                            today.day == dayNum;
-                        final isPast = DateTime(year, month, dayNum).isBefore(
-                          DateTime(today.year, today.month, today.day),
-                        );
-                        final isBooked = _bookedDates.any(
-                          (b) => b['date'] == dateStr,
-                        );
-
-                        return Expanded(
-                          child: Container(
-                            height: 36,
-                            margin: const EdgeInsets.all(1),
-                            decoration: BoxDecoration(
-                              color: isToday
-                                  ? AppColors.primary.withOpacity(0.1)
-                                  : isBooked
-                                  ? const Color(0xFFFEE2E2)
-                                  : !isPast
-                                  ? const Color(0xFFF0FDF4)
-                                  : null,
-                              borderRadius: BorderRadius.circular(8),
-                              border: isToday
-                                  ? Border.all(
-                                      color: AppColors.primary,
-                                      width: 2,
-                                    )
-                                  : null,
-                            ),
-                            child: Center(
-                              child: Text(
-                                '$dayNum',
-                                style: _f(
-                                  size: 12,
-                                  weight: FontWeight.w600,
-                                  color: isToday
-                                      ? AppColors.primary
-                                      : isBooked
-                                      ? const Color(0xFFDC2626)
-                                      : isPast
-                                      ? AppColors.textHint
-                                      : const Color(0xFF15803D),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
-                    );
-                  }),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      _legendDot(
-                        'Available',
-                        const Color(0xFFF0FDF4),
-                        border: true,
-                      ),
-                      const SizedBox(width: 10),
-                      _legendDot(
-                        'Booked',
-                        const Color(0xFFFEE2E2),
-                        border: true,
-                      ),
-                      const SizedBox(width: 10),
-                      _legendDot(
-                        'Today',
-                        AppColors.primary.withOpacity(0.1),
-                        border: true,
-                        borderColor: AppColors.primary,
-                      ),
-                    ],
-                  ),
-                ],
+    return _sectionCard(
+      title: 'Availability',
+      iconAsset: 'assets/icons/calendar-icon.svg',
+      child: _calendarLoading
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(28),
+                child: CircularProgressIndicator(color: _gold),
               ),
+            )
+          : Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _miniIconBtn(
+                      asset: 'assets/icons/chevron-left-icon.svg',
+                      onTap: () => setState(
+                          () => _currentMonth = DateTime(year, month - 1)),
+                    ),
+                    Text('${months[month - 1]} $year',
+                        style: _f(size: 14.5, weight: FontWeight.w800)),
+                    _miniIconBtn(
+                      asset: 'assets/icons/chevron-right-icon.svg',
+                      onTap: () => setState(
+                          () => _currentMonth = DateTime(year, month + 1)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: dayLabels
+                      .map((d) => Expanded(
+                            child: Center(
+                              child: Text(d,
+                                  style: _f(
+                                      size: 10.5,
+                                      weight: FontWeight.w700,
+                                      color: _muted)),
+                            ),
+                          ))
+                      .toList(),
+                ),
+                const SizedBox(height: 4),
+                ...List.generate(6, (week) {
+                  return Row(
+                    children: List.generate(7, (dow) {
+                      final idx = week * 7 + dow;
+                      final dayNum = idx - firstDay + 1;
+                      if (dayNum < 1 || dayNum > daysInMonth) {
+                        return const Expanded(child: SizedBox(height: 38));
+                      }
+                      final dateStr =
+                          '$year-${month.toString().padLeft(2, '0')}-${dayNum.toString().padLeft(2, '0')}';
+                      final isToday = today.year == year &&
+                          today.month == month &&
+                          today.day == dayNum;
+                      final isPast = DateTime(year, month, dayNum).isBefore(
+                          DateTime(today.year, today.month, today.day));
+                      final isBooked = _bookedDates
+                          .any((b) => b is Map && b['date'] == dateStr);
+
+                      return Expanded(
+                        child: Container(
+                          height: 38,
+                          margin: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: isToday
+                                ? _gold.withOpacity(0.15)
+                                : isBooked
+                                    ? const Color(0xFFFEE2E2)
+                                    : !isPast
+                                        ? const Color(0xFFEAFBEE)
+                                        : null,
+                            borderRadius: BorderRadius.circular(10),
+                            border: isToday
+                                ? Border.all(color: _gold, width: 2)
+                                : null,
+                          ),
+                          child: Center(
+                            child: Text(
+                              '$dayNum',
+                              style: _f(
+                                size: 12,
+                                weight: FontWeight.w700,
+                                color: isToday
+                                    ? _goldInk
+                                    : isBooked
+                                        ? const Color(0xFFDC2626)
+                                        : isPast
+                                            ? const Color(0xFFB6BAC2)
+                                            : const Color(0xFF15803D),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  );
+                }),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    _legendDot('Available', const Color(0xFFEAFBEE)),
+                    const SizedBox(width: 12),
+                    _legendDot('Booked', const Color(0xFFFEE2E2)),
+                    const SizedBox(width: 12),
+                    _legendDot('Today', _gold.withOpacity(0.15),
+                        borderColor: _gold),
+                  ],
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _miniIconBtn(
+      {required String asset, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F2F6),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: SvgPicture.asset(asset,
+              colorFilter: const ColorFilter.mode(_ink, BlendMode.srcIn)),
+        ),
       ),
     );
   }
 
-  Widget _legendDot(
-    String label,
-    Color color, {
-    bool border = false,
-    Color? borderColor,
-  }) {
+  Widget _legendDot(String label, Color color, {Color? borderColor}) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1394,512 +1314,287 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
           height: 12,
           decoration: BoxDecoration(
             color: color,
-            borderRadius: BorderRadius.circular(3),
-            border: border
-                ? Border.all(color: borderColor ?? AppColors.borderLight)
-                : null,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: borderColor ?? _hairline),
           ),
         ),
-        const SizedBox(width: 4),
-        Text(label, style: _f(size: 10, color: AppColors.textTertiary)),
+        const SizedBox(width: 5),
+        Text(label,
+            style: _f(size: 10.5, color: _muted, weight: FontWeight.w600)),
       ],
     );
   }
 
+  // ════════════════════════════════════════════════════════════════
+  // WRITE REVIEW (preserved)
+  // ════════════════════════════════════════════════════════════════
   Widget _writeReviewSection() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.rate_review_outlined,
-                    size: 14,
-                    color: AppColors.primary,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Write a Review',
-                        style: _f(size: 14, weight: FontWeight.w700),
-                      ),
-                      Text(
-                        'Only available if this service was on your event',
-                        style: _f(size: 10, color: AppColors.textTertiary),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text('Your Rating', style: _f(size: 12, weight: FontWeight.w600)),
-            const SizedBox(height: 6),
-            Row(
-              children: List.generate(
-                5,
-                (i) => GestureDetector(
-                  onTap: () => setState(() => _reviewRating = i + 1),
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Icon(
-                      i < _reviewRating
-                          ? Icons.star_rounded
-                          : Icons.star_outline_rounded,
-                      size: 28,
-                      color: i < _reviewRating
-                          ? Colors.amber
-                          : AppColors.textHint,
-                    ),
+    return _sectionCard(
+      title: 'Write a Review',
+      iconData: Icons.rate_review_outlined,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Only available if this service was on your event',
+            style: _f(size: 11, color: _muted, weight: FontWeight.w500),
+          ),
+          const SizedBox(height: 12),
+          Text('Your Rating',
+              style: _f(size: 12.5, weight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          Row(
+            children: List.generate(
+              5,
+              (i) => GestureDetector(
+                onTap: () => setState(() => _reviewRating = i + 1),
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Icon(
+                    i < _reviewRating
+                        ? Icons.star_rounded
+                        : Icons.star_outline_rounded,
+                    size: 30,
+                    color: i < _reviewRating
+                        ? const Color(0xFFB45309)
+                        : const Color(0xFFCBD0DA),
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _reviewCtrl,
-              maxLines: 4,
-              maxLength: 2000,
-              style: _f(size: 13),
-              decoration: InputDecoration(
-                hintText: 'Share your experience (min 10 characters)...',
-                hintStyle: _f(size: 13, color: AppColors.textHint),
-                filled: true,
-                fillColor: AppColors.surfaceVariant,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.all(14),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _reviewCtrl,
+            maxLines: 4,
+            maxLength: 2000,
+            style: _f(size: 13),
+            decoration: InputDecoration(
+              hintText: 'Share your experience (min 10 characters)…',
+              hintStyle: _f(size: 13, color: const Color(0xFFA8AEBC)),
+              filled: true,
+              fillColor: const Color(0xFFF6F7FB),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.all(14),
+              counterStyle: _f(size: 10, color: _muted),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              onPressed: _submittingReview ||
+                      _reviewRating == 0 ||
+                      _reviewCtrl.text.trim().length < 10
+                  ? null
+                  : _submitReview,
+              icon: _submittingReview
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: _goldInk),
+                    )
+                  : const Icon(Icons.send_rounded, size: 16, color: _goldInk),
+              label: Text(
+                _submittingReview ? 'Submitting…' : 'Submit Review',
+                style: _f(
+                    size: 13.5, weight: FontWeight.w800, color: _goldInk),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _gold,
+                foregroundColor: _goldInk,
+                disabledBackgroundColor: _gold.withOpacity(0.4),
+                disabledForegroundColor: _goldInk.withOpacity(0.5),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
               ),
             ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              height: 46,
-              child: ElevatedButton.icon(
-                onPressed:
-                    _submittingReview ||
-                        _reviewRating == 0 ||
-                        _reviewCtrl.text.trim().length < 10
-                    ? null
-                    : _submitReview,
-                icon: _submittingReview
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.send_rounded, size: 16),
-                label: Text(
-                  _submittingReview ? 'Submitting...' : 'Submit Review',
-                  style: _f(
-                    size: 13,
-                    weight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: AppColors.primary.withOpacity(0.4),
-                  disabledForegroundColor: Colors.white70,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 0,
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _reviewsSection() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Container(
-        padding: const EdgeInsets.all(16),
+  // ════════════════════════════════════════════════════════════════
+  // REVIEWS (preserved)
+  // ════════════════════════════════════════════════════════════════
+  Widget _reviewsSection(dynamic reviewCount, dynamic rating) {
+    final ratingNum = rating is num ? rating.toDouble() : 0.0;
+    return _sectionCard(
+      title: 'Client Reviews',
+      iconData: Icons.people_outline_rounded,
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8),
-          ],
+          color: const Color(0xFFF1F2F6),
+          borderRadius: BorderRadius.circular(999),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.people_outline_rounded,
-                        size: 14,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Client Reviews',
-                      style: _f(size: 14, weight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.borderLight),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    '${_service['review_count'] ?? _reviews.length}',
-                    style: _f(
-                      size: 11,
-                      weight: FontWeight.w600,
-                      color: AppColors.textTertiary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (_reviewsLoading)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: CircularProgressIndicator(color: AppColors.primary),
-                ),
-              )
-            else if (_reviews.isEmpty)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.star_outline_rounded,
-                        size: 36,
-                        color: AppColors.textHint.withOpacity(0.3),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'No reviews yet. Be the first!',
-                        style: _f(size: 12, color: AppColors.textTertiary),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              ..._reviews.map((r) {
-                final review = r is Map<String, dynamic>
-                    ? r
-                    : <String, dynamic>{};
-                final name = review['user_name']?.toString() ?? 'Anonymous';
-                final ratingVal = review['rating'] ?? 0;
-                final comment = review['comment']?.toString() ?? '';
-                final date = review['created_at']?.toString() ?? '';
-                final avatar = review['user_avatar']?.toString();
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CircleAvatar(
-                        radius: 16,
-                        backgroundColor: AppColors.primary.withOpacity(0.1),
-                        backgroundImage: avatar != null && avatar.isNotEmpty
-                            ? NetworkImage(avatar)
-                            : null,
-                        child: avatar == null || avatar.isEmpty
-                            ? Text(
-                                name.isNotEmpty ? name[0].toUpperCase() : 'A',
-                                style: _f(
-                                  size: 11,
-                                  weight: FontWeight.w700,
-                                  color: AppColors.primary,
-                                ),
-                              )
-                            : null,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        name,
-                                        style: _f(
-                                          size: 13,
-                                          weight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      if (date.isNotEmpty)
-                                        Text(
-                                          _formatDate(date),
-                                          style: _f(
-                                            size: 10,
-                                            color: AppColors.textTertiary,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                Row(
-                                  children: List.generate(
-                                    5,
-                                    (i) => Icon(
-                                      i <
-                                              (ratingVal is num
-                                                  ? ratingVal.round()
-                                                  : 0)
-                                          ? Icons.star_rounded
-                                          : Icons.star_outline_rounded,
-                                      size: 14,
-                                      color: Colors.amber,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (comment.isNotEmpty) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                comment,
-                                style: _f(
-                                  size: 12,
-                                  color: AppColors.textSecondary,
-                                  height: 1.4,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _packagesSection() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+            const Icon(Icons.star_rounded,
+                size: 12, color: Color(0xFFB45309)),
+            const SizedBox(width: 3),
             Text(
-              'Service Packages',
-              style: _f(size: 14, weight: FontWeight.w700),
+              ratingNum > 0 ? ratingNum.toStringAsFixed(1) : '—',
+              style:
+                  _f(size: 11, weight: FontWeight.w800, color: _ink),
             ),
-            const SizedBox(height: 10),
-            ..._packages.asMap().entries.map((e) {
-              final idx = e.key;
-              final pkg = e.value is Map<String, dynamic>
-                  ? e.value as Map<String, dynamic>
-                  : <String, dynamic>{};
-              final features = pkg['features'] is List
-                  ? (pkg['features'] as List)
-                  : [];
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: idx == 0
-                      ? AppColors.primary.withOpacity(0.03)
-                      : AppColors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.borderLight),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            const SizedBox(width: 4),
+            Text('· $reviewCount',
+                style: _f(size: 11, weight: FontWeight.w600, color: _muted)),
+          ],
+        ),
+      ),
+      child: _reviewsLoading
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: CircularProgressIndicator(color: _gold),
+              ),
+            )
+          : _reviews.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
                       children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  pkg['name']?.toString() ?? 'Package',
-                                  style: _f(size: 13, weight: FontWeight.w700),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              if (idx == 0) ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 1,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    'Most Popular',
-                                    style: _f(
-                                      size: 9,
-                                      weight: FontWeight.w700,
-                                      color: AppColors.primary,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        Text(
-                          _fmtPrice(pkg['price']),
-                          style: _f(
-                            size: 13,
-                            weight: FontWeight.w700,
-                            color: AppColors.primary,
-                          ),
-                        ),
+                        Icon(Icons.star_outline_rounded,
+                            size: 36, color: _muted.withOpacity(0.4)),
+                        const SizedBox(height: 6),
+                        Text('No reviews yet. Be the first!',
+                            style: _f(size: 12, color: _muted)),
                       ],
                     ),
-                    if ((pkg['description']?.toString() ?? '').isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        pkg['description'].toString(),
-                        style: _f(size: 11, color: AppColors.textTertiary),
-                      ),
-                    ],
-                    if (features.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      ...features.map(
-                        (f) => Padding(
-                          padding: const EdgeInsets.only(bottom: 3),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.check_circle_rounded,
-                                size: 14,
-                                color: AppColors.success,
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  f.toString(),
-                                  style: _f(
-                                    size: 11,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ),
-                            ],
+                  ),
+                )
+              : Column(
+                  children: _reviews.map((r) {
+                    final review = r is Map<String, dynamic>
+                        ? r
+                        : <String, dynamic>{};
+                    final name =
+                        review['user_name']?.toString() ?? 'Anonymous';
+                    final ratingVal = review['rating'] ?? 0;
+                    final comment = review['comment']?.toString() ?? '';
+                    final date = review['created_at']?.toString() ?? '';
+                    final avatar = review['user_avatar']?.toString();
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CircleAvatar(
+                            radius: 18,
+                            backgroundColor: _gold.withOpacity(0.15),
+                            backgroundImage:
+                                avatar != null && avatar.isNotEmpty
+                                    ? NetworkImage(avatar)
+                                    : null,
+                            child: avatar == null || avatar.isEmpty
+                                ? Text(
+                                    name.isNotEmpty
+                                        ? name[0].toUpperCase()
+                                        : 'A',
+                                    style: _f(
+                                        size: 12,
+                                        weight: FontWeight.w800,
+                                        color: _goldInk),
+                                  )
+                                : null,
                           ),
-                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(name,
+                                              style: _f(
+                                                  size: 13,
+                                                  weight:
+                                                      FontWeight.w700)),
+                                          if (date.isNotEmpty)
+                                            Text(_formatDate(date),
+                                                style: _f(
+                                                    size: 10.5,
+                                                    color: _muted)),
+                                        ],
+                                      ),
+                                    ),
+                                    Row(
+                                      children: List.generate(
+                                        5,
+                                        (i) => Icon(
+                                          i <
+                                                  (ratingVal is num
+                                                      ? ratingVal.round()
+                                                      : 0)
+                                              ? Icons.star_rounded
+                                              : Icons
+                                                  .star_outline_rounded,
+                                          size: 14,
+                                          color: const Color(0xFFB45309),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (comment.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(comment,
+                                      style: _f(
+                                          size: 12.5,
+                                          color: _muted,
+                                          height: 1.45,
+                                          weight: FontWeight.w500)),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ],
+                    );
+                  }).toList(),
                 ),
-              );
-            }),
-          ],
-        ),
-      ),
     );
   }
 
+  // ════════════════════════════════════════════════════════════════
+  // TRUST BADGES (preserved)
+  // ════════════════════════════════════════════════════════════════
   Widget _trustBadges(Map<String, dynamic> s) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8),
-          ],
-        ),
-        child: Column(
-          children: [
-            _trustRow(
-              'assets/icons/shield-icon.svg',
-              AppColors.success,
-              'Verified & trusted on Nuru',
-            ),
-            const SizedBox(height: 10),
-            _trustRow(
+    return _sectionCard(
+      title: 'Why Book Through Nuru',
+      iconData: Icons.shield_outlined,
+      child: Column(
+        children: [
+          _trustRow('assets/icons/shield-icon.svg',
+              const Color(0xFF1B9E47), 'Verified & trusted on Nuru'),
+          const SizedBox(height: 12),
+          _trustRow(
               'assets/icons/verified-icon.svg',
-              AppColors.primary,
-              _timeOnPlatformFull(s['created_at']?.toString()),
-            ),
-            const SizedBox(height: 10),
-            _trustRow(
-              'assets/icons/calendar-icon.svg',
-              AppColors.blue,
-              'Responds quickly to booking requests',
-            ),
-          ],
-        ),
+              _goldInk,
+              _timeOnPlatformFull(s['created_at']?.toString())),
+          const SizedBox(height: 12),
+          _trustRow('assets/icons/calendar-icon.svg',
+              const Color(0xFF2563EB), 'Responds quickly to booking requests'),
+        ],
       ),
     );
   }
@@ -1907,60 +1602,149 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
   Widget _trustRow(String svgAsset, Color color, String text) {
     return Row(
       children: [
-        SvgPicture.asset(
-          svgAsset,
-          width: 18,
-          height: 18,
-          colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            text,
-            style: _f(size: 12, color: AppColors.textSecondary),
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(10),
           ),
+          child: Center(
+            child: SvgPicture.asset(
+              svgAsset,
+              width: 16,
+              height: 16,
+              colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(text,
+              style: _f(
+                  size: 12.5, color: _ink, weight: FontWeight.w600)),
         ),
       ],
     );
   }
 
+  // ════════════════════════════════════════════════════════════════
+  // BOTTOM BAR (sticky Chat + Book)
+  // ════════════════════════════════════════════════════════════════
+  Widget _bottomBar() {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            top: BorderSide(color: _hairline, width: 1),
+          ),
+        ),
+        child: Row(
+          children: [
+            // Chat outlined (white bordered) — equal width
+            Expanded(
+              child: SizedBox(
+                height: 50,
+                child: OutlinedButton.icon(
+                  onPressed: _booking ? null : _messageProvider,
+                  icon: const Icon(Icons.chat_bubble_outline_rounded,
+                      size: 16, color: _ink),
+                  label: Text('Chat with Vendor',
+                      style: _f(
+                          size: 13.5,
+                          weight: FontWeight.w700,
+                          color: _ink)),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    side: const BorderSide(color: _hairline),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Book primary (gold filled) — equal width
+            Expanded(
+              child: SizedBox(
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _booking ? null : _messageProvider,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _gold,
+                    foregroundColor: _goldInk,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8),
+                    elevation: 0,
+                  ),
+                  child: _booking
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: _goldInk),
+                        )
+                      : Text('Book This Service',
+                          style: _f(
+                              size: 13.5,
+                              weight: FontWeight.w800,
+                              color: _goldInk)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // Utils
+  // ════════════════════════════════════════════════════════════════
   String _timeOnPlatform(String? created) {
     if (created == null || created.isEmpty) return 'New';
-    final days = DateTime.now().difference(DateTime.parse(created)).inDays;
-    if (days < 1) return 'Today';
-    if (days < 30) return '${days}d';
-    final m = days ~/ 30;
-    if (m < 12) return '${m}mo';
-    return '${m ~/ 12}yr';
+    try {
+      final days =
+          DateTime.now().difference(DateTime.parse(created)).inDays;
+      if (days < 1) return 'Today';
+      if (days < 30) return '${days}d on Nuru';
+      final m = days ~/ 30;
+      if (m < 12) return '${m}mo on Nuru';
+      return '${m ~/ 12}yr on Nuru';
+    } catch (_) {
+      return 'On Nuru';
+    }
   }
 
   String _timeOnPlatformFull(String? created) {
     if (created == null || created.isEmpty) return 'Member of Nuru';
-    final days = DateTime.now().difference(DateTime.parse(created)).inDays;
-    if (days < 1) return 'Joined Nuru today';
-    if (days < 30) return '$days days on Nuru';
-    final m = days ~/ 30;
-    if (m < 12) return '$m ${m == 1 ? 'month' : 'months'} on Nuru';
-    final years = m ~/ 12;
-    return '$years ${years == 1 ? 'year' : 'years'} on Nuru';
+    try {
+      final days =
+          DateTime.now().difference(DateTime.parse(created)).inDays;
+      if (days < 1) return 'Joined Nuru today';
+      if (days < 30) return '$days days on Nuru';
+      final m = days ~/ 30;
+      if (m < 12) return '$m ${m == 1 ? 'month' : 'months'} on Nuru';
+      final years = m ~/ 12;
+      return '$years ${years == 1 ? 'year' : 'years'} on Nuru';
+    } catch (_) {
+      return 'Member of Nuru';
+    }
   }
 
   String _formatDate(String date) {
     try {
       final d = DateTime.parse(date);
-      final months = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
+      const months = [
+        'Jan','Feb','Mar','Apr','May','Jun',
+        'Jul','Aug','Sep','Oct','Nov','Dec',
       ];
       return '${months[d.month - 1]} ${d.day}, ${d.year}';
     } catch (_) {
@@ -1968,3 +1752,8 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
     }
   }
 }
+
+// Suppress unused l10n import warning if locale lookups aren't applied
+// directly inside this file (kept for downstream extension).
+// ignore: unused_element
+void _kL10n(BuildContext c) => c.tr('services');

@@ -209,7 +209,7 @@ class _MomentCardState extends State<MomentCard> {
                     Flexible(
                       child: Text(
                         _authorName,
-                        style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3),
+                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3),
                         maxLines: 1, overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -217,7 +217,7 @@ class _MomentCardState extends State<MomentCard> {
                   ],
                 ),
                 const SizedBox(height: 1),
-                Text(_timeAgo, style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary, height: 1.2)),
+                Text(_timeAgo, style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary, height: 1.2)),
               ],
             ),
           ),
@@ -249,7 +249,7 @@ class _MomentCardState extends State<MomentCard> {
         borderRadius: BorderRadius.circular(18),
       ),
       child: Center(
-        child: Text(initials, style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary, height: 1.0)),
+        child: Text(initials, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary, height: 1.0)),
       ),
     );
   }
@@ -312,10 +312,10 @@ class _MomentCardState extends State<MomentCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (_title.isNotEmpty)
-            Text(_title, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
+            Text(_title, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
           if (_title.isNotEmpty && _content.isNotEmpty) const SizedBox(height: 4),
           if (_content.isNotEmpty)
-            Text(_content, style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary, height: 1.5),
+            Text(_content, style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary, height: 1.5),
               maxLines: 6, overflow: TextOverflow.ellipsis),
         ],
       ),
@@ -340,7 +340,7 @@ class _MomentCardState extends State<MomentCard> {
           if (_content.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: Text(_content, style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary, height: 1.5)),
+              child: Text(_content, style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary, height: 1.5)),
             ),
           Container(
             decoration: BoxDecoration(
@@ -365,7 +365,7 @@ class _MomentCardState extends State<MomentCard> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(6)),
-                            child: Text(eventType.toString(), style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.white, height: 1.0)),
+                            child: Text(eventType.toString(), style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.white, height: 1.0)),
                           ),
                         ),
                     ],
@@ -375,10 +375,10 @@ class _MomentCardState extends State<MomentCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(eventTitle.toString(), style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
+                      Text(eventTitle.toString(), style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
                       if (eventDesc.isNotEmpty) ...[
                         const SizedBox(height: 6),
-                        Text(eventDesc.toString(), style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary, height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis),
+                        Text(eventDesc.toString(), style: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary, height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis),
                       ],
                       const SizedBox(height: 10),
                       if (eventDate.isNotEmpty)
@@ -405,7 +405,7 @@ class _MomentCardState extends State<MomentCard> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             side: const BorderSide(color: AppColors.border),
                           ),
-                          child: Text('View Event Details', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.2)),
+                          child: Text('View Event Details', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.2)),
                         ),
                       ),
                     ],
@@ -427,7 +427,7 @@ class _MomentCardState extends State<MomentCard> {
           SvgPicture.asset(svgAsset, width: 14, height: 14,
             colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
           const SizedBox(width: 6),
-          Flexible(child: Text(text, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary, height: 1.3), maxLines: 1, overflow: TextOverflow.ellipsis)),
+          Flexible(child: Text(text, style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary, height: 1.3), maxLines: 1, overflow: TextOverflow.ellipsis)),
         ],
       ),
     );
@@ -462,7 +462,7 @@ class _MomentCardState extends State<MomentCard> {
           Flexible(
             child: Text(
               '$_glowCount ${_glowCount == 1 ? 'Glow' : 'Glows'}',
-              style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary, height: 1.0),
+              style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary, height: 1.0),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -470,7 +470,7 @@ class _MomentCardState extends State<MomentCard> {
           Flexible(
             child: Text(
               '$_commentCount ${_commentCount == 1 ? 'Echo' : 'Echoes'}',
-              style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary, height: 1.0),
+              style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary, height: 1.0),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -493,7 +493,7 @@ class _MomentCardState extends State<MomentCard> {
             colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn),
           ),
           const SizedBox(width: 4),
-          Text('Spark', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textTertiary, height: 1.2)),
+          Text('Spark', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textTertiary, height: 1.2)),
         ],
       ),
     );
@@ -516,7 +516,7 @@ class _MomentCardState extends State<MomentCard> {
           SvgPicture.asset(svgAsset, width: 18, height: 18,
             colorFilter: ColorFilter.mode(color, BlendMode.srcIn)),
           const SizedBox(width: 4),
-          Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w500, color: color, height: 1.2)),
+          Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: color, height: 1.2)),
         ],
       ),
     );

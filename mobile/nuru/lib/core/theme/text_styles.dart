@@ -9,7 +9,7 @@ TextStyle appText({
   double height = 1.3,
   double letterSpacing = 0,
 }) =>
-    GoogleFonts.plusJakartaSans(
+    GoogleFonts.inter(
       fontSize: size,
       fontWeight: weight,
       color: color,

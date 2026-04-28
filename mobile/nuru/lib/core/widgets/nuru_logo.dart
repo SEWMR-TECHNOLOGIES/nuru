@@ -43,7 +43,7 @@ class NuruLogo extends StatelessWidget {
           SizedBox(height: size * 0.25),
           Text(
             'EVERY MOMENT DESERVES CARE',
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.inter(
               fontSize: size * 0.14,
               fontWeight: FontWeight.w400,
               color: AppColors.textHint,
@@ -63,7 +63,7 @@ class NuruLogo extends StatelessWidget {
       borderRadius: BorderRadius.circular(size * 0.3),
     ),
     child: Center(
-      child: Text('N', style: GoogleFonts.plusJakartaSans(fontSize: size * 0.55, fontWeight: FontWeight.w700, color: Colors.white)),
+      child: Text('N', style: GoogleFonts.inter(fontSize: size * 0.55, fontWeight: FontWeight.w700, color: Colors.white)),
     ),
   );
 }

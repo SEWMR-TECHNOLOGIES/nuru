@@ -118,8 +118,8 @@ class _BookingsScreenState extends State<BookingsScreen> with SingleTickerProvid
               dividerColor: Colors.transparent,
               labelColor: AppColors.textPrimary,
               unselectedLabelColor: AppColors.textTertiary,
-              labelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
-              unselectedLabelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w500),
+              labelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
+              unselectedLabelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500),
               tabs: const [
                 Tab(text: 'My Bookings'),
                 Tab(text: 'Incoming'),
@@ -210,14 +210,14 @@ Widget _summaryRow(Map<String, dynamic> s) {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text('${it['count']}',
-                style: GoogleFonts.plusJakartaSans(
+                style: GoogleFonts.inter(
                   fontSize: 18, fontWeight: FontWeight.w700,
                   color: it['color'] as Color,
                 ),
               ),
               const SizedBox(height: 2),
               Text('${it['label']}',
-                style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary),
+                style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary),
               ),
             ],
           ),
@@ -247,7 +247,7 @@ Widget _filterChips(String current, ValueChanged<String> onChange) {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(opt['label']!,
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.inter(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: selected ? Colors.white : AppColors.textSecondary,
@@ -288,9 +288,9 @@ Widget _emptyState(String title, String subtitle) {
               child: const Center(child: Icon(Icons.calendar_today_outlined, size: 28, color: AppColors.textHint)),
             ),
             const SizedBox(height: 16),
-            Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            Text(title, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
             const SizedBox(height: 6),
-            Text(subtitle, style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary)),
+            Text(subtitle, style: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary)),
           ],
         ),
       ),
@@ -451,7 +451,7 @@ class _BookingCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(serviceName,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.inter(
                     fontSize: 15, fontWeight: FontWeight.w600,
                     color: AppColors.textPrimary, height: 1.3,
                   ),
@@ -462,7 +462,7 @@ class _BookingCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
                 child: Text(status.toUpperCase(),
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.inter(
                     fontSize: 10, fontWeight: FontWeight.w700,
                     color: statusColor, letterSpacing: 0.5,
                   ),
@@ -478,7 +478,7 @@ class _BookingCard extends StatelessWidget {
           if (amount != null) ...[
             const SizedBox(height: 8),
             Text('TZS $amount',
-              style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primary),
+              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primary),
             ),
           ],
           // Actions
@@ -516,7 +516,7 @@ class _BookingCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
         child: Center(child: Text(label,
-          style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: fg),
+          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: fg),
         )),
       ),
     );
@@ -529,7 +529,7 @@ class _BookingCard extends StatelessWidget {
         Icon(icon, size: 14, color: AppColors.textHint),
         const SizedBox(width: 6),
         Expanded(child: Text(text,
-          style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary, height: 1.4),
+          style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary, height: 1.4),
         )),
       ]),
     );
@@ -553,7 +553,7 @@ class _BookingCard extends StatelessWidget {
           backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text(status == 'accepted' ? 'Accept booking' : 'Decline booking',
-            style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+            style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -592,7 +592,7 @@ class _BookingCard extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: submitting ? null : () => Navigator.pop(ctx),
-              child: Text('Cancel', style: GoogleFonts.plusJakartaSans(color: AppColors.textTertiary)),
+              child: Text('Cancel', style: GoogleFonts.inter(color: AppColors.textTertiary)),
             ),
             ElevatedButton(
               onPressed: submitting ? null : () async {

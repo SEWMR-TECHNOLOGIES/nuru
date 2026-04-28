@@ -54,7 +54,7 @@ class FeaturePlaceholderScreen extends StatelessWidget {
                 const SizedBox(height: 14),
                 Text(
                   title,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.inter(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
@@ -64,7 +64,7 @@ class FeaturePlaceholderScreen extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   description,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.inter(
                     fontSize: 13,
                     color: AppColors.textTertiary,
                     height: 1.45,

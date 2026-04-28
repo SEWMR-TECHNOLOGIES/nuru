@@ -41,9 +41,9 @@ class ProfileMomentsTab extends StatelessWidget {
         SvgPicture.asset('assets/icons/camera-icon.svg', width: 32, height: 32,
           colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
         const SizedBox(height: 14),
-        Text(context.tr('no_moments_yet'), style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        Text(context.tr('no_moments_yet'), style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
         const SizedBox(height: 4),
-        Text(context.tr('share_first_moment'), style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+        Text(context.tr('share_first_moment'), style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
       ]));
     }
     return GridView.builder(
@@ -140,7 +140,7 @@ class ProfileMomentsTab extends StatelessWidget {
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         const Icon(Icons.photo_library_rounded, size: 10, color: Colors.white),
                         const SizedBox(width: 2),
-                        Text('${images.length}', style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.white)),
+                        Text('${images.length}', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.white)),
                       ]),
                     ),
                   ),
@@ -163,7 +163,7 @@ class ProfileMomentsTab extends StatelessWidget {
                         const SizedBox(width: 2),
                         Flexible(
                           child: Text('${post['glow_count'] ?? 0}',
-                            style: GoogleFonts.plusJakartaSans(fontSize: 9, color: Colors.white70, fontWeight: FontWeight.w500),
+                            style: GoogleFonts.inter(fontSize: 9, color: Colors.white70, fontWeight: FontWeight.w500),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -172,7 +172,7 @@ class ProfileMomentsTab extends StatelessWidget {
                         const SizedBox(width: 2),
                         Flexible(
                           child: Text('${post['comment_count'] ?? post['echo_count'] ?? 0}',
-                            style: GoogleFonts.plusJakartaSans(fontSize: 9, color: Colors.white70, fontWeight: FontWeight.w500),
+                            style: GoogleFonts.inter(fontSize: 9, color: Colors.white70, fontWeight: FontWeight.w500),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -195,7 +195,7 @@ class ProfileMomentsTab extends StatelessWidget {
       padding: const EdgeInsets.all(8),
       child: Center(child: Text(
         content.isNotEmpty ? content : '📝',
-        style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary, height: 1.3),
+        style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary, height: 1.3),
         maxLines: 4, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
       )),
     );

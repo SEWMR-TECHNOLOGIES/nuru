@@ -40,7 +40,7 @@ class StatsRow extends StatelessWidget {
                 children: [
                   Text(
                     item.value,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.inter(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                       color: dark ? AppColors.textOnDark : AppColors.textPrimary,
@@ -50,7 +50,7 @@ class StatsRow extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     item.label,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.inter(
                       fontSize: 10,
                       color: dark ? AppColors.textOnDarkMuted : AppColors.textTertiary,
                       letterSpacing: 0.3,

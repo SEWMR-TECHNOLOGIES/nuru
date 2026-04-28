@@ -38,8 +38,16 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
   int _activeTab = 0; // 0=overview, 1=calendar, 2=reviews
   DateTime _currentMonth = DateTime.now();
 
-  TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.3}) =>
-      GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+  // ─── Theme tokens (mockup-matched, mirrors PublicServiceScreen) ─────
+  static const _bg = Colors.white;
+  static const _gold = AppColors.primary;
+  static const _ink = Color(0xFF1C1C24);
+  static const _muted = Color(0xFF6B7280);
+  static const _hairline = Color(0xFFE5E7EB);
+  static const _goldInk = Color(0xFF3A2E07);
+
+  TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = _ink, double height = 1.3}) =>
+      GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color, height: height);
 
   @override
   void initState() {
@@ -171,9 +179,9 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        backgroundColor: AppColors.surface,
+        backgroundColor: _bg,
         appBar: NuruSubPageAppBar(title: context.tr('services')),
-        body: const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+        body: const Center(child: CircularProgressIndicator(color: _gold)),
       );
     }
 
@@ -195,31 +203,34 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
         .fold<double>(0.0, (sum, b) => sum + ((b['agreed_price'] is num) ? (b['agreed_price'] as num).toDouble() : 0.0));
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F3F8),
+      backgroundColor: _bg,
       body: RefreshIndicator(
         onRefresh: _load,
-        color: AppColors.primary,
+        color: _gold,
         child: CustomScrollView(slivers: [
           // Hero gallery
           SliverToBoxAdapter(child: _heroGallery(images, title, category, isPending, location)),
 
+          // Title block under hero (chips)
+          SliverToBoxAdapter(child: _titleBlock(title, category, rating, reviewCount, location, isPending)),
+
           // KPI Dashboard — 6 metrics mirroring web ServiceDetail
           SliverToBoxAdapter(child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
             child: Column(children: [
               Row(children: [
-                _kpiCard('Revenue', totalRevenue > 0 ? _fmtPrice(totalRevenue.toInt()) : '—', AppColors.success),
-                const SizedBox(width: 8),
-                _kpiCard('Rating', rating is num && rating > 0 ? (rating as num).toStringAsFixed(1) : '—', Colors.amber),
-                const SizedBox(width: 8),
-                _kpiCard('Reviews', '$reviewCount', AppColors.blue),
+                _kpiCard('Revenue', totalRevenue > 0 ? _fmtPrice(totalRevenue.toInt()) : '—', const Color(0xFF1B9E47), Icons.attach_money_rounded),
+                const SizedBox(width: 10),
+                _kpiCard('Rating', rating is num && rating > 0 ? (rating as num).toStringAsFixed(1) : '—', const Color(0xFFB45309), Icons.star_rounded),
+                const SizedBox(width: 10),
+                _kpiCard('Reviews', '$reviewCount', const Color(0xFF2563EB), Icons.rate_review_outlined),
               ]),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Row(children: [
-                _kpiCard('Upcoming', '${upcomingBookings.length}', AppColors.primary),
-                const SizedBox(width: 8),
-                _kpiCard('Completed', '${s['completed_events'] ?? 0}', AppColors.blue),
-                const SizedBox(width: 8),
+                _kpiCard('Upcoming', '${upcomingBookings.length}', _goldInk, Icons.calendar_today_rounded),
+                const SizedBox(width: 10),
+                _kpiCard('Completed', '${s['completed_events'] ?? 0}', const Color(0xFF2563EB), Icons.check_circle_outline_rounded),
+                const SizedBox(width: 10),
                 _kpiCard(
                   'Completion',
                   () {
@@ -228,15 +239,15 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                     if (total == 0) return '—';
                     return '${((done / total) * 100).round()}%';
                   }(),
-                  AppColors.success,
+                  const Color(0xFF1B9E47), Icons.trending_up_rounded,
                 ),
               ]),
             ]),
           )),
 
-          // Quick Actions
+          // Quick Actions (horizontal scroll, white pills)
           SliverToBoxAdapter(child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(children: [
@@ -265,13 +276,14 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
           SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: Container(
+              padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: AppColors.surfaceVariant.withOpacity(0.5),
+                color: const Color(0xFFEFF1F6),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.borderLight),
               ),
               child: Row(children: List.generate(3, (i) {
                 final labels = ['Overview', 'Calendar', 'Reviews ($reviewCount)'];
+                final active = _activeTab == i;
                 return Expanded(
                   child: GestureDetector(
                     onTap: () {
@@ -281,14 +293,16 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                       if (i == 2) _ensureReviewsLoaded();
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      padding: const EdgeInsets.symmetric(vertical: 9),
                       decoration: BoxDecoration(
-                        color: _activeTab == i ? Colors.white : Colors.transparent,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: _activeTab == i ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)] : null,
+                        color: active ? Colors.white : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: active
+                            ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6, offset: const Offset(0, 1))]
+                            : null,
                       ),
                       child: Text(labels[i], textAlign: TextAlign.center,
-                          style: _f(size: 12, weight: FontWeight.w600, color: _activeTab == i ? AppColors.textPrimary : AppColors.textTertiary)),
+                          style: _f(size: 12.5, weight: FontWeight.w800, color: active ? _ink : _muted)),
                     ),
                   ),
                 );
@@ -298,7 +312,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
 
           // Tab Content
           SliverToBoxAdapter(child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
             child: _activeTab == 0 ? _overviewTab(s) : _activeTab == 1 ? _calendarTab() : _reviewsTab(),
           )),
         ]),
@@ -306,145 +320,157 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
     );
   }
 
-  Widget _heroGallery(List<String> images, String title, String category, bool isPending, String location) {
-    if (images.isEmpty) {
-      return Container(
-        height: 220,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [AppColors.primary.withOpacity(0.15), AppColors.primary.withOpacity(0.05)]),
-        ),
-        child: SafeArea(
-          bottom: false,
-          child: Stack(children: [
-            Positioned(top: 8, left: 8, child: _backBtn()),
-            Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Container(width: 56, height: 56, decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.15), borderRadius: BorderRadius.circular(16)),
-                child: const Icon(Icons.work_outline, size: 28, color: AppColors.primary)),
-              const SizedBox(height: 10),
-              Text(title, style: _f(size: 22, weight: FontWeight.w800)),
-              if (category.isNotEmpty) Text(category, style: _f(size: 13, color: AppColors.textTertiary)),
-            ])),
-          ]),
-        ),
-      );
-    }
-
-    return Stack(children: [
-      SizedBox(
-        height: 300,
-        width: double.infinity,
-        child: images.length == 1
-            ? CachedNetworkImage(imageUrl: images[0], fit: BoxFit.cover, errorWidget: (_, __, ___) => Container(color: AppColors.surfaceVariant))
-            : PageView.builder(
-                itemCount: images.length,
-                itemBuilder: (_, i) => CachedNetworkImage(imageUrl: images[i], fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(color: AppColors.surfaceVariant)),
-              ),
-      ),
-      Positioned.fill(child: Container(
-        decoration: const BoxDecoration(gradient: LinearGradient(
-          begin: Alignment.topCenter, end: Alignment.bottomCenter,
-          colors: [Colors.transparent, Colors.transparent, Colors.black87],
-        )),
-      )),
-      Positioned(top: 0, left: 0, right: 0, child: SafeArea(bottom: false, child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          _backBtn(),
-          if (images.length > 1)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(20)),
-              child: Text('${images.length} photos', style: _f(size: 10, weight: FontWeight.w600, color: Colors.white)),
+  // Title block under hero — chips for category, rating, location
+  Widget _titleBlock(String title, String category, dynamic rating, dynamic reviewCount, String location, bool isPending) {
+    final ratingNum = rating is num ? rating.toDouble() : 0.0;
+    final hasRating = ratingNum > 0;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: _f(size: 22, weight: FontWeight.w800, height: 1.2)),
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          if (category.isNotEmpty)
+            _chip(label: category, bg: _gold.withOpacity(0.18), fg: _goldInk),
+          if (hasRating)
+            _chip(
+              iconWidget: const Icon(Icons.star_rounded, size: 13, color: Color(0xFFB45309)),
+              label: '${ratingNum.toStringAsFixed(1)} ($reviewCount ${reviewCount == 1 ? 'review' : 'reviews'})',
+              bg: const Color(0xFFFFF7E0), fg: _goldInk,
+            ),
+          if (location.isNotEmpty)
+            _chip(
+              iconWidget: SvgPicture.asset('assets/icons/location-icon.svg',
+                  width: 12, height: 12, colorFilter: const ColorFilter.mode(_muted, BlendMode.srcIn)),
+              label: location, bg: const Color(0xFFF1F2F6), fg: _ink,
+            ),
+          if (isPending)
+            _chip(
+              iconWidget: const Icon(Icons.pending_outlined, size: 13, color: Color(0xFFB45309)),
+              label: 'Pending Review', bg: const Color(0xFFFFF1E0), fg: const Color(0xFF92400E),
             ),
         ]),
-      ))),
-      Positioned(bottom: 16, left: 16, right: 16, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (category.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(bottom: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(6)),
-            child: Text(category, style: _f(size: 10, weight: FontWeight.w600, color: Colors.white)),
-          ),
-        if (isPending)
-          Container(
-            margin: const EdgeInsets.only(bottom: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(color: AppColors.warning.withOpacity(0.9), borderRadius: BorderRadius.circular(6)),
-            child: Text('Pending Review', style: _f(size: 10, weight: FontWeight.w700, color: Colors.white)),
-          ),
-        Text(title, style: _f(size: 24, weight: FontWeight.w800, color: Colors.white)),
-        if (location.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Row(children: [
-            SvgPicture.asset('assets/icons/location-icon.svg', width: 14, height: 14,
-              colorFilter: const ColorFilter.mode(Colors.white70, BlendMode.srcIn)),
-            const SizedBox(width: 4),
-            Text(location, style: _f(size: 12, color: Colors.white70)),
-          ]),
-        ],
-      ])),
-    ]);
+      ]),
+    );
   }
 
-  Widget _backBtn() => GestureDetector(
-    onTap: () => Navigator.pop(context),
-    child: Container(
-      width: 36, height: 36,
-      decoration: const BoxDecoration(color: Colors.black38, shape: BoxShape.circle),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: SvgPicture.asset('assets/icons/chevron-left-icon.svg', width: 20, height: 20,
-          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
-      ),
+  Widget _chip({String? label, Widget? iconWidget, required Color bg, required Color fg}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (iconWidget != null) ...[iconWidget, const SizedBox(width: 5)],
+        if (label != null) Text(label, style: _f(size: 11.5, weight: FontWeight.w700, color: fg)),
+      ]),
+    );
+  }
+
+  Widget _heroGallery(List<String> images, String title, String category, bool isPending, String location) {
+    return Container(
+      color: _bg,
+      child: Column(children: [
+        SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              _circleBtn(asset: 'assets/icons/chevron-left-icon.svg', onTap: () => Navigator.pop(context)),
+              _circleBtn(icon: Icons.more_horiz_rounded, onTap: () => _showEditServiceSheet(_service)),
+            ]),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: SizedBox(
+              height: 240, width: double.infinity,
+              child: images.isEmpty
+                  ? _heroPlaceholder(title)
+                  : Stack(children: [
+                      images.length == 1
+                          ? CachedNetworkImage(imageUrl: images[0], fit: BoxFit.cover,
+                              errorWidget: (_, __, ___) => _heroPlaceholder(title))
+                          : PageView.builder(
+                              itemCount: images.length,
+                              itemBuilder: (_, i) => CachedNetworkImage(imageUrl: images[i], fit: BoxFit.cover,
+                                errorWidget: (_, __, ___) => _heroPlaceholder(title)),
+                            ),
+                      if (images.length > 1)
+                        Positioned(top: 12, right: 12, child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(color: Colors.black.withOpacity(0.55), borderRadius: BorderRadius.circular(999)),
+                          child: Text('${images.length} photos',
+                              style: _f(size: 11, weight: FontWeight.w700, color: Colors.white)),
+                        )),
+                    ]),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _heroPlaceholder(String title) => Container(
+    decoration: BoxDecoration(
+      gradient: LinearGradient(colors: [_gold.withOpacity(0.3), _gold.withOpacity(0.1)]),
     ),
+    child: const Center(child: Icon(Icons.work_outline, size: 56, color: _goldInk)),
   );
 
-  Widget _kpiCard(String label, String value, Color color) {
-    return Expanded(child: Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6)],
+  Widget _circleBtn({String? asset, IconData? icon, Color iconColor = _ink, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38, height: 38,
+        decoration: BoxDecoration(
+          color: Colors.white, shape: BoxShape.circle,
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 2))],
+        ),
+        child: Center(child: asset != null
+            ? SvgPicture.asset(asset, width: 18, height: 18, colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn))
+            : Icon(icon, size: 19, color: iconColor)),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(width: 28, height: 28, decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-          child: Icon(_kpiIcon(label), size: 14, color: color)),
-        const SizedBox(height: 6),
-        Text(value, style: _f(size: 13, weight: FontWeight.w800), maxLines: 1, overflow: TextOverflow.ellipsis),
-        Text(label, style: _f(size: 9, color: AppColors.textTertiary)),
-      ]),
-    ));
+    );
   }
 
-  IconData _kpiIcon(String label) {
-    switch (label) {
-      case 'Revenue': return Icons.attach_money_rounded;
-      case 'Rating': return Icons.star_rounded;
-      case 'Reviews': return Icons.rate_review_outlined;
-      case 'Upcoming': return Icons.calendar_today_rounded;
-      case 'Completed': case 'Done': return Icons.check_circle_outline_rounded;
-      case 'Completion': return Icons.trending_up_rounded;
-      default: return Icons.info_outline;
-    }
+  // Legacy alias — kept for downstream call sites
+  Widget _backBtn() => _circleBtn(asset: 'assets/icons/chevron-left-icon.svg', onTap: () => Navigator.pop(context));
+
+  Widget _kpiCard(String label, String value, Color color, IconData icon) {
+    return Expanded(child: Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 2))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(width: 28, height: 28, decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(9)),
+          child: Icon(icon, size: 15, color: color)),
+        const SizedBox(height: 8),
+        Text(value, style: _f(size: 15, weight: FontWeight.w800), maxLines: 1, overflow: TextOverflow.ellipsis),
+        const SizedBox(height: 1),
+        Text(label, style: _f(size: 10.5, color: _muted, weight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+      ]),
+    ));
   }
 
   Widget _quickAction(String label, String svgAsset, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.borderLight),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(999),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 1))],
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           SvgPicture.asset(svgAsset, width: 14, height: 14,
-            colorFilter: const ColorFilter.mode(AppColors.textSecondary, BlendMode.srcIn)),
-          const SizedBox(width: 5),
-          Text(label, style: _f(size: 12, weight: FontWeight.w600)),
+            colorFilter: const ColorFilter.mode(_goldInk, BlendMode.srcIn)),
+          const SizedBox(width: 6),
+          Text(label, style: _f(size: 12.5, weight: FontWeight.w800, color: _ink)),
         ]),
       ),
     );
@@ -520,29 +546,29 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
   Widget _sectionCard(String title, {Widget? child, String? svgIcon, IconData? icon, String? trailing}) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8)]),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 2))]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           if (svgIcon != null) ...[
-            Container(width: 28, height: 28, decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+            Container(width: 28, height: 28, decoration: BoxDecoration(color: _gold.withOpacity(0.18), borderRadius: BorderRadius.circular(8)),
               child: Center(child: SvgPicture.asset(svgIcon, width: 14, height: 14,
-                colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn)))),
-            const SizedBox(width: 8),
+                colorFilter: const ColorFilter.mode(_goldInk, BlendMode.srcIn)))),
+            const SizedBox(width: 10),
           ] else if (icon != null) ...[
-            Container(width: 28, height: 28, decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-              child: Icon(icon, size: 14, color: AppColors.primary)),
-            const SizedBox(width: 8),
+            Container(width: 28, height: 28, decoration: BoxDecoration(color: _gold.withOpacity(0.18), borderRadius: BorderRadius.circular(8)),
+              child: Icon(icon, size: 15, color: _goldInk)),
+            const SizedBox(width: 10),
           ],
-          Expanded(child: Text(title, style: _f(size: 14, weight: FontWeight.w700))),
+          Expanded(child: Text(title, style: _f(size: 15.5, weight: FontWeight.w800, color: _ink))),
           if (trailing != null)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(border: Border.all(color: AppColors.borderLight), borderRadius: BorderRadius.circular(6)),
-              child: Text(trailing, style: _f(size: 11, weight: FontWeight.w600, color: AppColors.textTertiary)),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(color: const Color(0xFFF1F2F6), borderRadius: BorderRadius.circular(999)),
+              child: Text(trailing, style: _f(size: 11, weight: FontWeight.w800, color: _ink)),
             ),
         ]),
-        if (child != null) ...[const SizedBox(height: 10), child],
+        if (child != null) ...[const SizedBox(height: 12), child],
       ]),
     );
   }

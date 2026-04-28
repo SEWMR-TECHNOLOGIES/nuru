@@ -102,9 +102,10 @@ class _OtpInputState extends State<OtpInput> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final totalGaps = (widget.length - 1) * 10.0 + 8.0 + 16.0;
+        const gap = 10.0;
+        final totalGaps = (widget.length - 1) * gap;
         final availableWidth = constraints.maxWidth - totalGaps;
-        final cellSize = (availableWidth / widget.length).clamp(40.0, 52.0);
+        final cellSize = (availableWidth / widget.length).clamp(40.0, 56.0);
 
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -114,27 +115,30 @@ class _OtpInputState extends State<OtpInput> {
 
             return AnimatedContainer(
               duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
               width: cellSize,
-              height: cellSize * 1.15,
-              margin: EdgeInsets.only(
-                right: i < widget.length - 1 ? (i == 2 ? 16 : 10) : 0,
-                left: i == 3 ? 8 : 0,
-              ),
+              height: cellSize * 1.1,
+              margin: EdgeInsets.only(right: i < widget.length - 1 ? gap : 0),
               decoration: BoxDecoration(
-                color: hasValue
-                    ? AppColors.primary.withOpacity(0.06)
-                    : isFocused
-                        ? AppColors.surface
-                        : AppColors.surfaceVariant,
-                borderRadius: BorderRadius.circular(14),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: hasValue
-                      ? AppColors.primary.withOpacity(0.35)
-                      : isFocused
-                          ? AppColors.primary
-                          : AppColors.borderLight,
-                  width: isFocused ? 2 : 1,
+                  color: isFocused
+                      ? AppColors.primary
+                      : hasValue
+                          ? AppColors.primary.withOpacity(0.4)
+                          : const Color(0xFFE5E7EB),
+                  width: isFocused ? 1.8 : 1,
                 ),
+                boxShadow: isFocused
+                    ? [
+                        BoxShadow(
+                          color: AppColors.primary.withOpacity(0.10),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
               ),
               child: KeyboardListener(
                 focusNode: FocusNode(),
@@ -144,16 +148,19 @@ class _OtpInputState extends State<OtpInput> {
                   focusNode: widget.focusNodes[i],
                   textAlign: TextAlign.center,
                   keyboardType: TextInputType.number,
-                  maxLength: widget.length, // Allow paste of full code
-                  style: GoogleFonts.plusJakartaSans(
+                  maxLength: widget.length,
+                  cursorColor: AppColors.primary,
+                  cursorWidth: 1.6,
+                  showCursor: true,
+                  style: GoogleFonts.inter(
                     fontSize: cellSize < 46 ? 20 : 24,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     counterText: '',
                     filled: false,
-                    contentPadding: EdgeInsets.symmetric(vertical: cellSize < 46 ? 8 : 12),
+                    contentPadding: EdgeInsets.zero,
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,

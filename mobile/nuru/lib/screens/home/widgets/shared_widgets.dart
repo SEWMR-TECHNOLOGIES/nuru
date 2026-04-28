@@ -28,7 +28,7 @@ class SectionHeader extends StatelessWidget {
           const SizedBox(width: 8),
         ],
         Expanded(
-          child: Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -0.3, height: 1.2)),
+          child: Text(title, style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -0.3, height: 1.2)),
         ),
         if (count != null && count != '0') ...[
           const SizedBox(width: 8),
@@ -38,7 +38,7 @@ class SectionHeader extends StatelessWidget {
               color: AppColors.surfaceVariant,
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Text(count!, style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, height: 1.0)),
+            child: Text(count!, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, height: 1.0)),
           ),
         ],
         if (onAction != null)
@@ -46,7 +46,7 @@ class SectionHeader extends StatelessWidget {
             onTap: onAction,
             child: Text(
               actionLabel ?? 'See all',
-              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600, height: 1.2),
+              style: GoogleFonts.inter(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600, height: 1.2),
             ),
           ),
       ],
@@ -80,9 +80,9 @@ class EmptyState extends StatelessWidget {
               child: Icon(icon, size: 28, color: AppColors.textTertiary),
             ),
             const SizedBox(height: 20),
-            Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
+            Text(title, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
             const SizedBox(height: 6),
-            Text(subtitle, style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary, height: 1.5), textAlign: TextAlign.center),
+            Text(subtitle, style: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary, height: 1.5), textAlign: TextAlign.center),
             if (action != null) ...[const SizedBox(height: 24), action!],
           ],
         ),

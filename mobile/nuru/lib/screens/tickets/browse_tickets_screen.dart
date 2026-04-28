@@ -87,7 +87,7 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text('Find events and purchase tickets',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary)),
+                    style: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary)),
                 ),
                 const SizedBox(width: 8),
                 GestureDetector(
@@ -107,7 +107,7 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
                         SvgPicture.asset('assets/icons/ticket-icon.svg', width: 14, height: 14,
                             colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
                         const SizedBox(width: 6),
-                        Text('My Tickets', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+                        Text('My Tickets', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
                       ],
                     ),
                   ),
@@ -181,7 +181,7 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
         children: [
           _paginationButton(Icons.chevron_left, hasPrev, () { _page--; _load(); }),
           const SizedBox(width: 12),
-          Text('Page $_page of $totalPages', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+          Text('Page $_page of $totalPages', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
           const SizedBox(width: 12),
           _paginationButton(Icons.chevron_right, hasNext, () { _page++; _load(); }),
         ],
@@ -261,7 +261,7 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
                         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 6)],
                       ),
                       child: Text('From TZS ${_formatNumber(minPrice)}',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+                          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
                     ),
                   ),
                 // Sold out badge top-right (matches web)
@@ -271,7 +271,7 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(6)),
-                      child: Text('Sold Out', style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white)),
+                      child: Text('Sold Out', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white)),
                     ),
                   ),
                 // Pending review badge top-left (owner only)
@@ -288,7 +288,7 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         const Icon(Icons.schedule, size: 11, color: Colors.white),
                         const SizedBox(width: 4),
-                        Text('Pending review', style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white)),
+                        Text('Pending review', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white)),
                       ]),
                     ),
                   ),
@@ -312,17 +312,17 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           const SizedBox(height: 8),
-                          Text('${d.day}', style: GoogleFonts.plusJakartaSans(
+                          Text('${d.day}', style: GoogleFonts.inter(
                             fontSize: 20, fontWeight: FontWeight.w800, height: 1,
                             color: countdown != null && countdown['isPast'] == true ? AppColors.textTertiary : AppColors.primary,
                           )),
                           const SizedBox(height: 2),
-                          Text(_monthAbbr(d.month), style: GoogleFonts.plusJakartaSans(
+                          Text(_monthAbbr(d.month), style: GoogleFonts.inter(
                             fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.5,
                             color: countdown != null && countdown['isPast'] == true ? AppColors.textTertiary : AppColors.primary,
                           )),
                           const SizedBox(height: 2),
-                          Text('${d.year}', style: GoogleFonts.plusJakartaSans(fontSize: 9, color: AppColors.textTertiary)),
+                          Text('${d.year}', style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary)),
                           const SizedBox(height: 8),
                         ],
                       ),
@@ -335,7 +335,7 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(name, maxLines: 2, overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.3)),
+                              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.3)),
                           if (location.isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Row(children: [
@@ -343,7 +343,7 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
                                   colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
                               const SizedBox(width: 4),
                               Expanded(child: Text(location, maxLines: 1, overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary))),
+                                  style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary))),
                             ]),
                           ],
                           const SizedBox(height: 6),
@@ -362,10 +362,10 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text('$ticketClassCount class${ticketClassCount != 1 ? 'es' : ''}',
-                                      style: GoogleFonts.plusJakartaSans(fontSize: 9, color: AppColors.textTertiary)),
+                                      style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary)),
                                 ),
                               if (available > 0)
-                                Text('$available left', style: GoogleFonts.plusJakartaSans(fontSize: 9, color: AppColors.textTertiary)),
+                                Text('$available left', style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary)),
                             ],
                           ),
                         ],
@@ -390,7 +390,7 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
         color: isPast ? AppColors.surfaceVariant : AppColors.primarySoft,
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(text, style: GoogleFonts.plusJakartaSans(
+      child: Text(text, style: GoogleFonts.inter(
         fontSize: 9, fontWeight: FontWeight.w600,
         color: isPast ? AppColors.textTertiary : AppColors.primary,
       )),
@@ -570,7 +570,7 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(widget.eventName, style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                  Text(widget.eventName, style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                   if (widget.startDate != null && widget.startDate!.isNotEmpty) ...[
                     const SizedBox(height: 6),
                     Row(children: [
@@ -578,7 +578,7 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
                           colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
                       const SizedBox(width: 6),
                       Text(_formatFullDate(widget.startDate!),
-                          style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
+                          style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
                     ]),
                   ],
                   if (widget.location != null && widget.location!.isNotEmpty) ...[
@@ -588,7 +588,7 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
                           colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
                       const SizedBox(width: 6),
                       Expanded(child: Text(widget.location!, maxLines: 1, overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary))),
+                          style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary))),
                     ]),
                   ],
                 ],
@@ -616,12 +616,12 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('Pending review',
-                              style: GoogleFonts.plusJakartaSans(
+                              style: GoogleFonts.inter(
                                   fontSize: 13, fontWeight: FontWeight.w700, color: Colors.amber.shade900)),
                           const SizedBox(height: 2),
                           Text(
                             'Your ticketed event is awaiting admin approval. Buyers will be able to purchase tickets once approved.',
-                            style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.amber.shade900, height: 1.4),
+                            style: GoogleFonts.inter(fontSize: 11, color: Colors.amber.shade900, height: 1.4),
                           ),
                         ],
                       ),
@@ -644,9 +644,9 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
                           colorFilter: const ColorFilter.mode(AppColors.success, BlendMode.srcIn))),
                     ),
                     const SizedBox(height: 14),
-                    Text('Ticket Request Sent!', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                    Text('Ticket Request Sent!', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                     const SizedBox(height: 4),
-                    Text('Awaiting organizer approval', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+                    Text('Awaiting organizer approval', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
                     const SizedBox(height: 16),
                     Container(
                       width: double.infinity,
@@ -658,7 +658,7 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
                       ),
                       child: Column(
                         children: [
-                          Text('Ticket Code', style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
+                          Text('Ticket Code', style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
                           const SizedBox(height: 4),
                           Text('${_purchaseResult!['ticket_code']}',
                               style: GoogleFonts.sourceCodePro(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: 2)),
@@ -667,7 +667,7 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
                     ),
                     const SizedBox(height: 12),
                     Text('Total: TZS ${_formatAmount(_purchaseResult!['total_amount'])}',
-                        style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textTertiary)),
+                        style: GoogleFonts.inter(fontSize: 14, color: AppColors.textTertiary)),
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity, height: 48,
@@ -677,7 +677,7 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         ),
                         onPressed: () => Navigator.pop(context),
-                        child: Text('Done', style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w600)),
+                        child: Text('Done', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600)),
                       ),
                     ),
                   ],
@@ -689,7 +689,7 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
             // Empty
             else if (_classes.isEmpty)
               Padding(padding: const EdgeInsets.all(40), child: Text('No ticket classes available',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textTertiary)))
+                  style: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary)))
             // Ticket classes list (matches web dialog)
             else ...[
               ..._classes.map((tc) {
@@ -740,13 +740,13 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
                                     children: [
                                       Row(
                                         children: [
-                                          Flexible(child: Text(name, style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
+                                          Flexible(child: Text(name, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
                                           if (isSoldOut) ...[
                                             const SizedBox(width: 6),
                                             Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                               decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(4)),
-                                              child: Text('Sold Out', style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.white)),
+                                              child: Text('Sold Out', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.white)),
                                             ),
                                           ],
                                         ],
@@ -755,11 +755,11 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
                                         Padding(
                                           padding: const EdgeInsets.only(top: 2),
                                           child: Text(description, maxLines: 2, overflow: TextOverflow.ellipsis,
-                                              style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textTertiary)),
+                                              style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
                                         ),
                                       const SizedBox(height: 3),
                                       Text('$available of $quantity available',
-                                          style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary)),
+                                          style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary)),
                                     ],
                                   ),
                                 ),
@@ -768,8 +768,8 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
                                     Text('TZS ${_formatAmount(price)}',
-                                        style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primary)),
-                                    Text('per ticket', style: GoogleFonts.plusJakartaSans(fontSize: 9, color: AppColors.textTertiary)),
+                                        style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                                    Text('per ticket', style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary)),
                                   ],
                                 ),
                               ],
@@ -795,13 +795,13 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Quantity', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+                          Text('Quantity', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
                           Row(
                             children: [
                               _quantityButton(Icons.remove, _quantity > 1, () => setState(() => _quantity--)),
                               Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                                child: Text('$_quantity', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w600)),
+                                child: Text('$_quantity', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w600)),
                               ),
                               _quantityButton(Icons.add, true, () => setState(() => _quantity++)),
                             ],
@@ -814,9 +814,9 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(_selectedClassName() + ' × $_quantity',
-                              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textTertiary)),
+                              style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
                           Text('TZS ${_formatAmount(_selectedPrice() * _quantity)}',
-                              style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                         ],
                       ),
                       const SizedBox(height: 14),
@@ -837,7 +837,7 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
                                         colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
                                     const SizedBox(width: 8),
                                     Text('Purchase Ticket${_quantity > 1 ? 's' : ''}',
-                                        style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w600)),
+                                        style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600)),
                                   ],
                                 ),
                         ),

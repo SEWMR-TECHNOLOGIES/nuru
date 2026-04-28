@@ -43,13 +43,20 @@ class MessagesService {
   }
 
   /// POST /messages/:id — send a message
+  ///
+  /// [encryptionVersion] is sent as `'plain'` by default for backward compatibility
+  /// with older servers. Pass `'v1'` once the client uses the transport-framed envelope.
   static Future<Map<String, dynamic>> sendMessage(String conversationId, {
     required String content,
     String? replyToId,
     List<String>? attachments,
+    String encryptionVersion = 'plain',
   }) async {
     try {
-      final body = <String, dynamic>{'content': content};
+      final body = <String, dynamic>{
+        'content': content,
+        'encryption_version': encryptionVersion,
+      };
       if (replyToId != null) body['reply_to_id'] = replyToId;
       if (attachments != null && attachments.isNotEmpty) {
         body['attachments'] = attachments;

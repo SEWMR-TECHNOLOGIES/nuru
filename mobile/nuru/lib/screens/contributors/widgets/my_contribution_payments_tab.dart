@@ -66,7 +66,7 @@ class _MyContributionPaymentsTabState extends State<MyContributionPaymentsTab>
   }
 
   TextStyle _txt({double size = 12, FontWeight weight = FontWeight.w500, Color? color, double? height}) =>
-      GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+      GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color, height: height);
 
   @override
   Widget build(BuildContext context) {

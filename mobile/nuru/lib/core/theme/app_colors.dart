@@ -3,16 +3,16 @@ import 'package:flutter/material.dart';
 /// Nuru Design System 2026
 /// Post-onboarding palette: Blue, Green, Orange, Dark. No gradients.
 class AppColors {
-  // ─── Brand Core ───
-  static const Color primary = Color(0xFFFF7145);       // Orange - primary actions
-  static const Color primaryLight = Color(0xFFFF9472);
-  static const Color primaryDark = Color(0xFFE85A30);
-  static const Color primarySoft = Color(0x0AFF7145);
+  // ─── Brand Core ─── (Nuru Gold — matches onboarding)
+  static const Color primary = Color(0xFFFECA08);       // Gold - primary actions
+  static const Color primaryLight = Color(0xFFFFD83D);
+  static const Color primaryDark = Color(0xFFD9AB00);
+  static const Color primarySoft = Color(0x14FECA08);
 
-  // Secondary - Orange for highlights
-  static const Color secondary = Color(0xFFFF7145);
-  static const Color secondaryLight = Color(0xFFFF9472);
-  static const Color secondarySoft = Color(0x0AFF7145);
+  // Secondary - Gold for highlights
+  static const Color secondary = Color(0xFFFECA08);
+  static const Color secondaryLight = Color(0xFFFFD83D);
+  static const Color secondarySoft = Color(0x14FECA08);
 
   // Accent - Green for success/positive
   static const Color accent = Color(0xFF71E07E);
@@ -56,8 +56,8 @@ class AppColors {
   static const Color successSoft = Color(0x1A71E07E);
   static const Color error = Color(0xFFDC2626);
   static const Color errorSoft = Color(0x1ADC2626);
-  static const Color warning = Color(0xFFFF7145);
-  static const Color warningSoft = Color(0x1AFF7145);
+  static const Color warning = Color(0xFFFECA08);
+  static const Color warningSoft = Color(0x1AFECA08);
   static const Color info = Color(0xFF2471E7);
   static const Color infoSoft = Color(0x1A2471E7);
 

@@ -91,6 +91,24 @@ class WalletService {
     );
   }
 
+  /// Aggregated Payment History feed for the dedicated screen.
+  /// `category` ∈ all | tickets | contributions | vendors | promotions | ads
+  static Future<Map<String, dynamic>> paymentHistory({
+    String category = 'all',
+    int page = 1,
+    int limit = 20,
+  }) {
+    return ApiBase.get(
+      '/payments/history',
+      queryParams: {
+        'category': category,
+        'page': '$page',
+        'limit': '$limit',
+      },
+      fallbackError: 'Unable to load payment history',
+    );
+  }
+
   // ── Payout profiles ──
   static Future<Map<String, dynamic>> listProfiles() {
     return ApiBase.get('/payment-profiles', fallbackError: 'Unable to load payout profiles');

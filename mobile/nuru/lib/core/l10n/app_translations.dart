@@ -180,6 +180,8 @@ class AppTranslations {
 
     // ── Vendors / Services ──
     'vendors': {'en': 'Vendors', 'sw': 'Vendors'},
+    'all': {'en': 'All', 'sw': 'Zote'},
+    'people': {'en': 'People', 'sw': 'Watu'},
     'services': {'en': 'Services', 'sw': 'Huduma'},
     'my_services': {'en': 'My Services', 'sw': 'Huduma Zangu'},
     'find_services': {'en': 'Find Vendors', 'sw': 'Tafuta Vendors'},

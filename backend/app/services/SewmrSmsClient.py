@@ -58,13 +58,20 @@ class SewmrSmsClient:
         return self._send_request("GET", url)
 
     def _send_request(self, method: str, url: str, payload: dict = None):
+        # 20s per call (was 15s). The bulk reminder pipeline retries failed
+        # chunks 1h later via Celery beat, so a slightly higher per-call
+        # ceiling reduces transient false negatives without risking the
+        # outer HTTP request timing out (the route returns 202 immediately
+        # and never blocks on this call).
         try:
             if method.upper() == "POST":
-                response = requests.post(url, json=payload, headers=self.headers, timeout=15)
+                response = requests.post(url, json=payload, headers=self.headers, timeout=20)
             else:
-                response = requests.get(url, headers=self.headers, timeout=15)
+                response = requests.get(url, headers=self.headers, timeout=20)
 
             response.raise_for_status()
             return response.json()
+        except requests.Timeout as e:
+            return {"success": False, "error": "upstream_timeout", "detail": str(e)}
         except Exception as e:
             return {"success": False, "error": str(e)}

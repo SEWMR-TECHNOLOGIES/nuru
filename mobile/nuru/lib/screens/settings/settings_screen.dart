@@ -593,13 +593,15 @@ class _EditProfileSectionState extends State<_EditProfileSection> {
 
     setState(() => _saving = true);
 
-    // Only send changed fields to avoid validation errors on unchanged data
+    // Mirror web behaviour: always send the full set of editable fields so
+    // backend validators receive a complete payload (mobile previously sent
+    // only changed fields which triggered "validation failed" responses).
     final res = await EventsService.updateProfile(
-      firstName: _hasChanged('first_name') ? firstName : null,
-      lastName: _hasChanged('last_name') ? lastName : null,
+      firstName: firstName,
+      lastName: lastName,
       phone: phoneChanged ? newPhone : null,
-      bio: _hasChanged('bio') ? _bioCtrl.text.trim() : null,
-      location: _hasChanged('location') ? _locationCtrl.text.trim() : null,
+      bio: _bioCtrl.text.trim(),
+      location: _locationCtrl.text.trim(),
       avatarPath: _avatarPath,
     );
 

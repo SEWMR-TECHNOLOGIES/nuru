@@ -91,7 +91,7 @@ class _EventGroupWorkspaceScreenState extends State<EventGroupWorkspaceScreen>
                     ),
                     child: imageUrl == null
                         ? Center(child: Text(_initials(_group?['name'] ?? '?'),
-                            style: GoogleFonts.plusJakartaSans(color: AppColors.primary, fontWeight: FontWeight.w800, fontSize: 12)))
+                            style: GoogleFonts.inter(color: AppColors.primary, fontWeight: FontWeight.w800, fontSize: 12)))
                         : null,
                   ),
                   const SizedBox(width: 10),
@@ -104,7 +104,7 @@ class _EventGroupWorkspaceScreenState extends State<EventGroupWorkspaceScreen>
                           Flexible(
                             child: Text(_group?['name'] ?? '',
                                 maxLines: 1, overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.textPrimary)),
+                                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.textPrimary)),
                           ),
                           if (isClosed) Padding(
                             padding: const EdgeInsets.only(left: 4),
@@ -112,7 +112,7 @@ class _EventGroupWorkspaceScreenState extends State<EventGroupWorkspaceScreen>
                           ),
                         ]),
                         Text('${_members.length} member${_members.length != 1 ? 's' : ''}',
-                            style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textTertiary)),
+                            style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary)),
                       ],
                     ),
                   ),
@@ -139,7 +139,7 @@ class _EventGroupWorkspaceScreenState extends State<EventGroupWorkspaceScreen>
           unselectedLabelColor: AppColors.textTertiary,
           indicatorColor: AppColors.primary,
           indicatorWeight: 3,
-          labelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 13),
+          labelStyle: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13),
           tabs: const [
             Tab(icon: Icon(Icons.chat_bubble_outline, size: 16), text: 'Chat'),
             Tab(icon: Icon(Icons.emoji_events_outlined, size: 16), text: 'Scoreboard'),

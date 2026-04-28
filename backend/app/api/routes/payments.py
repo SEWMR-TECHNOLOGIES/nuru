@@ -1324,6 +1324,173 @@ def my_transactions(
 
 
 # ──────────────────────────────────────────────
+# Aggregated Payment History (mobile + web)
+# Returns: total_spent, percent_change_vs_previous_period,
+#          per-category counts and a paginated list of transactions
+#          for the requested category. "Promotions" / "Ads" return an
+#          empty list with a friendly empty-state — those money flows
+#          do not yet pass through the unified Transaction table.
+# ──────────────────────────────────────────────
+
+
+_HISTORY_CATEGORY_TO_TARGET = {
+    "tickets": PaymentTargetTypeEnum.ticket,
+    "contributions": PaymentTargetTypeEnum.contribution,
+    "vendors": PaymentTargetTypeEnum.booking,
+}
+
+_HISTORY_VIRTUAL_CATEGORIES = {"promotions", "ads"}
+
+
+def _history_base_query(db: Session, user_id):
+    """All payer-side transactions for this user that count as 'spent'.
+    We exclude wallet_topup / withdrawal / settlement which aren't actual
+    purchases the user would expect to see in 'Payment History'.
+    """
+    return db.query(Transaction).filter(
+        Transaction.payer_user_id == user_id,
+        Transaction.target_type.in_([
+            PaymentTargetTypeEnum.ticket,
+            PaymentTargetTypeEnum.contribution,
+            PaymentTargetTypeEnum.booking,
+        ]),
+    )
+
+
+def _history_paid_only(q):
+    return q.filter(
+        Transaction.status.in_([
+            TransactionStatusEnum.paid,
+            TransactionStatusEnum.credited,
+        ])
+    )
+
+
+@router.get("/history")
+def payment_history(
+    category: str = Query("all", regex="^(all|tickets|contributions|vendors|promotions|ads)$"),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Aggregated payment-history feed used by the mobile Payment History
+    screen. Computes:
+        - total_spent (paid + credited only) for the *current* 30-day window
+        - percent_change vs the prior 30-day window
+        - per-category counts (for tab badges)
+        - paginated list of transactions for the selected category
+    """
+    from sqlalchemy import func as sa_func
+    from datetime import timedelta
+
+    now = datetime.utcnow()
+    window_start = now - timedelta(days=30)
+    prev_window_start = now - timedelta(days=60)
+
+    base_paid = _history_paid_only(_history_base_query(db, current_user.id))
+
+    # ── Total Spent (last 30 days) ──────────────────────────────────
+    current_total = (
+        base_paid.filter(Transaction.created_at >= window_start)
+        .with_entities(sa_func.coalesce(sa_func.sum(Transaction.gross_amount), 0))
+        .scalar()
+    ) or 0
+    previous_total = (
+        base_paid.filter(
+            Transaction.created_at >= prev_window_start,
+            Transaction.created_at < window_start,
+        )
+        .with_entities(sa_func.coalesce(sa_func.sum(Transaction.gross_amount), 0))
+        .scalar()
+    ) or 0
+
+    if float(previous_total) > 0:
+        percent_change = round(
+            ((float(current_total) - float(previous_total)) / float(previous_total)) * 100,
+            1,
+        )
+    else:
+        percent_change = 100.0 if float(current_total) > 0 else 0.0
+
+    # ── Lifetime totals (used for the big "Total Spent" card) ───────
+    lifetime_total = (
+        base_paid.with_entities(sa_func.coalesce(sa_func.sum(Transaction.gross_amount), 0))
+        .scalar()
+    ) or 0
+    lifetime_count = base_paid.with_entities(sa_func.count(Transaction.id)).scalar() or 0
+
+    # ── Per-category counts (tab badges) ────────────────────────────
+    counts = {"tickets": 0, "contributions": 0, "vendors": 0, "promotions": 0, "ads": 0}
+    rows = (
+        _history_base_query(db, current_user.id)
+        .with_entities(Transaction.target_type, sa_func.count(Transaction.id))
+        .group_by(Transaction.target_type)
+        .all()
+    )
+    for tt, c in rows:
+        if tt == PaymentTargetTypeEnum.ticket:
+            counts["tickets"] = int(c)
+        elif tt == PaymentTargetTypeEnum.contribution:
+            counts["contributions"] = int(c)
+        elif tt == PaymentTargetTypeEnum.booking:
+            counts["vendors"] = int(c)
+    counts["all"] = counts["tickets"] + counts["contributions"] + counts["vendors"]
+
+    # ── Paginated list for the active category ──────────────────────
+    if category in _HISTORY_VIRTUAL_CATEGORIES:
+        # No payment flow exists yet for promotions/ads — return empty list.
+        return api_response(True, "Payment history retrieved.", {
+            "category": category,
+            "summary": {
+                "total_spent": float(lifetime_total),
+                "transaction_count": int(lifetime_count),
+                "currency_code": _user_currency_code(current_user),
+                "percent_change_30d": percent_change,
+                "current_period_total": float(current_total),
+                "previous_period_total": float(previous_total),
+            },
+            "counts": counts,
+            "transactions": [],
+            "pagination": {"page": 1, "limit": limit, "total": 0, "total_pages": 0},
+            "empty_reason": "no_promotion_payments_yet",
+        })
+
+    list_q = _history_base_query(db, current_user.id)
+    if category != "all":
+        list_q = list_q.filter(
+            Transaction.target_type == _HISTORY_CATEGORY_TO_TARGET[category]
+        )
+    list_q = list_q.order_by(Transaction.created_at.desc())
+    items, pagination = paginate(list_q, page=page, limit=limit)
+
+    return api_response(True, "Payment history retrieved.", {
+        "category": category,
+        "summary": {
+            "total_spent": float(lifetime_total),
+            "transaction_count": int(lifetime_count),
+            "currency_code": _user_currency_code(current_user),
+            "percent_change_30d": percent_change,
+            "current_period_total": float(current_total),
+            "previous_period_total": float(previous_total),
+        },
+        "counts": counts,
+        "transactions": [_serialize_tx(t) for t in items],
+        "pagination": pagination,
+    })
+
+
+def _user_currency_code(user: User) -> str:
+    """Best-effort currency code for the payer."""
+    cc = (getattr(user, "country_code", None) or "").upper()
+    if cc == "TZ":
+        return "TZS"
+    if cc == "KE":
+        return "KES"
+    return "TZS"
+
+
+# ──────────────────────────────────────────────
 # ──────────────────────────────────────────────
 # Webhook (no auth — idempotent)
 #

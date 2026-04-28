@@ -2,92 +2,132 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/events_service.dart';
+import '../../core/services/event_contributors_service.dart';
 import '../../core/services/social_service.dart';
-import '../../core/l10n/l10n_helper.dart';
-import '../../providers/auth_provider.dart';
-import '../auth/login_screen.dart';
 import '../settings/settings_screen.dart';
-import '../events/event_detail_screen.dart';
-import '../help/help_screen.dart';
-import 'follow_list_screen.dart';
-import 'widgets/profile_header_section.dart';
-import 'widgets/profile_moments_tab.dart';
-import 'widgets/profile_events_tab.dart';
-import 'widgets/profile_settings_tab.dart';
+import '../settings/identity_verification_screen.dart';
+import '../tickets/my_tickets_screen.dart';
+import '../contributors/my_contributions_screen.dart';
+import '../saved/saved_posts_screen.dart';
+import '../services/find_services_screen.dart';
+import '../wallet/payment_history_screen.dart';
+import '../events/create_event_screen.dart';
+import '../home/widgets/home_notifications_tab.dart';
 
+
+/// Premium profile redesign matching the reference mock.
 class ProfileScreen extends StatefulWidget {
   final Map<String, dynamic>? profile;
   final int myEventsCount;
+  final int ticketsCount;
   final VoidCallback? onRefresh;
 
-  const ProfileScreen({super.key, this.profile, this.myEventsCount = 0, this.onRefresh});
+  const ProfileScreen({
+    super.key,
+    this.profile,
+    this.myEventsCount = 0,
+    this.ticketsCount = 0,
+    this.onRefresh,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profileData;
   bool _profileLoading = true;
-  List<dynamic> _moments = [];
-  bool _momentsLoading = true;
-  List<dynamic> _events = [];
-  bool _eventsLoading = true;
+  int _eventsCount = 0;
+  int _ticketsCount = 0;
+  int _contributionsCount = 0;
+  int _savedCount = 0;
+  int _unreadNotifications = 0;
+  List<dynamic> _notifications = [];
+  bool _notificationsLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    _loadProfileDetails().then((_) => _loadMoments());
-    _loadEvents();
+    _eventsCount = widget.myEventsCount;
+    _ticketsCount = widget.ticketsCount;
+    _loadProfileDetails();
+    _loadCounts();
+    _loadNotifications();
   }
 
   @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadMoments() async {
-    setState(() => _momentsLoading = true);
-    final userId = _profileData?['id']?.toString() ?? '';
-    final res = userId.isNotEmpty
-        ? await SocialService.getUserPosts(userId, limit: 30)
-        : await SocialService.getMyPosts(limit: 30);
-    if (mounted) {
+  void didUpdateWidget(covariant ProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.myEventsCount != widget.myEventsCount ||
+        oldWidget.ticketsCount != widget.ticketsCount) {
       setState(() {
-        _momentsLoading = false;
-        if (res['success'] == true) {
-          final data = res['data'];
-          _moments = data is List ? data : (data is Map ? (data['posts'] ?? data['items'] ?? []) : []);
-        }
+        _eventsCount = widget.myEventsCount;
+        _ticketsCount = widget.ticketsCount;
       });
     }
   }
 
-  Future<void> _loadEvents() async {
-    setState(() => _eventsLoading = true);
-    final res = await EventsService.getMyEvents(limit: 20);
-    if (mounted) {
-      setState(() {
-        _eventsLoading = false;
-        if (res['success'] == true) {
-          final data = res['data'];
-          if (data is List) { _events = data; }
-          else if (data is Map) {
-            final nested = data['data'];
-            final extracted = data['events'] ?? data['items'] ?? (nested is Map ? (nested['events'] ?? nested['items']) : nested) ?? [];
-            _events = extracted is List ? extracted : [];
-          } else { _events = []; }
-        }
-      });
+  Future<void> _loadCounts() async {
+    // Pull real lists for accurate counts (server profile counts are unreliable).
+    final results = await Future.wait([
+      EventContributorsService.getMyContributions(),
+      SocialService.getSavedPosts(),
+    ]);
+    if (!mounted) return;
+    int contribs = _contributionsCount;
+    int saved = _savedCount;
+    final cRes = results[0];
+    if (cRes['success'] == true) {
+      final d = cRes['data'];
+      contribs = d is List ? d.length
+        : (d is Map ? ((d['contributions'] ?? d['items'] ?? []) as List).length : contribs);
     }
+    final bRes = results[1];
+    if (bRes['success'] == true) {
+      final d = bRes['data'];
+      saved = d is List ? d.length
+        : (d is Map ? ((d['bookmarks'] ?? d['items'] ?? []) as List).length : saved);
+    }
+    setState(() {
+      _contributionsCount = contribs;
+      _savedCount = saved;
+    });
+  }
+
+  Future<void> _loadNotifications() async {
+    if (mounted) setState(() => _notificationsLoading = true);
+    final res = await SocialService.getNotifications(limit: 30);
+    if (!mounted) return;
+    setState(() {
+      _notificationsLoading = false;
+      if (res['success'] == true) {
+        final data = res['data'];
+        _notifications = data is Map ? (data['notifications'] ?? []) : (data is List ? data : []);
+        _unreadNotifications = data is Map ? (data['unread_count'] ?? 0) : 0;
+      }
+    });
+  }
+
+  void _openNotifications() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: AppColors.surface,
+          body: HomeNotificationsTab(
+            notifications: _notifications,
+            unreadCount: _unreadNotifications,
+            isLoading: _notificationsLoading,
+            onRefresh: _loadNotifications,
+            onSearch: (_) => _loadNotifications(),
+            onTabChanged: (_) => Navigator.pop(context),
+          ),
+        ),
+      ),
+    ).then((_) => _loadNotifications());
   }
 
   Future<void> _loadProfileDetails() async {
@@ -103,101 +143,335 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     if (profileRes['success'] == true && profileRes['data'] is Map<String, dynamic>) {
       userData = {...(userData ?? {}), ...profileRes['data'] as Map<String, dynamic>};
     }
-    if (mounted) setState(() { _profileData = userData; _profileLoading = false; });
+    if (mounted) {
+      setState(() {
+        _profileData = userData;
+        _profileLoading = false;
+      });
+    }
+  }
+
+  TextStyle _f({required double size, FontWeight weight = FontWeight.w500,
+    Color color = AppColors.textPrimary, double height = 1.3, double? letterSpacing}) =>
+    GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color,
+      height: height, letterSpacing: letterSpacing);
+
+  bool get _isVerified {
+    final p = _profileData ?? widget.profile ?? const {};
+    final v = p['is_identity_verified'] ?? p['identity_verified'] ?? p['kyc_verified'];
+    if (v == true) return true;
+    final status = (p['verification_status'] ?? p['identity_status'] ?? p['kyc_status'])
+      ?.toString().toLowerCase();
+    return status == 'verified' || status == 'approved';
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
     final p = _profileData ?? widget.profile ?? <String, dynamic>{};
     final firstName = p['first_name']?.toString() ?? '';
     final lastName = p['last_name']?.toString() ?? '';
     final fullName = '$firstName $lastName'.trim();
-    final username = p['username']?.toString() ?? '';
     final avatar = p['avatar'] as String?;
-    final coverImage = p['cover_image'] as String?;
-    final bio = p['bio']?.toString() ?? '';
-    final location = p['location']?.toString() ?? '';
     final phone = p['phone']?.toString() ?? '';
     final email = p['email']?.toString() ?? '';
-    final website = p['website_url']?.toString() ?? p['website']?.toString() ?? '';
-    final profileEventCount = (p['event_count'] ?? p['events_count'] ?? p['total_events'] ?? 0) as num;
-    final eventCount = _events.isNotEmpty ? _events.length : (profileEventCount > 0 ? profileEventCount.toInt() : widget.myEventsCount);
-    final followerCount = p['follower_count'] ?? p['followers_count'] ?? 0;
-    final followingCount = p['following_count'] ?? 0;
-    final momentsCount = p['post_count'] ?? p['posts_count'] ?? _moments.length;
-    final socialLinks = p['social_links'] is Map ? p['social_links'] as Map<String, dynamic> : <String, dynamic>{};
-    final userId = p['id']?.toString() ?? '';
 
-    return RefreshIndicator(
-      onRefresh: () async {
-        widget.onRefresh?.call();
-        await Future.wait([_loadProfileDetails(), _loadMoments(), _loadEvents()]);
-      },
-      color: AppColors.primary,
-      // NestedScrollView lets the header (and the pinned TabBar) collapse as
-      // the inner tab list scrolls down, AND lets a swipe-down on the inner
-      // list reveal the header again. Fixes the "page sticks at the top and
-      // I can no longer scroll back down" lockup caused by the previous
-      // CustomScrollView + SliverFillRemaining(TabBarView) arrangement.
-      child: NestedScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          SliverToBoxAdapter(child: ProfileHeaderSection(
-            fullName: fullName,
-            username: username,
-            avatar: avatar,
-            coverImage: coverImage,
-            bio: bio,
-            location: location,
-            phone: phone,
-            email: email,
-            website: website,
-            socialLinks: socialLinks,
-            isLoading: _profileLoading,
-            momentsCount: momentsCount,
-            followerCount: followerCount,
-            followingCount: followingCount,
-            eventCount: eventCount,
-            userId: userId,
-            profile: p,
-            onEditProfile: () => Navigator.push(context, MaterialPageRoute(
-              builder: (_) => SettingsScreen(profile: p, onProfileUpdated: () => widget.onRefresh?.call()),
-            )),
-            onRefresh: widget.onRefresh,
-          )),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-              child: Container(
-                height: 42,
-                decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(12)),
-                child: TabBar(
-                  controller: _tabController,
-                  indicator: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 6)]),
-                  indicatorSize: TabBarIndicatorSize.tab,
-                  indicatorPadding: const EdgeInsets.all(3),
-                  dividerHeight: 0,
-                  labelStyle: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
-                  unselectedLabelStyle: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w500),
-                  labelColor: AppColors.textPrimary,
-                  unselectedLabelColor: AppColors.textTertiary,
-                  tabs: [Tab(text: context.trw('moments')), Tab(text: context.trw('events')), Tab(text: context.trw('settings'))],
-                ),
-              ),
-            ),
-          ),
-        ],
-        body: TabBarView(
-          controller: _tabController,
+    return Scaffold(
+      backgroundColor: AppColors.surface,
+      body: RefreshIndicator(
+        onRefresh: () async {
+          widget.onRefresh?.call();
+          await _loadProfileDetails();
+        },
+        color: AppColors.primary,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(0, 0, 0, 100),
           children: [
-            ProfileMomentsTab(moments: _moments, isLoading: _momentsLoading),
-            ProfileEventsTab(events: _events, isLoading: _eventsLoading),
-            ProfileSettingsTab(profile: p, onRefresh: widget.onRefresh),
+            _topBar(p),
+            const SizedBox(height: 4),
+            _identityCard(fullName, avatar, email, phone, p),
+            const SizedBox(height: 18),
+            _statsRow(),
+            const SizedBox(height: 18),
+            _actionList(),
+            const SizedBox(height: 18),
+            if (!_isVerified && !_profileLoading) _verifyCard(),
           ],
         ),
       ),
     );
   }
+
+  Widget _topBar(Map<String, dynamic> p) {
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 12, 4),
+        child: Row(children: [
+          Expanded(child: Text('Profile',
+            style: _f(size: 22, weight: FontWeight.w800, letterSpacing: -0.4))),
+          _topIcon('assets/icons/bell-icon.svg', _openNotifications, badge: _unreadNotifications),
+          const SizedBox(width: 6),
+          _topIcon('assets/icons/settings-icon.svg', () {
+            Navigator.push(context, MaterialPageRoute(
+              builder: (_) => SettingsScreen(profile: p,
+                onProfileUpdated: () => widget.onRefresh?.call())));
+          }),
+        ]),
+      ),
+    );
+  }
+
+  Widget _topIcon(String svg, VoidCallback onTap, {int badge = 0}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: SizedBox(
+        width: 40, height: 40,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            SvgPicture.asset(svg, width: 22, height: 22,
+              colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
+            if (badge > 0)
+              Positioned(
+                top: 6, right: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: AppColors.error,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.surface, width: 1.5),
+                  ),
+                  constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                  child: Text(
+                    badge > 9 ? '9+' : '$badge',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                      fontSize: 9, fontWeight: FontWeight.w700,
+                      color: Colors.white, height: 1.1,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _identityCard(String name, String? avatar, String email, String phone, Map<String, dynamic> p) {
+    return InkWell(
+      onTap: () => Navigator.push(context, MaterialPageRoute(
+        builder: (_) => SettingsScreen(profile: p,
+          onProfileUpdated: () => widget.onRefresh?.call()))),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+        child: Row(children: [
+          _avatar(avatar, name),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Flexible(child: Text(name.isNotEmpty ? name : 'Your name',
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: _f(size: 18, weight: FontWeight.w800))),
+              const SizedBox(width: 8),
+              if (_isVerified) _verifiedPill(),
+            ]),
+            const SizedBox(height: 4),
+            if (email.isNotEmpty)
+              Text(email, style: _f(size: 13, color: AppColors.textSecondary),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+            if (phone.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(phone, style: _f(size: 13, color: AppColors.textSecondary)),
+            ],
+          ])),
+          SvgPicture.asset('assets/icons/chevron-right-icon.svg',
+            width: 18, height: 18,
+            colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _avatar(String? avatar, String name) {
+    final initials = name.trim().isEmpty ? 'U'
+      : name.trim().split(RegExp(r'\s+')).take(2).map((s) => s[0]).join().toUpperCase();
+    return SizedBox(
+      width: 64, height: 64,
+      child: ClipOval(
+        child: Container(
+          width: 64, height: 64,
+          color: AppColors.surfaceVariant,
+          child: avatar != null && avatar.isNotEmpty
+            ? CachedNetworkImage(imageUrl: avatar, fit: BoxFit.cover,
+                width: 64, height: 64,
+                errorWidget: (_, __, ___) => _avatarFallback(initials),
+                placeholder: (_, __) => _avatarFallback(initials))
+            : _avatarFallback(initials),
+        ),
+      ),
+    );
+  }
+
+  Widget _avatarFallback(String initials) => Center(child: Text(initials,
+    style: _f(size: 22, weight: FontWeight.w800, color: AppColors.textTertiary)));
+
+  Widget _verifiedPill() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(10)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.verified_rounded, size: 12, color: AppColors.primary),
+        const SizedBox(width: 4),
+        Text('Verified', style: _f(size: 10, weight: FontWeight.w700, color: AppColors.primary)),
+      ]),
+    );
+  }
+
+  Widget _statsRow() {
+    final items = [
+      _StatItem(label: 'Events', value: _eventsCount),
+      _StatItem(label: 'Tickets', value: _ticketsCount),
+      _StatItem(label: 'Contributions', value: _contributionsCount),
+      _StatItem(label: 'Saved', value: _savedCount),
+    ];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+        decoration: BoxDecoration(
+          color: AppColors.surface, borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFEEEEF1), width: 1)),
+        child: Row(children: [
+          for (int i = 0; i < items.length; i++) ...[
+            Expanded(
+              child: Column(children: [
+                Text(items[i].value.toString().padLeft(2, '0'),
+                  style: _f(size: 18, weight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Text(items[i].label, style: _f(size: 11, color: AppColors.textTertiary)),
+              ]),
+            ),
+            if (i < items.length - 1)
+              Container(width: 1, height: 32, color: const Color(0xFFEEEEF1)),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Widget _actionList() {
+    final items = <_ActionItem>[
+      _ActionItem(svg: 'assets/icons/calendar-icon.svg', label: 'My Events',
+        onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => const CreateEventScreen()))),
+      _ActionItem(svg: 'assets/icons/ticket-icon.svg', label: 'My Tickets',
+        onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => const MyTicketsScreen()))),
+      _ActionItem(svg: 'assets/icons/card-icon.svg', label: 'My Contributions',
+        onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => const MyContributionsScreen()))),
+      _ActionItem(svg: 'assets/icons/card-icon.svg', label: 'Payment History',
+        onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => const PaymentHistoryScreen()))),
+      _ActionItem(svg: 'assets/icons/bookmark-icon.svg', label: 'Saved Vendors',
+        onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => const FindServicesScreen()))),
+      _ActionItem(svg: 'assets/icons/card-icon.svg', label: 'Payment Methods',
+        onTap: () {
+          final p = _profileData ?? widget.profile ?? const {};
+          Navigator.push(context, MaterialPageRoute(
+            builder: (_) => SettingsScreen(profile: p,
+              onProfileUpdated: () => widget.onRefresh?.call())));
+        }),
+      _ActionItem(svg: 'assets/icons/calendar-icon.svg', label: 'My Invitations',
+        onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => const SavedPostsScreen()))),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface, borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFEEEEF1), width: 1)),
+        child: Column(children: List.generate(items.length, (i) {
+          final it = items[i];
+          return InkWell(
+            onTap: it.onTap,
+            borderRadius: BorderRadius.vertical(
+              top: i == 0 ? const Radius.circular(16) : Radius.zero,
+              bottom: i == items.length - 1 ? const Radius.circular(16) : Radius.zero),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                border: i == items.length - 1 ? null
+                  : const Border(bottom: BorderSide(color: Color(0xFFF1F1F4), width: 1))),
+              child: Row(children: [
+                SvgPicture.asset(it.svg, width: 20, height: 20,
+                  colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
+                const SizedBox(width: 14),
+                Expanded(child: Text(it.label, style: _f(size: 14, weight: FontWeight.w400))),
+                SvgPicture.asset('assets/icons/chevron-right-icon.svg',
+                  width: 16, height: 16,
+                  colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
+              ]),
+            ),
+          );
+        })),
+      ),
+    );
+  }
+
+  Widget _verifyCard() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => const IdentityVerificationScreen())),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF6DD), borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(children: [
+            Container(
+              width: 44, height: 44,
+              decoration: const BoxDecoration(
+                color: AppColors.primary, shape: BoxShape.circle),
+              alignment: Alignment.center,
+              child: SvgPicture.asset('assets/icons/shield-icon.svg',
+                width: 22, height: 22,
+                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
+            ),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Verify Identity', style: _f(size: 15, weight: FontWeight.w800)),
+              const SizedBox(height: 2),
+              Text('Unlock trust badges & full features',
+                style: _f(size: 12, color: AppColors.textSecondary)),
+            ])),
+            const Icon(Icons.arrow_forward_rounded, color: AppColors.textPrimary, size: 20),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatItem {
+  final String label;
+  final int value;
+  const _StatItem({required this.label, required this.value});
+}
+
+class _ActionItem {
+  final String svg;
+  final String label;
+  final VoidCallback onTap;
+  const _ActionItem({required this.svg, required this.label, required this.onTap});
 }

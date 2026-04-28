@@ -8,6 +8,7 @@ import '../bookings/bookings_screen.dart';
 import 'checkout_sheet.dart';
 import 'receipt_screen.dart';
 import 'payout_profile_screen.dart';
+import 'payment_history_screen.dart';
 import '../migration/migration_banner.dart';
 
 /// WalletScreen — premium dashboard mirroring the web `/wallet` page.
@@ -60,6 +61,19 @@ class _WalletScreenState extends State<WalletScreen>
       appBar: NuruSubPageAppBar(
         title: 'Wallet',
         actions: [
+          IconButton(
+            icon: const Icon(
+              Icons.receipt_long_rounded,
+              color: AppColors.textPrimary,
+            ),
+            tooltip: 'Payment history',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PaymentHistoryScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(
               Icons.settings_outlined,

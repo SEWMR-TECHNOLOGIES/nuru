@@ -20,6 +20,9 @@ class Conversation(Base):
     service_id = Column(UUID(as_uuid=True), ForeignKey('user_services.id'))
     last_read_at = Column(DateTime)
     is_active = Column(Boolean, default=True)
+    # Transport-framing flag. New conversations default to encrypted; legacy
+    # rows stay False so old clients keep working as before.
+    is_encrypted = Column(Boolean, nullable=False, server_default="true", default=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -50,6 +53,12 @@ class Message(Base):
     attachments = Column(JSONB, server_default="'[]'::jsonb")
     is_read = Column(Boolean, default=False)
     reply_to_id = Column(UUID(as_uuid=True), ForeignKey('messages.id'))
+    # NULL / 'plain' = legacy plaintext; 'v1' = transport-framed envelope.
+    encryption_version = Column(Text, nullable=True)
+    # Snapshot of the quoted message at send-time, so the preview survives
+    # edits/deletes of the original. Only populated when reply_to_id is set.
+    reply_snapshot_text = Column(Text, nullable=True)
+    reply_snapshot_sender = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
     # Critical for fast message-list pagination (per conversation, newest first)

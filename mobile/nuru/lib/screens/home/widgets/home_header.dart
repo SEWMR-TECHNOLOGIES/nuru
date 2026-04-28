@@ -46,7 +46,7 @@ class HomeHeader extends StatelessWidget {
               errorBuilder: (_, __, ___) => Container(
                 width: 72, height: 72,
                 decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(14)),
-                child: Center(child: Text('N', style: GoogleFonts.plusJakartaSans(fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white))),
+                child: Center(child: Text('N', style: GoogleFonts.inter(fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white))),
               )),
           ),
           const Spacer(),
@@ -95,7 +95,7 @@ class HomeHeader extends StatelessWidget {
                 decoration: BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle,
                   border: Border.all(color: AppColors.surface, width: 2)),
                 child: Center(child: Text(badge > 9 ? '9+' : '$badge',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 8, fontWeight: FontWeight.w700, color: Colors.white, height: 1.0))),
+                  style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w700, color: Colors.white, height: 1.0))),
               ),
             ),
         ],
@@ -107,7 +107,7 @@ class HomeHeader extends StatelessWidget {
     return Container(
       color: AppColors.surfaceVariant,
       child: Center(child: Text(n.isNotEmpty ? n[0].toUpperCase() : '?',
-        style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textSecondary, height: 1.0))),
+        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textSecondary, height: 1.0))),
     );
   }
 }

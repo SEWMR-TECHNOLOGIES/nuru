@@ -17,7 +17,7 @@ class ProfileSettingsTab extends StatelessWidget {
   const ProfileSettingsTab({super.key, required this.profile, this.onRefresh});
 
   TextStyle _pf({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary}) =>
-      GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color);
+      GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color);
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +38,7 @@ class ProfileSettingsTab extends StatelessWidget {
         const SizedBox(height: 16),
         // Language selector
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(context.trw('language').toUpperCase(), style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textHint, letterSpacing: 1.2)),
+          Text(context.trw('language').toUpperCase(), style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textHint, letterSpacing: 1.2)),
           const SizedBox(height: 8),
           const LanguageSettingsCard(),
         ]),
@@ -57,7 +57,7 @@ class ProfileSettingsTab extends StatelessWidget {
 
   Widget _group(String title, List<Widget> items) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(title.toUpperCase(), style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textHint, letterSpacing: 1.2)),
+      Text(title.toUpperCase(), style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textHint, letterSpacing: 1.2)),
       const SizedBox(height: 8),
       Container(
         decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14),
@@ -117,13 +117,13 @@ class ProfileSettingsTab extends StatelessWidget {
           context: context,
           builder: (ctx) => AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: Text(context.trw('sign_out'), style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700)),
-            content: Text('Are you sure you want to sign out?', style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textSecondary)),
+            title: Text(context.trw('sign_out'), style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700)),
+            content: Text('Are you sure you want to sign out?', style: GoogleFonts.inter(fontSize: 14, color: AppColors.textSecondary)),
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx, false),
-                child: Text(context.trw('cancel'), style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textTertiary))),
+                child: Text(context.trw('cancel'), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textTertiary))),
               TextButton(onPressed: () => Navigator.pop(ctx, true),
-                child: Text(context.trw('sign_out'), style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.error))),
+                child: Text(context.trw('sign_out'), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.error))),
             ],
           ),
         );
