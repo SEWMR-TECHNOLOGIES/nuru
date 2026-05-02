@@ -843,38 +843,63 @@ def record_payment(event_id: str, ec_id: str, body: dict = Body(...), db: Sessio
         except Exception:
             pass
 
-    # Send WhatsApp (primary) + SMS (fallback) to contributor.
-    # Honour notify_target (primary | secondary | both) on the EventContributor.
+    # Notify contributor.
+    # IMPORTANT: when a committee member records a contribution it lands as
+    # `pending` and must be approved by the organiser before counting. We
+    # MUST NOT send the celebratory "contribution recorded" SMS/WA in that
+    # case — otherwise the contributor thinks it's confirmed even though it
+    # may later be rejected. Instead, send a soft acknowledgement and defer
+    # the full confirmation to /confirm-contributions (which already
+    # notifies on approval).
     contributor = ec.contributor
     if contributor:
         from utils.offline_claims import contributor_notify_phones
         recipients = contributor_notify_phones(ec)
         if recipients:
-            total_paid = sum(float(c.amount or 0) for c in ec.contributions)
-            pledge = float(ec.pledge_amount or 0)
             currency = _currency_code(db, event)
             organizer = db.query(User).filter(User.id == event.organizer_id).first()
             organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
-            recorder_name = f"{current_user.first_name} {current_user.last_name}" if not is_creator else None
-            for ph in recipients:
+
+            if confirmation_status == ContributionStatusEnum.confirmed:
+                # Organiser-recorded → confirmed instantly, send full receipt.
+                total_paid = sum(float(c.amount or 0) for c in ec.contributions)
+                pledge = float(ec.pledge_amount or 0)
+                for ph in recipients:
+                    try:
+                        from utils.whatsapp import wa_contribution_recorded
+                        wa_contribution_recorded(
+                            ph, contributor.name,
+                            event.name, float(amount), pledge, total_paid, currency,
+                            organizer_phone=organizer_phone,
+                            recorder_name=None,
+                        )
+                    except Exception:
+                        pass
+                    try:
+                        from utils.sms import sms_contribution_recorded
+                        sms_contribution_recorded(
+                            ph, contributor.name,
+                            event.name, float(amount), pledge, total_paid, currency,
+                            organizer_phone=organizer_phone,
+                            recorder_name=None,
+                        )
+                    except Exception:
+                        pass
+            else:
+                # Committee-recorded → pending. Soft acknowledgement only.
+                recorder_name = f"{current_user.first_name} {current_user.last_name}"
+                pending_msg = (
+                    f"Hello {contributor.name}, {recorder_name} has logged your contribution of "
+                    f"{currency} {float(amount):,.0f} for {event.name}. You'll receive a confirmation "
+                    f"once the event organiser approves it."
+                )
                 try:
-                    from utils.whatsapp import wa_contribution_recorded
-                    wa_contribution_recorded(
-                        ph, contributor.name,
-                        event.name, float(amount), pledge, total_paid, currency,
-                        organizer_phone=organizer_phone,
-                        recorder_name=recorder_name,
-                    )
-                except Exception:
-                    pass
-                try:
-                    from utils.sms import sms_contribution_recorded
-                    sms_contribution_recorded(
-                        ph, contributor.name,
-                        event.name, float(amount), pledge, total_paid, currency,
-                        organizer_phone=organizer_phone,
-                        recorder_name=recorder_name,
-                    )
+                    from utils.notify_channels import notify_user_wa_sms
+                    for ph in recipients:
+                        try:
+                            notify_user_wa_sms(ph, pending_msg)
+                        except Exception:
+                            pass
                 except Exception:
                     pass
 
