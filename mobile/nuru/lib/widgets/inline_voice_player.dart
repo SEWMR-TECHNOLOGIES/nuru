@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../core/theme/app_colors.dart';
+import '../core/utils/audio_file_cache.dart';
 
 /// Inline voice-note player. Plays audio in-app instead of opening it as an
 /// external link. Designed to look like the WhatsApp-style waveform chip.
@@ -55,7 +57,14 @@ class _InlineVoicePlayerState extends State<InlineVoicePlayer> {
     setState(() => _loading = true);
     try {
       if (_position == Duration.zero) {
-        await _player.play(UrlSource(widget.url));
+        // Cache the audio locally so re-opens are instant — without this,
+        // every time the chat is opened the file would be re-downloaded.
+        final localPath = await AudioFileCache.getLocalPath(widget.url);
+        if (localPath != null && File(localPath).existsSync()) {
+          await _player.play(DeviceFileSource(localPath));
+        } else {
+          await _player.play(UrlSource(widget.url));
+        }
       } else {
         await _player.resume();
       }

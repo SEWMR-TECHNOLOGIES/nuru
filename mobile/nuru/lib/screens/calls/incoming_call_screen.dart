@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/calls_service.dart';
+import '../../core/services/call_ui_coordinator.dart';
 import 'voice_call_screen.dart';
 import 'video_call_screen.dart';
 
@@ -31,8 +33,11 @@ class IncomingCallScreen extends StatelessWidget {
   bool get _isVideo => kind == 'video';
 
   Future<void> _accept(BuildContext context) async {
+    CallUiCoordinator.openActive(callId);
+    try { await FlutterCallkitIncoming.endCall(callId); } catch (_) {}
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
+        settings: RouteSettings(name: 'active_call_$callId'),
         builder: (_) => _isVideo
             ? VideoCallScreen.incoming(
                 callId: callId,
@@ -54,6 +59,8 @@ class IncomingCallScreen extends StatelessWidget {
     // instant. The server will mark the call as declined.
     // ignore: unawaited_futures
     CallsService.decline(callId);
+    CallUiCoordinator.closeRinging(callId);
+    try { await FlutterCallkitIncoming.endCall(callId); } catch (_) {}
     if (context.mounted) Navigator.of(context).maybePop();
   }
 

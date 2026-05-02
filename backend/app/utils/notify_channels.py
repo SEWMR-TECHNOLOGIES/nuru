@@ -93,29 +93,41 @@ def send_voip_push(db, user_id, payload: dict) -> dict:
         print(f"[voip] failed to read device_tokens: {e}")
         return sent
 
-    fcm_key = os.getenv("FCM_SERVER_KEY") or os.getenv("FCM_SERVICE_ACCOUNT_JSON")
+    # Real FCM HTTP v1 implementation lives in utils.fcm.
+    try:
+        from utils.fcm import send_push_to_tokens, fcm_configured
+    except Exception as e:
+        print(f"[voip] fcm module unavailable: {e}")
+        send_push_to_tokens = None  # type: ignore
+
+        def fcm_configured() -> bool:  # type: ignore
+            return False
+
     apns_key = os.getenv("APNS_KEY")
+    fcm_ok = fcm_configured()
+
+    android_tokens = [t.token for t in tokens if t.platform == "android"]
+    if android_tokens and fcm_ok and send_push_to_tokens:
+        caller_name = (payload.get("caller") or {}).get("name") or "Someone is calling…"
+        result = send_push_to_tokens(
+            android_tokens,
+            title="Incoming call",
+            body=caller_name,
+            data=payload,
+            high_priority=True,
+            collapse_key=f"call:{payload.get('call_id', '')}",
+        )
+        sent["fcm"] = result.get("sent", 0)
+    elif android_tokens:
+        sent["skipped"] += len(android_tokens)
 
     for t in tokens:
-        try:
-            if t.platform == "android":
-                if not fcm_key:
-                    sent["skipped"] += 1
-                    continue
-                # NOTE: real FCM HTTP v1 implementation goes here. Keeping the
-                # body explicit so the structure is obvious for the next pass.
-                # _post_fcm(fcm_key, t.token, payload)
-                sent["fcm"] += 1
-            elif t.platform == "ios" and t.kind == "voip":
-                if not apns_key:
-                    sent["skipped"] += 1
-                    continue
-                # _post_apns_voip(apns_key, t.token, payload)
-                sent["apns"] += 1
-            else:
+        if t.platform == "ios" and t.kind == "voip":
+            if not apns_key:
                 sent["skipped"] += 1
-        except Exception as e:
-            print(f"[voip] push failed for token={t.token[:8]}...: {e}")
+                continue
+            # _post_apns_voip(apns_key, t.token, payload)
+            sent["apns"] += 1
 
     return sent
 

@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from models import Conversation, Message, User, UserProfile, UserService, UserServiceImage, ConversationTypeEnum
+from models import Conversation, Message, User, UserProfile, UserService, UserServiceImage, ConversationTypeEnum, CallLog
 from utils.auth import get_current_user
 from utils.helpers import standard_response
 
@@ -261,8 +261,31 @@ def get_messages(conversation_id: str, page: int = 1, limit: int = 50, db: Sessi
         "created_at": m.created_at.isoformat() if m.created_at else None,
     } for m in reversed(messages)]
 
+    # Include call logs inline so the client renders them in a single
+    # round-trip — avoids the "messages first, calls second" flicker.
+    call_rows = db.query(CallLog).filter(CallLog.conversation_id == cid).order_by(CallLog.started_at.desc()).limit(50).all()
+    calls = []
+    for c in call_rows:
+        direction = "outgoing" if str(c.caller_id) == str(current_user.id) else "incoming"
+        calls.append({
+            "id": str(c.id),
+            "_type": "call_log",
+            "conversation_id": str(c.conversation_id),
+            "kind": c.kind,
+            "status": c.status,
+            "direction": direction,
+            "caller_id": str(c.caller_id),
+            "callee_id": str(c.callee_id),
+            "started_at": c.started_at.isoformat() if c.started_at else None,
+            "answered_at": c.answered_at.isoformat() if c.answered_at else None,
+            "ended_at": c.ended_at.isoformat() if c.ended_at else None,
+            "duration_seconds": c.duration_seconds or 0,
+            "created_at": c.started_at.isoformat() if c.started_at else None,
+        })
+
     return standard_response(True, "Messages retrieved successfully", {
         "messages": data,
+        "calls": calls,
         "is_encrypted": bool(getattr(conv, "is_encrypted", False)),
     })
 
@@ -338,6 +361,33 @@ def send_message(conversation_id: str, body: dict = Body(...), db: Session = Dep
     conv.updated_at = now
     db.commit()
     db.refresh(msg)
+
+    # ── Push notification fan-out to the other participant ─────────────
+    try:
+        recipient_id = conv.user_two_id if str(conv.user_one_id) == str(current_user.id) else conv.user_one_id
+        if recipient_id and str(recipient_id) != str(current_user.id):
+            from utils.fcm import send_push_async
+            sender_name = f"{current_user.first_name or ''} {current_user.last_name or ''}".strip() or "Someone"
+            preview = content if content else (
+                "📷 Photo" if any(str(a).lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".gif")) or
+                                  (isinstance(a, dict) and str(a.get("url", "")).lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".gif")))
+                                  for a in (attachments or [])) else "📎 Attachment"
+            )
+            send_push_async(
+                db, recipient_id,
+                title=sender_name,
+                body=preview[:140],
+                data={
+                    "type": "message",
+                    "conversation_id": str(conv.id),
+                    "message_id": str(msg.id),
+                    "sender_id": str(current_user.id),
+                },
+                high_priority=True,
+                collapse_key=f"conv:{conv.id}",
+            )
+    except Exception as _e:
+        print(f"[messages] push fan-out skipped: {_e}")
 
     return standard_response(True, "Message sent successfully", {
         "id": str(msg.id),

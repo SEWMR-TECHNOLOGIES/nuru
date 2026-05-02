@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'core/theme/app_theme.dart';
 import 'core/services/deep_link_service.dart';
 import 'core/services/incoming_call_service.dart';
+import 'core/services/push_notification_service.dart';
 import 'providers/auth_provider.dart';
 import 'providers/locale_provider.dart';
 import 'providers/wallet_provider.dart';
@@ -65,6 +66,10 @@ class _NuruAppState extends State<NuruApp> {
       // shows CallKit / a full-screen ringer. Safe to start before login —
       // the poll endpoint returns null while unauthenticated.
       IncomingCallService.instance.start(NuruApp.navigatorKey);
+      // Push notifications (FCM) — show every backend notification on the device.
+      PushNotificationService.instance
+          .initialise(navigatorKey: NuruApp.navigatorKey)
+          .then((_) => PushNotificationService.instance.registerWithBackend());
     });
   }
 

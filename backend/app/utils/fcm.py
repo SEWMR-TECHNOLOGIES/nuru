@@ -1,0 +1,252 @@
+"""
+Firebase Cloud Messaging (FCM HTTP v1) sender.
+
+Configuration
+-------------
+Set ONE of these environment variables with the **service-account JSON** for
+the Firebase project that owns the mobile app:
+
+* ``FCM_SERVICE_ACCOUNT_JSON`` — the full JSON content as a string.
+* ``FCM_SERVICE_ACCOUNT_FILE`` — absolute path to a JSON file on disk.
+
+The project_id is read from the service account JSON automatically.
+
+Usage
+-----
+    from utils.fcm import send_push_to_user
+    send_push_to_user(db, user_id, title="New message", body="...",
+                     data={"type": "message", "conversation_id": "..."})
+
+All failures are swallowed and logged — pushes are best-effort and must never
+block the request that triggered them.
+"""
+from __future__ import annotations
+
+import json
+import os
+import threading
+import time
+from typing import Iterable
+
+import requests
+
+_FCM_SCOPES = ["https://www.googleapis.com/auth/firebase.messaging"]
+_FCM_ENDPOINT = "https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
+
+_lock = threading.Lock()
+_cached_credentials = None
+_cached_project_id: str | None = None
+
+
+def _load_service_account() -> tuple[object | None, str | None]:
+    """Lazy-load and cache google-auth credentials + project_id."""
+    global _cached_credentials, _cached_project_id
+    with _lock:
+        if _cached_credentials and _cached_project_id:
+            return _cached_credentials, _cached_project_id
+
+        info = None
+        raw = os.getenv("FCM_SERVICE_ACCOUNT_JSON")
+        if raw:
+            try:
+                info = json.loads(raw)
+            except Exception as e:  # noqa: BLE001
+                print(f"[fcm] FCM_SERVICE_ACCOUNT_JSON is not valid JSON: {e}")
+                return None, None
+        else:
+            path = os.getenv("FCM_SERVICE_ACCOUNT_FILE")
+            if path and os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        info = json.load(f)
+                except Exception as e:  # noqa: BLE001
+                    print(f"[fcm] failed to read {path}: {e}")
+                    return None, None
+
+        if not info:
+            return None, None
+
+        try:
+            from google.oauth2 import service_account  # type: ignore
+
+            creds = service_account.Credentials.from_service_account_info(
+                info, scopes=_FCM_SCOPES,
+            )
+        except Exception as e:  # noqa: BLE001
+            print(f"[fcm] could not build credentials (is google-auth installed?): {e}")
+            return None, None
+
+        _cached_credentials = creds
+        _cached_project_id = info.get("project_id")
+        return _cached_credentials, _cached_project_id
+
+
+def _access_token() -> str | None:
+    creds, _ = _load_service_account()
+    if not creds:
+        return None
+    try:
+        from google.auth.transport.requests import Request as GAuthRequest  # type: ignore
+
+        if not creds.valid:
+            creds.refresh(GAuthRequest())
+        return creds.token
+    except Exception as e:  # noqa: BLE001
+        print(f"[fcm] token refresh failed: {e}")
+        return None
+
+
+def _send_one(token: str, title: str, body: str, data: dict, *,
+              high_priority: bool = False, collapse_key: str | None = None) -> bool:
+    creds, project_id = _load_service_account()
+    if not creds or not project_id:
+        return False
+    access = _access_token()
+    if not access:
+        return False
+
+    # FCM data values must be strings.
+    string_data = {k: str(v) for k, v in (data or {}).items() if v is not None}
+
+    message: dict = {
+        "token": token,
+        "notification": {"title": title or "Nuru", "body": body or ""},
+        "data": string_data,
+        "android": {
+            "priority": "HIGH" if high_priority else "NORMAL",
+            "notification": {
+                "sound": "default",
+                "channel_id": "nuru_default",
+            },
+        },
+        "apns": {
+            "headers": {
+                "apns-priority": "10" if high_priority else "5",
+            },
+            "payload": {
+                "aps": {
+                    "sound": "default",
+                    "mutable-content": 1,
+                    "content-available": 1,
+                },
+            },
+        },
+    }
+    if collapse_key:
+        message["android"]["collapse_key"] = collapse_key
+        message["apns"]["headers"]["apns-collapse-id"] = collapse_key
+
+    url = _FCM_ENDPOINT.format(project_id=project_id)
+    try:
+        resp = requests.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {access}",
+                "Content-Type": "application/json; charset=UTF-8",
+            },
+            data=json.dumps({"message": message}),
+            timeout=10,
+        )
+    except Exception as e:  # noqa: BLE001
+        print(f"[fcm] HTTP error: {e}")
+        return False
+
+    if resp.status_code == 200:
+        return True
+
+    body_text = resp.text[:300]
+    print(f"[fcm] send failed status={resp.status_code} body={body_text}")
+
+    # Token is no longer valid → caller may want to delete it.
+    if resp.status_code in (404, 400) and (
+        "UNREGISTERED" in body_text or "INVALID_ARGUMENT" in body_text
+    ):
+        return False
+    return False
+
+
+def send_push_to_tokens(tokens: Iterable[str], *, title: str, body: str,
+                        data: dict | None = None, high_priority: bool = False,
+                        collapse_key: str | None = None) -> dict:
+    """Fire push to a list of raw FCM tokens. Returns counts."""
+    sent = 0
+    failed = 0
+    for t in tokens:
+        if not t:
+            continue
+        ok = _send_one(t, title, body, data or {},
+                       high_priority=high_priority, collapse_key=collapse_key)
+        if ok:
+            sent += 1
+        else:
+            failed += 1
+    return {"sent": sent, "failed": failed}
+
+
+def send_push_to_user(db, user_id, *, title: str, body: str,
+                      data: dict | None = None, high_priority: bool = False,
+                      collapse_key: str | None = None) -> dict:
+    """Fan-out push to every device registered to this user (kind='fcm').
+
+    Best-effort. Never raises.
+    """
+    try:
+        from models import DeviceToken  # local import to avoid model cycles
+    except Exception as e:  # noqa: BLE001
+        print(f"[fcm] cannot import DeviceToken: {e}")
+        return {"sent": 0, "failed": 0}
+
+    try:
+        rows = db.query(DeviceToken).filter(
+            DeviceToken.user_id == user_id,
+            DeviceToken.kind == "fcm",
+        ).all()
+    except Exception as e:  # noqa: BLE001
+        print(f"[fcm] db error reading device_tokens: {e}")
+        return {"sent": 0, "failed": 0}
+
+    if not rows:
+        return {"sent": 0, "failed": 0}
+
+    return send_push_to_tokens(
+        [r.token for r in rows],
+        title=title, body=body, data=data,
+        high_priority=high_priority, collapse_key=collapse_key,
+    )
+
+
+def send_push_async(db, user_id, *, title: str, body: str,
+                    data: dict | None = None, high_priority: bool = False,
+                    collapse_key: str | None = None):
+    """Schedule a push without blocking the caller.
+
+    We don't have a Celery task wired here yet, so spawn a daemon thread.
+    The DB session is *not* shared with the thread — we open a fresh one.
+    """
+    payload_data = dict(data or {})
+
+    def _worker():
+        try:
+            from core.database import SessionLocal  # type: ignore
+            session = SessionLocal()
+            try:
+                send_push_to_user(
+                    session, user_id,
+                    title=title, body=body, data=payload_data,
+                    high_priority=high_priority, collapse_key=collapse_key,
+                )
+            finally:
+                session.close()
+        except Exception as e:  # noqa: BLE001
+            print(f"[fcm] async push worker error: {e}")
+
+    try:
+        threading.Thread(target=_worker, name="fcm-push", daemon=True).start()
+    except Exception as e:  # noqa: BLE001
+        print(f"[fcm] could not spawn push thread: {e}")
+
+
+# Cheap sanity check for /health-style probing.
+def fcm_configured() -> bool:
+    creds, project_id = _load_service_account()
+    return bool(creds and project_id)

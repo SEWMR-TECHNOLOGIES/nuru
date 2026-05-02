@@ -983,7 +983,6 @@ def build_conversation_dicts(db: Session, conversations: list, current_user_id) 
             "service": service_info,
             "last_message": {
                 "content": last_msg.message_text if last_msg else None,
-                "attachments": last_msg.attachments or [] if last_msg else [],
                 "sent_at": last_msg.created_at.isoformat() if last_msg else None,
                 "is_mine": str(last_msg.sender_id) == cur if last_msg else False,
             } if last_msg else None,
@@ -991,7 +990,6 @@ def build_conversation_dicts(db: Session, conversations: list, current_user_id) 
             # can render two preview lines (matches the WhatsApp-style design).
             "previous_message": {
                 "content": prev_msg.message_text if prev_msg else None,
-                "attachments": prev_msg.attachments or [] if prev_msg else [],
                 "sent_at": prev_msg.created_at.isoformat() if prev_msg else None,
                 "is_mine": str(prev_msg.sender_id) == cur if prev_msg else False,
             } if prev_msg else None,
