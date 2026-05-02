@@ -7,6 +7,7 @@ import 'calls_service.dart';
 import '../../screens/calls/incoming_call_screen.dart';
 import '../../screens/calls/voice_call_screen.dart';
 import '../../screens/calls/video_call_screen.dart';
+import 'call_ui_coordinator.dart';
 
 /// App-level service that:
 ///   1. Short-polls `GET /calls/incoming` every 3 seconds while signed in.
@@ -57,6 +58,7 @@ class IncomingCallService {
     _ckSub = null;
     _started = false;
     _activeRingingId = null;
+    CallUiCoordinator.reset();
   }
 
   Future<void> _poll() async {
@@ -64,6 +66,21 @@ class IncomingCallService {
     if (data == null) {
       // Backend says no ringing calls — clear our local "active" marker so a
       // future call from the same peer can ring again.
+      final staleCallId = _activeRingingId;
+      if (staleCallId != null && staleCallId.isNotEmpty) {
+        await _endNativeCall(staleCallId);
+        _navKey?.currentState?.popUntil(
+          (route) => route.settings.name != 'incoming_call_$staleCallId',
+        );
+        CallUiCoordinator.closeRinging(staleCallId);
+      }
+      _activeRingingId = null;
+      return;
+    }
+
+    final status = data['status']?.toString();
+    if (status != null && status != 'ringing') {
+      await _endNativeCall(data['id']?.toString() ?? '');
       _activeRingingId = null;
       return;
     }
@@ -77,8 +94,12 @@ class IncomingCallService {
     final peerAvatar = caller['avatar']?.toString();
     final kind = (data['kind']?.toString() ?? 'voice').toLowerCase() == 'video' ? 'video' : 'voice';
 
-    await _ringNative(callId: callId, peerName: peerName, peerAvatar: peerAvatar, kind: kind);
-    _ringInApp(callId: callId, peerName: peerName, peerAvatar: peerAvatar, kind: kind);
+    final foreground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    if (foreground) {
+      _ringInApp(callId: callId, peerName: peerName, peerAvatar: peerAvatar, kind: kind);
+    } else {
+      await _ringNative(callId: callId, peerName: peerName, peerAvatar: peerAvatar, kind: kind);
+    }
   }
 
   Future<void> _ringNative({
@@ -144,17 +165,18 @@ class IncomingCallService {
   }) {
     final nav = _navKey?.currentState;
     if (nav == null) return;
-    nav.push(
-      MaterialPageRoute(
-        builder: (_) => IncomingCallScreen(
-          callId: callId,
-          peerName: peerName,
-          peerAvatar: peerAvatar,
-          kind: kind,
-        ),
-        fullscreenDialog: true,
+    if (!CallUiCoordinator.showRinging(callId)) return;
+    final route = MaterialPageRoute(
+      settings: RouteSettings(name: 'incoming_call_$callId'),
+      builder: (_) => IncomingCallScreen(
+        callId: callId,
+        peerName: peerName,
+        peerAvatar: peerAvatar,
+        kind: kind,
       ),
+      fullscreenDialog: true,
     );
+    nav.push(route).whenComplete(() => CallUiCoordinator.closeRinging(callId));
   }
 
   Future<void> _onCallKitEvent(CallEvent? event) async {
@@ -172,6 +194,8 @@ class IncomingCallService {
           // ignore: unawaited_futures
           CallsService.decline(callId);
         }
+        if (callId.isNotEmpty) await _endNativeCall(callId);
+        if (callId.isNotEmpty) CallUiCoordinator.closeRinging(callId);
         _activeRingingId = null;
         break;
       case Event.actionCallEnded:
@@ -179,6 +203,8 @@ class IncomingCallService {
           // ignore: unawaited_futures
           CallsService.end(callId);
         }
+        if (callId.isNotEmpty) await _endNativeCall(callId);
+        if (callId.isNotEmpty) CallUiCoordinator.closeRinging(callId);
         _activeRingingId = null;
         break;
       default:
@@ -217,8 +243,13 @@ class IncomingCallService {
       return;
     }
 
+    if (!CallUiCoordinator.openActive(callId)) return;
+    await _endNativeCall(callId);
+    nav.popUntil((route) => route.settings.name != 'incoming_call_$callId');
+
     nav.push(
       MaterialPageRoute(
+        settings: RouteSettings(name: 'active_call_$callId'),
         builder: (_) => kind == 'video'
             ? VideoCallScreen.incoming(
                 callId: callId,
@@ -233,6 +264,13 @@ class IncomingCallService {
         fullscreenDialog: true,
       ),
     );
+  }
+
+  Future<void> _endNativeCall(String callId) async {
+    if (callId.isEmpty) return;
+    try {
+      await FlutterCallkitIncoming.endCall(callId);
+    } catch (_) {}
   }
 
   /// Drain a pending CallKit Accept that arrived before the navigator was

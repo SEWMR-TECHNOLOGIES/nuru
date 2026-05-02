@@ -478,7 +478,8 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
           Navigator.pop(context);
         } else if (item.screen != null) {
           Navigator.pop(context);
-          Navigator.push(context, MaterialPageRoute(builder: (_) => item.screen!));
+          Navigator.push(context, MaterialPageRoute(builder: (_) => item.screen!))
+              .then((_) => widget.onRefresh());
         }
       },
       onLongPress: () {

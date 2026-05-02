@@ -5,8 +5,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/calls_service.dart';
+import '../../core/services/call_ui_coordinator.dart';
 
 /// WhatsApp-style 1:1 voice call screen.
 ///
@@ -82,15 +85,38 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   bool _muted = false;
   bool _speakerOn = false;
   String _status = 'Connecting…';
+  bool _closed = false;
 
   Timer? _durationTimer;
   DateTime? _connectedAt;
   Duration _elapsed = Duration.zero;
 
+  // WhatsApp-style ringback tone played to the caller while the other side
+  // is ringing. Stops as soon as the remote participant joins.
+  final AudioPlayer _ringback = AudioPlayer();
+  bool _ringbackStarted = false;
+
   @override
   void initState() {
     super.initState();
+    if (widget.isOutgoing) _startRingback();
     _bootstrap();
+  }
+
+  Future<void> _startRingback() async {
+    if (_ringbackStarted) return;
+    _ringbackStarted = true;
+    try {
+      await _ringback.setReleaseMode(ReleaseMode.loop);
+      await _ringback.setVolume(0.6);
+      await _ringback.play(AssetSource('audio/ringback.wav'));
+    } catch (_) {}
+  }
+
+  Future<void> _stopRingback() async {
+    if (!_ringbackStarted) return;
+    _ringbackStarted = false;
+    try { await _ringback.stop(); } catch (_) {}
   }
 
   Future<void> _bootstrap() async {
@@ -156,6 +182,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
 
   void _onRemoteJoined() {
     if (_connected || !mounted) return;
+    _stopRingback();
     setState(() {
       _connected = true;
       _status = '00:00';
@@ -195,10 +222,18 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   }
 
   Future<void> _hangup({bool notifyServer = true}) async {
+    if (_closed) return;
+    _closed = true;
+    _stopRingback();
     _durationTimer?.cancel();
     try {
       await _room?.disconnect();
     } catch (_) {}
+    try {
+      await FlutterCallkitIncoming.endCall(widget.callId);
+    } catch (_) {}
+    CallUiCoordinator.closeActive(widget.callId);
+    CallUiCoordinator.closeRinging(widget.callId);
     if (notifyServer) {
       // Fire-and-forget; UI shouldn't block on it.
       // ignore: unawaited_futures
@@ -231,6 +266,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     _durationTimer?.cancel();
     _listener?.dispose();
     _room?.dispose();
+    _ringback.dispose();
     super.dispose();
   }
 
