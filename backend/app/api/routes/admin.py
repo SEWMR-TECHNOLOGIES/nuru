@@ -2037,6 +2037,23 @@ def broadcast_notification(
         batch.append(n)
     db.bulk_save_objects(batch)
     db.commit()
+
+    # Fan-out push notifications to every active user (best-effort, async).
+    try:
+        from utils.fcm import send_push_async
+        push_data = {"type": "system", "title": title, "message": message}
+        for user in users:
+            send_push_async(
+                db, user.id,
+                title=title,
+                body=message,
+                data=push_data,
+                high_priority=True,
+                collapse_key=f"broadcast:{now.isoformat()}",
+            )
+    except Exception as e:
+        print(f"[admin.broadcast] push fan-out failed: {e}")
+
     return standard_response(True, f"Notification sent to {len(batch)} users")
 
 

@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/services/api_service.dart';
 import '../core/services/events_service.dart';
 import '../core/services/secure_token_storage.dart';
+import '../core/services/push_notification_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   static const String _keyIsLoggedIn = 'is_logged_in';
@@ -128,6 +129,13 @@ class AuthProvider extends ChangeNotifier {
           }
         } catch (_) {}
 
+        // Register the device's FCM token with the backend so push
+        // notifications (messages, payments, invitations, etc.) reach this
+        // device. Best-effort — never block sign-in.
+        try {
+          await PushNotificationService.instance.registerWithBackend();
+        } catch (_) {}
+
         notifyListeners();
       }
     }
@@ -215,6 +223,9 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    // Unregister this device from FCM so we stop getting pushes for the
+    // previous user. Fire-and-forget.
+    try { await PushNotificationService.instance.unregister(); } catch (_) {}
     // Fire-and-forget the server call — don't let it block local cleanup
     AuthApi.logout().catchError((_) => <String, dynamic>{});
     await _clearTokens();

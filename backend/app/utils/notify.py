@@ -48,6 +48,38 @@ def create_notification(
         created_at=now,
     )
     db.add(notification)
+
+    # ── Best-effort push notification fan-out via FCM ────────────────────
+    try:
+        from utils.fcm import send_push_async
+        from utils.notification_titles import title_for_notification
+
+        title = title_for_notification(n_type.value if hasattr(n_type, "value") else str(n_type),
+                                       message_data or {})
+        # Make message human-friendly: prepend sender name if we know it.
+        sender_name = (message_data or {}).get("sender_name") if message_data else None
+        body_text = message or ""
+        if sender_name and not body_text.lower().startswith(sender_name.lower()):
+            body_text = f"{sender_name} {body_text}".strip()
+
+        push_data = {
+            "type": n_type.value if hasattr(n_type, "value") else str(n_type),
+            "reference_id": str(reference_id) if reference_id else "",
+            "reference_type": reference_type or "",
+            "sender_id": str(sender_id) if sender_id else "",
+        }
+        send_push_async(
+            db, recipient_id,
+            title=title,
+            body=body_text,
+            data=push_data,
+            high_priority=True,
+            collapse_key=f"{reference_type or 'general'}:{reference_id or ''}" or None,
+        )
+    except Exception as _e:
+        # Never let push failures break the request that created the notification.
+        print(f"[notify] push fan-out skipped: {_e}")
+
     return notification
 
 
