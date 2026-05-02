@@ -914,7 +914,7 @@ async def initiate_payment(
             transaction_id=tx.id,
             gateway="SASAPAY",
             provider_name=provider.name if provider else network_key,
-            network_code=PaymentGateway.gateway_code_for(network_key),
+            network_code=PaymentGateway.gateway_code_for(network_key, country_code),
             phone_number=phone,
             amount=charge_amount,
         )
@@ -1552,6 +1552,66 @@ def _resolve_attempt_from_payload(db: Session, payload: dict) -> Optional[Mobile
     return None
 
 
+def _capture_callback_fields(attempt: MobilePaymentAttempt, payload: dict) -> None:
+    """Persist all SasaPay C2B callback fields onto the attempt row.
+
+    Spec fields:
+      MerchantRequestID, CheckoutRequestID, PaymentRequestID, ResultCode,
+      ResultDesc, SourceChannel, TransAmount, RequestedAmount, Paid,
+      BillRefNumber, TransactionDate, CustomerMobile, TransactionCode,
+      ThirdPartyTransID
+    """
+    def _g(*keys):
+        for k in keys:
+            v = payload.get(k)
+            if v not in (None, ""):
+                return v
+        return None
+
+    def _dec(v):
+        if v in (None, ""):
+            return None
+        try:
+            return Decimal(str(v))
+        except Exception:
+            return None
+
+    if not attempt.checkout_request_id:
+        attempt.checkout_request_id = _g("CheckoutRequestID", "CheckoutRequestId")
+    if not attempt.merchant_request_id:
+        attempt.merchant_request_id = _g("MerchantRequestID", "MerchantRequestId")
+    pr = _g("PaymentRequestID", "PaymentRequestId")
+    if pr:
+        attempt.payment_request_id = str(pr)
+    sc = _g("SourceChannel", "PaymentMethod")
+    if sc:
+        attempt.source_channel = str(sc)
+    br = _g("BillRefNumber")
+    if br:
+        attempt.bill_ref_number = str(br)
+    cm = _g("CustomerMobile", "MSISDN")
+    if cm:
+        attempt.customer_mobile = str(cm)
+    td = _g("TransactionDate", "TransTime")
+    if td:
+        attempt.transaction_date = str(td)
+    rc = payload.get("ResultCode")
+    if rc not in (None, ""):
+        attempt.result_code = str(rc)
+    rd = _g("ResultDesc", "ResultDescription")
+    if rd:
+        attempt.result_desc = str(rd)
+    tpt = _g("ThirdPartyTransID")
+    if tpt:
+        attempt.third_party_trans_id = str(tpt)
+    ra = _dec(_g("RequestedAmount"))
+    if ra is not None:
+        attempt.requested_amount = ra
+    pa = _dec(_g("TransAmount", "PaidAmount"))
+    if pa is not None:
+        attempt.paid_amount = pa
+
+
 async def _apply_successful_payment(db: Session, tx: Transaction, attempt: MobilePaymentAttempt,
                                      payload: dict) -> None:
     """Shared success path: idempotently credit + notify."""
@@ -1559,6 +1619,7 @@ async def _apply_successful_payment(db: Session, tx: Transaction, attempt: Mobil
         return
     now = datetime.utcnow()
     attempt.status = "paid"
+    _capture_callback_fields(attempt, payload)
     # Persist gateway transaction codes for support/audit if SasaPay sent them.
     sasa_code = (
         payload.get("TransactionCode")
@@ -1647,6 +1708,7 @@ async def payment_callback(request: Request, db: Session = Depends(get_db)):
         log.processed = True
     elif tx and result_code and result_code != "0":
         attempt.status = "failed"
+        _capture_callback_fields(attempt, payload)
         tx.status = TransactionStatusEnum.failed
         tx.failure_reason = (
             _clean_failure_reason(payload.get("ResultDesc"))
