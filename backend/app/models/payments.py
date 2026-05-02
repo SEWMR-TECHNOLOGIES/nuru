@@ -312,7 +312,17 @@ class MobilePaymentAttempt(Base):
     amount = Column(Numeric(14, 2), nullable=False)
     merchant_request_id = Column(Text, nullable=True)
     checkout_request_id = Column(Text, nullable=True)
-    transaction_reference = Column(Text, nullable=True)
+    payment_request_id = Column(Text, nullable=True)               # SasaPay PaymentRequestID
+    transaction_reference = Column(Text, nullable=True)            # SasaPay TransactionCode
+    third_party_trans_id = Column(Text, nullable=True)             # SasaPay ThirdPartyTransID
+    source_channel = Column(Text, nullable=True)                   # callback SourceChannel ("M-PESA", …)
+    bill_ref_number = Column(Text, nullable=True)                  # callback BillRefNumber
+    requested_amount = Column(Numeric(14, 2), nullable=True)       # callback RequestedAmount
+    paid_amount = Column(Numeric(14, 2), nullable=True)            # callback TransAmount (actual)
+    customer_mobile = Column(Text, nullable=True)                  # callback CustomerMobile
+    transaction_date = Column(Text, nullable=True)                 # callback TransactionDate (YYYYMMDDHHMMSS)
+    result_code = Column(Text, nullable=True)                      # callback ResultCode
+    result_desc = Column(Text, nullable=True)                      # callback ResultDesc
     status = Column(Text, nullable=False, server_default="pending")  # pending/paid/failed
     response_payload = Column(JSONB, nullable=True)
     created_at = Column(DateTime, server_default=func.now())

@@ -53,19 +53,54 @@ class PaymentGateway:
         "61": "HALOPESA", "62": "HALOPESA",
     }
 
-    # Kenya prefixes (Safaricom M-Pesa primary)
+    # Kenya prefixes:
+    #   Safaricom (M-PESA): 070x, 071x, 072x, 074x, 079x, 0110-0115
+    #   Airtel:             073x, 075x, 078x, 0100-0102
+    #   Telkom (T-Kash):    077x
     NETWORK_PREFIXES_KE = {
         "70": "MPESA", "71": "MPESA", "72": "MPESA",
         "74": "MPESA", "79": "MPESA", "11": "MPESA",
+        "73": "AIRTEL", "75": "AIRTEL", "78": "AIRTEL", "10": "AIRTEL",
+        "77": "TKASH",
     }
 
-    # Internal key → SasaPay NetworkCode
+    # Internal key → SasaPay NetworkCode, scoped by country so the same
+    # internal key (e.g. "AIRTEL") can resolve to a different gateway code
+    # depending on the payer's country. Per SasaPay docs, KE channels use
+    # numeric codes:
+    #   "0"     = SasaPay wallet
+    #   "63902" = M-PESA
+    #   "63903" = Airtel Money (KE)
+    #   "63907" = T-Kash (Telkom KE)
+    # TZ channels keep their named codes used by the SasaPay TZ gateway.
+    NETWORK_CODES_BY_COUNTRY = {
+        "TZ": {
+            "VODACOM": "VODACOM",
+            "TIGO": "TIGO",
+            "AIRTEL": "AIRTELMONEYTZ",
+            "HALOPESA": "HALOPESA",
+            "SASAPAY": "0",
+        },
+        "KE": {
+            "MPESA": "63902",
+            "AIRTEL": "63903",
+            "TKASH": "63907",
+            "SASAPAY": "0",
+        },
+    }
+
+    # Back-compat flat map — preserves the original `NETWORK_CODES` symbol
+    # so any external caller still works. TZ wins on the "AIRTEL" key for
+    # parity with previous behaviour; new code should call
+    # `gateway_code_for(key, country_code)` with an explicit country.
     NETWORK_CODES = {
         "VODACOM": "VODACOM",
         "TIGO": "TIGO",
         "AIRTEL": "AIRTELMONEYTZ",
         "HALOPESA": "HALOPESA",
-        "MPESA": "MPESA",
+        "MPESA": "63902",
+        "TKASH": "63907",
+        "SASAPAY": "0",
     }
 
     def __init__(self):
@@ -177,7 +212,18 @@ class PaymentGateway:
         return cls.NETWORK_PREFIXES_TZ.get(ph[:2], "UNKNOWN")
 
     @classmethod
-    def gateway_code_for(cls, network_key: str) -> str:
+    def gateway_code_for(cls, network_key: str, country_code: str | None = None) -> str:
+        """Resolve internal network key → SasaPay NetworkCode.
+
+        ``country_code`` disambiguates keys that exist in both markets
+        (e.g. "AIRTEL" maps to "AIRTELMONEYTZ" in TZ and "63903" in KE).
+        Falls back to the flat back-compat map when no country is given.
+        """
+        cc = (country_code or "").upper()
+        if cc in cls.NETWORK_CODES_BY_COUNTRY:
+            code = cls.NETWORK_CODES_BY_COUNTRY[cc].get(network_key)
+            if code:
+                return code
         return cls.NETWORK_CODES.get(network_key, "UNKNOWN")
 
     # ──────────────────────────────────────────────
@@ -202,7 +248,8 @@ class PaymentGateway:
         """
         phone_number = self.normalize_phone_number(phone_number, country_code)
         gateway_code = network_override or self.gateway_code_for(
-            self.identify_network(phone_number, country_code)
+            self.identify_network(phone_number, country_code),
+            country_code,
         )
         if gateway_code == "UNKNOWN":
             raise HTTPException(status_code=400, detail="Unsupported phone number network.")
