@@ -2084,7 +2084,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                     decoration: BoxDecoration(
                       color: isActive
                           ? (cfg['color'] as Color).withOpacity(0.1)
-                          : const Color(0xFFF5F7FA),
+                          : Colors.white,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: isActive ? (cfg['color'] as Color) : Colors.transparent,
@@ -2249,7 +2249,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
             style: appText(size: 12, color: AppColors.textPrimary, height: 1.5),
             decoration: InputDecoration(
               filled: true,
-              fillColor: const Color(0xFFF5F7FA),
+              fillColor: Colors.white,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
               focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.primary)),
@@ -2391,7 +2391,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF5F7FA),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: AppColors.border),
                 ),
@@ -2729,7 +2729,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                   // Mode selector
                   _label('Upload Mode'),
                   Container(
-                    decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.all(3),
                     child: Row(children: [
                       _tabButton('Set Pledge Targets', bulkMode == 'targets', () => setSheetState(() => bulkMode = 'targets')),
@@ -2752,7 +2752,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: AppColors.border, style: BorderStyle.solid),
-                      color: const Color(0xFFF5F7FA),
+                      color: Colors.white,
                     ),
                     child: Row(children: [
                       const Icon(Icons.table_chart_rounded, size: 28, color: AppColors.primary),
@@ -2850,7 +2850,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                   // SMS toggle
                   Container(
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border), color: const Color(0xFFF5F7FA)),
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border), color: Colors.white),
                     child: Row(children: [
                       SizedBox(
                         width: 24, height: 24,
@@ -3071,7 +3071,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                   // Tab selector
                   Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF5F7FA),
+                      color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     padding: const EdgeInsets.all(3),
@@ -3147,7 +3147,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                         hintStyle: appText(size: 13, color: AppColors.textHint),
                         prefixIcon: const Icon(Icons.search, size: 18),
                         filled: true,
-                        fillColor: const Color(0xFFF5F7FA),
+                        fillColor: Colors.white,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
@@ -3403,7 +3403,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                         _label('Payment Method'),
                         Container(
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF5F7FA),
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -3756,7 +3756,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
         hintText: hint,
         hintStyle: appText(size: 13, color: AppColors.textHint),
         filled: true,
-        fillColor: const Color(0xFFF5F7FA),
+        fillColor: Colors.white,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,

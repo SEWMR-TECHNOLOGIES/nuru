@@ -10,6 +10,7 @@ import '../../core/l10n/l10n_helper.dart';
 import '../../providers/wallet_provider.dart';
 import '../migration/migration_banner.dart';
 import 'booking_detail_screen.dart';
+import '../../core/widgets/nuru_refresh.dart';
 
 enum BookingsMode { vendor, organizer }
 
@@ -55,8 +56,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() => _loading = true);
     final res = _isVendor
         ? await UserServicesService.getIncomingBookings(
             status: _tabFilters[_activeTab],
@@ -68,7 +69,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
           );
     if (!mounted) return;
     setState(() {
-      _loading = false;
+      if (!silent) _loading = false;
       if (res['success'] == true) {
         final data = res['data'];
         if (data is Map) {
@@ -132,9 +133,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
               ),
             ),
             Expanded(
-              child: RefreshIndicator(
-                onRefresh: _load,
-                color: AppColors.primary,
+              child: NuruRefresh(
+                onRefresh: () => _load(silent: true),
                 child: _loading
                     ? _skeletonList()
                     : (_bookings.isEmpty

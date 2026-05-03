@@ -378,7 +378,7 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
                         ])
                       else
                         Container(
-                          decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(12)),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           child: DropdownButtonHideUnderline(
                             child: DropdownButton<String>(
@@ -408,7 +408,7 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
                       Text('Status', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
                       const SizedBox(height: 6),
                       Container(
-                        decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(12)),
+                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
@@ -512,8 +512,8 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
         hintText: hint,
         hintStyle: appText(size: 13, color: AppColors.textHint),
         filled: true,
-        fillColor: const Color(0xFFF5F7FA),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        fillColor: Colors.white,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: const Color(0xFFE5E7EB), width: 1)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );

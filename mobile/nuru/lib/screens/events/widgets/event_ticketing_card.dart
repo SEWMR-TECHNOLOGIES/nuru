@@ -146,82 +146,153 @@ class EventTicketingCard extends StatelessWidget {
               ...ticketClasses.asMap().entries.map((entry) {
                 final i = entry.key;
                 final tc = entry.value;
+                final pct = tc.quantity > 0 ? (tc.sold / tc.quantity).clamp(0.0, 1.0) : 0.0;
                 return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(14),
+                  margin: const EdgeInsets.only(bottom: 10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF5F7FA),
-                    borderRadius: BorderRadius.circular(14),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: AppColors.border),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.025), blurRadius: 6, offset: const Offset(0, 2))],
                   ),
-                  child: Row(children: [
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [
-                        Text(tc.name, style: appText(size: 14, weight: FontWeight.w600)),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text('TZS ${_formatPrice(tc.price)}',
-                            style: appText(size: 11, weight: FontWeight.w600, color: AppColors.primary)),
-                        ),
-                      ]),
-                      if (tc.description.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(tc.description,
-                            style: appText(size: 12, color: AppColors.textTertiary),
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
-                        ),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text('${tc.sold}/${tc.quantity} sold',
-                          style: appText(size: 11, color: AppColors.textTertiary)),
-                      ),
-                    ])),
-                    GestureDetector(
+                  child: Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
                       onTap: () => _openEditSheet(context, i),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        child: const Icon(Icons.edit_outlined, size: 16, color: AppColors.textTertiary),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Container(
+                              width: 40, height: 40,
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withOpacity(0.10),
+                                borderRadius: BorderRadius.circular(11),
+                              ),
+                              child: Center(
+                                child: SvgPicture.asset('assets/icons/ticket-icon.svg', width: 18, height: 18,
+                                  colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn)),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(tc.name, style: appText(size: 14.5, weight: FontWeight.w700)),
+                                if (tc.description.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2),
+                                    child: Text(tc.description,
+                                      style: appText(size: 12, color: AppColors.textTertiary),
+                                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                                  ),
+                              ]),
+                            ),
+                            const SizedBox(width: 8),
+                            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                              Text('TZS ${_formatPrice(tc.price)}',
+                                style: appText(size: 13.5, weight: FontWeight.w800, color: AppColors.primary)),
+                              const SizedBox(height: 2),
+                              Text('per ticket', style: appText(size: 10, color: AppColors.textTertiary)),
+                            ]),
+                          ]),
+                          const SizedBox(height: 12),
+                          // Capacity progress
+                          Row(children: [
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(999),
+                                child: LinearProgressIndicator(
+                                  value: pct,
+                                  minHeight: 5,
+                                  backgroundColor: AppColors.border.withOpacity(0.5),
+                                  valueColor: AlwaysStoppedAnimation(AppColors.primary),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Text('${tc.sold}/${tc.quantity}',
+                              style: appText(size: 11, weight: FontWeight.w600, color: AppColors.textSecondary)),
+                          ]),
+                          const SizedBox(height: 10),
+                          Row(children: [
+                            _chipAction(
+                              context,
+                              icon: Icons.edit_outlined,
+                              label: 'Edit',
+                              onTap: () => _openEditSheet(context, i),
+                            ),
+                            const SizedBox(width: 8),
+                            _chipAction(
+                              context,
+                              icon: Icons.delete_outline_rounded,
+                              label: 'Remove',
+                              danger: true,
+                              onTap: () => _removeTicketClass(i),
+                            ),
+                          ]),
+                        ]),
                       ),
                     ),
-                    GestureDetector(
-                      onTap: () => _removeTicketClass(i),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        child: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
-                      ),
-                    ),
-                  ]),
+                  ),
                 );
               }),
             ],
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
 
             // Add ticket class button
-            GestureDetector(
-              onTap: () => _openAddSheet(context),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.3), style: BorderStyle.solid),
+            Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                onTap: () => _openAddSheet(context),
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.primary.withOpacity(0.25)),
+                  ),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    const Icon(Icons.add_rounded, size: 18, color: AppColors.primary),
+                    const SizedBox(width: 6),
+                    Text(ticketClasses.isEmpty ? 'Add your first ticket class' : 'Add another ticket class',
+                      style: appText(size: 14, weight: FontWeight.w700, color: AppColors.primary)),
+                  ]),
                 ),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.add, size: 18, color: AppColors.primary),
-                  const SizedBox(width: 6),
-                  Text('Add Ticket Class',
-                    style: appText(size: 14, weight: FontWeight.w600, color: AppColors.primary)),
-                ]),
               ),
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _chipAction(BuildContext context, {required IconData icon, required String label, required VoidCallback onTap, bool danger = false}) {
+    final color = danger ? Colors.red.shade500 : AppColors.textSecondary;
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: (danger ? Colors.red : AppColors.textSecondary).withOpacity(0.06),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 5),
+              Text(label, style: appText(size: 12, weight: FontWeight.w600, color: color)),
+            ]),
+          ),
+        ),
       ),
     );
   }

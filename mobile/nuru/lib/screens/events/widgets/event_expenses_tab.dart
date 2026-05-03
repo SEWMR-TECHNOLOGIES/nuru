@@ -318,8 +318,8 @@ class _EventExpensesTabState extends State<EventExpensesTab> with AutomaticKeepA
         hintText: hint,
         hintStyle: appText(size: 13, color: AppColors.textHint),
         filled: true,
-        fillColor: const Color(0xFFF5F7FA),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        fillColor: Colors.white,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: const Color(0xFFE5E7EB), width: 1)),
       ),
     );
   }

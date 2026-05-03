@@ -6,6 +6,8 @@ import '../../core/services/events_service.dart';
 import '../../core/services/user_services_service.dart';
 import '../../core/utils/prefetch_helper.dart';
 import 'public_service_screen.dart';
+import '../../core/widgets/nuru_refresh.dart';
+import '../../core/widgets/nuru_loader.dart';
 
 class FindServicesScreen extends StatefulWidget {
   const FindServicesScreen({super.key});
@@ -39,8 +41,8 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() => _loading = true);
     final results = await Future.wait([
       EventsService.getServices(
         limit: 50,
@@ -51,7 +53,7 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
     ]);
     if (mounted) {
       setState(() {
-        _loading = false;
+        if (!silent) _loading = false;
         final svcRes = results[0];
         if (svcRes['success'] == true) {
           final data = svcRes['data'];
@@ -112,10 +114,9 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
           const SizedBox(height: 14),
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-                : RefreshIndicator(
-                    onRefresh: _load,
-                    color: AppColors.primary,
+                ? const Center(child: NuruLoader(size: 40))
+                : NuruRefresh(
+                    onRefresh: () => _load(silent: true),
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
                       children: [

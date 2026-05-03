@@ -207,8 +207,8 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
                     suffixIcon: _searching
                         ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)))
                         : null,
-                    filled: true, fillColor: const Color(0xFFF5F7FA),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    filled: true, fillColor: Colors.white,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: const Color(0xFFE5E7EB), width: 1)),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                 ),
@@ -452,7 +452,7 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
     );
   }
 
-  Widget _imagePlaceholder() => Container(color: const Color(0xFFF5F7FA), child: const Center(child: Icon(Icons.image_outlined, size: 24, color: AppColors.textHint)));
+  Widget _imagePlaceholder() => Container(color: Colors.white, child: const Center(child: Icon(Icons.image_outlined, size: 24, color: AppColors.textHint)));
 
   /// Extract image URL from assigned service data — mirrors web's extraction logic.
   /// The API nests the original service under service['service'] with keys like image, primary_image, images[], gallery_images[].

@@ -416,14 +416,16 @@ const CreateEvent: React.FC = () => {
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">{t('location_label')}</label>
+                <label className="block text-sm font-medium mb-2">
+                  {t('location_label')} <span className="text-muted-foreground font-normal">(optional)</span>
+                </label>
                 <Input
                   placeholder={t('event_venue_placeholder')}
                   value={formData.location}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  required
                   autoComplete="off"
                 />
+                <p className="text-xs text-muted-foreground mt-1">You can add or change the venue later.</p>
               </div>
             </div>
 

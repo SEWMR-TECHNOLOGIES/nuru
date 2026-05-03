@@ -69,7 +69,7 @@ from models.invitations import (
 )
 from models.event_schedule import EventScheduleItem, EventBudgetItem
 from models.templates import EventTemplate, EventTemplateTask, EventChecklistItem
-from models.messaging import Conversation, Message
+from models.messaging import Conversation, Message, ConversationHide
 from models.calls import CallLog, DeviceToken
 from models.support import (
     SupportTicket, SupportMessage, FAQ, LiveChatSession, LiveChatMessage,

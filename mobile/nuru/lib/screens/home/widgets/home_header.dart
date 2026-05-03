@@ -39,14 +39,17 @@ class HomeHeader extends StatelessWidget {
         children: [
           _iconButton('assets/icons/menu-icon.svg', onMenuTap),
           const SizedBox(width: 12),
-          Text(
-            'Feed',
-            style: GoogleFonts.sora(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-              height: 1.1,
-              letterSpacing: -0.3,
+          Transform.translate(
+            offset: const Offset(0, -4),
+            child: Image.asset(
+              'assets/images/nuru-logo.png',
+              height: 44,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Image.asset(
+                'assets/images/nuru-logo-square.png',
+                height: 44,
+                fit: BoxFit.contain,
+              ),
             ),
           ),
           const Spacer(),
@@ -65,14 +68,13 @@ class HomeHeader extends StatelessWidget {
       onTap: onTap,
       child: Stack(
         children: [
-          Container(
+          SizedBox(
             width: 38, height: 38,
-            decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(11)),
-            child: Center(child: SvgPicture.asset(svgAsset, width: 20, height: 20,
-              colorFilter: const ColorFilter.mode(AppColors.textSecondary, BlendMode.srcIn))),
+            child: Center(child: SvgPicture.asset(svgAsset, width: 22, height: 22,
+              colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn))),
           ),
           if (badge > 0)
-            Positioned(top: 0, right: 0,
+            Positioned(top: 6, right: 4,
               child: Container(
                 width: 16, height: 16,
                 decoration: BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle,

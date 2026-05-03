@@ -1373,10 +1373,14 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
               hintText: 'Share your experience (min 10 characters)…',
               hintStyle: _f(size: 13, color: const Color(0xFFA8AEBC)),
               filled: true,
-              fillColor: const Color(0xFFF6F7FB),
+              fillColor: Colors.white,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+                borderSide: const BorderSide(color: AppColors.border, width: 1),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.border, width: 1),
               ),
               contentPadding: const EdgeInsets.all(14),
               counterStyle: _f(size: 10, color: _muted),

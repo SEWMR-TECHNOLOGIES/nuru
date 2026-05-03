@@ -123,17 +123,23 @@ def get_my_removed_moments(
 
 @router.get("/public/trending")
 def get_public_trending_moments(limit: int = 12, db: Session = Depends(get_db)):
-    """Public endpoint: most recent active moments (reels) for the landing
-    'Shared by our community' section. No auth required."""
+    """Public endpoint: truly trending active moments (reels) ranked by view
+    count. Only items with at least one viewer are returned. No auth required."""
+    from sqlalchemy import func, desc
     limit = max(1, min(limit, 50))
     now = datetime.now(EAT)
-    moments = (
-        db.query(UserMoment)
+    view_count = func.count(UserMomentViewer.id).label("vc")
+    rows = (
+        db.query(UserMoment, view_count)
+        .outerjoin(UserMomentViewer, UserMomentViewer.moment_id == UserMoment.id)
         .filter(UserMoment.is_active == True, UserMoment.expires_at > now)
-        .order_by(UserMoment.created_at.desc())
+        .group_by(UserMoment.id)
+        .having(view_count > 0)
+        .order_by(desc("vc"), UserMoment.created_at.desc())
         .limit(limit)
         .all()
     )
+    moments = [r[0] for r in rows]
     return standard_response(True, "Trending moments", [_moment_dict(db, m) for m in moments])
 
 
@@ -188,6 +194,8 @@ def get_moments_feed(db: Session = Depends(get_db), current_user: User = Depends
                 "name": f"{user.first_name} {user.last_name}" if user else None,
                 "avatar": profile.profile_picture_url if profile else None,
                 "is_self": uid == str(current_user.id),
+                "is_verified": bool(user.is_identity_verified) if user else False,
+                "is_identity_verified": bool(user.is_identity_verified) if user else False,
             },
             "moments": items,
             "all_seen": all_seen,

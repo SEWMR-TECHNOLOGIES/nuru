@@ -77,13 +77,19 @@ class AiMarkdownContent extends StatelessWidget {
         );
       case _BlockType.paragraph:
         final text = block.lines.join('\n').trim();
-        final isHeader = text.startsWith('#');
+        if (RegExp(r'^-{3,}$|^_{3,}$|^\*{3,}$').hasMatch(text)) {
+          return Container(height: 1, color: AppColors.borderLight, margin: const EdgeInsets.symmetric(vertical: 4));
+        }
+        final headerMatch = RegExp(r'^(#+)\s*').firstMatch(text);
+        final level = headerMatch?.group(1)?.length ?? 0;
         final cleanText = text.replaceFirst(RegExp(r'^#+\s*'), '');
+        final headerSize = level == 1 ? fontSize + 4 : level == 2 ? fontSize + 2.5 : level >= 3 ? fontSize + 1 : fontSize;
         return SelectableText.rich(
           TextSpan(
             style: _baseStyle.copyWith(
-              fontSize: isHeader ? fontSize + 1.5 : fontSize,
-              fontWeight: isHeader ? FontWeight.w700 : FontWeight.w500,
+              fontSize: headerSize,
+              fontWeight: level > 0 ? FontWeight.w800 : FontWeight.w500,
+              color: level > 0 ? AppColors.textPrimary : textColor,
             ),
             children: _inlineSpans(cleanText),
           ),

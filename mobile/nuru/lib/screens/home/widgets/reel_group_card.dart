@@ -197,24 +197,38 @@ class _ReelTile extends StatelessWidget {
             ),
           if (showViews)
             Positioned(
-              left: 6, right: 6, bottom: 6,
-              child: Row(
-                children: [
-                  SvgPicture.asset('assets/icons/view-icon.svg',
-                      width: 12, height: 12,
-                      colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
-                  const SizedBox(width: 4),
-                  Text('$viewerCount',
-                      style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          shadows: const [Shadow(blurRadius: 4, color: Colors.black54)])),
-                ],
+              left: 6, bottom: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.55),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SvgPicture.asset('assets/icons/view-icon.svg',
+                        width: 10, height: 10,
+                        colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
+                    const SizedBox(width: 4),
+                    Text(_formatViews(viewerCount),
+                        style: GoogleFonts.inter(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            height: 1.0)),
+                  ],
+                ),
               ),
             ),
         ],
       ),
     );
+  }
+
+  String _formatViews(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(n % 1000000 == 0 ? 0 : 1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(n % 1000 == 0 ? 0 : 1)}K';
+    return '$n';
   }
 }

@@ -9,27 +9,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../providers/auth_provider.dart';
 import '../../auth/login_screen.dart';
-import '../../events/create_event_screen.dart';
 import '../../tickets/browse_tickets_screen.dart';
 import '../../services/find_services_screen.dart';
 import '../../services/my_services_screen.dart';
-import '../../cards/nuru_cards_screen.dart';
 import '../../circle/circle_screen.dart';
-import '../../contributors/contributors_screen.dart';
-import '../../contributors/my_contributions_screen.dart';
 import '../../communities/communities_screen.dart';
-import '../../issues/my_issues_screen.dart';
-import '../../removed/removed_content_screen.dart';
-import '../../saved/saved_posts_screen.dart';
 import '../../bookings/bookings_screen.dart';
-import '../../moments/my_moments_screen.dart';
 import '../../help/help_screen.dart';
 import '../../settings/settings_screen.dart';
 import '../../wallet/wallet_screen.dart';
 import '../../event_groups/my_groups_screen.dart';
 import '../../messages/messages_screen.dart';
-import '../widgets/home_notifications_tab.dart';
-import '../../../core/services/social_service.dart';
 import '../../../core/l10n/l10n_helper.dart';
 
 /// Modern, organized left drawer that mirrors the web sidebar redesign:
@@ -232,27 +222,39 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
       child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
         decoration: BoxDecoration(
-          color: AppColors.background,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.borderLight),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: const Color(0xFFEDEDEF), width: 1),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 10),
         child: Row(
           children: [
-            SvgPicture.asset('assets/icons/search-icon.svg', width: 14, height: 14,
-              colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
-            const SizedBox(width: 8),
+            const Icon(Icons.search_rounded, size: 20, color: Color(0xFF8E8E93)),
+            const SizedBox(width: 12),
             Expanded(
               child: TextField(
                 controller: _filterCtrl,
-                style: GoogleFonts.inter(fontSize: 13, color: AppColors.textPrimary),
+                cursorColor: Colors.black,
+                textAlignVertical: TextAlignVertical.center,
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.black),
                 decoration: InputDecoration(
                   isDense: true,
+                  filled: false,
                   border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  focusedErrorBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
                   hintText: 'Quick jump…',
-                  hintStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.textHint),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  hintStyle: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: const Color(0xFF9E9E9E),
+                  ),
                 ),
               ),
             ),
@@ -261,7 +263,7 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
                 onTap: () => _filterCtrl.clear(),
                 child: const Padding(
                   padding: EdgeInsets.all(4),
-                  child: Icon(Icons.close_rounded, size: 14, color: AppColors.textHint),
+                  child: Icon(Icons.close_rounded, size: 16, color: Color(0xFF8E8E93)),
                 ),
               ),
           ],
@@ -270,33 +272,11 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
     );
   }
 
-  // Group definitions (label + items)
+  // Group definitions (label + items) — kept lean: profile page hosts the rest.
   List<_NavItem> get _pinned => [
         _NavItem(icon: 'assets/icons/home-icon.svg', label: context.tr('home'), tab: 0),
         _NavItem(icon: 'assets/icons/calendar-icon.svg', label: context.tr('my_events'), tab: 1),
         _NavItem(icon: 'assets/icons/chat-icon.svg', label: context.tr('messages'), screen: const MessagesScreen(), badge: widget.unreadMessages),
-        _NavItem(
-          icon: 'assets/icons/bell-icon.svg',
-          label: context.tr('notifications'),
-          badge: widget.unreadNotifications,
-          onTap: (ctx) async {
-            Navigator.pop(ctx);
-            final res = await SocialService.getNotifications(page: 1);
-            final data = res['data'];
-            final notifs = data is Map ? (data['notifications'] ?? []) : (data is List ? data : []);
-            final unread = data is Map ? (data['unread_count'] ?? 0) : 0;
-            if (!ctx.mounted) return;
-            Navigator.push(ctx, MaterialPageRoute(builder: (_) => Scaffold(
-              backgroundColor: AppColors.surface,
-              body: HomeNotificationsTab(
-                notifications: notifs,
-                unreadCount: unread,
-                isLoading: false,
-                onRefresh: widget.onRefresh,
-              ),
-            )));
-          },
-        ),
       ];
 
   List<_NavSection> get _sections => [
@@ -308,20 +288,13 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
         _NavSection(id: 'money', label: 'Money', items: [
           _NavItem(icon: 'assets/icons/card-icon.svg', label: 'Wallet', screen: const WalletScreen()),
           _NavItem(icon: 'assets/icons/calendar-icon.svg', label: context.tr('bookings'), screen: const BookingsScreen()),
-          _NavItem(icon: 'assets/icons/contributors-icon.svg', label: context.tr('contributors'), screen: const ContributorsScreen()),
-          _NavItem(icon: 'assets/icons/contributors-icon.svg', label: context.tr('my_contributions'), screen: const MyContributionsScreen()),
         ]),
         _NavSection(id: 'network', label: 'Network', items: [
           _NavItem(icon: 'assets/icons/circle-icon.svg', label: context.tr('my_circle'), screen: const CircleScreen()),
           _NavItem(icon: 'assets/icons/communities-icon.svg', label: 'My Groups', screen: const MyGroupsScreen()),
           _NavItem(icon: 'assets/icons/settings-icon.svg', label: context.tr('my_services'), screen: const MyServicesScreen()),
-          _NavItem(icon: 'assets/icons/card-icon.svg', label: context.tr('nuru_pass'), screen: const NuruCardsScreen()),
-          _NavItem(icon: 'assets/icons/bookmark-icon.svg', label: context.tr('saved_posts'), screen: const SavedPostsScreen()),
-          _NavItem(icon: 'assets/icons/camera-icon.svg', label: context.tr('my_moments'), screen: const MyMomentsScreen()),
         ]),
         _NavSection(id: 'account', label: 'Account', items: [
-          _NavItem(icon: 'assets/icons/issue-icon.svg', label: context.tr('my_issues'), screen: const MyIssuesScreen()),
-          _NavItem(icon: 'assets/icons/close-icon.svg', label: context.tr('removed_content'), screen: const RemovedContentScreen()),
           _NavItem(icon: 'assets/icons/help-icon.svg', label: context.tr('help'), screen: const HelpScreen()),
           _NavItem(icon: 'assets/icons/settings-icon.svg', label: context.tr('settings'), onTap: (ctx) {
             Navigator.pop(ctx);
@@ -369,7 +342,6 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
         ..._pinned.map((i) => _buildItem(context, i)),
-        _createEventButton(context),
         if (favItems.isNotEmpty) ...[
           _buildHeader(Icons.star_rounded, 'Favorites'),
           ...favItems.map((i) => _buildItem(context, i)),
@@ -561,52 +533,10 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
     );
   }
 
-  Widget _createEventButton(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: GestureDetector(
-        onTap: () {
-          Navigator.pop(context);
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateEventScreen()));
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.25), blurRadius: 12, offset: const Offset(0, 4))],
-          ),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Icon(Icons.add_rounded, size: 18, color: Colors.white),
-            const SizedBox(width: 8),
-            Text(context.tr('create_event'), style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white, height: 1.2)),
-          ]),
-        ),
-      ),
-    );
-  }
-
   Widget _buildFooter(BuildContext context, AuthProvider auth) {
     return Column(children: [
       Padding(
-        padding: const EdgeInsets.only(left: 16, right: 16, top: 14, bottom: 8),
-        child: GestureDetector(
-          onTap: () {
-            widget.onTabSelected(4);
-            Navigator.pop(context);
-          },
-          child: Row(children: [
-            SvgPicture.asset('assets/icons/user-profile-icon.svg', width: 18, height: 18,
-              colorFilter: const ColorFilter.mode(AppColors.textSecondary, BlendMode.srcIn)),
-            const SizedBox(width: 10),
-            Expanded(child: Text(context.tr('profile'), style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.2))),
-            SvgPicture.asset('assets/icons/chevron-right-icon.svg', width: 18, height: 18,
-              colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
-          ]),
-        ),
-      ),
-      Padding(
-        padding: EdgeInsets.only(left: 16, right: 16, top: 4, bottom: MediaQuery.of(context).padding.bottom + 14),
+        padding: EdgeInsets.only(left: 16, right: 16, top: 14, bottom: MediaQuery.of(context).padding.bottom + 14),
         child: GestureDetector(
           onTap: () => _handleSignOut(context, auth),
           child: Row(children: [

@@ -197,15 +197,27 @@ class _ReelViewerScreenState extends State<ReelViewerScreen>
                       _Avatar(name: user['name']?.toString() ?? '', url: user['avatar']?.toString()),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(
-                          user['is_self'] == true
-                              ? 'You'
-                              : (user['name']?.toString() ?? 'Unknown'),
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                user['is_self'] == true
+                                    ? 'You'
+                                    : (user['name']?.toString() ?? 'Unknown'),
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                            if (user['is_verified'] == true || user['is_identity_verified'] == true) ...[
+                              const SizedBox(width: 4),
+                              const Icon(Icons.verified_rounded, size: 15, color: Color(0xFF4FA3FF)),
+                            ],
+                          ],
                         ),
                       ),
                       GestureDetector(
@@ -321,27 +333,46 @@ class _Avatar extends StatelessWidget {
   const _Avatar({required this.name, this.url});
   @override
   Widget build(BuildContext context) {
+    const size = 44.0;
     return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
         shape: BoxShape.circle,
         color: Colors.white12,
-        border: Border.all(color: Colors.white, width: 1.5),
       ),
       clipBehavior: Clip.antiAlias,
       child: (url != null && url!.isNotEmpty)
-          ? CachedNetworkImage(imageUrl: url!, fit: BoxFit.cover)
-          : Center(
+          ? CachedNetworkImage(
+              imageUrl: url!,
+              fit: BoxFit.cover,
+              width: size,
+              height: size,
+              placeholder: (_, __) => Container(color: Colors.white12),
+              errorWidget: (_, __, ___) => Container(
+                color: Colors.white12,
+                alignment: Alignment.center,
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: GoogleFonts.sora(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            )
+          : Container(
+              alignment: Alignment.center,
               child: Text(
                 name.isNotEmpty ? name[0].toUpperCase() : '?',
                 style: GoogleFonts.sora(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
-                  fontSize: 14,
+                  fontSize: 16,
                 ),
-              ),
-            ),
+                ),
+      ),
     );
   }
 }

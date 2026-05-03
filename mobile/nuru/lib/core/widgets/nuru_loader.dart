@@ -43,10 +43,13 @@ class _NuruLoaderState extends State<NuruLoader>
   Widget build(BuildContext context) {
     final dotColor = widget.color ?? AppColors.primary;
     final dotSize = widget.size * 0.22;
-    final spacing = widget.size * 0.12;
+    final spacing = widget.size * 0.06;
+    // Total row width: 3*dot + 6*spacing  ≈ 3*0.22 + 6*0.06 = 1.02
+    // Add small headroom so transient transforms never clip the SizedBox.
+    final rowWidth = (dotSize * 3) + (spacing * 6) + 4;
 
     return SizedBox(
-      width: widget.size,
+      width: rowWidth,
       height: widget.inline ? dotSize * 2.5 : widget.size * 0.5,
       child: AnimatedBuilder(
         animation: _ctrl,

@@ -299,12 +299,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
+        statusBarIconBrightness: Brightness.dark,
         systemNavigationBarColor: Colors.transparent,
         systemNavigationBarContrastEnforced: false,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xFFE8EEF5),
+        backgroundColor: AppColors.surface,
         body: (_loading && _event == null) || (!_permissionsResolved && _event != null)
             ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
             : _buildContent(),
@@ -320,74 +320,76 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
     final location = extractStr(e['location']);
     final venue = extractStr(e['venue']);
     final startDate = extractStr(e['start_date']);
-    final description = extractStr(e['description']);
-    final guestCount = e['guest_count'] ?? e['total_guests'] ?? e['expected_guests'] ?? 0;
-    final confirmedGuests = e['confirmed_guest_count'] ?? 0;
+    final startTime = extractStr(e['start_time']);
     final eventType = extractStr(e['event_type']);
 
     return NestedScrollView(
       headerSliverBuilder: (context, innerBoxIsScrolled) => [
+        // Light app bar (matches mockup)
         SliverAppBar(
-          expandedHeight: 220, pinned: true, backgroundColor: AppColors.primary,
-          leading: GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              margin: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(12)),
-              child: Center(child: SvgPicture.asset('assets/icons/chevron-left-icon.svg', width: 22, height: 22, colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn))),
-            ),
+          pinned: true,
+          backgroundColor: AppColors.surface,
+          surfaceTintColor: AppColors.surface,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          centerTitle: true,
+          systemOverlayStyle: SystemUiOverlayStyle.dark,
+          leading: IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: SvgPicture.asset('assets/icons/arrow-left-icon.svg', width: 22, height: 22,
+                colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
           ),
+          title: Text('Manage Event', style: appText(size: 16, weight: FontWeight.w700)),
           actions: [
-            GestureDetector(
-              onTap: _showEventActions,
-              child: Container(
-                margin: const EdgeInsets.all(8), padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.more_horiz_rounded, color: Colors.white, size: 20),
-              ),
+            IconButton(
+              onPressed: _showEventActions,
+              icon: const Icon(Icons.more_horiz_rounded, color: AppColors.textPrimary, size: 22),
             ),
           ],
-          flexibleSpace: FlexibleSpaceBar(
-            background: cover != null
-                ? Image.network(cover, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: AppColors.primary))
-                : Container(color: AppColors.primary),
-          ),
         ),
+        // Header card with cover, title, badge, date, location
         SliverToBoxAdapter(
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(child: Text(title, style: appText(size: 22, weight: FontWeight.w800, letterSpacing: -0.5))),
-                const SizedBox(width: 8),
-                _statusBadge(status),
-              ]),
-              if (startDate.isNotEmpty) ...[
-                const SizedBox(height: 8),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: SizedBox(
+                  width: 72, height: 72,
+                  child: cover != null && cover.isNotEmpty
+                      ? Image.network(cover, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: AppColors.surfaceVariant))
+                      : Container(color: AppColors.primarySoft, child: Center(child: SvgPicture.asset('assets/icons/calendar-icon.svg', width: 24, height: 24, colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn)))),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  SvgPicture.asset('assets/icons/calendar-icon.svg', width: 14, height: 14, colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
-                  const SizedBox(width: 6),
-                  Flexible(child: Text(_formatDate(startDate), style: appText(size: 13, color: AppColors.textSecondary, height: 1.5))),
+                  Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: appText(size: 17, weight: FontWeight.w800, letterSpacing: -0.3))),
+                  const SizedBox(width: 8),
+                  _statusBadge(status),
                 ]),
-              ],
-              if (location.isNotEmpty || venue.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Row(children: [
-                  SvgPicture.asset('assets/icons/location-icon.svg', width: 14, height: 14, colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
-                  const SizedBox(width: 6),
-                  Expanded(child: Text([venue, location].where((s) => s.isNotEmpty).join(', '), style: appText(size: 13, color: AppColors.textSecondary, height: 1.5), maxLines: 2, overflow: TextOverflow.ellipsis)),
-                ]),
-              ],
-              if (description.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(description, style: appText(size: 14, color: AppColors.textSecondary, height: 1.5), maxLines: 3, overflow: TextOverflow.ellipsis),
-              ],
-              const SizedBox(height: 16),
-              Wrap(spacing: 10, runSpacing: 8, children: [
-                _statChip('assets/icons/user-icon.svg', '$guestCount guests'),
-                if (confirmedGuests > 0) _statChip('assets/icons/user-icon.svg', '$confirmedGuests confirmed'),
-                if (eventType.isNotEmpty) _statChip('assets/icons/calendar-icon.svg', eventType),
-              ]),
+                if (startDate.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Row(children: [
+                    SvgPicture.asset('assets/icons/calendar-icon.svg', width: 12, height: 12,
+                        colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
+                    const SizedBox(width: 5),
+                    Flexible(child: Text(_formatDate(startDate) + (startTime.isNotEmpty ? '  •  $startTime' : ''),
+                        style: appText(size: 12, color: AppColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  ]),
+                ],
+                if (location.isNotEmpty || venue.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    SvgPicture.asset('assets/icons/location-icon.svg', width: 12, height: 12,
+                        colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
+                    const SizedBox(width: 5),
+                    Expanded(child: Text([venue, location].where((s) => s.isNotEmpty).join(', '),
+                        style: appText(size: 12, color: AppColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  ]),
+                ],
+              ])),
             ]),
           ),
         ),
@@ -396,9 +398,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
           delegate: _TabBarDelegate(
             TabBar(
               controller: _tabCtrl, isScrollable: true, tabAlignment: TabAlignment.start,
-              indicatorColor: AppColors.primary, indicatorWeight: 2.5,
+              indicatorColor: AppColors.primary, indicatorWeight: 3,
+              indicatorSize: TabBarIndicatorSize.label,
               labelColor: AppColors.primary, unselectedLabelColor: AppColors.textTertiary,
-              labelStyle: appText(size: 13, weight: FontWeight.w700), unselectedLabelStyle: appText(size: 13),
+              labelStyle: appText(size: 13, weight: FontWeight.w700),
+              unselectedLabelStyle: appText(size: 13, weight: FontWeight.w500),
+              dividerColor: AppColors.borderLight,
               tabs: _visibleTabs.map((t) => Tab(text: context.trw(t))).toList(),
             ),
           ),
@@ -622,12 +627,22 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
   }
 
   Widget _statusBadge(String status) {
-    final colors = {'draft': AppColors.textTertiary, 'published': AppColors.accent, 'confirmed': AppColors.accent, 'cancelled': AppColors.error, 'completed': AppColors.blue};
-    final c = colors[status] ?? AppColors.textTertiary;
+    final isPublished = status == 'published' || status == 'confirmed';
+    final isCompleted = status == 'completed';
+    final isCancelled = status == 'cancelled';
+    Color c = AppColors.textTertiary;
+    Color bg = const Color(0xFFF1F5F9);
+    if (isPublished) { c = const Color(0xFF15803D); bg = const Color(0xFFDCFCE7); }
+    else if (isCompleted) { c = AppColors.blue; bg = const Color(0xFFDBEAFE); }
+    else if (isCancelled) { c = AppColors.error; bg = const Color(0xFFFEE2E2); }
+    final label = status.isEmpty ? '' : status[0].toUpperCase() + status.substring(1);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: c.withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
-      child: Text(status[0].toUpperCase() + status.substring(1), style: appText(size: 11, weight: FontWeight.w700, color: c)),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (isPublished) Padding(padding: const EdgeInsets.only(right: 3), child: Icon(Icons.check_circle, size: 11, color: c)),
+        Text(label, style: appText(size: 10, weight: FontWeight.w700, color: c)),
+      ]),
     );
   }
 
@@ -807,7 +822,7 @@ class _TabBarDelegate extends SliverPersistentHeaderDelegate {
   _TabBarDelegate(this.tabBar);
   @override double get minExtent => tabBar.preferredSize.height;
   @override double get maxExtent => tabBar.preferredSize.height;
-  @override Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) => Container(color: const Color(0xFFE8EEF5), child: tabBar);
+  @override Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) => Container(color: AppColors.surface, child: tabBar);
   @override bool shouldRebuild(covariant _TabBarDelegate oldDelegate) => false;
 }
 

@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from models import Conversation, Message, User, UserProfile, UserService, UserServiceImage, ConversationTypeEnum, CallLog
+from models import Conversation, Message, User, UserProfile, UserService, UserServiceImage, ConversationTypeEnum, CallLog, ConversationHide
 from utils.auth import get_current_user
 from utils.helpers import standard_response
 
@@ -121,6 +121,19 @@ def get_conversations(
         or_(Conversation.user_one_id == current_user.id, Conversation.user_two_id == current_user.id),
         Conversation.is_active == True
     ).order_by(Conversation.updated_at.desc()).all()
+
+    # Filter out conversations the user has hidden — but bring them back if a
+    # new message arrived after they hid it (WhatsApp-like behavior).
+    hides = {
+        str(h.conversation_id): h.hidden_at
+        for h in db.query(ConversationHide).filter(ConversationHide.user_id == current_user.id).all()
+    }
+    if hides:
+        convs = [
+            c for c in convs
+            if str(c.id) not in hides or (c.updated_at and c.updated_at > hides[str(c.id)])
+        ]
+
     data = build_conversation_dicts(db, convs, current_user.id)
     if search and search.strip():
         term = search.strip().lower()
@@ -368,6 +381,8 @@ def send_message(conversation_id: str, body: dict = Body(...), db: Session = Dep
         if recipient_id and str(recipient_id) != str(current_user.id):
             from utils.fcm import send_push_async
             sender_name = f"{current_user.first_name or ''} {current_user.last_name or ''}".strip() or "Someone"
+            sender_profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+            sender_avatar = sender_profile.profile_picture_url if sender_profile else None
             preview = content if content else (
                 "📷 Photo" if any(str(a).lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".gif")) or
                                   (isinstance(a, dict) and str(a.get("url", "")).lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".gif")))
@@ -382,9 +397,12 @@ def send_message(conversation_id: str, body: dict = Body(...), db: Session = Dep
                     "conversation_id": str(conv.id),
                     "message_id": str(msg.id),
                     "sender_id": str(current_user.id),
+                    "sender_name": sender_name,
+                    "sender_avatar": sender_avatar or "",
                 },
                 high_priority=True,
                 collapse_key=f"conv:{conv.id}",
+                image=sender_avatar or None,
             )
     except Exception as _e:
         print(f"[messages] push fan-out skipped: {_e}")
@@ -465,3 +483,41 @@ def unarchive_conversation(conversation_id: str, db: Session = Depends(get_db), 
         conv.is_active = True
         db.commit()
     return standard_response(True, "Conversation unarchived")
+
+
+@router.delete("/{conversation_id}")
+def hide_conversation(conversation_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Per-user soft delete: hides this conversation from the caller's inbox.
+
+    The other participant still sees it. The chat reappears for the caller
+    if a new message arrives after the hide timestamp.
+    """
+    try:
+        cid = uuid.UUID(conversation_id)
+    except ValueError:
+        return standard_response(False, "Invalid conversation ID")
+
+    conv = db.query(Conversation).filter(Conversation.id == cid).first()
+    if not conv:
+        return standard_response(False, "Conversation not found")
+    if str(conv.user_one_id) != str(current_user.id) and str(conv.user_two_id) != str(current_user.id):
+        return standard_response(False, "You are not a participant in this conversation")
+
+    now = datetime.now(EAT).replace(tzinfo=None)
+    existing = db.query(ConversationHide).filter(
+        ConversationHide.conversation_id == cid,
+        ConversationHide.user_id == current_user.id,
+    ).first()
+    if existing:
+        existing.hidden_at = now
+    else:
+        db.add(ConversationHide(conversation_id=cid, user_id=current_user.id, hidden_at=now))
+
+    # Mark all unread messages as read for this user so the inbox badge clears.
+    db.query(Message).filter(
+        Message.conversation_id == cid,
+        Message.sender_id != current_user.id,
+        Message.is_read == False,
+    ).update({"is_read": True}, synchronize_session=False)
+    db.commit()
+    return standard_response(True, "Conversation removed")

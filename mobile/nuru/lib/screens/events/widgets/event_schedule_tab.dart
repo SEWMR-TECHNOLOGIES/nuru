@@ -206,8 +206,8 @@ class _EventScheduleTabState extends State<EventScheduleTab> with AutomaticKeepA
       style: appText(size: 15),
       decoration: InputDecoration(
         hintText: hint, hintStyle: appText(size: 14, color: AppColors.textHint),
-        filled: true, fillColor: const Color(0xFFF5F7FA),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+        filled: true, fillColor: Colors.white,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: const Color(0xFFE5E7EB), width: 1)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );

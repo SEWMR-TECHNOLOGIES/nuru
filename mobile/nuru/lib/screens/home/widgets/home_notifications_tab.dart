@@ -12,6 +12,7 @@ import '../../public_profile/public_profile_screen.dart';
 import '../../events/event_public_view_screen.dart';
 import '../../../core/utils/haptics.dart';
 import '../../../core/widgets/swipe_action_tile.dart';
+import '../../../core/widgets/nuru_refresh.dart';
 
 /// Notifications screen — premium redesign matching the reference mock.
 class HomeNotificationsTab extends StatefulWidget {
@@ -81,9 +82,8 @@ class _HomeNotificationsTabState extends State<HomeNotificationsTab> {
           _filterRow(),
           const SizedBox(height: 4),
           Expanded(
-            child: RefreshIndicator(
+            child: NuruRefresh(
               onRefresh: () async => widget.onRefresh(),
-              color: AppColors.primary,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),

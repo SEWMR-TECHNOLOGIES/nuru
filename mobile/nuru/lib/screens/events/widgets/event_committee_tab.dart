@@ -337,8 +337,8 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                       hintText: 'Search by name, email or phone...', hintStyle: appText(size: 13, color: AppColors.textHint),
                       prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.textHint),
                       suffixIcon: searching ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))) : null,
-                      filled: true, fillColor: const Color(0xFFF5F7FA),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                      filled: true, fillColor: Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: const Color(0xFFE5E7EB), width: 1)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
                   ),
@@ -379,7 +379,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                 Text('Role *', style: appText(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
                 const SizedBox(height: 8),
                 Container(
-                  decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(14)),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
                   child: DropdownButtonFormField<String>(
                     value: selectedRoleId.isEmpty ? null : selectedRoleId,
                     decoration: InputDecoration(
@@ -401,8 +401,8 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                     style: appText(size: 14),
                     decoration: InputDecoration(
                       hintText: 'Enter custom role name', hintStyle: appText(size: 13, color: AppColors.textHint),
-                      filled: true, fillColor: const Color(0xFFF5F7FA),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                      filled: true, fillColor: Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: const Color(0xFFE5E7EB), width: 1)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
                   ),
@@ -415,7 +415,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(14)),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
                   child: Column(
                     children: _availablePermissions.map((p) => CheckboxListTile(
                       dense: true, controlAffinity: ListTileControlAffinity.leading,
@@ -514,7 +514,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
               Text('Role *', style: appText(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
               const SizedBox(height: 8),
               Container(
-                decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(14)),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
                 child: DropdownButtonFormField<String>(
                   value: selectedRoleId,
                   decoration: InputDecoration(border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4)),
@@ -531,8 +531,8 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                   onChanged: (v) => customRole = v,
                   style: appText(size: 14),
                   decoration: InputDecoration(
-                    hintText: 'Custom role name', filled: true, fillColor: const Color(0xFFF5F7FA),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                    hintText: 'Custom role name', filled: true, fillColor: Colors.white,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: const Color(0xFFE5E7EB), width: 1)),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                 ),
@@ -543,7 +543,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(14)),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
                 child: Column(
                   children: _availablePermissions.map((p) => CheckboxListTile(
                     dense: true, controlAffinity: ListTileControlAffinity.leading,

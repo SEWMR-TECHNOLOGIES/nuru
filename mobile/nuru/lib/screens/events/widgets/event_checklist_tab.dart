@@ -464,7 +464,7 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     _sheetLabel('Category'),
                     Container(
-                      decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(14)),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
                       child: DropdownButtonFormField<String>(
                         value: category.isEmpty ? null : category,
                         decoration: InputDecoration(border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4), hintText: 'Select', hintStyle: appText(size: 13, color: AppColors.textHint)),
@@ -478,7 +478,7 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     _sheetLabel('Priority'),
                     Container(
-                      decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(14)),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
                       child: DropdownButtonFormField<String>(
                         value: priority,
                         decoration: InputDecoration(border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4)),
@@ -510,7 +510,7 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(14)),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
                     child: Row(children: [
                       Icon(Icons.calendar_today_rounded, size: 16, color: dueDate != null ? AppColors.primary : AppColors.textHint),
                       const SizedBox(width: 10),
@@ -547,7 +547,7 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
                   )
                 else
                   Container(
-                    decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(14)),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
                     child: DropdownButtonFormField<String>(
                       value: null,
                       decoration: InputDecoration(border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4), hintText: 'Select member', hintStyle: appText(size: 13, color: AppColors.textHint)),
@@ -631,8 +631,8 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
     style: appText(size: 14),
     decoration: InputDecoration(
       hintText: hint, hintStyle: appText(size: 13, color: AppColors.textHint),
-      filled: true, fillColor: const Color(0xFFF5F7FA),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+      filled: true, fillColor: Colors.white,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: const Color(0xFFE5E7EB), width: 1)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     ),
   );
