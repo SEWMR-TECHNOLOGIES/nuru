@@ -21,6 +21,7 @@ import 'edit_service_screen.dart';
 import 'manage_photos_screen.dart';
 import 'manage_intro_clip_screen.dart';
 import 'public_service_screen.dart';
+import '../bookings/bookings_screen.dart';
 import 'service_verification_screen.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../migration/migration_banner.dart';
@@ -425,13 +426,73 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
             children: [
               Expanded(child: _heroStat('$svcCount', 'Services')),
               _heroDivider(),
-              Expanded(child: _heroStat('$bookings', 'Bookings')),
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _openBookings,
+                  child: _heroStat('$bookings', 'Bookings'),
+                ),
+              ),
               _heroDivider(),
               Expanded(child: _heroStat('$completionRate%', 'Completion Rate')),
             ],
           ),
+          const SizedBox(height: 14),
+          // Manage Bookings CTA
+          GestureDetector(
+            onTap: _openBookings,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C1C24),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.inbox_rounded,
+                      color: Colors.white, size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Manage Bookings',
+                      style: _f(
+                        size: 13.5,
+                        weight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  if (bookings > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text('$bookings',
+                          style: _f(
+                            size: 11,
+                            weight: FontWeight.w800,
+                            color: const Color(0xFF1C1C24),
+                          )),
+                    ),
+                  const SizedBox(width: 6),
+                  const Icon(Icons.arrow_forward_ios_rounded,
+                      color: Colors.white70, size: 13),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  void _openBookings() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const BookingsScreen(mode: BookingsMode.vendor)),
     );
   }
 

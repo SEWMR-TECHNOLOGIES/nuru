@@ -1,3 +1,4 @@
+import 'package:nuru/core/utils/money_format.dart' show getActiveCurrency;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -23,7 +24,7 @@ class EventCard extends StatelessWidget {
         (event['guest_count'] ?? event['expected_guests'] ?? 0) as int;
     final confirmedGuests = (event['confirmed_guest_count'] ?? 0) as int;
     final budget = event['budget'];
-    final currency = event['currency'] ?? 'TZS';
+    final currency = event['currency'] ?? getActiveCurrency();
     final eventType =
         (event['event_type'] is Map ? event['event_type']['name'] : null) ??
         event['eventType'] ??

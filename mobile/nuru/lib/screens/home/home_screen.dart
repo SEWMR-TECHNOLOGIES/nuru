@@ -21,6 +21,10 @@ import '../profile/profile_screen.dart';
 import 'widgets/moment_card.dart';
 import 'widgets/post_detail_modal.dart';
 import 'widgets/trending_rail.dart';
+import 'widgets/reels_rail.dart';
+import 'widgets/reel_composer_screen.dart';
+import 'widgets/reel_viewer_screen.dart';
+import 'widgets/reel_group_card.dart';
 import 'widgets/create_post_box.dart';
 import 'widgets/event_card.dart';
 import 'widgets/stats_row.dart';
@@ -31,6 +35,7 @@ import 'widgets/home_bottom_nav.dart';
 import 'widgets/home_left_drawer.dart';
 import 'widgets/home_right_drawer.dart';
 import 'widgets/home_notifications_tab.dart';
+import '../../core/services/moments_service.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../onboarding/country_confirm_sheet.dart';
 import '../migration/migration_welcome_sheet.dart';
@@ -73,6 +78,11 @@ class _HomeScreenState extends State<HomeScreen> {
   String _eventsSearch = '';
   Timer? _eventsSearchDebounce;
 
+  // Feed pill tabs: 0 All, 1 Moments, 2 Events, 3 Reels
+  int _feedTab = 0;
+  List<dynamic> _reels = [];
+  bool _reelsLoading = true;
+
   @override
   void initState() {
     super.initState();
@@ -91,8 +101,20 @@ class _HomeScreenState extends State<HomeScreen> {
       _loadUpcomingTickets(),
       _loadTicketedEvents(),
       _loadMyServices(),
+      _loadReels(),
     ]);
     if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _loadReels() async {
+    if (mounted) setState(() => _reelsLoading = true);
+    final res = await MomentsService.getFeed();
+    if (!mounted) return;
+    final data = res['data'];
+    setState(() {
+      _reels = data is List ? data : const [];
+      _reelsLoading = false;
+    });
   }
 
   Future<void> _loadProfile() async {
@@ -477,36 +499,147 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  List<dynamic> get _filteredFeed {
+    bool isEventShare(dynamic p) {
+      if (p is! Map) return false;
+      final pt = (p['post_type'] ?? p['type'] ?? '').toString();
+      return pt == 'event_share' || p['shared_event'] != null;
+    }
+    bool isReel(dynamic p) {
+      if (p is! Map) return false;
+      final pt = (p['post_type'] ?? p['type'] ?? '').toString();
+      return pt == 'reel' || pt == 'moment_share' || p['moment'] != null || p['moment_id'] != null;
+    }
+    bool isMoment(dynamic p) {
+      // Plain user posts/feeds — exclude event-shares & reels
+      if (p is! Map) return false;
+      if (isEventShare(p) || isReel(p)) return false;
+      return true;
+    }
+    if (_feedTab == 1) return _feedPosts.where(isMoment).toList();
+    if (_feedTab == 2) return _feedPosts.where(isEventShare).toList();
+    if (_feedTab == 3) return _feedPosts.where(isReel).toList();
+    return _feedPosts;
+  }
+
+  void _openReelViewer(int authorIndex) {
+    if (authorIndex < 0 || authorIndex >= _reels.length) return;
+    Navigator.of(context).push(MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => ReelViewerScreen(
+        reels: _reels,
+        initialAuthorIndex: authorIndex,
+      ),
+    )).then((_) => _loadReels());
+  }
+
+  void _openCreateReel() async {
+    final created = await Navigator.of(context).push<bool>(MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => const ReelComposerScreen(),
+    ));
+    if (created == true) {
+      await _loadReels();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Your reel is live for 24 hours')),
+        );
+      }
+    }
+  }
+
   Widget _feedContent() {
+    final isReelsTab = _feedTab == 3;
+    final filtered = isReelsTab ? const <dynamic>[] : _filteredFeed;
+    final reelGroups = isReelsTab ? _reels : const <dynamic>[];
+    final listLen = isReelsTab ? reelGroups.length : filtered.length;
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (notification is ScrollEndNotification &&
             notification.metrics.pixels >= notification.metrics.maxScrollExtent - 300 &&
-            _feedPage < _feedTotalPages && !_feedLoadingMore) {
+            _feedPage < _feedTotalPages && !_feedLoadingMore && !isReelsTab) {
           _loadMoreFeed();
         }
         return false;
       },
       child: RefreshIndicator(
-        // Pull-to-refresh resets the ranked-feed session so server impression
-        // history is cleared and the user gets a freshly-rotated stream.
-        onRefresh: () => _loadFeed(refresh: true, resetSession: true),
+        onRefresh: () async {
+          await Future.wait([
+            _loadFeed(refresh: true, resetSession: true),
+            _loadReels(),
+          ]);
+        },
         color: AppColors.primary,
         child: ListView.builder(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-          itemCount: _feedPosts.length + 3 + (_feedLoadingMore ? 1 : 0) + (!_feedLoading && _feedFallbackTried && _feedPosts.isEmpty ? 1 : 0),
+          itemCount: listLen + 4 + (_feedLoadingMore && !isReelsTab ? 1 : 0) + (!_feedLoading && _feedFallbackTried && listLen == 0 ? 1 : 0),
           itemBuilder: (context, index) {
-            if (index == 0) return Padding(padding: const EdgeInsets.only(bottom: 16), child: CreatePostBox(onPostCreated: () => _loadFeed(refresh: true)));
-            if (index == 1) return const TrendingRail();
-            if (index == 2 && (_feedLoading || (_feedPosts.isEmpty && !_feedFallbackTried))) {
+            if (index == 0) {
+              // Reels rail first (above Share a moment)
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: ReelsRail(
+                  reels: _reels,
+                  loading: false,
+                  myAvatar: (_profile?['avatar'] as String?),
+                  onCreateTap: _openCreateReel,
+                  onAuthorTap: _openReelViewer,
+                ),
+              );
+            }
+            if (index == 1) {
+              // Share a moment box BELOW reels rail
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: CreatePostBox(onPostCreated: () => _loadFeed(refresh: true)),
+              );
+            }
+            if (index == 2) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: PillTabs(
+                  tabs: const ['All', 'Moments', 'Events', 'Reels'],
+                  selected: _feedTab,
+                  onChanged: (i) => setState(() => _feedTab = i),
+                ),
+              );
+            }
+            if (index == 3) return _feedTab == 0 ? const TrendingRail() : const SizedBox.shrink();
+            if (index == 4 && (_feedLoading || (listLen == 0 && !_feedFallbackTried && _feedTab == 0))) {
               return Column(children: List.generate(3, (_) => const Padding(padding: EdgeInsets.only(bottom: 16), child: ShimmerCard(height: 220))));
             }
-            if (index == 2 && !_feedLoading && _feedFallbackTried && _feedPosts.isEmpty) return const EmptyState(icon: Icons.dynamic_feed_rounded, title: 'No posts yet', subtitle: 'Be the first to share something with the community!');
-            if (index == 2) return const SizedBox.shrink();
-            final postIndex = index - 3;
-            if (postIndex >= _feedPosts.length) return const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))));
-            final post = _feedPosts[postIndex];
+            if (index == 4 && listLen == 0) {
+              return EmptyState(
+                icon: _feedTab == 3 ? Icons.auto_awesome_rounded : Icons.dynamic_feed_rounded,
+                title: _feedTab == 1
+                    ? 'No moments yet'
+                    : _feedTab == 2
+                        ? 'No event posts'
+                        : _feedTab == 3
+                            ? 'No reels in your circle'
+                            : 'No posts yet',
+                subtitle: _feedTab == 0
+                    ? 'Be the first to share something with the community!'
+                    : 'Check back soon or follow more people to see updates here.',
+              );
+            }
+            final itemIndex = index - 4;
+            if (itemIndex >= listLen) {
+              return const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))));
+            }
+            if (isReelsTab) {
+              final group = reelGroups[itemIndex];
+              if (group is! Map) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: ReelGroupCard(
+                  group: group,
+                  onOpen: (_) => _openReelViewer(itemIndex),
+                ),
+              );
+            }
+            final post = filtered[itemIndex];
             final postMap = post is Map<String, dynamic> ? post : <String, dynamic>{};
             return Padding(padding: const EdgeInsets.only(bottom: 16), child: MomentCard(post: postMap, onTap: () => PostDetailModal.show(context, postMap)));
           },

@@ -353,6 +353,12 @@ def get_public_trending_posts(limit: int = 12, db: Session = Depends(get_db)):
     if cached is not None:
         return standard_response(True, "Trending moments", cached)
 
+    has_image_subq = (
+        db.query(UserFeedImage.feed_id)
+        .filter(UserFeedImage.feed_id == UserFeed.id)
+        .exists()
+    )
+
     top_posts = (
         db.query(UserFeed)
         .filter(
@@ -361,9 +367,8 @@ def get_public_trending_posts(limit: int = 12, db: Session = Depends(get_db)):
                 UserFeed.visibility == FeedVisibilityEnum.public,
                 UserFeed.visibility.is_(None),
             ),
+            has_image_subq,
         )
-        .join(UserFeedImage, UserFeedImage.feed_id == UserFeed.id)
-        .distinct()
         .order_by(
             desc(
                 (UserFeed.glow_count * 2) + (UserFeed.echo_count * 3) + (UserFeed.spark_count)

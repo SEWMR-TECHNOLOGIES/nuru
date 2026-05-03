@@ -1,3 +1,4 @@
+import 'package:nuru/core/utils/money_format.dart' show getActiveCurrency;
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -126,7 +127,7 @@ class _MyContributionsTabState extends State<MyContributionsTab> {
   }
 
   Widget _card(Map<String, dynamic> ev) {
-    final currency = ev['currency']?.toString() ?? 'TZS';
+    final currency = ev['currency']?.toString() ?? getActiveCurrency();
     final pledge = (ev['pledge_amount'] as num?)?.toDouble() ?? 0;
     final paid = (ev['total_paid'] as num?)?.toDouble() ?? 0;
     final pending = (ev['pending_amount'] as num?)?.toDouble() ?? 0;

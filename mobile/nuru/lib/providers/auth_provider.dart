@@ -4,6 +4,7 @@ import '../core/services/api_service.dart';
 import '../core/services/events_service.dart';
 import '../core/services/secure_token_storage.dart';
 import '../core/services/push_notification_service.dart';
+import '../core/utils/money_format.dart' as money_fmt;
 
 class AuthProvider extends ChangeNotifier {
   static const String _keyIsLoggedIn = 'is_logged_in';
@@ -13,6 +14,11 @@ class AuthProvider extends ChangeNotifier {
   bool _hasSeenOnboarding = false;
   bool _isLoading = true;
   Map<String, dynamic>? _user;
+
+  void _syncCurrencyFromUser() {
+    final code = _user?['currency_code'] ?? _user?['currency']?['code'];
+    if (code != null) money_fmt.setActiveCurrency(code.toString());
+  }
 
   bool get isLoggedIn => _isLoggedIn;
   bool get hasSeenOnboarding => _hasSeenOnboarding;

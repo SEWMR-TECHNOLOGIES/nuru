@@ -16,13 +16,22 @@ from core.database import get_db
 from models import (
     UserMoment, UserMomentSticker, UserMomentViewer,
     UserMomentHighlight, UserMomentHighlightItem, User, UserProfile,
+    UserCircle, UserFollower,
     ContentAppeal, AppealStatusEnum, AppealContentTypeEnum,
+    MomentContentTypeEnum,
 )
 from utils.auth import get_current_user
 from utils.helpers import standard_response
 
 EAT = pytz.timezone("Africa/Nairobi")
 router = APIRouter(prefix="/moments", tags=["Moments/Stories"])
+
+
+def _moment_content_type(value):
+    if hasattr(value, "value"):
+        return value.value
+    raw = str(value or "image")
+    return raw.split(".")[-1]
 
 
 def _moment_dict(db, m, current_user_id=None):
@@ -33,12 +42,21 @@ def _moment_dict(db, m, current_user_id=None):
     if current_user_id:
         has_seen = db.query(UserMomentViewer).filter(UserMomentViewer.moment_id == m.id, UserMomentViewer.viewer_id == current_user_id).first() is not None
 
+    ct = _moment_content_type(m.content_type)
+    media_url = m.media_url
+    background_color = None
+    if isinstance(media_url, str) and media_url.startswith("text:"):
+        ct = "text"
+        background_color = media_url[5:] or None
+        media_url = None
+
     return {
         "id": str(m.id),
         "author": {"id": str(user.id), "name": f"{user.first_name} {user.last_name}", "avatar": profile.profile_picture_url if profile else None, "is_verified": user.is_identity_verified or False} if user else None,
-        "caption": m.caption, "content_type": m.content_type.value if m.content_type else "image",
-        "media_url": m.media_url,
+        "caption": m.caption, "content_type": ct,
+        "media_url": media_url,
         "thumbnail_url": m.thumbnail_url if hasattr(m, "thumbnail_url") else None,
+        "background_color": background_color,
         "location": m.location if hasattr(m, "location") else None,
         "viewer_count": viewer_count, "has_seen": has_seen,
         "is_active": m.is_active,
@@ -99,28 +117,93 @@ def get_my_removed_moments(
     return standard_response(True, "Removed moments retrieved", data)
 
 
+# ──────────────────────────────────────────────
+# PUBLIC TRENDING — reels for landing page
+# ──────────────────────────────────────────────
+
+@router.get("/public/trending")
+def get_public_trending_moments(limit: int = 12, db: Session = Depends(get_db)):
+    """Public endpoint: most recent active moments (reels) for the landing
+    'Shared by our community' section. No auth required."""
+    limit = max(1, min(limit, 50))
+    now = datetime.now(EAT)
+    moments = (
+        db.query(UserMoment)
+        .filter(UserMoment.is_active == True, UserMoment.expires_at > now)
+        .order_by(UserMoment.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return standard_response(True, "Trending moments", [_moment_dict(db, m) for m in moments])
+
+
 @router.get("/")
 def get_moments_feed(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    now = datetime.now(EAT)
-    moments = db.query(UserMoment).filter(UserMoment.is_active == True, UserMoment.expires_at > now).order_by(UserMoment.created_at.desc()).limit(100).all()
+    """Returns active moments grouped by author.
 
-    # Group by user
+    Visibility: only authors that the current user follows OR has in their
+    accepted circle, plus the current user's own moments.
+    """
+    now = datetime.now(EAT)
+
+    # People I follow
+    following_ids = {
+        r.following_id for r in db.query(UserFollower.following_id).filter(
+            UserFollower.follower_id == current_user.id
+        ).all()
+    }
+    # People in my circle (accepted)
+    circle_ids = {
+        r.circle_member_id for r in db.query(UserCircle.circle_member_id).filter(
+            UserCircle.user_id == current_user.id,
+            UserCircle.status == 'accepted',
+        ).all()
+    }
+    allowed_author_ids = following_ids | circle_ids | {current_user.id}
+    if not allowed_author_ids:
+        return standard_response(True, "Moments feed retrieved", [])
+
+    moments = db.query(UserMoment).filter(
+        UserMoment.is_active == True,
+        UserMoment.expires_at > now,
+        UserMoment.user_id.in_(allowed_author_ids),
+    ).order_by(UserMoment.created_at.desc()).limit(200).all()
+
+    # Group by user, latest first per user
     user_moments = {}
     for m in moments:
         uid = str(m.user_id)
-        if uid not in user_moments:
-            user_moments[uid] = []
-        user_moments[uid].append(_moment_dict(db, m, current_user.id))
+        user_moments.setdefault(uid, []).append(_moment_dict(db, m, current_user.id))
 
     feed = []
     for uid, items in user_moments.items():
         user = db.query(User).filter(User.id == uuid.UUID(uid)).first()
         profile = db.query(UserProfile).filter(UserProfile.user_id == uuid.UUID(uid)).first() if user else None
+        items = sorted(items, key=lambda item: item["created_at"] or "")
+        latest_created_at = items[-1]["created_at"] if items else None
         all_seen = all(item["has_seen"] for item in items)
         feed.append({
-            "user": {"id": uid, "name": f"{user.first_name} {user.last_name}" if user else None, "avatar": profile.profile_picture_url if profile else None},
-            "moments": items, "all_seen": all_seen,
+            "user": {
+                "id": uid,
+                "name": f"{user.first_name} {user.last_name}" if user else None,
+                "avatar": profile.profile_picture_url if profile else None,
+                "is_self": uid == str(current_user.id),
+            },
+            "moments": items,
+            "all_seen": all_seen,
+            "latest_created_at": latest_created_at,
         })
+
+    # Self first, then by latest moment desc
+    feed.sort(key=lambda f: (not f["user"]["is_self"], f["latest_created_at"] or ""), reverse=False)
+    # reverse=False keeps is_self first (False<True), but we want latest desc — re-sort:
+    self_entries = [f for f in feed if f["user"]["is_self"]]
+    other_entries = sorted(
+        [f for f in feed if not f["user"]["is_self"]],
+        key=lambda f: f["latest_created_at"] or "",
+        reverse=True,
+    )
+    feed = self_entries + other_entries
 
     return standard_response(True, "Moments feed retrieved", feed)
 
@@ -147,25 +230,35 @@ async def create_moment(
     content: Optional[str] = Form(None), location: Optional[str] = Form(None),
     media: Optional[UploadFile] = File(None), duration_hours: int = Form(24),
     content_type: Optional[str] = Form("image"),
+    background_color: Optional[str] = Form(None),
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     now = datetime.now(EAT)
     media_url = None
     thumbnail_url = None
 
-    # Determine content type from file or form param
-    media_content_type = content_type or "image"
+    media_content_type = (content_type or "image").lower()
+    if media_content_type not in {"image", "video", "text"}:
+        media_content_type = "image"
     if media and media.filename:
         file_ext = os.path.splitext(media.filename)[1].lower()
         if file_ext in ('.mp4', '.mov', '.webm', '.avi', '.mkv'):
             media_content_type = "video"
+        elif media_content_type == "text":
+            # If a file is uploaded, treat as image
+            media_content_type = "image"
 
         file_content = await media.read()
         _, ext = os.path.splitext(media.filename)
         unique_name = f"{uuid.uuid4().hex}{ext}"
         async with httpx.AsyncClient() as client:
             try:
-                resp = await client.post(UPLOAD_SERVICE_URL, data={"target_path": f"nuru/uploads/moments/{current_user.id}/"}, files={"file": (unique_name, file_content, media.content_type)}, timeout=20)
+                resp = await client.post(
+                    UPLOAD_SERVICE_URL,
+                    data={"target_path": f"nuru/uploads/moments/{current_user.id}/"},
+                    files={"file": (unique_name, file_content, media.content_type)},
+                    timeout=20,
+                )
                 result = resp.json()
                 if result.get("success"):
                     media_url = result["data"]["url"]
@@ -173,10 +266,17 @@ async def create_moment(
             except Exception:
                 pass
 
+    # Validate text moments
+    if media_content_type == "text":
+        if not content or not content.strip():
+            return standard_response(False, "Text moment requires content")
+        # Encode background color into media_url field as a marker (e.g. "text:#RRGGBB")
+        media_url = f"text:{background_color or '#0F172A'}"
+
     moment = UserMoment(
         id=uuid.uuid4(), user_id=current_user.id,
         caption=content.strip() if content else None,
-        content_type=media_content_type,
+        content_type=MomentContentTypeEnum(media_content_type),
         media_url=media_url or "",
         thumbnail_url=thumbnail_url,
         is_active=True,

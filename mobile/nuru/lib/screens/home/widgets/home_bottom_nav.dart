@@ -143,20 +143,37 @@ class HomeBottomNav extends StatelessWidget {
             }
           },
           child: Container(
-            width: 52,
-            height: 52,
+            width: 56,
+            height: 56,
             decoration: BoxDecoration(
               color: AppColors.primary,
               shape: BoxShape.circle,
+              border: Border.all(color: AppColors.surface, width: 3),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withOpacity(0.35),
-                  blurRadius: 14,
-                  offset: const Offset(0, 4),
+                  color: AppColors.primary.withOpacity(0.45),
+                  blurRadius: 18,
+                  spreadRadius: 1,
+                  offset: const Offset(0, 6),
+                ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.12),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
                 ),
               ],
             ),
-            child: const Icon(Icons.add_rounded, color: Colors.white, size: 30),
+            child: Center(
+              child: SvgPicture.asset(
+                'assets/icons/plus-icon.svg',
+                width: 26,
+                height: 26,
+                colorFilter: const ColorFilter.mode(
+                  AppColors.textPrimary,
+                  BlendMode.srcIn,
+                ),
+              ),
+            ),
           ),
         ),
       ),

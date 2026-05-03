@@ -816,13 +816,17 @@ def build_booking_dicts(db: Session, bookings: List[ServiceBookingRequest]) -> L
             event_date_str = event.start_date.isoformat() if event.start_date and hasattr(event.start_date, "isoformat") else (str(event.start_date) if event.start_date else None)
             event_dict = {
                 "id": str(event.id),
+                "name": event.name,
                 "title": event.name,
                 "date": event_date_str,
+                "start_date": event_date_str,
                 "start_time": event.start_time.strftime("%H:%M") if event.start_time else None,
                 "end_time": event.end_time.strftime("%H:%M") if getattr(event, "end_time", None) else None,
                 "location": event.location,
                 "venue": getattr(event, "venue", None),
                 "guest_count": getattr(event, "expected_guests", None),
+                "image": getattr(event, "cover_image_url", None),
+                "cover_image": getattr(event, "cover_image_url", None),
             }
 
         out.append({

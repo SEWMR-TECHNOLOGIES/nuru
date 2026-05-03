@@ -633,6 +633,40 @@ def _notify_payment_received(db: Session, tx: Transaction) -> None:
     except Exception as e:
         print(f"[payments] sms_admin_payment_alert failed: {e}")
 
+    # ── 4. Push notifications (FCM) to payer + beneficiary so the mobile
+    # app surfaces "Payment received" / "Payment approved" instantly.
+    try:
+        from utils.fcm import send_push_async
+        push_data = {
+            "type": "payment_received",
+            "transaction_code": code or "",
+            "amount": str(amount),
+            "currency": currency,
+            "target_type": str(tx.target_type.value if hasattr(tx.target_type, "value") else tx.target_type),
+            "reference_id": str(tx.target_id) if tx.target_id else "",
+        }
+        if tx.payer_user_id:
+            send_push_async(
+                db, tx.payer_user_id,
+                title="Payment confirmed",
+                body=f"Your {purpose} of {currency} {amount:,.0f} was successful.",
+                data={**push_data, "type": "payment_confirmed"},
+                high_priority=True,
+                collapse_key=f"pay:{code or tx.id}",
+            )
+        if tx.beneficiary_user_id and str(tx.beneficiary_user_id) != str(tx.payer_user_id or ""):
+            send_push_async(
+                db, tx.beneficiary_user_id,
+                title="Payment received",
+                body=f"{payer_name} sent {currency} {amount:,.0f} ({purpose}).",
+                data=push_data,
+                high_priority=True,
+                collapse_key=f"pay:{code or tx.id}",
+            )
+    except Exception as e:
+        print(f"[payments] push notify failed: {e}")
+
+
 
 # ──────────────────────────────────────────────
 # Providers (dynamic, admin-managed)

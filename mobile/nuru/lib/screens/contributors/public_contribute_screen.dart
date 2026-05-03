@@ -9,6 +9,7 @@
 ///
 /// On success the user lands on the receipt screen, identical to ticket and
 /// booking payments.
+import 'package:nuru/core/utils/money_format.dart' show getActiveCurrency;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -102,7 +103,7 @@ class _PublicContributeScreenState extends State<PublicContributeScreen> {
         ?? '';
     final note = _link?['message']?.toString() ?? _link?['note']?.toString() ?? '';
     final suggested = _suggestedAmount();
-    final currency = (_link?['currency_code'] ?? _link?['currency'] ?? 'TZS').toString();
+    final currency = (_link?['currency_code'] ?? _link?['currency'] ?? getActiveCurrency()).toString();
 
     return Scaffold(
       backgroundColor: AppColors.surface,

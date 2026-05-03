@@ -1,3 +1,4 @@
+import 'package:nuru/core/utils/money_format.dart' show getActiveCurrency;
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -538,7 +539,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
     final status = ticket['status']?.toString() ?? 'pending';
     final totalAmount = ticket['total_amount'];
     final quantity = ticket['quantity'] ?? 1;
-    final currency = ticket['currency']?.toString() ?? 'TZS';
+    final currency = ticket['currency']?.toString() ?? getActiveCurrency();
 
     String formatDate(String dateStr) {
       try {

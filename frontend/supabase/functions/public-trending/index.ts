@@ -18,7 +18,7 @@ serve(async (req) => {
     } catch { /* no body */ }
     const apiBase = Deno.env.get("NURU_API_BASE_URL") || "";
     
-    const res = await fetch(`${apiBase}/posts/public/trending?limit=${limit}`, {
+    const res = await fetch(`${apiBase}/moments/public/trending?limit=${limit}`, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
     });

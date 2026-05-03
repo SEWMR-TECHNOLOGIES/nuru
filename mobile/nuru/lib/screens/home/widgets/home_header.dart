@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -40,14 +39,15 @@ class HomeHeader extends StatelessWidget {
         children: [
           _iconButton('assets/icons/menu-icon.svg', onMenuTap),
           const SizedBox(width: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Image.asset('assets/images/nuru-logo-square.png', width: 72, height: 72,
-              errorBuilder: (_, __, ___) => Container(
-                width: 72, height: 72,
-                decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(14)),
-                child: Center(child: Text('N', style: GoogleFonts.inter(fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white))),
-              )),
+          Text(
+            'Feed',
+            style: GoogleFonts.sora(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+              height: 1.1,
+              letterSpacing: -0.3,
+            ),
           ),
           const Spacer(),
           _iconButton('assets/icons/search-icon.svg', onSearchTap),
@@ -55,23 +55,6 @@ class HomeHeader extends StatelessWidget {
           _iconButton('assets/icons/bell-icon.svg', onNotificationsTap, badge: unreadNotifications),
           const SizedBox(width: 6),
           _iconButton('assets/icons/panel-right-icon.svg', onRightPanelTap),
-          const SizedBox(width: 10),
-          GestureDetector(
-            onTap: onProfileTap,
-            child: Container(
-              width: 32, height: 32,
-              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: AppColors.border, width: 1.5)),
-              child: ClipOval(
-                child: SizedBox(
-                  width: 32, height: 32,
-                  child: avatar != null && avatar!.isNotEmpty
-                      ? CachedNetworkImage(imageUrl: avatar!, width: 32, height: 32, fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => _avatarFallback(name))
-                      : _avatarFallback(name),
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -103,11 +86,4 @@ class HomeHeader extends StatelessWidget {
     );
   }
 
-  Widget _avatarFallback(String n) {
-    return Container(
-      color: AppColors.surfaceVariant,
-      child: Center(child: Text(n.isNotEmpty ? n[0].toUpperCase() : '?',
-        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textSecondary, height: 1.0))),
-    );
-  }
 }

@@ -326,6 +326,23 @@ def get_incoming(
     return standard_response(True, "Incoming call.", data=_serialize_call(db, call, current_user.id))
 
 
+@router.get("/{call_id}/status")
+def get_call_status(
+    call_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Polled by the active call screen so the caller's UI can dismiss the
+    moment the other side declines / ends the call (or it times out)."""
+    _expire_stale_ringing(db)
+    call = db.query(CallLog).filter(CallLog.id == call_id).first()
+    if not call:
+        raise HTTPException(status_code=404, detail="Call not found.")
+    if str(call.caller_id) != str(current_user.id) and str(call.callee_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Not a participant in this call.")
+    return standard_response(True, "OK", data=_serialize_call(db, call, current_user.id))
+
+
 @router.get("/conversation/{conversation_id}")
 def list_conversation_calls(
     conversation_id: str,

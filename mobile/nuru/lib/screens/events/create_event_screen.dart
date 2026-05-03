@@ -10,6 +10,7 @@ import '../../core/theme/text_styles.dart';
 import '../../core/services/events_service.dart';
 import '../../core/services/ticketing_service.dart';
 import '../../core/widgets/app_snackbar.dart';
+import '../../core/widgets/amount_input.dart';
 import '../../core/widgets/agreement_gate.dart';
 import 'event_detail_screen.dart';
 import 'map_picker_screen.dart';
@@ -56,6 +57,10 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   bool _typesLoading = true;
   List<TicketClassData> _ticketClasses = [];
 
+  // 5-step wizard: 0 Basic, 1 Date/Time, 2 Venue, 3 Tickets, 4 Preview
+  int _step = 0;
+  static const List<String> _stepTitles = ['Basic Info', 'Date & Time', 'Venue', 'Tickets', 'Preview'];
+
   bool get _isEdit => widget.editEvent != null;
 
   @override
@@ -92,8 +97,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _dressCodeCtrl.text = extractStr(e['dress_code']);
     _specialInstructionsCtrl.text = extractStr(e['special_instructions']);
     _reminderContactPhoneCtrl.text = extractStr(e['reminder_contact_phone']);
-    if (e['expected_guests'] != null) _expectedGuestsCtrl.text = '${e['expected_guests']}';
-    if (e['budget'] != null) _budgetCtrl.text = '${e['budget']}';
+    if (e['expected_guests'] != null) _expectedGuestsCtrl.text = AmountInputFormatter().formatEditUpdate(const TextEditingValue(), TextEditingValue(text: '${e['expected_guests']}')).text;
+    if (e['budget'] != null) _budgetCtrl.text = AmountInputFormatter().formatEditUpdate(const TextEditingValue(), TextEditingValue(text: '${e['budget']}')).text;
     final rawType = e['event_type'];
     if (rawType is Map) {
       _eventTypeId = rawType['id']?.toString();
@@ -268,9 +273,11 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     super.dispose();
   }
 
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (!_validateBeforeSave()) return;
+  Future<void> _save({bool asDraft = false}) async {
+    if (!asDraft) {
+      if (!_formKey.currentState!.validate()) return;
+      if (!_validateBeforeSave()) return;
+    }
     setState(() => _saving = true);
 
     final expectedGuests = int.tryParse(_expectedGuestsCtrl.text.replaceAll(RegExp(r'[^0-9]'), ''));
@@ -348,8 +355,10 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         if (_sellsTickets && createdId != null && _ticketClasses.isNotEmpty) {
           await _syncTicketClasses(createdId);
         }
-        AppSnackbar.success(context, _isEdit ? 'Event updated' : 'Event created');
-        if (!_isEdit && res['data'] != null) {
+        AppSnackbar.success(context, asDraft ? 'Draft saved' : (_isEdit ? 'Event updated' : 'Event created'));
+        if (asDraft) {
+          Navigator.pop(context, true);
+        } else if (!_isEdit && res['data'] != null) {
           Navigator.pushReplacement(context, MaterialPageRoute(
             builder: (_) => EventDetailScreen(eventId: createdId!, initialData: res['data'], knownRole: 'creator'),
           ));
@@ -384,89 +393,334 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         systemNavigationBarContrastEnforced: false,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xFFE8EEF5),
+        backgroundColor: Colors.white,
         body: SafeArea(
           child: Column(children: [
             _buildHeader(),
+            _buildStepper(),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
                 child: Form(
                   key: _formKey,
-                  child: Column(children: [
-                    _buildEventDetailsCard(),
-                    const SizedBox(height: 16),
-                    _buildDateTimeCard(),
-                    const SizedBox(height: 16),
-                    _buildGuestsBudgetCard(),
-                    const SizedBox(height: 16),
-                    _buildCoverImageCard(),
-                    const SizedBox(height: 16),
-                    _buildVisibilityCard(),
-                    const SizedBox(height: 16),
-                    EventTicketingCard(
-                      sellsTickets: _sellsTickets,
-                      onSellsTicketsChanged: (v) => setState(() => _sellsTickets = v),
-                      isPublic: _isPublic,
-                      onIsPublicChanged: (v) => setState(() => _isPublic = v),
-                      ticketClasses: _ticketClasses,
-                      onTicketClassesChanged: (v) => setState(() => _ticketClasses = v),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildOptionalDetailsCard(),
-                    const SizedBox(height: 16),
-                    EventRecommendationsCard(
-                      eventTypeId: _eventTypeId,
-                      eventTypeName: _apiEventTypes
-                          .firstWhere(
-                            (t) => t['id']?.toString() == _eventTypeId,
-                            orElse: () => <String, dynamic>{},
-                          )['name']
-                          ?.toString(),
-                      location: _locationCtrl.text.trim().isEmpty ? null : _locationCtrl.text.trim(),
-                      maxBudget: num.tryParse(_budgetCtrl.text.trim().replaceAll(RegExp(r'[^0-9.]'), '')),
-                    ),
-                    const SizedBox(height: 16),
-                    CardTemplatePicker(
-                      eventId: widget.editEvent?['id']?.toString(),
-                      eventTypeKey: _apiEventTypes
-                          .firstWhere(
-                            (t) => t['id']?.toString() == _eventTypeId,
-                            orElse: () => <String, dynamic>{},
-                          )['name']
-                          ?.toString()
-                          .toLowerCase(),
-                    ),
-                    const SizedBox(height: 28),
-                    _buildSaveButton(),
-                    const SizedBox(height: 40),
-                  ]),
+                  child: _buildStepContent(),
                 ),
               ),
             ),
+            _buildStepNav(),
           ]),
         ),
       ),
     );
   }
 
+  Widget _buildStepContent() {
+    switch (_step) {
+      case 0:
+        return Column(children: [
+          _buildEventDetailsCard(),
+          const SizedBox(height: 16),
+          _buildCoverImageCard(),
+          const SizedBox(height: 16),
+          _buildVisibilityCard(),
+        ]);
+      case 1:
+        return Column(children: [
+          _buildDateTimeCard(),
+          const SizedBox(height: 16),
+          _buildGuestsBudgetCard(),
+        ]);
+      case 2:
+        return Column(children: [
+          _venueOnlyCard(),
+          const SizedBox(height: 16),
+          _buildOptionalDetailsCard(),
+        ]);
+      case 3:
+        return Column(children: [
+          EventTicketingCard(
+            sellsTickets: _sellsTickets,
+            onSellsTicketsChanged: (v) => setState(() => _sellsTickets = v),
+            isPublic: _isPublic,
+            onIsPublicChanged: (v) => setState(() => _isPublic = v),
+            ticketClasses: _ticketClasses,
+            onTicketClassesChanged: (v) => setState(() => _ticketClasses = v),
+          ),
+          const SizedBox(height: 16),
+          EventRecommendationsCard(
+            eventTypeId: _eventTypeId,
+            eventTypeName: _apiEventTypes
+                .firstWhere((t) => t['id']?.toString() == _eventTypeId, orElse: () => <String, dynamic>{})['name']
+                ?.toString(),
+            location: _locationCtrl.text.trim().isEmpty ? null : _locationCtrl.text.trim(),
+            maxBudget: num.tryParse(_budgetCtrl.text.trim().replaceAll(RegExp(r'[^0-9.]'), '')),
+          ),
+          const SizedBox(height: 16),
+          CardTemplatePicker(
+            eventId: widget.editEvent?['id']?.toString(),
+            eventTypeKey: _apiEventTypes
+                .firstWhere((t) => t['id']?.toString() == _eventTypeId, orElse: () => <String, dynamic>{})['name']
+                ?.toString()
+                .toLowerCase(),
+          ),
+        ]);
+      case 4:
+      default:
+        return _buildPreviewCard();
+    }
+  }
+
+  Widget _venueOnlyCard() {
+    return _card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _label(context.tr('event_location')),
+      _input(_locationCtrl, context.tr('event_venue_address')),
+      const SizedBox(height: 12),
+      _buildMapPickerButton(),
+      const SizedBox(height: 16),
+      _label(context.tr('venue_name')),
+      _input(_venueCtrl, context.tr('venue_name_optional')),
+    ]));
+  }
+
+  Widget _buildStepper() {
+    const shortTitles = ['Basic', 'Date', 'Venue', 'Tickets', 'Preview'];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: List.generate(_stepTitles.length * 2 - 1, (i) {
+        if (i.isOdd) {
+          final past = (i ~/ 2) < _step;
+          return Expanded(child: Padding(
+            padding: const EdgeInsets.only(top: 13),
+            child: Container(height: 2, margin: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: BoxDecoration(color: past ? AppColors.primary : AppColors.border, borderRadius: BorderRadius.circular(2))),
+          ));
+        }
+        final idx = i ~/ 2;
+        final active = idx == _step;
+        final done = idx < _step;
+        return GestureDetector(
+          onTap: () { if (idx < _step) setState(() => _step = idx); },
+          behavior: HitTestBehavior.opaque,
+          child: Column(children: [
+            Container(
+              width: 28, height: 28,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: active || done ? AppColors.primary : Colors.white,
+                border: Border.all(color: active || done ? AppColors.primary : AppColors.border, width: 1.5),
+              ),
+              alignment: Alignment.center,
+              child: done
+                  ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
+                  : Text('${idx + 1}', style: appText(size: 12, weight: FontWeight.w700, color: active ? Colors.white : AppColors.textTertiary)),
+            ),
+            const SizedBox(height: 6),
+            Text(shortTitles[idx], style: appText(size: 11, weight: active ? FontWeight.w700 : FontWeight.w500, color: active ? AppColors.textPrimary : AppColors.textTertiary)),
+          ]),
+        );
+      })),
+    );
+  }
+
+  Widget _buildStepNav() {
+    final isLast = _step == _stepTitles.length - 1;
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
+        child: Row(children: [
+          if (_step > 0) ...[
+            SizedBox(
+              height: 52, width: 52,
+              child: OutlinedButton(
+                onPressed: _saving ? null : () => setState(() => _step -= 1),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textPrimary,
+                  side: const BorderSide(color: AppColors.border),
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: SvgPicture.asset('assets/icons/arrow-left-icon.svg', width: 18, height: 18,
+                  colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
+          Expanded(
+            child: SizedBox(
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _saving
+                    ? null
+                    : () {
+                        if (isLast) { _save(); return; }
+                        if (!_validateStep(_step)) return;
+                        setState(() => _step += 1);
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.textPrimary,
+                  disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: _saving
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(isLast ? (_isEdit ? context.tr('save_changes') : context.tr('create_event')) : 'Next',
+                              style: appText(size: 15, weight: FontWeight.w700, color: AppColors.textPrimary)),
+                          const SizedBox(width: 8),
+                          SvgPicture.asset('assets/icons/arrow-right-icon.svg', width: 18, height: 18,
+                            colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
+                        ],
+                      ),
+              ),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  bool _validateStep(int step) {
+    switch (step) {
+      case 0:
+        if ((_eventTypeId ?? '').isEmpty) { AppSnackbar.error(context, 'Please select an event type'); return false; }
+        if (_titleCtrl.text.trim().isEmpty) { AppSnackbar.error(context, 'Event title is required'); return false; }
+        return true;
+      case 1:
+        if (_startDate == null) { AppSnackbar.error(context, 'Please select a start date'); return false; }
+        if (_endDate != null && _endDate!.isBefore(_startDate!)) {
+          AppSnackbar.error(context, 'End date cannot be earlier than start date'); return false;
+        }
+        return true;
+      default:
+        return true;
+    }
+  }
+
+  Widget _buildPreviewCard() {
+    final typeName = _apiEventTypes
+        .firstWhere((t) => t['id']?.toString() == _eventTypeId, orElse: () => <String, dynamic>{})['name']
+        ?.toString() ?? '';
+    String dateLine = _startDate == null ? 'No date set' : _formatDate(_startDate!);
+    if (_startTime != null) {
+      dateLine += ' • ${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}';
+    }
+    return Column(children: [
+      Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (_imagePath != null)
+            Image.file(File(_imagePath!), height: 200, width: double.infinity, fit: BoxFit.cover)
+          else
+            Container(
+              height: 160, width: double.infinity,
+              color: AppColors.surfaceVariant,
+              child: Center(
+                child: SvgPicture.asset('assets/icons/image-icon.svg', width: 36, height: 36,
+                  colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (typeName.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.12), borderRadius: BorderRadius.circular(999)),
+                  child: Text(typeName, style: appText(size: 11, weight: FontWeight.w700, color: AppColors.primary)),
+                ),
+              const SizedBox(height: 10),
+              Text(_titleCtrl.text.trim().isEmpty ? 'Untitled event' : _titleCtrl.text.trim(),
+                  style: appText(size: 22, weight: FontWeight.w800, color: AppColors.textPrimary)),
+              const SizedBox(height: 14),
+              _previewRow('assets/icons/calendar-icon.svg', dateLine),
+              if (_locationCtrl.text.trim().isNotEmpty)
+                _previewRow('assets/icons/location-icon.svg', _locationCtrl.text.trim()),
+              if (_venueCtrl.text.trim().isNotEmpty)
+                _previewRow('assets/icons/home-icon.svg', _venueCtrl.text.trim()),
+              if (_expectedGuestsCtrl.text.trim().isNotEmpty)
+                _previewRow('assets/icons/user-icon.svg', '${_expectedGuestsCtrl.text.trim()} expected guests'),
+              if (_budgetCtrl.text.trim().isNotEmpty)
+                _previewRow('assets/icons/card-icon.svg', 'Budget: ${_budgetCtrl.text.trim()}'),
+              _previewRow(_visibility == 'public' ? 'assets/icons/view-icon.svg' : 'assets/icons/shield-icon.svg',
+                  _visibility == 'public' ? 'Public event' : 'Private event'),
+              if (_sellsTickets)
+                _previewRow('assets/icons/ticket-icon.svg', '${_ticketClasses.length} ticket class${_ticketClasses.length == 1 ? '' : 'es'}'),
+              if (_descCtrl.text.trim().isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text('About', style: appText(size: 12, weight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 0.6)),
+                const SizedBox(height: 6),
+                Text(_descCtrl.text.trim(), style: appText(size: 14, color: AppColors.textPrimary, height: 1.5)),
+              ],
+            ]),
+          ),
+        ]),
+      ),
+    ]);
+  }
+
+  Widget _previewRow(String iconAsset, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SvgPicture.asset(iconAsset, width: 16, height: 16,
+          colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
+        const SizedBox(width: 10),
+        Expanded(child: Text(text, style: appText(size: 14, color: AppColors.textPrimary, height: 1.4))),
+      ]),
+    );
+  }
+
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       child: Row(children: [
         GestureDetector(
           onTap: () => Navigator.pop(context),
+          behavior: HitTestBehavior.opaque,
           child: Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.7), borderRadius: BorderRadius.circular(12)),
-            child: SvgPicture.asset('assets/icons/chevron-left-icon.svg', width: 20, height: 20,
+            child: SvgPicture.asset('assets/icons/arrow-left-icon.svg', width: 22, height: 22,
               colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
           ),
         ),
-        const SizedBox(width: 14),
-        Expanded(child: Text(_isEdit ? context.tr('edit_event') : context.tr('create_event'), style: appText(size: 18, weight: FontWeight.w700))),
+        Expanded(child: Center(
+          child: Text(
+            _isEdit ? context.tr('edit_event') : context.tr('create_event'),
+            style: appText(size: 17, weight: FontWeight.w700, color: AppColors.textPrimary),
+          ),
+        )),
+        GestureDetector(
+          onTap: _saving ? null : _saveDraft,
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Text('Save Draft', style: appText(size: 14, weight: FontWeight.w600, color: AppColors.primary)),
+          ),
+        ),
       ]),
     );
+  }
+
+  Future<void> _saveDraft() async {
+    if (_titleCtrl.text.trim().isEmpty) {
+      AppSnackbar.error(context, 'Add a title to save a draft');
+      return;
+    }
+    if ((_eventTypeId ?? '').isEmpty) {
+      AppSnackbar.error(context, 'Select an event type to save a draft');
+      return;
+    }
+    await _save(asDraft: true);
   }
 
   Widget _buildEventDetailsCard() {
@@ -479,18 +733,11 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       _label(context.tr('event_title')),
       _input(_titleCtrl, context.tr('give_event_name'), validator: (v) => v == null || v.isEmpty ? context.tr('required_field') : v.length > 100 ? 'Max 100' : null),
       const SizedBox(height: 16),
-      _label(context.tr('event_location')),
-      _input(_locationCtrl, context.tr('event_venue_address')),
-      const SizedBox(height: 12),
-      _buildMapPickerButton(),
-      const SizedBox(height: 16),
-      _label(context.tr('venue_name')),
-      _input(_venueCtrl, context.tr('venue_name_optional')),
-      const SizedBox(height: 16),
       _label(context.tr('description')),
       _input(_descCtrl, context.tr('describe_event'), maxLines: 4),
     ]));
   }
+
 
   Widget _buildMapPickerButton() {
     return GestureDetector(
@@ -537,10 +784,10 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   Widget _buildGuestsBudgetCard() {
     return _card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _label(context.tr('expected_guests')),
-      _input(_expectedGuestsCtrl, 'e.g., 50', keyboardType: TextInputType.number),
+      _input(_expectedGuestsCtrl, 'e.g., 50', keyboardType: TextInputType.number, inputFormatters: amountFormatters),
       const SizedBox(height: 16),
       _label(context.tr('estimated_budget')),
-      _input(_budgetCtrl, 'e.g., 5,000,000', keyboardType: TextInputType.number),
+      _input(_budgetCtrl, 'e.g., 5,000,000', keyboardType: TextInputType.number, inputFormatters: amountFormatters),
     ]));
   }
 
@@ -549,35 +796,43 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       _label(context.tr('cover_image')),
       GestureDetector(
         onTap: _pickImage,
-        child: Container(
-          width: double.infinity,
-          height: _imagePath != null ? 180 : 120,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF5F7FA),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.border),
-            image: _imagePath != null ? DecorationImage(image: FileImage(File(_imagePath!)), fit: BoxFit.cover) : null,
-          ),
-          child: _imagePath == null
-              ? Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  const Icon(Icons.cloud_upload_outlined, size: 32, color: AppColors.textHint),
-                  const SizedBox(height: 8),
-                  Text(context.tr('tap_to_upload'), style: appText(size: 13, color: AppColors.textHint)),
-                  Text('PNG, JPG (max 5MB)', style: appText(size: 11, color: AppColors.textHint)),
-                ])
-              : Align(
-                  alignment: Alignment.topRight,
-                  child: GestureDetector(
-                    onTap: () => setState(() => _imagePath = null),
-                    child: Container(
-                      margin: const EdgeInsets.all(8),
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
-                      child: const Icon(Icons.close, size: 16, color: Colors.white),
+        child: _imagePath != null
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Stack(children: [
+                  Image.file(File(_imagePath!), width: double.infinity, height: 180, fit: BoxFit.cover),
+                  Positioned(
+                    top: 8, right: 8,
+                    child: GestureDetector(
+                      onTap: () => setState(() => _imagePath = null),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                        child: const Icon(Icons.close, size: 16, color: Colors.white),
+                      ),
                     ),
                   ),
+                ]),
+              )
+            : CustomPaint(
+                painter: _DashedBorderPainter(color: AppColors.primary.withOpacity(0.55), radius: 14, dash: 6, gap: 4, strokeWidth: 1.4),
+                child: Container(
+                  width: double.infinity,
+                  height: 150,
+                  decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.04), borderRadius: BorderRadius.circular(14)),
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Container(
+                      width: 44, height: 44,
+                      decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.12), shape: BoxShape.circle),
+                      child: const Icon(Icons.add_photo_alternate_outlined, size: 22, color: AppColors.primary),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(context.tr('tap_to_upload'), style: appText(size: 14, weight: FontWeight.w600, color: AppColors.textPrimary)),
+                    const SizedBox(height: 2),
+                    Text('PNG, JPG up to 5MB', style: appText(size: 11, color: AppColors.textTertiary)),
+                  ]),
                 ),
-        ),
+              ),
       ),
     ]));
   }
@@ -651,9 +906,10 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     child: Text(text, style: appText(size: 13, weight: FontWeight.w700, color: AppColors.textSecondary)),
   );
 
-  Widget _input(TextEditingController ctrl, String hint, {String? Function(String?)? validator, int maxLines = 1, TextInputType? keyboardType}) {
+  Widget _input(TextEditingController ctrl, String hint, {String? Function(String?)? validator, int maxLines = 1, TextInputType? keyboardType, List<TextInputFormatter>? inputFormatters}) {
     return TextFormField(
       controller: ctrl, maxLines: maxLines, validator: validator, keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       style: appText(size: 15),
       decoration: InputDecoration(
         hintText: hint, hintStyle: appText(size: 14, color: AppColors.textHint),
@@ -745,7 +1001,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
               ),
             ),
-            child: MediaQuery(data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: false), child: child!),
+            child: MediaQuery(data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: true), child: child!),
           ),
         );
         if (time != null && mounted) onPick(time);
@@ -769,4 +1025,35 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  final Color color;
+  final double radius;
+  final double dash;
+  final double gap;
+  final double strokeWidth;
+  _DashedBorderPainter({required this.color, required this.radius, required this.dash, required this.gap, required this.strokeWidth});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+    final rrect = RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius));
+    final path = Path()..addRRect(rrect);
+    for (final m in path.computeMetrics()) {
+      double dist = 0;
+      while (dist < m.length) {
+        final next = (dist + dash).clamp(0, m.length).toDouble();
+        canvas.drawPath(m.extractPath(dist, next), paint);
+        dist = next + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedBorderPainter old) =>
+      old.color != color || old.radius != radius || old.dash != dash || old.gap != gap || old.strokeWidth != strokeWidth;
 }

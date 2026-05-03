@@ -1,17 +1,15 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/social_service.dart';
-import 'post_detail_modal.dart';
+import '../../../core/widgets/video_thumbnail_image.dart';
+import 'reel_viewer_screen.dart';
 
-/// Horizontal "Trending now" rail mirroring the web workspace concept of
-/// surfacing currently-popular community moments above the main feed.
-///
-/// Pulls from `/posts/public/trending` (already exposed by SocialService) and
-/// caches the first response in memory so the rail does not flicker on tab
-/// switches. The rail self-hides when there is nothing trending so it never
-/// occupies space for an empty state.
+/// Horizontal "Trending now" rail surfacing the most recent community **reels**
+/// (the same items that power the Reels circles). Tapping opens the reel in
+/// the full-screen viewer.
 class TrendingRail extends StatefulWidget {
   const TrendingRail({super.key});
 
@@ -23,7 +21,7 @@ List<dynamic> _trendingCache = const [];
 bool _trendingHydrated = false;
 
 class _TrendingRailState extends State<TrendingRail> {
-  List<dynamic> _posts = _trendingCache;
+  List<dynamic> _moments = _trendingCache;
   bool _loading = !_trendingHydrated;
 
   @override
@@ -33,30 +31,20 @@ class _TrendingRailState extends State<TrendingRail> {
   }
 
   Future<void> _load() async {
-    final res = await SocialService.getTrending(limit: 12);
+    final res = await SocialService.getTrendingMoments(limit: 12);
     if (!mounted) return;
     if (res['success'] == true) {
       final data = res['data'];
-      final list = data is List ? data : (data is Map ? (data['posts'] ?? data['items'] ?? []) : []);
+      final list = data is List ? data : (data is Map ? (data['items'] ?? []) : []);
       _trendingCache = list;
       _trendingHydrated = true;
       setState(() {
-        _posts = list;
+        _moments = list;
         _loading = false;
       });
     } else {
       setState(() => _loading = false);
     }
-  }
-
-  String? _firstImage(Map<String, dynamic> post) {
-    final imgs = post['images'];
-    if (imgs is List && imgs.isNotEmpty) {
-      final first = imgs.first;
-      if (first is String) return first;
-      if (first is Map) return (first['url'] ?? first['thumbnail_url'])?.toString();
-    }
-    return null;
   }
 
   String _initials(String name) {
@@ -65,9 +53,38 @@ class _TrendingRailState extends State<TrendingRail> {
     return (name.isEmpty ? '?' : name[0]).toUpperCase();
   }
 
+  Color _hexOrPrimary(String? hex) {
+    if (hex != null && hex.startsWith('#') && hex.length == 7) {
+      return Color(int.parse('FF${hex.substring(1)}', radix: 16));
+    }
+    return AppColors.primary;
+  }
+
+  void _openReel(int index) {
+    // Wrap each trending moment as a single-author group for the viewer.
+    final groups = _moments.map((m) {
+      final mm = m is Map ? m : const {};
+      final author = mm['author'] is Map ? mm['author'] as Map : const {};
+      return {
+        'user': {
+          'id': author['id'],
+          'name': author['name'] ?? 'Community',
+          'avatar': author['avatar'],
+          'is_self': false,
+        },
+        'moments': [mm],
+        'all_seen': false,
+      };
+    }).toList();
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => ReelViewerScreen(reels: groups, initialAuthorIndex: index),
+      fullscreenDialog: true,
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_loading || _posts.isEmpty) return const SizedBox.shrink();
+    if (_loading || _moments.isEmpty) return const SizedBox.shrink();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -83,33 +100,38 @@ class _TrendingRailState extends State<TrendingRail> {
                   decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
                 ),
                 const SizedBox(width: 8),
-                Text('Trending now',
+                Text('Trending Reels',
                     style: GoogleFonts.inter(
                         fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary, letterSpacing: 0.2)),
               ],
             ),
           ),
           SizedBox(
-            height: 168,
+            height: 200,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 2),
-              itemCount: _posts.length,
+              itemCount: _moments.length,
               separatorBuilder: (_, __) => const SizedBox(width: 10),
               itemBuilder: (_, i) {
-                final raw = _posts[i];
-                final post = raw is Map<String, dynamic> ? raw : <String, dynamic>{};
-                final image = _firstImage(post);
-                final author = post['author'] is Map ? Map<String, dynamic>.from(post['author']) : <String, dynamic>{};
-                final name = (author['name'] ?? '${author['first_name'] ?? ''} ${author['last_name'] ?? ''}').toString().trim();
+                final raw = _moments[i];
+                final m = raw is Map<String, dynamic> ? raw : <String, dynamic>{};
+                final author = m['author'] is Map ? Map<String, dynamic>.from(m['author']) : <String, dynamic>{};
+                final name = (author['name'] ?? 'Community').toString();
                 final avatar = author['avatar']?.toString();
-                final glow = post['glow_count'] ?? 0;
-                final echo = post['comment_count'] ?? 0;
+                final type = (m['content_type'] ?? '').toString();
+                final media = (m['media_url'] ?? '').toString();
+                final thumb = (m['thumbnail_url'] ?? '').toString();
+                final caption = (m['caption'] ?? '').toString();
+                final bg = _hexOrPrimary(m['background_color']?.toString());
+                final isText = type == 'text' || (media.isEmpty && caption.isNotEmpty);
+                final isVideo = type == 'video' ||
+                    RegExp(r'\.(mp4|mov|webm|avi)(\?|$)', caseSensitive: false).hasMatch(media);
 
                 return GestureDetector(
-                  onTap: () => PostDetailModal.show(context, post),
+                  onTap: () => _openReel(i),
                   child: Container(
-                    width: 132,
+                    width: 124,
                     decoration: BoxDecoration(
                       color: AppColors.surface,
                       borderRadius: BorderRadius.circular(14),
@@ -119,31 +141,43 @@ class _TrendingRailState extends State<TrendingRail> {
                     child: Stack(
                       children: [
                         Positioned.fill(
-                          child: image != null
-                              ? CachedNetworkImage(
-                                  imageUrl: image,
-                                  fit: BoxFit.cover,
-                                  placeholder: (_, __) => Container(color: AppColors.surfaceVariant),
-                                  errorWidget: (_, __, ___) => Container(color: AppColors.surfaceVariant),
-                                )
-                              : Container(
-                                  color: AppColors.primarySoft,
+                          child: isText
+                              ? Container(
+                                  color: bg,
                                   alignment: Alignment.center,
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(10),
-                                    child: Text(
-                                      (post['content'] ?? '').toString(),
-                                      maxLines: 5,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: GoogleFonts.inter(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600),
+                                  padding: const EdgeInsets.all(10),
+                                  child: Text(
+                                    caption.isEmpty ? 'Untitled' : caption,
+                                    maxLines: 6,
+                                    textAlign: TextAlign.center,
+                                    overflow: TextOverflow.fade,
+                                    style: GoogleFonts.sora(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      height: 1.2,
                                     ),
                                   ),
-                                ),
+                                )
+                              : isVideo
+                                  ? VideoThumbnailImage(
+                                      videoUrl: media,
+                                      posterUrl: thumb.isNotEmpty ? thumb : null,
+                                      showPlayBadge: false,
+                                    )
+                                  : (media.isNotEmpty
+                                      ? CachedNetworkImage(
+                                          imageUrl: media,
+                                          fit: BoxFit.cover,
+                                          placeholder: (_, __) => Container(color: AppColors.surfaceVariant),
+                                          errorWidget: (_, __, ___) => Container(color: AppColors.surfaceVariant),
+                                        )
+                                      : Container(color: AppColors.surfaceVariant)),
                         ),
-                        // Bottom gradient + meta
-                        Positioned.fill(
+                        // Bottom gradient
+                        const Positioned.fill(
                           child: DecoratedBox(
-                            decoration: const BoxDecoration(
+                            decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
@@ -153,6 +187,22 @@ class _TrendingRailState extends State<TrendingRail> {
                             ),
                           ),
                         ),
+                        if (isVideo)
+                          Positioned(
+                            top: 8, left: 8,
+                            child: Container(
+                              padding: const EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.55),
+                                shape: BoxShape.circle,
+                              ),
+                              child: SvgPicture.asset(
+                                'assets/icons/play-icon.svg',
+                                width: 12, height: 12,
+                                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                              ),
+                            ),
+                          ),
                         Positioned(
                           left: 8, right: 8, bottom: 8,
                           child: Row(
@@ -162,42 +212,20 @@ class _TrendingRailState extends State<TrendingRail> {
                                 backgroundColor: Colors.white,
                                 backgroundImage: (avatar != null && avatar.isNotEmpty) ? NetworkImage(avatar) : null,
                                 child: (avatar == null || avatar.isEmpty)
-                                    ? Text(_initials(name.isEmpty ? '?' : name),
+                                    ? Text(_initials(name),
                                         style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w800, color: AppColors.primary))
                                     : null,
                               ),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
-                                  name.isEmpty ? 'Community' : name,
+                                  name,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
                                 ),
                               ),
                             ],
-                          ),
-                        ),
-                        // Top-right counters
-                        Positioned(
-                          top: 6, right: 6,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.4),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(mainAxisSize: MainAxisSize.min, children: [
-                              const Icon(Icons.favorite_rounded, size: 9, color: Colors.white),
-                              const SizedBox(width: 3),
-                              Text('$glow',
-                                  style: GoogleFonts.inter(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700)),
-                              const SizedBox(width: 6),
-                              const Icon(Icons.mode_comment_rounded, size: 9, color: Colors.white),
-                              const SizedBox(width: 3),
-                              Text('$echo',
-                                  style: GoogleFonts.inter(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700)),
-                            ]),
                           ),
                         ),
                       ],

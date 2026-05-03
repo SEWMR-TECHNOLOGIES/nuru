@@ -662,8 +662,15 @@ class _EventMeetingsTabState extends State<EventMeetingsTab> {
                         if (d != null) setModalState(() => selectedDate = d);
                       }),
                       const SizedBox(height: 12),
-                      _buildPickerButton(icon: Icons.access_time_rounded, label: selectedTime != null ? selectedTime!.format(ctx) : _t('pick_time'), isSelected: selectedTime != null, theme: theme, onTap: () async {
-                        final t = await showTimePicker(context: ctx, initialTime: selectedTime ?? const TimeOfDay(hour: 9, minute: 0));
+                      _buildPickerButton(icon: Icons.access_time_rounded, label: selectedTime != null ? '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}' : _t('pick_time'), isSelected: selectedTime != null, theme: theme, onTap: () async {
+                        final t = await showTimePicker(
+                          context: ctx,
+                          initialTime: selectedTime ?? const TimeOfDay(hour: 9, minute: 0),
+                          builder: (c, child) => MediaQuery(
+                            data: MediaQuery.of(c).copyWith(alwaysUse24HourFormat: true),
+                            child: child!,
+                          ),
+                        );
                         if (t != null) setModalState(() => selectedTime = t);
                       }),
                       const SizedBox(height: 16),

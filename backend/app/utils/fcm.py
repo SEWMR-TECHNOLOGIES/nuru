@@ -96,16 +96,24 @@ def _access_token() -> str | None:
         return None
 
 
+def _redact(t: str) -> str:
+    if not t:
+        return "(empty)"
+    if len(t) <= 12:
+        return "***"
+    return f"{t[:6]}…{t[-4:]} (len={len(t)})"
+
+
 def _send_one(token: str, title: str, body: str, data: dict, *,
-              high_priority: bool = False, collapse_key: str | None = None) -> bool:
+              high_priority: bool = False, collapse_key: str | None = None) -> dict:
+    """Returns {'ok': bool, 'status': int|None, 'error': str|None, 'unregistered': bool}."""
     creds, project_id = _load_service_account()
     if not creds or not project_id:
-        return False
+        return {"ok": False, "status": None, "error": "fcm_not_configured", "unregistered": False}
     access = _access_token()
     if not access:
-        return False
+        return {"ok": False, "status": None, "error": "no_access_token", "unregistered": False}
 
-    # FCM data values must be strings.
     string_data = {k: str(v) for k, v in (data or {}).items() if v is not None}
 
     message: dict = {
@@ -114,22 +122,11 @@ def _send_one(token: str, title: str, body: str, data: dict, *,
         "data": string_data,
         "android": {
             "priority": "HIGH" if high_priority else "NORMAL",
-            "notification": {
-                "sound": "default",
-                "channel_id": "nuru_default",
-            },
+            "notification": {"sound": "default", "channel_id": "nuru_default"},
         },
         "apns": {
-            "headers": {
-                "apns-priority": "10" if high_priority else "5",
-            },
-            "payload": {
-                "aps": {
-                    "sound": "default",
-                    "mutable-content": 1,
-                    "content-available": 1,
-                },
-            },
+            "headers": {"apns-priority": "10" if high_priority else "5"},
+            "payload": {"aps": {"sound": "default", "mutable-content": 1, "content-available": 1}},
         },
     }
     if collapse_key:
@@ -140,47 +137,46 @@ def _send_one(token: str, title: str, body: str, data: dict, *,
     try:
         resp = requests.post(
             url,
-            headers={
-                "Authorization": f"Bearer {access}",
-                "Content-Type": "application/json; charset=UTF-8",
-            },
+            headers={"Authorization": f"Bearer {access}",
+                     "Content-Type": "application/json; charset=UTF-8"},
             data=json.dumps({"message": message}),
             timeout=10,
         )
     except Exception as e:  # noqa: BLE001
-        print(f"[fcm] HTTP error: {e}")
-        return False
+        print(f"[fcm] HTTP error sending to {_redact(token)}: {e}")
+        return {"ok": False, "status": None, "error": str(e)[:120], "unregistered": False}
 
     if resp.status_code == 200:
-        return True
+        print(f"[fcm] sent ok → {_redact(token)}")
+        return {"ok": True, "status": 200, "error": None, "unregistered": False}
 
     body_text = resp.text[:300]
-    print(f"[fcm] send failed status={resp.status_code} body={body_text}")
-
-    # Token is no longer valid → caller may want to delete it.
-    if resp.status_code in (404, 400) and (
-        "UNREGISTERED" in body_text or "INVALID_ARGUMENT" in body_text
-    ):
-        return False
-    return False
+    unregistered = resp.status_code in (404, 400) and (
+        "UNREGISTERED" in body_text or "NOT_FOUND" in body_text
+    )
+    print(f"[fcm] send failed → {_redact(token)} status={resp.status_code} body={body_text}")
+    return {"ok": False, "status": resp.status_code,
+            "error": body_text, "unregistered": unregistered}
 
 
 def send_push_to_tokens(tokens: Iterable[str], *, title: str, body: str,
                         data: dict | None = None, high_priority: bool = False,
                         collapse_key: str | None = None) -> dict:
-    """Fire push to a list of raw FCM tokens. Returns counts."""
+    """Fire push to a list of raw FCM tokens. Returns counts + per-token results."""
+    results = []
     sent = 0
     failed = 0
     for t in tokens:
         if not t:
             continue
-        ok = _send_one(t, title, body, data or {},
-                       high_priority=high_priority, collapse_key=collapse_key)
-        if ok:
+        r = _send_one(t, title, body, data or {},
+                      high_priority=high_priority, collapse_key=collapse_key)
+        results.append({"token": _redact(t), **r})
+        if r["ok"]:
             sent += 1
         else:
             failed += 1
-    return {"sent": sent, "failed": failed}
+    return {"sent": sent, "failed": failed, "results": results}
 
 
 def send_push_to_user(db, user_id, *, title: str, body: str,
@@ -188,13 +184,13 @@ def send_push_to_user(db, user_id, *, title: str, body: str,
                       collapse_key: str | None = None) -> dict:
     """Fan-out push to every device registered to this user (kind='fcm').
 
-    Best-effort. Never raises.
+    Auto-prunes tokens FCM rejects as UNREGISTERED. Best-effort, never raises.
     """
     try:
         from models import DeviceToken  # local import to avoid model cycles
     except Exception as e:  # noqa: BLE001
         print(f"[fcm] cannot import DeviceToken: {e}")
-        return {"sent": 0, "failed": 0}
+        return {"sent": 0, "failed": 0, "devices": 0, "results": []}
 
     try:
         rows = db.query(DeviceToken).filter(
@@ -203,16 +199,34 @@ def send_push_to_user(db, user_id, *, title: str, body: str,
         ).all()
     except Exception as e:  # noqa: BLE001
         print(f"[fcm] db error reading device_tokens: {e}")
-        return {"sent": 0, "failed": 0}
+        return {"sent": 0, "failed": 0, "devices": 0, "results": []}
 
     if not rows:
-        return {"sent": 0, "failed": 0}
+        print(f"[fcm] no device_tokens for user {user_id}")
+        return {"sent": 0, "failed": 0, "devices": 0, "results": []}
 
-    return send_push_to_tokens(
+    out = send_push_to_tokens(
         [r.token for r in rows],
         title=title, body=body, data=data,
         high_priority=high_priority, collapse_key=collapse_key,
     )
+    out["devices"] = len(rows)
+
+    # Prune stale tokens
+    try:
+        stale = {res["token"] for res in out["results"] if res.get("unregistered")}
+        if stale:
+            for r in rows:
+                if _redact(r.token) in stale:
+                    db.delete(r)
+            db.commit()
+            print(f"[fcm] pruned {len(stale)} unregistered tokens for user {user_id}")
+    except Exception as e:  # noqa: BLE001
+        print(f"[fcm] prune failed: {e}")
+        try: db.rollback()
+        except Exception: pass
+
+    return out
 
 
 def send_push_async(db, user_id, *, title: str, body: str,

@@ -205,6 +205,10 @@ export const adminApi = {
   broadcastNotification: (title: string, message: string) =>
     aPost<any>("/admin/notifications/broadcast", { title, message }),
 
+  // Send a test FCM push to one user (verify payload + deep link).
+  sendTestPush: (payload: { user_id: string; title?: string; message?: string; deep_link_type?: string; reference_id?: string }) =>
+    aPost<any>("/admin/notifications/test-push", payload),
+
   // Posts listing
   getPosts: (params?: any) => {
     const qs = new URLSearchParams();
