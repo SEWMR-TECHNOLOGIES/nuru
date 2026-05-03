@@ -735,6 +735,18 @@ class AppTranslations {
     'online': {'en': 'Online', 'sw': 'Mtandaoni'},
     'offline': {'en': 'Offline', 'sw': 'Nje ya mtandao'},
     'typing': {'en': 'typing...', 'sw': 'anaandika...'},
+    'delete_conversation': {
+      'en': 'Delete conversation',
+      'sw': 'Futa mazungumzo',
+    },
+    'delete_conversation_subtitle': {
+      'en': 'Removes this chat from your list only.',
+      'sw': 'Inaondoa mazungumzo haya kwenye orodha yako tu.',
+    },
+    'delete_conversation_confirm': {
+      'en': 'Remove your conversation with {name}? It will only be hidden on your side.',
+      'sw': 'Ondoa mazungumzo yako na {name}? Yatafichwa upande wako tu.',
+    },
 
     // ── Splash ──
     'splash_tagline': {

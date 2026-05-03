@@ -75,3 +75,24 @@ class Message(Base):
     sender = relationship("User", back_populates="sent_messages")
     reply_to = relationship("Message", back_populates="replies", remote_side="Message.id")
     replies = relationship("Message", back_populates="reply_to")
+
+
+class ConversationHide(Base):
+    """Per-user soft-delete: lets a user hide a conversation from their inbox.
+
+    The chat reappears for that user when a new message arrives after
+    ``hidden_at``. Deleting only affects the calling user — the other
+    participant still sees the full thread.
+    """
+    __tablename__ = 'conversation_hides'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    conversation_id = Column(UUID(as_uuid=True), ForeignKey('conversations.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    hidden_at = Column(DateTime, server_default=func.now(), nullable=False)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index('ix_conv_hides_user', 'user_id'),
+        Index('ix_conv_hides_conv', 'conversation_id'),
+    )

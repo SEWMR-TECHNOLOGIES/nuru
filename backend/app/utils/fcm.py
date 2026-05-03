@@ -105,7 +105,8 @@ def _redact(t: str) -> str:
 
 
 def _send_one(token: str, title: str, body: str, data: dict, *,
-              high_priority: bool = False, collapse_key: str | None = None) -> dict:
+              high_priority: bool = False, collapse_key: str | None = None,
+              image: str | None = None) -> dict:
     """Returns {'ok': bool, 'status': int|None, 'error': str|None, 'unregistered': bool}."""
     creds, project_id = _load_service_account()
     if not creds or not project_id:
@@ -116,19 +117,35 @@ def _send_one(token: str, title: str, body: str, data: dict, *,
 
     string_data = {k: str(v) for k, v in (data or {}).items() if v is not None}
 
+    notification: dict = {"title": title or "Nuru", "body": body or ""}
+    if image:
+        notification["image"] = image
+
+    android_notif: dict = {"sound": "default", "channel_id": "nuru_default"}
+    if image:
+        # Used by the mobile client to render a circular largeIcon (sender
+        # avatar) in WhatsApp-style — separate from the big `image` preview.
+        android_notif["image"] = image
+
+    apns_payload: dict = {"aps": {"sound": "default", "mutable-content": 1, "content-available": 1}}
+
     message: dict = {
         "token": token,
-        "notification": {"title": title or "Nuru", "body": body or ""},
+        "notification": notification,
         "data": string_data,
         "android": {
             "priority": "HIGH" if high_priority else "NORMAL",
-            "notification": {"sound": "default", "channel_id": "nuru_default"},
+            "notification": android_notif,
         },
         "apns": {
             "headers": {"apns-priority": "10" if high_priority else "5"},
-            "payload": {"aps": {"sound": "default", "mutable-content": 1, "content-available": 1}},
+            "payload": apns_payload,
         },
     }
+    if image:
+        # iOS rich notification needs a Notification Service Extension to
+        # download `fcm_options.image`; harmless if the app doesn't have one.
+        message["apns"]["fcm_options"] = {"image": image}
     if collapse_key:
         message["android"]["collapse_key"] = collapse_key
         message["apns"]["headers"]["apns-collapse-id"] = collapse_key
@@ -161,7 +178,8 @@ def _send_one(token: str, title: str, body: str, data: dict, *,
 
 def send_push_to_tokens(tokens: Iterable[str], *, title: str, body: str,
                         data: dict | None = None, high_priority: bool = False,
-                        collapse_key: str | None = None) -> dict:
+                        collapse_key: str | None = None,
+                        image: str | None = None) -> dict:
     """Fire push to a list of raw FCM tokens. Returns counts + per-token results."""
     results = []
     sent = 0
@@ -170,7 +188,8 @@ def send_push_to_tokens(tokens: Iterable[str], *, title: str, body: str,
         if not t:
             continue
         r = _send_one(t, title, body, data or {},
-                      high_priority=high_priority, collapse_key=collapse_key)
+                      high_priority=high_priority, collapse_key=collapse_key,
+                      image=image)
         results.append({"token": _redact(t), **r})
         if r["ok"]:
             sent += 1
@@ -181,7 +200,8 @@ def send_push_to_tokens(tokens: Iterable[str], *, title: str, body: str,
 
 def send_push_to_user(db, user_id, *, title: str, body: str,
                       data: dict | None = None, high_priority: bool = False,
-                      collapse_key: str | None = None) -> dict:
+                      collapse_key: str | None = None,
+                      image: str | None = None) -> dict:
     """Fan-out push to every device registered to this user (kind='fcm').
 
     Auto-prunes tokens FCM rejects as UNREGISTERED. Best-effort, never raises.
@@ -209,6 +229,7 @@ def send_push_to_user(db, user_id, *, title: str, body: str,
         [r.token for r in rows],
         title=title, body=body, data=data,
         high_priority=high_priority, collapse_key=collapse_key,
+        image=image,
     )
     out["devices"] = len(rows)
 
@@ -231,7 +252,8 @@ def send_push_to_user(db, user_id, *, title: str, body: str,
 
 def send_push_async(db, user_id, *, title: str, body: str,
                     data: dict | None = None, high_priority: bool = False,
-                    collapse_key: str | None = None):
+                    collapse_key: str | None = None,
+                    image: str | None = None):
     """Schedule a push without blocking the caller.
 
     We don't have a Celery task wired here yet, so spawn a daemon thread.
@@ -248,6 +270,7 @@ def send_push_async(db, user_id, *, title: str, body: str,
                     session, user_id,
                     title=title, body=body, data=payload_data,
                     high_priority=high_priority, collapse_key=collapse_key,
+                    image=image,
                 )
             finally:
                 session.close()

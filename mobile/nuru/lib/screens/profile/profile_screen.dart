@@ -7,6 +7,7 @@ import '../../core/services/api_service.dart';
 import '../../core/services/events_service.dart';
 import '../../core/services/event_contributors_service.dart';
 import '../../core/services/social_service.dart';
+import '../../core/services/ticketing_service.dart';
 import '../settings/settings_screen.dart';
 import '../settings/identity_verification_screen.dart';
 import '../tickets/my_tickets_screen.dart';
@@ -16,6 +17,7 @@ import '../services/find_services_screen.dart';
 import '../wallet/payment_history_screen.dart';
 import '../events/create_event_screen.dart';
 import '../home/widgets/home_notifications_tab.dart';
+import '../../core/widgets/nuru_refresh.dart';
 
 
 /// Premium profile redesign matching the reference mock.
@@ -75,25 +77,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final results = await Future.wait([
       EventContributorsService.getMyContributions(),
       SocialService.getSavedPosts(),
+      TicketingService.getMyTickets(limit: 100),
     ]);
     if (!mounted) return;
     int contribs = _contributionsCount;
     int saved = _savedCount;
+    int tickets = _ticketsCount;
+
     final cRes = results[0];
     if (cRes['success'] == true) {
       final d = cRes['data'];
-      contribs = d is List ? d.length
-        : (d is Map ? ((d['contributions'] ?? d['items'] ?? []) as List).length : contribs);
+      if (d is List) {
+        contribs = d.length;
+      } else if (d is Map) {
+        // Backend returns { events: [...], count: N }
+        final list = (d['events'] ?? d['contributions'] ?? d['items'] ?? []) as List? ?? const [];
+        contribs = (d['count'] is int) ? d['count'] as int : list.length;
+      }
     }
+
     final bRes = results[1];
     if (bRes['success'] == true) {
       final d = bRes['data'];
-      saved = d is List ? d.length
-        : (d is Map ? ((d['bookmarks'] ?? d['items'] ?? []) as List).length : saved);
+      if (d is List) {
+        saved = d.length;
+      } else if (d is Map) {
+        // Backend returns { saved_posts: [...], pagination: { total_items } }
+        final list = (d['saved_posts'] ?? d['bookmarks'] ?? d['items'] ?? []) as List? ?? const [];
+        final pag = d['pagination'];
+        int? total;
+        if (pag is Map) {
+          total = (pag['total_items'] ?? pag['total'] ?? pag['total_count']) as int?;
+        }
+        saved = total ?? list.length;
+      }
     }
+
+    final tRes = results[2];
+    if (tRes['success'] == true) {
+      final d = tRes['data'];
+      if (d is List) {
+        tickets = d.length;
+      } else if (d is Map) {
+        final list = (d['tickets'] ?? d['items'] ?? []) as List? ?? const [];
+        final pag = d['pagination'];
+        int? total;
+        if (pag is Map) {
+          total = (pag['total_items'] ?? pag['total'] ?? pag['total_count']) as int?;
+        }
+        tickets = total ?? list.length;
+      }
+    }
+
     setState(() {
       _contributionsCount = contribs;
       _savedCount = saved;
+      _ticketsCount = tickets;
     });
   }
 
@@ -177,12 +216,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.surface,
-      body: RefreshIndicator(
+      body: NuruRefresh(
         onRefresh: () async {
           widget.onRefresh?.call();
           await _loadProfileDetails();
         },
-        color: AppColors.primary,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(0, 0, 0, 100),
@@ -203,22 +241,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _topBar(Map<String, dynamic> p) {
-    return SafeArea(
-      bottom: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 12, 4),
-        child: Row(children: [
-          Expanded(child: Text('Profile',
-            style: _f(size: 22, weight: FontWeight.w800, letterSpacing: -0.4))),
-          _topIcon('assets/icons/bell-icon.svg', _openNotifications, badge: _unreadNotifications),
-          const SizedBox(width: 6),
-          _topIcon('assets/icons/settings-icon.svg', () {
-            Navigator.push(context, MaterialPageRoute(
-              builder: (_) => SettingsScreen(profile: p,
-                onProfileUpdated: () => widget.onRefresh?.call())));
-          }),
-        ]),
+    final topPadding = MediaQuery.of(context).padding.top;
+    return Container(
+      padding: EdgeInsets.only(top: topPadding + 8, left: 20, right: 12, bottom: 12),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(bottom: BorderSide(color: AppColors.borderLight, width: 0.5)),
       ),
+      child: Row(children: [
+        Expanded(child: Text('Profile',
+          style: _f(size: 22, weight: FontWeight.w800, letterSpacing: -0.4))),
+        _topIcon('assets/icons/bell-icon.svg', _openNotifications, badge: _unreadNotifications),
+        const SizedBox(width: 6),
+        _topIcon('assets/icons/settings-icon.svg', () {
+          Navigator.push(context, MaterialPageRoute(
+            builder: (_) => SettingsScreen(profile: p,
+              onProfileUpdated: () => widget.onRefresh?.call())));
+        }),
+      ]),
     );
   }
 
@@ -240,7 +280,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                   decoration: BoxDecoration(
-                    color: AppColors.error,
+                    color: AppColors.secondary,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: AppColors.surface, width: 1.5),
                   ),
@@ -349,10 +389,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
           for (int i = 0; i < items.length; i++) ...[
             Expanded(
               child: Column(children: [
-                Text(items[i].value.toString().padLeft(2, '0'),
-                  style: _f(size: 18, weight: FontWeight.w800)),
+                () {
+                  final v = items[i].value;
+                  final str = v < 100 ? v.toString().padLeft(2, '0') : v.toString();
+                  // Shrink font as the number grows so 4-5 digit counts don't overflow.
+                  final size = str.length <= 2
+                      ? 18.0
+                      : str.length == 3
+                          ? 16.0
+                          : str.length == 4
+                              ? 14.0
+                              : 12.0;
+                  return FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(str, maxLines: 1,
+                      style: _f(size: size, weight: FontWeight.w800)),
+                  );
+                }(),
                 const SizedBox(height: 4),
-                Text(items[i].label, style: _f(size: 11, color: AppColors.textTertiary)),
+                Text(items[i].label,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: _f(size: 11, color: AppColors.textTertiary)),
               ]),
             ),
             if (i < items.length - 1)

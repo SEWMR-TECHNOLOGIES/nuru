@@ -106,6 +106,22 @@ class MessagesService {
     }
   }
 
+  /// DELETE /messages/:id — hide a conversation on the caller's side only.
+  /// The other participant still sees the chat. The conversation reappears
+  /// for the caller if a new message arrives after this call.
+  static Future<Map<String, dynamic>> hideConversation(String conversationId) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$_baseUrl/messages/$conversationId'),
+        headers: await _headers(),
+      );
+      return jsonDecode(res.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Unable to remove conversation'};
+    }
+  }
+
+
   /// GET /messages/unread/count
   static Future<int> getUnreadCount() async {
     try {

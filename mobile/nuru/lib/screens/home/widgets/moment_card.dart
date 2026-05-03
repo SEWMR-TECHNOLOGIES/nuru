@@ -215,7 +215,10 @@ class _MomentCardState extends State<MomentCard> {
                         maxLines: 1, overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    // Verification badge removed
+                    if (_isVerified) ...[
+                      const SizedBox(width: 4),
+                      const Icon(Icons.verified_rounded, size: 14, color: AppColors.primary),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 1),

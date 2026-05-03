@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-// flutter_svg removed; using Material icons for navigation glyphs.
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
@@ -23,6 +23,7 @@ import 'manage_intro_clip_screen.dart';
 import 'public_service_screen.dart';
 import '../bookings/bookings_screen.dart';
 import 'service_verification_screen.dart';
+import '../../core/widgets/nuru_refresh.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../migration/migration_banner.dart';
 
@@ -65,8 +66,8 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() => _loading = true);
     final authUser = context.read<AuthProvider>().user;
     final results = await Future.wait<Map<String, dynamic>>([
       UserServicesService.getMyServices(search: _search.isEmpty ? null : _search),
@@ -76,7 +77,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
     final profileRes = results[1];
     if (!mounted) return;
     setState(() {
-      _loading = false;
+      if (!silent) _loading = false;
       final nextProfile = <String, dynamic>{};
       if (authUser != null) nextProfile.addAll(authUser);
       if (profileRes['success'] == true && profileRes['data'] is Map<String, dynamic>) {
@@ -194,9 +195,8 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        color: AppColors.primary,
+      body: NuruRefresh(
+        onRefresh: () => _load(silent: true),
         child: _loading
             ? ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
@@ -839,45 +839,72 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
   // ─── Empty state ─────────────────────────────────────────────────
   Widget _emptyState() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 40),
-      child: Column(
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.10),
-              borderRadius: BorderRadius.circular(36),
+      padding: const EdgeInsets.fromLTRB(20, 32, 20, 24),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.borderLight),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
             ),
-            child: const Center(
-              child: Icon(Icons.work_outline_rounded,
-                  size: 32, color: Color(0xFFB45309)),
+          ],
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 76,
+              height: 76,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(38),
+              ),
+              child: Center(
+                child: SvgPicture.asset(
+                  'assets/icons/package-icon.svg',
+                  width: 30,
+                  height: 30,
+                  colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Text('No services yet', style: _f(size: 18, weight: FontWeight.w800)),
-          const SizedBox(height: 6),
-          Text(
-            'Create a service to start receiving bookings',
-            style: _f(size: 13, color: AppColors.textTertiary),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: _onAddNew,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: const Color(0xFF1C1C24),
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 22, vertical: 12),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
+            const SizedBox(height: 18),
+            Text('No services yet', style: _f(size: 18, weight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            Text(
+              'Add your first service so clients can find you and send bookings.',
+              style: _f(size: 13, color: AppColors.textTertiary, height: 1.45),
+              textAlign: TextAlign.center,
             ),
-            child: Text('Add a service',
-                style: _f(size: 13, weight: FontWeight.w800)),
-          ),
-        ],
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: _onAddNew,
+                icon: SvgPicture.asset(
+                  'assets/icons/plus-icon.svg',
+                  width: 16,
+                  height: 16,
+                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                ),
+                label: Text('Add Service',
+                    style: _f(size: 14, weight: FontWeight.w700, color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

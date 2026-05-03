@@ -2,9 +2,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/social_service.dart';
 import '../../../core/widgets/video_thumbnail_image.dart';
+import '../../../providers/auth_provider.dart';
 import 'reel_viewer_screen.dart';
 
 /// Horizontal "Trending now" rail surfacing the most recent community **reels**
@@ -117,7 +119,10 @@ class _TrendingRailState extends State<TrendingRail> {
                 final raw = _moments[i];
                 final m = raw is Map<String, dynamic> ? raw : <String, dynamic>{};
                 final author = m['author'] is Map ? Map<String, dynamic>.from(m['author']) : <String, dynamic>{};
-                final name = (author['name'] ?? 'Community').toString();
+                final myId = context.read<AuthProvider>().user?['id']?.toString();
+                final authorId = author['id']?.toString();
+                final isMine = myId != null && authorId != null && myId == authorId;
+                final name = isMine ? 'You' : (author['name'] ?? 'Community').toString();
                 final avatar = author['avatar']?.toString();
                 final type = (m['content_type'] ?? '').toString();
                 final media = (m['media_url'] ?? '').toString();

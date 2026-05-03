@@ -11,6 +11,7 @@ import '../../core/services/messages_service.dart';
 import '../../core/services/ticketing_service.dart';
 import '../../core/services/user_services_service.dart';
 import '../../core/widgets/premium_button.dart';
+import '../../core/widgets/nuru_refresh.dart';
 import '../../providers/auth_provider.dart';
 import '../events/event_detail_screen.dart' show EventDetailScreen;
 import '../events/event_public_view_screen.dart';
@@ -36,6 +37,7 @@ import 'widgets/home_left_drawer.dart';
 import 'widgets/home_right_drawer.dart';
 import 'widgets/home_notifications_tab.dart';
 import '../../core/services/moments_service.dart';
+import '../../core/utils/home_cache.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../onboarding/country_confirm_sheet.dart';
 import '../migration/migration_welcome_sheet.dart';
@@ -53,6 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   bool _loading = true;
+  bool _showCreatePost = false; // Hidden by default — toggled via pill above feed
   Map<String, dynamic>? _profile;
   List<dynamic> _feedPosts = [];
   bool _feedLoading = true;
@@ -86,28 +89,61 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadAllData();
+    // Seed from cache so re-entering Home is instant; refresh in background.
+    if (HomeCache.feedPosts != null && HomeCache.feedPosts!.isNotEmpty) {
+      _feedPosts = List<dynamic>.from(HomeCache.feedPosts!);
+      _feedPage = HomeCache.feedPage;
+      _feedTotalPages = HomeCache.feedTotalPages;
+      _feedLoading = false;
+    }
+    if (HomeCache.reels != null) {
+      _reels = List<dynamic>.from(HomeCache.reels!);
+      _reelsLoading = false;
+    }
+    if (HomeCache.profile != null) _profile = HomeCache.profile;
+    if (HomeCache.myEvents != null) _myEvents = List<dynamic>.from(HomeCache.myEvents!);
+    if (HomeCache.invitedEvents != null) _invitedEvents = List<dynamic>.from(HomeCache.invitedEvents!);
+    if (HomeCache.committeeEvents != null) _committeeEvents = List<dynamic>.from(HomeCache.committeeEvents!);
+    if (HomeCache.notifications != null) {
+      _notifications = List<dynamic>.from(HomeCache.notifications!);
+      _unreadNotifications = HomeCache.unreadNotifications;
+      _notificationsLoading = false;
+    }
+    if (HomeCache.followSuggestions != null) _followSuggestions = List<dynamic>.from(HomeCache.followSuggestions!);
+    _unreadMessages = HomeCache.unreadMessages;
+    if (HomeCache.upcomingTickets != null) _upcomingTickets = List<dynamic>.from(HomeCache.upcomingTickets!);
+    if (HomeCache.ticketedEvents != null) _ticketedEvents = List<dynamic>.from(HomeCache.ticketedEvents!);
+    if (HomeCache.myServices != null) _myServices = List<dynamic>.from(HomeCache.myServices!);
+
+    // Once Home has loaded for this session, never show the full-page
+    // skeleton again on re-entry — refresh silently in the background like
+    // WhatsApp/feed apps do.
+    final silent = HomeCache.hasLoadedOnce ||
+        (HomeCache.feedPosts != null && HomeCache.feedPosts!.isNotEmpty);
+    if (silent) _loading = false;
+    _loadAllData(silent: silent);
   }
 
-  Future<void> _loadAllData() async {
-    setState(() => _loading = true);
+  Future<void> _loadAllData({bool silent = false}) async {
+    if (!silent) setState(() => _loading = true);
     await Future.wait([
       _loadProfile(),
-      _loadFeed(),
+      _loadFeed(silent: silent),
       _loadEvents(),
-      _loadNotifications(),
+      _loadNotifications(silent: silent),
       _loadFollowSuggestions(),
       _loadUnreadMessages(),
       _loadUpcomingTickets(),
       _loadTicketedEvents(),
       _loadMyServices(),
-      _loadReels(),
+      _loadReels(silent: silent),
     ]);
-    if (mounted) setState(() => _loading = false);
+    if (mounted && !silent) setState(() => _loading = false);
+    HomeCache.hasLoadedOnce = true;
   }
 
-  Future<void> _loadReels() async {
-    if (mounted) setState(() => _reelsLoading = true);
+  Future<void> _loadReels({bool silent = false}) async {
+    if (mounted && !silent) setState(() => _reelsLoading = true);
     final res = await MomentsService.getFeed();
     if (!mounted) return;
     final data = res['data'];
@@ -115,6 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _reels = data is List ? data : const [];
       _reelsLoading = false;
     });
+    HomeCache.reels = _reels;
   }
 
   Future<void> _loadProfile() async {
@@ -131,6 +168,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (mounted && userData != null) {
       setState(() => _profile = userData);
+      HomeCache.profile = userData;
       _maybePromptCountry(userData);
       _loadMigrationStatus(userData);
     }
@@ -167,16 +205,21 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _loadFeed({bool refresh = true, bool resetSession = false}) async {
+  Future<void> _loadFeed({bool refresh = true, bool resetSession = false, bool silent = false}) async {
     if (refresh) {
       if (resetSession) {
         _feedSessionId = DateTime.now().millisecondsSinceEpoch.toString();
       }
-      setState(() {
-        _feedLoading = true;
+      if (!silent) {
+        setState(() {
+          _feedLoading = true;
+          _feedFallbackTried = false;
+          _feedPage = 1;
+        });
+      } else {
         _feedFallbackTried = false;
         _feedPage = 1;
-      });
+      }
     }
     final reqId = ++_feedRequestId;
     final res = await SocialService.getFeed(page: _feedPage, limit: 15, sessionId: _feedSessionId);
@@ -191,22 +234,31 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     setState(() {
       if (refresh) {
-        _feedPosts = _dedupePosts(items);
+        // During a silent refresh, never wipe existing posts if the new
+        // fetch returned empty (transient/network glitch). Keeps content
+        // visible while we silently retry.
+        if (silent && items.isEmpty && _feedPosts.isNotEmpty) {
+          // keep existing
+        } else {
+          _feedPosts = _dedupePosts(items);
+        }
       } else {
         _feedPosts = _dedupePosts([..._feedPosts, ...items]);
       }
       _feedPage = (pagination?['page'] as int?) ?? _feedPage;
       _feedTotalPages = (pagination?['pages'] as int?) ?? 1;
-      // Only clear loading once we have content OR fallback has run.
       if (_feedPosts.isNotEmpty) {
         _feedLoading = false;
       }
     });
-    if (_feedPosts.isEmpty && refresh && !_feedFallbackTried) {
+    HomeCache.feedPosts = _feedPosts;
+    HomeCache.feedPage = _feedPage;
+    HomeCache.feedTotalPages = _feedTotalPages;
+    if (_feedPosts.isEmpty && refresh && !_feedFallbackTried && !silent) {
       _feedFallbackTried = true;
       await _loadTrendingFallback();
       if (mounted) setState(() => _feedLoading = false);
-    } else if (_feedPosts.isEmpty && refresh) {
+    } else if (_feedPosts.isEmpty && refresh && !silent) {
       if (mounted) setState(() => _feedLoading = false);
     }
   }
@@ -250,7 +302,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _loadEvents() async {
+  Future<void> _loadEvents({bool silent = false}) async {
     final s = _eventsSearch.trim().isEmpty ? null : _eventsSearch.trim();
     final results = await Future.wait([
       EventsService.getMyEvents(limit: 20, search: s),
@@ -263,14 +315,18 @@ class _HomeScreenState extends State<HomeScreen> {
         _invitedEvents = _extractEvents(results[1]);
         _committeeEvents = _extractEvents(results[2]);
       });
+      HomeCache.myEvents = _myEvents;
+      HomeCache.invitedEvents = _invitedEvents;
+      HomeCache.committeeEvents = _committeeEvents;
     }
   }
 
   String _notificationsSearch = '';
 
-  Future<void> _loadNotifications({String? search}) async {
+  Future<void> _loadNotifications({String? search, bool silent = false}) async {
     if (search != null) _notificationsSearch = search;
-    setState(() => _notificationsLoading = true);
+    final hasCache = _notifications.isNotEmpty;
+    if (!silent && !hasCache) setState(() => _notificationsLoading = true);
     final res = await SocialService.getNotifications(
       limit: 30,
       search: _notificationsSearch.isNotEmpty ? _notificationsSearch : null,
@@ -282,6 +338,8 @@ class _HomeScreenState extends State<HomeScreen> {
           final data = res['data'];
           _notifications = data is Map ? (data['notifications'] ?? []) : (data is List ? data : []);
           _unreadNotifications = data is Map ? (data['unread_count'] ?? 0) : 0;
+          HomeCache.notifications = _notifications;
+          HomeCache.unreadNotifications = _unreadNotifications;
         }
       });
     }
@@ -292,12 +350,14 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted && res['success'] == true) {
       final data = res['data'];
       setState(() => _followSuggestions = data is List ? data : []);
+      HomeCache.followSuggestions = _followSuggestions;
     }
   }
 
   Future<void> _loadUnreadMessages() async {
     final count = await MessagesService.getUnreadCount();
     if (mounted) setState(() => _unreadMessages = count);
+    HomeCache.unreadMessages = count;
   }
 
   Future<void> _loadUpcomingTickets() async {
@@ -305,6 +365,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted && res['success'] == true) {
       final data = res['data'];
       setState(() => _upcomingTickets = data is List ? data : (data is Map ? (data['tickets'] ?? []) : []));
+      HomeCache.upcomingTickets = _upcomingTickets;
     }
   }
 
@@ -313,6 +374,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted && res['success'] == true) {
       final data = res['data'];
       setState(() => _ticketedEvents = data is List ? data : (data is Map ? (data['events'] ?? []) : []));
+      HomeCache.ticketedEvents = _ticketedEvents;
     }
   }
 
@@ -320,14 +382,20 @@ class _HomeScreenState extends State<HomeScreen> {
     final res = await UserServicesService.getServiceProviders(limit: 20);
     if (!mounted) return;
     final data = res['data'] ?? res;
-    if (data is List) { setState(() => _myServices = data); return; }
+    if (data is List) {
+      setState(() => _myServices = data);
+      HomeCache.myServices = _myServices;
+      return;
+    }
     if (data is Map) {
       final nested = data['data'];
       final services = data['services'] ?? data['items'] ?? (nested is Map ? (nested['services'] ?? nested['items']) : nested);
       setState(() => _myServices = services is List ? services : []);
+      HomeCache.myServices = _myServices;
       return;
     }
     setState(() => _myServices = []);
+    HomeCache.myServices = _myServices;
   }
 
   List<dynamic> _extractEvents(Map<String, dynamic> res) {
@@ -419,7 +487,7 @@ class _HomeScreenState extends State<HomeScreen> {
           unreadNotifications: _unreadNotifications,
           profile: _profile,
           onTabSelected: (i) => setState(() => _tab = i),
-          onRefresh: _loadAllData,
+          onRefresh: () => _loadAllData(silent: true),
         ),
         endDrawer: HomeRightDrawer(
           myEvents: _myEvents,
@@ -451,7 +519,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         notifications: _notifications,
                         unreadCount: _unreadNotifications,
                         isLoading: _notificationsLoading,
-                        onRefresh: _loadNotifications,
+                        onRefresh: () => _loadNotifications(silent: true),
                         onSearch: (q) => _loadNotifications(search: q),
                         onTabChanged: (i) {
                           Navigator.pop(context);
@@ -519,7 +587,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_feedTab == 1) return _feedPosts.where(isMoment).toList();
     if (_feedTab == 2) return _feedPosts.where(isEventShare).toList();
     if (_feedTab == 3) return _feedPosts.where(isReel).toList();
-    return _feedPosts;
+    // All tab: hide individual reel posts (they're already grouped in the rail above).
+    return _feedPosts.where((p) => !isReel(p)).toList();
   }
 
   void _openReelViewer(int authorIndex) {
@@ -562,21 +631,19 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         return false;
       },
-      child: RefreshIndicator(
+      child: NuruRefresh(
         onRefresh: () async {
           await Future.wait([
-            _loadFeed(refresh: true, resetSession: true),
-            _loadReels(),
+            _loadFeed(refresh: true, resetSession: true, silent: true),
+            _loadReels(silent: true),
           ]);
         },
-        color: AppColors.primary,
         child: ListView.builder(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           itemCount: listLen + 4 + (_feedLoadingMore && !isReelsTab ? 1 : 0) + (!_feedLoading && _feedFallbackTried && listLen == 0 ? 1 : 0),
           itemBuilder: (context, index) {
             if (index == 0) {
-              // Reels rail first (above Share a moment)
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: ReelsRail(
@@ -585,14 +652,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   myAvatar: (_profile?['avatar'] as String?),
                   onCreateTap: _openCreateReel,
                   onAuthorTap: _openReelViewer,
+                  onShareMomentTap: () => setState(() => _showCreatePost = !_showCreatePost),
+                  shareMomentExpanded: _showCreatePost,
                 ),
               );
             }
             if (index == 1) {
-              // Share a moment box BELOW reels rail
+              if (!_showCreatePost) return const SizedBox.shrink();
               return Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: CreatePostBox(onPostCreated: () => _loadFeed(refresh: true)),
+                padding: const EdgeInsets.only(bottom: 12),
+                child: CreatePostBox(onPostCreated: () {
+                  setState(() => _showCreatePost = false);
+                  _loadFeed(refresh: true);
+                }),
               );
             }
             if (index == 2) {
@@ -605,7 +677,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               );
             }
-            if (index == 3) return _feedTab == 0 ? const TrendingRail() : const SizedBox.shrink();
+            if (index == 3) return _feedTab == 3 ? const TrendingRail() : const SizedBox.shrink();
             if (index == 4 && (_feedLoading || (listLen == 0 && !_feedFallbackTried && _feedTab == 0))) {
               return Column(children: List.generate(3, (_) => const Padding(padding: EdgeInsets.only(bottom: 16), child: ShimmerCard(height: 220))));
             }
@@ -655,9 +727,8 @@ class _HomeScreenState extends State<HomeScreen> {
         // Mirror web: no date-range filter, just full list (search is server-side).
         final events = rawEvents;
         final showStats = !_loading && _myEvents.isNotEmpty;
-        return RefreshIndicator(
-          onRefresh: () async => await _loadEvents(),
-          color: AppColors.primary,
+        return NuruRefresh(
+          onRefresh: () async => await _loadEvents(silent: true),
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
@@ -764,7 +835,7 @@ class _HomeScreenState extends State<HomeScreen> {
       profile: _profile,
       myEventsCount: _myEvents.length,
       ticketsCount: _upcomingTickets.length,
-      onRefresh: _loadAllData,
+      onRefresh: () => _loadAllData(silent: true),
     );
   }
 

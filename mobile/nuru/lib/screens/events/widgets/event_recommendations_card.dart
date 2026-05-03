@@ -43,6 +43,14 @@ class _EventRecommendationsCardState extends State<EventRecommendationsCard> {
   Timer? _debounce;
 
   @override
+  void initState() {
+    super.initState();
+    if ((widget.eventTypeId ?? '').isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _fetch());
+    }
+  }
+
+  @override
   void didUpdateWidget(covariant EventRecommendationsCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.eventTypeId != widget.eventTypeId ||

@@ -9,6 +9,7 @@ import '../../core/services/events_service.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../photos/my_photo_libraries_screen.dart';
 import 'invitation_qr_screen.dart';
+import '../tickets/select_tickets_screen.dart';
 import '../../core/services/reminder_service.dart';
 import '../../core/theme/text_styles.dart';
 
@@ -520,21 +521,87 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
+        statusBarIconBrightness: Brightness.dark,
         systemNavigationBarColor: Colors.transparent,
         systemNavigationBarContrastEnforced: false,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xFFE8EEF5),
+        backgroundColor: AppColors.surface,
         body: _loading && _event == null
             ? const Center(
                 child: CircularProgressIndicator(color: AppColors.primary),
               )
             : _event == null
             ? _emptyState()
-            : _buildContent(),
+            : Stack(children: [_buildContent(), _buildStickyTicketBar()]),
       ),
     );
+  }
+
+  Widget _buildStickyTicketBar() {
+    final e = _event;
+    if (e == null) return const SizedBox.shrink();
+    // Show only if event has tickets
+    final hasTickets = (e['has_tickets'] == true) || (e['ticket_class_count'] is num && (e['ticket_class_count'] as num) > 0) || (e['min_price'] != null);
+    if (!hasTickets) return const SizedBox.shrink();
+    final minPrice = e['min_price'];
+    return Positioned(
+      left: 0, right: 0, bottom: 0,
+      child: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            border: Border(top: BorderSide(color: AppColors.borderLight)),
+          ),
+          child: Row(children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text('From', style: appText(size: 10, color: AppColors.textTertiary, weight: FontWeight.w600)),
+              const SizedBox(height: 1),
+              Text(minPrice != null ? 'TZS ${_fmtPrice(minPrice)}' : 'Get Tickets',
+                  style: appText(size: 16, weight: FontWeight.w800, color: AppColors.primary)),
+              Text('Tickets are selling fast!', style: appText(size: 10, color: AppColors.textTertiary)),
+            ])),
+            const SizedBox(width: 12),
+            SizedBox(
+              height: 48,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => SelectTicketsScreen(
+                    eventId: widget.eventId,
+                    eventName: extractStr(e['title'], fallback: 'Event'),
+                    coverImage: e['cover_image']?.toString(),
+                    startDate: e['start_date']?.toString(),
+                    startTime: e['start_time']?.toString(),
+                    location: e['location']?.toString(),
+                    eventType: extractStr(e['event_type']),
+                  )));
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 26),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  SvgPicture.asset('assets/icons/ticket-icon.svg', width: 16, height: 16,
+                      colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
+                  const SizedBox(width: 8),
+                  Text('Get Tickets', style: appText(size: 14, weight: FontWeight.w700, color: Colors.white)),
+                ]),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  String _fmtPrice(dynamic v) {
+    final n = v is num ? v : num.tryParse(v?.toString() ?? '') ?? 0;
+    return n.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
   }
 
   Widget _emptyState() {
@@ -600,128 +667,105 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
-        // ─── Cover Image Hero ───
+        // ─── Light App Bar (matches mockup) ───
         SliverAppBar(
-          expandedHeight: 240,
           pinned: true,
-          backgroundColor: AppColors.primary,
-          leading: GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              margin: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.black26,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: SvgPicture.asset(
-                  'assets/icons/chevron-left-icon.svg',
-                  width: 22,
-                  height: 22,
-                  colorFilter: const ColorFilter.mode(
-                    Colors.white,
-                    BlendMode.srcIn,
-                  ),
-                ),
-              ),
-            ),
+          backgroundColor: AppColors.surface,
+          surfaceTintColor: AppColors.surface,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          centerTitle: true,
+          systemOverlayStyle: SystemUiOverlayStyle.dark,
+          leading: IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: SvgPicture.asset('assets/icons/arrow-left-icon.svg', width: 22, height: 22,
+                colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
           ),
-          flexibleSpace: FlexibleSpaceBar(
-            background: Stack(
-              children: [
-                if (cover != null)
-                  Positioned.fill(
-                    child: CachedNetworkImage(
-                      imageUrl: cover,
-                      fit: BoxFit.cover,
-                      errorWidget: (_, __, ___) =>
-                          Container(color: AppColors.primary),
-                    ),
-                  )
-                else
-                  Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [AppColors.primary, Color(0xFF1A3B6E)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                  ),
-                // Gradient overlay
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withOpacity(0.6),
-                        ],
-                        stops: const [0.4, 1.0],
-                      ),
-                    ),
-                  ),
-                ),
-                // Title + type badge
-                Positioned(
-                  bottom: 16,
-                  left: 20,
-                  right: 20,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (eventType.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          margin: const EdgeInsets.only(bottom: 8),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.9),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            eventType,
-                            style: appText(
-                              size: 11,
-                              weight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      Text(
-                        title,
-                        style: appText(
-                          size: 22,
-                          weight: FontWeight.w800,
-                          color: Colors.white,
-                          height: 1.2,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+          title: Text('Event Details', style: appText(size: 16, weight: FontWeight.w700)),
+          actions: [
+            IconButton(
+              onPressed: () {},
+              icon: SvgPicture.asset('assets/icons/share-icon.svg', width: 20, height: 20,
+                  colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
+            ),
+            IconButton(
+              onPressed: () {},
+              icon: SvgPicture.asset('assets/icons/heart-icon.svg', width: 20, height: 20,
+                  colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
+            ),
+          ],
+        ),
+        // ─── Big rounded hero image ───
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: SizedBox(
+                height: 220, width: double.infinity,
+                child: cover != null && cover.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: cover, fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Container(color: AppColors.primarySoft),
+                      )
+                    : Container(color: AppColors.primarySoft),
+              ),
             ),
           ),
         ),
 
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ─── RSVP Card ───
+                // Title + type
+                Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                  Expanded(child: Text(title, style: appText(size: 22, weight: FontWeight.w800, letterSpacing: -0.4))),
+                  if (eventType.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(color: const Color(0xFFEDE9FE), borderRadius: BorderRadius.circular(20)),
+                      child: Text(eventType, style: appText(size: 11, weight: FontWeight.w600, color: const Color(0xFF7C3AED))),
+                    ),
+                  ],
+                ]),
+                const SizedBox(height: 12),
+                // Quick row: date • time • location
+                Row(children: [
+                  if (startDate.isNotEmpty) ...[
+                    SvgPicture.asset('assets/icons/calendar-icon.svg', width: 13, height: 13,
+                        colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
+                    const SizedBox(width: 5),
+                    Flexible(child: Text(_formatDate(startDate), style: appText(size: 12, color: AppColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  ],
+                  if (startTime.isNotEmpty) ...[
+                    const SizedBox(width: 12),
+                    SvgPicture.asset('assets/icons/clock-icon.svg', width: 13, height: 13,
+                        colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
+                    const SizedBox(width: 5),
+                    Text(startTime, style: appText(size: 12, color: AppColors.textSecondary)),
+                  ],
+                ]),
+                if (location.isNotEmpty || venue.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Row(children: [
+                    SvgPicture.asset('assets/icons/location-icon.svg', width: 13, height: 13,
+                        colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
+                    const SizedBox(width: 5),
+                    Expanded(child: Text([venue, location].where((s) => s.isNotEmpty).join(', '),
+                        style: appText(size: 12, color: AppColors.textSecondary), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                  ]),
+                ],
+                const SizedBox(height: 16),
+
+                // ─── RSVP Card (existing functionality preserved) ───
                 _rsvpCard(),
                 const SizedBox(height: 14),
 
-                // ─── QR Code / Invitation Code button ───
+                // ─── QR Code button (existing) ───
                 if (_rsvpStatus == 'confirmed' &&
                     _invitationCode != null &&
                     _invitationCode!.isNotEmpty) ...[

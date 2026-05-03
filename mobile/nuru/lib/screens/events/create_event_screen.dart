@@ -1,4 +1,5 @@
 
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +20,7 @@ import 'widgets/event_ticketing_card.dart';
 import 'widgets/event_recommendations_card.dart';
 import 'widgets/card_template_picker.dart';
 import '../../core/l10n/l10n_helper.dart';
+import '../../core/utils/money_format.dart';
 
 class CreateEventScreen extends StatefulWidget {
   final Map<String, dynamic>? editEvent;
@@ -50,6 +52,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   bool _isPublic = false;
   bool _saving = false;
   String? _imagePath;
+  String? _existingImageUrl;
   double? _venueLatitude;
   double? _venueLongitude;
   String? _venueAddress;
@@ -57,9 +60,23 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   bool _typesLoading = true;
   List<TicketClassData> _ticketClasses = [];
 
-  // 5-step wizard: 0 Basic, 1 Date/Time, 2 Venue, 3 Tickets, 4 Preview
+  // Vendor selection (optional, can be added later)
+  final List<Map<String, dynamic>> _selectedVendors = [];
+  final TextEditingController _vendorSearchCtrl = TextEditingController();
+  List<Map<String, dynamic>> _vendorResults = [];
+  bool _vendorSearching = false;
+
+  // 6-step wizard: 0 Basic, 1 Date/Time, 2 Venue, 3 Tickets, 4 Vendors, 5 Preview
   int _step = 0;
-  static const List<String> _stepTitles = ['Basic Info', 'Date & Time', 'Venue', 'Tickets', 'Preview'];
+  static const List<String> _stepTitles = ['Basic Info', 'Date & Time', 'Venue', 'Tickets', 'Vendors', 'Preview'];
+  static const List<List<String>> _stepHeadings = [
+    ['Basic Information', 'Tell us about your event.'],
+    ['Date & Time', 'When is your event happening?'],
+    ['Venue', 'Where will your event take place? You can set this later.'],
+    ['Tickets & Visibility', 'Set up tickets and choose who can see your event.'],
+    ['Vendors', 'Add service providers now or later. They will be notified to confirm.'],
+    ['Preview', 'Review your event details before publishing.'],
+  ];
 
   bool get _isEdit => widget.editEvent != null;
 
@@ -124,6 +141,10 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       _venueLongitude = double.tryParse(vc['longitude']?.toString() ?? '');
     }
     _venueAddress = e['venue_address']?.toString();
+    final img = e['image_url'] ?? e['image'] ?? e['cover_image'];
+    if (img != null && img.toString().isNotEmpty) {
+      _existingImageUrl = img.toString();
+    }
   }
 
   Future<void> _checkAgreement() async {
@@ -270,6 +291,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _dressCodeCtrl.dispose();
     _specialInstructionsCtrl.dispose();
     _reminderContactPhoneCtrl.dispose();
+    _vendorSearchCtrl.dispose();
     super.dispose();
   }
 
@@ -355,6 +377,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         if (_sellsTickets && createdId != null && _ticketClasses.isNotEmpty) {
           await _syncTicketClasses(createdId);
         }
+        if (createdId != null && _selectedVendors.isNotEmpty && !_isEdit) {
+          await _assignSelectedVendors(createdId);
+        }
         AppSnackbar.success(context, asDraft ? 'Draft saved' : (_isEdit ? 'Event updated' : 'Event created'));
         if (asDraft) {
           Navigator.pop(context, true);
@@ -383,6 +408,322 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     }
   }
 
+  Future<void> _assignSelectedVendors(String eventId) async {
+    for (final v in _selectedVendors) {
+      try {
+        final providerUserId = v['provider']?['id']?.toString()
+            ?? v['provider_user_id']?.toString()
+            ?? v['user_id']?.toString();
+        final payload = <String, dynamic>{
+          'provider_service_id': v['id']?.toString(),
+          if (providerUserId != null) 'provider_user_id': providerUserId,
+          if (v['min_price'] != null) 'quoted_price': v['min_price'],
+        };
+        await EventsService.addEventService(eventId, payload);
+      } catch (_) {}
+    }
+  }
+
+  Timer? _vendorDebounce;
+  bool _vendorsAutoLoaded = false;
+
+  Future<void> _runVendorSearch({String? query}) async {
+    final q = (query ?? _vendorSearchCtrl.text).trim();
+    setState(() => _vendorSearching = true);
+    final res = q.length >= 2
+        ? await EventsService.searchServicesPublic(q, eventTypeId: _eventTypeId)
+        : await EventsService.getServices(limit: 12, category: _eventTypeId);
+    if (!mounted) return;
+    setState(() {
+      _vendorSearching = false;
+      if (res['success'] == true) {
+        final data = res['data'];
+        final list = data is List ? data : (data is Map ? (data['services'] ?? data['items'] ?? []) : []);
+        _vendorResults = List<Map<String, dynamic>>.from(list as List);
+      } else {
+        _vendorResults = [];
+      }
+    });
+  }
+
+  void _onVendorSearchChanged(String q) {
+    _vendorDebounce?.cancel();
+    _vendorDebounce = Timer(const Duration(milliseconds: 350), () => _runVendorSearch(query: q));
+  }
+
+  void _maybeAutoLoadVendors() {
+    if (_vendorsAutoLoaded) return;
+    _vendorsAutoLoaded = true;
+    _runVendorSearch();
+  }
+
+  void _toggleVendor(Map<String, dynamic> v) {
+    final id = v['id']?.toString();
+    if (id == null) return;
+    setState(() {
+      final idx = _selectedVendors.indexWhere((s) => s['id']?.toString() == id);
+      if (idx >= 0) {
+        _selectedVendors.removeAt(idx);
+      } else {
+        _selectedVendors.add(v);
+      }
+    });
+  }
+
+  String? _vendorImage(Map<String, dynamic> m) {
+    for (final k in ['image', 'primary_image', 'cover_image', 'image_url']) {
+      final v = m[k];
+      if (v is String && v.isNotEmpty) return v;
+      if (v is Map) {
+        final u = v['thumbnail_url'] ?? v['url'];
+        if (u is String && u.isNotEmpty) return u;
+      }
+    }
+    for (final k in ['images', 'gallery_images']) {
+      if (m[k] is List && (m[k] as List).isNotEmpty) {
+        final f = (m[k] as List).first;
+        if (f is String && f.isNotEmpty) return f;
+        if (f is Map) {
+          final u = f['url'] ?? f['image_url'] ?? f['thumbnail_url'];
+          if (u is String && u.isNotEmpty) return u;
+        }
+      }
+    }
+    return null;
+  }
+
+  Widget _buildVendorsStep() {
+    final showResults = _vendorResults.isNotEmpty;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Find vendors', style: appText(size: 15, weight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        Text('Search caterers, photographers, decor and more. Selected vendors will be notified to confirm.',
+          style: appText(size: 11.5, color: AppColors.textTertiary, height: 1.4)),
+        const SizedBox(height: 14),
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.surfaceVariant.withOpacity(0.6),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.borderLight),
+          ),
+          child: TextField(
+            controller: _vendorSearchCtrl,
+            onChanged: _onVendorSearchChanged,
+            autocorrect: false,
+            style: appText(size: 14),
+            decoration: InputDecoration(
+              hintText: 'Search vendors by name or service',
+              hintStyle: appText(size: 13, color: AppColors.textHint),
+              prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.textHint),
+              suffixIcon: _vendorSearching
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
+                    )
+                  : (_vendorSearchCtrl.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textHint),
+                          onPressed: () {
+                            _vendorSearchCtrl.clear();
+                            _runVendorSearch();
+                          },
+                        )
+                      : null),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              filled: false,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        if (_vendorSearching && _vendorResults.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 22),
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
+          )
+        else if (showResults)
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _vendorResults.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 0.72,
+            ),
+            itemBuilder: (_, i) => _vendorGridTile(_vendorResults[i]),
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text(
+              _vendorSearchCtrl.text.trim().isEmpty
+                  ? 'No vendors available right now. Try a search above.'
+                  : 'No vendors match your search.',
+              style: appText(size: 12, color: AppColors.textTertiary),
+            ),
+          ),
+      ])),
+      const SizedBox(height: 14),
+      if (_selectedVendors.isNotEmpty) ...[
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            'Selected (${_selectedVendors.length})',
+            style: appText(size: 12, weight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.4),
+          ),
+        ),
+        ..._selectedVendors.map((v) => _selectedVendorTile(v)),
+      ] else
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceVariant.withOpacity(0.4),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.borderLight),
+          ),
+          child: Text(
+            'You can skip this step and add vendors anytime from the event.',
+            style: appText(size: 12, color: AppColors.textTertiary, height: 1.5),
+            textAlign: TextAlign.center,
+          ),
+        ),
+    ]);
+  }
+
+  Widget _vendorGridTile(Map<String, dynamic> v) {
+    final id = v['id']?.toString() ?? '';
+    final selected = _selectedVendors.any((s) => s['id']?.toString() == id);
+    final title = (v['title'] ?? v['name'] ?? 'Service').toString();
+    final category = (v['service_type_name'] ?? v['service_category']?['name'] ?? v['category'] ?? '').toString();
+    final price = v['min_price'];
+    final rating = v['rating'];
+    final image = _vendorImage(v);
+
+    return GestureDetector(
+      onTap: () => _toggleVendor(v),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? AppColors.primary : AppColors.borderLight,
+            width: selected ? 1.5 : 1,
+          ),
+          boxShadow: selected
+              ? [BoxShadow(color: AppColors.primary.withOpacity(0.15), blurRadius: 8, offset: const Offset(0, 2))]
+              : null,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          AspectRatio(
+            aspectRatio: 1.4,
+            child: Stack(children: [
+              Positioned.fill(
+                child: image != null
+                    ? Image.network(image, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(color: AppColors.surfaceVariant))
+                    : Container(color: AppColors.surfaceVariant),
+              ),
+              Positioned(
+                top: 6, right: 6,
+                child: Container(
+                  width: 24, height: 24,
+                  decoration: BoxDecoration(
+                    color: selected ? AppColors.primary : Colors.white.withOpacity(0.9),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: selected ? AppColors.primary : AppColors.borderLight, width: 1.2),
+                  ),
+                  child: Icon(
+                    selected ? Icons.check_rounded : Icons.add_rounded,
+                    size: 14,
+                    color: selected ? Colors.white : AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ]),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: appText(size: 12.5, weight: FontWeight.w700, height: 1.25)),
+              if (category.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(category, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: appText(size: 10, color: AppColors.textTertiary)),
+              ],
+              const SizedBox(height: 6),
+              Row(children: [
+                if (rating != null) ...[
+                  const Icon(Icons.star_rounded, size: 11, color: Color(0xFFE8A33D)),
+                  const SizedBox(width: 2),
+                  Text(double.tryParse(rating.toString())?.toStringAsFixed(1) ?? '$rating',
+                    style: appText(size: 10, weight: FontWeight.w700)),
+                ],
+              ]),
+              if (price != null) ...[
+                const SizedBox(height: 4),
+                Text('From TZS ${_formatNum(price)}',
+                  style: appText(size: 11.5, weight: FontWeight.w800, color: AppColors.primary)),
+              ],
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _selectedVendorTile(Map<String, dynamic> v) {
+    final title = (v['title'] ?? v['name'] ?? 'Service').toString();
+    final providerName = (v['provider']?['name'] ?? v['provider_name'] ?? '').toString();
+    final img = _vendorImage(v);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: SizedBox(
+            width: 44, height: 44,
+            child: img != null
+                ? Image.network(img, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: AppColors.surfaceVariant))
+                : Container(color: AppColors.surfaceVariant, child: const Icon(Icons.image_outlined, size: 18, color: AppColors.textHint)),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: appText(size: 13, weight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
+          if (providerName.isNotEmpty)
+            Text(providerName, style: appText(size: 11, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(
+            'Will be notified to confirm booking',
+            style: appText(size: 10, color: AppColors.primary, weight: FontWeight.w600),
+          ),
+        ])),
+        IconButton(
+          icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textHint),
+          onPressed: () => _toggleVendor(v),
+        ),
+      ]),
+    );
+  }
+
+  String _formatNum(dynamic n) {
+    final num val = n is num ? n : (num.tryParse(n.toString()) ?? 0);
+    return val.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -403,7 +744,19 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
                 child: Form(
                   key: _formKey,
-                  child: _buildStepContent(),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(2, 4, 2, 14),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(_stepHeadings[_step][0],
+                          style: appText(size: 22, weight: FontWeight.w800, color: AppColors.textPrimary)),
+                        const SizedBox(height: 4),
+                        Text(_stepHeadings[_step][1],
+                          style: appText(size: 13, color: AppColors.textSecondary)),
+                      ]),
+                    ),
+                    _buildStepContent(),
+                  ]),
                 ),
               ),
             ),
@@ -465,6 +818,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           ),
         ]);
       case 4:
+        return _buildVendorsStep();
+      case 5:
       default:
         return _buildPreviewCard();
     }
@@ -474,6 +829,11 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     return _card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _label(context.tr('event_location')),
       _input(_locationCtrl, context.tr('event_venue_address')),
+      const SizedBox(height: 6),
+      Text(
+        'Optional. You can add or change the venue later.',
+        style: appText(size: 11, color: AppColors.textTertiary),
+      ),
       const SizedBox(height: 12),
       _buildMapPickerButton(),
       const SizedBox(height: 16),
@@ -483,7 +843,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   }
 
   Widget _buildStepper() {
-    const shortTitles = ['Basic', 'Date', 'Venue', 'Tickets', 'Preview'];
+    const shortTitles = ['Basic', 'Date', 'Venue', 'Tickets', 'Vendors', 'Preview'];
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: List.generate(_stepTitles.length * 2 - 1, (i) {
@@ -556,6 +916,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                         if (isLast) { _save(); return; }
                         if (!_validateStep(_step)) return;
                         setState(() => _step += 1);
+                        if (_step == 4) _maybeAutoLoadVendors();
                       },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
@@ -605,11 +966,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     final typeName = _apiEventTypes
         .firstWhere((t) => t['id']?.toString() == _eventTypeId, orElse: () => <String, dynamic>{})['name']
         ?.toString() ?? '';
-    String dateLine = _startDate == null ? 'No date set' : _formatDate(_startDate!);
+    String startLine = _startDate == null ? 'No date set' : _formatDate(_startDate!);
     if (_startTime != null) {
-      dateLine += ' • ${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}';
+      startLine += ' • ${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}';
     }
-    return Column(children: [
+    final endLine = _endDate == null ? null : _formatDate(_endDate!);
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Container(
         decoration: BoxDecoration(
           color: AppColors.surface,
@@ -620,6 +983,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (_imagePath != null)
             Image.file(File(_imagePath!), height: 200, width: double.infinity, fit: BoxFit.cover)
+          else if (_existingImageUrl != null)
+            Image.network(_existingImageUrl!, height: 200, width: double.infinity, fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(height: 160, color: AppColors.surfaceVariant))
           else
             Container(
               height: 160, width: double.infinity,
@@ -641,31 +1007,95 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               const SizedBox(height: 10),
               Text(_titleCtrl.text.trim().isEmpty ? 'Untitled event' : _titleCtrl.text.trim(),
                   style: appText(size: 22, weight: FontWeight.w800, color: AppColors.textPrimary)),
-              const SizedBox(height: 14),
-              _previewRow('assets/icons/calendar-icon.svg', dateLine),
-              if (_locationCtrl.text.trim().isNotEmpty)
-                _previewRow('assets/icons/location-icon.svg', _locationCtrl.text.trim()),
-              if (_venueCtrl.text.trim().isNotEmpty)
-                _previewRow('assets/icons/home-icon.svg', _venueCtrl.text.trim()),
-              if (_expectedGuestsCtrl.text.trim().isNotEmpty)
-                _previewRow('assets/icons/user-icon.svg', '${_expectedGuestsCtrl.text.trim()} expected guests'),
-              if (_budgetCtrl.text.trim().isNotEmpty)
-                _previewRow('assets/icons/card-icon.svg', 'Budget: ${_budgetCtrl.text.trim()}'),
-              _previewRow(_visibility == 'public' ? 'assets/icons/view-icon.svg' : 'assets/icons/shield-icon.svg',
-                  _visibility == 'public' ? 'Public event' : 'Private event'),
-              if (_sellsTickets)
-                _previewRow('assets/icons/ticket-icon.svg', '${_ticketClasses.length} ticket class${_ticketClasses.length == 1 ? '' : 'es'}'),
               if (_descCtrl.text.trim().isNotEmpty) ...[
-                const SizedBox(height: 14),
-                Text('About', style: appText(size: 12, weight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 0.6)),
-                const SizedBox(height: 6),
-                Text(_descCtrl.text.trim(), style: appText(size: 14, color: AppColors.textPrimary, height: 1.5)),
+                const SizedBox(height: 8),
+                Text(_descCtrl.text.trim(), style: appText(size: 14, color: AppColors.textSecondary, height: 1.5)),
               ],
             ]),
           ),
         ]),
       ),
+      const SizedBox(height: 14),
+      _previewSection('When', [
+        _previewRow('assets/icons/calendar-icon.svg', 'Starts: $startLine'),
+        if (endLine != null) _previewRow('assets/icons/calendar-icon.svg', 'Ends: $endLine'),
+      ]),
+      _previewSection('Where', [
+        if (_venueCtrl.text.trim().isNotEmpty)
+          _previewRow('assets/icons/home-icon.svg', _venueCtrl.text.trim()),
+        if (_locationCtrl.text.trim().isNotEmpty)
+          _previewRow('assets/icons/location-icon.svg', _locationCtrl.text.trim()),
+        if (_venueAddress != null && _venueAddress!.trim().isNotEmpty)
+          _previewRow('assets/icons/location-icon.svg', _venueAddress!.trim()),
+        if (_venueLatitude != null && _venueLongitude != null)
+          _previewRow('assets/icons/location-icon.svg',
+              'Pinned at ${_venueLatitude!.toStringAsFixed(5)}, ${_venueLongitude!.toStringAsFixed(5)}'),
+      ]),
+      _previewSection('Planning', [
+        if (_expectedGuestsCtrl.text.trim().isNotEmpty)
+          _previewRow('assets/icons/user-icon.svg', '${_expectedGuestsCtrl.text.trim()} expected guests'),
+        if (_budgetCtrl.text.trim().isNotEmpty)
+          _previewRow('assets/icons/card-icon.svg',
+              'Budget: ${formatMoney(num.tryParse(_budgetCtrl.text.replaceAll(RegExp(r"[^0-9.]"), "")) ?? 0)}'),
+        if (_dressCodeCtrl.text.trim().isNotEmpty)
+          _previewRow('assets/icons/tag-icon.svg', 'Dress code: ${_dressCodeCtrl.text.trim()}'),
+        if (_specialInstructionsCtrl.text.trim().isNotEmpty)
+          _previewRow('assets/icons/info-icon.svg', _specialInstructionsCtrl.text.trim()),
+        if (_reminderContactPhoneCtrl.text.trim().isNotEmpty)
+          _previewRow('assets/icons/phone-icon.svg', 'Reminder contact: ${_reminderContactPhoneCtrl.text.trim()}'),
+      ]),
+      _previewSection('Visibility & Tickets', [
+        _previewRow(_visibility == 'public' ? 'assets/icons/view-icon.svg' : 'assets/icons/shield-icon.svg',
+            _visibility == 'public' ? 'Public event (discoverable)' : 'Private event (invitees only)'),
+        _previewRow('assets/icons/ticket-icon.svg',
+            _sellsTickets
+                ? '${_ticketClasses.length} ticket class${_ticketClasses.length == 1 ? '' : 'es'} on sale'
+                : 'Not selling tickets'),
+        if (_sellsTickets && _ticketClasses.isNotEmpty)
+          ..._ticketClasses.map((tc) {
+            final price = tc.price;
+            final qty = tc.quantity;
+            final parts = <String>[];
+            if (price > 0) parts.add('TZS ${formatMoney(price)}');
+            if (qty > 0) parts.add('$qty seats');
+            final sub = parts.isEmpty ? '' : '  •  ${parts.join('  •  ')}';
+            return Padding(
+              padding: const EdgeInsets.only(left: 26, bottom: 6),
+              child: Text('${tc.name}$sub',
+                  style: appText(size: 13, color: AppColors.textSecondary, height: 1.4)),
+            );
+          }),
+      ]),
+      if (_selectedVendors.isNotEmpty)
+        _previewSection('Vendors (${_selectedVendors.length})',
+          _selectedVendors.map((v) {
+            final name = (v['name'] ?? v['business_name'] ?? v['title'] ?? '').toString();
+            final cat = (v['category'] ?? v['service_type'] ?? '').toString();
+            return _previewRow('assets/icons/package-icon.svg',
+                cat.isEmpty ? name : '$name  •  $cat');
+          }).toList(),
+        ),
     ]);
+  }
+
+  Widget _previewSection(String title, List<Widget> rows) {
+    final visible = rows.where((w) => true).toList();
+    if (visible.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title.toUpperCase(),
+            style: appText(size: 11, weight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 0.8)),
+        const SizedBox(height: 10),
+        ...visible,
+      ]),
+    );
   }
 
   Widget _previewRow(String iconAsset, String text) {
@@ -745,7 +1175,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: _venueLatitude != null ? AppColors.primary.withOpacity(0.06) : const Color(0xFFF5F7FA),
+          color: _venueLatitude != null ? AppColors.primary.withOpacity(0.06) : Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: _venueLatitude != null ? AppColors.primary.withOpacity(0.3) : AppColors.border),
         ),
@@ -796,20 +1226,33 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       _label(context.tr('cover_image')),
       GestureDetector(
         onTap: _pickImage,
-        child: _imagePath != null
+        child: (_imagePath != null || _existingImageUrl != null)
             ? ClipRRect(
                 borderRadius: BorderRadius.circular(14),
                 child: Stack(children: [
-                  Image.file(File(_imagePath!), width: double.infinity, height: 180, fit: BoxFit.cover),
+                  if (_imagePath != null)
+                    Image.file(File(_imagePath!), width: double.infinity, height: 180, fit: BoxFit.cover)
+                  else
+                    Image.network(_existingImageUrl!, width: double.infinity, height: 180, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(height: 180, color: AppColors.surfaceVariant)),
                   Positioned(
                     top: 8, right: 8,
                     child: GestureDetector(
-                      onTap: () => setState(() => _imagePath = null),
+                      onTap: () => setState(() { _imagePath = null; _existingImageUrl = null; }),
                       child: Container(
                         padding: const EdgeInsets.all(6),
                         decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
                         child: const Icon(Icons.close, size: 16, color: Colors.white),
                       ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 8, right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(10)),
+                      child: Text(_imagePath != null ? 'New' : 'Tap to replace',
+                        style: appText(size: 11, weight: FontWeight.w600, color: Colors.white)),
                     ),
                   ),
                 ]),
@@ -872,7 +1315,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       _input(_specialInstructionsCtrl, context.tr('special_instructions_hint'), maxLines: 3),
       const SizedBox(height: 16),
       _label('Reminder contact phone (optional)'),
-      _input(_reminderContactPhoneCtrl, 'e.g. +255712345678 — used in reminder messages instead of your number', keyboardType: TextInputType.phone),
+      _input(_reminderContactPhoneCtrl, 'e.g. +255712345678. Used in reminder messages instead of your number.', keyboardType: TextInputType.phone),
     ]));
   }
 
@@ -913,8 +1356,10 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       style: appText(size: 15),
       decoration: InputDecoration(
         hintText: hint, hintStyle: appText(size: 14, color: AppColors.textHint),
-        filled: true, fillColor: const Color(0xFFF5F7FA),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+        filled: true, fillColor: Colors.white,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppColors.border, width: 1)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppColors.border, width: 1)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppColors.primary, width: 1.5)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );
@@ -932,7 +1377,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: selected ? AppColors.primary.withOpacity(0.1) : const Color(0xFFF5F7FA),
+              color: selected ? AppColors.primary.withOpacity(0.1) : Colors.white,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: selected ? 1.5 : 1),
             ),
@@ -971,7 +1416,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(14)),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
         child: Row(children: [
           SvgPicture.asset('assets/icons/calendar-icon.svg', width: 16, height: 16, colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
           const SizedBox(width: 10),
@@ -1008,7 +1453,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(14)),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
         child: Row(children: [
           SvgPicture.asset('assets/icons/clock-icon.svg', width: 16, height: 16, colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
           const SizedBox(width: 10),

@@ -176,6 +176,23 @@ class PushNotificationService {
     final body = n?.body ?? m.data['body'] ?? '';
     final payload = jsonEncode(m.data);
 
+    // WhatsApp-style: render the sender's avatar as the notification's
+    // largeIcon when the backend supplies one (chat messages, social
+    // notifications, etc.). Falls back to the app icon if missing or the
+    // fetch fails — push must never block on the network.
+    final avatarUrl = (m.data['sender_avatar'] ?? n?.android?.imageUrl ?? '').toString();
+    AndroidBitmap<Object>? largeIcon;
+    if (avatarUrl.isNotEmpty) {
+      try {
+        final resp = await http
+            .get(Uri.parse(avatarUrl))
+            .timeout(const Duration(seconds: 4));
+        if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+          largeIcon = ByteArrayAndroidBitmap(resp.bodyBytes);
+        }
+      } catch (_) {}
+    }
+
     await _local.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title,
@@ -188,6 +205,7 @@ class PushNotificationService {
           importance: Importance.high,
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',
+          largeIcon: largeIcon,
         ),
         iOS: const DarwinNotificationDetails(
           presentAlert: true,

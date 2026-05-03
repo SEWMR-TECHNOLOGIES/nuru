@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/social_service.dart';
 import '../../../core/widgets/nuru_video_player.dart';
+import '../../../core/widgets/image_gallery_viewer.dart';
 import '../../../core/l10n/l10n_helper.dart';
 
 /// Full-screen modal for post detail with scrollable echoes — matches web PostDetail
@@ -203,7 +204,7 @@ class _PostDetailModalState extends State<PostDetailModal> {
     return Container(
       height: MediaQuery.of(context).size.height * 0.92,
       decoration: const BoxDecoration(
-        color: AppColors.background,
+        color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
@@ -333,40 +334,55 @@ class _PostDetailModalState extends State<PostDetailModal> {
                       ],
                     ),
                   ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        child: TextField(
-                          controller: _commentController,
-                          style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary),
-                          decoration: InputDecoration(
-                            hintText: _replyToName != null ? 'Write a reply...' : 'Write an echo...',
-                            hintStyle: GoogleFonts.inter(fontSize: 14, color: AppColors.textHint),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: const Color(0xFFEDEDEF), width: 1),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(6, 4, 4, 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: TextField(
+                            controller: _commentController,
+                            style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary),
+                            cursorColor: AppColors.primary,
+                            decoration: InputDecoration(
+                              hintText: _replyToName != null ? 'Write a reply...' : 'Write an echo...',
+                              hintStyle: GoogleFonts.inter(fontSize: 14, color: AppColors.textHint),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              disabledBorder: InputBorder.none,
+                              errorBorder: InputBorder.none,
+                              focusedErrorBorder: InputBorder.none,
+                              filled: false,
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => _sendComment(),
                           ),
-                          textInputAction: TextInputAction.send,
-                          onSubmitted: (_) => _sendComment(),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: _sendComment,
-                      child: Container(
-                        width: 40, height: 40,
-                        decoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-                        child: Center(
-                          child: _sending
-                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                              : SvgPicture.asset('assets/icons/send-icon.svg', width: 18, height: 18,
-                                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
+                      GestureDetector(
+                        onTap: _sendComment,
+                        child: Container(
+                          width: 40, height: 40,
+                          decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+                          child: Center(
+                            child: _sending
+                                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                : SvgPicture.asset('assets/icons/send-icon.svg', width: 18, height: 18,
+                                    colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -402,7 +418,10 @@ class _PostDetailModalState extends State<PostDetailModal> {
               Row(children: [
                 Flexible(child: Text(_authorName, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
                     maxLines: 1, overflow: TextOverflow.ellipsis)),
-                // Verification badge removed
+                if (_isVerified) ...[
+                  const SizedBox(width: 4),
+                  const Icon(Icons.verified_rounded, size: 14, color: AppColors.primary),
+                ],
               ]),
               Text(_timeAgo, style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
             ],
@@ -435,15 +454,22 @@ class _PostDetailModalState extends State<PostDetailModal> {
     final images = _images;
     final types = _mediaTypes;
 
+    void openAt(int idx) {
+      ImageGalleryViewer.open(context, urls: images, mediaTypes: types, initialIndex: idx);
+    }
+
     if (images.length == 1) {
       final isVideo = types.isNotEmpty && (types[0].contains('video') || images[0].endsWith('.mp4') || images[0].endsWith('.mov'));
       if (isVideo) return NuruVideoPlayer(url: images[0], height: 260, borderRadius: BorderRadius.circular(12));
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 400),
-          child: Image.network(images[0], width: double.infinity, fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => Container(height: 200, color: AppColors.surfaceVariant)),
+      return GestureDetector(
+        onTap: () => openAt(0),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 400),
+            child: Image.network(images[0], width: double.infinity, fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Container(height: 200, color: AppColors.surfaceVariant)),
+          ),
         ),
       );
     }
@@ -457,10 +483,13 @@ class _PostDetailModalState extends State<PostDetailModal> {
         itemBuilder: (_, i) {
           final isVideo = i < types.length && (types[i].contains('video') || images[i].endsWith('.mp4'));
           if (isVideo) return SizedBox(width: 260, child: NuruVideoPlayer(url: images[i], height: 200, borderRadius: BorderRadius.circular(12)));
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.network(images[i], width: 200, height: 200, fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(width: 200, height: 200, color: AppColors.surfaceVariant)),
+          return GestureDetector(
+            onTap: () => openAt(i),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(images[i], width: 200, height: 200, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(width: 200, height: 200, color: AppColors.surfaceVariant)),
+            ),
           );
         },
       ),

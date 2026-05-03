@@ -13,6 +13,8 @@ class ReelsRail extends StatelessWidget {
   final VoidCallback onCreateTap;
   final void Function(int authorIndex) onAuthorTap;
   final String? myAvatar;
+  final VoidCallback? onShareMomentTap;
+  final bool shareMomentExpanded;
 
   const ReelsRail({
     super.key,
@@ -21,24 +23,30 @@ class ReelsRail extends StatelessWidget {
     required this.onCreateTap,
     required this.onAuthorTap,
     this.myAvatar,
+    this.onShareMomentTap,
+    this.shareMomentExpanded = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasShare = onShareMomentTap != null;
     return SizedBox(
       height: 96,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 4),
-        itemCount: 1 + reels.length,
+        itemCount: 1 + (hasShare ? 1 : 0) + reels.length,
         separatorBuilder: (_, __) => const SizedBox(width: 14),
         itemBuilder: (_, i) {
           if (i == 0) return _yourReel(context);
-          final r = reels[i - 1];
+          if (hasShare && i == 1) return _shareMomentPill();
+          final reelIndex = i - 1 - (hasShare ? 1 : 0);
+          final r = reels[reelIndex];
           if (r is! Map) return const SizedBox.shrink();
           final user = (r['user'] is Map) ? r['user'] as Map : const {};
           final moments = r['moments'] is List ? r['moments'] as List : const [];
           final allSeen = r['all_seen'] == true;
+          final seenCount = moments.where((m) => m is Map && m['has_seen'] == true).length;
           return _reelTile(
             label: user['is_self'] == true
                 ? 'You'
@@ -46,9 +54,56 @@ class ReelsRail extends StatelessWidget {
             avatar: user['avatar']?.toString(),
             preview: moments.isNotEmpty ? moments.last : null,
             allSeen: allSeen,
-            onTap: () => onAuthorTap(i - 1),
+            onTap: () => onAuthorTap(reelIndex),
+            totalMoments: moments.length,
+            seenCount: seenCount,
           );
         },
+      ),
+    );
+  }
+
+  Widget _shareMomentPill() {
+    return GestureDetector(
+      onTap: onShareMomentTap,
+      child: SizedBox(
+        width: 72,
+        child: Column(
+          children: [
+            Container(
+              width: 64, height: 64,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.primary.withOpacity(0.08),
+                border: Border.all(
+                  color: AppColors.primary.withOpacity(0.35),
+                  width: 1.5,
+                ),
+              ),
+              child: Center(
+                child: SvgPicture.asset(
+                  shareMomentExpanded
+                      ? 'assets/icons/close-circle-icon.svg'
+                      : 'assets/icons/pen-icon.svg',
+                  width: 26,
+                  height: 26,
+                  colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              shareMomentExpanded ? 'Hide' : 'Moment',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -101,36 +156,34 @@ class ReelsRail extends StatelessWidget {
     dynamic preview,
     required bool allSeen,
     required VoidCallback onTap,
+    int totalMoments = 1,
+    int seenCount = 0,
   }) {
-    final ringColor = allSeen ? AppColors.borderLight : AppColors.primary;
     return GestureDetector(
       onTap: onTap,
       child: SizedBox(
         width: 72,
         child: Column(
           children: [
-            Container(
+            SizedBox(
               width: 64, height: 64,
-              padding: const EdgeInsets.all(2.5),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: allSeen
-                    ? null
-                    : LinearGradient(
-                        colors: [AppColors.primary, AppColors.secondary],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                border: allSeen ? Border.all(color: ringColor, width: 1.5) : null,
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.surface, width: 2),
-                  color: AppColors.surfaceVariant,
+              child: CustomPaint(
+                painter: _SegmentedRingPainter(
+                  total: totalMoments < 1 ? 1 : totalMoments,
+                  seen: seenCount.clamp(0, totalMoments < 1 ? 1 : totalMoments),
+                  unseenColor: AppColors.primary,
+                  seenColor: AppColors.borderLight,
                 ),
-                child: ClipOval(
-                  child: _previewFace(label: label, avatar: avatar, preview: preview),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.surfaceVariant,
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: _previewFace(label: label, avatar: avatar, preview: preview),
+                  ),
                 ),
               ),
             ),
@@ -225,4 +278,40 @@ class ReelsRail extends StatelessWidget {
         alignment: Alignment.center,
         child: SvgPicture.asset('assets/icons/play-icon.svg', width: 18, height: 18, colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
       );
+}
+
+class _SegmentedRingPainter extends CustomPainter {
+  final int total;
+  final int seen;
+  final Color unseenColor;
+  final Color seenColor;
+  _SegmentedRingPainter({
+    required this.total,
+    required this.seen,
+    required this.unseenColor,
+    required this.seenColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const stroke = 2.5;
+    final rect = Rect.fromLTWH(stroke / 2, stroke / 2, size.width - stroke, size.height - stroke);
+    final gap = total > 1 ? 0.10 : 0.0; // radians gap between segments
+    final totalGap = gap * total;
+    final segSweep = (2 * 3.141592653589793 - totalGap) / total;
+    for (int i = 0; i < total; i++) {
+      final paint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke
+        ..strokeCap = StrokeCap.round
+        ..color = i < seen ? seenColor : unseenColor;
+      final start = -3.141592653589793 / 2 + i * (segSweep + gap) + gap / 2;
+      canvas.drawArc(rect, start, segSweep, false, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SegmentedRingPainter oldDelegate) =>
+      oldDelegate.total != total || oldDelegate.seen != seen ||
+      oldDelegate.unseenColor != unseenColor || oldDelegate.seenColor != seenColor;
 }

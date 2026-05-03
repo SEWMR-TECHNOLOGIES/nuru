@@ -23,6 +23,7 @@ import '../../core/services/call_ui_coordinator.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../providers/auth_provider.dart';
 import '../../core/l10n/l10n_helper.dart';
+import '../../core/widgets/nuru_refresh.dart';
 import '../../core/services/events_service.dart';
 import '../../core/services/social_service.dart';
 import '../../core/utils/prefetch_helper.dart';
@@ -653,9 +654,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   ? _buildShimmer()
                   : _filteredConversations.isEmpty
                       ? _buildEmpty()
-                      : RefreshIndicator(
-                          onRefresh: _loadConversations,
-                          color: AppColors.primary,
+                      : NuruRefresh(
+                          onRefresh: () => _loadConversations(silent: true),
                           child: ListView.separated(
                             physics: const AlwaysScrollableScrollPhysics(),
                             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
@@ -766,6 +766,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
+          onLongPress: () {
+            if (convId != null && convId.isNotEmpty) {
+              _showConversationActions(convId, name);
+            }
+          },
           onTap: () {
             if (convId != null) {
               final svc = (conv is Map ? conv['service'] : null);
@@ -827,7 +832,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Content (name row + 2 lines of message preview)
+                // Content with name and two message preview lines.
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -874,16 +879,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               ),
                             ),
                           ],
-                          const Spacer(),
-                          Text(
-                            time,
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              color: AppColors.textTertiary,
-                              fontWeight: FontWeight.w500,
-                              height: 1.2,
-                            ),
-                          ),
                         ],
                       ),
                       const SizedBox(height: 6),
@@ -946,33 +941,49 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     ],
                   ),
                 ),
-                // Unread badge column on the right — aligned to bottom of the
-                // 2-line preview area to match the design.
-                if (unreadCount > 0) ...[
-                  const SizedBox(width: 10),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 28),
-                    child: Container(
-                      constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      decoration: const BoxDecoration(
-                        color: AppColors.primary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          unreadCount > 9 ? '9+' : '$unreadCount',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            height: 1.0,
-                          ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 74,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        time,
+                        textAlign: TextAlign.right,
+                        maxLines: 1,
+                        overflow: TextOverflow.visible,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: unread ? AppColors.primary : AppColors.textTertiary,
+                          fontWeight: unread ? FontWeight.w700 : FontWeight.w500,
+                          height: 1.2,
                         ),
                       ),
-                    ),
+                      if (unreadCount > 0) ...[
+                        const SizedBox(height: 17),
+                        Container(
+                          constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          decoration: const BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              unreadCount > 9 ? '9+' : '$unreadCount',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                height: 1.0,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                ],
+                ),
               ],
             ),
           ),
@@ -1033,6 +1044,112 @@ class _MessagesScreenState extends State<MessagesScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(10)),
               child: Text(context.tr('new_message'), style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white, height: 1.2)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Bottom sheet shown when the user long-presses a conversation in the list.
+  /// WhatsApp-style: lets the user delete (hide) the chat from their inbox
+  /// without affecting the other participant's view.
+  void _showConversationActions(String convId, String name) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE5E5EA),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  name,
+                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                ),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: SvgPicture.asset(
+                  'assets/icons/delete-icon.svg',
+                  width: 22, height: 22,
+                  colorFilter: const ColorFilter.mode(Color(0xFFE03131), BlendMode.srcIn),
+                ),
+                title: Text(
+                  context.tr('delete_conversation'),
+                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFFE03131)),
+                ),
+                subtitle: Text(
+                  context.tr('delete_conversation_subtitle'),
+                  style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary),
+                ),
+                onTap: () {
+                  Navigator.of(sheetCtx).pop();
+                  _confirmDeleteConversation(convId, name);
+                },
+              ),
+              const SizedBox(height: 4),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _confirmDeleteConversation(String convId, String name) {
+    showDialog(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          context.tr('delete_conversation'),
+          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+        ),
+        content: Text(
+          context.tr('delete_conversation_confirm').replaceAll('{name}', name),
+          style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary, height: 1.45),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dctx).pop(),
+            child: Text(context.tr('cancel'), style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(dctx).pop();
+              // Optimistic removal from list + cache.
+              setState(() {
+                _conversations.removeWhere((c) => c is Map && c['id']?.toString() == convId);
+                MessagesCache.conversations = List<dynamic>.from(_conversations);
+              });
+              final res = await MessagesService.hideConversation(convId);
+              if (!mounted) return;
+              if (res['success'] != true) {
+                // Roll back by re-fetching on failure.
+                _loadConversations(silent: true);
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(res['message']?.toString() ?? 'Failed to remove'),
+                ));
+              }
+            },
+            child: Text(
+              context.tr('delete'),
+              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFFE03131)),
             ),
           ),
         ],

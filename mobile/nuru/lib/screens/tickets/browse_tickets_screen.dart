@@ -10,6 +10,7 @@ import 'my_tickets_screen.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../../core/widgets/empty_state_illustration.dart';
 import '../wallet/checkout_sheet.dart';
+import 'select_tickets_screen.dart';
 
 class BrowseTicketsScreen extends StatefulWidget {
   const BrowseTicketsScreen({super.key});
@@ -400,19 +401,15 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
   void _showTicketClasses(Map<String, dynamic> event) async {
     final eventId = event['id']?.toString() ?? '';
     if (eventId.isEmpty) return;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _TicketClassesSheet(
-        eventId: eventId,
-        eventName: event['name']?.toString() ?? event['title']?.toString() ?? 'Event',
-        coverImage: event['cover_image']?.toString(),
-        startDate: event['start_date']?.toString(),
-        location: event['location']?.toString(),
-      ),
-    );
+    Navigator.push(context, MaterialPageRoute(builder: (_) => SelectTicketsScreen(
+      eventId: eventId,
+      eventName: event['name']?.toString() ?? event['title']?.toString() ?? 'Event',
+      coverImage: event['cover_image']?.toString(),
+      startDate: event['start_date']?.toString(),
+      startTime: event['start_time']?.toString(),
+      location: event['location']?.toString(),
+      eventType: event['event_type']?.toString(),
+    )));
   }
 
   Map<String, dynamic>? _getCountdown(String dateStr) {
