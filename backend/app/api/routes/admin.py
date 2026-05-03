@@ -2057,6 +2057,128 @@ def broadcast_notification(
     return standard_response(True, f"Notification sent to {len(batch)} users")
 
 
+@router.post("/notifications/test-push")
+def send_test_push(
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """Send a single test FCM push to a specific user.
+
+    Body: ``{ "user_id": "<uuid>", "title": "...", "message": "...",
+              "deep_link_type": "message"|"payment"|"event_invite"|...,
+              "reference_id": "<optional>" }``
+
+    Returns the FCM payload that was dispatched plus per-device send counts so
+    admins can verify the deep-link wiring end-to-end without going through a
+    real chat / payment flow.
+    """
+    from utils.fcm import send_push_to_user, fcm_configured
+    from models import DeviceToken
+
+    user_id = (body.get("user_id") or "").strip()
+    title = (body.get("title") or "Nuru test push").strip()
+    message = (body.get("message") or "This is a test notification.").strip()
+    deep_link_type = (body.get("deep_link_type") or body.get("type") or "system").strip()
+    reference_id = (body.get("reference_id") or "").strip()
+
+    if not user_id:
+        return standard_response(False, "user_id is required")
+    try:
+        uid = uuid.UUID(user_id)
+    except Exception:
+        return standard_response(False, "user_id must be a valid UUID")
+
+    user = db.query(User).filter(User.id == uid).first()
+    if not user:
+        return standard_response(False, "User not found")
+
+    devices = db.query(DeviceToken).filter(
+        DeviceToken.user_id == uid, DeviceToken.kind == "fcm"
+    ).all()
+
+    payload_data = {
+        "type": deep_link_type,
+        "reference_id": reference_id,
+        "test": "1",
+    }
+    if deep_link_type == "message" and reference_id:
+        payload_data["conversation_id"] = reference_id
+
+    fcm_ok = fcm_configured()
+    if not fcm_ok:
+        return standard_response(False,
+            "FCM is not configured on this backend. Set FCM_SERVICE_ACCOUNT_JSON or FCM_SERVICE_ACCOUNT_FILE in the environment and restart.",
+            data={
+                "fcm_configured": False,
+                "devices": len(devices),
+                "payload": {"title": title, "body": message, "data": payload_data},
+            })
+
+    if not devices:
+        return standard_response(False,
+            "User has no registered FCM device tokens. Open the app on their device while signed in (it auto-registers on launch and login).",
+            data={
+                "fcm_configured": True,
+                "devices": 0,
+                "payload": {"title": title, "body": message, "data": payload_data},
+            })
+
+    result = send_push_to_user(
+        db, uid,
+        title=title, body=message,
+        data=payload_data,
+        high_priority=True,
+        collapse_key=f"test:{datetime.now(EAT).isoformat()}",
+    )
+    success = (result.get("sent", 0) > 0)
+    msg_out = (
+        f"Push delivered to {result.get('sent', 0)}/{len(devices)} device(s)."
+        if success else
+        f"FCM rejected all {len(devices)} device(s). See per-token errors below."
+    )
+    return standard_response(success, msg_out, data={
+        "fcm_configured": True,
+        "devices": len(devices),
+        "sent": result.get("sent", 0),
+        "failed": result.get("failed", 0),
+        "results": result.get("results", []),
+        "payload": {"title": title, "body": message, "data": payload_data},
+        "user": {"id": str(user.id), "name": f"{user.first_name or ''} {user.last_name or ''}".strip()},
+    })
+
+
+@router.get("/notifications/device-status")
+def device_token_status(
+    user_id: str,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """Inspect a user's registered push tokens (redacted) without sending."""
+    from utils.fcm import fcm_configured, _redact
+    from models import DeviceToken
+
+    try:
+        uid = uuid.UUID(user_id)
+    except Exception:
+        return standard_response(False, "user_id must be a valid UUID")
+
+    rows = db.query(DeviceToken).filter(DeviceToken.user_id == uid).all()
+    return standard_response(True, "ok", data={
+        "fcm_configured": fcm_configured(),
+        "device_count": len(rows),
+        "devices": [{
+            "id": str(r.id),
+            "platform": r.platform,
+            "kind": r.kind,
+            "token_preview": _redact(r.token),
+            "app_version": r.app_version,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+        } for r in rows],
+    })
+
+
 # ──────────────────────────────────────────────
 # POSTS (FEEDS) ADMIN
 # ──────────────────────────────────────────────

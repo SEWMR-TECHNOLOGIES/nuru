@@ -76,6 +76,24 @@ class CallsService {
     }
   }
 
+  /// GET /calls/{id}/status — caller polls this so the screen dismisses
+  /// the moment the callee declines / ends / the call times out.
+  static Future<String?> getStatus(String callId) async {
+    try {
+      final res = await http.get(
+        Uri.parse('$_baseUrl/calls/$callId/status'),
+        headers: await _headers(),
+      );
+      final body = jsonDecode(res.body);
+      if (body is Map && body['success'] == true && body['data'] is Map) {
+        return (body['data']['status'] ?? '').toString();
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// GET /calls/incoming — short-poll endpoint used by the global call poller
   /// to detect ringing calls. Returns `data: null` when there's nothing.
   static Future<Map<String, dynamic>?> getIncoming() async {

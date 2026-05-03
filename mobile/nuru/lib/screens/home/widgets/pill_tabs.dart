@@ -26,8 +26,8 @@ class PillTabs extends StatelessWidget {
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: isActive ? AppColors.primary : AppColors.surface,
-                borderRadius: BorderRadius.circular(8),
+                color: isActive ? Colors.black : AppColors.surface,
+                borderRadius: BorderRadius.circular(20),
                 border: isActive ? null : Border.all(color: AppColors.borderLight, width: 1),
               ),
               alignment: Alignment.center,

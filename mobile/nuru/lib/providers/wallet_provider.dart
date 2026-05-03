@@ -1,3 +1,4 @@
+import 'package:nuru/core/utils/money_format.dart' show getActiveCurrency;
 import 'package:flutter/material.dart';
 import '../core/services/wallet_service.dart';
 
@@ -17,7 +18,7 @@ class WalletProvider extends ChangeNotifier {
   bool get loading => _loading;
   String? get error => _error;
 
-  String get currency => (_wallet?['currency_code'] ?? 'TZS').toString();
+  String get currency => (_wallet?['currency_code'] ?? getActiveCurrency()).toString();
   num get availableBalance => (_wallet?['available_balance'] ?? 0) as num;
   num get pendingBalance => (_wallet?['pending_balance'] ?? 0) as num;
   num get reservedBalance => (_wallet?['reserved_balance'] ?? 0) as num;

@@ -28,6 +28,8 @@ import '../../settings/settings_screen.dart';
 import '../../wallet/wallet_screen.dart';
 import '../../event_groups/my_groups_screen.dart';
 import '../../messages/messages_screen.dart';
+import '../widgets/home_notifications_tab.dart';
+import '../../../core/services/social_service.dart';
 import '../../../core/l10n/l10n_helper.dart';
 
 /// Modern, organized left drawer that mirrors the web sidebar redesign:
@@ -273,7 +275,28 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
         _NavItem(icon: 'assets/icons/home-icon.svg', label: context.tr('home'), tab: 0),
         _NavItem(icon: 'assets/icons/calendar-icon.svg', label: context.tr('my_events'), tab: 1),
         _NavItem(icon: 'assets/icons/chat-icon.svg', label: context.tr('messages'), screen: const MessagesScreen(), badge: widget.unreadMessages),
-        _NavItem(icon: 'assets/icons/bell-icon.svg', label: context.tr('notifications'), tab: 3, badge: widget.unreadNotifications),
+        _NavItem(
+          icon: 'assets/icons/bell-icon.svg',
+          label: context.tr('notifications'),
+          badge: widget.unreadNotifications,
+          onTap: (ctx) async {
+            Navigator.pop(ctx);
+            final res = await SocialService.getNotifications(page: 1);
+            final data = res['data'];
+            final notifs = data is Map ? (data['notifications'] ?? []) : (data is List ? data : []);
+            final unread = data is Map ? (data['unread_count'] ?? 0) : 0;
+            if (!ctx.mounted) return;
+            Navigator.push(ctx, MaterialPageRoute(builder: (_) => Scaffold(
+              backgroundColor: AppColors.surface,
+              body: HomeNotificationsTab(
+                notifications: notifs,
+                unreadCount: unread,
+                isLoading: false,
+                onRefresh: widget.onRefresh,
+              ),
+            )));
+          },
+        ),
       ];
 
   List<_NavSection> get _sections => [

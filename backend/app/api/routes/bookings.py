@@ -164,17 +164,30 @@ def get_my_bookings(
 
 @router.get("/received")
 def get_received_bookings(
+    status: str = None,
     search: str = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     from utils.batch_loaders import build_booking_dicts
     my_service_ids = [s.id for s in db.query(UserService.id).filter(UserService.user_id == current_user.id).all()]
+    empty_summary = {"total": 0, "pending": 0, "accepted": 0, "rejected": 0, "completed": 0, "cancelled": 0, "total_earnings": 0}
     if not my_service_ids:
-        return standard_response(True, "Received bookings retrieved successfully", {"bookings": [], "summary": {"total": 0, "pending": 0, "accepted": 0, "rejected": 0, "completed": 0, "cancelled": 0}})
+        return standard_response(True, "Received bookings retrieved successfully", {"bookings": [], "summary": empty_summary})
     bookings = db.query(ServiceBookingRequest).filter(ServiceBookingRequest.user_service_id.in_(my_service_ids)).order_by(ServiceBookingRequest.created_at.desc()).all()
     items = build_booking_dicts(db, bookings)
     items = _filter_bookings_by_search(items, search)
+
+    def _amount(b):
+        for k in ("final_price", "quoted_price", "total_amount", "amount"):
+            v = b.get(k)
+            if v is not None:
+                try:
+                    return float(v)
+                except (TypeError, ValueError):
+                    pass
+        return 0.0
+
     summary = {
         "total": len(items),
         "pending": sum(1 for b in items if b["status"] == "pending"),
@@ -182,7 +195,13 @@ def get_received_bookings(
         "rejected": sum(1 for b in items if b["status"] == "rejected"),
         "completed": sum(1 for b in items if b["status"] == "completed"),
         "cancelled": sum(1 for b in items if b["status"] == "cancelled"),
+        "total_earnings": sum(_amount(b) for b in items if b["status"] in ("accepted", "completed")),
     }
+
+    # Apply status filter AFTER summary so KPIs reflect totals
+    if status and status != "all":
+        items = [b for b in items if b.get("status") == status]
+
     return standard_response(True, "Received bookings retrieved successfully", {"bookings": items, "summary": summary})
 
 

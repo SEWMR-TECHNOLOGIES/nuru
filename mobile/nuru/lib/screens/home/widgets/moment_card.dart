@@ -7,6 +7,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/social_service.dart';
 import '../../../core/widgets/nuru_video_player.dart';
+import '../../../core/widgets/image_gallery_viewer.dart';
+import '../../../core/widgets/video_thumbnail_image.dart';
 import '../../events/event_public_view_screen.dart';
 import '../../../core/l10n/l10n_helper.dart';
 
@@ -254,6 +256,15 @@ class _MomentCardState extends State<MomentCard> {
     );
   }
 
+  void _openGallery(int index) {
+    ImageGalleryViewer.open(
+      context,
+      urls: _images,
+      mediaTypes: _mediaTypes,
+      initialIndex: index,
+    );
+  }
+
   Widget _buildMedia() {
     final images = _images;
     final types = _mediaTypes;
@@ -270,38 +281,96 @@ class _MomentCardState extends State<MomentCard> {
 
       return Padding(
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 360),
-            child: CachedNetworkImage(imageUrl: images[0], width: double.infinity, fit: BoxFit.contain,
-              errorWidget: (_, __, ___) => Container(height: 200, color: AppColors.surfaceVariant,
-                child: Center(child: SvgPicture.asset('assets/icons/broken-image-icon.svg', width: 24, height: 24,
-                  colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn))))),
+        child: GestureDetector(
+          onTap: () => _openGallery(0),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 360),
+              child: CachedNetworkImage(imageUrl: images[0], width: double.infinity, fit: BoxFit.contain,
+                errorWidget: (_, __, ___) => Container(height: 200, color: AppColors.surfaceVariant,
+                  child: Center(child: SvgPicture.asset('assets/icons/broken-image-icon.svg', width: 24, height: 24,
+                    colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn))))),
+            ),
           ),
         ),
       );
     }
 
-    return SizedBox(
-      height: 140,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-        itemCount: images.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, i) {
-          final isVideo = i < types.length && (types[i].contains('video') || images[i].endsWith('.mp4'));
-          if (isVideo) {
-            return SizedBox(width: 200, child: NuruVideoPlayer(url: images[i], height: 140, borderRadius: BorderRadius.circular(12)));
-          }
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: CachedNetworkImage(imageUrl: images[i], width: 160, height: 140, fit: BoxFit.cover,
-              errorWidget: (_, __, ___) => Container(width: 160, height: 140, color: AppColors.surfaceVariant)),
-          );
-        },
+    // Multi-image grid: big left + stacked right with +N overlay (matches web)
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 220,
+          child: Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: GestureDetector(
+                  onTap: () => _openGallery(0),
+                  child: _gridTile(images[0], types.isNotEmpty ? types[0] : ''),
+                ),
+              ),
+              const SizedBox(width: 2),
+              Expanded(
+                flex: 2,
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _openGallery(1),
+                        child: _gridTile(images[1], types.length > 1 ? types[1] : ''),
+                      ),
+                    ),
+                    if (images.length > 2) const SizedBox(height: 2),
+                    if (images.length > 2)
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => _openGallery(2),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              _gridTile(images[2], types.length > 2 ? types[2] : ''),
+                              if (images.length > 3)
+                                Container(
+                                  color: Colors.black.withOpacity(0.55),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    '+${images.length - 3}',
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
+    );
+  }
+
+  Widget _gridTile(String url, String type) {
+    final isVideo = type.contains('video') || url.endsWith('.mp4') || url.endsWith('.mov');
+    if (isVideo) {
+      return VideoThumbnailImage(videoUrl: url, showPlayBadge: true);
+    }
+    return CachedNetworkImage(
+      imageUrl: url,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      errorWidget: (_, __, ___) => Container(color: AppColors.surfaceVariant),
     );
   }
 

@@ -4,15 +4,15 @@ import 'package:flutter/material.dart';
 /// Post-onboarding palette: Blue, Green, Orange, Dark. No gradients.
 class AppColors {
   // ─── Brand Core ─── (Nuru Gold — matches onboarding)
-  static const Color primary = Color(0xFFFECA08);       // Gold - primary actions
+  static const Color primary = Color(0xFFFEC504);       // Nuru Gold - primary actions
   static const Color primaryLight = Color(0xFFFFD83D);
   static const Color primaryDark = Color(0xFFD9AB00);
-  static const Color primarySoft = Color(0x14FECA08);
+  static const Color primarySoft = Color(0x14FEC504);
 
   // Secondary - Gold for highlights
-  static const Color secondary = Color(0xFFFECA08);
+  static const Color secondary = Color(0xFFFEC504);
   static const Color secondaryLight = Color(0xFFFFD83D);
-  static const Color secondarySoft = Color(0x14FECA08);
+  static const Color secondarySoft = Color(0x14FEC504);
 
   // Accent - Green for success/positive
   static const Color accent = Color(0xFF71E07E);
@@ -27,8 +27,8 @@ class AppColors {
   static const Color background = Color(0xFFF8F8FA);
   static const Color surface = Color(0xFFFFFFFF);
   static const Color surfaceElevated = Color(0xFFFFFFFF);
-  static const Color surfaceVariant = Color(0xFFF3F3F6);
-  static const Color surfaceMuted = Color(0xFFECECF0);
+  static const Color surfaceVariant = Color(0xFFFFFFFF);
+  static const Color surfaceMuted = Color(0xFFFFFFFF);
   static const Color card = Color(0xFFFFFFFF);
 
   // Dark surfaces

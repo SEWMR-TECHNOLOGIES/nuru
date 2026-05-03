@@ -108,6 +108,7 @@ class PushNotificationService {
     // Token refresh.
     FirebaseMessaging.instance.onTokenRefresh.listen((t) {
       _lastToken = t;
+      debugPrint('[push] FCM token refreshed => ${_redact(t)}');
       _registerToken(t);
     });
 
@@ -122,6 +123,8 @@ class PushNotificationService {
       final token = _lastToken ?? await FirebaseMessaging.instance.getToken();
       if (token == null || token.isEmpty) return;
       _lastToken = token;
+      // Log a redacted preview only — never the full FCM token.
+      debugPrint('[push] FCM token => ${_redact(token)}');
       await _registerToken(token);
     } catch (e) {
       debugPrint('[push] registerWithBackend failed: $e');
@@ -147,7 +150,7 @@ class PushNotificationService {
     final auth = await SecureTokenStorage.getToken();
     if (auth == null) return; // not signed in yet
     try {
-      await http.post(
+      final res = await http.post(
         Uri.parse('${ApiBase.baseUrl}/calls/devices'),
         headers: await ApiBase.headers(),
         body: jsonEncode({
@@ -156,9 +159,15 @@ class PushNotificationService {
           'kind': 'fcm',
         }),
       );
+      debugPrint('[push] device register status=${res.statusCode}');
     } catch (e) {
       debugPrint('[push] device register failed: $e');
     }
+  }
+
+  static String _redact(String t) {
+    if (t.length <= 12) return '***';
+    return '${t.substring(0, 6)}…${t.substring(t.length - 4)} (len=${t.length})';
   }
 
   Future<void> _onForegroundMessage(RemoteMessage m) async {

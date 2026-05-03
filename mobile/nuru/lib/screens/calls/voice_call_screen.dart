@@ -96,11 +96,31 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   final AudioPlayer _ringback = AudioPlayer();
   bool _ringbackStarted = false;
 
+  // Polls the backend so the caller's screen dismisses the moment the
+  // callee declines / ends / the call times out (mirrors WhatsApp UX).
+  Timer? _statusTimer;
+
   @override
   void initState() {
     super.initState();
-    if (widget.isOutgoing) _startRingback();
+    if (widget.isOutgoing) {
+      _startRingback();
+      _startStatusPoller();
+    }
     _bootstrap();
+  }
+
+  void _startStatusPoller() {
+    _statusTimer?.cancel();
+    _statusTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      if (_closed || _connected) return;
+      final status = await CallsService.getStatus(widget.callId);
+      if (status == null) return;
+      if (status == 'declined' || status == 'missed' || status == 'ended') {
+        if (mounted) setState(() => _status = status == 'declined' ? 'Declined' : 'Call ended');
+        _hangup(notifyServer: false);
+      }
+    });
   }
 
   Future<void> _startRingback() async {
@@ -224,6 +244,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   Future<void> _hangup({bool notifyServer = true}) async {
     if (_closed) return;
     _closed = true;
+    _statusTimer?.cancel();
     _stopRingback();
     _durationTimer?.cancel();
     try {
@@ -263,6 +284,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
 
   @override
   void dispose() {
+    _statusTimer?.cancel();
     _durationTimer?.cancel();
     _listener?.dispose();
     _room?.dispose();

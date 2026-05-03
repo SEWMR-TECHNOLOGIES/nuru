@@ -1,3 +1,4 @@
+import 'package:nuru/core/utils/money_format.dart' show getActiveCurrency;
 import 'package:flutter/material.dart';
 import '../core/services/received_payments_service.dart';
 
@@ -213,7 +214,7 @@ class _PaymentTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final currency = (payment['currency_code'] ?? 'TZS').toString();
+    final currency = (payment['currency_code'] ?? getActiveCurrency()).toString();
     final gross = (payment['gross_amount'] as num?) ?? 0;
     final fee = (payment['commission_amount'] as num?) ?? 0;
     final net = (payment['net_amount'] as num?) ?? 0;

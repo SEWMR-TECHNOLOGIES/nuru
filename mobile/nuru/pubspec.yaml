@@ -18,11 +18,13 @@ dependencies:
   animate_do: ^3.3.4
   flutter_svg: ^2.0.17
   cached_network_image: ^3.4.1
+  flutter_cache_manager: ^3.4.1
   shimmer: ^3.0.0
   http: ^1.2.2
   image_picker: ^1.1.2
   mobile_scanner: ^6.0.2
   video_player: ^2.9.2
+  video_thumbnail: ^0.5.3
   share_plus: ^10.1.4
   path_provider: ^2.1.5
   open_filex: ^4.5.0

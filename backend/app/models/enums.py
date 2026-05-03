@@ -117,6 +117,7 @@ class SocialProviderEnum(enum.Enum):
 class MomentContentTypeEnum(enum.Enum):
     image = "image"
     video = "video"
+    text = "text"
 
 
 class MomentPrivacyEnum(enum.Enum):

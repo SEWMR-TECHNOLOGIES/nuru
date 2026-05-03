@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -74,17 +75,17 @@ class _NuruAppState extends State<NuruApp> {
   }
 
   Future<void> _requestAllPermissions() async {
-    final locationStatus = await Permission.locationWhenInUse.request();
-    debugPrint('Location permission: $locationStatus');
-
-    final cameraStatus = await Permission.camera.request();
-    debugPrint('Camera permission: $cameraStatus');
-
-    final photosStatus = await Permission.photos.request();
-    debugPrint('Photos permission: $photosStatus');
-
-    final notifStatus = await Permission.notification.request();
-    debugPrint('Notification permission: $notifStatus');
+    // Request every runtime permission the app needs in a single batch so
+    // the user isn't pestered across multiple cold starts.
+    final results = await [
+      Permission.locationWhenInUse,
+      Permission.camera,
+      Permission.photos,
+      Permission.microphone,
+      Permission.notification,
+      if (Platform.isAndroid) Permission.bluetoothConnect,
+    ].request();
+    results.forEach((perm, status) => debugPrint('Permission $perm: $status'));
   }
 
   @override

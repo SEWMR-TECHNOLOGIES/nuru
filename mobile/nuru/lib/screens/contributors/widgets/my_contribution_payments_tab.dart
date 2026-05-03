@@ -131,7 +131,7 @@ class _MyContributionPaymentsTabState extends State<MyContributionPaymentsTab>
     final method = (p['method_type'] ?? '').toString();
     final provider = (p['provider_name'] ?? '').toString();
     final ts = (p['completed_at'] ?? p['confirmed_at'] ?? p['initiated_at'])?.toString();
-    final currency = (p['currency_code'] ?? 'TZS').toString();
+    final currency = (p['currency_code'] ?? getActiveCurrency()).toString();
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
