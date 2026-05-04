@@ -275,6 +275,53 @@ def get_public_event(event_id: str, db: Session = Depends(get_db)):
     built = build_public_event_dicts(db, [event])
     data = built[0] if built else _public_event_dict(db, event)
 
+    # ── Ticket pricing summary (min_price, ticket_class_count, total_available) ──
+    try:
+        from models import EventTicketClass
+        tcs = db.query(EventTicketClass).filter(EventTicketClass.event_id == eid).all()
+        if tcs:
+            prices = [float(tc.price) for tc in tcs if tc.price is not None]
+            data["min_price"] = min(prices) if prices else None
+            data["ticket_class_count"] = len(tcs)
+            data["total_available"] = sum(max(0, (tc.quantity or 0) - (tc.sold or 0)) for tc in tcs)
+            data["has_tickets"] = True
+            data["currency"] = _currency_code(db, event.currency_id) or "TZS"
+    except Exception:
+        pass
+
+    # ── Going count + sample avatars (confirmed attendees with profile photos) ──
+    try:
+        going_count = db.query(sa_func.count(EventAttendee.id)).filter(
+            EventAttendee.event_id == eid,
+            EventAttendee.rsvp_status == RSVPStatusEnum.confirmed,
+        ).scalar() or 0
+        data["going_count"] = int(going_count)
+
+        # Sample up to 8 confirmed attendees with avatars
+        attendees = db.query(EventAttendee).filter(
+            EventAttendee.event_id == eid,
+            EventAttendee.rsvp_status == RSVPStatusEnum.confirmed,
+            EventAttendee.attendee_id.isnot(None),
+        ).limit(20).all()
+        user_ids = [a.attendee_id for a in attendees if a.attendee_id]
+        avatars = []
+        if user_ids:
+            users = db.query(User).filter(User.id.in_(user_ids)).all()
+            import random
+            random.shuffle(users)
+            for u in users:
+                avatars.append({
+                    "id": str(u.id),
+                    "name": f"{u.first_name or ''} {u.last_name or ''}".strip(),
+                    "avatar": getattr(u, "profile_picture_url", None) or getattr(u, "provider_avatar_url", None),
+                })
+                if len(avatars) >= 8:
+                    break
+        data["going_avatars"] = avatars
+    except Exception:
+        data.setdefault("going_count", 0)
+        data.setdefault("going_avatars", [])
+
     # Add contribution info if enabled
     settings = db.query(EventSetting).filter(EventSetting.event_id == eid).first()
     if settings and settings.contributions_enabled:

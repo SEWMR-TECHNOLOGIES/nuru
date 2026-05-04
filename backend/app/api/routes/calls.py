@@ -39,8 +39,9 @@ from utils.helpers import standard_response
 
 router = APIRouter(prefix="/calls", tags=["Calls"])
 
-# How long a call can ring before we treat it as missed. WhatsApp uses ~30s.
-RING_TIMEOUT_SECONDS = 35
+# Keep the call ringing long enough for native phone alert settings to play
+# continuously unless caller/callee explicitly ends it.
+RING_TIMEOUT_SECONDS = 90
 
 
 def _user_brief(db: Session, user_id) -> dict:
