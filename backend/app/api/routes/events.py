@@ -297,30 +297,43 @@ def get_public_event(event_id: str, db: Session = Depends(get_db)):
         ).scalar() or 0
         data["going_count"] = int(going_count)
 
-        # Sample up to 8 confirmed attendees with avatars
+        # Sample up to 8 confirmed attendees with avatars (registered users + named guests)
         attendees = db.query(EventAttendee).filter(
             EventAttendee.event_id == eid,
             EventAttendee.rsvp_status == RSVPStatusEnum.confirmed,
-            EventAttendee.attendee_id.isnot(None),
-        ).limit(20).all()
+        ).limit(40).all()
+        import random
+        random.shuffle(attendees)
         user_ids = [a.attendee_id for a in attendees if a.attendee_id]
-        avatars = []
+        users_by_id = {}
         if user_ids:
-            users = db.query(User).filter(User.id.in_(user_ids)).all()
-            import random
-            random.shuffle(users)
-            for u in users:
+            for u in db.query(User).filter(User.id.in_(user_ids)).all():
+                users_by_id[str(u.id)] = u
+        avatars = []
+        for a in attendees:
+            if len(avatars) >= 8:
+                break
+            if a.attendee_id and str(a.attendee_id) in users_by_id:
+                u = users_by_id[str(a.attendee_id)]
                 avatars.append({
                     "id": str(u.id),
-                    "name": f"{u.first_name or ''} {u.last_name or ''}".strip(),
+                    "name": f"{u.first_name or ''} {u.last_name or ''}".strip() or 'Guest',
                     "avatar": getattr(u, "profile_picture_url", None) or getattr(u, "provider_avatar_url", None),
                 })
-                if len(avatars) >= 8:
-                    break
+            elif a.guest_name:
+                avatars.append({
+                    "id": str(a.id),
+                    "name": a.guest_name,
+                    "avatar": None,
+                })
         data["going_avatars"] = avatars
+        # Always expose currency on event payload
+        if not data.get("currency"):
+            data["currency"] = _currency_code(db, event.currency_id) or "TZS"
     except Exception:
         data.setdefault("going_count", 0)
         data.setdefault("going_avatars", [])
+        data.setdefault("currency", "TZS")
 
     # Add contribution info if enabled
     settings = db.query(EventSetting).filter(EventSetting.event_id == eid).first()
