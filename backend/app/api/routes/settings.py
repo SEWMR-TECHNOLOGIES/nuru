@@ -1,5 +1,6 @@
 # Settings Routes - /settings/...
 
+import os
 import uuid
 from datetime import datetime
 
@@ -14,6 +15,24 @@ from utils.helpers import standard_response
 
 EAT = pytz.timezone("Africa/Nairobi")
 router = APIRouter(prefix="/settings", tags=["Settings"])
+
+
+@router.get("/app-version")
+def get_app_version(platform: str = "android"):
+    platform_key = (platform or "android").lower().strip()
+    latest_version = os.getenv("NURU_LATEST_APP_VERSION", "1.0.0")
+    latest_build = int(os.getenv("NURU_LATEST_APP_BUILD", "1") or "1")
+    min_build = int(os.getenv("NURU_MIN_SUPPORTED_APP_BUILD", "1") or "1")
+    default_android_url = "https://play.google.com/store/apps/details?id=tz.nuru.app"
+    default_ios_url = "https://apps.apple.com/app/nuru"
+    return standard_response(True, "App version retrieved", {
+        "latest_version": latest_version,
+        "latest_build": latest_build,
+        "min_supported_build": min_build,
+        "force_update": os.getenv("NURU_FORCE_APP_UPDATE", "false").lower() == "true",
+        "update_url": os.getenv("NURU_ANDROID_UPDATE_URL" if platform_key == "android" else "NURU_IOS_UPDATE_URL") or (default_android_url if platform_key == "android" else default_ios_url),
+        "message": os.getenv("NURU_APP_UPDATE_MESSAGE", "A new Nuru update is available."),
+    })
 
 
 @router.get("/")
