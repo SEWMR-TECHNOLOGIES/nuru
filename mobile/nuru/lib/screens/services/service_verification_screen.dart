@@ -1,3 +1,4 @@
+import '../../core/widgets/nuru_refresh_indicator.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -134,7 +135,7 @@ class _ServiceVerificationScreenState extends State<ServiceVerificationScreen> {
       appBar: NuruSubPageAppBar(title: context.tr('service_verification')),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-          : RefreshIndicator(
+          : NuruRefreshIndicator(
               onRefresh: _loadKyc,
               color: AppColors.primary,
               child: ListView(padding: const EdgeInsets.all(16), children: [

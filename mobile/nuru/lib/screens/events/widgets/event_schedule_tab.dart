@@ -1,3 +1,4 @@
+import '../../../core/widgets/nuru_refresh_indicator.dart';
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/events_service.dart';
@@ -40,7 +41,7 @@ class _EventScheduleTabState extends State<EventScheduleTab> with AutomaticKeepA
     super.build(context);
     if (_loading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
 
-    return RefreshIndicator(
+    return NuruRefreshIndicator(
       onRefresh: _load,
       color: AppColors.primary,
       child: _items.isEmpty

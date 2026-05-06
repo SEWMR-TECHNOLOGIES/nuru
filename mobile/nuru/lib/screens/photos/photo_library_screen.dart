@@ -1,3 +1,4 @@
+import '../../core/widgets/nuru_refresh_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -265,7 +266,7 @@ class _PhotoLibraryScreenState extends State<PhotoLibraryScreen> {
                           const SizedBox(height: 4),
                           Text('Upload your first photo', style: appText(size: 13, color: AppColors.textTertiary)),
                         ]))
-                      : RefreshIndicator(
+                      : NuruRefreshIndicator(
                           onRefresh: _load,
                           color: AppColors.primary,
                           child: GridView.builder(

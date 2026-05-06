@@ -10,6 +10,7 @@ import '../../core/l10n/l10n_helper.dart';
 import '../../providers/wallet_provider.dart';
 import '../migration/migration_banner.dart';
 import 'booking_detail_screen.dart';
+import 'sponsor_requests_screen.dart';
 import '../../core/widgets/nuru_refresh.dart';
 
 enum BookingsMode { vendor, organizer }
@@ -107,6 +108,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
             ),
             const SizedBox(height: 14),
             _KpiCards(summary: _summary, isVendor: _isVendor),
+            if (_isVendor) _SponsorEntryCard(
+              onTap: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const SponsorRequestsScreen(),
+                ));
+              },
+            ),
             if (_searchOpen) _buildInlineSearch(),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
@@ -985,6 +993,84 @@ class _Avatar extends StatelessWidget {
               ),
             )
           : null,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Sponsor inbox entry (vendor mode only)
+// ─────────────────────────────────────────────────────────────
+class _SponsorEntryCard extends StatelessWidget {
+  final VoidCallback onTap;
+  const _SponsorEntryCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.borderLight),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: SvgPicture.asset(
+                  'assets/icons/thunder-icon.svg',
+                  width: 20,
+                  height: 20,
+                  colorFilter: const ColorFilter.mode(
+                      Color(0xFF92400E), BlendMode.srcIn),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Sponsorship Requests',
+                      style: GoogleFonts.inter(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Invitations to sponsor events',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SvgPicture.asset(
+                'assets/icons/chevron-right-icon.svg',
+                width: 18,
+                height: 18,
+                colorFilter: const ColorFilter.mode(
+                    AppColors.textTertiary, BlendMode.srcIn),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

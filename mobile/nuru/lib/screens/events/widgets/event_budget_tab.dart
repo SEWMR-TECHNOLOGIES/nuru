@@ -1,3 +1,5 @@
+import '../../../core/widgets/nuru_refresh_indicator.dart';
+import '../../../core/utils/money_format.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -73,7 +75,7 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
 
     return Stack(
       children: [
-        RefreshIndicator(
+        NuruRefreshIndicator(
           onRefresh: _load,
           color: AppColors.primary,
           child: ListView(
@@ -259,9 +261,9 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
   }
 
   String _formatAmount(dynamic amount) {
-    if (amount == null) return 'TZS 0';
+    if (amount == null) return '${getActiveCurrency()} 0';
     final num = (amount is String ? double.tryParse(amount) : amount.toDouble()) ?? 0.0;
-    return 'TZS ${num.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
+    return '${getActiveCurrency()} ${num.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
   }
 
   Future<void> _downloadReport(String format) async {
@@ -439,13 +441,13 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Estimated Cost', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
                     const SizedBox(height: 6),
-                    _styledInput(estCtrl, 'TZS 0', keyboard: TextInputType.number),
+                    _styledInput(estCtrl, '${getActiveCurrency()} 0', keyboard: TextInputType.number),
                   ])),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Actual Cost', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
                     const SizedBox(height: 6),
-                    _styledInput(actCtrl, 'TZS 0', keyboard: TextInputType.number),
+                    _styledInput(actCtrl, '${getActiveCurrency()} 0', keyboard: TextInputType.number),
                   ])),
                 ]),
                 const SizedBox(height: 14),

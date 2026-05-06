@@ -1,3 +1,4 @@
+import '../../../core/widgets/nuru_refresh_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -767,7 +768,7 @@ class _EventMeetingsTabState extends State<EventMeetingsTab> {
     // Listen to locale changes
     context.watch<LocaleProvider>();
 
-    return RefreshIndicator(
+    return NuruRefreshIndicator(
       onRefresh: _loadMeetings,
       child: _loading
           ? const Center(child: CircularProgressIndicator())

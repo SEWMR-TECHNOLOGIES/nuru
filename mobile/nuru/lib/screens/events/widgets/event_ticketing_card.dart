@@ -1,3 +1,4 @@
+import '../../../core/utils/money_format.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/theme/app_colors.dart';
@@ -191,7 +192,7 @@ class EventTicketingCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 8),
                             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                              Text('TZS ${_formatPrice(tc.price)}',
+                              Text('${getActiveCurrency()} ${_formatPrice(tc.price)}',
                                 style: appText(size: 13.5, weight: FontWeight.w800, color: AppColors.primary)),
                               const SizedBox(height: 2),
                               Text('per ticket', style: appText(size: 10, color: AppColors.textTertiary)),

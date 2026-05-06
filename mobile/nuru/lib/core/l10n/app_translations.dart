@@ -1162,6 +1162,7 @@ class AppTranslations {
     'overview': {'en': 'Overview', 'sw': 'Muhtasari'},
     'checklist': {'en': 'Checklist', 'sw': 'Orodha'},
     'check_in': {'en': 'Check-In', 'sw': 'Check-In'},
+    'schedule': {'en': 'Schedule', 'sw': 'Ratiba'},
     'contribution_summary': {
       'en': 'Contribution Summary',
       'sw': 'Muhtasari wa Michango',

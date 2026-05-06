@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import 'api_base.dart';
@@ -35,23 +36,43 @@ class EventExtrasService {
     return ApiBase.getRaw('/users/verify-identity/status');
   }
 
+  static MediaType _ctFor(String path) {
+    final ext = path.toLowerCase().split('.').last;
+    switch (ext) {
+      case 'png': return MediaType('image', 'png');
+      case 'webp': return MediaType('image', 'webp');
+      case 'pdf': return MediaType('application', 'pdf');
+      case 'jpg':
+      case 'jpeg':
+      default: return MediaType('image', 'jpeg');
+    }
+  }
+
   static Future<Map<String, dynamic>> submitVerification({
-    required String documentType,
-    required String frontPath,
-    String? backPath,
+    String? documentNumber,
+    required String idFrontPath,
+    String? idBackPath,
     String? selfiePath,
   }) async {
     try {
       final uri = Uri.parse('$_baseUrl/users/verify-identity');
       final request = http.MultipartRequest('POST', uri);
       request.headers.addAll(await ApiBase.authOnlyHeaders());
-      request.fields['document_type'] = documentType;
-      request.files.add(await http.MultipartFile.fromPath('front_image', frontPath));
-      if (backPath != null) request.files.add(await http.MultipartFile.fromPath('back_image', backPath));
-      if (selfiePath != null) request.files.add(await http.MultipartFile.fromPath('selfie', selfiePath));
+      if (documentNumber != null && documentNumber.trim().isNotEmpty) {
+        request.fields['document_number'] = documentNumber.trim();
+      }
+      request.files.add(await http.MultipartFile.fromPath('id_front', idFrontPath, contentType: _ctFor(idFrontPath)));
+      if (idBackPath != null) {
+        request.files.add(await http.MultipartFile.fromPath('id_back', idBackPath, contentType: _ctFor(idBackPath)));
+      }
+      if (selfiePath != null) {
+        request.files.add(await http.MultipartFile.fromPath('selfie', selfiePath, contentType: _ctFor(selfiePath)));
+      }
       final streamedRes = await request.send();
       final body = await streamedRes.stream.bytesToString();
-      return jsonDecode(body);
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) return decoded;
+      return {'success': false, 'message': 'Unexpected response'};
     } catch (_) {
       return {'success': false, 'message': 'Unable to submit verification'};
     }

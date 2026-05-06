@@ -1,3 +1,4 @@
+import '../../core/widgets/nuru_refresh_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -231,7 +232,7 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: NuruSubPageAppBar(title: context.tr('my_moments')),
-      body: RefreshIndicator(
+      body: NuruRefreshIndicator(
         onRefresh: _load,
         color: AppColors.primary,
         child: _loading

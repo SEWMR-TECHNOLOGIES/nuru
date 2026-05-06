@@ -257,4 +257,42 @@ class UserServicesService {
       return {'success': false, 'message': 'Unable to fetch profile'};
     }
   }
+
+  // ─────────────────────────────────────────────────────────────
+  // Sponsor requests (vendor side)
+  // ─────────────────────────────────────────────────────────────
+  static Future<Map<String, dynamic>> getMySponsorRequests({String? status}) async {
+    try {
+      final qp = <String, String>{};
+      if (status != null && status.isNotEmpty && status != 'all') qp['status'] = status;
+      final uri = Uri.parse('$_baseUrl/sponsor-requests').replace(queryParameters: qp.isEmpty ? null : qp);
+      final res = await http.get(uri, headers: await _headers());
+      return _normalizeResponse(res, fallbackError: 'Unable to fetch sponsor requests');
+    } catch (e) {
+      return {'success': false, 'message': 'Unable to fetch sponsor requests'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> respondToSponsorRequest(
+    String sponsorId, {
+    required String action, // 'accept' | 'decline'
+    String? responseNote,
+    double? contributionAmount,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'action': action,
+        if (responseNote != null && responseNote.isNotEmpty) 'response_note': responseNote,
+        if (contributionAmount != null) 'contribution_amount': contributionAmount,
+      };
+      final res = await http.post(
+        Uri.parse('$_baseUrl/sponsor-requests/$sponsorId/respond'),
+        headers: await _headers(),
+        body: jsonEncode(body),
+      );
+      return _normalizeResponse(res, fallbackError: 'Unable to respond to sponsor request');
+    } catch (e) {
+      return {'success': false, 'message': 'Unable to respond to sponsor request'};
+    }
+  }
 }

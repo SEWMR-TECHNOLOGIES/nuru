@@ -1,3 +1,4 @@
+import '../../../core/widgets/nuru_refresh_indicator.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
@@ -198,7 +199,7 @@ class _EventRsvpTabState extends State<EventRsvpTab>
                     style: appText(size: 14, color: AppColors.textTertiary),
                   ),
                 )
-              : RefreshIndicator(
+              : NuruRefreshIndicator(
                   onRefresh: _load,
                   color: AppColors.primary,
                   child: ListView.builder(

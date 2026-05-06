@@ -1,3 +1,4 @@
+import '../../core/widgets/nuru_refresh_indicator.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -209,7 +210,7 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
         ),
         body: TabBarView(
           children: [
-            RefreshIndicator(
+            NuruRefreshIndicator(
               onRefresh: _load,
               color: AppColors.primary,
               child: _loading

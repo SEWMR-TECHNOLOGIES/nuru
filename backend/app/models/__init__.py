@@ -107,3 +107,5 @@ from models.event_groups import (
 )
 from models.contact import ContactMessage
 from models.event_messaging_templates import EventMessagingTemplate
+from models.app_version import AppVersionSetting
+from models.event_sponsors import EventSponsor

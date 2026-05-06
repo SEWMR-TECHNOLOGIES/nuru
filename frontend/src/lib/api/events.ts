@@ -95,6 +95,39 @@ export const eventsApi = {
   getMyPermissions: (eventId: string) => get<EventPermissions>(`/user-events/${eventId}/my-permissions`),
 
   /**
+   * Aggregated KPIs for the Event Management overview (tickets, revenue,
+   * contributions, sponsors). All numbers come from the backend — never
+   * hardcode values on the client.
+   */
+  getManagementOverview: (eventId: string) =>
+    get<{
+      is_ticketed: boolean;
+      kpis: { tickets_sold: number; tickets_capacity: number; total_revenue: number; contributions_count: number; days_to_go: number };
+      ticket_sales: { total_sold: number; total_capacity: number; classes: { id: string; name: string; price: number; quantity: number; sold: number; revenue: number }[] };
+      contribution_status: { paid_count: number; pledged_count: number; outstanding_count: number; paid_total: number; pledged_total: number };
+      revenue_summary: { total_revenue: number; tickets: number; contributions: number; sponsors: number; trend_pct: number | null; trend_window_days: number };
+      sponsors: { total: number; accepted: number; pending: number; declined: number; revenue: number };
+    }>(`/user-events/${eventId}/management-overview`),
+
+  // ============================================================================
+  // EVENT SPONSORS
+  // ============================================================================
+  listSponsors: (eventId: string) =>
+    get<{ items: any[]; summary: { total: number; accepted: number; pending: number; declined: number; contribution_total: number } }>(
+      `/user-events/${eventId}/sponsors`
+    ),
+  inviteSponsor: (eventId: string, data: { user_service_id: string; message?: string; contribution_amount?: number }) =>
+    post<any>(`/user-events/${eventId}/sponsors`, data),
+  cancelSponsor: (eventId: string, sponsorId: string) =>
+    del<any>(`/user-events/${eventId}/sponsors/${sponsorId}`),
+
+  // Vendor-side sponsor inbox
+  getMySponsorRequests: (status?: string) =>
+    get<{ items: any[]; pending_count: number }>(`/sponsor-requests${status ? `?status=${status}` : ''}`),
+  respondToSponsorRequest: (sponsorId: string, data: { action: 'accept' | 'decline'; response_note?: string; contribution_amount?: number }) =>
+    post<any>(`/sponsor-requests/${sponsorId}/respond`, data),
+
+  /**
    * Get a single event by ID
    */
   getById: (eventId: string) => get<Event>(`/user-events/${eventId}`),

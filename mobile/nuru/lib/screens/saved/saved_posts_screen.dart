@@ -1,3 +1,4 @@
+import '../../core/widgets/nuru_refresh_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -69,7 +70,7 @@ class _SavedPostsScreenState extends State<SavedPostsScreen> {
                     Text('Bookmark posts to see them here', style: _f(size: 12, color: AppColors.textHint)),
                   ],
                 ))
-              : RefreshIndicator(
+              : NuruRefreshIndicator(
                   onRefresh: _load,
                   color: AppColors.primary,
                   child: ListView.separated(

@@ -1,3 +1,4 @@
+import '../../core/widgets/nuru_refresh_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -108,7 +109,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> with SingleTicker
       );
     }
 
-    return RefreshIndicator(
+    return NuruRefreshIndicator(
       onRefresh: _load,
       color: AppColors.primary,
       child: ListView.builder(

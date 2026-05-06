@@ -259,7 +259,7 @@ def get_public_event(event_id: str, db: Session = Depends(get_db)):
 
     # Cache public event detail for 2 minutes (payload is anonymous-safe)
     from core.redis import cache_get, cache_set
-    cache_key = f"public_event:{event_id}"
+    cache_key = f"public_event:v4:{event_id}"
     cached = cache_get(cache_key)
     if cached is not None:
         return standard_response(True, "Event retrieved successfully", cached)
@@ -304,21 +304,35 @@ def get_public_event(event_id: str, db: Session = Depends(get_db)):
         ).limit(40).all()
         import random
         random.shuffle(attendees)
+        from models import UserProfile, UserSocialAccount
         user_ids = [a.attendee_id for a in attendees if a.attendee_id]
         users_by_id = {}
+        profiles_by_id = {}
+        social_by_id = {}
         if user_ids:
             for u in db.query(User).filter(User.id.in_(user_ids)).all():
                 users_by_id[str(u.id)] = u
+            for p in db.query(UserProfile).filter(UserProfile.user_id.in_(user_ids)).all():
+                profiles_by_id[str(p.user_id)] = p
+            for s in db.query(UserSocialAccount).filter(
+                UserSocialAccount.user_id.in_(user_ids),
+                UserSocialAccount.is_active == True,
+            ).all():
+                social_by_id.setdefault(str(s.user_id), s)
         avatars = []
         for a in attendees:
             if len(avatars) >= 8:
                 break
             if a.attendee_id and str(a.attendee_id) in users_by_id:
-                u = users_by_id[str(a.attendee_id)]
+                uid = str(a.attendee_id)
+                u = users_by_id[uid]
+                prof = profiles_by_id.get(uid)
+                soc = social_by_id.get(uid)
+                avatar_url = (prof.profile_picture_url if prof else None) or (soc.provider_avatar_url if soc else None)
                 avatars.append({
                     "id": str(u.id),
                     "name": f"{u.first_name or ''} {u.last_name or ''}".strip() or 'Guest',
-                    "avatar": getattr(u, "profile_picture_url", None) or getattr(u, "provider_avatar_url", None),
+                    "avatar": avatar_url,
                 })
             elif a.guest_name:
                 avatars.append({
@@ -326,6 +340,7 @@ def get_public_event(event_id: str, db: Session = Depends(get_db)):
                     "name": a.guest_name,
                     "avatar": None,
                 })
+        print(f"[public_event {event_id}] going_count={data.get('going_count')} avatars={len(avatars)} min_price={data.get('min_price')} currency={data.get('currency')} has_tickets={data.get('has_tickets')}")
         data["going_avatars"] = avatars
         # Always expose currency on event payload
         if not data.get("currency"):

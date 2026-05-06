@@ -18,8 +18,8 @@ from core.database import engine
 
 logger = logging.getLogger("nuru.query")
 
-ENABLED = os.getenv("QUERY_LOG_ENABLED", "true").lower() == "true"
-SLOW_THRESHOLD_MS = int(os.getenv("QUERY_LOG_SLOW_THRESHOLD_MS", "200"))
+ENABLED = os.getenv("QUERY_LOG_ENABLED", "false").lower() == "true"
+SLOW_THRESHOLD_MS = int(os.getenv("QUERY_LOG_SLOW_THRESHOLD_MS", "1500"))
 LOG_ALL = os.getenv("QUERY_LOG_ALL", "false").lower() == "true"
 
 

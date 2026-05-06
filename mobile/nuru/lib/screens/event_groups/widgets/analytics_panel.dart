@@ -1,3 +1,5 @@
+import '../../../core/widgets/nuru_refresh_indicator.dart';
+import '../../../core/utils/money_format.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -127,7 +129,7 @@ class _AnalyticsPanelState extends State<AnalyticsPanel> {
         ((b['paid'] as num?) ?? 0).compareTo(((a['paid'] as num?) ?? 0)));
     final topFive = top.take(5).toList();
 
-    return RefreshIndicator(
+    return NuruRefreshIndicator(
       color: AppColors.primary,
       onRefresh: () => _load(),
       child: ListView(
@@ -192,8 +194,8 @@ class _AnalyticsPanelState extends State<AnalyticsPanel> {
     final items = [
       _Kpi('Collection rate', '${collectionRate.toStringAsFixed(0)}%', AppColors.primary, Icons.trending_up_rounded),
       _Kpi('Completion', '${completionPct.toStringAsFixed(0)}%', AppColors.success, Icons.check_circle_outline),
-      _Kpi('Avg. pledge', 'TZS ${_money(avgPledge)}', AppColors.info, Icons.flag_outlined),
-      _Kpi('Avg. paid', 'TZS ${_money(avgPaid)}', AppColors.warning, Icons.payments_outlined),
+      _Kpi('Avg. pledge', '${getActiveCurrency()} ${_money(avgPledge)}', AppColors.info, Icons.flag_outlined),
+      _Kpi('Avg. paid', '${getActiveCurrency()} ${_money(avgPaid)}', AppColors.warning, Icons.payments_outlined),
     ];
 
     return GridView.count(
@@ -357,7 +359,7 @@ class _AnalyticsPanelState extends State<AnalyticsPanel> {
           Container(width: 10, height: 10, decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(2))),
           const SizedBox(width: 8),
           Expanded(child: Text(label, style: GoogleFonts.inter(fontSize: 12, color: AppColors.textPrimary))),
-          Text('TZS ${_money(v)}',
+          Text('${getActiveCurrency()} ${_money(v)}',
               style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: c)),
         ],
       );
@@ -391,7 +393,7 @@ class _AnalyticsPanelState extends State<AnalyticsPanel> {
                 style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary)),
           ]),
         ),
-        Text('TZS ${_money(paid)}',
+        Text('${getActiveCurrency()} ${_money(paid)}',
             style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: AppColors.primary, fontSize: 12)),
       ]),
     );

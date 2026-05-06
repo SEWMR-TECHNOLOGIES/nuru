@@ -1,3 +1,4 @@
+import '../../../core/widgets/nuru_refresh_indicator.dart';
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/events_service.dart';
@@ -79,7 +80,7 @@ class _EventChecklistTabState extends State<EventChecklistTab> with AutomaticKee
 
     final progress = (_summary['progress_percentage'] ?? 0).toDouble() / 100.0;
 
-    return RefreshIndicator(
+    return NuruRefreshIndicator(
       onRefresh: _load,
       color: AppColors.primary,
       child: ListView(

@@ -488,6 +488,29 @@ class EventsService {
     int page = 1,
     int limit = 50,
   }) => EventFinanceService.getContributions(eventId, page: page, limit: limit);
+
+  static Future<Map<String, dynamic>> getRecentActivity(
+    String eventId, {
+    int limit = 10,
+  }) => ApiBase.get('/user-events/$eventId/recent-activity', queryParams: {'limit': '$limit'});
+
+  /// Unified Event Management overview — KPIs, ticket sales, contribution
+  /// status, revenue summary and sponsor totals in a single call. The
+  /// numbers are authoritative — never recompute or hardcode them on the client.
+  static Future<Map<String, dynamic>> getManagementOverview(String eventId) =>
+      ApiBase.getRaw('/user-events/$eventId/management-overview');
+
+  // ── Event sponsors ──
+  static Future<Map<String, dynamic>> getSponsors(String eventId) =>
+      ApiBase.getRaw('/user-events/$eventId/sponsors');
+  static Future<Map<String, dynamic>> inviteSponsor(
+    String eventId,
+    Map<String, dynamic> body,
+  ) => ApiBase.postRaw('/user-events/$eventId/sponsors', body);
+  static Future<Map<String, dynamic>> cancelSponsor(
+    String eventId,
+    String sponsorId,
+  ) => ApiBase.deleteRaw('/user-events/$eventId/sponsors/$sponsorId');
   static Future<Map<String, dynamic>> addContribution(
     String eventId,
     Map<String, dynamic> data,
@@ -555,14 +578,14 @@ class EventsService {
   static Future<Map<String, dynamic>> getVerificationStatus() =>
       EventExtrasService.getVerificationStatus();
   static Future<Map<String, dynamic>> submitVerification({
-    required String documentType,
-    required String frontPath,
-    String? backPath,
+    String? documentNumber,
+    required String idFrontPath,
+    String? idBackPath,
     String? selfiePath,
   }) => EventExtrasService.submitVerification(
-    documentType: documentType,
-    frontPath: frontPath,
-    backPath: backPath,
+    documentNumber: documentNumber,
+    idFrontPath: idFrontPath,
+    idBackPath: idBackPath,
     selfiePath: selfiePath,
   );
   static Future<Map<String, dynamic>> searchUsers(

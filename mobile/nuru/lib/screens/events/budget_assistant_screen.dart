@@ -1,3 +1,4 @@
+import '../../core/utils/money_format.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -74,7 +75,7 @@ class _BudgetAssistantScreenState extends State<BudgetAssistantScreen> {
     if (widget.eventTitle != null) parts.add('Event name: ${widget.eventTitle}');
     if (widget.location != null) parts.add('Location: ${widget.location}');
     if (widget.expectedGuests != null) parts.add('Expected guests: ${widget.expectedGuests}');
-    if (widget.budget != null) parts.add('Current budget: TZS ${widget.budget}');
+    if (widget.budget != null) parts.add('Current budget: ${getActiveCurrency()} ${widget.budget}');
 
     final name = widget.firstName ?? 'there';
     return '''You are the Nuru Budget Assistant — an expert event budget planner for Tanzania.
@@ -316,7 +317,7 @@ BUDGET FORMAT (when generating):
                 if (_extractedTotal != null && widget.onSaveBudget != null)
                   _actionChip(
                     icon: Icons.savings_rounded,
-                    label: 'Set Budget: TZS ${_extractedTotal}',
+                    label: 'Set Budget: ${getActiveCurrency()} ${_extractedTotal}',
                     color: _green,
                     onTap: () {
                       widget.onSaveBudget!(_extractedTotal!);

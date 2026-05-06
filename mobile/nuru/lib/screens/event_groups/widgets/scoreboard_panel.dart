@@ -1,3 +1,4 @@
+import '../../../core/widgets/nuru_refresh_indicator.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -124,7 +125,7 @@ class _ScoreboardPanelState extends State<ScoreboardPanel> {
     final rest = _rows;
     final rate = (_summary?['collection_rate'] ?? 0).toDouble();
 
-    return RefreshIndicator(
+    return NuruRefreshIndicator(
       onRefresh: _load,
       color: AppColors.primary,
       child: ListView(

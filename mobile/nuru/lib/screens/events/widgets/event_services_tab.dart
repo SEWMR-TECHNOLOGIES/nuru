@@ -1,3 +1,5 @@
+import '../../../core/widgets/nuru_refresh_indicator.dart';
+import '../../../core/utils/money_format.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
@@ -155,7 +157,7 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
     super.build(context);
     if (_loading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
 
-    return RefreshIndicator(
+    return NuruRefreshIndicator(
       onRefresh: _loadAssigned,
       color: AppColors.primary,
       child: ListView(
@@ -276,7 +278,7 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
         s['service_id']?.toString() == serviceId ||
         s['provider_service_id']?.toString() == serviceId ||
         s['provider_user_service_id']?.toString() == serviceId);
-    final price = service['price_display'] ?? (service['min_price'] != null ? 'TZS ${_formatNum(service['min_price'])}' : null);
+    final price = service['price_display'] ?? (service['min_price'] != null ? '${getActiveCurrency()} ${_formatNum(service['min_price'])}' : null);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -430,7 +432,7 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
             // Price + rating row
             Row(children: [
               if (price != null)
-                Text('TZS ${_formatNum(price)}', style: appText(size: 12, weight: FontWeight.w800, color: AppColors.primary)),
+                Text('${getActiveCurrency()} ${_formatNum(price)}', style: appText(size: 12, weight: FontWeight.w800, color: AppColors.primary)),
               if (price != null && rating != null) const SizedBox(width: 8),
               if (rating != null) ...[
                 const Icon(Icons.star_rounded, size: 12, color: Color(0xFFF59E0B)),

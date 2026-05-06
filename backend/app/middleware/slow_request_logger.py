@@ -25,7 +25,8 @@ if not log.handlers:
     log.addHandler(h)
     log.setLevel(logging.INFO)
 
-SLOW_THRESHOLD_MS = int(os.getenv("SLOW_REQUEST_THRESHOLD_MS", "500"))
+SLOW_THRESHOLD_MS = int(os.getenv("SLOW_REQUEST_THRESHOLD_MS", "3000"))
+LOG_SLOW_REQUESTS = os.getenv("LOG_SLOW_REQUESTS", "false").lower() == "true"
 SAMPLE_RETENTION_SECONDS = 3600  # keep 1 hour of samples
 REDIS_KEY = "perf:samples"  # sorted set: score = timestamp, member = json sample
 
@@ -124,7 +125,7 @@ class SlowRequestLoggerMiddleware(BaseHTTPMiddleware):
         except Exception:
             pass
 
-        if duration_ms >= SLOW_THRESHOLD_MS:
+        if LOG_SLOW_REQUESTS and duration_ms >= SLOW_THRESHOLD_MS:
             try:
                 log.warning(
                     "SLOW %s %s -> %d in %.0fms",

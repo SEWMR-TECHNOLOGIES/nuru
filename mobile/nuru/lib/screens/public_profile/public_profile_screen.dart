@@ -1,3 +1,4 @@
+import '../../core/widgets/nuru_refresh_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -71,7 +72,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       appBar: NuruSubPageAppBar(title: name.isNotEmpty ? name : '@$username'),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-          : RefreshIndicator(
+          : NuruRefreshIndicator(
               onRefresh: _load,
               color: AppColors.primary,
               child: ListView(

@@ -1,3 +1,4 @@
+import '../../core/widgets/nuru_refresh_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
@@ -91,7 +92,7 @@ class _WalletScreenState extends State<WalletScreen>
       ),
       body: Consumer<WalletProvider>(
         builder: (context, p, _) {
-          return RefreshIndicator(
+          return NuruRefreshIndicator(
             onRefresh: p.refresh,
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),

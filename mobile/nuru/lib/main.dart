@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'core/theme/app_theme.dart';
 import 'core/services/deep_link_service.dart';
+import 'core/services/app_update_service.dart';
 import 'core/services/incoming_call_service.dart';
 import 'core/services/push_notification_service.dart';
 import 'providers/auth_provider.dart';
@@ -71,6 +72,8 @@ class _NuruAppState extends State<NuruApp> {
       PushNotificationService.instance
           .initialise(navigatorKey: NuruApp.navigatorKey)
           .then((_) => PushNotificationService.instance.registerWithBackend());
+      final context = NuruApp.navigatorKey.currentContext;
+      if (context != null) AppUpdateService.checkAndPrompt(context);
     });
   }
 
