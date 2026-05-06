@@ -1,3 +1,4 @@
+import '../../core/widgets/nuru_refresh_indicator.dart';
 import 'package:nuru/core/utils/money_format.dart' show getActiveCurrency;
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -146,7 +147,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
   }
 
   Widget _ticketsTab() {
-    return RefreshIndicator(
+    return NuruRefreshIndicator(
       onRefresh: _load,
       color: AppColors.primary,
       child: _loading
@@ -475,7 +476,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
                               Text(ticketClassName, style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary)),
                             if (quantity is int && quantity > 1)
                               Text('×$quantity', style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary)),
-                            Text('TZS ${_formatAmount(totalAmount)}',
+                            Text('${getActiveCurrency()} ${_formatAmount(totalAmount)}',
                                 style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                           ],
                         ),

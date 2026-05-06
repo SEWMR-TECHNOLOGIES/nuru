@@ -25,9 +25,11 @@ from models import (
     ContributionThankYouMessage, UserContributor,
     EventInvitation, EventAttendee, EventGuestPlusOne,
     EventService, EventServicePayment, EventScheduleItem, EventBudgetItem,
-    Currency, User, UserProfile, ServiceType, UserService,
+    EventExpense, EventTicket, EventTicketClass,
+    Currency, User, UserProfile, UserSocialAccount, ServiceType, UserService,
     EventServiceStatusEnum, EventStatusEnum, PaymentMethodEnum, RSVPStatusEnum,
-    GuestTypeEnum, EventTypeService, ServicePackage,
+    GuestTypeEnum, EventTypeService, ServicePackage, TicketOrderStatusEnum,
+    EventSponsor,
 )
 from utils.auth import get_current_user
 from utils.helpers import format_price, standard_response, format_phone_display
@@ -78,6 +80,93 @@ def _currency_code(db: Session, currency_id) -> str | None:
         return None
     cur = db.query(Currency).filter(Currency.id == currency_id).first()
     return cur.code.strip() if cur else None
+
+
+def _event_currency_code(db: Session, event: Event) -> str:
+    code = _currency_code(db, event.currency_id)
+    if code:
+        return code.upper()
+    profile = db.query(UserProfile).filter(UserProfile.user_id == event.organizer_id).first()
+    profile_code = (profile.currency_code or "").strip().upper() if profile else ""
+    return profile_code or "TZS"
+
+
+def _public_event_detail_extras(db: Session, event: Event) -> dict:
+    extras = {"currency": _event_currency_code(db, event), "going_count": 0, "going_avatars": []}
+    ticket_classes = db.query(EventTicketClass).filter(EventTicketClass.event_id == event.id).all()
+    if ticket_classes or event.sells_tickets:
+        sold_by_class = {}
+        if ticket_classes:
+            for class_id, qty in db.query(
+                EventTicket.ticket_class_id,
+                sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0),
+            ).filter(
+                EventTicket.event_id == event.id,
+                EventTicket.status.notin_([TicketOrderStatusEnum.rejected, TicketOrderStatusEnum.cancelled]),
+            ).group_by(EventTicket.ticket_class_id).all():
+                sold_by_class[class_id] = int(qty or 0)
+        prices = [float(tc.price) for tc in ticket_classes if tc.price is not None]
+        extras.update({
+            "has_tickets": True,
+            "min_price": min(prices) if prices else None,
+            "ticket_class_count": len(ticket_classes),
+            "total_available": sum(max(0, int(tc.quantity or 0) - sold_by_class.get(tc.id, 0)) for tc in ticket_classes),
+        })
+
+    confirmed_statuses = [RSVPStatusEnum.confirmed, RSVPStatusEnum.checked_in]
+    attendees = db.query(EventAttendee).filter(
+        EventAttendee.event_id == event.id,
+        EventAttendee.rsvp_status.in_(confirmed_statuses),
+    ).order_by(EventAttendee.updated_at.desc(), EventAttendee.created_at.desc()).limit(40).all()
+    extras["going_count"] = db.query(sa_func.count(EventAttendee.id)).filter(
+        EventAttendee.event_id == event.id,
+        EventAttendee.rsvp_status.in_(confirmed_statuses),
+    ).scalar() or 0
+
+    invitation_ids = [a.invitation_id for a in attendees if a.invitation_id]
+    invitations = {i.id: i for i in db.query(EventInvitation).filter(EventInvitation.id.in_(invitation_ids)).all()} if invitation_ids else {}
+    user_ids = {a.attendee_id for a in attendees if a.attendee_id}
+    user_ids |= {i.invited_user_id for i in invitations.values() if i.invited_user_id}
+    contributor_ids = {a.contributor_id for a in attendees if a.contributor_id}
+    contributor_ids |= {i.contributor_id for i in invitations.values() if i.contributor_id}
+    users = {u.id: u for u in db.query(User).filter(User.id.in_(list(user_ids))).all()} if user_ids else {}
+    profiles = {p.user_id: p for p in db.query(UserProfile).filter(UserProfile.user_id.in_(list(user_ids))).all()} if user_ids else {}
+    socials = {}
+    if user_ids:
+        for s in db.query(UserSocialAccount).filter(UserSocialAccount.user_id.in_(list(user_ids)), UserSocialAccount.is_active == True).all():
+            socials.setdefault(s.user_id, s)
+    contributors = {c.id: c for c in db.query(UserContributor).filter(UserContributor.id.in_(list(contributor_ids))).all()} if contributor_ids else {}
+
+    avatars = []
+    seen = set()
+    for att in attendees:
+        if len(avatars) >= 8:
+            break
+        inv = invitations.get(att.invitation_id) if att.invitation_id else None
+        uid = att.attendee_id or (inv.invited_user_id if inv else None)
+        cid = att.contributor_id or (inv.contributor_id if inv else None)
+        if uid and uid in users:
+            user = users[uid]
+            profile = profiles.get(uid)
+            social = socials.get(uid)
+            name = f"{user.first_name or ''} {user.last_name or ''}".strip() or user.username or "Guest"
+            key = f"user:{uid}"
+            avatar = (profile.profile_picture_url if profile else None) or (social.provider_avatar_url if social else None)
+        elif cid and cid in contributors:
+            contributor = contributors[cid]
+            name = contributor.name or att.guest_name or (inv.guest_name if inv else None) or "Guest"
+            key = f"contributor:{cid}"
+            avatar = None
+        else:
+            name = att.guest_name or (inv.guest_name if inv else None) or "Guest"
+            key = f"guest:{att.id}"
+            avatar = None
+        if key in seen:
+            continue
+        seen.add(key)
+        avatars.append({"id": key.split(":", 1)[1], "name": name, "avatar": avatar})
+    extras["going_avatars"] = avatars
+    return extras
 
 
 def _event_images(db: Session, event_id) -> list[dict]:
@@ -310,7 +399,145 @@ def get_my_permissions(
 
 
 # ──────────────────────────────────────────────
-# Get All User Events
+# Management Overview — aggregated KPIs for the Event Management dashboard
+# ──────────────────────────────────────────────
+@router.get("/{event_id}/management-overview")
+def get_management_overview(
+    event_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Returns Event Overview KPIs, ticket sales breakdown, revenue summary,
+    contribution status and sponsor totals — all derived from real data."""
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID format.")
+
+    event = db.query(Event).filter(Event.id == eid).first()
+    if not event:
+        return standard_response(False, "Event not found")
+
+    # ── Ticket sales (per class)
+    classes = db.query(EventTicketClass).filter(EventTicketClass.event_id == eid).order_by(EventTicketClass.display_order).all()
+    ticket_classes_payload = []
+    tickets_sold = 0
+    tickets_capacity = 0
+    ticket_revenue = 0.0
+    for tc in classes:
+        sold_q = db.query(
+            sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0),
+            sa_func.coalesce(sa_func.sum(EventTicket.total_amount), 0),
+        ).filter(
+            EventTicket.ticket_class_id == tc.id,
+            EventTicket.status.notin_([TicketOrderStatusEnum.rejected, TicketOrderStatusEnum.cancelled]),
+        ).first()
+        sold = int(sold_q[0] or 0)
+        rev = float(sold_q[1] or 0)
+        tickets_sold += sold
+        tickets_capacity += tc.quantity or 0
+        ticket_revenue += rev
+        ticket_classes_payload.append({
+            "id": str(tc.id), "name": tc.name,
+            "price": float(tc.price), "quantity": tc.quantity,
+            "sold": sold, "revenue": rev,
+        })
+
+    # ── Contribution totals (paid + pledged)
+    paid_total = float(db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(
+        EventContribution.event_id == eid,
+        EventContribution.confirmation_status == "confirmed",
+    ).scalar() or 0)
+    paid_count = int(db.query(sa_func.count(EventContribution.id)).filter(
+        EventContribution.event_id == eid,
+        EventContribution.confirmation_status == "confirmed",
+    ).scalar() or 0)
+    pledged_total = float(db.query(sa_func.coalesce(sa_func.sum(EventContributor.pledge_amount), 0)).filter(
+        EventContributor.event_id == eid,
+    ).scalar() or 0)
+    pledged_count = int(db.query(sa_func.count(EventContributor.id)).filter(
+        EventContributor.event_id == eid,
+    ).scalar() or 0)
+
+    # ── Sponsors
+    sponsors = db.query(EventSponsor).filter(EventSponsor.event_id == eid).all()
+    sponsor_revenue = sum(float(s.contribution_amount or 0) for s in sponsors if s.status == "accepted")
+    sponsor_summary = {
+        "total": len(sponsors),
+        "accepted": sum(1 for s in sponsors if s.status == "accepted"),
+        "pending": sum(1 for s in sponsors if s.status == "pending"),
+        "declined": sum(1 for s in sponsors if s.status == "declined"),
+        "revenue": sponsor_revenue,
+    }
+
+    # ── Days to go
+    days_to_go = 0
+    if event.start_date:
+        delta = (event.start_date - datetime.utcnow().date()).days if hasattr(event.start_date, 'year') else 0
+        days_to_go = max(0, delta)
+
+    # ── Revenue trend vs previous 7 days (tickets only — confirmed contributions also)
+    from datetime import timedelta
+    now = datetime.utcnow()
+    last7_start = now - timedelta(days=7)
+    prev7_start = now - timedelta(days=14)
+    def _rev_window(start, end):
+        t = float(db.query(sa_func.coalesce(sa_func.sum(EventTicket.total_amount), 0)).filter(
+            EventTicket.event_id == eid,
+            EventTicket.status.notin_([TicketOrderStatusEnum.rejected, TicketOrderStatusEnum.cancelled]),
+            EventTicket.created_at >= start, EventTicket.created_at < end,
+        ).scalar() or 0)
+        c = float(db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0)).filter(
+            EventContribution.event_id == eid,
+            EventContribution.confirmation_status == "confirmed",
+            EventContribution.created_at >= start, EventContribution.created_at < end,
+        ).scalar() or 0)
+        return t + c
+    last7 = _rev_window(last7_start, now)
+    prev7 = _rev_window(prev7_start, last7_start)
+    trend_pct = None
+    if prev7 > 0:
+        trend_pct = round(((last7 - prev7) / prev7) * 100)
+    elif last7 > 0:
+        trend_pct = 100
+
+    total_revenue = ticket_revenue + paid_total + sponsor_revenue
+    is_ticketed = bool(event.sells_tickets) and len(classes) > 0
+
+    return standard_response(True, "Overview retrieved", {
+        "is_ticketed": is_ticketed,
+        "kpis": {
+            "tickets_sold": tickets_sold,
+            "tickets_capacity": tickets_capacity,
+            "total_revenue": total_revenue,
+            "contributions_count": pledged_count or paid_count,
+            "days_to_go": days_to_go,
+        },
+        "ticket_sales": {
+            "total_sold": tickets_sold,
+            "total_capacity": tickets_capacity,
+            "classes": ticket_classes_payload,
+        },
+        "contribution_status": {
+            "paid_count": paid_count,
+            "pledged_count": pledged_count,
+            "outstanding_count": max(0, pledged_count - paid_count),
+            "paid_total": paid_total,
+            "pledged_total": pledged_total,
+        },
+        "revenue_summary": {
+            "total_revenue": total_revenue,
+            "tickets": ticket_revenue,
+            "contributions": paid_total,
+            "sponsors": sponsor_revenue,
+            "trend_pct": trend_pct,
+            "trend_window_days": 7,
+        },
+        "sponsors": sponsor_summary,
+    })
+
+
+
 # ──────────────────────────────────────────────
 @router.get("/")
 def get_all_user_events(
@@ -746,10 +973,33 @@ def get_event(
     if not is_owner and not is_committee and not is_invited and not event.is_public:
         return standard_response(False, "You do not have permission to view this event")
 
-    # ── Build essential summary (10 batched queries via build_event_summaries) ──
+    # ── Build essential summary (cached for 60s to absorb burst traffic) ──
     from utils.batch_loaders import build_event_summaries
-    summaries = build_event_summaries(db, [event])
-    data = summaries[0] if summaries else _event_summary(db, event)
+    try:
+        from core.redis import cache_get, cache_set
+    except Exception:
+        cache_get = cache_set = None
+
+    cache_key = f"event_essential:v2:{event_id}"
+    data = None
+    if cache_get is not None:
+        try:
+            cached = cache_get(cache_key)
+            if cached:
+                data = dict(cached)
+        except Exception:
+            data = None
+
+    if data is None:
+        summaries = build_event_summaries(db, [event])
+        data = summaries[0] if summaries else _event_summary(db, event)
+        data.update(_public_event_detail_extras(db, event))
+        if cache_set is not None:
+            try:
+                cache_set(cache_key, data, ttl=60)
+            except Exception:
+                pass
+
     data["viewer_role"] = viewer_role
     data["is_creator"] = is_owner
     data["is_committee"] = is_committee
@@ -1376,6 +1626,7 @@ async def update_event(
     try:
         from core.redis import cache_delete, cache_delete_pattern
         cache_delete(f"public_event:{event_id}")
+        cache_delete(f"event_essential:v2:{event_id}")
         cache_delete_pattern("events:featured:*")
         cache_delete_pattern("events:nearby:*")
         cache_delete_pattern("events:search:*")
@@ -1422,6 +1673,7 @@ def delete_event(event_id: str, db: Session = Depends(get_db), current_user: Use
     try:
         from core.redis import cache_delete, cache_delete_pattern
         cache_delete(f"public_event:{event_id}")
+        cache_delete(f"event_essential:v2:{event_id}")
         cache_delete_pattern("events:featured:*")
         cache_delete_pattern("events:nearby:*")
         cache_delete_pattern("events:search:*")
@@ -1478,6 +1730,7 @@ def update_event_status(event_id: str, body: dict = Body(...), db: Session = Dep
     try:
         from core.redis import cache_delete, cache_delete_pattern
         cache_delete(f"public_event:{event_id}")
+        cache_delete(f"event_essential:v2:{event_id}")
         cache_delete_pattern("events:featured:*")
         cache_delete_pattern("events:nearby:*")
         cache_delete_pattern("events:search:*")
@@ -2883,6 +3136,111 @@ def update_contribution_target(event_id: str, body: dict = Body(...), db: Sessio
                     sms_contribution_target_set(cuser.phone, f"{cuser.first_name}", event.name, target_val, total_paid, currency, organizer_phone=organizer_phone)
 
     return standard_response(True, "Contribution target updated successfully")
+
+
+# ──────────────────────────────────────────────
+# RECENT ACTIVITY (Event Management overview feed)
+# ──────────────────────────────────────────────
+
+@router.get("/{event_id}/recent-activity")
+def get_recent_activity(event_id: str, limit: int = 10, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Returns a unified, time-ordered activity feed for the event management overview.
+    Includes contributions (pledges/payments), ticket purchases, expenses, RSVPs, and service updates.
+    """
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID format.")
+
+    event = db.query(Event).filter(Event.id == eid).first()
+    if not event:
+        return standard_response(False, "Event not found")
+
+    items: list[dict] = []
+
+    def _name_for_user(uid):
+        if not uid:
+            return None
+        u = db.query(User).filter(User.id == uid).first()
+        if not u:
+            return None
+        full = f"{u.first_name or ''} {u.last_name or ''}".strip()
+        return full or u.username or None
+
+    # Contributions — distinguish pledge vs payment using payment_method/status
+    try:
+        contribs = db.query(EventContribution).filter(EventContribution.event_id == eid).order_by(EventContribution.created_at.desc()).limit(limit).all()
+        for c in contribs:
+            status = (c.confirmation_status.value if hasattr(c.confirmation_status, 'value') else str(c.confirmation_status or '')).lower()
+            is_payment = bool(c.payment_method) or status == 'confirmed'
+            verb = 'paid' if is_payment else 'pledged'
+            items.append({
+                'type': 'contribution',
+                'subtype': 'payment' if is_payment else 'pledge',
+                'actor_name': c.contributor_name or 'A contributor',
+                'title': f"{c.contributor_name or 'A contributor'} {verb}",
+                'amount': float(c.amount or 0),
+                'time': (c.created_at or c.contributed_at).isoformat() if (c.created_at or c.contributed_at) else None,
+            })
+    except Exception:
+        pass
+
+    # Ticket purchases
+    try:
+        tickets = db.query(EventTicket).filter(EventTicket.event_id == eid).order_by(EventTicket.created_at.desc()).limit(limit).all()
+        for t in tickets:
+            buyer = t.buyer_name or _name_for_user(t.buyer_user_id) or 'A guest'
+            items.append({
+                'type': 'ticket',
+                'subtype': 'purchase',
+                'actor_name': buyer,
+                'title': f"{buyer} bought {t.quantity or 1} ticket(s)",
+                'amount': float(t.total_amount or 0),
+                'time': t.created_at.isoformat() if t.created_at else None,
+            })
+    except Exception:
+        pass
+
+    # Expenses
+    try:
+        expenses = db.query(EventExpense).filter(EventExpense.event_id == eid).order_by(EventExpense.created_at.desc()).limit(limit).all()
+        for e in expenses:
+            recorder = _name_for_user(e.recorded_by) or 'Organiser'
+            items.append({
+                'type': 'expense',
+                'subtype': 'recorded',
+                'actor_name': recorder,
+                'title': f"{recorder} recorded expense: {e.description or e.category or 'Expense'}",
+                'amount': float(e.amount or 0),
+                'time': e.created_at.isoformat() if e.created_at else None,
+            })
+    except Exception:
+        pass
+
+    # RSVPs (confirmed)
+    try:
+        rsvps = db.query(EventAttendee).filter(EventAttendee.event_id == eid, EventAttendee.rsvp_status == RSVPStatusEnum.confirmed).order_by(EventAttendee.updated_at.desc()).limit(limit).all()
+        for a in rsvps:
+            who = a.guest_name or _name_for_user(a.attendee_id) or 'A guest'
+            items.append({
+                'type': 'rsvp',
+                'subtype': 'confirmed',
+                'actor_name': who,
+                'title': f"{who} confirmed attendance",
+                'amount': None,
+                'time': (a.updated_at or a.created_at).isoformat() if (a.updated_at or a.created_at) else None,
+            })
+    except Exception:
+        pass
+
+    # Sort by time desc and trim
+    items.sort(key=lambda x: x.get('time') or '', reverse=True)
+    items = items[:limit]
+
+    return standard_response(True, "Recent activity retrieved", {
+        'items': items,
+        'currency': _currency_code(db, event.currency_id) or 'TZS',
+    })
 
 
 # ──────────────────────────────────────────────

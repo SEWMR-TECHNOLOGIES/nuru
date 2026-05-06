@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
+import '../utils/money_format.dart' as _money;
 
 TextStyle appText({
   required double size,
@@ -28,9 +29,16 @@ String extractStr(dynamic v, {String fallback = ''}) {
   return v.toString();
 }
 
-String formatTZS(dynamic amount) {
-  if (amount == null) return 'TZS 0';
+/// Formats an amount with the active user currency (or [currency] override).
+/// Name kept for backward compatibility — no longer hardcoded to TZS.
+String formatTZS(dynamic amount, {String? currency}) {
+  final code = (currency != null && currency.trim().isNotEmpty)
+      ? currency.trim().toUpperCase()
+      : _activeCurrencyOrDefault();
+  if (amount == null) return '$code 0';
   final n =
       (amount is String ? double.tryParse(amount) : amount.toDouble()) ?? 0.0;
-  return 'TZS ${n.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
+  return '$code ${n.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
 }
+
+String _activeCurrencyOrDefault() => _money.getActiveCurrency();

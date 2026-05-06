@@ -44,6 +44,7 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { PillTabsNav } from '@/components/ui/pill-tabs';
 import { useMyBookings, useIncomingBookings } from '@/data/useBookings';
 import CancelBookingDialog from './CancelBookingDialog';
+import SponsorRequestsTab from './SponsorRequestsTab';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -89,7 +90,7 @@ const BookingListSkeleton = () => (
 const BookingList = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'my' | 'incoming'>('my');
+  const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'sponsorships'>('my');
   
   return (
     <div className="space-y-6">
@@ -98,13 +99,14 @@ const BookingList = () => {
         <p className="text-muted-foreground mt-1">Manage your service bookings</p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'my' | 'incoming')}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
         <PillTabsNav
           activeTab={activeTab}
-          onTabChange={(v) => setActiveTab(v as 'my' | 'incoming')}
+          onTabChange={(v) => setActiveTab(v as any)}
           tabs={[
             { value: 'my', label: 'My Bookings' },
             { value: 'incoming', label: 'Incoming Requests' },
+            { value: 'sponsorships', label: 'Sponsorships' },
           ]}
         />
         <TabsContent value="my" className="mt-2">
@@ -112,6 +114,9 @@ const BookingList = () => {
         </TabsContent>
         <TabsContent value="incoming" className="mt-2">
           <IncomingBookingsTab />
+        </TabsContent>
+        <TabsContent value="sponsorships" className="mt-2">
+          <SponsorRequestsTab />
         </TabsContent>
       </Tabs>
     </div>

@@ -1,3 +1,5 @@
+import '../../core/widgets/nuru_refresh_indicator.dart';
+import '../../core/utils/money_format.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -172,7 +174,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
     if (p == null) return 'Price on request';
     final n = (p is num) ? p.toInt() : (int.tryParse(p.toString().replaceAll(RegExp(r'[^\d]'), '')) ?? 0);
     if (n == 0) return '—';
-    return 'TZS ${n.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
+    return '${getActiveCurrency()} ${n.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
   }
 
   @override
@@ -204,7 +206,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
 
     return Scaffold(
       backgroundColor: _bg,
-      body: RefreshIndicator(
+      body: NuruRefreshIndicator(
         onRefresh: _load,
         color: _gold,
         child: CustomScrollView(slivers: [

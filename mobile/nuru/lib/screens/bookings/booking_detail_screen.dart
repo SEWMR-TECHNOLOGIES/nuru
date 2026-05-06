@@ -1,3 +1,4 @@
+import '../../core/widgets/nuru_refresh_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:google_fonts/google_fonts.dart';
@@ -80,7 +81,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
           ? _skeleton()
           : _error != null
               ? _errorView()
-              : RefreshIndicator(
+              : NuruRefreshIndicator(
                   color: AppColors.primary,
                   onRefresh: _load,
                   child: ListView(

@@ -1,3 +1,4 @@
+import '../../core/utils/money_format.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -5,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/text_styles.dart';
 import '../../core/services/ticketing_service.dart';
+import '../../core/widgets/nuru_loader.dart';
 import '../wallet/checkout_sheet.dart';
 
 /// Full-screen ticket selection page (replaces the old bottom sheet).
@@ -83,7 +85,8 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
   }
 
   int get _totalQty => _quantities.values.fold(0, (a, b) => a + b);
-  double get _grandTotal => _subtotal == 0 ? 0 : _subtotal + _serviceFee;
+  double get _feeTotal => _subtotal == 0 ? 0 : _serviceFee;
+  double get _grandTotal => _subtotal == 0 ? 0 : _subtotal + _feeTotal;
 
   Future<void> _proceed() async {
     if (_totalQty == 0 || _purchasing) return;
@@ -143,15 +146,15 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
         systemNavigationBarColor: AppColors.surface,
       ),
       child: Scaffold(
-        backgroundColor: AppColors.surface,
+        backgroundColor: const Color(0xFFFAFAFA),
         appBar: _appBar(),
         body: _loading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+            ? const Center(child: NuruLoader(size: 42))
             : Column(
                 children: [
                   Expanded(
                     child: ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                       children: [
                         _eventCard(),
                         const SizedBox(height: 18),
@@ -170,7 +173,8 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
                             decoration: BoxDecoration(
                               color: AppColors.surface,
                               border: Border.all(color: AppColors.borderLight),
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: AppColors.cardShadow,
                             ),
                             child: Column(
                               children: [
@@ -181,10 +185,8 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
                               ],
                             ),
                           ),
-                        if (_totalQty > 0) ...[
-                          const SizedBox(height: 18),
-                          _orderSummary(),
-                        ],
+                        const SizedBox(height: 18),
+                        _orderSummary(),
                         const SizedBox(height: 16),
                       ],
                     ),
@@ -197,29 +199,43 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
   }
 
   PreferredSizeWidget _appBar() {
-    return AppBar(
-      backgroundColor: AppColors.surface,
-      surfaceTintColor: AppColors.surface,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      centerTitle: true,
-      systemOverlayStyle: SystemUiOverlayStyle.dark,
-      leading: IconButton(
-        onPressed: () => Navigator.pop(context),
-        icon: SvgPicture.asset('assets/icons/chevron-left-icon.svg', width: 22, height: 22,
-            colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
-      ),
-      title: Text('Select Tickets', style: appText(size: 16, weight: FontWeight.w700)),
-      actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 14),
-          child: Row(children: [
-            Icon(Icons.shield_outlined, size: 16, color: const Color(0xFF15803D)),
-            const SizedBox(width: 4),
-            Text('Secure Checkout', style: appText(size: 11, weight: FontWeight.w600, color: const Color(0xFF15803D))),
-          ]),
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(56),
+      child: Container(
+        color: const Color(0xFFFAFAFA),
+        child: SafeArea(
+          bottom: false,
+          child: SizedBox(
+            height: 56,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    icon: SvgPicture.asset('assets/icons/arrow-left-icon.svg', width: 22, height: 22,
+                        colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text('Select Tickets', style: appText(size: 16, weight: FontWeight.w700)),
+                    ),
+                  ),
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    SvgPicture.asset('assets/icons/secure-shield-icon.svg', width: 16, height: 16,
+                        colorFilter: const ColorFilter.mode(Color(0xFF15803D), BlendMode.srcIn)),
+                    const SizedBox(width: 5),
+                    Text('Secure Checkout', style: appText(size: 12, weight: FontWeight.w700, color: const Color(0xFF15803D))),
+                  ]),
+                ],
+              ),
+            ),
+          ),
         ),
-      ],
+      ),
     );
   }
 
@@ -229,7 +245,8 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         border: Border.all(color: AppColors.borderLight),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: AppColors.cardShadow,
       ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ClipRRect(
@@ -251,8 +268,8 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
             const SizedBox(height: 4),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: const Color(0xFFEDE9FE), borderRadius: BorderRadius.circular(20)),
-              child: Text(widget.eventType!, style: appText(size: 10, weight: FontWeight.w600, color: const Color(0xFF7C3AED))),
+                decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(20)),
+                child: Text(widget.eventType!, style: appText(size: 10, weight: FontWeight.w700, color: AppColors.primaryDark)),
             ),
           ],
           const SizedBox(height: 6),
@@ -340,7 +357,7 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
             Text(description, style: appText(size: 11, color: AppColors.textTertiary), maxLines: 2, overflow: TextOverflow.ellipsis),
           ],
           const SizedBox(height: 4),
-          Text('TZS ${_fmt(price)}', style: appText(size: 13, weight: FontWeight.w800, color: AppColors.textPrimary)),
+          Text('${getActiveCurrency()} ${_fmt(price)}', style: appText(size: 13, weight: FontWeight.w800, color: AppColors.textPrimary)),
         ])),
         const SizedBox(width: 10),
         _stepper(id, qty, available, isSoldOut),
@@ -352,32 +369,35 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
     final active = qty > 0;
     return Container(
       decoration: BoxDecoration(
+        color: active ? AppColors.warningSoft : Colors.transparent,
         border: Border.all(color: active ? AppColors.primary : AppColors.borderLight, width: active ? 1.5 : 1),
         borderRadius: BorderRadius.circular(10),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        _stepBtn('-', enabled: !isSoldOut && qty > 0, onTap: () => setState(() {
+        _stepBtn('assets/icons/minus-icon.svg', '-', enabled: !isSoldOut && qty > 0, onTap: () => setState(() {
           if (qty > 0) _quantities[id] = qty - 1;
           if (_quantities[id] == 0) _quantities.remove(id);
         })),
         SizedBox(width: 28, child: Text('$qty', textAlign: TextAlign.center,
             style: appText(size: 14, weight: FontWeight.w700, color: active ? AppColors.primary : AppColors.textPrimary))),
-        _stepBtn('+', enabled: !isSoldOut && qty < available, onTap: () => setState(() {
+        _stepBtn('assets/icons/plus-icon.svg', '+', enabled: !isSoldOut && qty < available, onTap: () => setState(() {
           _quantities[id] = qty + 1;
         })),
       ]),
     );
   }
 
-  Widget _stepBtn(String label, {required bool enabled, required VoidCallback onTap}) {
+  Widget _stepBtn(String iconAsset, String fallback, {required bool enabled, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: enabled ? onTap : null,
       child: Container(
         width: 28, height: 28,
         alignment: Alignment.center,
-        child: Text(label, style: appText(size: 18, weight: FontWeight.w600,
-            color: enabled ? AppColors.primary : AppColors.textHint)),
+        child: iconAsset.endsWith('minus-icon.svg')
+            ? Text(fallback, style: appText(size: 18, weight: FontWeight.w700, color: enabled ? AppColors.primary : AppColors.textHint))
+            : SvgPicture.asset(iconAsset, width: 15, height: 15,
+                colorFilter: ColorFilter.mode(enabled ? AppColors.primary : AppColors.textHint, BlendMode.srcIn)),
       ),
     );
   }
@@ -388,7 +408,8 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         border: Border.all(color: AppColors.borderLight),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: AppColors.cardShadow,
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Order Summary', style: appText(size: 14, weight: FontWeight.w700)),
@@ -402,7 +423,7 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
                   '${tc['name'] ?? 'Ticket'} (${_quantities[tc['id']?.toString() ?? ''] ?? 0})',
                   style: appText(size: 12, color: AppColors.textSecondary),
                 )),
-                Text('TZS ${_fmt(_priceOf(tc) * (_quantities[tc['id']?.toString() ?? ''] ?? 0))}',
+                Text('${getActiveCurrency()} ${_fmt(_priceOf(tc) * (_quantities[tc['id']?.toString() ?? ''] ?? 0))}',
                     style: appText(size: 12, weight: FontWeight.w600)),
               ]),
             ),
@@ -411,13 +432,13 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(children: [
             Expanded(child: Text('Service Fee', style: appText(size: 12, color: AppColors.textSecondary))),
-            Text('TZS ${_fmt(_serviceFee)}', style: appText(size: 12, weight: FontWeight.w600)),
+            Text('${getActiveCurrency()} ${_fmt(_feeTotal)}', style: appText(size: 12, weight: FontWeight.w600)),
           ]),
         ),
         Divider(color: AppColors.borderLight, height: 14),
         Row(children: [
           Expanded(child: Text('Total Amount', style: appText(size: 14, weight: FontWeight.w800))),
-          Text('TZS ${_fmt(_grandTotal)}', style: appText(size: 16, weight: FontWeight.w800, color: AppColors.textPrimary)),
+          Text('${getActiveCurrency()} ${_fmt(_grandTotal)}', style: appText(size: 16, weight: FontWeight.w800, color: AppColors.textPrimary)),
         ]),
       ]),
     );
@@ -437,35 +458,38 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 disabledBackgroundColor: AppColors.primary.withOpacity(0.4),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                foregroundColor: AppColors.textPrimary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 elevation: 0,
               ),
               child: _purchasing
-                  ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                  ? NuruLoader(size: 34, color: AppColors.textPrimary, inline: true)
                   : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Text('Proceed to Checkout', style: appText(size: 15, weight: FontWeight.w700, color: Colors.white)),
+                      Text('Proceed to Checkout', style: appText(size: 15, weight: FontWeight.w800, color: AppColors.textPrimary)),
                       const SizedBox(width: 8),
-                      SvgPicture.asset('assets/icons/chevron-right-icon.svg', width: 18, height: 18,
-                          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
+                      SvgPicture.asset('assets/icons/arrow-right-icon.svg', width: 18, height: 18,
+                          colorFilter: ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
                     ]),
             ),
           ),
-          const SizedBox(height: 10),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-            _trustChip(Icons.shield_outlined, 'Secure Payment'),
-            _trustChip(Icons.bolt_outlined, 'Instant Confirmation'),
-            _trustChip(Icons.headset_mic_outlined, '24/7 Support'),
-          ]),
+          const SizedBox(height: 14),
+          _trustRow(),
         ]),
       ),
     );
   }
 
-  Widget _trustChip(IconData icon, String label) => Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 13, color: AppColors.textTertiary),
-        const SizedBox(width: 4),
-        Text(label, style: appText(size: 10, color: AppColors.textTertiary, weight: FontWeight.w500)),
+  Widget _trustRow() => Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+        _trustChip('assets/icons/secure-shield-icon.svg', 'Secure Payment'),
+        _trustChip('assets/icons/thunder-icon.svg', 'Instant Confirmation'),
+        _trustChip('assets/icons/support-icon.svg', '24/7 Support'),
+      ]);
+
+  Widget _trustChip(String icon, String label) => Row(mainAxisSize: MainAxisSize.min, children: [
+        SvgPicture.asset(icon, width: 16, height: 16,
+            colorFilter: const ColorFilter.mode(AppColors.textSecondary, BlendMode.srcIn)),
+        const SizedBox(width: 6),
+        Text(label, style: appText(size: 11, color: AppColors.textSecondary, weight: FontWeight.w600)),
       ]);
 
   String _formatDate(String dateStr) {

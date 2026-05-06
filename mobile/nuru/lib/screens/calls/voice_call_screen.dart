@@ -104,10 +104,12 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   void initState() {
     super.initState();
     if (widget.isOutgoing) {
+      _status = 'Ringing…';
       _startRingback();
       _startStatusPoller();
+    } else {
+      _bootstrap();
     }
-    _bootstrap();
   }
 
   void _startStatusPoller() {
@@ -116,6 +118,11 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
       if (_closed || _connected) return;
       final status = await CallsService.getStatus(widget.callId);
       if (status == null) return;
+      if (status == 'ongoing') {
+        _statusTimer?.cancel();
+        await _bootstrap();
+        return;
+      }
       if (status == 'declined' || status == 'missed' || status == 'ended') {
         if (mounted) setState(() => _status = status == 'declined' ? 'Declined' : 'Call ended');
         _hangup(notifyServer: false);
@@ -160,12 +167,16 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
       }
     }
 
+    if (widget.isOutgoing) {
+      setState(() => _status = 'Ringing…');
+    }
+
     if (url == null || token == null || url.isEmpty || token.isEmpty) {
       _fail('Could not get call credentials');
       return;
     }
 
-    setState(() => _status = widget.isOutgoing ? 'Calling…' : 'Connecting…');
+    setState(() => _status = widget.isOutgoing ? 'Ringing…' : 'Connecting…');
     await _connectLiveKit(url, token);
   }
 

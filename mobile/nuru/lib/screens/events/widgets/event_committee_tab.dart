@@ -1,3 +1,4 @@
+import '../../../core/widgets/nuru_refresh_indicator.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -79,7 +80,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
     super.build(context);
     if (_loading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
 
-    return RefreshIndicator(
+    return NuruRefreshIndicator(
       onRefresh: _load,
       color: AppColors.primary,
       child: _members.isEmpty ? _emptyState() : _memberList(),

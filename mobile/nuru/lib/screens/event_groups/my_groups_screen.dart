@@ -1,3 +1,4 @@
+import '../../core/widgets/nuru_refresh_indicator.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -107,7 +108,7 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
             ),
           ),
           Expanded(
-            child: RefreshIndicator(
+            child: NuruRefreshIndicator(
               onRefresh: _load,
               color: AppColors.primary,
               child: _loading

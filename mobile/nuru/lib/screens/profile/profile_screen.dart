@@ -216,26 +216,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.surface,
-      body: NuruRefresh(
-        onRefresh: () async {
-          widget.onRefresh?.call();
-          await _loadProfileDetails();
-        },
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(0, 0, 0, 100),
-          children: [
-            _topBar(p),
-            const SizedBox(height: 4),
-            _identityCard(fullName, avatar, email, phone, p),
-            const SizedBox(height: 18),
-            _statsRow(),
-            const SizedBox(height: 18),
-            _actionList(),
-            const SizedBox(height: 18),
-            if (!_isVerified && !_profileLoading) _verifyCard(),
-          ],
-        ),
+      body: Column(
+        children: [
+          _topBar(p),
+          Expanded(
+            child: NuruRefresh(
+              onRefresh: () async {
+                widget.onRefresh?.call();
+                await _loadProfileDetails();
+              },
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(0, 4, 0, 100),
+                children: [
+                  _identityCard(fullName, avatar, email, phone, p),
+                  const SizedBox(height: 18),
+                  _statsRow(),
+                  const SizedBox(height: 18),
+                  _actionList(),
+                  const SizedBox(height: 18),
+                  if (!_isVerified && !_profileLoading) _verifyCard(),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

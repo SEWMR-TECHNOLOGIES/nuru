@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'nuru_loader.dart';
-import '../theme/app_colors.dart';
 
 /// Branded pull-to-refresh that shows the NuruLoader (3-dot wave) instead of
 /// the default circular spinner. Wraps any scrollable child and triggers
@@ -95,23 +94,10 @@ class _NuruRefreshState extends State<NuruRefresh>
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 120),
                   opacity: _refreshing ? 1.0 : progress,
-                  child: _refreshing
-                      ? const NuruLoader(size: 56, inline: true)
-                      : Transform.rotate(
-                          angle: progress * 3.14,
-                          child: Container(
-                            width: 18,
-                            height: 18,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: AppColors.primary
-                                    .withOpacity(0.3 + 0.7 * progress),
-                                width: 2.5,
-                              ),
-                            ),
-                          ),
-                        ),
+                  child: NuruLoader(
+                    size: _refreshing ? 56 : 44,
+                    inline: true,
+                  ),
                 ),
               ),
             ),

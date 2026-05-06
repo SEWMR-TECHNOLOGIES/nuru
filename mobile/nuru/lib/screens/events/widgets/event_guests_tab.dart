@@ -1,3 +1,4 @@
+import '../../../core/widgets/nuru_refresh_indicator.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
@@ -124,7 +125,7 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
               ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
               : _guests.isEmpty
                   ? Center(child: Text('No guests yet', style: appText(size: 14, color: AppColors.textTertiary)))
-                  : RefreshIndicator(
+                  : NuruRefreshIndicator(
                       onRefresh: _load,
                       color: AppColors.primary,
                       child: ListView.builder(

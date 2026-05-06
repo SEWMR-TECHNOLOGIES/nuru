@@ -1,3 +1,5 @@
+import '../../../core/widgets/nuru_refresh_indicator.dart';
+import '../../../core/utils/money_format.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -195,10 +197,10 @@ class _EventContributionsTabState extends State<EventContributionsTab>
   }
 
   String _formatAmount(dynamic amount) {
-    if (amount == null) return 'TZS 0';
+    if (amount == null) return '${getActiveCurrency()} 0';
     final n =
         (amount is String ? double.tryParse(amount) : amount.toDouble()) ?? 0.0;
-    return 'TZS ${n.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
+    return '${getActiveCurrency()} ${n.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
   }
 
   double _toNum(dynamic v) {
@@ -240,7 +242,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
 
     return Stack(
       children: [
-        RefreshIndicator(
+        NuruRefreshIndicator(
           onRefresh: () async {
             await _load();
             if (widget.isCreator) await _loadPending();

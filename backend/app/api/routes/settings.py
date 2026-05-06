@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Body
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from models import User, UserSetting, UserPrivacySetting, UserSession
+from models import User, UserSetting, UserPrivacySetting, UserSession, AppVersionSetting
 from utils.auth import get_current_user
 from utils.helpers import standard_response
 
@@ -18,20 +18,34 @@ router = APIRouter(prefix="/settings", tags=["Settings"])
 
 
 @router.get("/app-version")
-def get_app_version(platform: str = "android"):
+def get_app_version(platform: str = "android", db: Session = Depends(get_db)):
     platform_key = (platform or "android").lower().strip()
-    latest_version = os.getenv("NURU_LATEST_APP_VERSION", "1.0.0")
-    latest_build = int(os.getenv("NURU_LATEST_APP_BUILD", "1") or "1")
-    min_build = int(os.getenv("NURU_MIN_SUPPORTED_APP_BUILD", "1") or "1")
-    default_android_url = "https://play.google.com/store/apps/details?id=tz.nuru.app"
-    default_ios_url = "https://apps.apple.com/app/nuru"
+    if platform_key not in ("android", "ios"):
+        platform_key = "android"
+
+    row = db.query(AppVersionSetting).filter(AppVersionSetting.platform == platform_key).first()
+
+    default_url = (
+        "https://play.google.com/store/apps/details?id=tz.nuru.app"
+        if platform_key == "android"
+        else "https://apps.apple.com/app/nuru"
+    )
+    # Env-var fallback (overrides DB if explicitly set)
+    env_force = os.getenv("NURU_FORCE_APP_UPDATE", "").lower() == "true"
+    env_latest_build = os.getenv("NURU_LATEST_APP_BUILD")
+    env_min_build = os.getenv("NURU_MIN_SUPPORTED_APP_BUILD")
+    env_update_url = os.getenv(
+        "NURU_ANDROID_UPDATE_URL" if platform_key == "android" else "NURU_IOS_UPDATE_URL"
+    )
+
     return standard_response(True, "App version retrieved", {
-        "latest_version": latest_version,
-        "latest_build": latest_build,
-        "min_supported_build": min_build,
-        "force_update": os.getenv("NURU_FORCE_APP_UPDATE", "false").lower() == "true",
-        "update_url": os.getenv("NURU_ANDROID_UPDATE_URL" if platform_key == "android" else "NURU_IOS_UPDATE_URL") or (default_android_url if platform_key == "android" else default_ios_url),
-        "message": os.getenv("NURU_APP_UPDATE_MESSAGE", "A new Nuru update is available."),
+        "platform": platform_key,
+        "latest_version": (row.latest_version if row else None) or os.getenv("NURU_LATEST_APP_VERSION", "1.0.0"),
+        "latest_build": int(env_latest_build) if env_latest_build else (row.latest_build if row else 1),
+        "min_supported_build": int(env_min_build) if env_min_build else (row.min_supported_build if row else 1),
+        "force_update": env_force or (bool(row.force_update) if row else False),
+        "update_url": env_update_url or (row.update_url if row and row.update_url else default_url),
+        "message": (row.message if row and row.message else None) or os.getenv("NURU_APP_UPDATE_MESSAGE", "A new Nuru update is available."),
     })
 
 

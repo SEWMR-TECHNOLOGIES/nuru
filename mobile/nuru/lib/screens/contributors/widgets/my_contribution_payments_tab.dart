@@ -1,3 +1,4 @@
+import '../../../core/widgets/nuru_refresh_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
@@ -71,7 +72,7 @@ class _MyContributionPaymentsTabState extends State<MyContributionPaymentsTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return RefreshIndicator(
+    return NuruRefreshIndicator(
       onRefresh: _load, color: AppColors.primary,
       child: ListView(
         padding: const EdgeInsets.all(16),

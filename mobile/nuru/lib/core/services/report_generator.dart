@@ -1,3 +1,4 @@
+import '../../core/utils/money_format.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/services.dart';
@@ -39,9 +40,9 @@ class ReportGenerator {
   // ─── Helpers ───
 
   static String _fmt(dynamic amount) {
-    if (amount == null) return 'TZS 0';
+    if (amount == null) return '${getActiveCurrency()} 0';
     final n = _toNum(amount);
-    return 'TZS ${_currencyFormat.format(n.round())}';
+    return '${getActiveCurrency()} ${_currencyFormat.format(n.round())}';
   }
 
   static double _toNum(dynamic v) {

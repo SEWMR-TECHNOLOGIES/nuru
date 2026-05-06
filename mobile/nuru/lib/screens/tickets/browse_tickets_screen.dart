@@ -1,3 +1,5 @@
+import '../../core/widgets/nuru_refresh_indicator.dart';
+import '../../core/utils/money_format.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -120,7 +122,7 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
           Expanded(
             child: _loading
                 ? _buildLoadingSkeleton()
-                : RefreshIndicator(
+                : NuruRefreshIndicator(
                     onRefresh: _load,
                     color: AppColors.primary,
                     child: _events.isEmpty
@@ -261,7 +263,7 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
                         borderRadius: BorderRadius.circular(6),
                         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 6)],
                       ),
-                      child: Text('From TZS ${_formatNumber(minPrice)}',
+                      child: Text('From ${getActiveCurrency()} ${_formatNumber(minPrice)}',
                           style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
                     ),
                   ),
@@ -663,7 +665,7 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Text('Total: TZS ${_formatAmount(_purchaseResult!['total_amount'])}',
+                    Text('Total: ${getActiveCurrency()} ${_formatAmount(_purchaseResult!['total_amount'])}',
                         style: GoogleFonts.inter(fontSize: 14, color: AppColors.textTertiary)),
                     const SizedBox(height: 16),
                     SizedBox(
@@ -764,7 +766,7 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    Text('TZS ${_formatAmount(price)}',
+                                    Text('${getActiveCurrency()} ${_formatAmount(price)}',
                                         style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primary)),
                                     Text('per ticket', style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary)),
                                   ],
@@ -812,7 +814,7 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
                         children: [
                           Text(_selectedClassName() + ' × $_quantity',
                               style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
-                          Text('TZS ${_formatAmount(_selectedPrice() * _quantity)}',
+                          Text('${getActiveCurrency()} ${_formatAmount(_selectedPrice() * _quantity)}',
                               style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                         ],
                       ),

@@ -44,6 +44,8 @@ import EventTicketManagement from '@/components/events/EventTicketManagement';
 import EventGuestCheckIn from '@/components/events/EventGuestCheckIn';
 import EventMeetings from '@/components/events/EventMeetings';
 import EventGroupCta from '@/components/eventGroups/EventGroupCta';
+import EventOverviewDashboard from '@/components/events/EventOverviewDashboard';
+import EventSponsors from '@/components/events/EventSponsors';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
@@ -381,13 +383,17 @@ const EventManagement = () => {
             { value: 'schedule', label: t('schedule') || 'Schedule' },
             { value: 'meetings', label: 'Meetings' },
             ...((apiEvent as any)?.sells_tickets ? [{ value: 'tickets', label: t('tickets') }] : []),
+            { value: 'sponsors', label: 'Sponsors' },
             ...(isCreator && !isEventEnded ? [{ value: 'check-in', label: t('check_in') }] : []),
           ]}
         />
 
-        <TabsContent value="overview" className="space-y-4">
+        <TabsContent value="overview" className="space-y-5">
           {/* Group Chat CTA — create or open the event group from here */}
           <EventGroupCta eventId={id || ''} onOpen={openWorkspace} opening={openingWorkspace} />
+
+          {/* Premium overview dashboard — all values come from the backend */}
+          {id && <EventOverviewDashboard eventId={id} />}
 
           {/* Row 1: Financial overview */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -720,6 +726,11 @@ const EventManagement = () => {
             <EventTicketManagement eventId={id!} isCreator={isCreator} />
           </TabsContent>
         )}
+
+        <TabsContent value="sponsors" className="space-y-4">
+          <EventSponsors eventId={id!} isCreator={isCreator} />
+        </TabsContent>
+
 
         {isCreator && !isEventEnded && (
           <TabsContent value="check-in" className="space-y-4">

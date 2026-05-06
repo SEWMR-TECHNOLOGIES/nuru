@@ -1,3 +1,4 @@
+import '../../core/widgets/nuru_refresh_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -51,7 +52,7 @@ class _NuruCardsScreenState extends State<NuruCardsScreen> {
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: NuruSubPageAppBar(title: context.tr('invitation_card')),
-      body: RefreshIndicator(
+      body: NuruRefreshIndicator(
         onRefresh: _load,
         color: AppColors.primary,
         child: _loading

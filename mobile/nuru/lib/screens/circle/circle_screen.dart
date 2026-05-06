@@ -1,3 +1,4 @@
+import '../../core/widgets/nuru_refresh_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -142,7 +143,7 @@ class _CircleScreenState extends State<CircleScreen> with SingleTickerProviderSt
         Expanded(
           child: _members.isEmpty
               ? Center(child: Text(context.trw('no_members_circle'), style: GoogleFonts.inter(fontSize: 14, color: AppColors.textTertiary)))
-              : RefreshIndicator(
+              : NuruRefreshIndicator(
                   onRefresh: _load,
                   color: AppColors.primary,
                   child: ListView.builder(

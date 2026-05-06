@@ -1,3 +1,4 @@
+import '../../core/widgets/nuru_refresh_indicator.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -596,7 +597,7 @@ class _MeetingDocumentsScreenState extends State<MeetingDocumentsScreen> with Si
     final completedCount = _agendaItems.where((i) => i['is_completed'] == true).length;
     final totalDuration = _agendaItems.fold<int>(0, (s, i) => s + (int.tryParse(i['duration_minutes']?.toString() ?? '') ?? 0));
 
-    return RefreshIndicator(
+    return NuruRefreshIndicator(
       onRefresh: _loadAgenda,
       child: ListView.builder(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
@@ -778,7 +779,7 @@ class _MeetingDocumentsScreenState extends State<MeetingDocumentsScreen> with Si
       );
     }
 
-    return RefreshIndicator(
+    return NuruRefreshIndicator(
       onRefresh: _loadMinutes,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),

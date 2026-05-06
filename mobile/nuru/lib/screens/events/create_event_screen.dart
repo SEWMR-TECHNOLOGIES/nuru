@@ -669,7 +669,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               ]),
               if (price != null) ...[
                 const SizedBox(height: 4),
-                Text('From TZS ${_formatNum(price)}',
+                Text('From ${getActiveCurrency()} ${_formatNum(price)}',
                   style: appText(size: 11.5, weight: FontWeight.w800, color: AppColors.primary)),
               ],
             ]),
@@ -1056,7 +1056,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
             final price = tc.price;
             final qty = tc.quantity;
             final parts = <String>[];
-            if (price > 0) parts.add('TZS ${formatMoney(price)}');
+            if (price > 0) parts.add('${getActiveCurrency()} ${formatMoney(price)}');
             if (qty > 0) parts.add('$qty seats');
             final sub = parts.isEmpty ? '' : '  •  ${parts.join('  •  ')}';
             return Padding(

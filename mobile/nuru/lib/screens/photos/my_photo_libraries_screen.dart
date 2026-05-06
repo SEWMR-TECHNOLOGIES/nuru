@@ -1,3 +1,4 @@
+import '../../core/widgets/nuru_refresh_indicator.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -270,7 +271,7 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
                               const SizedBox(height: 4),
                               Text(_search.isNotEmpty ? 'Try a different keyword' : 'Create a library from your service events', style: appText(size: 13, color: AppColors.textTertiary)),
                             ]))
-                          : RefreshIndicator(
+                          : NuruRefreshIndicator(
                               onRefresh: _load,
                               color: AppColors.primary,
                               child: ListView.builder(

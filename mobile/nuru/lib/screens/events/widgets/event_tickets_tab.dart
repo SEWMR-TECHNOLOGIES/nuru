@@ -1,3 +1,5 @@
+import '../../../core/widgets/nuru_refresh_indicator.dart';
+import '../../../core/utils/money_format.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/theme/app_colors.dart';
@@ -60,8 +62,9 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
     }
   }
 
-  int get _totalSold => _ticketClasses.fold<int>(0, (sum, tc) => sum + ((tc is Map ? tc['sold'] ?? 0 : 0) as int));
-  int get _totalQuantity => _ticketClasses.fold<int>(0, (sum, tc) => sum + ((tc is Map ? tc['quantity'] ?? 0 : 0) as int));
+  int _asInt(dynamic value) => value is num ? value.toInt() : int.tryParse(value?.toString() ?? '') ?? 0;
+  int get _totalSold => _ticketClasses.fold<int>(0, (sum, tc) => sum + _asInt(tc is Map ? tc['sold'] : 0));
+  int get _totalQuantity => _ticketClasses.fold<int>(0, (sum, tc) => sum + _asInt(tc is Map ? tc['quantity'] : 0));
   double get _totalRevenue => _soldTickets.fold<double>(0, (sum, t) => sum + ((t is Map ? (t['total_amount'] is num ? (t['total_amount'] as num).toDouble() : 0.0) : 0.0)));
 
   void _showAddTicketClass() {
@@ -234,7 +237,7 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
             ),
         ]),
       ),
-      Expanded(child: RefreshIndicator(
+      Expanded(child: NuruRefreshIndicator(
         onRefresh: _load, color: AppColors.primary,
         child: _selectedView == 0 ? _classesView() : _soldView(),
       )),
@@ -361,10 +364,10 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
         final tc = _ticketClasses[i] is Map<String, dynamic> ? _ticketClasses[i] as Map<String, dynamic> : <String, dynamic>{};
         final name = tc['name']?.toString() ?? 'Ticket';
         final price = tc['price'];
-        final qty = tc['quantity'] ?? 0;
-        final sold = tc['sold'] ?? 0;
+        final qty = _asInt(tc['quantity']);
+        final sold = _asInt(tc['sold']);
         final status = tc['status']?.toString() ?? 'available';
-        final available = (qty is int ? qty : 0) - (sold is int ? sold : 0);
+        final available = qty - sold;
 
         return Container(
           margin: const EdgeInsets.only(bottom: 10),
@@ -388,7 +391,7 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
             ]),
             const SizedBox(height: 8),
             Row(children: [
-              _ticketStat('Price', price != null ? 'TZS ${_formatNum(price)}' : 'Free'),
+              _ticketStat('Price', price != null ? '${getActiveCurrency()} ${_formatNum(price)}' : 'Free'),
               const SizedBox(width: 20),
               _ticketStat('Sold', '$sold/$qty'),
               const SizedBox(width: 20),
@@ -531,6 +534,6 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
     if (p == null) return '—';
     final n = (p is num) ? p.toInt() : (int.tryParse(p.toString().replaceAll(RegExp(r'[^\d]'), '')) ?? 0);
     if (n == 0) return '—';
-    return 'TZS ${n.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
+    return '${getActiveCurrency()} ${n.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
   }
 }

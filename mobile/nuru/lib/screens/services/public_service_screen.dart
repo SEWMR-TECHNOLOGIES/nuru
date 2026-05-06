@@ -1,3 +1,4 @@
+import '../../core/widgets/nuru_refresh_indicator.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -429,7 +430,7 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: _plainAppBar(showActions: true),
-      body: RefreshIndicator(
+      body: NuruRefreshIndicator(
         onRefresh: _load,
         color: _gold,
         child: CustomScrollView(

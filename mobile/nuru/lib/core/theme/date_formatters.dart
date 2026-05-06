@@ -1,3 +1,5 @@
+import '../utils/money_format.dart';
+
 const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -98,12 +100,15 @@ String getTimeAgo(String dateStr) {
   }
 }
 
-String formatCompactMoney(dynamic amount) {
-  if (amount == null) return 'TZS 0';
+String formatCompactMoney(dynamic amount, {String? currency}) {
+  final code = (currency != null && currency.trim().isNotEmpty)
+      ? currency.trim().toUpperCase()
+      : getActiveCurrency();
+  if (amount == null) return '$code 0';
   final n = amount is int
       ? amount
       : (amount is double ? amount.toInt() : int.tryParse(amount.toString()) ?? 0);
-  if (n >= 1000000) return 'TZS ${(n / 1000000).toStringAsFixed(1)}M';
-  if (n >= 1000) return 'TZS ${(n / 1000).toStringAsFixed(0)}K';
-  return 'TZS $n';
+  if (n >= 1000000) return '$code ${(n / 1000000).toStringAsFixed(1)}M';
+  if (n >= 1000) return '$code ${(n / 1000).toStringAsFixed(0)}K';
+  return '$code $n';
 }

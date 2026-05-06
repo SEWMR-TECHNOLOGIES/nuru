@@ -95,10 +95,9 @@ class IncomingCallService {
     final kind = (data['kind']?.toString() ?? 'voice').toLowerCase() == 'video' ? 'video' : 'voice';
 
     final foreground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    await _ringNative(callId: callId, peerName: peerName, peerAvatar: peerAvatar, kind: kind);
     if (foreground) {
       _ringInApp(callId: callId, peerName: peerName, peerAvatar: peerAvatar, kind: kind);
-    } else {
-      await _ringNative(callId: callId, peerName: peerName, peerAvatar: peerAvatar, kind: kind);
     }
   }
 
@@ -128,7 +127,7 @@ class IncomingCallService {
           callbackText: 'Call back',
         ),
         android: AndroidParams(
-          isCustomNotification: true,
+          isCustomNotification: false,
           isShowLogo: false,
           ringtonePath: 'system_ringtone_default',
           backgroundColor: '#0E1116',
