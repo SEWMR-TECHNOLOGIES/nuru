@@ -155,6 +155,8 @@ def start_conversation(body: dict = Body(...), db: Session = Depends(get_db), cu
     If service_id is provided, creates/finds a service-specific conversation."""
     recipient_id = body.get("recipient_id")
     service_id_str = body.get("service_id")
+    service_title = body.get("service_title")
+    service_image = body.get("service_image")
     if not recipient_id:
         return standard_response(False, "Recipient ID is required")
 
@@ -177,6 +179,15 @@ def start_conversation(body: dict = Body(...), db: Session = Depends(get_db), cu
             sid = uuid.UUID(service_id_str)
         except ValueError:
             pass
+        svc = db.query(UserService).filter(UserService.id == sid, UserService.user_id == rid).first() if sid else None
+        if not svc:
+            return standard_response(False, "Service not found for this vendor")
+        if service_title and service_title != svc.title:
+            return standard_response(False, "Service title does not match")
+        if service_image:
+            service_images = [img.image_url for img in svc.images]
+            if service_image not in service_images:
+                return standard_response(False, "Service image does not match")
 
     # Look for an existing conversation – if service_id provided, match it specifically
     if sid:
