@@ -1109,7 +1109,10 @@ def build_community_member_dicts(db: Session, memberships: list) -> List[Dict]:
             "id": str(u.id),
             "first_name": u.first_name,
             "last_name": u.last_name,
+            "name": f"{u.first_name or ''} {u.last_name or ''}".strip(),
+            "username": getattr(u, "username", None),
             "avatar": p.profile_picture_url if p else None,
+            "is_verified": bool(getattr(u, "is_identity_verified", False)),
             "role": m.role,
             "joined_at": m.joined_at.isoformat() if m.joined_at else None,
         })
@@ -1117,8 +1120,8 @@ def build_community_member_dicts(db: Session, memberships: list) -> List[Dict]:
 
 
 def build_community_post_dicts(db: Session, posts: list, current_user_id) -> List[Dict]:
-    """Batch-load authors, images, glow counts, and 'has_glowed' for posts."""
-    from models import CommunityPost, CommunityPostImage, CommunityPostGlow
+    """Batch-load authors, images, glow/save/comment/share counts for posts."""
+    from models import CommunityPost, CommunityPostImage, CommunityPostGlow, CommunityPostComment, CommunityPostSave, CommunityPostShare
     if not posts:
         return []
 
@@ -1135,20 +1138,29 @@ def build_community_post_dicts(db: Session, posts: list, current_user_id) -> Lis
         for im in db.query(CommunityPostImage).filter(CommunityPostImage.post_id.in_(post_ids)).all():
             img_map[im.post_id].append(im)
 
-    glow_count_map: Dict = {}
-    if post_ids:
-        rows = db.query(CommunityPostGlow.post_id, sa_func.count(CommunityPostGlow.id)).filter(
-            CommunityPostGlow.post_id.in_(post_ids)
-        ).group_by(CommunityPostGlow.post_id).all()
-        glow_count_map = {pid: int(cnt) for pid, cnt in rows}
+    def _count_map(model):
+        if not post_ids:
+            return {}
+        rows = db.query(model.post_id, sa_func.count(model.id)).filter(
+            model.post_id.in_(post_ids)
+        ).group_by(model.post_id).all()
+        return {pid: int(cnt) for pid, cnt in rows}
 
-    has_glowed_set: Set = set()
-    if post_ids and current_user_id:
-        rows = db.query(CommunityPostGlow.post_id).filter(
-            CommunityPostGlow.post_id.in_(post_ids),
-            CommunityPostGlow.user_id == current_user_id,
+    glow_count_map = _count_map(CommunityPostGlow)
+    comment_count_map = _count_map(CommunityPostComment)
+    share_count_map = _count_map(CommunityPostShare)
+
+    def _user_set(model):
+        if not (post_ids and current_user_id):
+            return set()
+        rows = db.query(model.post_id).filter(
+            model.post_id.in_(post_ids),
+            model.user_id == current_user_id,
         ).all()
-        has_glowed_set = {r[0] for r in rows}
+        return {r[0] for r in rows}
+
+    has_glowed_set = _user_set(CommunityPostGlow)
+    has_saved_set = _user_set(CommunityPostSave)
 
     out: List[Dict] = []
     for cp in posts:
@@ -1158,9 +1170,11 @@ def build_community_post_dicts(db: Session, posts: list, current_user_id) -> Lis
             "id": str(cp.id),
             "author": {
                 "id": str(u.id) if u else None,
-                "name": f"{u.first_name} {u.last_name}" if u else None,
+                "first_name": u.first_name if u else None,
+                "last_name": u.last_name if u else None,
+                "name": f"{u.first_name} {u.last_name}".strip() if u else None,
                 "avatar": p.profile_picture_url if p else None,
-                "is_verified": u.is_identity_verified if u else False,
+                "is_verified": bool(getattr(u, "is_identity_verified", False)) if u else False,
             },
             "content": cp.content,
             "images": [
@@ -1168,7 +1182,11 @@ def build_community_post_dicts(db: Session, posts: list, current_user_id) -> Lis
                 for im in img_map.get(cp.id, [])
             ],
             "glow_count": glow_count_map.get(cp.id, 0),
+            "comment_count": comment_count_map.get(cp.id, 0),
+            "share_count": share_count_map.get(cp.id, 0),
             "has_glowed": cp.id in has_glowed_set,
+            "has_saved": cp.id in has_saved_set,
+            "edited_at": cp.edited_at.isoformat() if getattr(cp, "edited_at", None) else None,
             "created_at": cp.created_at.isoformat() if cp.created_at else None,
         })
     return out

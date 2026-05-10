@@ -62,6 +62,8 @@ class CommunityPost(Base):
     # Relationships
     community = relationship("Community", back_populates="posts")
     author = relationship("User")
+    edited_at = Column(DateTime, nullable=True)
+
     images = relationship("CommunityPostImage", back_populates="community_post", foreign_keys="CommunityPostImage.post_id")
     glows = relationship("CommunityPostGlow", back_populates="community_post", foreign_keys="CommunityPostGlow.post_id")
 
@@ -93,3 +95,46 @@ class CommunityPostGlow(Base):
     # Relationships
     community_post = relationship("CommunityPost", back_populates="glows")
     user = relationship("User")
+
+
+class CommunityPostComment(Base):
+    __tablename__ = 'community_post_comments'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    post_id = Column(UUID(as_uuid=True), ForeignKey('community_posts.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    content = Column(Text, nullable=False)
+    parent_id = Column(UUID(as_uuid=True), ForeignKey('community_post_comments.id', ondelete='CASCADE'))
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class CommunityPostSave(Base):
+    __tablename__ = 'community_post_saves'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    post_id = Column(UUID(as_uuid=True), ForeignKey('community_posts.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (UniqueConstraint('post_id', 'user_id', name='uq_community_post_save'),)
+
+
+class CommunityPostShare(Base):
+    __tablename__ = 'community_post_shares'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    post_id = Column(UUID(as_uuid=True), ForeignKey('community_posts.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class CommunityMute(Base):
+    __tablename__ = 'community_mutes'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    community_id = Column(UUID(as_uuid=True), ForeignKey('communities.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (UniqueConstraint('community_id', 'user_id', name='uq_community_mute'),)
