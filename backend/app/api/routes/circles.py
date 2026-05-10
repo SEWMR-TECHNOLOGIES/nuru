@@ -85,6 +85,53 @@ def get_circle_requests(db: Session = Depends(get_db), current_user: User = Depe
     return standard_response(True, "Circle requests retrieved", {"requests": requests, "count": len(requests)})
 
 
+@router.get("/invitations")
+def get_circle_invitations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Get outgoing circle invitations sent by the current user (status=pending)."""
+    entries = db.query(UserCircle).filter(
+        UserCircle.user_id == current_user.id,
+        UserCircle.status == "pending"
+    ).order_by(UserCircle.created_at.desc()).all()
+
+    invitations = []
+    for entry in entries:
+        invitee = db.query(User).filter(User.id == entry.circle_member_id).first()
+        if not invitee:
+            continue
+        profile = db.query(UserProfile).filter(UserProfile.user_id == entry.circle_member_id).first()
+        invitations.append({
+            "invitation_id": str(entry.id),
+            "id": str(invitee.id),
+            "first_name": invitee.first_name,
+            "last_name": invitee.last_name,
+            "username": invitee.username,
+            "avatar": profile.profile_picture_url if profile else None,
+            "sent_at": entry.created_at.isoformat() if entry.created_at else None,
+            "status": "pending",
+        })
+    return standard_response(True, "Circle invitations retrieved", {"invitations": invitations, "count": len(invitations)})
+
+
+@router.delete("/invitations/{invitation_id}")
+def cancel_circle_invitation(invitation_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Cancel an outgoing circle invitation."""
+    try:
+        iid = uuid.UUID(invitation_id)
+    except ValueError:
+        return standard_response(False, "Invalid invitation ID")
+
+    entry = db.query(UserCircle).filter(
+        UserCircle.id == iid,
+        UserCircle.user_id == current_user.id,
+        UserCircle.status == "pending"
+    ).first()
+    if not entry:
+        return standard_response(False, "Invitation not found")
+
+    db.delete(entry)
+    db.commit()
+    return standard_response(True, "Invitation cancelled")
+
 @router.put("/requests/{request_id}/accept")
 def accept_circle_request(request_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Accept a circle request and create the reciprocal entry."""

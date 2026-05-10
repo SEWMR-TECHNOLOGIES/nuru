@@ -58,6 +58,13 @@ class Event(Base):
     dress_code = Column(String(100))
     special_instructions = Column(Text)
     card_template_id = Column(UUID(as_uuid=True), ForeignKey('invitation_card_templates.id', ondelete='SET NULL'), nullable=True)
+    # Built-in invitation template selection (renders identically across web/mobile/download)
+    invitation_template_id = Column(Text, nullable=True)
+    invitation_accent_color = Column(Text, nullable=True)
+    invitation_sample_names = Column(JSONB, nullable=True)
+    # Per-template editable copy (headline, host_line, body, footer_note, ...)
+    # When NULL the chosen template renders its own defaults.
+    invitation_content = Column(JSONB, nullable=True)
     # Optional fallback phone used in contributor reminder/bulk messages
     # (defaults to organiser's phone if NULL).
     reminder_contact_phone = Column(Text, nullable=True)

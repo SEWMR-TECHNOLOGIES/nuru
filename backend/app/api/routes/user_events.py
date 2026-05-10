@@ -242,6 +242,10 @@ def _event_summary(db: Session, event: Event) -> dict:
         "budget": float(event.budget) if event.budget else None,
         "currency": _currency_code(db, event.currency_id),
         "dress_code": event.dress_code, "special_instructions": event.special_instructions,
+        "invitation_template_id": event.invitation_template_id,
+        "invitation_accent_color": event.invitation_accent_color,
+        "invitation_sample_names": event.invitation_sample_names,
+        "invitation_content": event.invitation_content,
         "reminder_contact_phone": event.reminder_contact_phone,
         "rsvp_deadline": settings.rsvp_deadline.isoformat() if settings and settings.rsvp_deadline else None,
         "contribution_enabled": settings.contributions_enabled if settings else False,
@@ -430,7 +434,8 @@ def get_management_overview(
             sa_func.coalesce(sa_func.sum(EventTicket.total_amount), 0),
         ).filter(
             EventTicket.ticket_class_id == tc.id,
-            EventTicket.status.notin_([TicketOrderStatusEnum.rejected, TicketOrderStatusEnum.cancelled]),
+            # Only count tickets with verified payments (confirmed or admin-approved)
+            EventTicket.status.in_([TicketOrderStatusEnum.confirmed, TicketOrderStatusEnum.approved]),
         ).first()
         sold = int(sold_q[0] or 0)
         rev = float(sold_q[1] or 0)
@@ -893,6 +898,9 @@ def get_invitation_card(
             "theme_color": event.theme_color,
             "dress_code": event.dress_code,
             "special_instructions": event.special_instructions,
+            "invitation_template_id": event.invitation_template_id,
+            "invitation_accent_color": event.invitation_accent_color,
+            "invitation_content": event.invitation_content,
         },
         "guest": {
             "name": guest_name,
@@ -1443,6 +1451,9 @@ async def update_event(
     currency: Optional[str] = Form(None), expected_guests: Optional[int] = Form(None),
     dress_code: Optional[str] = Form(None), special_instructions: Optional[str] = Form(None),
     reminder_contact_phone: Optional[str] = Form(None),
+    invitation_template_id: Optional[str] = Form(None),
+    invitation_accent_color: Optional[str] = Form(None),
+    invitation_content: Optional[str] = Form(None),
     rsvp_deadline: Optional[str] = Form(None), contribution_enabled: Optional[bool] = Form(None),
     contribution_target: Optional[float] = Form(None), contribution_description: Optional[str] = Form(None),
     time: Optional[str] = Form(None), images: Optional[List[UploadFile]] = File(None),
@@ -1545,6 +1556,42 @@ async def update_event(
     if reminder_contact_phone is not None:
         rcp = reminder_contact_phone.strip()
         event.reminder_contact_phone = rcp if rcp else None
+    if invitation_template_id is not None:
+        v = invitation_template_id.strip()
+        event.invitation_template_id = v if v else None
+    if invitation_accent_color is not None:
+        v = invitation_accent_color.strip()
+        if not v:
+            event.invitation_accent_color = None
+        elif HEX_COLOR_RE.match(v):
+            event.invitation_accent_color = v
+    if invitation_content is not None:
+        # Accept JSON string from clients; empty string clears the override.
+        raw = invitation_content.strip()
+        if not raw:
+            event.invitation_content = None
+        else:
+            try:
+                import json as _json
+                parsed = _json.loads(raw)
+                if isinstance(parsed, dict):
+                    # Strip empty-string fields so the renderer falls back to
+                    # template defaults instead of showing blank lines.
+                    cleaned = {
+                        k: v for k, v in parsed.items()
+                        if v not in (None, "")
+                    }
+                    event.invitation_content = cleaned or None
+                else:
+                    errors.append({
+                        "field": "invitation_content",
+                        "message": "Must be a JSON object."
+                    })
+            except (ValueError, TypeError):
+                errors.append({
+                    "field": "invitation_content",
+                    "message": "Invalid JSON."
+                })
 
     if errors:
         return standard_response(False, "Validation failed", errors)
