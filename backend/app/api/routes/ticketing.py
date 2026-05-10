@@ -431,10 +431,26 @@ def get_my_tickets(
     total = query.count()
     tickets = query.offset(offset).limit(limit).all()
 
+    from models.users import UserProfile
+
     result = []
     for t in tickets:
         event = db.query(Event).filter(Event.id == t.event_id).first()
         tc = db.query(EventTicketClass).filter(EventTicketClass.id == t.ticket_class_id).first()
+
+        organizer_block = None
+        if event:
+            organizer = db.query(User).filter(User.id == event.organizer_id).first()
+            if organizer:
+                op = db.query(UserProfile).filter(UserProfile.user_id == organizer.id).first()
+                full = " ".join(filter(None, [organizer.first_name, organizer.last_name])).strip()
+                organizer_block = {
+                    "id": str(organizer.id),
+                    "name": full or organizer.username or "Organizer",
+                    "avatar": op.profile_picture_url if op else None,
+                    "is_verified": bool(getattr(organizer, "is_identity_verified", False)),
+                }
+
         result.append({
             "id": str(t.id),
             "ticket_code": t.ticket_code,
@@ -442,12 +458,17 @@ def get_my_tickets(
                 "id": str(event.id) if event else None,
                 "name": event.name if event else None,
                 "start_date": str(event.start_date) if event and event.start_date else None,
+                "start_time": str(event.start_time) if event and event.start_time else None,
                 "location": event.location if event else None,
-                "cover_image": event.cover_image_url if event else None,
+                "cover_image": _resolve_event_cover(event, db) if event else None,
+                "description": event.description if event else None,
+                "organizer": organizer_block,
             },
             "ticket_class": tc.name if tc else None,
+            "ticket_class_name": tc.name if tc else None,
             "quantity": t.quantity,
             "total_amount": float(t.total_amount),
+            "currency": "TZS",
             "status": t.status.value if t.status else "pending",
             "payment_status": t.payment_status.value if t.payment_status else "pending",
             "checked_in": t.checked_in,
@@ -618,8 +639,11 @@ def get_my_upcoming_tickets(
             "id": str(t.id),
             "ticket_code": t.ticket_code,
             "quantity": t.quantity,
+            "total_amount": float(t.total_amount),
+            "currency": "TZS",
             "status": t.status.value if t.status else "confirmed",
             "ticket_class": tc.name if tc else None,
+            "ticket_class_name": tc.name if tc else None,
             "event": {
                 "id": str(event.id),
                 "name": event.name,
@@ -627,6 +651,7 @@ def get_my_upcoming_tickets(
                 "start_time": str(event.start_time) if event.start_time else None,
                 "location": event.location,
                 "cover_image": _resolve_event_cover(event, db),
+                "description": event.description,
             },
         })
 
