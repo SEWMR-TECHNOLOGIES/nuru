@@ -109,3 +109,4 @@ from models.contact import ContactMessage
 from models.event_messaging_templates import EventMessagingTemplate
 from models.app_version import AppVersionSetting
 from models.event_sponsors import EventSponsor
+from models.event_invitation_card_template import EventInvitationCardTemplate

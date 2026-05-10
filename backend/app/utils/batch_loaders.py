@@ -25,7 +25,7 @@ from models import (
     ServiceBookingRequest, UserService, UserServiceImage, ServiceCategory,
     ServiceType, EventExpense, CommitteeRole, CommitteePermission,
     UserContributor, EventContributor, EventInvitation, EventGuestPlusOne,
-    ContributionStatusEnum,
+    ContributionStatusEnum, EventTicketClass, EventTicket, TicketOrderStatusEnum,
 )
 from models.meetings import EventMeeting, EventMeetingParticipant, EventMeetingJoinRequest
 from models.meeting_documents import MeetingAgendaItem, MeetingMinutes
@@ -409,10 +409,8 @@ def build_public_event_dicts(db: Session, events: List[Event]) -> List[Dict]:
     for vc in db.query(EventVenueCoordinate).filter(EventVenueCoordinate.event_id.in_(event_ids)).all():
         venues[str(vc.event_id)] = vc
 
-    # Batch load settings
-    settings = {}
-    for s in db.query(EventSetting).filter(EventSetting.event_id.in_(event_ids)).all():
-        settings[str(s.event_id)] = s
+    # Settings are not used in the search/list payload, skip the query
+    # to keep this path light and fast.
 
     # Batch load images
     images_map = defaultdict(list)
@@ -552,6 +550,8 @@ def batch_load_event_context(db: Session, event_ids: List[UUID]) -> Dict[str, Di
                           "pending_guest_count": 0, "declined_guest_count": 0,
                           "checked_in_count": 0},
         "contribution_summary": {"contribution_total": 0.0, "contribution_count": 0},
+        "tickets_sold": 0, "tickets_capacity": 0,
+        "invitations_sent": 0, "invitations_total": 0,
     } for s in eid_strs}
 
     # Pull events to obtain event_type_ids in one query (caller already has them but cheap)
@@ -646,6 +646,40 @@ def batch_load_event_context(db: Session, event_ids: List[UUID]) -> Dict[str, Di
             "contribution_count": cnt,
         }
 
+    # Ticket capacity per event (sum of ticket class quantity)
+    for eid, cap in db.query(
+        EventTicketClass.event_id,
+        sa_func.coalesce(sa_func.sum(EventTicketClass.quantity), 0),
+    ).filter(EventTicketClass.event_id.in_(eid_list)).group_by(EventTicketClass.event_id).all():
+        base[str(eid)]["tickets_capacity"] = int(cap or 0)
+
+    # Tickets sold per event (confirmed/approved orders only)
+    for eid, sold in db.query(
+        EventTicket.event_id,
+        sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0),
+    ).filter(
+        EventTicket.event_id.in_(eid_list),
+        EventTicket.status.in_([TicketOrderStatusEnum.confirmed, TicketOrderStatusEnum.approved]),
+    ).group_by(EventTicket.event_id).all():
+        base[str(eid)]["tickets_sold"] = int(sold or 0)
+
+    # Total invitations per event
+    for eid, total_inv in db.query(
+        EventInvitation.event_id,
+        sa_func.count(EventInvitation.id),
+    ).filter(EventInvitation.event_id.in_(eid_list)).group_by(EventInvitation.event_id).all():
+        base[str(eid)]["invitations_total"] = int(total_inv or 0)
+
+    # Sent invitations per event (sent_at not null)
+    for eid, sent_inv in db.query(
+        EventInvitation.event_id,
+        sa_func.count(EventInvitation.id),
+    ).filter(
+        EventInvitation.event_id.in_(eid_list),
+        EventInvitation.sent_at.isnot(None),
+    ).group_by(EventInvitation.event_id).all():
+        base[str(eid)]["invitations_sent"] = int(sent_inv or 0)
+
     return base
 
 
@@ -721,6 +755,10 @@ def build_event_summaries(db: Session, events: List[Event]) -> List[Dict]:
             "contribution_description": ct_obj.description if ct_obj else None,
             "expected_guests": event.expected_guests,
             **gc, **cs,
+            "tickets_sold": c["tickets_sold"],
+            "tickets_capacity": c["tickets_capacity"],
+            "invitations_sent": c["invitations_sent"],
+            "invitations_total": c["invitations_total"],
             "committee_count": c["committee_count"], "service_booking_count": c["service_count"],
             "created_at": event.created_at.isoformat() if event.created_at else None,
             "updated_at": event.updated_at.isoformat() if event.updated_at else None,
@@ -1036,9 +1074,14 @@ def build_community_dicts(db: Session, communities: list, current_user_id) -> Li
             "id": str(c.id),
             "name": c.name,
             "description": c.description,
+            "tagline": getattr(c, "tagline", None),
+            "category": getattr(c, "category", None),
             "image": c.cover_image_url,
+            "cover_image": c.cover_image_url,
             "is_public": c.is_public,
+            "is_verified": bool(getattr(c, "is_verified", False)),
             "member_count": c.member_count or 0,
+            "online_count": 0,
             "is_creator": is_creator or is_member,
             "is_member": is_member,
             "created_at": c.created_at.isoformat() if c.created_at else None,

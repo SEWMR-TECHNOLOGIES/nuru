@@ -403,10 +403,16 @@ def get_my_tickets(
     # Buyers should only see tickets they have actually paid for. Pending
     # reservations (created at checkout time but never paid) stay hidden so
     # we never advertise an unconfirmed ticket as "issued".
+    # Show tickets that are either paid OR approved/confirmed by the organizer
+    # (covers comp tickets, organizer-issued tickets, and tickets the event owner
+    # bought from their own event where settlement bypasses payment_status).
     query = db.query(EventTicket).filter(
         EventTicket.buyer_user_id == current_user.id,
-        EventTicket.payment_status == PaymentStatusEnum.completed,
         EventTicket.status.notin_([TicketOrderStatusEnum.cancelled, TicketOrderStatusEnum.rejected]),
+        or_(
+            EventTicket.payment_status == PaymentStatusEnum.completed,
+            EventTicket.status.in_([TicketOrderStatusEnum.approved, TicketOrderStatusEnum.confirmed]),
+        ),
     )
 
     if search and search.strip():
@@ -596,7 +602,6 @@ def get_my_upcoming_tickets(
 
     tickets = db.query(EventTicket).filter(
         EventTicket.buyer_user_id == current_user.id,
-        EventTicket.payment_status == PaymentStatusEnum.completed,
         EventTicket.status.in_([TicketOrderStatusEnum.confirmed, TicketOrderStatusEnum.approved]),
     ).all()
 
