@@ -97,12 +97,19 @@ def _serialize_offline_ticket_claim(
     currency_code: str,
     description: Optional[str],
 ) -> Dict[str, Any]:
-    """Render a confirmed TicketOfflineClaim in the same shape as a Transaction.
+    """Render a TicketOfflineClaim in the same shape as a Transaction.
 
-    Status maps to "credited" so it sits alongside gateway-cleared rows.
+    Maps the claim status onto the transaction-status vocabulary the UI
+    already speaks: confirmed → credited, pending → pending, rejected → failed.
     """
     confirmed_at = claim.reviewed_at.isoformat() if claim.reviewed_at else None
     initiated_at = claim.created_at.isoformat() if claim.created_at else None
+    status_map = {
+        "confirmed": TransactionStatusEnum.credited.value,
+        "pending": TransactionStatusEnum.pending.value,
+        "rejected": TransactionStatusEnum.failed.value,
+    }
+    mapped_status = status_map.get(claim.status, TransactionStatusEnum.pending.value)
     return {
         "id": f"oc-tkt-{claim.id}",
         "transaction_code": claim.transaction_code or f"OFFLINE-{str(claim.id)[:8].upper()}",
@@ -117,7 +124,7 @@ def _serialize_offline_ticket_claim(
         "provider_name": claim.provider_name,
         "external_reference": claim.transaction_code,
         "internal_reference": None,
-        "status": TransactionStatusEnum.credited.value,
+        "status": mapped_status,
         "payer_user_id": str(claim.claimant_user_id) if claim.claimant_user_id else None,
         "payer_name": claim.claimant_name,
         "payer_phone": claim.claimant_phone,
@@ -232,10 +239,13 @@ def _enrich_ticket_rows(db: Session, rows: List[Dict[str, Any]]) -> None:
         r["event_id"] = str(ev.id)
         r["event_name"] = ev.name
         r["event_cover_image"] = getattr(ev, "cover_image_url", None)
+        r["event_start_date"] = ev.start_date.isoformat() if ev.start_date else None
+        r["event_location"] = ev.location
         r["ticket_class_id"] = str(tc.id)
         r["ticket_class_name"] = tc.name
         r["ticket_id"] = str(tk.id)
         r["ticket_code"] = tk.ticket_code
+        r["ticket_quantity"] = tk.quantity or 1
     # Decorate retry hint for every row (also covers offline → False).
     for r in rows:
         r["can_retry"] = _retryable(r)
@@ -525,7 +535,8 @@ def my_ticket_payments(
     q = q.order_by(Transaction.created_at.desc())
     tx_rows = _hydrate_transactions(db, q.all())
 
-    # Offline ticket claims this user submitted that have been confirmed.
+    # Offline ticket claims this user submitted — surface every status
+    # (pending / confirmed / rejected) so the buyer sees the full lifecycle.
     offline_rows: List[Dict[str, Any]] = []
     claims = (
         db.query(TicketOfflineClaim, EventTicketClass, Event)
@@ -533,10 +544,17 @@ def my_ticket_payments(
         .join(Event, Event.id == TicketOfflineClaim.event_id)
         .filter(
             TicketOfflineClaim.claimant_user_id == current_user.id,
-            TicketOfflineClaim.status == "confirmed",
         )
         .all()
     )
+    # Track confirmed claim transaction_codes so we can suppress any
+    # orphan gateway pending Transactions that were superseded by an
+    # off-platform approval.
+    confirmed_codes = {
+        (claim.transaction_code or "").strip().lower()
+        for claim, _, _ in claims
+        if claim.status == "confirmed" and claim.transaction_code
+    }
     for claim, tc, ev in claims:
         currency = _event_currency(db, ev)
         description = f"Ticket · {tc.name} · {ev.name}"
@@ -547,10 +565,23 @@ def my_ticket_payments(
         row["event_id"] = str(ev.id)
         row["event_name"] = ev.name
         row["event_cover_image"] = getattr(ev, "cover_image_url", None)
+        row["event_start_date"] = ev.start_date.isoformat() if ev.start_date else None
+        row["event_location"] = ev.location
         row["ticket_class_id"] = str(tc.id)
         row["ticket_class_name"] = tc.name
+        row["ticket_quantity"] = claim.quantity or 1
         if _matches_search(row, search):
             offline_rows.append(row)
+
+    # Drop pending gateway rows whose external_reference / transaction_code
+    # already has a confirmed offline counterpart.
+    if confirmed_codes:
+        tx_rows = [
+            r for r in tx_rows
+            if r.get("status") != TransactionStatusEnum.pending.value
+            or (str(r.get("external_reference") or "").strip().lower() not in confirmed_codes
+                and str(r.get("transaction_code") or "").strip().lower() not in confirmed_codes)
+        ]
 
     _enrich_ticket_rows(db, tx_rows)
     merged = sorted(tx_rows + offline_rows, key=_sort_key, reverse=True)
