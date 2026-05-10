@@ -178,6 +178,68 @@ VISIBLE_STATUSES = (
     TransactionStatusEnum.credited,
 )
 
+# Buyers / contributors should see the FULL lifecycle of their attempts so
+# they can retry failed gateway charges, watch in-flight ones, and reprint
+# completed receipts. Organisers stay on `VISIBLE_STATUSES` (credited only).
+MY_VISIBLE_STATUSES = (
+    TransactionStatusEnum.pending,
+    TransactionStatusEnum.processing,
+    TransactionStatusEnum.paid,
+    TransactionStatusEnum.credited,
+    TransactionStatusEnum.failed,
+)
+
+
+def _retryable(row: Dict[str, Any]) -> bool:
+    """A failed gateway charge (mobile_money / bank via SasaPay) can be
+    retried by re-initiating against the same target. Wallet-funded payments
+    and offline-confirmed claims cannot — those are out-of-band."""
+    if row.get("is_offline"):
+        return False
+    if row.get("status") != TransactionStatusEnum.failed.value:
+        return False
+    method = (row.get("method_type") or "").lower()
+    return method in ("mobile_money", "bank")
+
+
+def _enrich_ticket_rows(db: Session, rows: List[Dict[str, Any]]) -> None:
+    """Attach event + ticket-class context to ticket payment rows so the
+    mobile UI can render a rich receipt without follow-up calls."""
+    from models.ticketing import EventTicket
+    ticket_ids = []
+    for r in rows:
+        tid = r.get("target_id")
+        if tid and not r.get("is_offline"):
+            try:
+                ticket_ids.append(UUID(tid))
+            except Exception:
+                pass
+    if not ticket_ids:
+        return
+    tickets = (
+        db.query(EventTicket, EventTicketClass, Event)
+        .join(EventTicketClass, EventTicketClass.id == EventTicket.ticket_class_id)
+        .join(Event, Event.id == EventTicket.event_id)
+        .filter(EventTicket.id.in_(ticket_ids))
+        .all()
+    )
+    by_id = {str(t.id): (t, tc, ev) for t, tc, ev in tickets}
+    for r in rows:
+        bundle = by_id.get(r.get("target_id") or "")
+        if not bundle:
+            continue
+        tk, tc, ev = bundle
+        r["event_id"] = str(ev.id)
+        r["event_name"] = ev.name
+        r["event_cover_image"] = getattr(ev, "cover_image_url", None)
+        r["ticket_class_id"] = str(tc.id)
+        r["ticket_class_name"] = tc.name
+        r["ticket_id"] = str(tk.id)
+        r["ticket_code"] = tk.ticket_code
+    # Decorate retry hint for every row (also covers offline → False).
+    for r in rows:
+        r["can_retry"] = _retryable(r)
+
 
 def _apply_search(q, search: Optional[str]):
     """Filter transactions by free-text against tx code, references, payer
@@ -457,7 +519,7 @@ def my_ticket_payments(
     q = db.query(Transaction).filter(
         Transaction.target_type == PaymentTargetTypeEnum.ticket,
         Transaction.target_id.in_(ticket_ids_subq),
-        Transaction.status.in_(VISIBLE_STATUSES),
+        Transaction.status.in_(MY_VISIBLE_STATUSES),
     )
     q = _apply_search(q, search)
     q = q.order_by(Transaction.created_at.desc())
@@ -481,10 +543,20 @@ def my_ticket_payments(
         row = _serialize_offline_ticket_claim(
             claim, currency_code=currency, description=description,
         )
+        # Enrich offline rows with the same event/class context.
+        row["event_id"] = str(ev.id)
+        row["event_name"] = ev.name
+        row["event_cover_image"] = getattr(ev, "cover_image_url", None)
+        row["ticket_class_id"] = str(tc.id)
+        row["ticket_class_name"] = tc.name
         if _matches_search(row, search):
             offline_rows.append(row)
 
+    _enrich_ticket_rows(db, tx_rows)
     merged = sorted(tx_rows + offline_rows, key=_sort_key, reverse=True)
+    # Final pass to ensure every row carries the can_retry flag.
+    for r in merged:
+        r.setdefault("can_retry", _retryable(r))
     return api_response(True, "Your ticket payments retrieved.",
                         _paginate_merged(merged, page, limit))
 
@@ -501,7 +573,7 @@ def my_contribution_payments(
     q = db.query(Transaction).filter(
         Transaction.target_type == PaymentTargetTypeEnum.contribution,
         Transaction.payer_user_id == current_user.id,
-        Transaction.status.in_(VISIBLE_STATUSES),
+        Transaction.status.in_(MY_VISIBLE_STATUSES),
     )
     q = _apply_search(q, search)
     q = q.order_by(Transaction.created_at.desc())
@@ -530,5 +602,7 @@ def my_contribution_payments(
             offline_rows.append(row)
 
     merged = sorted(tx_rows + offline_rows, key=_sort_key, reverse=True)
+    for r in merged:
+        r.setdefault("can_retry", _retryable(r))
     return api_response(True, "Your contribution payments retrieved.",
                         _paginate_merged(merged, page, limit))

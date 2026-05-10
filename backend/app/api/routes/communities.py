@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func as sa_func
 
 from core.database import get_db
-from models import Community, CommunityMember, CommunityPost, CommunityPostImage, CommunityPostGlow, User, UserProfile, UserFeed, UserFeedImage
+from models import Community, CommunityMember, CommunityPost, CommunityPostImage, CommunityPostGlow, CommunityPostComment, CommunityPostSave, CommunityPostShare, CommunityMute, User, UserProfile, UserFeed, UserFeedImage
 from utils.auth import get_current_user
 from utils.helpers import standard_response, paginate
 
@@ -75,6 +75,8 @@ def get_my_communities(db: Session = Depends(get_db), current_user: User = Depen
 async def create_community(
     name: str = Form(...),
     description: Optional[str] = Form(None),
+    tagline: Optional[str] = Form(None),
+    category: Optional[str] = Form(None),
     is_public: Optional[bool] = Form(True),
     cover_image: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
@@ -106,6 +108,8 @@ async def create_community(
         id=uuid.uuid4(),
         name=name,
         description=description.strip() if description else None,
+        tagline=tagline.strip() if tagline else None,
+        category=category.strip() if category else None,
         cover_image_url=cover_image_url,
         is_public=is_public if is_public is not None else True,
         member_count=1,
@@ -379,7 +383,7 @@ async def create_community_post(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Only the community creator can post content."""
+    """Community members can post content."""
     try:
         cid = uuid.UUID(community_id)
     except ValueError:
@@ -389,8 +393,13 @@ async def create_community_post(
     if not c:
         return standard_response(False, "Community not found")
 
-    if str(c.created_by) != str(current_user.id):
-        return standard_response(False, "Only the community creator can post")
+    is_creator = str(c.created_by) == str(current_user.id)
+    is_member = db.query(CommunityMember).filter(
+        CommunityMember.community_id == cid,
+        CommunityMember.user_id == current_user.id,
+    ).first() is not None
+    if not (is_creator or is_member):
+        return standard_response(False, "Only community members can post")
 
     # Filter out empty file entries
     valid_images = []
@@ -467,3 +476,203 @@ def unglow_community_post(community_id: str, post_id: str, db: Session = Depends
         db.delete(g)
         db.commit()
     return standard_response(True, "Glow removed")
+
+
+# ─────────────────────────────────────────────────────────
+# Edit / delete community post
+# ─────────────────────────────────────────────────────────
+
+@router.put("/{community_id}/posts/{post_id}")
+def update_community_post(community_id: str, post_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        pid = uuid.UUID(post_id)
+    except ValueError:
+        return standard_response(False, "Invalid post ID")
+    cp = db.query(CommunityPost).filter(CommunityPost.id == pid).first()
+    if not cp:
+        return standard_response(False, "Post not found")
+    if str(cp.author_id) != str(current_user.id):
+        return standard_response(False, "Not allowed")
+    new_content = (body.get("content") or "").strip()
+    if not new_content:
+        return standard_response(False, "Content is required")
+    cp.content = new_content
+    cp.edited_at = datetime.now(EAT)
+    cp.updated_at = datetime.now(EAT)
+    db.commit()
+    return standard_response(True, "Post updated", {"id": str(cp.id), "content": cp.content})
+
+
+@router.delete("/{community_id}/posts/{post_id}")
+def delete_community_post(community_id: str, post_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        pid = uuid.UUID(post_id)
+        cid = uuid.UUID(community_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+    cp = db.query(CommunityPost).filter(CommunityPost.id == pid).first()
+    if not cp:
+        return standard_response(False, "Post not found")
+    c = db.query(Community).filter(Community.id == cid).first()
+    is_admin = c and str(c.created_by) == str(current_user.id)
+    if str(cp.author_id) != str(current_user.id) and not is_admin:
+        return standard_response(False, "Not allowed")
+    db.delete(cp)
+    db.commit()
+    return standard_response(True, "Post deleted")
+
+
+# ─────────────────────────────────────────────────────────
+# Comments
+# ─────────────────────────────────────────────────────────
+
+def _comment_dict(c, user_map, profile_map):
+    u = user_map.get(c.user_id)
+    p = profile_map.get(c.user_id) if u else None
+    return {
+        "id": str(c.id),
+        "content": c.content,
+        "parent_id": str(c.parent_id) if c.parent_id else None,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+        "user": {
+            "id": str(u.id) if u else None,
+            "name": (f"{u.first_name or ''} {u.last_name or ''}").strip() if u else None,
+            "first_name": u.first_name if u else None,
+            "last_name": u.last_name if u else None,
+            "avatar": p.profile_picture_url if p else None,
+            "is_verified": bool(getattr(u, "is_identity_verified", False)) if u else False,
+        },
+    }
+
+
+@router.get("/{community_id}/posts/{post_id}/comments")
+def list_community_post_comments(community_id: str, post_id: str, page: int = 1, limit: int = 50, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        pid = uuid.UUID(post_id)
+    except ValueError:
+        return standard_response(False, "Invalid post ID")
+    query = db.query(CommunityPostComment).filter(CommunityPostComment.post_id == pid).order_by(CommunityPostComment.created_at.asc())
+    items, pagination = paginate(query, page, limit)
+    user_ids = list({i.user_id for i in items})
+    users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
+    user_map = {u.id: u for u in users}
+    profiles = db.query(UserProfile).filter(UserProfile.user_id.in_(user_ids)).all() if user_ids else []
+    profile_map = {p.user_id: p for p in profiles}
+    data = [_comment_dict(c, user_map, profile_map) for c in items]
+    return standard_response(True, "Comments retrieved", {"comments": data}, pagination=pagination, wrap_items=False)
+
+
+@router.post("/{community_id}/posts/{post_id}/comments")
+def add_community_post_comment(community_id: str, post_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        pid = uuid.UUID(post_id)
+        cid = uuid.UUID(community_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+    content = (body.get("content") or "").strip()
+    if not content:
+        return standard_response(False, "Content is required")
+    is_member = db.query(CommunityMember).filter(
+        CommunityMember.community_id == cid, CommunityMember.user_id == current_user.id
+    ).first() is not None
+    c = db.query(Community).filter(Community.id == cid).first()
+    if not c:
+        return standard_response(False, "Community not found")
+    if not (is_member or str(c.created_by) == str(current_user.id)):
+        return standard_response(False, "Join the community to comment")
+    parent_id_raw = body.get("parent_id")
+    parent_uuid = None
+    if parent_id_raw:
+        try:
+            parent_uuid = uuid.UUID(parent_id_raw)
+        except ValueError:
+            parent_uuid = None
+    comment = CommunityPostComment(
+        id=uuid.uuid4(), post_id=pid, user_id=current_user.id, content=content,
+        parent_id=parent_uuid, created_at=datetime.now(EAT), updated_at=datetime.now(EAT),
+    )
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+    user_map = {current_user.id: current_user}
+    p = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    profile_map = {current_user.id: p} if p else {}
+    return standard_response(True, "Comment added", _comment_dict(comment, user_map, profile_map))
+
+
+@router.delete("/{community_id}/posts/{post_id}/comments/{comment_id}")
+def delete_community_post_comment(community_id: str, post_id: str, comment_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        cmid = uuid.UUID(comment_id)
+        cid = uuid.UUID(community_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+    cm = db.query(CommunityPostComment).filter(CommunityPostComment.id == cmid).first()
+    if not cm:
+        return standard_response(False, "Comment not found")
+    c = db.query(Community).filter(Community.id == cid).first()
+    is_admin = c and str(c.created_by) == str(current_user.id)
+    if str(cm.user_id) != str(current_user.id) and not is_admin:
+        return standard_response(False, "Not allowed")
+    db.delete(cm)
+    db.commit()
+    return standard_response(True, "Comment deleted")
+
+
+# ─────────────────────────────────────────────────────────
+# Save / Share / Mute
+# ─────────────────────────────────────────────────────────
+
+@router.post("/{community_id}/posts/{post_id}/save")
+def save_community_post(community_id: str, post_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        pid = uuid.UUID(post_id)
+    except ValueError:
+        return standard_response(False, "Invalid post ID")
+    existing = db.query(CommunityPostSave).filter(CommunityPostSave.post_id == pid, CommunityPostSave.user_id == current_user.id).first()
+    if existing:
+        return standard_response(True, "Already saved")
+    db.add(CommunityPostSave(id=uuid.uuid4(), post_id=pid, user_id=current_user.id, created_at=datetime.now(EAT)))
+    db.commit()
+    return standard_response(True, "Saved")
+
+
+@router.delete("/{community_id}/posts/{post_id}/save")
+def unsave_community_post(community_id: str, post_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        pid = uuid.UUID(post_id)
+    except ValueError:
+        return standard_response(False, "Invalid post ID")
+    s = db.query(CommunityPostSave).filter(CommunityPostSave.post_id == pid, CommunityPostSave.user_id == current_user.id).first()
+    if s:
+        db.delete(s)
+        db.commit()
+    return standard_response(True, "Unsaved")
+
+
+@router.post("/{community_id}/posts/{post_id}/share")
+def share_community_post(community_id: str, post_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        pid = uuid.UUID(post_id)
+    except ValueError:
+        return standard_response(False, "Invalid post ID")
+    db.add(CommunityPostShare(id=uuid.uuid4(), post_id=pid, user_id=current_user.id, created_at=datetime.now(EAT)))
+    db.commit()
+    cnt = db.query(sa_func.count(CommunityPostShare.id)).filter(CommunityPostShare.post_id == pid).scalar() or 0
+    return standard_response(True, "Shared", {"share_count": int(cnt)})
+
+
+@router.post("/{community_id}/mute")
+def mute_community(community_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        cid = uuid.UUID(community_id)
+    except ValueError:
+        return standard_response(False, "Invalid community ID")
+    existing = db.query(CommunityMute).filter(CommunityMute.community_id == cid, CommunityMute.user_id == current_user.id).first()
+    if existing:
+        db.delete(existing)
+        db.commit()
+        return standard_response(True, "Unmuted", {"muted": False})
+    db.add(CommunityMute(id=uuid.uuid4(), community_id=cid, user_id=current_user.id, created_at=datetime.now(EAT)))
+    db.commit()
+    return standard_response(True, "Muted", {"muted": True})

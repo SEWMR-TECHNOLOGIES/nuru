@@ -37,7 +37,7 @@ from models.users import (
     PasswordResetToken, Achievement, UserAchievement, NameValidationFlag,
 )
 from models.nuru_cards import NuruCard, NuruCardOrder, NuruCardPricing
-from models.communities import Community, CommunityMember, CommunityPost, CommunityPostImage, CommunityPostGlow
+from models.communities import Community, CommunityMember, CommunityPost, CommunityPostImage, CommunityPostGlow, CommunityPostComment, CommunityPostSave, CommunityPostShare, CommunityMute
 from models.feeds import (
     UserFeed, UserFeedImage, UserFeedGlow, UserFeedEcho,
     UserFeedSpark, UserFeedComment, UserFeedCommentGlow, UserFeedPinned,

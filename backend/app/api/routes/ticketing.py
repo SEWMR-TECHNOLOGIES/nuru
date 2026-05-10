@@ -471,7 +471,8 @@ def get_my_tickets(
             "currency": "TZS",
             "status": t.status.value if t.status else "pending",
             "payment_status": t.payment_status.value if t.payment_status else "pending",
-            "checked_in": t.checked_in,
+            "checked_in": bool(t.checked_in),
+            "checked_in_at": str(t.checked_in_at) if t.checked_in_at else None,
             "created_at": str(t.created_at) if t.created_at else None,
         })
 
