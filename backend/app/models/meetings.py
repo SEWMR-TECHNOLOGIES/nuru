@@ -22,6 +22,7 @@ class EventMeeting(Base):
     timezone = Column(String(64), default='UTC')  # IANA timezone e.g. Africa/Dar_es_Salaam
     duration_minutes = Column(String(10), default='60')
     room_id = Column(String(255), nullable=False, unique=True)
+    passcode = Column(String(32))
     status = Column(Enum(MeetingStatusEnum, name="meeting_status_enum"), default=MeetingStatusEnum.scheduled)
     ended_at = Column(DateTime)
     created_at = Column(DateTime, server_default=func.now())

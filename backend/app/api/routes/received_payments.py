@@ -213,6 +213,7 @@ def _enrich_ticket_rows(db: Session, rows: List[Dict[str, Any]]) -> None:
     """Attach event + ticket-class context to ticket payment rows so the
     mobile UI can render a rich receipt without follow-up calls."""
     from models.ticketing import EventTicket
+    from models.events import EventImage
     ticket_ids = []
     for r in rows:
         tid = r.get("target_id")
@@ -231,6 +232,20 @@ def _enrich_ticket_rows(db: Session, rows: List[Dict[str, Any]]) -> None:
         .all()
     )
     by_id = {str(t.id): (t, tc, ev) for t, tc, ev in tickets}
+    # Build a per-event fallback image map (featured first, then earliest)
+    event_ids = list({ev.id for _, _, ev in tickets if not getattr(ev, "cover_image_url", None)})
+    fallback_covers: Dict[str, str] = {}
+    if event_ids:
+        imgs = (
+            db.query(EventImage)
+            .filter(EventImage.event_id.in_(event_ids))
+            .order_by(EventImage.is_featured.desc(), EventImage.created_at.asc())
+            .all()
+        )
+        for img in imgs:
+            key = str(img.event_id)
+            if key not in fallback_covers and img.image_url:
+                fallback_covers[key] = img.image_url
     for r in rows:
         bundle = by_id.get(r.get("target_id") or "")
         if not bundle:
@@ -238,7 +253,8 @@ def _enrich_ticket_rows(db: Session, rows: List[Dict[str, Any]]) -> None:
         tk, tc, ev = bundle
         r["event_id"] = str(ev.id)
         r["event_name"] = ev.name
-        r["event_cover_image"] = getattr(ev, "cover_image_url", None)
+        cover = getattr(ev, "cover_image_url", None) or fallback_covers.get(str(ev.id))
+        r["event_cover_image"] = cover
         r["event_start_date"] = ev.start_date.isoformat() if ev.start_date else None
         r["event_location"] = ev.location
         r["ticket_class_id"] = str(tc.id)
@@ -555,6 +571,21 @@ def my_ticket_payments(
         for claim, _, _ in claims
         if claim.status == "confirmed" and claim.transaction_code
     }
+    # Resolve fallback covers for events missing cover_image_url
+    from models.events import EventImage as _EI
+    _missing = [ev.id for _, _, ev in claims if not getattr(ev, "cover_image_url", None)]
+    _fallback: Dict[str, str] = {}
+    if _missing:
+        _imgs = (
+            db.query(_EI)
+            .filter(_EI.event_id.in_(list(set(_missing))))
+            .order_by(_EI.is_featured.desc(), _EI.created_at.asc())
+            .all()
+        )
+        for img in _imgs:
+            k = str(img.event_id)
+            if k not in _fallback and img.image_url:
+                _fallback[k] = img.image_url
     for claim, tc, ev in claims:
         currency = _event_currency(db, ev)
         description = f"Ticket · {tc.name} · {ev.name}"
@@ -564,7 +595,7 @@ def my_ticket_payments(
         # Enrich offline rows with the same event/class context.
         row["event_id"] = str(ev.id)
         row["event_name"] = ev.name
-        row["event_cover_image"] = getattr(ev, "cover_image_url", None)
+        row["event_cover_image"] = getattr(ev, "cover_image_url", None) or _fallback.get(str(ev.id))
         row["event_start_date"] = ev.start_date.isoformat() if ev.start_date else None
         row["event_location"] = ev.location
         row["ticket_class_id"] = str(tc.id)
