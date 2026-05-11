@@ -86,9 +86,19 @@ def _generate_room_id(event_id: str) -> str:
     return f"nuru-{event_id[:8]}-{short_id}"
 
 
+def _generate_passcode() -> str:
+    """Generate a 6-digit numeric meeting passcode."""
+    import secrets
+    return f"{secrets.randbelow(900000) + 100000}"
+
+
 def _is_host_or_cohost(meeting: EventMeeting, user_id: str, db: Session) -> bool:
-    """Check if user is the creator or a co-host of the meeting."""
+    """True if user is the meeting creator, a co-host, or the event organizer."""
     if str(meeting.created_by) == user_id:
+        return True
+    # Event organizer always has host-level control over meetings on their event
+    event = db.query(Event).filter(Event.id == meeting.event_id).first()
+    if event and str(event.organizer_id) == user_id:
         return True
     participant = db.query(EventMeetingParticipant).filter(
         EventMeetingParticipant.meeting_id == meeting.id,
@@ -154,6 +164,7 @@ def create_meeting(event_id: str, body: CreateMeetingRequest, db: Session = Depe
         timezone=body.timezone or "UTC",
         duration_minutes=body.duration_minutes or "60",
         room_id=room_id,
+        passcode=_generate_passcode(),
         status=MeetingStatusEnum.scheduled,
     )
     db.add(meeting)
@@ -768,6 +779,7 @@ def _serialize_meeting(meeting: EventMeeting, db: Session) -> dict:
         "timezone": getattr(meeting, 'timezone', None) or "UTC",
         "duration_minutes": meeting.duration_minutes,
         "room_id": meeting.room_id,
+        "passcode": getattr(meeting, "passcode", None),
         "meeting_url": f"https://nuru.tz/meet/{meeting.room_id}",
         "status": meeting.status.value if meeting.status else "scheduled",
         "created_by": {
