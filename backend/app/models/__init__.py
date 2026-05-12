@@ -106,6 +106,7 @@ from models.event_groups import (
     GroupMemberRoleEnum, GroupMessageTypeEnum,
 )
 from models.contact import ContactMessage
+from models.account_deletion import AccountDeletionRequest
 from models.event_messaging_templates import EventMessagingTemplate
 from models.app_version import AppVersionSetting
 from models.event_sponsors import EventSponsor

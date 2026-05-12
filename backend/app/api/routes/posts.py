@@ -256,7 +256,7 @@ def get_feed(
             "pagination": pagination,
             "feed_mode": "chronological",
         }
-        cache_set(cache_key, result, ttl_seconds=120)
+        cache_set(cache_key, result, ttl_seconds=30)
         return standard_response(True, "Feed retrieved", result)
 
     # ── Ranked Feed ──
@@ -270,8 +270,13 @@ def get_feed(
             UserInteractionLog.user_id == current_user.id
         ).scalar() or 0
 
+        # Cold-start until the user has produced enough signals for the
+        # ranker to actually personalise. Once over the threshold we
+        # always use the ranked path.
         if interaction_count < 10:
-            posts, pagination = get_cold_start_feed(db, current_user.id, page, limit)
+            posts, pagination = get_cold_start_feed(
+                db, current_user.id, page, limit, session_id
+            )
         else:
             posts, pagination = generate_ranked_feed(
                 db, current_user.id, page, limit, session_id
@@ -283,7 +288,10 @@ def get_feed(
             "pagination": pagination,
             "feed_mode": "ranked" if interaction_count >= 10 else "cold_start",
         }
-        cache_set(cache_key, result, ttl_seconds=120)
+        # Short TTL so newly logged interactions surface within seconds.
+        # Hard cache invalidation also runs in log_interaction(), this is
+        # belt-and-suspenders for view-only sessions.
+        cache_set(cache_key, result, ttl_seconds=30)
         return standard_response(True, "Feed retrieved", result)
 
     except Exception as e:
@@ -297,7 +305,7 @@ def get_feed(
             "pagination": pagination,
             "feed_mode": "chronological_fallback",
         }
-        cache_set(cache_key, result, ttl_seconds=120)
+        cache_set(cache_key, result, ttl_seconds=30)
         return standard_response(True, "Feed retrieved", result)
 
 
@@ -539,11 +547,19 @@ def glow_post(post_id: str, db: Session = Depends(get_db), current_user: User = 
     except ValueError:
         return standard_response(False, "Invalid post ID")
     existing = db.query(UserFeedGlow).filter(UserFeedGlow.feed_id == pid, UserFeedGlow.user_id == current_user.id).first()
-    if existing:
-        return standard_response(True, "Already glowed")
-    db.add(UserFeedGlow(id=uuid.uuid4(), feed_id=pid, user_id=current_user.id, created_at=datetime.now(EAT)))
-    db.commit()
-    return standard_response(True, "Post glowed")
+    if not existing:
+        db.add(UserFeedGlow(id=uuid.uuid4(), feed_id=pid, user_id=current_user.id, created_at=datetime.now(EAT)))
+        db.commit()
+    glow_count = db.query(sa_func.count(UserFeedGlow.id)).filter(UserFeedGlow.feed_id == pid).scalar() or 0
+    # Invalidate this user's cached feed so has_glowed reflects immediately on
+    # the next /feed request (was returning stale `has_glowed=false` for up to
+    # the 120s TTL otherwise).
+    try:
+        from core.redis import invalidate_user_feed
+        invalidate_user_feed(str(current_user.id))
+    except Exception:
+        pass
+    return standard_response(True, "Post glowed", {"has_glowed": True, "glow_count": glow_count})
 
 
 @router.delete("/{post_id}/glow")
@@ -556,7 +572,13 @@ def unglow_post(post_id: str, db: Session = Depends(get_db), current_user: User 
     if g:
         db.delete(g)
         db.commit()
-    return standard_response(True, "Glow removed")
+    glow_count = db.query(sa_func.count(UserFeedGlow.id)).filter(UserFeedGlow.feed_id == pid).scalar() or 0
+    try:
+        from core.redis import invalidate_user_feed
+        invalidate_user_feed(str(current_user.id))
+    except Exception:
+        pass
+    return standard_response(True, "Glow removed", {"has_glowed": False, "glow_count": glow_count})
 
 
 # Echo

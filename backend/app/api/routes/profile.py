@@ -214,6 +214,150 @@ def confirm_country(
 
 
 # ──────────────────────────────────────────────
+# Interests (Onboarding chip picker)
+# ──────────────────────────────────────────────
+
+# Curated catalogue of interests offered on the onboarding screen. Keeping
+# this server-side keeps the chip list consistent across web + mobile and
+# acts as a soft allow-list for slugs we accept on write.
+# Nuru is an events platform — every interest is an event type or
+# event-adjacent activity people attend, host, or follow. Each entry has an
+# emoji to make the picker feel personal rather than form-like.
+INTEREST_CATALOGUE = [
+    {"slug": "weddings",       "label": "Weddings",            "emoji": "💍"},
+    {"slug": "birthdays",      "label": "Birthdays",           "emoji": "🎂"},
+    {"slug": "graduations",    "label": "Graduations",         "emoji": "🎓"},
+    {"slug": "anniversaries",  "label": "Anniversaries",       "emoji": "🥂"},
+    {"slug": "baby_showers",   "label": "Baby showers",        "emoji": "🍼"},
+    {"slug": "private_parties","label": "Private parties",     "emoji": "🎉"},
+    {"slug": "concerts",       "label": "Concerts",            "emoji": "🎤"},
+    {"slug": "festivals",      "label": "Festivals",           "emoji": "🎪"},
+    {"slug": "nightlife",      "label": "Nightlife",           "emoji": "🪩"},
+    {"slug": "conferences",    "label": "Conferences",         "emoji": "🎙️"},
+    {"slug": "workshops",      "label": "Workshops",           "emoji": "🛠️"},
+    {"slug": "networking",     "label": "Networking",          "emoji": "🤝"},
+    {"slug": "corporate",      "label": "Corporate events",    "emoji": "💼"},
+    {"slug": "exhibitions",    "label": "Exhibitions & expos", "emoji": "🖼️"},
+    {"slug": "fashion_shows",  "label": "Fashion shows",       "emoji": "👗"},
+    {"slug": "sports_events",  "label": "Sports events",       "emoji": "🏟️"},
+    {"slug": "faith",          "label": "Faith gatherings",    "emoji": "🙏"},
+    {"slug": "cultural",       "label": "Cultural events",     "emoji": "🪘"},
+    {"slug": "community",      "label": "Community meetups",   "emoji": "🫂"},
+    {"slug": "charity",        "label": "Charity & fundraisers","emoji": "❤️"},
+    {"slug": "food_events",    "label": "Food & dining",       "emoji": "🍽️"},
+    {"slug": "memorials",      "label": "Memorials",           "emoji": "🕊️"},
+    {"slug": "retreats",       "label": "Retreats & getaways", "emoji": "🌿"},
+]
+_VALID_INTERESTS = {it["slug"] for it in INTEREST_CATALOGUE}
+# Soft allow-list for the second onboarding question — how the user
+# typically engages with events on Nuru.
+_VALID_ROLES = {"attendee", "host", "planner", "vendor"}
+
+# Why people sign up to Nuru — first onboarding question. Multi-select.
+# Friendly, event-centric and non-judgemental: people often arrive for more
+# than one reason (e.g. "I want to throw a party AND buy tickets to others").
+SIGNUP_INTENT_CATALOGUE = [
+    {"slug": "plan_event",      "label": "Plan my own event",          "emoji": "🗓️", "hint": "Weddings, birthdays, meetups…"},
+    {"slug": "buy_tickets",     "label": "Buy tickets to events",      "emoji": "🎟️", "hint": "Concerts, festivals, shows"},
+    {"slug": "discover_events", "label": "Discover what's happening",  "emoji": "🔭", "hint": "See what's on near me"},
+    {"slug": "offer_service",   "label": "Offer a service or vendor",  "emoji": "🛎️", "hint": "Photography, catering, DJ…"},
+    {"slug": "host_community",  "label": "Build a community",          "emoji": "🫂", "hint": "Bring people together"},
+    {"slug": "share_moments",   "label": "Share my event moments",     "emoji": "📸", "hint": "Photos, videos, memories"},
+    {"slug": "network",         "label": "Meet people & network",      "emoji": "🤝", "hint": "New connections & friends"},
+    {"slug": "just_exploring",  "label": "Just exploring for now",     "emoji": "✨", "hint": "Looking around"},
+]
+_VALID_INTENTS = {it["slug"] for it in SIGNUP_INTENT_CATALOGUE}
+
+
+@router.get("/profile/interests")
+def get_interests(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    selected = list(profile.interests or []) if profile else []
+    intents = list(getattr(profile, "signup_intents", None) or []) if profile else []
+    return standard_response(True, "Interests retrieved", {
+        "catalogue": INTEREST_CATALOGUE,
+        "selected": selected,
+        "role": getattr(profile, "event_role", None) if profile else None,
+        "roles": [
+            {"slug": "attendee", "label": "I love attending events",   "emoji": "🎟️"},
+            {"slug": "host",     "label": "I host my own events",       "emoji": "🎈"},
+            {"slug": "planner",  "label": "I plan events for others",   "emoji": "📋"},
+            {"slug": "vendor",   "label": "I'm a vendor or service",    "emoji": "🛎️"},
+        ],
+        "intents_catalogue": SIGNUP_INTENT_CATALOGUE,
+        "intents": intents,
+    })
+
+
+@router.put("/profile/interests")
+def update_interests(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Persist the user's chosen interests.
+
+    Body: {
+        interests: ["weddings", "concerts", ...],
+        role: "attendee" | "host" | "planner" | "vendor"   (optional),
+        intents: ["plan_event", "buy_tickets", ...]        (optional)
+    }
+    Unknown slugs are silently dropped to keep the column safe.
+    """
+    raw = payload.get("interests") or []
+    if not isinstance(raw, list):
+        return standard_response(False, "Interests must be a list", {"errors": {"interests": "Expected a list of slugs."}})
+    cleaned = []
+    seen = set()
+    for item in raw[:50]:
+        slug = str(item).strip().lower()
+        if slug in _VALID_INTERESTS and slug not in seen:
+            cleaned.append(slug)
+            seen.add(slug)
+
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    if not profile:
+        profile = UserProfile(user_id=current_user.id)
+        db.add(profile)
+    profile.interests = cleaned
+    # Persist the signup intents (first onboarding question). Silently drop
+    # unknown slugs and ignore on older DBs that don't yet have the column.
+    intents_raw = payload.get("intents")
+    if isinstance(intents_raw, list) and hasattr(profile, "signup_intents"):
+        intents_clean: list[str] = []
+        seen_i: set[str] = set()
+        for item in intents_raw[:20]:
+            slug = str(item).strip().lower()
+            if slug in _VALID_INTENTS and slug not in seen_i:
+                intents_clean.append(slug)
+                seen_i.add(slug)
+        try:
+            profile.signup_intents = intents_clean
+        except Exception:
+            pass
+    # Persist the optional role into the profile bio metadata column when
+    # available; ignore silently otherwise so old DBs don't 500.
+    role_raw = payload.get("role")
+    if isinstance(role_raw, str):
+        role = role_raw.strip().lower()
+        if role in _VALID_ROLES and hasattr(profile, "event_role"):
+            try:
+                profile.event_role = role
+            except Exception:
+                pass
+    profile.updated_at = datetime.now(EAT)
+    db.commit()
+    return standard_response(True, "Interests updated", {
+        "selected": cleaned,
+        "role": getattr(profile, "event_role", None),
+        "intents": list(getattr(profile, "signup_intents", None) or []),
+    })
+
+
+# ──────────────────────────────────────────────
 # Identity Verification
 # ──────────────────────────────────────────────
 

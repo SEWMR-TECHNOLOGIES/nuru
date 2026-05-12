@@ -71,6 +71,69 @@ def get_my_communities(db: Session = Depends(get_db), current_user: User = Depen
     return standard_response(True, "My communities retrieved", data)
 
 
+@router.get("/recommended")
+def get_recommended_communities(
+    page: int = 1,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return communities the user is NOT already in, ranked by relevance.
+
+    Ranking favours:
+      • category matches against the user's onboarding interests
+      • verified communities
+      • member count (popularity)
+    """
+    from utils.batch_loaders import build_community_dicts
+
+    # 1. Communities to exclude — the user already belongs to or created.
+    member_rows = db.query(CommunityMember.community_id).filter(
+        CommunityMember.user_id == current_user.id
+    ).all()
+    member_ids = {row[0] for row in member_rows}
+    created_rows = db.query(Community.id).filter(Community.created_by == current_user.id).all()
+    member_ids.update(row[0] for row in created_rows)
+
+    # 2. Pull the user's interests for category-based boosting.
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    interests = set()
+    if profile and isinstance(profile.interests, list):
+        interests = {str(s).strip().lower() for s in profile.interests if s}
+
+    # 3. Candidate set — public communities the user is not already in.
+    q = db.query(Community).filter(Community.is_public.is_(True))
+    if member_ids:
+        q = q.filter(~Community.id.in_(member_ids))
+
+    candidates = q.all()
+
+    def _score(c: Community) -> tuple:
+        category = (getattr(c, "category", "") or "").strip().lower()
+        interest_match = 1 if (category and (category in interests
+            or any(i in category or category in i for i in interests))) else 0
+        verified = 1 if getattr(c, "is_verified", False) else 0
+        members = int(c.member_count or 0)
+        # Sort key — higher is better; created_at as final tiebreaker.
+        return (interest_match, verified, members, c.created_at or datetime.min)
+
+    ranked = sorted(candidates, key=_score, reverse=True)
+    total = len(ranked)
+    safe_limit = max(1, min(limit, 50))
+    safe_page = max(1, page)
+    start = (safe_page - 1) * safe_limit
+    end = start + safe_limit
+    page_items = ranked[start:end]
+    pagination = {
+        "page": safe_page,
+        "limit": safe_limit,
+        "total": total,
+        "pages": (total + safe_limit - 1) // safe_limit if total else 0,
+    }
+    data = build_community_dicts(db, page_items, current_user.id)
+    return standard_response(True, "Recommended communities", data, pagination=pagination)
+
+
 @router.post("/")
 async def create_community(
     name: str = Form(...),
