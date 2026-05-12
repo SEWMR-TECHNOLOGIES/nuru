@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { eventsApi } from '@/lib/api/events';
 import NuruInvitationCard, { NuruCardData, NuruCardVariant } from '@/components/invitation-cards/NuruInvitationCard';
+import SvgCardRenderer from '@/components/invitation-cards/SvgCardRenderer';
+import { getTemplateById } from '@/components/invitation-cards/SvgTemplateRegistry';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { cn } from '@/lib/utils';
 
@@ -171,10 +173,36 @@ const InvitationCard = ({ eventId, open, onClose, isOrganizer = false, guestId }
             </div>
 
             {/* Card preview */}
-            <div className="max-h-[75vh] overflow-y-auto bg-neutral-100 p-4 flex justify-center">
-              <div className="origin-top scale-[0.85] sm:scale-100">
-                <NuruInvitationCard ref={cardRef} variant={variant} data={buildCardData()} />
-              </div>
+            <div className="max-h-[75vh] overflow-auto bg-neutral-100 p-4 flex justify-center">
+              {(() => {
+                const tplId = data?.event?.invitation_template_id as string | undefined;
+                const tpl = tplId ? getTemplateById(tplId) : null;
+                if (tpl) {
+                  const cd = buildCardData();
+                  return (
+                    <div ref={cardRef} className="origin-top w-[480px] max-w-full">
+                      <SvgCardRenderer
+                        template={tpl}
+                        data={{
+                          guestName: cd.guestName,
+                          eventTitle: cd.eventTitle,
+                          date: cd.date,
+                          time: cd.time,
+                          venue: cd.venue,
+                          address: data?.event?.venue_address,
+                          qrValue: cd.qrValue,
+                        }}
+                        contentOverrides={data?.event?.invitation_content || null}
+                      />
+                    </div>
+                  );
+                }
+                return (
+                  <div className="origin-top scale-[0.55] xs:scale-[0.65] sm:scale-[0.85] md:scale-100">
+                    <NuruInvitationCard ref={cardRef} variant={variant} data={buildCardData()} />
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Actions */}

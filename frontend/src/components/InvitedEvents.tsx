@@ -13,6 +13,7 @@ import { showCaughtError } from '@/lib/api';
 import InvitationCard from './InvitationCard';
 import { getEventCountdown } from '@/utils/getEventCountdown';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { getEventImage } from '@/lib/eventImage';
 
 const rsvpStyles: Record<string, string> = {
   pending: 'bg-amber-100 text-amber-800',
@@ -145,11 +146,9 @@ const InvitedEvents = () => {
               </div>
               <div className="p-4">
                 <div className="flex flex-col sm:flex-row gap-4">
-                  {event.cover_image && (
-                    <div className="w-full sm:w-32 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-muted/10">
-                      <img src={event.cover_image} alt={event.title} className="w-full h-full object-cover" />
-                    </div>
-                  )}
+                  <div className="w-full sm:w-32 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-muted/10">
+                    <img src={getEventImage(event)} alt={event.title} className="w-full h-full object-cover" />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div>

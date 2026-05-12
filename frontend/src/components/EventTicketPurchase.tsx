@@ -13,6 +13,7 @@ import { motion } from "framer-motion";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import CheckoutModal from "@/components/payments/CheckoutModal";
 import ReservationSuccess from "@/components/tickets/ReservationSuccess";
+import { getEventImage } from "@/lib/eventImage";
 
 interface EventTicketPurchaseProps {
   eventId: string;
@@ -43,7 +44,7 @@ const EventTicketPurchase = ({ eventId, eventName, event }: EventTicketPurchaseP
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
 
-  const coverImage = event?.cover_image || event?.images?.[0]?.url || null;
+  const coverImage = getEventImage(event);
   const displayName = event?.title || eventName || "Event";
 
   const loadClasses = () => {
@@ -133,31 +134,14 @@ const EventTicketPurchase = ({ eventId, eventName, event }: EventTicketPurchaseP
     }
   };
 
-  // ── Loading / empty entry card ────────────────────────────────────────────
-  if (loading) {
-    return (
-      <Card className="border-primary/20">
-        <CardContent className="p-5">
-          <div className="flex items-center gap-3">
-            <Skeleton className="w-10 h-10 rounded-lg" />
-            <div className="flex-1 space-y-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-3 w-48" />
-            </div>
-            <Skeleton className="h-9 w-24" />
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-  if (classes.length === 0) return null;
+  if (!loading && classes.length === 0) return null;
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
       {/* Compact entry card — clicking opens the same modal as Browse Tickets */}
       <Card
         className="border-primary/20 cursor-pointer hover:shadow-md hover:border-primary/40 transition-all"
-        onClick={() => setOpen(true)}
+        onClick={() => !loading && setOpen(true)}
       >
         <CardContent className="p-4 sm:p-5">
           <div className="flex items-center gap-3">
@@ -166,15 +150,24 @@ const EventTicketPurchase = ({ eventId, eventName, event }: EventTicketPurchaseP
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="font-semibold text-foreground truncate">Tickets available</h2>
-              <p className="text-xs text-muted-foreground truncate">
-                From <span className="font-semibold text-primary">{formatPrice(minPrice)}</span>
-                {" · "}{classes.length} class{classes.length !== 1 ? "es" : ""}
-                {totalAvailable > 0 && (
-                  <span className="hidden sm:inline"> · {totalAvailable} left</span>
+              <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                <span>From</span>
+                {loading ? (
+                  <Skeleton className="h-3 w-20 inline-block align-middle" />
+                ) : (
+                  <span className="font-semibold text-primary">{formatPrice(minPrice)}</span>
+                )}
+                {!loading && (
+                  <>
+                    <span>{" · "}{classes.length} class{classes.length !== 1 ? "es" : ""}</span>
+                    {totalAvailable > 0 && (
+                      <span className="hidden sm:inline"> · {totalAvailable} left</span>
+                    )}
+                  </>
                 )}
               </p>
             </div>
-            <Button size="sm" className="gap-2 flex-shrink-0">
+            <Button size="sm" className="gap-2 flex-shrink-0" disabled={loading}>
               <img src={TicketIcon} alt="" className="w-3.5 h-3.5 invert" />
               <span className="hidden sm:inline">Buy ticket</span>
               <span className="sm:hidden">Buy</span>

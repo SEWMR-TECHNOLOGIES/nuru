@@ -134,11 +134,14 @@ const PublicServiceDetail = () => {
       const res = await messagesApi.startConversation({
         recipient_id: providerId,
         service_id: id,
+        service_title: service.title,
+        service_image: imageUrls[0] || getImageUrl((service.images || [])[0]),
         message: `Hi, I'm interested in your service "${service.title}". I'd like to discuss booking details.`,
       });
       if (res.success && res.data) {
         const conversationId = res.data.id || res.data.conversation_id;
-        navigate(`/messages?conversation=${conversationId}`);
+        const params = new URLSearchParams({ conversationId: String(conversationId) });
+        navigate(`/messages?${params.toString()}`, { state: { conversation: res.data } });
       } else {
         showApiErrors(res);
       }

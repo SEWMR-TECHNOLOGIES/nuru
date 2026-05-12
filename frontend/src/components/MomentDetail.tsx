@@ -27,6 +27,7 @@ import { socialApi } from '@/lib/api/social';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { NURU_EVENT_DEFAULT_IMAGE } from '@/lib/eventImage';
 
 const getInitials = (name: string) => {
   const parts = name.trim().split(/\s+/);
@@ -538,7 +539,7 @@ const MomentDetail = () => {
   // Shared event detection
   const isEventShare = post.post_type === 'event_share' && !!post.shared_event;
   const sharedEvent = post.shared_event;
-  const eventImages = sharedEvent?.images?.length ? sharedEvent.images : (sharedEvent?.cover_image ? [sharedEvent.cover_image] : []);
+  const eventImages = sharedEvent?.images?.length ? sharedEvent.images : (sharedEvent?.cover_image ? [sharedEvent.cover_image] : [NURU_EVENT_DEFAULT_IMAGE]);
 
   return (
     <>

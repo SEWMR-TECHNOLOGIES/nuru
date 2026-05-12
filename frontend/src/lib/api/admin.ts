@@ -389,4 +389,18 @@ export const adminApi = {
   updateContactStatus: (id: string, status: string) => aPut<any>(`/admin/contact-messages/${id}/status`, { status }),
   updateContactNotes:  (id: string, notes: string)  => aPut<any>(`/admin/contact-messages/${id}/notes`, { notes }),
   deleteContactMessage:(id: string)   => aDel<any>(`/admin/contact-messages/${id}`),
+
+  // Account deletion requests
+  getDeletionRequests: (params?: { page?: number; limit?: number; status?: string; q?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.page)   qs.set("page",   String(params.page));
+    if (params?.limit)  qs.set("limit",  String(params.limit));
+    if (params?.status) qs.set("status", params.status);
+    if (params?.q)      qs.set("q",      params.q);
+    return aGet<any>(`/admin/account-deletion${qs.toString() ? `?${qs}` : ""}`);
+  },
+  getDeletionStats:    ()             => aGet<any>("/admin/account-deletion/stats"),
+  updateDeletionStatus:(id: string, status: string) => aPut<any>(`/admin/account-deletion/${id}/status`, { status }),
+  updateDeletionNotes: (id: string, notes: string)  => aPut<any>(`/admin/account-deletion/${id}/notes`, { notes }),
+  deleteDeletionRequest:(id: string)  => aDel<any>(`/admin/account-deletion/${id}`),
 };

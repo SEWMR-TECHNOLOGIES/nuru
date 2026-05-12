@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 680" preserveAspectRatio="xMidYMid meet">
+  <rect width="480" height="680" fill="#f4ede0"/>
+  <rect x="0" y="0" width="480" height="120" fill="#1f3a2a"/>
+
+  <text x="240" y="65" text-anchor="middle" font-family="Playfair Display, serif" font-size="14" letter-spacing="8" fill="#e6d39a" id="headline">A NEW CHAPTER</text>
+  <text x="240" y="92" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" letter-spacing="4" fill="#b8a574" id="sub_headline">GRADUATION CEREMONY</text>
+
+  <!-- Stack of books -->
+  <g transform="translate(180 200)">
+    <rect width="120" height="18" rx="2" fill="#7a3a2a"/>
+    <rect y="22" width="120" height="18" rx="2" fill="#3a5a4a"/>
+    <rect y="44" width="120" height="18" rx="2" fill="#a87a3a"/>
+    <rect y="66" width="120" height="18" rx="2" fill="#1f3a2a"/>
+    <line x1="6" y1="9" x2="114" y2="9" stroke="#e6d39a" stroke-opacity="0.4"/>
+    <line x1="6" y1="31" x2="114" y2="31" stroke="#e6d39a" stroke-opacity="0.4"/>
+    <line x1="6" y1="53" x2="114" y2="53" stroke="#e6d39a" stroke-opacity="0.4"/>
+    <line x1="6" y1="75" x2="114" y2="75" stroke="#e6d39a" stroke-opacity="0.4"/>
+  </g>
+
+  <text x="240" y="345" text-anchor="middle" font-family="Playfair Display, serif" font-size="44" font-style="italic" fill="#1f3a2a" id="honoree">Joseph Mlimani</text>
+  <line x1="180" y1="372" x2="300" y2="372" stroke="#7a3a2a" stroke-opacity="0.6"/>
+
+  <text x="240" y="420" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" letter-spacing="3" fill="#3a5a4a" id="date">SAT · 5 DEC 2026 · 10AM</text>
+  <text x="240" y="445" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" letter-spacing="2" fill="#1f3a2a" id="venue">MZUMBE UNIVERSITY HALL</text>
+  <text x="240" y="464" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" fill="#7a6a4a" id="address">Morogoro · Tanzania</text>
+  <text x="240" y="486" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" letter-spacing="2" fill="#7a3a2a" id="time">RECEPTION 1:00 PM</text>
+
+  <text x="240" y="612" text-anchor="middle" font-family="Inter, sans-serif" font-size="8" letter-spacing="3" fill="#7a6a4a" id="footer_note">PLEASE BRING THIS INVITATION</text>
+
+  <rect x="204" y="520" width="72" height="72" fill="#f4ede0" stroke="#1f3a2a" stroke-opacity="0.4" opacity="0.001"/>
+</svg>

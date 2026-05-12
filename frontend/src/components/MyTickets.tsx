@@ -18,6 +18,7 @@ import { motion } from "framer-motion";
 import PrintableTicket from "@/components/PrintableTicket";
 import CountdownClock from "@/components/CountdownClock";
 import SearchHeader from "@/components/ui/search-header";
+import { getEventImage } from "@/lib/eventImage";
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import MigrationBanner from '@/components/migration/MigrationBanner';
 import MyTicketPaymentsTab from '@/components/tickets/MyTicketPaymentsTab';
@@ -338,13 +339,7 @@ const MyTickets = () => {
                     >
                       {/* Cover image */}
                       <div className="relative h-24 bg-muted overflow-hidden">
-                        {event.cover_image ? (
-                          <img src={event.cover_image} alt={event.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                        ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
-                            <img src={TicketIcon} alt="" className="w-6 h-6 dark:invert opacity-20" />
-                          </div>
-                        )}
+                        <img src={getEventImage(event)} alt={event.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                         {/* Date overlay */}
                         {d && (
                           <div className="absolute top-2 left-2 bg-background/90 backdrop-blur-sm rounded-lg px-2 py-1.5 shadow-sm text-center min-w-[40px]">

@@ -18,6 +18,7 @@ import EventTicketPurchase from './EventTicketPurchase';
 import ReportPreviewDialog from '@/components/ReportPreviewDialog';
 import { generateEventReportHtml } from '@/utils/generateEventReport';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { getEventImage } from '@/lib/eventImage';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import VenueMapPreview from '@/components/VenueMapPreview';
 import DirectionsMapDialog from '@/components/DirectionsMapDialog';
@@ -136,7 +137,7 @@ const EventView = () => {
     );
   }
 
-  const coverImage = event.cover_image || event.images?.[0]?.url;
+  const coverImage = getEventImage(event);
 
   const isCreator = !!(currentUser && event && (event.organizer_id === currentUser.id || event.organizer?.id === currentUser.id));
 

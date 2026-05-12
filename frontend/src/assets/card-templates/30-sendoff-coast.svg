@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 680" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="bg30" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f5e9d4"/>
+      <stop offset="55%" stop-color="#e8c8a0"/>
+      <stop offset="100%" stop-color="#a87a55"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="680" fill="url(#bg30)"/>
+
+  <!-- Sun -->
+  <circle cx="240" cy="170" r="48" fill="#f0a878" opacity="0.85"/>
+  <!-- Horizon waves -->
+  <g fill="none" stroke="#7a4830" stroke-opacity="0.4">
+    <path d="M40 380 Q140 370 240 380 T440 380"/>
+    <path d="M40 400 Q140 392 240 400 T440 400"/>
+    <path d="M40 420 Q140 414 240 420 T440 420"/>
+  </g>
+
+  <!-- Sailboat silhouette -->
+  <g fill="#3a2818" transform="translate(360 350)">
+    <polygon points="0,0 -14,-30 -14,0"/>
+    <polygon points="0,0 14,-22 14,0"/>
+    <rect x="-16" y="0" width="32" height="4" rx="1"/>
+  </g>
+
+  <text x="240" y="270" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" letter-spacing="6" fill="#7a4830" id="headline">A FAREWELL UNDER THE SUN</text>
+
+  <text x="240" y="490" text-anchor="middle" font-family="Playfair Display, serif" font-size="42" font-style="italic" fill="#3a2818" id="honoree">Captain Yusuf</text>
+  <text x="240" y="518" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" letter-spacing="3" fill="#7a4830" id="sub_headline">SAILING INTO RETIREMENT</text>
+
+  <line x1="200" y1="545" x2="280" y2="545" stroke="#7a4830" stroke-opacity="0.5"/>
+
+  <text x="240" y="572" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" letter-spacing="3" fill="#3a2818" id="date">FRI · 26 JUN 2026</text>
+  <text x="240" y="590" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" letter-spacing="2" fill="#7a4830" id="time">5:30 PM SUNSET DRINKS</text>
+  <text x="240" y="610" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" letter-spacing="2" fill="#3a2818" id="venue">YACHT CLUB · DAR ES SALAAM</text>
+  <text x="240" y="626" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" fill="#7a4830" id="address">Msasani Peninsula</text>
+
+  <text x="240" y="660" text-anchor="middle" font-family="Inter, sans-serif" font-size="8" letter-spacing="3" fill="#7a4830" id="footer_note">SMART CASUAL</text>
+
+  <rect x="204" y="308" width="72" height="72" fill="none" stroke="#888" stroke-opacity="0.5" opacity="0.001"/>
+</svg>

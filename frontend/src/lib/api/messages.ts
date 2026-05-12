@@ -15,7 +15,7 @@ export const messagesApi = {
     return get<any[]>(`/messages/${qs}`);
   },
 
-  startConversation: (data: { recipient_id: string; message?: string; service_id?: string }) =>
+  startConversation: (data: { recipient_id: string; message?: string; service_id?: string; service_title?: string; service_image?: string }) =>
     post<any>("/messages/start", data),
 
   archiveConversation: (conversationId: string) =>

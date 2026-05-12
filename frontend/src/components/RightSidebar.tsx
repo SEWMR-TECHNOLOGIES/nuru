@@ -21,6 +21,7 @@ import { ticketingApi } from '@/lib/api/ticketing';
 import { meetingsApi } from '@/lib/api/meetings';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { getEventImage } from '@/lib/eventImage';
 
 // Loading skeleton for sidebar cards
 const SidebarCardSkeleton = ({ title, count = 3 }: { title: string; count?: number }) => (
@@ -92,11 +93,7 @@ const TicketEventsSection = ({ navigate }: { navigate: (path: string) => void })
             onClick={() => navigate(`/event/${event.id}`)}
           >
             <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-              {event.cover_image ? (
-                <img src={event.cover_image} alt={event.name} className="w-full h-full object-cover" />
-              ) : (
-                <img src={TicketIcon} alt="Ticket" className="w-5 h-5 dark:invert opacity-50" />
-              )}
+              <img src={getEventImage(event)} alt={event.name} className="w-full h-full object-cover" />
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-medium text-sm text-foreground truncate">{event.name}</h3>
@@ -252,11 +249,7 @@ const MyTicketsSection = ({ navigate }: { navigate: (path: string) => void }) =>
                 onClick={() => navigate(`/event/${event?.id}`)}
               >
                 <div className="relative w-11 h-11 rounded-lg bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-                  {event?.cover_image ? (
-                    <img src={event.cover_image} alt={event.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <img src={TicketIcon} alt="Ticket" className="w-5 h-5 dark:invert opacity-50" />
-                  )}
+                  <img src={getEventImage(event)} alt={event?.name} className="w-full h-full object-cover" />
                   {isToday && (
                     <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-card" />
                   )}
@@ -464,11 +457,7 @@ const RightSidebar = ({ onNavigate }: { onNavigate?: () => void } = {}) => {
                 onClick={() => navigate(event.role === 'guest' ? `/event/${event.id}` : `/event-management/${event.id}`)}
               >
                 <div className="relative w-12 h-12 rounded-lg bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-                  {event.cover_image ? (
-                    <img src={event.cover_image} alt={event.title} className="w-full h-full object-cover" />
-                  ) : (
-                    <img src={CalendarIcon} alt="Calendar" className="w-5 h-5" />
-                  )}
+                  <img src={getEventImage(event)} alt={event.title} className="w-full h-full object-cover" />
                   <span className={`absolute bottom-0 left-0 right-0 text-[7px] font-semibold text-white text-center py-0.5 ${roleBg}`}>
                     {roleLabel}
                   </span>

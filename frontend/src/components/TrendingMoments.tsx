@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { MessageCircle, Play } from 'lucide-react';
+import { MessageCircle, Play, BadgeCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface MomentAuthor {
@@ -247,6 +247,13 @@ const TrendingMoments = () => {
                       <span className="text-xs text-muted-foreground font-medium truncate">
                         {author.name}
                       </span>
+                      {author.is_verified && (
+                        <BadgeCheck
+                          className="w-3.5 h-3.5 flex-shrink-0"
+                          style={{ color: '#F5B400' }}
+                          aria-label="Verified"
+                        />
+                      )}
                     </div>
                   </div>
                 </Link>

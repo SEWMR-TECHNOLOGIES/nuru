@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { eventsApi } from '@/lib/api/events';
 import { getEventCountdown } from '@/utils/getEventCountdown';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { getEventImage } from '@/lib/eventImage';
 
 const PERMISSION_LABELS: Record<string, string> = {
   can_view_guests: 'View Guests',
@@ -121,17 +122,11 @@ const CommitteeEvents = () => {
             <div className="p-4">
               <div className="flex flex-col sm:flex-row gap-4">
                 {(() => {
-                  const coverImage = event.cover_image
-                    || (event.images?.length > 0 ? (event.images.find((img: any) => img.is_featured)?.image_url || event.images[0]?.image_url || event.images[0]?.url || (typeof event.images[0] === 'string' ? event.images[0] : null)) : null)
-                    || (event.gallery_images?.length > 0 ? event.gallery_images[0] : null)
-                    || event.cover_image_url
-                    || event.image_url;
-                  return coverImage ? (
+                  const coverImage = getEventImage(event);
+                  return (
                     <div className="w-full sm:w-32 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-muted/10">
                       <img src={coverImage} alt={event.title} className="w-full h-full object-cover" />
                     </div>
-                  ) : (
-                    <div className="w-full sm:w-32 h-24 flex-shrink-0 rounded-lg bg-muted/10" />
                   );
                 })()}
                 <div className="flex-1 min-w-0">

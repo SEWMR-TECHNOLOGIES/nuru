@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 680" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="bg23" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a2240"/>
+      <stop offset="100%" stop-color="#143158"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="680" fill="url(#bg23)"/>
+  <rect x="24" y="24" width="432" height="632" fill="none" stroke="#d4b870" stroke-opacity="0.6"/>
+  <rect x="32" y="32" width="416" height="616" fill="none" stroke="#d4b870" stroke-opacity="0.25"/>
+
+  <text x="240" y="120" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" letter-spacing="6" fill="#d4b870" id="headline">YOU ARE INVITED TO CELEBRATE</text>
+
+  <text x="240" y="225" text-anchor="middle" font-family="Playfair Display, serif" font-size="58" font-style="italic" fill="#f3e8c8" id="honoree">Aisha Hamisi</text>
+  <line x1="160" y1="255" x2="320" y2="255" stroke="#d4b870" stroke-opacity="0.6"/>
+  <text x="240" y="285" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" letter-spacing="4" fill="#d4b870" id="sub_headline">GRADUATING WITH HONOURS · 2026</text>
+
+  <g fill="none" stroke="#d4b870" stroke-width="1" opacity="0.7">
+    <path d="M120 320 Q240 300 360 320"/>
+    <circle cx="240" cy="312" r="3" fill="#d4b870"/>
+  </g>
+
+  <text x="240" y="395" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" letter-spacing="3" fill="#f3e8c8" id="date">FRI · 18 DEC 2026</text>
+  <text x="240" y="418" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" letter-spacing="2" fill="#c9a85a" id="time">2:00 PM CONFERMENT</text>
+  <text x="240" y="448" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" letter-spacing="2" fill="#f3e8c8" id="venue">DIAMOND JUBILEE HALL</text>
+  <text x="240" y="468" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" fill="#a08d5e" id="address">Upanga · Dar es Salaam</text>
+
+  <text x="240" y="612" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" letter-spacing="3" fill="#a08d5e" id="footer_note">DINNER &amp; DANCING TO FOLLOW</text>
+
+  <rect x="204" y="500" width="72" height="72" fill="#0a2240" stroke="#d4b870" stroke-opacity="0.5" opacity="0.001"/>
+</svg>

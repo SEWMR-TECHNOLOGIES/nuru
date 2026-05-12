@@ -18,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { PillTabsNav } from '@/components/ui/pill-tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getEventImage } from '@/lib/eventImage';
 import { motion } from 'framer-motion';
 import { profileApi } from '@/lib/api/profile';
 import { searchApi } from '@/lib/api/search';
@@ -547,15 +548,13 @@ const PublicProfile = () => {
                     onClick={() => navigate(`/event/${event.id}`)}
                   >
                     <CardContent className="p-0">
-                      {(event.cover_image || event.images?.find((i: any) => i.is_featured || i.is_primary)?.image_url || event.images?.[0]?.image_url || event.images?.[0]?.url) && (
-                        <div className="h-28 overflow-hidden">
-                          <img 
-                            src={event.cover_image || event.images?.find((i: any) => i.is_featured || i.is_primary)?.image_url || event.images?.[0]?.image_url || event.images?.[0]?.url} 
-                            alt={event.title} 
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
-                          />
-                        </div>
-                      )}
+                      <div className="h-28 overflow-hidden">
+                        <img 
+                          src={getEventImage(event)} 
+                          alt={event.title} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                        />
+                      </div>
                       <div className="p-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">

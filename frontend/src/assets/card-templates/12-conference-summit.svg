@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 680" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="bg12" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f5f1e8"/>
+      <stop offset="100%" stop-color="#e9e0cc"/>
+    </linearGradient>
+    <pattern id="grid12" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M0 0 L24 0 M0 0 L0 24" stroke="#3a4a3a" stroke-opacity="0.06"/>
+    </pattern>
+  </defs>
+  <rect width="480" height="680" fill="url(#bg12)"/>
+  <rect width="480" height="680" fill="url(#grid12)"/>
+
+  <!-- Top brand bar -->
+  <rect x="0" y="0" width="480" height="44" fill="#1f3a2a"/>
+  <text x="240" y="28" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" letter-spacing="6" fill="#f5f1e8">CONFERENCE 2026</text>
+
+  <!-- Big number -->
+  <text x="240" y="180" text-anchor="middle" font-family="Playfair Display, serif" font-size="120" font-weight="700" fill="#1f3a2a" id="headline">06</text>
+  <text x="240" y="210" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" letter-spacing="5" fill="#1f3a2a" fill-opacity="0.7" id="sub_headline">DAYS · TWO TRACKS · ONE VISION</text>
+
+  <line x1="180" y1="240" x2="300" y2="240" stroke="#1f3a2a" stroke-opacity="0.3"/>
+
+  <!-- Event title -->
+  <text x="240" y="290" text-anchor="middle" font-family="Playfair Display, serif" font-size="32" font-style="italic" fill="#1f3a2a" id="eventTitle">Future Forward</text>
+
+  <text x="240" y="318" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" letter-spacing="3" fill="#5a6a5a">EAST AFRICA TECH SUMMIT</text>
+
+  <!-- Detail card -->
+  <rect x="60" y="360" width="360" height="160" fill="#ffffff" fill-opacity="0.6" stroke="#1f3a2a" stroke-opacity="0.2"/>
+
+  <text x="80" y="395" font-family="Inter, sans-serif" font-size="9" letter-spacing="2" fill="#5a6a5a">DATE</text>
+  <text x="80" y="418" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#1f3a2a" id="date">06 - 11 JUNE 2026</text>
+
+  <text x="80" y="450" font-family="Inter, sans-serif" font-size="9" letter-spacing="2" fill="#5a6a5a">VENUE</text>
+  <text x="80" y="473" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#1f3a2a" id="venue">Mlimani City Convention</text>
+
+  <text x="80" y="500" font-family="Inter, sans-serif" font-size="10" fill="#5a6a5a" id="address">University Road · Dar es Salaam</text>
+
+  <!-- Footer + QR area -->
+  <text x="80" y="600" font-family="Inter, sans-serif" font-size="9" letter-spacing="2" fill="#5a6a5a" id="footer_note">YOUR PASS · SCAN TO ENTER</text>
+
+  <rect x="336" y="546" width="72" height="72" fill="#f5f1e8" stroke="#1f3a2a" stroke-opacity="0.4" opacity="0.001"/>
+</svg>
