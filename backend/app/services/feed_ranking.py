@@ -78,6 +78,19 @@ MAX_SAME_CATEGORY_IN_WINDOW = 4
 # Exploration parameters
 EXPLORATION_RATE = 0.08  # 8% of feed slots reserved for exploration
 
+# ──────────────────────────────────────────────
+# Impression / fatigue parameters
+# Posts the viewer has already seen are softly down-ranked instead of being
+# hidden — this prevents the "same content every login" failure mode while
+# keeping high-relevance content from disappearing entirely if it still
+# matters. After enough unengaged impressions, we hard-skip.
+# ──────────────────────────────────────────────
+IMPRESSION_LOOKBACK_HOURS = 72            # window we count impressions over
+UNENGAGED_PENALTY_K = 0.55                # score *= exp(-K * unengaged_count)
+ENGAGED_DAMPENING = 0.20                  # score *= exp(-D * engaged_count)
+HARD_SKIP_UNENGAGED_AFTER = 4             # times shown w/o engaging → drop
+HARD_SKIP_ENGAGED_AFTER = 8               # times shown w/ engagement → drop
+
 # Category detection keywords
 CATEGORY_KEYWORDS = {
     "wedding": ["wedding", "bride", "groom", "ceremony", "reception", "ndoa", "harusi"],
@@ -101,6 +114,57 @@ DEFAULT_INTEREST_VECTOR = {
     "cultural": 0.3,
     "general": 0.5,
 }
+
+# ──────────────────────────────────────────────
+# Onboarding interests → internal ranking categories
+# Lets the chips a user selects on the onboarding screen actually steer the
+# feed (and not just be cosmetic). Multiple onboarding slugs can map to the
+# same internal category.
+# ──────────────────────────────────────────────
+ONBOARDING_TO_INTERNAL = {
+    "weddings":        ["wedding"],
+    "birthdays":       ["birthday"],
+    "graduations":     ["graduation"],
+    "anniversaries":   ["wedding", "general"],
+    "baby_showers":    ["baby_shower"],
+    "private_parties": ["birthday", "general"],
+    "concerts":        ["general"],
+    "festivals":       ["cultural", "general"],
+    "nightlife":       ["general"],
+    "conferences":     ["corporate_event"],
+    "workshops":       ["corporate_event"],
+    "networking":      ["corporate_event"],
+    "corporate":       ["corporate_event"],
+    "exhibitions":     ["corporate_event", "cultural"],
+    "fashion_shows":   ["cultural", "general"],
+    "sports_events":   ["general"],
+    "faith":           ["cultural", "general"],
+    "cultural":        ["cultural"],
+    "community":       ["fundraiser", "general"],
+    "charity":         ["fundraiser"],
+    "food_events":     ["general"],
+    "memorials":       ["memorial"],
+    "retreats":        ["general"],
+}
+
+
+def blend_onboarding_interests(
+    base_vector: Dict[str, float],
+    profile_interests: Optional[List[str]],
+) -> Dict[str, float]:
+    """Boost the interest vector with the user's onboarding picks.
+
+    Picks are treated as strong signals — they pull matching internal
+    categories up to at least 0.9 so cold-start and low-interaction users
+    immediately see content aligned with what they told us they care about.
+    """
+    vec = dict(base_vector) if base_vector else DEFAULT_INTEREST_VECTOR.copy()
+    if not profile_interests:
+        return vec
+    for slug in profile_interests:
+        for cat in ONBOARDING_TO_INTERNAL.get(str(slug).lower(), []):
+            vec[cat] = max(vec.get(cat, 0.0), 0.9)
+    return vec
 
 
 # ──────────────────────────────────────────────
@@ -278,9 +342,6 @@ def generate_candidates(
                 UserFeed.visibility.is_(None),
             ),
         ]
-        # Only add the NOT IN clause when we actually have ids — passing the
-        # scalar `True` as a filter raises in SQLAlchemy 2.x and would mask
-        # the trending source entirely on cold-start users.
         if candidate_ids:
             try:
                 trending_filters.append(
@@ -288,10 +349,21 @@ def generate_candidates(
                 )
             except (ValueError, TypeError):
                 pass
+        # Engagement velocity (per recent hour), not raw global counters, so
+        # mature mega-posts don't dominate everyone's trending bucket. We
+        # over-fetch then let downstream scoring + per-user shuffle decide.
         trending_posts = (
             db.query(UserFeed)
             .filter(*trending_filters)
-            .order_by(desc(UserFeed.glow_count + UserFeed.echo_count))
+            .order_by(
+                desc(
+                    (UserFeed.glow_count + UserFeed.echo_count * 2 + UserFeed.spark_count * 3)
+                    / sa_func.greatest(
+                        sa_func.extract('epoch', sa_func.now() - UserFeed.created_at) / 3600.0,
+                        1.0,
+                    )
+                )
+            )
             .limit(min(remaining, 500))
             .all()
         )
@@ -342,6 +414,7 @@ def compute_post_features(
     affinity_cache: Dict[str, float],
     quality_cache: Dict[str, PostQualityScore],
     now: datetime,
+    impression_cache: Optional[Dict[str, Tuple[int, int]]] = None,
 ) -> Dict[str, float]:
     """
     Compute all ranking features for a single post.
@@ -397,9 +470,24 @@ def compute_post_features(
     
     # ── 6. Exploration Boost ──
     # Deterministic but user-specific randomness using hash
-    exploration_seed = hashlib.md5(f"{current_user_id}:{post_id_str}:{now.date()}".encode()).hexdigest()
+    # Rotate every 6 hours so even the "exploration" slot doesn't surface the
+    # same posts on consecutive logins of the same day.
+    rot_bucket = f"{now.date()}:{now.hour // 6}"
+    exploration_seed = hashlib.md5(f"{current_user_id}:{post_id_str}:{rot_bucket}".encode()).hexdigest()
     exploration_value = int(exploration_seed[:8], 16) / 0xFFFFFFFF
     exploration_boost = 1.0 if exploration_value < EXPLORATION_RATE else 0.0
+
+    # ── 7. Impression fatigue ──
+    # Multiplicative penalty so previously-seen posts decay smoothly. Engaged
+    # impressions decay slower than ignored ones, so a post you liked can
+    # still come back occasionally, but a post you scrolled past 3× drops fast.
+    unengaged, engaged = (0, 0)
+    if impression_cache is not None:
+        unengaged, engaged = impression_cache.get(post_id_str, (0, 0))
+    fatigue_multiplier = math.exp(
+        -UNENGAGED_PENALTY_K * unengaged
+        -ENGAGED_DAMPENING   * engaged
+    )
     
     return {
         "engagement_prediction": engagement_prediction,
@@ -411,6 +499,9 @@ def compute_post_features(
         "category": category,
         "author_id": author_id_str,
         "age_hours": age_hours,
+        "fatigue_multiplier": fatigue_multiplier,
+        "unengaged_views": unengaged,
+        "engaged_views": engaged,
     }
 
 
@@ -465,7 +556,7 @@ def compute_final_score(features: Dict[str, float]) -> float:
                + W6 × DiversityPenalty (applied later)
                + W7 × ExplorationBoost
     """
-    score = (
+    base = (
         WEIGHTS["engagement_prediction"] * features["engagement_prediction"]
         + WEIGHTS["relationship_strength"] * features["relationship_strength"]
         + WEIGHTS["interest_match"] * features["interest_match"]
@@ -473,7 +564,8 @@ def compute_final_score(features: Dict[str, float]) -> float:
         + WEIGHTS["content_quality"] * features["content_quality"]
         + WEIGHTS["exploration_boost"] * features["exploration_boost"]
     )
-    return score
+    # Fatigue is multiplicative so saturation behaves naturally.
+    return base * features.get("fatigue_multiplier", 1.0)
 
 
 # ──────────────────────────────────────────────
@@ -578,6 +670,16 @@ def generate_ranked_feed(
         if interest_profile and interest_profile.interest_vector 
         else DEFAULT_INTEREST_VECTOR.copy()
     )
+    # Blend in the user's onboarding interests so the chips they picked at
+    # signup actually steer ranking — not just the categories they've already
+    # interacted with. Picks raise matching categories to at least 0.9.
+    try:
+        from models.users import UserProfile
+        up = db.query(UserProfile).filter(UserProfile.user_id == current_user_id).first()
+        if up and isinstance(up.interests, list) and up.interests:
+            user_interest = blend_onboarding_interests(user_interest, up.interests)
+    except Exception:
+        pass
     
     # Affinity scores (batch load)
     affinity_rows = db.query(AuthorAffinityScore).filter(
@@ -605,47 +707,91 @@ def generate_ranked_feed(
         PostQualityScore.post_id.in_(candidate_ids)
     ).all()
     quality_cache = {str(q.post_id): q for q in quality_rows}
+
+    # ── Step 2b: Load impression history (per-post seen / engaged counts) ──
+    # One batch query bounded by IMPRESSION_LOOKBACK_HOURS so we never scan
+    # the entire history. Drives both the fatigue multiplier and the hard
+    # saturation skip below.
+    impression_cache: Dict[str, Tuple[int, int]] = {}
+    try:
+        impression_cutoff = now - timedelta(hours=IMPRESSION_LOOKBACK_HOURS)
+        # Two small grouped queries instead of a SUM(CASE) — friendlier
+        # across dialects and easy to read. Both are bounded by candidate_ids
+        # and the lookback cutoff, so they're cheap.
+        total_rows = (
+            db.query(FeedImpression.post_id, sa_func.count(FeedImpression.id))
+            .filter(
+                FeedImpression.user_id == current_user_id,
+                FeedImpression.post_id.in_(candidate_ids),
+                FeedImpression.created_at >= impression_cutoff,
+            )
+            .group_by(FeedImpression.post_id)
+            .all()
+        )
+        engaged_rows = (
+            db.query(FeedImpression.post_id, sa_func.count(FeedImpression.id))
+            .filter(
+                FeedImpression.user_id == current_user_id,
+                FeedImpression.post_id.in_(candidate_ids),
+                FeedImpression.created_at >= impression_cutoff,
+                FeedImpression.was_engaged == True,
+            )
+            .group_by(FeedImpression.post_id)
+            .all()
+        )
+        engaged_map = {str(pid): int(cnt) for pid, cnt in engaged_rows}
+        for pid, total in total_rows:
+            pid_s = str(pid)
+            eng = engaged_map.get(pid_s, 0)
+            unengaged = max(0, int(total) - eng)
+            impression_cache[pid_s] = (unengaged, eng)
+    except Exception:
+        impression_cache = {}
     
     # ── Step 3: Score All Candidates ──
     scored = []
     for post in candidates:
+        pid_s = str(post.id)
+        un, en = impression_cache.get(pid_s, (0, 0))
+        # Hard saturation: drop posts the viewer has clearly seen enough.
+        if un >= HARD_SKIP_UNENGAGED_AFTER or en >= HARD_SKIP_ENGAGED_AFTER:
+            continue
         features = compute_post_features(
             db, post, current_user_id,
             user_interest, affinity_cache, quality_cache, now,
+            impression_cache=impression_cache,
         )
         score = compute_final_score(features)
         scored.append((post, score, features))
     
-    # Sort by score descending. Use post.id as a deterministic tie-breaker so
-    # results are stable across pagination calls (prevents the same post from
-    # surfacing on multiple pages due to score ties).
-    scored.sort(key=lambda x: (-x[1], str(x[0].id)))
+    # Sort by score descending. Tie-breaker uses a per-user-per-6-hour hash
+    # so equal-score posts shuffle naturally across logins instead of
+    # producing identical orderings for everyone.
+    rot_bucket = f"{now.date()}:{now.hour // 6}:{current_user_id}"
+    def _tiebreak(pid: str) -> str:
+        return hashlib.md5(f"{rot_bucket}:{pid}".encode()).hexdigest()
+    scored.sort(key=lambda x: (-x[1], _tiebreak(str(x[0].id))))
     
     # ── Step 4: Diversity Re-Ranking ──
     scored = apply_diversity_reranking(scored)
     
-    # ── Step 5: Anti-repetition — exclude posts already shown to this user
-    # in the current session (or in the last hour if no session).
-    seen_ids: set = set()
-    try:
-        impression_q = db.query(FeedImpression.post_id).filter(
-            FeedImpression.user_id == current_user_id,
-        )
-        if session_id:
-            impression_q = impression_q.filter(FeedImpression.session_id == session_id)
-        else:
-            impression_q = impression_q.filter(
-                FeedImpression.created_at >= (now - timedelta(hours=1))
-            )
-        seen_ids = {str(r[0]) for r in impression_q.all()}
-    except Exception:
-        seen_ids = set()
-    
-    if seen_ids:
-        # Always keep page 1 fresh; only filter on subsequent pages so users
-        # entering the app see the highest-ranked content immediately.
-        if page > 1:
-            scored = [t for t in scored if str(t[0].id) not in seen_ids]
+    # ── Step 5: Same-session dedup ──
+    # Cross-session fatigue is already handled multiplicatively in scoring
+    # (and via the hard-skip filter). Within a single session we hard-dedupe
+    # so paginating downward never repeats a post.
+    if session_id:
+        try:
+            session_seen = {
+                str(r[0]) for r in db.query(FeedImpression.post_id)
+                .filter(
+                    FeedImpression.user_id == current_user_id,
+                    FeedImpression.session_id == session_id,
+                ).all()
+            }
+            if session_seen:
+                scored = [t for t in scored if str(t[0].id) not in session_seen]
+        except Exception:
+            pass
     
     # ── Step 6: Paginate ──
     total_items = len(scored)
@@ -868,7 +1014,16 @@ def log_interaction(
         db.commit()
     except Exception:
         db.rollback()
-    
+
+    # Bust the per-user feed cache so the very next /posts/feed call
+    # reflects this fresh signal instead of returning the stale 2-min
+    # snapshot that made the feed feel "frozen" between sessions.
+    try:
+        from core.redis import invalidate_user_feed
+        invalidate_user_feed(str(user_id))
+    except Exception:
+        pass
+
     return True
 
 
@@ -998,6 +1153,7 @@ def get_cold_start_feed(
     current_user_id: uuid.UUID,
     page: int = 1,
     limit: int = 20,
+    session_id: Optional[str] = None,
 ) -> Tuple[List[UserFeed], Dict]:
     """
     Feed for new users with no interaction history.
@@ -1035,6 +1191,54 @@ def get_cold_start_feed(
             "has_next": False, "has_previous": False,
         }
 
+    # ── Pull recent impressions so cold-start rotates across logins ──
+    # Same idea as the ranked path: posts the new user has already seen
+    # 2+ times without engaging fall hard, otherwise everyone with the
+    # same interests would see the identical sequence forever.
+    impression_unengaged: Dict[str, int] = {}
+    impression_engaged: Dict[str, int] = {}
+    try:
+        cs_cutoff = datetime.utcnow() - timedelta(hours=IMPRESSION_LOOKBACK_HOURS)
+        post_ids = [p.id for p in posts]
+        for pid, cnt in (
+            db.query(FeedImpression.post_id, sa_func.count(FeedImpression.id))
+            .filter(
+                FeedImpression.user_id == current_user_id,
+                FeedImpression.post_id.in_(post_ids),
+                FeedImpression.created_at >= cs_cutoff,
+            ).group_by(FeedImpression.post_id).all()
+        ):
+            impression_unengaged[str(pid)] = int(cnt)
+        for pid, cnt in (
+            db.query(FeedImpression.post_id, sa_func.count(FeedImpression.id))
+            .filter(
+                FeedImpression.user_id == current_user_id,
+                FeedImpression.post_id.in_(post_ids),
+                FeedImpression.created_at >= cs_cutoff,
+                FeedImpression.was_engaged == True,
+            ).group_by(FeedImpression.post_id).all()
+        ):
+            pid_s = str(pid)
+            impression_engaged[pid_s] = int(cnt)
+            impression_unengaged[pid_s] = max(0, impression_unengaged.get(pid_s, 0) - int(cnt))
+    except Exception:
+        pass
+
+    # Pull onboarding interests so cold-start results lean toward the
+    # categories the user said they care about. Falls back to pure
+    # engagement+recency when no interests are set.
+    interest_categories: set = set()
+    try:
+        from models.users import UserProfile
+        up = db.query(UserProfile).filter(UserProfile.user_id == current_user_id).first()
+        if up and isinstance(up.interests, list):
+            for slug in up.interests:
+                interest_categories.update(
+                    ONBOARDING_TO_INTERNAL.get(str(slug).lower(), [])
+                )
+    except Exception:
+        interest_categories = set()
+
     # ── Score each post: recency × engagement velocity ──
     now_utc = datetime.utcnow()
 
@@ -1042,14 +1246,51 @@ def get_cold_start_feed(
         age_h = max(0.5, (now_utc - p.created_at).total_seconds() / 3600.0) if p.created_at else 24.0
         eng = (p.glow_count or 0) + 2 * (p.echo_count or 0) + 1.5 * (p.spark_count or 0)
         # Recency-decayed engagement + freshness boost so brand-new posts surface
-        return (eng / (age_h ** 0.7)) + (5.0 / age_h)
+        base = (eng / (age_h ** 0.7)) + (5.0 / age_h)
+        # Strong boost when the post matches one of the user's onboarding picks
+        if interest_categories:
+            cat = detect_category(p.content or "")
+            if cat in interest_categories:
+                base *= 2.2
+        # Fade content the user has already been served
+        pid_s = str(p.id)
+        un = impression_unengaged.get(pid_s, 0)
+        en = impression_engaged.get(pid_s, 0)
+        base *= math.exp(-UNENGAGED_PENALTY_K * un - ENGAGED_DAMPENING * en)
+        return base
 
-    scored = [(p, _score(p)) for p in posts]
+    # Hard-skip saturated posts so they stop dominating cold-start logins
+    scored = []
+    for p in posts:
+        pid_s = str(p.id)
+        if impression_unengaged.get(pid_s, 0) >= HARD_SKIP_UNENGAGED_AFTER:
+            continue
+        if impression_engaged.get(pid_s, 0) >= HARD_SKIP_ENGAGED_AFTER:
+            continue
+        scored.append((p, _score(p)))
 
-    # Per-user deterministic jitter: stable across paginations but unique per user
-    rng = _random.Random(int(uuid.UUID(str(current_user_id)).int) & 0xFFFFFFFF)
+    # Per-user + 6-hour-bucket seed so the cold-start order rotates
+    # across logins instead of being frozen forever.
+    bucket = (datetime.utcnow().toordinal() * 4) + (datetime.utcnow().hour // 6)
+    seed = (int(uuid.UUID(str(current_user_id)).int) ^ bucket) & 0xFFFFFFFF
+    rng = _random.Random(seed)
     scored = [(p, s + rng.uniform(0, 0.25) * s) for (p, s) in scored]
     scored.sort(key=lambda t: -t[1])
+
+    # Same-session dedup so paginating doesn't repeat
+    if session_id:
+        try:
+            session_seen = {
+                str(r[0]) for r in db.query(FeedImpression.post_id)
+                .filter(
+                    FeedImpression.user_id == current_user_id,
+                    FeedImpression.session_id == session_id,
+                ).all()
+            }
+            if session_seen:
+                scored = [(p, s) for (p, s) in scored if str(p.id) not in session_seen]
+        except Exception:
+            pass
 
     # ── Cap event_share posts to 30% of the pool ──
     event_share_cap = max(2, int(len(scored) * 0.3))

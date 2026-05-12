@@ -125,14 +125,53 @@ async def signin(request: Request, response: Response, db: Session = Depends(get
 # Logout
 # ──────────────────────────────────────────────
 @router.post("/logout")
-async def logout(response: Response):
-    """Invalidates the current access token."""
+async def logout(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Invalidates the current access token and unbinds this device's FCM token.
+
+    The mobile app may include ``{"fcm_token": "..."}`` (and optionally
+    ``platform``) in the body. When present, we delete any matching
+    ``device_tokens`` row owned by the current user as a safety net in case
+    the explicit ``DELETE /calls/devices`` call failed. This prevents the
+    privacy bug where a logged-out user keeps receiving pushes on a phone
+    they no longer own.
+    """
     response.delete_cookie(
         key="session_id",
         path="/",
         samesite="lax",
         httponly=True,
     )
+
+    # Best-effort device unbind. Never fail logout because of it.
+    try:
+        body: dict = {}
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        fcm_token = (body.get("fcm_token") or body.get("token") or "").strip()
+        if fcm_token:
+            from models import DeviceToken  # local import to avoid cycles
+            q = db.query(DeviceToken).filter(
+                DeviceToken.token == fcm_token,
+                DeviceToken.user_id == current_user.id,
+            )
+            platform = (body.get("platform") or "").lower()
+            if platform in ("ios", "android"):
+                q = q.filter(DeviceToken.platform == platform)
+            q.delete(synchronize_session=False)
+            db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
     return standard_response(True, "Logged out successfully")
 
 
