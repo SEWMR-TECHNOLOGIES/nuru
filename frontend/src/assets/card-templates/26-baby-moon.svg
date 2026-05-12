@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 680" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="bg26" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a2540"/>
+      <stop offset="100%" stop-color="#2c3a5a"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="680" fill="url(#bg26)"/>
+
+  <!-- Moon -->
+  <g transform="translate(240 200)">
+    <circle r="60" fill="#f4e8c8" opacity="0.95"/>
+    <circle r="60" cx="22" fill="#1a2540"/>
+    <circle cx="-12" cy="-8" r="4" fill="#d4c898" opacity="0.6"/>
+    <circle cx="-22" cy="12" r="3" fill="#d4c898" opacity="0.5"/>
+  </g>
+
+  <!-- Stars -->
+  <g fill="#f4e8c8">
+    <circle cx="80" cy="100" r="1.5"/>
+    <circle cx="120" cy="180" r="1"/>
+    <circle cx="60" cy="240" r="2"/>
+    <circle cx="400" cy="120" r="1.5"/>
+    <circle cx="430" cy="200" r="1"/>
+    <circle cx="380" cy="270" r="2"/>
+    <circle cx="100" cy="320" r="1"/>
+    <circle cx="420" cy="320" r="1"/>
+  </g>
+
+  <text x="240" y="320" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" letter-spacing="6" fill="#e0c878" id="headline">SWEETLY DREAMING</text>
+
+  <text x="240" y="380" text-anchor="middle" font-family="Playfair Display, serif" font-size="40" font-style="italic" fill="#f4e8c8" id="honoree">Baby Khamis</text>
+  <text x="240" y="408" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" letter-spacing="3" fill="#c8a868" id="sub_headline">JOIN US FOR A BABY SHOWER</text>
+
+  <line x1="200" y1="438" x2="280" y2="438" stroke="#e0c878" stroke-opacity="0.5"/>
+
+  <text x="240" y="468" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" letter-spacing="3" fill="#f4e8c8" id="date">SAT · 30 JAN 2027</text>
+  <text x="240" y="488" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" letter-spacing="2" fill="#c8a868" id="time">5:00 PM SUNDOWN</text>
+  <text x="240" y="510" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" letter-spacing="2" fill="#f4e8c8" id="venue">PRIVATE RESIDENCE · OYSTER BAY</text>
+  <text x="240" y="528" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" fill="#a8957a" id="address">Address shared upon RSVP</text>
+
+  <text x="240" y="612" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" letter-spacing="3" fill="#a8957a" id="footer_note">RSVP BY 20 JAN</text>
+
+  <rect x="204" y="528" width="72" height="72" fill="none" stroke="#888" stroke-opacity="0.5" opacity="0.001"/>
+</svg>

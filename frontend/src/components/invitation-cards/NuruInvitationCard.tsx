@@ -143,7 +143,7 @@ const FooterStrip = ({ qrValue, qrUrl, admits, dressCode }: {
       <Ticket className="w-6 h-6 text-amber-400 flex-shrink-0" strokeWidth={1.5} />
       <div className="leading-tight min-w-0">
         <p className="text-[9px] font-bold tracking-wider text-amber-400">INVITE ADMITS</p>
-        <p className="text-[10px] text-neutral-200 mt-0.5 truncate">{admits || '1 Guest'}</p>
+        <p className="text-[10px] text-neutral-200 mt-0.5 break-words leading-tight">{admits || '1 Guest'}</p>
       </div>
     </div>
     {/* Dress code */}

@@ -110,4 +110,5 @@
 
   <text x="240" y="652" font-family="'Palatino Linotype',Palatino,serif"
         font-size="9" fill="#404040" letter-spacing="3" text-anchor="middle" id="rsvp">nuru.tz</text>
+  <rect x="204" y="556" width="72" height="72" fill="none" stroke="#888" stroke-opacity="0.5" opacity="0.001"/>
 </svg>

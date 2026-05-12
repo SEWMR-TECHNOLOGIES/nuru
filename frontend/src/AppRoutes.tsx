@@ -21,6 +21,10 @@ import SettingsPayments from "@/components/SettingsPayments";
 import PostDetail from "@/components/PostDetail";
 import CreateEvent from "@/components/CreateEvent";
 import EventManagement from "@/components/EventManagement";
+import InvitationCardManagerPage from "@/features/card-designer/pages/InvitationCardManagerPage";
+import InvitationTemplateGalleryPage from "@/features/card-designer/pages/InvitationTemplateGalleryPage";
+import InvitationCardDesignerPage from "@/features/card-designer/pages/InvitationCardDesignerPage";
+import InvitationCardPreviewPage from "@/features/card-designer/pages/InvitationCardPreviewPage";
 import MyServices from "@/components/MyServices";
 import AddService from "@/components/AddService";
 import EditService from "@/components/EditService";
@@ -133,6 +137,8 @@ import AdminNameFlags from "@/pages/admin/AdminNameFlags";
 import AdminMonitoring from "@/pages/admin/AdminMonitoring";
 import AdminPayments from "@/pages/admin/AdminPayments";
 import AdminContactMessages from "@/pages/admin/AdminContactMessages";
+import AdminDeletionRequests from "@/pages/admin/AdminDeletionRequests";
+import DataDeletion from "@/pages/DataDeletion";
 import MyIssues from "@/components/MyIssues";
 import MeetingRoom from "@/pages/MeetingRoom";
 
@@ -188,6 +194,11 @@ function InnerRoutes() {
           <Route path="/tickets" element={<BrowseTickets />} />
           <Route path="/my-tickets" element={<MyTickets />} />
           <Route path="/event-management/:id" element={<EventManagement />} />
+          <Route path="/events/:eventId/invitations/cards" element={<InvitationCardManagerPage />} />
+          <Route path="/events/:eventId/invitations/cards/new" element={<InvitationTemplateGalleryPage />} />
+          <Route path="/events/:eventId/invitations/cards/new/edit" element={<InvitationCardDesignerPage />} />
+          <Route path="/events/:eventId/invitations/cards/:templateId/edit" element={<InvitationCardDesignerPage />} />
+          <Route path="/events/:eventId/invitations/cards/:templateId/preview" element={<InvitationCardPreviewPage />} />
           <Route path="/event-group/:groupId" element={<EventGroupWorkspace />} />
           <Route path="/my-groups" element={<MyGroups />} />
           <Route path="/my-contributions" element={<MyContributions />} />
@@ -222,6 +233,7 @@ function InnerRoutes() {
 
         {/* Public Pages */}
         <Route path="/contact" element={<Contact />} />
+        <Route path="/data-deletion" element={<DataDeletion />} />
         <Route path="/faqs" element={<FAQs />} />
         <Route path="/register" element={userIsLoggedIn ? <Navigate to="/" replace /> : <Register />} />
         <Route path="/login" element={userIsLoggedIn ? <Navigate to="/" replace /> : <Login />} />
@@ -295,6 +307,7 @@ function InnerRoutes() {
           <Route path="monitoring" element={<AdminMonitoring />} />
           <Route path="payments" element={<AdminPayments />} />
           <Route path="contact-messages" element={<AdminContactMessages />} />
+          <Route path="deletion-requests" element={<AdminDeletionRequests />} />
         </Route>
 
 

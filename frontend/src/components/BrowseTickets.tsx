@@ -17,6 +17,7 @@ import CountdownClock from "@/components/CountdownClock";
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import CheckoutModal from "@/components/payments/CheckoutModal";
 import ReservationSuccess from "@/components/tickets/ReservationSuccess";
+import { getEventImage } from "@/lib/eventImage";
 
 let _browseEventsCache: any[] = [];
 let _browseEventsPagination: any = null;
@@ -223,13 +224,7 @@ const BrowseTickets = () => {
                   onClick={() => openEventTickets(event)}
                 >
                   <div className="relative h-40 bg-muted overflow-hidden">
-                    {event.cover_image ? (
-                      <img src={event.cover_image} alt={event.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <img src={TicketIcon} alt="" className="w-10 h-10 dark:invert opacity-20" />
-                      </div>
-                    )}
+                    <img src={getEventImage(event)} alt={event.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                     <div className="absolute bottom-3 left-3">
                       <Badge className="bg-primary text-primary-foreground shadow-lg text-xs font-bold px-2.5 py-1">
                         From {formatPrice(event.min_price)}
@@ -320,11 +315,9 @@ const BrowseTickets = () => {
         <DialogContent className="max-w-md p-0 overflow-hidden">
           {selectedEvent && (
             <>
-              {selectedEvent.cover_image && (
-                <div className="h-36 overflow-hidden">
-                  <img src={selectedEvent.cover_image} alt={selectedEvent.name} className="w-full h-full object-cover" />
-                </div>
-              )}
+              <div className="h-36 overflow-hidden">
+                <img src={getEventImage(selectedEvent)} alt={selectedEvent.name} className="w-full h-full object-cover" />
+              </div>
               <div className="p-5 space-y-4">
                 <div>
                   <h2 className="font-bold text-foreground text-lg">{selectedEvent.name}</h2>

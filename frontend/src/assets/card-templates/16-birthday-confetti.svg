@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 680" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="bg16" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff0f4"/>
+      <stop offset="100%" stop-color="#fcd6e2"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="680" fill="url(#bg16)"/>
+  <!-- Confetti dots -->
+  <g>
+    <circle cx="60" cy="80" r="4" fill="#e85a8a"/>
+    <circle cx="420" cy="60" r="3" fill="#c83a6a"/>
+    <circle cx="100" cy="160" r="3" fill="#8a3a5a"/>
+    <circle cx="380" cy="180" r="4" fill="#e85a8a"/>
+    <circle cx="40" cy="540" r="3" fill="#c83a6a"/>
+    <circle cx="440" cy="500" r="4" fill="#e85a8a"/>
+    <circle cx="80" cy="600" r="3" fill="#8a3a5a"/>
+    <circle cx="400" cy="610" r="3" fill="#c83a6a"/>
+  </g>
+  <!-- Layered cake -->
+  <g transform="translate(240 230)">
+    <rect x="-60" y="0" width="120" height="40" fill="#fff" stroke="#c83a6a" stroke-width="1.5" rx="3"/>
+    <rect x="-45" y="-30" width="90" height="32" fill="#fff" stroke="#c83a6a" stroke-width="1.5" rx="3"/>
+    <rect x="-30" y="-58" width="60" height="30" fill="#fff" stroke="#c83a6a" stroke-width="1.5" rx="3"/>
+    <line x1="0" y1="-90" x2="0" y2="-58" stroke="#c83a6a" stroke-width="2"/>
+    <circle cx="0" cy="-92" r="4" fill="#e85a8a"/>
+    <circle cx="0" cy="-100" r="2" fill="#fff5a0"/>
+  </g>
+  <text x="240" y="320" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" letter-spacing="6" fill="#c83a6a" id="headline">A SWEET CELEBRATION</text>
+  <text x="240" y="380" text-anchor="middle" font-family="Playfair Display, serif" font-size="44" font-style="italic" fill="#8a1a4a" id="honoree">Zawadi</text>
+  <text x="240" y="408" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" letter-spacing="3" fill="#c83a6a" id="sub_headline">TURNS THIRTY</text>
+  <line x1="200" y1="430" x2="280" y2="430" stroke="#c83a6a" stroke-opacity="0.5"/>
+  <text x="240" y="468" text-anchor="middle" font-family="Inter, sans-serif" font-size="12" letter-spacing="2" fill="#5a1a3a" id="date">SAT · 22 AUG 2026</text>
+  <text x="240" y="490" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" letter-spacing="2" fill="#a83a6a" id="time">7:00 PM</text>
+  <text x="240" y="518" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" letter-spacing="2" fill="#5a1a3a" id="venue">JOHARI ROOFTOP</text>
+  <text x="240" y="538" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" fill="#a83a6a" id="address">Masaki · Dar es Salaam</text>
+  <text x="240" y="612" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" letter-spacing="3" fill="#a83a6a" id="footer_note">DRESS CODE · SOMETHING PINK</text>
+  <rect x="204" y="556" width="72" height="72" fill="#fff0f4" stroke="#c83a6a" stroke-opacity="0.5" opacity="0.001"/>
+</svg>

@@ -33,6 +33,7 @@ import {
 import { toast } from 'sonner';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { saveFeedScrollPosition } from '@/lib/feedSession';
+import { NURU_EVENT_DEFAULT_IMAGE } from '@/lib/eventImage';
 
 interface SharedEvent {
   id: string;
@@ -167,7 +168,8 @@ const Moment = ({ post }: MomentProps) => {
       : [];
     if (list.length) return list;
     const cover = normalizeImg(sharedEvent?.cover_image);
-    return cover ? [cover] : [];
+    if (cover) return [cover];
+    return [NURU_EVENT_DEFAULT_IMAGE];
   })();
 
   // Use short URL for sharing
@@ -361,72 +363,98 @@ const Moment = ({ post }: MomentProps) => {
                   />
                 )
               ) : (
-                <div className="grid grid-cols-5 gap-1 h-56 sm:h-64 rounded-xl overflow-hidden">
-                  {/* Big left tile */}
-                  <div className="col-span-3 row-span-2 relative">
-                    {isVideoUrl(allImages[0], 0) ? (
-                      <SmartMedia src={allImages[0]} alt="" className="w-full h-full object-cover" isVideo compact />
-                    ) : (
-                      <img
-                        src={allImages[0]}
-                        alt=""
-                        className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const imageOnly = allImages.filter((_, i) => !isVideoUrl(_, i));
-                          lightbox.openLightbox(imageOnly, 0);
-                        }}
-                      />
-                    )}
-                  </div>
-                  {/* Top right tile */}
-                  <div className="col-span-2 relative">
-                    {isVideoUrl(allImages[1], 1) ? (
-                      <SmartMedia src={allImages[1]} alt="" className="w-full h-full object-cover" isVideo compact />
-                    ) : (
-                      <img
-                        src={allImages[1]}
-                        alt=""
-                        className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const imageOnly = allImages.filter((_, i) => !isVideoUrl(_, i));
-                          const idx = imageOnly.indexOf(allImages[1]);
-                          lightbox.openLightbox(imageOnly, idx >= 0 ? idx : 0);
-                        }}
-                      />
-                    )}
-                  </div>
-                  {/* Bottom right tile with +N overlay */}
-                  {allImages.length > 2 && (
-                    <div className="col-span-2 relative">
-                      {isVideoUrl(allImages[2], 2) ? (
-                        <SmartMedia src={allImages[2]} alt="" className="w-full h-full object-cover" isVideo compact />
-                      ) : (
-                        <img
-                          src={allImages[2]}
-                          alt=""
-                          className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const imageOnly = allImages.filter((_, i) => !isVideoUrl(_, i));
-                            const idx = imageOnly.indexOf(allImages[2]);
-                            lightbox.openLightbox(imageOnly, idx >= 0 ? idx : 0);
-                          }}
-                        />
-                      )}
-                      {allImages.length > 3 && (
-                        <div
-                          className="absolute inset-0 bg-black/55 flex items-center justify-center text-white text-2xl font-bold cursor-pointer"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const imageOnly = allImages.filter((_, i) => !isVideoUrl(_, i));
-                            lightbox.openLightbox(imageOnly, Math.min(2, imageOnly.length - 1));
-                          }}
-                        >
-                          +{allImages.length - 3}
+                <div className="rounded-xl md:rounded-2xl overflow-hidden bg-muted/30">
+                  {allImages.length === 2 ? (
+                    // Two images — split evenly, no cropping bias.
+                    <div className="grid grid-cols-2 gap-1 h-64 sm:h-80 md:h-96">
+                      {allImages.slice(0, 2).map((src, i) => (
+                        <div key={i} className="relative w-full h-full bg-muted/30">
+                          {isVideoUrl(src, i) ? (
+                            <SmartMedia src={src} alt="" className="w-full h-full object-cover" isVideo compact />
+                          ) : (
+                            <img
+                              src={src}
+                              alt=""
+                              className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const imageOnly = allImages.filter((_, idx) => !isVideoUrl(_, idx));
+                                const idx = imageOnly.indexOf(src);
+                                lightbox.openLightbox(imageOnly, idx >= 0 ? idx : 0);
+                              }}
+                            />
+                          )}
                         </div>
-                      )}
+                      ))}
+                    </div>
+                  ) : (
+                    // 3+ images — Instagram-style mosaic with +N overlay on tile #3.
+                    <div className="grid grid-cols-5 grid-rows-2 gap-1 h-64 sm:h-80 md:h-96">
+                      {/* Big left tile */}
+                      <div className="col-span-3 row-span-2 relative">
+                        {isVideoUrl(allImages[0], 0) ? (
+                          <SmartMedia src={allImages[0]} alt="" className="w-full h-full object-cover" isVideo compact />
+                        ) : (
+                          <img
+                            src={allImages[0]}
+                            alt=""
+                            className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const imageOnly = allImages.filter((_, i) => !isVideoUrl(_, i));
+                              lightbox.openLightbox(imageOnly, 0);
+                            }}
+                          />
+                        )}
+                      </div>
+                      {/* Top right tile */}
+                      <div className="col-span-2 row-span-1 relative">
+                        {isVideoUrl(allImages[1], 1) ? (
+                          <SmartMedia src={allImages[1]} alt="" className="w-full h-full object-cover" isVideo compact />
+                        ) : (
+                          <img
+                            src={allImages[1]}
+                            alt=""
+                            className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const imageOnly = allImages.filter((_, i) => !isVideoUrl(_, i));
+                              const idx = imageOnly.indexOf(allImages[1]);
+                              lightbox.openLightbox(imageOnly, idx >= 0 ? idx : 0);
+                            }}
+                          />
+                        )}
+                      </div>
+                      {/* Bottom right tile with +N overlay */}
+                      <div className="col-span-2 row-span-1 relative">
+                        {isVideoUrl(allImages[2], 2) ? (
+                          <SmartMedia src={allImages[2]} alt="" className="w-full h-full object-cover" isVideo compact />
+                        ) : (
+                          <img
+                            src={allImages[2]}
+                            alt=""
+                            className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const imageOnly = allImages.filter((_, i) => !isVideoUrl(_, i));
+                              const idx = imageOnly.indexOf(allImages[2]);
+                              lightbox.openLightbox(imageOnly, idx >= 0 ? idx : 0);
+                            }}
+                          />
+                        )}
+                        {allImages.length > 3 && (
+                          <div
+                            className="absolute inset-0 bg-black/55 flex items-center justify-center text-white text-2xl font-bold cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const imageOnly = allImages.filter((_, i) => !isVideoUrl(_, i));
+                              lightbox.openLightbox(imageOnly, Math.min(2, imageOnly.length - 1));
+                            }}
+                          >
+                            +{allImages.length - 3}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

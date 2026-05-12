@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { X, Send, Plus, ChevronLeft, MessageCircle, Loader2, Search } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import CustomImageIcon from '@/assets/icons/image-icon.svg';
@@ -40,6 +40,36 @@ const isValidAvatar = (url?: string | null): boolean => {
   if (url.includes('placeholder')) return false;
   if (url.includes('randomuser.me')) return false;
   return true;
+};
+
+const getStringProp = (source: Record<string, unknown>, key: string): string | null => {
+  const value = source[key];
+  return typeof value === 'string' && value.trim() ? value : null;
+};
+
+const getServiceAvatar = (service?: Record<string, unknown> | null): string | null => {
+  if (!service) return null;
+  const candidates = ['image', 'primary_image', 'cover_image', 'image_url', 'avatar'].map((key) => getStringProp(service, key));
+  for (const candidate of candidates) {
+    if (candidate) return candidate;
+  }
+  const images = service.images || service.gallery_images;
+  if (Array.isArray(images)) {
+    const first = images.find(Boolean);
+    if (typeof first === 'string') return first;
+    if (first && typeof first === 'object') {
+      const image = first as Record<string, unknown>;
+      return getStringProp(image, 'url') || getStringProp(image, 'image_url');
+    }
+  }
+  return null;
+};
+
+type ConversationSummary = {
+  id: string;
+  type?: string;
+  participant?: { id?: string | null; name?: string | null; avatar?: string | null } | null;
+  service?: (Record<string, unknown> & { title?: string | null }) | null;
 };
 
 /** Conversation row that wires viewport + hover prefetch. */
@@ -100,26 +130,28 @@ const Messages = () => {
 
   // Handle deep-link: ?conversationId=xxx
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const routedConversation = (location.state as { conversation?: ConversationSummary } | null)?.conversation ?? null;
   useEffect(() => {
     const deepLinkId = searchParams.get('conversationId');
-    if (deepLinkId && conversations.length > 0) {
+    if (deepLinkId) {
       const found = conversations.find(c => c.id === deepLinkId);
-      if (found) {
+      if (found || routedConversation?.id === deepLinkId) {
         setSelectedConversationId(deepLinkId);
         if (isMobile) setShowChatList(false);
       }
     }
-  }, [searchParams, conversations]);
+  }, [searchParams, conversations, routedConversation, isMobile]);
 
   // FIX: Ref to prevent duplicate mark-as-read calls
   const lastMarkedRef = useRef<string | null>(null);
 
   // Select first conversation by default
   useEffect(() => {
-    if (conversations.length > 0 && !selectedConversationId) {
+    if (conversations.length > 0 && !selectedConversationId && !searchParams.get('conversationId')) {
       setSelectedConversationId(conversations[0].id);
     }
-  }, [conversations, selectedConversationId]);
+  }, [conversations, selectedConversationId, searchParams]);
 
   // Smooth scroll to bottom when messages change
   useEffect(() => {
@@ -251,7 +283,14 @@ const Messages = () => {
     }
   };
 
-  const selectedConversation = conversations.find(c => c.id === selectedConversationId);
+  const displayedConversations = routedConversation
+    ? [routedConversation, ...conversations.filter(c => c.id !== routedConversation.id)]
+    : conversations;
+  const selectedConversation = (routedConversation?.id === selectedConversationId ? routedConversation : null)
+    || (conversations.find(c => c.id === selectedConversationId) as ConversationSummary | undefined)
+    || null;
+  const deepLinkConversationId = searchParams.get('conversationId');
+  const selectedServiceAvatar = getServiceAvatar(selectedConversation?.service);
 
   const handleSelectUser = (user: SearchedUser) => {
     // Check if personal conversation already exists with this user (no service)
@@ -453,7 +492,7 @@ const Messages = () => {
                   const svc = (c.service?.title || '').toLowerCase();
                   return name.includes(term) || last.includes(term) || svc.includes(term);
                 })
-              : conversations;
+              : displayedConversations;
 
             if (visible.length === 0) {
               return (
@@ -465,8 +504,9 @@ const Messages = () => {
 
             return visible.map((conversation) => {
               const isSelected = conversation.id === selectedConversationId;
-              const displayName = conversation.participant?.name || 'Unknown';
-              const displayAvatar = conversation.participant?.avatar || null;
+              const isServiceConv = conversation.type === 'user_to_service' || !!conversation.service;
+              const displayName = (isServiceConv && conversation.service?.title) || conversation.participant?.name || 'Unknown';
+              const displayAvatar = (isServiceConv ? getServiceAvatar(conversation.service) : null) || conversation.participant?.avatar || null;
 
               return (
                 <ConversationRowShell
@@ -532,7 +572,7 @@ const Messages = () => {
               {(() => {
                 const isServiceConv = selectedConversation.type === 'user_to_service' || !!selectedConversation.service;
                 const headerName = selectedConversation.participant?.name || 'Unknown';
-                const headerAvatar = selectedConversation.participant?.avatar || null;
+                const headerAvatar = (isServiceConv ? selectedServiceAvatar : null) || selectedConversation.participant?.avatar || null;
                 const serviceTitle = selectedConversation.service?.title || null;
 
                 return (
@@ -546,16 +586,9 @@ const Messages = () => {
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-sm truncate">{headerName}</h3>
-                      <p className="text-xs text-muted-foreground">{isServiceConv ? t('service_enquiry') : t('chat')}</p>
+                      <h3 className="font-semibold text-sm truncate">{isServiceConv && serviceTitle ? serviceTitle : headerName}</h3>
+                      <p className="text-xs text-muted-foreground truncate">{isServiceConv ? `${t('service_enquiry')} • ${headerName}` : t('chat')}</p>
                     </div>
-                    {isServiceConv && serviceTitle && (
-                      <div className="flex-shrink-0 ml-auto">
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-accent text-accent-foreground text-[11px] font-medium max-w-[140px] truncate">
-                          🏷️ {serviceTitle}
-                        </span>
-                      </div>
-                    )}
                   </>
                 );
               })()}
@@ -614,8 +647,8 @@ const Messages = () => {
                         {/* Receiver avatar */}
                         {!isSender && (
                           <Avatar className="w-7 h-7 mr-2 mt-1 flex-shrink-0">
-                            {isValidAvatar(selectedConversation.participant?.avatar) ? (
-                              <AvatarImage src={selectedConversation.participant.avatar} alt="" />
+                            {isValidAvatar(selectedServiceAvatar || selectedConversation.participant?.avatar) ? (
+                              <AvatarImage src={(selectedServiceAvatar || selectedConversation.participant?.avatar)!} alt="" />
                             ) : null}
                             <AvatarFallback className="bg-muted text-muted-foreground text-[10px] font-medium">
                               {getInitials(selectedConversation.participant?.name)}

@@ -5,9 +5,9 @@
  * QR code is rendered as a foreignObject replacing the placeholder QR group.
  */
 
-import { useRef, useMemo, useCallback } from 'react';
+import { useRef, useMemo } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { SvgCardTemplate } from './SvgTemplateRegistry';
+import { SvgCardTemplate, InvitationContent } from './SvgTemplateRegistry';
 
 export interface SvgCardData {
   guestName: string;
@@ -25,6 +25,8 @@ export interface SvgCardData {
 interface SvgCardRendererProps {
   template: SvgCardTemplate;
   data: SvgCardData;
+  /** Optional editable copy overrides loaded from events.invitation_content */
+  contentOverrides?: InvitationContent | null;
   className?: string;
 }
 
@@ -32,7 +34,12 @@ interface SvgCardRendererProps {
  * Replace text content of SVG elements by their id attribute.
  * This modifies the raw SVG string before rendering.
  */
-function injectDynamicData(svgRaw: string, template: SvgCardTemplate, data: SvgCardData): string {
+function injectDynamicData(
+  svgRaw: string,
+  template: SvgCardTemplate,
+  data: SvgCardData,
+  overrides?: InvitationContent | null,
+): string {
   let svg = svgRaw;
 
   const replacements: Record<string, string> = {};
@@ -54,11 +61,22 @@ function injectDynamicData(svgRaw: string, template: SvgCardTemplate, data: SvgC
   if (fields.venueField) replacements[fields.venueField] = data.venue || '';
   if (fields.addressField) replacements[fields.addressField] = data.address || '';
 
+  // Editable copy overrides — match SVG <text id="..."> placeholders.
+  // Overrides win over template defaults so organisers can rewrite headline,
+  // sub-headline, host line, footer note, dress code and rsvp label per event.
+  if (overrides) {
+    if (overrides.headline) replacements.headline = overrides.headline;
+    if (overrides.sub_headline) replacements.sub_headline = overrides.sub_headline;
+    if (overrides.host_line) replacements.host_line = overrides.host_line;
+    if (overrides.body) replacements.body = overrides.body;
+    if (overrides.footer_note) replacements.footer_note = overrides.footer_note;
+    if (overrides.dress_code_label) replacements.dress_code_label = overrides.dress_code_label;
+    if (overrides.rsvp_label) replacements.rsvp_label = overrides.rsvp_label;
+  }
+
   // Replace text content by id
   for (const [id, value] of Object.entries(replacements)) {
     if (!value) continue;
-    // Match: <text ... id="<id>" ...>PLACEHOLDER</text>
-    // Also match <text ... id="<id>">PLACEHOLDER</text> across multiple lines
     const regex = new RegExp(
       `(<text[^>]*\\bid="${id}"[^>]*>)([^<]*)(</text>)`,
       'g'
@@ -78,25 +96,28 @@ function escapeXml(str: string): string {
     .replace(/'/g, '&apos;');
 }
 
-const SvgCardRenderer = ({ template, data, className }: SvgCardRendererProps) => {
+const SvgCardRenderer = ({ template, data, contentOverrides, className }: SvgCardRendererProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const processedSvg = useMemo(
-    () => injectDynamicData(template.svgRaw, template, data),
-    [template, data]
+    () => injectDynamicData(template.svgRaw, template, data, contentOverrides),
+    [template, data, contentOverrides]
   );
 
   return (
     <div className={className} ref={containerRef}>
       <div
-        className="w-full"
+        className="w-full relative"
         style={{ aspectRatio: '480/680' }}
-        dangerouslySetInnerHTML={{ __html: processedSvg }}
-      />
-      {/* Overlay real QR code on top of the placeholder */}
-      {data.qrValue && template.hasQr && (
-        <QrOverlay svgHtml={processedSvg} qrValue={data.qrValue} />
-      )}
+      >
+        <div
+          className="absolute inset-0"
+          dangerouslySetInnerHTML={{ __html: processedSvg }}
+        />
+        {data.qrValue && template.hasQr && (
+          <QrOverlay svgHtml={processedSvg} qrValue={data.qrValue} />
+        )}
+      </div>
     </div>
   );
 };
@@ -108,24 +129,25 @@ const SvgCardRenderer = ({ template, data, className }: SvgCardRendererProps) =>
  */
 const QrOverlay = ({ svgHtml, qrValue }: { svgHtml: string; qrValue: string }) => {
   const qrPos = useMemo(() => {
-    // Find all rect elements with stroke and opacity (QR container border rects)
-    // Match rects like: <rect x="204" y="556" width="72" height="72" ... stroke ... opacity .../>
-    const rectRegex = /<rect\s+x="(\d+)"\s+y="(\d+)"\s+width="(\d+)"\s+height="(\d+)"[^>]*stroke[^>]*opacity[^>]*\/>/g;
+    // QR placeholders are uniquely marked with opacity="0.001".
+    // Match any rect with that exact marker, regardless of attribute order.
+    const rectRegex = /<rect\b([^>]*\bopacity="0\.001"[^>]*)\/>/g;
+    const attrNum = (attrs: string, name: string): number | null => {
+      const m = new RegExp(`\\b${name}="(-?\\d+(?:\\.\\d+)?)"`).exec(attrs);
+      return m ? parseFloat(m[1]) : null;
+    };
     let bestMatch: { x: number; y: number; w: number; h: number } | null = null;
     let match;
-
     while ((match = rectRegex.exec(svgHtml)) !== null) {
-      const x = parseInt(match[1]);
-      const y = parseInt(match[2]);
-      const w = parseInt(match[3]);
-      const h = parseInt(match[4]);
-      // QR containers are 60-80px wide, positioned in lower portion of the card
-      if (w >= 60 && w <= 80 && h >= 50 && h <= 80 && y > 400) {
-        bestMatch = { x, y, w, h };
-        break;
-      }
+      const attrs = match[1];
+      const x = attrNum(attrs, 'x');
+      const y = attrNum(attrs, 'y');
+      const w = attrNum(attrs, 'width');
+      const h = attrNum(attrs, 'height');
+      if (x === null || y === null || w === null || h === null) continue;
+      bestMatch = { x, y, w, h };
+      break;
     }
-
     return bestMatch;
   }, [svgHtml]);
 
@@ -134,16 +156,11 @@ const QrOverlay = ({ svgHtml, qrValue }: { svgHtml: string; qrValue: string }) =
   const svgWidth = 480;
   const svgHeight = 680;
 
-  // Use the inner fill rect area (inset by 3px from the stroke border)
-  const innerX = qrPos.x + 3;
-  const innerY = qrPos.y + 3;
-  const innerW = qrPos.w - 6;
-  const innerH = qrPos.h - 6;
-
-  const left = (innerX / svgWidth) * 100;
-  const top = (innerY / svgHeight) * 100;
-  const width = (innerW / svgWidth) * 100;
-  const height = (innerH / svgHeight) * 100;
+  // Fill the placeholder square edge-to-edge — no inset, no quiet zone.
+  const left = (qrPos.x / svgWidth) * 100;
+  const top = (qrPos.y / svgHeight) * 100;
+  const width = (qrPos.w / svgWidth) * 100;
+  const height = (qrPos.h / svgHeight) * 100;
 
   const isDark = svgHtml.includes('stop-color="#08') || svgHtml.includes('stop-color="#0d') ||
     svgHtml.includes('stop-color="#0e') || svgHtml.includes('stop-color="#0a') ||
@@ -157,9 +174,6 @@ const QrOverlay = ({ svgHtml, qrValue }: { svgHtml: string; qrValue: string }) =
         top: `${top}%`,
         width: `${width}%`,
         height: `${height}%`,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
       }}
     >
       <QRCodeCanvas
@@ -168,7 +182,8 @@ const QrOverlay = ({ svgHtml, qrValue }: { svgHtml: string; qrValue: string }) =
         bgColor={isDark ? '#111111' : '#f5f0e8'}
         fgColor={isDark ? '#c8a828' : '#3a2a18'}
         level="M"
-        style={{ width: '100%', height: '100%' }}
+        marginSize={0}
+        style={{ width: '100%', height: '100%', display: 'block' }}
       />
     </div>
   );

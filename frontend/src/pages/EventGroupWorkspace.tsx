@@ -6,7 +6,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ChevronLeft, Trophy, Users, Lock, Unlock, Link2, BarChart3 } from "lucide-react";
-import ChatIcon from "@/assets/icons/chat-icon.svg";
+import ChatIcon from "@/assets/group-chat-icon.svg";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { PillTabsNav } from "@/components/ui/pill-tabs";
 import { Button } from "@/components/ui/button";
@@ -57,11 +57,17 @@ const EventGroupWorkspace = () => {
   const me = members.find((m) => m.id === group?.viewer?.member_id || m.is_me);
   const isAdmin = !!group?.viewer?.is_admin || group?.viewer?.role === "organizer" || !!me?.is_admin || me?.role === "organizer";
 
-  // Event end date — admin can only reopen the group while the event is still upcoming.
+  // Live event status — derived every render from the current event end date
+  // (NOT from the stored `is_closed` flag, which would otherwise stay stale
+  // after the organizer reschedules the event to a future date).
   const eventEndIso = group?.event?.end_date || group?.event?.start_date || group?.event_end_date || group?.event_start_date;
   const eventEnded = eventEndIso ? new Date(eventEndIso) < new Date() : false;
+  // The chat is read-only only when the event has actually ended.
+  // The manual `is_closed` admin flag is treated as an override that is
+  // automatically released the moment the event is rescheduled forward.
+  const effectiveClosed = eventEnded || (!!group?.is_closed && !eventEndIso);
   const canReopen = isAdmin && group?.is_closed && !eventEnded;
-  const canClose = isAdmin && !group?.is_closed;
+  const canClose = isAdmin && !group?.is_closed && !eventEnded;
 
   const copyGroupInvite = async () => {
     if (!groupId) return;
@@ -121,9 +127,9 @@ const EventGroupWorkspace = () => {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <h1 className="text-lg sm:text-xl font-bold truncate">{group.name}</h1>
-                {group.is_closed && (
+                {effectiveClosed && (
                   <Badge variant="outline" className="text-[10px] gap-1">
-                    <Lock className="w-3 h-3" /> Closed
+                    <Lock className="w-3 h-3" /> {eventEnded ? "Event ended" : "Closed"}
                   </Badge>
                 )}
               </div>
@@ -184,7 +190,7 @@ const EventGroupWorkspace = () => {
               members={members}
               meMemberId={me?.id || null}
               isAdmin={isAdmin}
-              isClosed={!!group?.is_closed}
+              isClosed={effectiveClosed}
             />
           )}
         </TabsContent>

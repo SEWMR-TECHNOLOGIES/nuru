@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 680" preserveAspectRatio="xMidYMid meet">
+  <rect width="480" height="680" fill="#f8f4ec"/>
+  <rect x="32" y="32" width="416" height="616" fill="none" stroke="#b8a05a" stroke-opacity="0.6"/>
+
+  <!-- Pearl strand arc -->
+  <g>
+    <path d="M120 160 Q240 90 360 160" fill="none" stroke="#b8a05a" stroke-opacity="0.4"/>
+    <g fill="#f8eed4" stroke="#b8a05a" stroke-opacity="0.5">
+      <circle cx="135" cy="155" r="6"/>
+      <circle cx="160" cy="135" r="6"/>
+      <circle cx="190" cy="118" r="6"/>
+      <circle cx="220" cy="108" r="6"/>
+      <circle cx="240" cy="106" r="7"/>
+      <circle cx="260" cy="108" r="6"/>
+      <circle cx="290" cy="118" r="6"/>
+      <circle cx="320" cy="135" r="6"/>
+      <circle cx="345" cy="155" r="6"/>
+    </g>
+  </g>
+
+  <text x="240" y="220" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" letter-spacing="6" fill="#b8a05a" id="headline">XXX YEARS TOGETHER</text>
+
+  <text x="240" y="305" text-anchor="middle" font-family="Playfair Display, serif" font-size="44" font-style="italic" fill="#3a2818" id="couple">Hassan &amp; Zainab</text>
+  <text x="240" y="335" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" letter-spacing="3" fill="#7a5a30" id="sub_headline">A PEARL ANNIVERSARY DINNER</text>
+
+  <line x1="200" y1="365" x2="280" y2="365" stroke="#b8a05a" stroke-opacity="0.5"/>
+
+  <text x="240" y="410" text-anchor="middle" font-family="Inter, sans-serif" font-size="12" letter-spacing="3" fill="#3a2818" id="date">SAT · 7 FEB 2026</text>
+  <text x="240" y="432" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" letter-spacing="2" fill="#7a5a30" id="time">7:00 PM CHAMPAGNE</text>
+  <text x="240" y="458" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" letter-spacing="2" fill="#3a2818" id="venue">SEACLIFF HOTEL · BALLROOM</text>
+  <text x="240" y="476" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" fill="#7a5a30" id="address">Toure Drive · Msasani · Dar es Salaam</text>
+
+  <text x="240" y="612" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" letter-spacing="3" fill="#7a5a30" id="footer_note">BLACK TIE · NO GIFTS PLEASE</text>
+
+  <rect x="204" y="510" width="72" height="72" fill="none" stroke="#888" stroke-opacity="0.5" opacity="0.001"/>
+</svg>

@@ -1,13 +1,17 @@
-import { useState } from "react";
-import { ChevronLeft, Download, Eye, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ChevronLeft, Eye, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useWorkspaceMeta } from "@/hooks/useWorkspaceMeta";
-import { SVG_TEMPLATES, SvgCardTemplate } from "@/components/invitation-cards/SvgTemplateRegistry";
+import { SVG_TEMPLATES, SvgCardTemplate, InvitationContent } from "@/components/invitation-cards/SvgTemplateRegistry";
 import SvgCardRenderer from "@/components/invitation-cards/SvgCardRenderer";
+import { eventsApi } from "@/lib/api/events";
+import { toast } from "sonner";
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -17,7 +21,9 @@ const CATEGORY_LABELS: Record<string, string> = {
   corporate: "Corporate",
   anniversary: "Anniversary",
   conference: "Conference",
+  graduation: "Graduation",
   memorial: "Memorial",
+  baby_shower: "Baby Shower",
 };
 
 const PREVIEW_DATA = {
@@ -39,8 +45,54 @@ const CardTemplatesPage = () => {
   });
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const eventId = searchParams.get('eventId');
   const [previewTemplate, setPreviewTemplate] = useState<SvgCardTemplate | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [content, setContent] = useState<InvitationContent>({});
+  const [saving, setSaving] = useState(false);
+
+  // Preload existing override copy if editing for an event
+  useEffect(() => {
+    if (!eventId) return;
+    eventsApi.getInvitationCard(eventId).then((res: any) => {
+      if (res?.success && res.data?.event?.invitation_content) {
+        setContent(res.data.event.invitation_content);
+      }
+      const tplId = res?.data?.event?.invitation_template_id;
+      if (tplId) {
+        const tpl = SVG_TEMPLATES.find(t => t.id === tplId);
+        if (tpl) setPreviewTemplate(tpl);
+      }
+    }).catch(() => {});
+  }, [eventId]);
+
+  const updateContent = (key: keyof InvitationContent, value: string) =>
+    setContent(prev => ({ ...prev, [key]: value }));
+
+  const handleApply = async () => {
+    if (!eventId || !previewTemplate) return;
+    setSaving(true);
+    try {
+      const fd = new FormData();
+      fd.append('invitation_template_id', previewTemplate.id);
+      // Strip empty fields so renderer falls back to template defaults
+      const cleaned: Record<string, string> = {};
+      Object.entries(content).forEach(([k, v]) => { if (v && v.trim()) cleaned[k] = v.trim(); });
+      fd.append('invitation_content', JSON.stringify(cleaned));
+      const res: any = await eventsApi.update(eventId, fd);
+      if (res?.success !== false) {
+        toast.success('Invitation template applied');
+        setPreviewTemplate(null);
+      } else {
+        toast.error(res?.message || 'Could not save');
+      }
+    } catch {
+      toast.error('Could not save invitation');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const categories = ["all", ...new Set(SVG_TEMPLATES.flatMap(t => t.category))];
 
@@ -144,38 +196,86 @@ const CardTemplatesPage = () => {
       )}
 
       {/* Preview dialog */}
-      <Dialog open={!!previewTemplate} onOpenChange={() => setPreviewTemplate(null)}>
-        <DialogContent className="max-w-md p-0 overflow-hidden border-0 bg-transparent shadow-2xl">
+      <Dialog open={!!previewTemplate} onOpenChange={(o) => { if (!o) { setPreviewTemplate(null); setContent({}); } }}>
+        <DialogContent className="max-w-3xl p-0 overflow-hidden border-0 bg-transparent shadow-2xl">
           <DialogHeader className="sr-only">
             <DialogTitle>{previewTemplate?.name || "Template Preview"}</DialogTitle>
           </DialogHeader>
           {previewTemplate && (
-            <div className="bg-card rounded-2xl overflow-hidden">
-              <div className="max-h-[75vh] overflow-y-auto">
+            <div className="bg-card rounded-2xl overflow-hidden grid md:grid-cols-[1fr_320px]">
+              {/* Live preview */}
+              <div className="max-h-[80vh] overflow-y-auto">
                 <div className="relative">
                   <SvgCardRenderer
                     template={previewTemplate}
                     data={PREVIEW_DATA}
+                    contentOverrides={content}
                   />
                 </div>
-              </div>
-              <div className="p-4 border-t border-border bg-muted/30 space-y-2">
-                <h3 className="font-semibold text-sm text-foreground">{previewTemplate.name}</h3>
-                <p className="text-xs text-muted-foreground">{previewTemplate.description}</p>
-                <div className="flex flex-wrap gap-1">
-                  {previewTemplate.category.map(cat => (
-                    <Badge key={cat} variant="outline" className="text-[10px]">
-                      {CATEGORY_LABELS[cat] || cat}
-                    </Badge>
-                  ))}
-                  {previewTemplate.hasQr && (
-                    <Badge variant="outline" className="text-[10px]">QR Code</Badge>
-                  )}
+                <div className="p-4 border-t border-border bg-muted/30 space-y-2">
+                  <h3 className="font-semibold text-sm text-foreground">{previewTemplate.name}</h3>
+                  <p className="text-xs text-muted-foreground">{previewTemplate.description}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {previewTemplate.category.map(cat => (
+                      <Badge key={cat} variant="outline" className="text-[10px]">
+                        {CATEGORY_LABELS[cat] || cat}
+                      </Badge>
+                    ))}
+                    {previewTemplate.hasQr && (
+                      <Badge variant="outline" className="text-[10px]">QR Code</Badge>
+                    )}
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground/70 italic">
-                  This template is automatically assigned to matching events. Guest names and QR codes are
-                  filled in when the invitation is downloaded.
-                </p>
+              </div>
+
+              {/* Inline content editor */}
+              <div className="border-l border-border bg-background/60 p-4 space-y-3 max-h-[80vh] overflow-y-auto">
+                <div>
+                  <h4 className="font-semibold text-sm">Edit copy</h4>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Live preview. Saved to the event's invitation_content when you apply this template.
+                  </p>
+                </div>
+                {([
+                  ['headline', 'Headline'],
+                  ['sub_headline', 'Sub-headline'],
+                  ['host_line', 'Host line'],
+                  ['body', 'Body'],
+                  ['footer_note', 'Footer note'],
+                  ['dress_code_label', 'Dress code'],
+                  ['rsvp_label', 'RSVP label'],
+                ] as Array<[keyof InvitationContent, string]>).map(([key, label]) => (
+                  <div key={key} className="space-y-1">
+                    <Label htmlFor={`fld-${key}`} className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</Label>
+                    <Input
+                      id={`fld-${key}`}
+                      autoComplete="off"
+                      value={content[key] || ''}
+                      onChange={(e) => updateContent(key, e.target.value)}
+                      placeholder="Use template default"
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                ))}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full mt-2"
+                  onClick={() => setContent({})}
+                >
+                  Reset to defaults
+                </Button>
+                {eventId && (
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    disabled={saving}
+                    onClick={handleApply}
+                  >
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                    Apply to event
+                  </Button>
+                )}
               </div>
             </div>
           )}

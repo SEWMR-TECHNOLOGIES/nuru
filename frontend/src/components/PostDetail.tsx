@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from 'sonner';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { NURU_EVENT_DEFAULT_IMAGE } from '@/lib/eventImage';
 
 // ──────────────────────────────────────────────
 // Helper: get initials from a name string
@@ -589,7 +590,8 @@ const PostDetail = () => {
       : [];
     if (list.length) return list;
     const cover = normalizeImg(sharedEvent?.cover_image);
-    return cover ? [cover] : [];
+    if (cover) return [cover];
+    return [NURU_EVENT_DEFAULT_IMAGE];
   })();
 
   const isOwner = currentUser && (post.user?.id === currentUser.id || post.author?.id === currentUser.id);

@@ -21,6 +21,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { getEventCountdown } from '@/utils/getEventCountdown';
 import { Skeleton } from '@/components/ui/skeleton';
 import { eventsApi } from '@/lib/api/events';
+import { getEventImage } from '@/lib/eventImage';
 
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
@@ -167,8 +168,7 @@ const MyEvents = () => {
       const f = e.images.find((img: any) => img.is_featured);
       return [f ? f.image_url : e.images[0].image_url];
     }
-    if (e.cover_image) return [e.cover_image];
-    return [];
+    return [getEventImage(e)];
   };
 
   // ── Loading skeleton ───────────────────────────────────────────────────────
