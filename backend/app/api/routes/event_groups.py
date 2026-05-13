@@ -1207,25 +1207,33 @@ def add_reaction(
     if member_id is None:
         return standard_response(False, "Not a member")
 
-    # ── 2. UPSERT — insert if absent, no-op if it already exists.
-    stmt = (
+    # ── 2. Enforce ONE reaction per member per message.
+    # If the same emoji already exists → toggle it off.
+    # If a different emoji exists → replace it with the new one.
+    existing = db.query(EventGroupMessageReaction).filter(
+        EventGroupMessageReaction.message_id == mid,
+        EventGroupMessageReaction.member_id == member_id,
+    ).all()
+
+    if existing:
+        same = next((r for r in existing if r.emoji == emoji), None)
+        if same is not None and len(existing) == 1:
+            # Toggle off the same emoji.
+            db.delete(same)
+            db.commit()
+            return standard_response(True, "Removed", {"toggled": "off", "emoji": emoji})
+        # Otherwise replace: drop all of this member's reactions on this msg.
+        for r in existing:
+            db.delete(r)
+        db.flush()
+
+    db.execute(
         pg_insert(EventGroupMessageReaction)
         .values(message_id=mid, member_id=member_id, emoji=emoji)
         .on_conflict_do_nothing(
             index_elements=["message_id", "member_id", "emoji"]
         )
     )
-    result = db.execute(stmt)
-    if result.rowcount == 0:
-        # Already existed → toggle off with a targeted DELETE.
-        db.query(EventGroupMessageReaction).filter(
-            EventGroupMessageReaction.message_id == mid,
-            EventGroupMessageReaction.member_id == member_id,
-            EventGroupMessageReaction.emoji == emoji,
-        ).delete(synchronize_session=False)
-        db.commit()
-        return standard_response(True, "Removed", {"toggled": "off", "emoji": emoji})
-
     db.commit()
     return standard_response(True, "Added", {"toggled": "on", "emoji": emoji})
 
@@ -1338,14 +1346,133 @@ def scoreboard(
 
     outstanding = max(0, total_pledged - total_paid)
     collection_rate = ((total_paid / total_pledged) * 100) if total_pledged > 0 else 0.0
+
+    # ── Goal % vs the event's actual budget (not vs pledged total).
+    # Use the event budget as the canonical goal so "100% of goal" only shows
+    # when the pledges add up to the budget.
+    budget = float(event.budget or 0)
+    goal_progress = ((total_pledged / budget) * 100) if budget > 0 else 0.0
+    goal_progress = min(goal_progress, 100.0)
+
+    # ── Daily totals for last 7 days (Contributions Over Time chart).
+    today = datetime.utcnow().date()
+    start_day = today - timedelta(days=6)
+    daily_rows = db.query(
+        sa_func.date(EventContribution.contributed_at).label("d"),
+        sa_func.sum(EventContribution.amount).label("total"),
+    ).filter(
+        EventContribution.event_id == event.id,
+        sa_func.date(EventContribution.contributed_at) >= start_day,
+        or_(
+            EventContribution.confirmation_status.is_(None),
+            EventContribution.confirmation_status == ContributionStatusEnum.confirmed,
+        ),
+    ).group_by("d").all()
+    daily_map = {str(r.d): float(r.total or 0) for r in daily_rows}
+    daily = []
+    for i in range(7):
+        d = start_day + timedelta(days=i)
+        daily.append({"date": d.isoformat(), "total": daily_map.get(d.isoformat(), 0.0)})
+
+    # ── Contributions by payment method.
+    method_rows = db.query(
+        EventContribution.payment_method,
+        sa_func.sum(EventContribution.amount).label("total"),
+    ).filter(
+        EventContribution.event_id == event.id,
+        or_(
+            EventContribution.confirmation_status.is_(None),
+            EventContribution.confirmation_status == ContributionStatusEnum.confirmed,
+        ),
+    ).group_by(EventContribution.payment_method).all()
+    method_label = {"mobile": "Mobile Money", "bank": "Bank Transfer",
+                    "card": "Card Payment", "cash": "Cash"}
+    by_method = []
+    for pm, total in method_rows:
+        if pm is None:
+            continue
+        key = pm.value if hasattr(pm, "value") else str(pm)
+        by_method.append({
+            "method": key,
+            "label": method_label.get(key, key.title()),
+            "total": float(total or 0),
+        })
+
+    # ── Engagement & chat insights from group messages.
+    today_dt = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    yesterday_dt = today_dt - timedelta(days=1)
+    week_dt = today_dt - timedelta(days=7)
+    msgs_today = db.query(sa_func.count(EventGroupMessage.id)).filter(
+        EventGroupMessage.group_id == group.id,
+        EventGroupMessage.created_at >= today_dt,
+        EventGroupMessage.is_deleted == False,  # noqa: E712
+    ).scalar() or 0
+    msgs_yesterday = db.query(sa_func.count(EventGroupMessage.id)).filter(
+        EventGroupMessage.group_id == group.id,
+        EventGroupMessage.created_at >= yesterday_dt,
+        EventGroupMessage.created_at < today_dt,
+        EventGroupMessage.is_deleted == False,  # noqa: E712
+    ).scalar() or 0
+    active_today = db.query(sa_func.count(sa_func.distinct(EventGroupMessage.sender_member_id))).filter(
+        EventGroupMessage.group_id == group.id,
+        EventGroupMessage.created_at >= today_dt,
+        EventGroupMessage.sender_member_id.isnot(None),
+        EventGroupMessage.is_deleted == False,  # noqa: E712
+    ).scalar() or 0
+    active_yesterday = db.query(sa_func.count(sa_func.distinct(EventGroupMessage.sender_member_id))).filter(
+        EventGroupMessage.group_id == group.id,
+        EventGroupMessage.created_at >= yesterday_dt,
+        EventGroupMessage.created_at < today_dt,
+        EventGroupMessage.sender_member_id.isnot(None),
+        EventGroupMessage.is_deleted == False,  # noqa: E712
+    ).scalar() or 0
+    contributors_week = db.query(sa_func.count(sa_func.distinct(EventContribution.event_contributor_id))).filter(
+        EventContribution.event_id == event.id,
+        EventContribution.contributed_at >= week_dt,
+        or_(
+            EventContribution.confirmation_status.is_(None),
+            EventContribution.confirmation_status == ContributionStatusEnum.confirmed,
+        ),
+    ).scalar() or 0
+    contributors_prev_week = db.query(sa_func.count(sa_func.distinct(EventContribution.event_contributor_id))).filter(
+        EventContribution.event_id == event.id,
+        EventContribution.contributed_at >= week_dt - timedelta(days=7),
+        EventContribution.contributed_at < week_dt,
+        or_(
+            EventContribution.confirmation_status.is_(None),
+            EventContribution.confirmation_status == ContributionStatusEnum.confirmed,
+        ),
+    ).scalar() or 0
+
+    def _pct_change(cur_v: int, prev_v: int) -> int:
+        if prev_v == 0:
+            return 100 if cur_v > 0 else 0
+        return round((cur_v - prev_v) / prev_v * 100)
+
+    engagement = {
+        "messages_today": int(msgs_today),
+        "messages_change_pct": _pct_change(int(msgs_today), int(msgs_yesterday)),
+        "active_members_today": int(active_today),
+        "active_members_change_pct": _pct_change(int(active_today), int(active_yesterday)),
+        "contributors_week": int(contributors_week),
+        "contributors_change_pct": _pct_change(int(contributors_week), int(contributors_prev_week)),
+    }
+
     summary = {
         "total_pledged": total_pledged,
         "total_paid": total_paid,
         "outstanding": outstanding,
         "collection_rate": collection_rate,
+        "goal_progress": goal_progress,
         "contributors": len(rows),
-        "budget": float(event.budget or 0),
+        "budget": budget,
         "currency": currency,
+        "daily": daily,
+        "by_method": by_method,
+        "engagement": engagement,
+        "top_topics": [],
+        "event_end_date": event.end_date.isoformat() if event.end_date else None,
+        "target_date": event.end_date.isoformat() if event.end_date else None,
     }
 
     return standard_response(True, "Scoreboard", {
@@ -1363,7 +1490,8 @@ def scoreboard(
         "event": {
             "id": str(event.id),
             "name": event.name,
-            "target": float(event.budget or 0),
+            "target": budget,
+            "end_date": event.end_date.isoformat() if event.end_date else None,
         },
     })
 
