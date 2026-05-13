@@ -29,31 +29,15 @@ class NuruSubPageAppBar extends StatelessWidget implements PreferredSizeWidget {
       backgroundColor: AppColors.surface,
       elevation: 0,
       scrolledUnderElevation: 0,
-      leadingWidth: 64,
-      leading: Padding(
-        padding: const EdgeInsets.only(left: 12, top: 6, bottom: 6),
-        child: Material(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: onBack ?? () => Navigator.of(context).maybePop(),
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border.withOpacity(0.4), width: 0.7),
-              ),
-              alignment: Alignment.center,
-              child: const Icon(
-                Icons.chevron_left_rounded,
-                size: 24,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ),
+      leadingWidth: 48,
+      leading: IconButton(
+        onPressed: onBack ?? () => Navigator.of(context).maybePop(),
+        icon: const Icon(
+          Icons.arrow_back,
+          size: 24,
+          color: AppColors.textPrimary,
         ),
+        splashRadius: 22,
       ),
       title: Text(
         title,

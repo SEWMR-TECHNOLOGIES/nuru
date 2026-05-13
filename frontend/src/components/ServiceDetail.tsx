@@ -204,19 +204,21 @@ const ServiceDetail = () => {
 
       {/* ─── HERO GALLERY ─── */}
       {hasImages ? (
-        <div className="relative rounded-2xl overflow-hidden mb-6">
+        <div className="relative rounded-2xl overflow-hidden mb-6 bg-muted">
           {imageUrls.length === 1 ? (
-            <div className="w-full h-[380px] cursor-zoom-in" onClick={() => { setLightboxIndex(0); setLightboxOpen(true); }}>
-              <img src={imageUrls[0]} alt={service.title} className="w-full h-full object-cover" />
+            <div className="relative w-full h-[380px] cursor-zoom-in bg-muted overflow-hidden" onClick={() => { setLightboxIndex(0); setLightboxOpen(true); }}>
+              <img src={imageUrls[0]} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60" />
+              <img src={imageUrls[0]} alt={service.title} className="relative w-full h-full object-contain" />
             </div>
           ) : (
             <div className={`grid gap-1 h-[380px] ${imageUrls.length === 2 ? 'grid-cols-2' : imageUrls.length === 3 ? 'grid-cols-3' : 'grid-cols-4 grid-rows-2'}`}>
               {imageUrls.slice(0, imageUrls.length >= 4 ? 4 : imageUrls.length).map((img, idx) => {
                 const isFirst = idx === 0 && imageUrls.length >= 4;
                 return (
-                  <div key={idx} className={`relative overflow-hidden cursor-zoom-in group ${isFirst ? 'row-span-2 col-span-2' : ''}`}
+                  <div key={idx} className={`relative overflow-hidden cursor-zoom-in group bg-muted ${isFirst ? 'row-span-2 col-span-2' : ''}`}
                     onClick={() => { setLightboxIndex(idx); setLightboxOpen(true); }}>
-                    <img src={img} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    <img src={img} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60" />
+                    <img src={img} alt={`Photo ${idx + 1}`} className="relative w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors" />
                     {idx === 3 && imageUrls.length > 4 && (
                       <div className="absolute inset-0 bg-black/60 flex items-center justify-center">

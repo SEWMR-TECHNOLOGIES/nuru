@@ -45,6 +45,26 @@ EAT = pytz.timezone("Africa/Nairobi")
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 VALID_STATUS_FILTERS = {"draft", "confirmed", "published", "cancelled", "completed", "all"}
 
+
+def _initial_status(raw: Optional[str]):
+    """Map an incoming `status` form value to an EventStatusEnum.
+
+    Accepts "draft", "published" (-> confirmed), "confirmed". Defaults to
+    `confirmed` when the caller is publishing an event (omitted/unknown
+    values that aren't explicitly "draft" become published) so finished
+    events do not show up in the user's draft bucket. Pass "draft" to keep
+    a work-in-progress event hidden from public lists.
+    """
+    if raw is None:
+        return EventStatusEnum.confirmed
+    val = raw.strip().lower()
+    if val in {"draft"}:
+        return EventStatusEnum.draft
+    if val in {"published", "confirmed", "active"}:
+        return EventStatusEnum.confirmed
+    return EventStatusEnum.confirmed
+
+
 router = APIRouter(prefix="/user-events", tags=["User Events"])
 
 
@@ -1237,15 +1257,18 @@ async def create_event(
     contribution_enabled: Optional[bool] = Form(False), contribution_target: Optional[float] = Form(None),
     contribution_description: Optional[str] = Form(None), services: Optional[str] = Form(None),
     images: Optional[List[UploadFile]] = File(None),
+    status: Optional[str] = Form(None),
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     """Creates a new event with comprehensive validation."""
+    is_draft = (status or "").strip().lower() == "draft"
     errors = []
     if not title or not title.strip():
         errors.append({"field": "title", "message": "Title is required."})
     if not event_type_id:
         errors.append({"field": "event_type_id", "message": "Event type is required."})
-    if not start_date or not start_date.strip():
+    # Drafts allow saving without a start date so users can come back later.
+    if not is_draft and (not start_date or not start_date.strip()):
         errors.append({"field": "start_date", "message": "Start date is required."})
 
     parsed_start = parsed_end = parsed_rsvp = None
@@ -1302,7 +1325,7 @@ async def create_event(
         end_time=parsed_end.time() if parsed_end else None,
         location=location.strip() if location else None,
         expected_guests=expected_guests, budget=budget,
-        status=EventStatusEnum.draft, currency_id=currency_id,
+        status=_initial_status(status), currency_id=currency_id,
         is_public=is_public or False,
         sells_tickets=sells_tickets or False,
         theme_color=theme_color.strip() if theme_color else None,
@@ -3534,6 +3557,8 @@ def _service_booking_dict(db: Session, es: EventService, currency_id) -> dict:
 
     return {
         "id": str(es.id), "event_id": str(es.event_id), "service_id": str(es.service_id),
+        "provider_user_id": str(es.provider_user_id) if es.provider_user_id else None,
+        "provider_user_service_id": str(es.provider_user_service_id) if es.provider_user_service_id else None,
         "service": {
             "title": provider_svc.title if provider_svc else (svc_type.name if svc_type else None),
             "category": svc_type.category.name if svc_type and hasattr(svc_type, "category") and svc_type.category else None,
@@ -3664,12 +3689,8 @@ def update_event_service(event_id: str, service_id: str, body: dict = Body(...),
     if not es:
         return standard_response(False, "Event service not found")
 
-    new_status = body.get("status") or body.get("service_status")
-    if new_status:
-        try:
-            es.service_status = EventServiceStatusEnum(new_status)
-        except ValueError:
-            return standard_response(False, f"Invalid status: {new_status}. Valid: pending, assigned, in_progress, completed, cancelled")
+    # Service status is system-driven (booking acceptance, delivery OTP, cancellation).
+    # Organisers/vendors cannot change it directly here — silently ignore any attempts.
     if "quoted_price" in body: es.agreed_price = body["quoted_price"]
     if "notes" in body: es.notes = body["notes"]
     es.updated_at = datetime.now(EAT)

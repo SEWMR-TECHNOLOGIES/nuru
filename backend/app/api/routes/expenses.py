@@ -229,9 +229,10 @@ def add_expense(
             if not user or not user.phone:
                 return
             msg = (
-                f"Hello {user.first_name}, {recorder_name} recorded an expense of "
-                f"{amount_str} for {body.category} — {event.name}. "
-                f"Open Nuru app for details."
+                f"NURU EXPENSE\n"
+                f"Hello {user.first_name}, {recorder_name} has recorded a new expense of "
+                f"{amount_str} under {body.category} for {event.name}. "
+                f"Open Nuru for the full breakdown."
             )
             sms_send(user.phone, msg)
             _send_whatsapp("expense_recorded", user.phone, {

@@ -64,6 +64,67 @@ def expire_moments(self):
 
 
 # ─────────────────────────────────────────────
+# Storage cleanup — physically delete expired reel/moment assets
+# ─────────────────────────────────────────────
+@celery_app.task(
+    name="tasks.maintenance.cleanup_expired_moment_assets",
+    bind=True,
+    max_retries=2,
+    default_retry_delay=300,
+)
+def cleanup_expired_moment_assets(self, batch_size: int = 100):
+    """For every expired moment whose media file has not yet been removed
+    from the upload server, POST to the delete-file.php endpoint and mark
+    the row as cleaned. The DB row is kept (analytics + appeals) but the
+    underlying image/video bytes are freed."""
+    from models.moments import UserMoment
+    from utils.helpers import delete_storage_file_sync
+
+    db = SessionLocal()
+    deleted = 0
+    failed = 0
+    try:
+        now = datetime.utcnow()
+        candidates = (
+            db.query(UserMoment)
+            .filter(
+                UserMoment.expires_at <= now,
+                UserMoment.media_deleted_at.is_(None),
+                UserMoment.media_url.isnot(None),
+                UserMoment.media_url != "",
+            )
+            .limit(batch_size)
+            .all()
+        )
+        for m in candidates:
+            url = (m.media_url or "").strip()
+            # Skip the "text:#hex" sentinel — there is no file to remove.
+            if not url or url.startswith("text:"):
+                m.media_deleted_at = now
+                m.is_active = False
+                continue
+            ok = delete_storage_file_sync(url)
+            # Best-effort: also try to delete the thumbnail if any.
+            if m.thumbnail_url:
+                delete_storage_file_sync(m.thumbnail_url)
+            if ok:
+                m.media_url = ""
+                m.thumbnail_url = None
+                m.media_deleted_at = now
+                m.is_active = False
+                deleted += 1
+            else:
+                failed += 1
+        db.commit()
+        return {"deleted": deleted, "failed": failed, "scanned": len(candidates)}
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        raise self.retry(exc=exc)
+    finally:
+        db.close()
+
+
+# ─────────────────────────────────────────────
 # Auth tokens (security hygiene)
 # ─────────────────────────────────────────────
 @celery_app.task(

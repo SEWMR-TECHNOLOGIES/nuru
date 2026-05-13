@@ -87,9 +87,25 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     if (_isEdit) {
       _populateFromEvent(widget.editEvent!);
       _loadExistingTicketClasses();
+      // Re-fetch the full event so we never rely on a stale list payload that
+      // may be missing description / cover_image / venue coordinates.
+      _refreshEditPayload();
     } else {
       _checkAgreement();
     }
+  }
+
+  Future<void> _refreshEditPayload() async {
+    final id = widget.editEvent?['id']?.toString();
+    if (id == null || id.isEmpty) return;
+    try {
+      final res = await EventsService.getEventById(id);
+      if (!mounted || res['success'] != true) return;
+      final data = res['data'];
+      if (data is Map) {
+        setState(() => _populateFromEvent(Map<String, dynamic>.from(data)));
+      }
+    } catch (_) {/* ignore — populate already ran from initial payload */}
   }
 
   Future<void> _loadExistingTicketClasses() async {
@@ -114,8 +130,14 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _dressCodeCtrl.text = extractStr(e['dress_code']);
     _specialInstructionsCtrl.text = extractStr(e['special_instructions']);
     _reminderContactPhoneCtrl.text = extractStr(e['reminder_contact_phone']);
-    if (e['expected_guests'] != null) _expectedGuestsCtrl.text = AmountInputFormatter().formatEditUpdate(const TextEditingValue(), TextEditingValue(text: '${e['expected_guests']}')).text;
-    if (e['budget'] != null) _budgetCtrl.text = AmountInputFormatter().formatEditUpdate(const TextEditingValue(), TextEditingValue(text: '${e['budget']}')).text;
+    String _toIntStr(dynamic v) {
+      if (v == null) return '';
+      final n = v is num ? v : num.tryParse(v.toString());
+      if (n == null) return '';
+      return n.toInt().toString();
+    }
+    if (e['expected_guests'] != null) _expectedGuestsCtrl.text = AmountInputFormatter().formatEditUpdate(const TextEditingValue(), TextEditingValue(text: _toIntStr(e['expected_guests']))).text;
+    if (e['budget'] != null) _budgetCtrl.text = AmountInputFormatter().formatEditUpdate(const TextEditingValue(), TextEditingValue(text: _toIntStr(e['budget']))).text;
     final rawType = e['event_type'];
     if (rawType is Map) {
       _eventTypeId = rawType['id']?.toString();
@@ -367,6 +389,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         venueLatitude: _venueLatitude,
         venueLongitude: _venueLongitude,
         venueAddress: _venueAddress,
+        status: asDraft ? 'draft' : 'published',
       );
     }
 
@@ -1130,11 +1153,14 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           ),
         )),
         GestureDetector(
-          onTap: _saving ? null : _saveDraft,
+          onTap: _saving ? null : (_isEdit ? _saveStep : _saveDraft),
           behavior: HitTestBehavior.opaque,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Text('Save Draft', style: appText(size: 14, weight: FontWeight.w600, color: AppColors.primary)),
+            child: Text(
+              _isEdit ? 'Save' : 'Save Draft',
+              style: appText(size: 14, weight: FontWeight.w600, color: AppColors.primary),
+            ),
           ),
         ),
       ]),
@@ -1151,6 +1177,110 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       return;
     }
     await _save(asDraft: true);
+  }
+
+  /// Save only the fields belonging to the current step (edit mode).
+  /// Validates that step, then PATCHes only those fields.
+  Future<void> _saveStep() async {
+    if (!_validateStep(_step)) return;
+    final eventId = widget.editEvent?['id']?.toString();
+    if (eventId == null) return;
+
+    setState(() => _saving = true);
+    Map<String, dynamic> res = {'success': true};
+
+    try {
+      switch (_step) {
+        case 0: // Basic info
+          res = await EventsService.updateEvent(
+            eventId,
+            title: _titleCtrl.text.trim(),
+            description: _descCtrl.text.trim(),
+            eventTypeId: _eventTypeId,
+          );
+          break;
+        case 1: // Date & Time
+          String? startDateStr;
+          if (_startDate != null) {
+            final d = _startDate!;
+            final t = _startTime;
+            final combined = t == null
+                ? DateTime(d.year, d.month, d.day)
+                : DateTime(d.year, d.month, d.day, t.hour, t.minute);
+            startDateStr = combined.toIso8601String();
+          }
+          final timeStr = _startTime == null
+              ? null
+              : '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}';
+          res = await EventsService.updateEvent(
+            eventId,
+            startDate: startDateStr,
+            endDate: _endDate?.toIso8601String(),
+            time: timeStr,
+          );
+          break;
+        case 2: // Venue
+          res = await EventsService.updateEvent(
+            eventId,
+            location: _locationCtrl.text.trim(),
+            venue: _venueCtrl.text.trim(),
+            venueLatitude: _venueLatitude,
+            venueLongitude: _venueLongitude,
+            venueAddress: _venueAddress,
+          );
+          break;
+        case 3: // Tickets & visibility
+          res = await EventsService.updateEvent(
+            eventId,
+            visibility: _visibility,
+            sellsTickets: _sellsTickets,
+            isPublic: _isPublic,
+          );
+          if (res['success'] == true && _sellsTickets && _ticketClasses.isNotEmpty) {
+            await _syncTicketClasses(eventId);
+          }
+          break;
+        case 4: // Vendors — assigning vendors during edit isn't part of PATCH;
+                // delegated to the dedicated vendor flows. No-op here.
+          res = {'success': true};
+          break;
+        case 5: // Preview — fall back to full save
+          await _save();
+          setState(() => _saving = false);
+          return;
+        default:
+          res = {'success': true};
+      }
+
+      // Always include extras / image / guests / budget if they belong to the
+      // currently visible step. (Expected guests/budget live on step 0 via the
+      // dynamic builder — fold them in for completeness.)
+      if (_step == 0) {
+        final expectedGuests = int.tryParse(_expectedGuestsCtrl.text.replaceAll(RegExp(r'[^0-9]'), ''));
+        final budget = double.tryParse(_budgetCtrl.text.replaceAll(RegExp(r'[^0-9.]'), ''));
+        if (expectedGuests != null || budget != null || _imagePath != null) {
+          await EventsService.updateEvent(
+            eventId,
+            expectedGuests: expectedGuests,
+            budget: budget,
+            imagePath: _imagePath,
+            dressCode: _dressCodeCtrl.text.trim().isEmpty ? null : _dressCodeCtrl.text.trim(),
+            specialInstructions: _specialInstructionsCtrl.text.trim().isEmpty ? null : _specialInstructionsCtrl.text.trim(),
+            reminderContactPhone: _reminderContactPhoneCtrl.text.trim().isEmpty ? null : _reminderContactPhoneCtrl.text.trim(),
+          );
+        }
+      }
+    } catch (_) {
+      res = {'success': false, 'message': 'Unable to save changes'};
+    }
+
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (res['success'] == true) {
+      AppSnackbar.success(context, 'Saved');
+    } else {
+      AppSnackbar.error(context, res['message']?.toString() ?? 'Could not save');
+    }
   }
 
   Widget _buildEventDetailsCard() {

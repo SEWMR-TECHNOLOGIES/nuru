@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'secure_token_storage.dart';
 import 'api_config.dart';
@@ -186,26 +188,68 @@ class ApiBase {
   }
 
   /// Submit a multipart/form-data POST. `fields` are stringified, `files`
-  /// are tuples of (fieldName, absolutePath). Used for offline payment
-  /// claim submissions that include a receipt image.
+  /// are tuples of (fieldName, absolutePath). Used for media uploads
+  /// (moments, posts, receipts). Uses a generous timeout because video
+  /// uploads can take a while on mobile networks.
   static Future<Map<String, dynamic>> postMultipart(
     String endpoint, {
     Map<String, String> fields = const {},
     List<MapEntry<String, String>> files = const [],
+    Duration timeout = const Duration(minutes: 4),
+    void Function(double progress)? onProgress,
   }) async {
     try {
       final req = http.MultipartRequest('POST', Uri.parse('$baseUrl$endpoint'));
       req.headers.addAll(await authOnlyHeaders());
       req.fields.addAll(fields);
+
+      // Compute total bytes so we can emit a real 0..1 progress signal.
+      int totalBytes = 0;
+      final fileEntries = <_PendingFile>[];
       for (final f in files) {
-        req.files.add(await http.MultipartFile.fromPath(f.key, f.value));
+        final file = File(f.value);
+        final length = await file.length();
+        totalBytes += length;
+        fileEntries.add(_PendingFile(field: f.key, file: file, length: length));
       }
-      final streamed = await req.send();
+
+      int sent = 0;
+      void bump(int n) {
+        if (onProgress == null || totalBytes <= 0) return;
+        sent += n;
+        final pct = (sent / totalBytes).clamp(0.0, 1.0);
+        onProgress(pct);
+      }
+
+      for (final pf in fileEntries) {
+        final stream = pf.file.openRead().transform<List<int>>(
+          StreamTransformer.fromHandlers(
+            handleData: (data, sink) {
+              bump(data.length);
+              sink.add(data);
+            },
+          ),
+        );
+        req.files.add(http.MultipartFile(
+          pf.field,
+          stream,
+          pf.length,
+          filename: pf.file.path.split(Platform.pathSeparator).last,
+        ));
+      }
+
+      onProgress?.call(0.0);
+      final streamed = await req.send().timeout(timeout);
       final res = await http.Response.fromStream(streamed);
+      onProgress?.call(1.0);
       _checkRateLimit(res, endpoint);
       return normalizeResponse(res);
-    } catch (_) {
-      return {'success': false, 'message': 'Upload failed', 'data': null};
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Upload failed: ${e.toString()}',
+        'data': null,
+      };
     }
   }
 
@@ -247,4 +291,11 @@ class ApiBase {
       return {'success': false, 'message': fallbackError, 'data': null};
     }
   }
+}
+
+class _PendingFile {
+  final String field;
+  final File file;
+  final int length;
+  _PendingFile({required this.field, required this.file, required this.length});
 }

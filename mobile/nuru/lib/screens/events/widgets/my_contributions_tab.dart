@@ -5,7 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/services/event_contributors_service.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../wallet/checkout_sheet.dart';
+import '../../../core/utils/event_image.dart';
+import '../../wallet/make_payment_screen.dart';
 
 /// Premium "My Contributions" tab — events where the logged-in user is listed
 /// as a contributor. Each card shows pledge / paid / balance + a Pay button
@@ -155,9 +156,12 @@ class _MyContributionsTabState extends State<MyContributionsTab> {
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
                 colors: [AppColors.primary.withOpacity(0.5), AppColors.primary.withOpacity(0.2)],
               ),
-              image: cover != null && cover.isNotEmpty
-                  ? DecorationImage(image: NetworkImage(cover), fit: BoxFit.cover)
-                  : null,
+              image: DecorationImage(
+                image: cover != null && cover.isNotEmpty
+                    ? NetworkImage(cover) as ImageProvider
+                    : const AssetImage(kNuruEventDefaultAsset),
+                fit: BoxFit.cover,
+              ),
             ),
           ),
           Container(
@@ -251,20 +255,24 @@ class _MyContributionsTabState extends State<MyContributionsTab> {
     final balance = (ev['balance'] as num?)?.toDouble() ?? 0;
     final eventId = ev['event_id']?.toString();
     final eventName = ev['event_name']?.toString() ?? 'Event contribution';
+    final eventCover = ev['event_cover_image_url']?.toString();
     if (eventId == null || eventId.isEmpty) return;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => CheckoutSheet(
-        targetType: 'event_contribution',
-        targetId: eventId,
-        amount: balance > 0 ? balance : null,
-        amountEditable: true,
-        allowBank: false,
-        title: 'Pay contribution',
-        description: 'For $eventName',
-        onSuccess: (_) => _load(),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MakePaymentScreen(
+          targetType: 'event_contribution',
+          targetId: eventId,
+          amount: balance > 0 ? balance : null,
+          amountEditable: true,
+          allowBank: false,
+          title: 'Pay contribution',
+          description: 'For $eventName',
+          summaryImageUrl: eventCover,
+          summaryMeta: eventName,
+          showFee: true,
+          onSuccess: (_) => _load(),
+        ),
       ),
     );
   }

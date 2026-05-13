@@ -6,7 +6,7 @@ import '../../core/utils/money_format.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../providers/wallet_provider.dart';
 import '../bookings/bookings_screen.dart';
-import 'checkout_sheet.dart';
+import 'make_payment_screen.dart';
 import 'receipt_screen.dart';
 import 'payout_profile_screen.dart';
 import 'payment_history_screen.dart';
@@ -41,16 +41,17 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   void _openTopUp() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => CheckoutSheet(
-        targetType: 'wallet_topup',
-        title: 'Top up wallet',
-        amountEditable: true,
-        allowWallet: false,
-        onSuccess: (_) => context.read<WalletProvider>().refresh(),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MakePaymentScreen(
+          targetType: 'wallet_topup',
+          title: 'Top up wallet',
+          amountEditable: true,
+          allowWallet: false,
+          showFee: false,
+          onSuccess: (_) => context.read<WalletProvider>().refresh(),
+        ),
       ),
     );
   }

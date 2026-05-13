@@ -1,6 +1,7 @@
 import 'package:nuru/core/utils/money_format.dart' show getActiveCurrency;
 import 'package:flutter/material.dart';
 import '../core/services/received_payments_service.dart';
+import '../core/services/offline_payments_service.dart';
 
 /// ReceivedPaymentsPanel — drop-in widget that shows a paginated list of
 /// payments received for an event (contributions/tickets) or a service.
@@ -29,6 +30,7 @@ class _ReceivedPaymentsPanelState extends State<ReceivedPaymentsPanel> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _items = [];
+  List<Map<String, dynamic>> _offlineItems = [];
   Map<String, dynamic>? _pagination;
 
   @override
@@ -67,6 +69,19 @@ class _ReceivedPaymentsPanelState extends State<ReceivedPaymentsPanel> {
           _pagination = data['pagination'] as Map<String, dynamic>?;
           _loading = false;
         });
+        if (widget.source == ReceivedPaymentsSource.service) {
+          final offline = await OfflinePaymentsService.listMine();
+          if (!mounted) return;
+          if (offline['success'] == true) {
+            final rows = ((offline['data']?['items'] as List?) ?? const [])
+                .cast<Map<String, dynamic>>()
+                .where((p) => p['provider_user_service_id']?.toString() == widget.targetId)
+                .toList();
+            setState(() => _offlineItems = rows);
+          }
+        } else if (mounted) {
+          setState(() => _offlineItems = []);
+        }
       } else {
         setState(() { _loading = false; _error = res['message']?.toString() ?? 'Failed'; });
       }
@@ -182,6 +197,16 @@ class _ReceivedPaymentsPanelState extends State<ReceivedPaymentsPanel> {
                 ],
               ),
             ],
+            if (widget.source == ReceivedPaymentsSource.service && _offlineItems.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+              const SizedBox(height: 12),
+              Text('Offline payments', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 2),
+              Text('Paid outside platform — not added to wallet.', style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
+              const SizedBox(height: 8),
+              for (final p in _offlineItems) _OfflinePaymentTile(payment: p),
+            ],
           ],
         ),
       ),
@@ -290,6 +315,53 @@ class _PaymentTile extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _OfflinePaymentTile extends StatelessWidget {
+  final Map<String, dynamic> payment;
+  const _OfflinePaymentTile({required this.payment});
+
+  String _money(num n, String currency) {
+    final s = n.toStringAsFixed(0);
+    final buf = StringBuffer();
+    final chars = s.split('').reversed.toList();
+    for (var i = 0; i < chars.length; i++) {
+      if (i != 0 && i % 3 == 0) buf.write(',');
+      buf.write(chars[i]);
+    }
+    return '$currency ${buf.toString().split('').reversed.join()}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final status = (payment['status'] ?? 'pending').toString();
+    final confirmed = status == 'confirmed';
+    final amount = num.tryParse(payment['amount']?.toString() ?? '') ?? 0;
+    final currency = (payment['currency'] ?? getActiveCurrency()).toString();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: theme.dividerColor),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(_money(amount, currency), style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
+          Text('Paid offline — not in wallet', style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
+        ])),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: (confirmed ? Colors.green : Colors.orange).withOpacity(0.15),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(status, style: TextStyle(color: confirmed ? Colors.green : Colors.orange, fontSize: 11, fontWeight: FontWeight.w700)),
+        ),
+      ]),
     );
   }
 }

@@ -10,15 +10,14 @@ import '../../core/services/social_service.dart';
 import '../../core/services/ticketing_service.dart';
 import '../settings/settings_screen.dart';
 import '../settings/identity_verification_screen.dart';
-import '../tickets/my_tickets_screen.dart';
-import '../contributors/my_contributions_screen.dart';
 import '../saved/saved_posts_screen.dart';
 import '../services/find_services_screen.dart';
 import '../wallet/payment_history_screen.dart';
-import '../events/create_event_screen.dart';
+import '../wallet/payout_profile_screen.dart';
 import '../home/widgets/home_notifications_tab.dart';
+import '../home/home_tab_controller.dart';
 import '../../core/widgets/nuru_refresh.dart';
-
+import '../../core/utils/notification_center.dart';
 
 /// Premium profile redesign matching the reference mock.
 class ProfileScreen extends StatefulWidget {
@@ -57,7 +56,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _ticketsCount = widget.ticketsCount;
     _loadProfileDetails();
     _loadCounts();
+    // Seed badge from the central source so we don't briefly show stale
+    // counts before the network call completes.
+    _unreadNotifications = NotificationCenter.unreadCount.value;
+    NotificationCenter.unreadCount.addListener(_onNotifCenterChange);
     _loadNotifications();
+  }
+
+  @override
+  void dispose() {
+    NotificationCenter.unreadCount.removeListener(_onNotifCenterChange);
+    super.dispose();
+  }
+
+  void _onNotifCenterChange() {
+    if (!mounted) return;
+    final v = NotificationCenter.unreadCount.value;
+    if (v != _unreadNotifications) setState(() => _unreadNotifications = v);
   }
 
   @override
@@ -148,6 +163,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _unreadNotifications = data is Map ? (data['unread_count'] ?? 0) : 0;
       }
     });
+    // Broadcast so Home (and any other surface) shares the same count.
+    NotificationCenter.setUnread(_unreadNotifications);
   }
 
   void _openNotifications() {
@@ -195,6 +212,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color,
       height: height, letterSpacing: letterSpacing);
 
+  void _openShellTab(int tab, {int? eventsSubTab}) {
+    if (tab == HomeTabController.tickets) HomeTabController.openTickets();
+    if (tab == HomeTabController.events && eventsSubTab == 0) HomeTabController.openMyEvents();
+    if (tab == HomeTabController.events && eventsSubTab == 1) HomeTabController.openInvitations();
+    if (tab == HomeTabController.events && eventsSubTab == 3) HomeTabController.openMyContributions();
+  }
+
   bool get _isVerified {
     final p = _profileData ?? widget.profile ?? const {};
     final v = p['is_identity_verified'] ?? p['identity_verified'] ?? p['kyc_verified'];
@@ -227,7 +251,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               },
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(0, 4, 0, 100),
+                padding: EdgeInsets.fromLTRB(0, 4, 0, 140 + MediaQuery.of(context).padding.bottom),
                 children: [
                   _identityCard(fullName, avatar, email, phone, p),
                   const SizedBox(height: 18),
@@ -253,17 +277,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
         color: AppColors.surface,
         border: Border(bottom: BorderSide(color: AppColors.borderLight, width: 0.5)),
       ),
-      child: Row(children: [
-        Expanded(child: Text('Profile',
-          style: _f(size: 22, weight: FontWeight.w800, letterSpacing: -0.4))),
-        _topIcon('assets/icons/bell-icon.svg', _openNotifications, badge: _unreadNotifications),
-        const SizedBox(width: 6),
-        _topIcon('assets/icons/settings-icon.svg', () {
-          Navigator.push(context, MaterialPageRoute(
-            builder: (_) => SettingsScreen(profile: p,
-              onProfileUpdated: () => widget.onRefresh?.call())));
-        }),
-      ]),
+      child: SizedBox(
+        height: 44,
+        child: Row(children: [
+          Expanded(child: Text('Profile',
+            style: _f(size: 22, weight: FontWeight.w800, letterSpacing: -0.4))),
+          _topIcon('assets/icons/bell-icon.svg', _openNotifications, badge: _unreadNotifications),
+          const SizedBox(width: 6),
+          _topIcon('assets/icons/settings-icon.svg', () {
+            Navigator.push(context, MaterialPageRoute(
+              builder: (_) => SettingsScreen(profile: p,
+                onProfileUpdated: () => widget.onRefresh?.call())));
+          }),
+        ]),
+      ),
     );
   }
 
@@ -427,29 +454,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _actionList() {
     final items = <_ActionItem>[
+      // Switches to the Events bottom-nav tab pinned on "My Events".
       _ActionItem(svg: 'assets/icons/calendar-icon.svg', label: 'My Events',
-        onTap: () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => const CreateEventScreen()))),
+        onTap: () => _openShellTab(HomeTabController.events, eventsSubTab: 0)),
+      // Switches to the Tickets bottom-nav tab.
       _ActionItem(svg: 'assets/icons/ticket-icon.svg', label: 'My Tickets',
-        onTap: () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => const MyTicketsScreen()))),
+        onTap: () => _openShellTab(HomeTabController.tickets)),
+      // Events tab → My Contributions sub-tab.
       _ActionItem(svg: 'assets/icons/card-icon.svg', label: 'My Contributions',
-        onTap: () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => const MyContributionsScreen()))),
-      _ActionItem(svg: 'assets/icons/card-icon.svg', label: 'Payment History',
+        onTap: () => _openShellTab(HomeTabController.events, eventsSubTab: 3)),
+      // Dedicated screen — push it on top of the Home shell.
+      _ActionItem(svg: 'assets/icons/wallet-icon.svg', label: 'Payment History',
         onTap: () => Navigator.push(context,
           MaterialPageRoute(builder: (_) => const PaymentHistoryScreen()))),
       _ActionItem(svg: 'assets/icons/bookmark-icon.svg', label: 'Saved Vendors',
         onTap: () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => const FindServicesScreen()))),
+          MaterialPageRoute(builder: (_) => const FindServicesScreen(initialSavedOnly: true)))),
+      // Manage saved mobile money / bank payout accounts.
       _ActionItem(svg: 'assets/icons/card-icon.svg', label: 'Payment Methods',
-        onTap: () {
-          final p = _profileData ?? widget.profile ?? const {};
-          Navigator.push(context, MaterialPageRoute(
-            builder: (_) => SettingsScreen(profile: p,
-              onProfileUpdated: () => widget.onRefresh?.call())));
-        }),
+        onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => const PayoutProfileScreen()))),
+      // Events tab → Invited sub-tab.
       _ActionItem(svg: 'assets/icons/calendar-icon.svg', label: 'My Invitations',
+        onTap: () => _openShellTab(HomeTabController.events, eventsSubTab: 1)),
+      _ActionItem(svg: 'assets/icons/bookmark-filled-icon.svg', label: 'Saved Posts',
         onTap: () => Navigator.push(context,
           MaterialPageRoute(builder: (_) => const SavedPostsScreen()))),
     ];

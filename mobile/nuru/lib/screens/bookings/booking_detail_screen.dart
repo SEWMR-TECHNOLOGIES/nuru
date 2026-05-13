@@ -14,6 +14,7 @@ import '../../core/services/user_services_service.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../../providers/wallet_provider.dart';
 import '../../widgets/cancel_booking_dialog.dart';
+import 'widgets/vendor_offline_payments_card.dart';
 
 /// Booking detail — clean, hero-led layout that mirrors the rest of the app
 /// (SVG icons, soft cards, currency from WalletProvider, Sora/Inter type).
@@ -96,6 +97,12 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                       _partyCards(),
                       const SizedBox(height: 12),
                       _financialsCard(),
+                      const SizedBox(height: 12),
+                      VendorOfflinePaymentsCard(
+                        eventId: (_booking?['event'] is Map<String, dynamic>)
+                            ? (_booking!['event']['id']?.toString())
+                            : (_booking?['event_id']?.toString()),
+                      ),
                       const SizedBox(height: 12),
                       _timelineCard(),
                       const SizedBox(height: 16),

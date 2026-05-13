@@ -87,9 +87,11 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   VideoTrack? _remoteVideoTrack;
   VideoTrack? _localVideoTrack;
 
-  // WhatsApp-style ringback played to the caller while waiting.
+  // WhatsApp-style ringback played to the caller while waiting. The user can
+  // silence it via the on-screen "Silence" button.
   final AudioPlayer _ringback = AudioPlayer();
   bool _ringbackStarted = false;
+  bool _ringerMuted = false;
 
   Timer? _statusTimer;
 
@@ -123,7 +125,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     _ringbackStarted = true;
     try {
       await _ringback.setReleaseMode(ReleaseMode.loop);
-      await _ringback.setVolume(0.6);
+      await _ringback.setVolume(_ringerMuted ? 0.0 : 0.6);
       await _ringback.play(AssetSource('audio/ringback.wav'));
     } catch (_) {}
   }
@@ -132,6 +134,12 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     if (!_ringbackStarted) return;
     _ringbackStarted = false;
     try { await _ringback.stop(); } catch (_) {}
+  }
+
+  Future<void> _toggleRinger() async {
+    final next = !_ringerMuted;
+    try { await _ringback.setVolume(next ? 0.0 : 0.6); } catch (_) {}
+    if (mounted) setState(() => _ringerMuted = next);
   }
 
   Future<void> _bootstrap() async {
@@ -195,7 +203,8 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       await room.localParticipant?.setCameraEnabled(true);
 
       try {
-        await Hardware.instance.setSpeakerphoneOn(true);
+        await Hardware.instance
+            .setSpeakerphoneOn(true, forceSpeakerOutput: true);
       } catch (_) {}
 
       setState(() {
@@ -261,8 +270,25 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     final lp = _room?.localParticipant;
     if (lp == null) return;
     final next = !_muted;
-    await lp.setMicrophoneEnabled(!next);
-    setState(() => _muted = next);
+    try {
+      final pub = lp.audioTrackPublications.isNotEmpty
+          ? lp.audioTrackPublications.first
+          : null;
+      if (pub?.track != null) {
+        if (next) {
+          await pub!.mute();
+        } else {
+          await pub!.unmute();
+        }
+      } else {
+        await lp.setMicrophoneEnabled(!next);
+      }
+    } catch (_) {
+      try {
+        await lp.setMicrophoneEnabled(!next);
+      } catch (_) {}
+    }
+    if (mounted) setState(() => _muted = next);
   }
 
   Future<void> _toggleCamera() async {
@@ -298,9 +324,10 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   Future<void> _toggleSpeaker() async {
     final next = !_speakerOn;
     try {
-      await Hardware.instance.setSpeakerphoneOn(next);
+      await Hardware.instance
+          .setSpeakerphoneOn(next, forceSpeakerOutput: next);
     } catch (_) {}
-    setState(() => _speakerOn = next);
+    if (mounted) setState(() => _speakerOn = next);
   }
 
   Future<void> _hangup({bool notifyServer = true}) async {
@@ -346,6 +373,8 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   void dispose() {
     _statusTimer?.cancel();
     _durationTimer?.cancel();
+    // Defensive: never let the ringback loop survive a screen tear-down.
+    try { _ringback.stop(); } catch (_) {}
     _listener?.dispose();
     _room?.dispose();
     _ringback.dispose();
@@ -562,6 +591,13 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
           active: _cameraOff,
           onTap: _connecting ? null : _toggleCamera,
         ),
+        if (!_connected)
+          _circleBtn(
+            icon: _ringerMuted ? Icons.notifications_off_rounded : Icons.notifications_active_rounded,
+            label: _ringerMuted ? 'Silenced' : 'Silence',
+            active: _ringerMuted,
+            onTap: _toggleRinger,
+          ),
         _circleBtn(
           icon: _speakerOn ? Icons.volume_up_rounded : Icons.hearing_rounded,
           label: 'Speaker',

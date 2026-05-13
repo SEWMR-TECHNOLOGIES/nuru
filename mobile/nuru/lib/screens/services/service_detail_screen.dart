@@ -16,9 +16,10 @@ import 'public_service_screen.dart';
 import 'service_verification_screen.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../../core/utils/haptics.dart';
+import '../../widgets/received_payments_panel.dart';
 
 /// Owner's Service Detail — matches web ServiceDetail.tsx
-/// Tabs: Overview, Calendar, Reviews
+/// Tabs: Overview, Calendar, Reviews, Payments
 class ServiceDetailScreen extends StatefulWidget {
   final String serviceId;
   const ServiceDetailScreen({super.key, required this.serviceId});
@@ -37,7 +38,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
   List<dynamic> _introMedia = [];
   bool _calendarLoading = true;
   bool _reviewsLoading = false;
-  int _activeTab = 0; // 0=overview, 1=calendar, 2=reviews
+  int _activeTab = 0; // 0=overview, 1=calendar, 2=reviews, 3=payments
   DateTime _currentMonth = DateTime.now();
 
   // ─── Theme tokens (mockup-matched, mirrors PublicServiceScreen) ─────
@@ -283,8 +284,8 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                 color: const Color(0xFFEFF1F6),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Row(children: List.generate(3, (i) {
-                final labels = ['Overview', 'Calendar', 'Reviews ($reviewCount)'];
+              child: Row(children: List.generate(4, (i) {
+                final labels = ['Overview', 'Calendar', 'Reviews ($reviewCount)', 'Payments'];
                 final active = _activeTab == i;
                 return Expanded(
                   child: GestureDetector(
@@ -315,7 +316,17 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
           // Tab Content
           SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-            child: _activeTab == 0 ? _overviewTab(s) : _activeTab == 1 ? _calendarTab() : _reviewsTab(),
+            child: _activeTab == 0
+                ? _overviewTab(s)
+                : _activeTab == 1
+                    ? _calendarTab()
+                    : _activeTab == 2
+                        ? _reviewsTab()
+                        : ReceivedPaymentsPanel(
+                            source: ReceivedPaymentsSource.service,
+                            targetId: widget.serviceId,
+                            title: 'Payments received for this service',
+                          ),
           )),
         ]),
       ),

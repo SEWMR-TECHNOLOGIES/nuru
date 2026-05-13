@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 import '../../../core/services/moments_service.dart';
 import '../../../core/theme/app_colors.dart';
+import 'reel_trim_screen.dart';
 
 /// Modern full-screen Reel composer.
 /// Layout (top→bottom):
@@ -59,6 +60,7 @@ class _ReelComposerScreenState extends State<ReelComposerScreen> {
   TextAlign _align = TextAlign.center;
   File? _media;
   bool _submitting = false;
+  double _uploadProgress = 0.0;
   bool _editingText = false;
   bool _editingCaption = false;
   bool _toolsCollapsed = false;
@@ -140,12 +142,33 @@ class _ReelComposerScreenState extends State<ReelComposerScreen> {
         ? await _picker.pickImage(source: ImageSource.gallery, imageQuality: 90)
         : await _picker.pickVideo(source: ImageSource.gallery);
     if (picked == null) return;
-    final file = File(picked.path);
-    setState(() => _media = file);
+    File file = File(picked.path);
+
     if (_mode == _Mode.video) {
+      // Probe duration; if > 30s, push the WhatsApp-style trim screen.
+      final probe = VideoPlayerController.file(file);
+      try {
+        await probe.initialize();
+        final durSec = probe.value.duration.inMilliseconds / 1000.0;
+        await probe.dispose();
+        if (durSec > 30.0 && mounted) {
+          final trimmed = await Navigator.of(context).push<File>(
+            MaterialPageRoute(
+              builder: (_) => ReelTrimScreen(source: file, maxDurationSeconds: 30),
+            ),
+          );
+          if (trimmed == null) return;
+          file = trimmed;
+        }
+      } catch (_) {
+        await probe.dispose();
+      }
+
+      setState(() => _media = file);
       final ok = await _prepareVideoPreview(file);
       if (!ok && mounted) setState(() => _media = null);
     } else {
+      setState(() => _media = file);
       _clearVideoPreview();
     }
   }
@@ -182,7 +205,10 @@ class _ReelComposerScreenState extends State<ReelComposerScreen> {
       _toast('Pick a ${_mode == _Mode.photo ? 'photo' : 'video'} first');
       return;
     }
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _uploadProgress = 0.0;
+    });
     HapticFeedback.lightImpact();
     final res = await MomentsService.createMoment(
       contentType: _mode == _Mode.text
@@ -193,9 +219,16 @@ class _ReelComposerScreenState extends State<ReelComposerScreen> {
           : _captionCtrl.text.trim(),
       backgroundColor: _mode == _Mode.text ? _bg.hex : null,
       mediaPath: _media?.path,
+      onProgress: (p) {
+        if (!mounted) return;
+        setState(() => _uploadProgress = p);
+      },
     );
     if (!mounted) return;
-    setState(() => _submitting = false);
+    setState(() {
+      _submitting = false;
+      _uploadProgress = 0.0;
+    });
     if (res['success'] == true) {
       Navigator.of(context).pop(true);
     } else {
@@ -234,7 +267,7 @@ class _ReelComposerScreenState extends State<ReelComposerScreen> {
                     children: [
                       _circleBtn(
                         svg: 'assets/icons/close-icon.svg',
-                        onTap: () => Navigator.of(context).pop(),
+                        onTap: _submitting ? null : () => Navigator.of(context).pop(),
                       ),
                       const Spacer(),
                       _shareBtn(),
@@ -303,6 +336,58 @@ class _ReelComposerScreenState extends State<ReelComposerScreen> {
                             ],
                           ),
                         ),
+                ),
+              ),
+            ),
+          // ── UPLOAD OVERLAY ──────────────────────────────────
+          if (_submitting)
+            Positioned.fill(
+              child: AbsorbPointer(
+                absorbing: true,
+                child: Container(
+                  color: Colors.black.withOpacity(0.45),
+                  alignment: Alignment.center,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: Colors.white.withOpacity(0.08)),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 220,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(999),
+                            child: LinearProgressIndicator(
+                              value: (_uploadProgress > 0 && _uploadProgress < 1)
+                                  ? _uploadProgress
+                                  : null,
+                              minHeight: 6,
+                              backgroundColor: Colors.white.withOpacity(0.15),
+                              valueColor:
+                                  const AlwaysStoppedAnimation(AppColors.primary),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          _uploadProgress >= 1.0
+                              ? 'Finishing up…'
+                              : (_uploadProgress > 0
+                                  ? 'Uploading ${(_uploadProgress * 100).round()}%'
+                                  : 'Preparing…'),
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -545,7 +630,7 @@ class _ReelComposerScreenState extends State<ReelComposerScreen> {
   }
 
   // ─── Top bar pieces ────────────────────────────────────────────
-  Widget _circleBtn({required String svg, required VoidCallback onTap}) {
+  Widget _circleBtn({required String svg, required VoidCallback? onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -601,7 +686,12 @@ class _ReelComposerScreenState extends State<ReelComposerScreen> {
                   colorFilter: const ColorFilter.mode(
                       Colors.black, BlendMode.srcIn)),
             const SizedBox(width: 8),
-            Text(_submitting ? 'Sharing…' : 'Share',
+            Text(
+                _submitting
+                    ? (_uploadProgress > 0 && _uploadProgress < 1
+                        ? 'Uploading ${(_uploadProgress * 100).round()}%'
+                        : 'Sharing…')
+                    : 'Share',
                 style: GoogleFonts.inter(
                     color: Colors.black,
                     fontSize: 13.5,

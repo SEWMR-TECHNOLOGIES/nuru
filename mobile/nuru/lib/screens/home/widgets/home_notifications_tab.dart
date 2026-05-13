@@ -13,6 +13,7 @@ import '../../events/event_public_view_screen.dart';
 import '../../../core/utils/haptics.dart';
 import '../../../core/widgets/swipe_action_tile.dart';
 import '../../../core/widgets/nuru_refresh.dart';
+import '../../../core/utils/notification_center.dart';
 
 /// Notifications screen — premium redesign matching the reference mock.
 class HomeNotificationsTab extends StatefulWidget {
@@ -138,6 +139,7 @@ class _HomeNotificationsTabState extends State<HomeNotificationsTab> {
               onPressed: () async {
                 Haptics.medium();
                 await SocialService.markAllNotificationsRead();
+                NotificationCenter.clear();
                 widget.onRefresh();
               },
               tooltip: 'Mark all read',
@@ -244,6 +246,7 @@ class _HomeNotificationsTabState extends State<HomeNotificationsTab> {
           onArchive: () async {
             if (data['is_read'] != true && data['read'] != true && data['id'] != null) {
               await SocialService.markNotificationRead(data['id'].toString());
+              NotificationCenter.decrement();
               widget.onRefresh();
             }
             return false;
@@ -312,7 +315,10 @@ class _HomeNotificationsTabState extends State<HomeNotificationsTab> {
       borderRadius: BorderRadius.circular(14),
       onTap: () async {
         final id = data['id']?.toString();
-        if (id != null && !isRead) await SocialService.markNotificationRead(id);
+        if (id != null && !isRead) {
+          await SocialService.markNotificationRead(id);
+          NotificationCenter.decrement();
+        }
         widget.onRefresh();
         _navigateForNotification(context, data);
       },

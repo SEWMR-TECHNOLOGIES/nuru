@@ -46,6 +46,7 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
   static String get _baseUrl => ApiService.baseUrl;
   bool _loading = true;
   bool _booking = false;
+  bool _startingChat = false;
   bool _favorited = false;
   Map<String, dynamic> _service = {};
   List<dynamic> _packages = [];
@@ -212,7 +213,7 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
       return;
     }
 
-    setState(() => _booking = true);
+    setState(() => _startingChat = true);
     final serviceTitle =
         s['title']?.toString() ?? s['name']?.toString() ?? 'service';
     final res = await MessagesService.startConversation(
@@ -222,7 +223,7 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
           'Hi, I\'m interested in your service "$serviceTitle". I\'d like to discuss booking details.',
     );
     if (!mounted) return;
-    setState(() => _booking = false);
+    setState(() => _startingChat = false);
 
     if (res['success'] == true) {
       final data = res['data'];
@@ -234,6 +235,44 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
       final name = '$first $last'.trim().isNotEmpty
           ? '$first $last'.trim()
           : (provider['name']?.toString() ?? 'Provider');
+      // Detect vendor verification across various API shapes so the chat
+      // shows the verified-vendor banner + checkmark immediately, matching
+      // the experience when the user opens the same thread from the inbox.
+      final bool isVerified = provider['is_verified'] == true ||
+          provider['verified'] == true ||
+          provider['kyc_verified'] == true ||
+          (s['verification_status']?.toString().toLowerCase() == 'verified') ||
+          s['is_verified'] == true;
+      // Build a service summary so the in-chat service-context card renders
+      // (image + title + venue + View button) without an extra round-trip.
+      final List images = (s['images'] is List) ? s['images'] as List : const [];
+      String? primaryImage;
+      if (images.isNotEmpty) {
+        final first = images.first;
+        if (first is Map) {
+          primaryImage = first['image_url']?.toString() ?? first['url']?.toString();
+        } else if (first is String) {
+          primaryImage = first;
+        }
+      }
+      primaryImage ??= s['cover_image']?.toString() ??
+          s['primary_image']?.toString() ??
+          s['image']?.toString();
+      final serviceSummary = <String, dynamic>{
+        'id': widget.serviceId,
+        'title': serviceTitle,
+        'image': primaryImage,
+        'location': s['location']?.toString(),
+      };
+      final providerAvatar = (provider['avatar']?.toString().isNotEmpty == true
+              ? provider['avatar']?.toString()
+              : null) ??
+          provider['avatar_url']?.toString() ??
+          provider['profile_image']?.toString() ??
+          provider['profile_picture']?.toString() ??
+          provider['photo_url']?.toString() ??
+          s['owner_avatar']?.toString() ??
+          s['provider_avatar']?.toString();
       if (convId != null && convId.isNotEmpty) {
         Navigator.push(
           context,
@@ -241,7 +280,11 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
             builder: (_) => ChatDetailScreen(
               conversationId: convId,
               name: name,
-              avatar: provider['avatar']?.toString(),
+              avatar: providerAvatar,
+              isVendor: true,
+              isVerifiedVendor: isVerified,
+              isVerified: isVerified,
+              service: serviceSummary,
             ),
           ),
         );
@@ -1654,10 +1697,15 @@ class _PublicServiceScreenState extends State<PublicServiceScreen> {
               child: SizedBox(
                 height: 50,
                 child: OutlinedButton.icon(
-                  onPressed: _booking ? null : _messageProvider,
-                  icon: const Icon(Icons.chat_bubble_outline_rounded,
-                      size: 16, color: _ink),
-                  label: Text('Chat with Vendor',
+                  onPressed: _startingChat ? null : _messageProvider,
+                  icon: _startingChat
+                      ? const SizedBox(
+                          width: 14, height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: _ink),
+                        )
+                      : const Icon(Icons.chat_bubble_outline_rounded,
+                          size: 16, color: _ink),
+                  label: Text(_startingChat ? 'Opening…' : 'Chat with Vendor',
                       style: _f(
                           size: 13.5,
                           weight: FontWeight.w700,

@@ -67,6 +67,28 @@ class UserService(Base):
     business_phone = relationship("ServiceBusinessPhone", back_populates="services")
     budget_items = relationship("EventBudgetItem", back_populates="vendor", foreign_keys="[EventBudgetItem.vendor_id]")
     expense_items = relationship("EventExpense", back_populates="vendor", foreign_keys="[EventExpense.vendor_id]")
+    type_links = relationship("UserServiceType", back_populates="user_service", cascade="all, delete-orphan")
+
+
+class UserServiceType(Base):
+    """Join table allowing a user_service to be tagged with multiple service_types
+    (within the same category). Backed by alembic e8f9a0b1c2d3."""
+    __tablename__ = 'user_service_types'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    user_service_id = Column(UUID(as_uuid=True), ForeignKey('user_services.id', ondelete='CASCADE'), nullable=False)
+    service_type_id = Column(UUID(as_uuid=True), ForeignKey('service_types.id', ondelete='CASCADE'), nullable=False)
+    is_primary = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('user_service_id', 'service_type_id', name='uq_user_service_type'),
+        Index('idx_user_service_types_service', 'user_service_id'),
+        Index('idx_user_service_types_type', 'service_type_id'),
+    )
+
+    user_service = relationship("UserService", back_populates="type_links")
+    service_type = relationship("ServiceType")
 
 
 class UserServiceImage(Base):

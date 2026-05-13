@@ -93,8 +93,26 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                               : _initials(name),
                         ),
                         const SizedBox(height: 12),
-                        Text(name.isNotEmpty ? name : 'Unknown', style: GoogleFonts.inter(
-                            fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(name.isNotEmpty ? name : 'Unknown',
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.inter(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.textPrimary)),
+                            ),
+                            if (_profile?['is_verified'] == true ||
+                                _profile?['is_identity_verified'] == true) ...[
+                              const SizedBox(width: 6),
+                              const Icon(Icons.verified_rounded,
+                                  size: 18, color: AppColors.primary),
+                            ],
+                          ],
+                        ),
                         if (username.isNotEmpty) ...[
                           const SizedBox(height: 2),
                           Text('@$username', style: GoogleFonts.inter(fontSize: 14, color: AppColors.textTertiary)),
@@ -225,6 +243,25 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                       final content = post['content']?.toString() ?? '';
                       final images = post['images'] is List ? post['images'] as List : [];
                       final createdAt = post['created_at']?.toString() ?? '';
+                      final mediaUrl = post['media_url']?.toString() ?? '';
+                      final contentType = (post['content_type'] ?? post['media_type'] ?? '').toString().toLowerCase();
+
+                      String? mediaSrc;
+                      bool isVideo = false;
+                      if (images.isNotEmpty) {
+                        final first = images[0];
+                        if (first is Map) {
+                          mediaSrc = (first['url'] ?? first['image_url'] ?? '').toString();
+                          final t = (first['media_type'] ?? first['type'] ?? '').toString().toLowerCase();
+                          isVideo = t.contains('video') || _isVideoUrl(mediaSrc ?? '');
+                        } else {
+                          mediaSrc = first.toString();
+                          isVideo = _isVideoUrl(mediaSrc);
+                        }
+                      } else if (mediaUrl.isNotEmpty && !mediaUrl.startsWith('text:')) {
+                        mediaSrc = mediaUrl;
+                        isVideo = contentType.contains('video') || _isVideoUrl(mediaUrl);
+                      }
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 14),
@@ -239,14 +276,39 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                           children: [
                             if (content.isNotEmpty)
                               Text(content, style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary, height: 1.5)),
-                            if (images.isNotEmpty) ...[
+                            if (mediaSrc != null && mediaSrc.isNotEmpty) ...[
                               const SizedBox(height: 10),
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(10),
-                                child: CachedNetworkImage(
-                                  imageUrl: images[0] is Map ? (images[0]['url'] ?? '') : images[0].toString(),
-                                  width: double.infinity, height: 180, fit: BoxFit.cover,
-                                  errorWidget: (_, __, ___) => Container(height: 180, color: AppColors.surfaceVariant),
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    Container(
+                                      width: double.infinity,
+                                      height: 220,
+                                      color: Colors.black,
+                                      child: isVideo
+                                          ? CachedNetworkImage(
+                                              imageUrl: (post['thumbnail_url'] ?? post['thumbnail'] ?? mediaSrc).toString(),
+                                              width: double.infinity, height: 220, fit: BoxFit.cover,
+                                              errorWidget: (_, __, ___) => Container(color: AppColors.surfaceVariant),
+                                            )
+                                          : CachedNetworkImage(
+                                              imageUrl: mediaSrc,
+                                              width: double.infinity, height: 220, fit: BoxFit.cover,
+                                              errorWidget: (_, __, ___) => Container(color: AppColors.surfaceVariant),
+                                            ),
+                                    ),
+                                    if (isVideo)
+                                      Container(
+                                        width: 52, height: 52,
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.55),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 32),
+                                      ),
+                                  ],
                                 ),
                               ),
                             ],
@@ -279,5 +341,12 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       name.isNotEmpty ? name[0].toUpperCase() : '?',
       style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.textTertiary),
     ));
+  }
+
+  static bool _isVideoUrl(String url) {
+    final lower = url.toLowerCase();
+    return lower.endsWith('.mp4') || lower.endsWith('.mov') || lower.endsWith('.avi') ||
+        lower.endsWith('.webm') || lower.endsWith('.mkv') || lower.endsWith('.m4v') ||
+        lower.contains('/video') || lower.contains('video/');
   }
 }

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' show MediaType;
 import 'package:nuru/core/services/event_committee_service.dart';
 import 'package:nuru/core/services/event_contributors_service.dart';
 import 'package:nuru/core/services/event_extras_service.dart';
@@ -57,14 +58,29 @@ class EventsService {
       if (phone != null) request.fields['phone'] = phone;
       if (bio != null) request.fields['bio'] = bio;
       if (location != null) request.fields['location'] = location;
-      if (avatarPath != null)
+      // Backend validates `avatar.content_type` against an allowlist of
+      // image/* mime types (see profile.py). MultipartFile.fromPath without
+      // an explicit contentType falls back to application/octet-stream,
+      // which made the upload fail with "Validation failed". Derive the
+      // mime from the file extension and pass it explicitly.
+      if (avatarPath != null) {
         request.files.add(
-          await http.MultipartFile.fromPath('avatar', avatarPath),
+          await http.MultipartFile.fromPath(
+            'avatar',
+            avatarPath,
+            contentType: _imageMediaType(avatarPath),
+          ),
         );
-      if (coverPath != null)
+      }
+      if (coverPath != null) {
         request.files.add(
-          await http.MultipartFile.fromPath('cover_image', coverPath),
+          await http.MultipartFile.fromPath(
+            'cover_image',
+            coverPath,
+            contentType: _imageMediaType(coverPath),
+          ),
         );
+      }
       final streamedRes = await request.send();
       final body = await streamedRes.stream.bytesToString();
       final fakeResponse = http.Response(body, streamedRes.statusCode);
@@ -153,6 +169,7 @@ class EventsService {
     double? venueLongitude,
     String? venueAddress,
     String? reminderContactPhone,
+    String status = 'published',
   }) async {
     try {
       final uri = Uri.parse('$_baseUrl/user-events/');
@@ -162,6 +179,7 @@ class EventsService {
       request.fields['event_type_id'] = eventType;
       request.fields['is_public'] = isPublic ? 'true' : 'false';
       request.fields['sells_tickets'] = sellsTickets ? 'true' : 'false';
+      request.fields['status'] = status;
       if (description != null && description.isNotEmpty)
         request.fields['description'] = description;
       if (startDate != null) request.fields['start_date'] = startDate;
@@ -223,6 +241,9 @@ class EventsService {
     double? venueLongitude,
     String? venueAddress,
     String? reminderContactPhone,
+    String? invitationTemplateId,
+    String? invitationAccentColor,
+    Map<String, dynamic>? invitationContent,
   }) async {
     try {
       final uri = Uri.parse('$_baseUrl/user-events/$eventId');
@@ -254,6 +275,12 @@ class EventsService {
         request.fields['venue_address'] = venueAddress;
       if (reminderContactPhone != null)
         request.fields['reminder_contact_phone'] = reminderContactPhone;
+      if (invitationTemplateId != null)
+        request.fields['invitation_template_id'] = invitationTemplateId;
+      if (invitationAccentColor != null)
+        request.fields['invitation_accent_color'] = invitationAccentColor;
+      if (invitationContent != null)
+        request.fields['invitation_content'] = jsonEncode(invitationContent);
       if (imagePath != null && imagePath.isNotEmpty) {
         request.files.add(
           await http.MultipartFile.fromPath('cover_image', imagePath),
@@ -637,4 +664,18 @@ class EventsService {
     format: format,
     section: section,
   );
+}
+
+/// Map a local image file path to a valid `image/*` MediaType, defaulting
+/// to `image/jpeg` for unknown extensions. Backend allows jpeg/jpg/png/webp.
+MediaType _imageMediaType(String path) {
+  final lower = path.toLowerCase();
+  if (lower.endsWith('.png')) return MediaType('image', 'png');
+  if (lower.endsWith('.webp')) return MediaType('image', 'webp');
+  if (lower.endsWith('.heic') || lower.endsWith('.heif')) {
+    // Backend rejects HEIC; still send a real image/* type so the server
+    // returns a clear "Only jpg/png/webp" error instead of generic failure.
+    return MediaType('image', 'heic');
+  }
+  return MediaType('image', 'jpeg');
 }

@@ -34,12 +34,13 @@ const AddService = () => {
   const [formData, setFormData] = useState({
     title: '',
     category: '',
-    serviceType: '',
     description: '',
     minPrice: '',
     maxPrice: '',
     location: '',
   });
+  // Multi-select: a service can be tagged with several service types within the chosen category.
+  const [selectedTypeIds, setSelectedTypeIds] = useState<string[]>([]);
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [formattedAddress, setFormattedAddress] = useState('');
@@ -112,13 +113,20 @@ const AddService = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (selectedTypeIds.length === 0) {
+      toast.error('Please select at least one service type.');
+      return;
+    }
     setIsSubmitting(true);
     try {
       const form = new FormData();
       form.append("title", formData.title.trim());
       form.append("description", formData.description.trim());
       form.append("category_id", formData.category);
-      form.append("service_type_id", formData.serviceType);
+      // Multi-types: send each id as its own form entry; backend also accepts CSV.
+      selectedTypeIds.forEach((id) => form.append("service_type_ids", id));
+      // Backwards-compat: legacy single field gets the primary (first) selection.
+      if (selectedTypeIds[0]) form.append("service_type_id", selectedTypeIds[0]);
       form.append("min_price", formData.minPrice.replace(/,/g, ""));
       form.append("max_price", formData.maxPrice.replace(/,/g, ""));
       form.append("location", formData.location || "");
@@ -138,7 +146,7 @@ const AddService = () => {
       }
 
       toast.success(response.message || "Service created! Now activate it to start receiving bookings.");
-      navigate(`/services/verify/${(response.data as any)?.id}/${formData.serviceType}`);
+      navigate(`/services/verify/${(response.data as any)?.id}/${selectedTypeIds[0] || 'default'}`);
     } catch (err: any) {
       console.error(err);
       showCaughtError(err);
@@ -191,7 +199,7 @@ const AddService = () => {
                 <Label htmlFor="category">Category *</Label>
                 <Select
                   value={formData.category}
-                  onValueChange={(value) => setFormData({ ...formData, category: value, serviceType: '' })}
+                  onValueChange={(value) => { setFormData({ ...formData, category: value }); setSelectedTypeIds([]); }}
                   required
                 >
                   <SelectTrigger>
@@ -206,28 +214,36 @@ const AddService = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="serviceType">Service Type *</Label>
-                <Select
-                  value={formData.serviceType}
-                  onValueChange={(value) => setFormData({ ...formData, serviceType: value })}
-                  required
-                  disabled={!formData.category || isLoadingTypes}
-                >
-                  <SelectTrigger>
-                    {isLoadingTypes ? (
-                      <span className="flex items-center gap-2 text-muted-foreground">
-                        <Loader2 className="w-4 h-4 animate-spin" />Loading types...
-                      </span>
-                    ) : (
-                      <SelectValue placeholder={t('select_service_type')} />
-                    )}
-                  </SelectTrigger>
-                  <SelectContent>
-                    {serviceTypes.map(st => (
-                      <SelectItem key={st.id} value={st.id}>{st.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Service Types * <span className="text-xs font-normal text-muted-foreground">(pick one or more)</span></Label>
+                {!formData.category ? (
+                  <p className="text-sm text-muted-foreground">Choose a category first.</p>
+                ) : isLoadingTypes ? (
+                  <span className="flex items-center gap-2 text-muted-foreground text-sm">
+                    <Loader2 className="w-4 h-4 animate-spin" />Loading types...
+                  </span>
+                ) : serviceTypes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No service types available for this category.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {serviceTypes.map(st => {
+                      const active = selectedTypeIds.includes(st.id);
+                      return (
+                        <button
+                          type="button"
+                          key={st.id}
+                          onClick={() => setSelectedTypeIds(prev => active ? prev.filter(i => i !== st.id) : [...prev, st.id])}
+                          className={`px-3 py-1.5 rounded-full border text-sm transition-colors ${active ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-foreground border-border hover:bg-muted'}`}
+                          aria-pressed={active}
+                        >
+                          {st.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {selectedTypeIds.length === 0 && formData.category && (
+                  <p className="text-xs text-muted-foreground">Select at least one type.</p>
+                )}
               </div>
 
               <div className="space-y-2">

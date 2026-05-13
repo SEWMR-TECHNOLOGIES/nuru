@@ -273,67 +273,69 @@ class _InviteSheetState extends State<_InviteSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(4)))),
-            const SizedBox(height: 14),
-            Text('Invite Sponsor', style: appText(size: 16, weight: FontWeight.w800)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _searchCtrl,
-              autocorrect: false, enableSuggestions: false,
-              decoration: InputDecoration(
-                hintText: 'Search vendor services...',
-                prefixIcon: const Icon(Icons.search, size: 18),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.borderLight)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(4)))),
+              const SizedBox(height: 14),
+              Text('Invite Sponsor', style: appText(size: 16, weight: FontWeight.w800)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _searchCtrl,
+                autocorrect: false, enableSuggestions: false,
+                decoration: InputDecoration(
+                  hintText: 'Search vendor services...',
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.borderLight)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+                onChanged: _onSearch,
               ),
-              onChanged: _onSearch,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _amountCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(
-                hintText: 'Optional sponsorship amount',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.borderLight)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _amountCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  hintText: 'Optional sponsorship amount',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.borderLight)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 320),
-              child: _searching
-                ? const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator(color: AppColors.primary)))
-                : (_results.isEmpty
-                  ? Padding(padding: const EdgeInsets.all(20), child: Text(_searchCtrl.text.isEmpty ? 'Start typing to search vendors' : 'No services found', style: appText(size: 12, color: AppColors.textTertiary)))
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: _results.length,
-                      itemBuilder: (_, i) {
-                        final s = _results[i];
-                        final img = s['primary_image']?.toString() ?? s['image_url']?.toString();
-                        return InkWell(
-                          onTap: () => _invite(s),
-                          borderRadius: BorderRadius.circular(12),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                            child: Row(children: [
-                              ClipRRect(borderRadius: BorderRadius.circular(10), child: SizedBox(width: 40, height: 40, child: (img != null && img.isNotEmpty) ? Image.network(img, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: AppColors.surfaceVariant)) : Container(color: AppColors.surfaceVariant))),
-                              const SizedBox(width: 10),
-                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text((s['title'] ?? '').toString(), style: appText(size: 13, weight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                Text((s['category'] ?? s['service_type_name'] ?? '').toString(), style: appText(size: 11, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis),
-                              ])),
-                              const Icon(Icons.chevron_right, color: AppColors.textTertiary),
-                            ]),
-                          ),
-                        );
-                      },
-                    )),
-            ),
-          ]),
+              const SizedBox(height: 12),
+              Flexible(
+                child: _searching
+                  ? const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator(color: AppColors.primary)))
+                  : (_results.isEmpty
+                    ? Padding(padding: const EdgeInsets.all(20), child: Text(_searchCtrl.text.isEmpty ? 'Start typing to search vendors' : 'No services found', style: appText(size: 12, color: AppColors.textTertiary)))
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _results.length,
+                        itemBuilder: (_, i) {
+                          final s = _results[i];
+                          final img = s['primary_image']?.toString() ?? s['image_url']?.toString();
+                          return InkWell(
+                            onTap: () => _invite(s),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                              child: Row(children: [
+                                ClipRRect(borderRadius: BorderRadius.circular(10), child: SizedBox(width: 40, height: 40, child: (img != null && img.isNotEmpty) ? Image.network(img, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: AppColors.surfaceVariant)) : Container(color: AppColors.surfaceVariant))),
+                                const SizedBox(width: 10),
+                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                                  Text((s['title'] ?? '').toString(), style: appText(size: 13, weight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  Text((s['category'] ?? s['service_type_name'] ?? '').toString(), style: appText(size: 11, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                ])),
+                                const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+                              ]),
+                            ),
+                          );
+                        },
+                      )),
+              ),
+            ]),
+          ),
         ),
       ),
     );

@@ -57,6 +57,9 @@ class ProfileMomentsTab extends StatelessWidget {
         final post = moments[i] is Map ? moments[i] as Map<String, dynamic> : <String, dynamic>{};
         final images = post['images'] as List?;
         final mediaType = post['media_type']?.toString() ?? '';
+        final contentType = post['content_type']?.toString() ?? '';
+        // Moment payloads use `media_url` + `content_type`; feed posts use `images`.
+        final momentMedia = post['media_url']?.toString() ?? '';
         String? firstImage;
         bool isVideo = false;
         if (images != null && images.isNotEmpty) {
@@ -69,15 +72,17 @@ class ProfileMomentsTab extends StatelessWidget {
             final itemType = (first['media_type'] ?? first['type'] ?? '').toString().toLowerCase();
             isVideo = itemType.contains('video') || (firstImage.isNotEmpty && _isVideoUrl(firstImage));
           }
+        } else if (momentMedia.isNotEmpty && !momentMedia.startsWith('text:')) {
+          firstImage = momentMedia;
+          isVideo = contentType == 'video' || _isVideoUrl(momentMedia);
         }
-        if (mediaType.contains('video')) isVideo = true;
+        if (mediaType.contains('video') || contentType == 'video') isVideo = true;
 
         // Extract thumbnail for video moments
         String? thumbnailUrl;
         if (isVideo) {
           thumbnailUrl = post['thumbnail_url']?.toString();
           if (thumbnailUrl != null && thumbnailUrl.isEmpty) thumbnailUrl = null;
-          // Also check first image item for thumbnail
           if (thumbnailUrl == null && images != null && images.isNotEmpty) {
             final first = images[0];
             if (first is Map) {

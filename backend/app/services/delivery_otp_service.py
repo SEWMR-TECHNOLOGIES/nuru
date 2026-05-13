@@ -177,12 +177,18 @@ def verify(
     otp.confirmed_at = now
     otp.confirmed_by_vendor_id = vendor_user_id
 
-    # Stamp event_services if linked
+    # Stamp event_services if linked, and flip status → completed
     if otp.event_service_id:
         es = db.query(EventService).filter(EventService.id == otp.event_service_id).first()
         if es:
             es.delivery_confirmed_at = now
             es.delivery_confirmed_by_id = vendor_user_id
+            try:
+                from models.enums import EventServiceStatusEnum
+                es.service_status = EventServiceStatusEnum.completed
+            except Exception:
+                es.service_status = "completed"
+            es.updated_at = now
 
     # Move booking into delivered
     booking.status = "delivered"

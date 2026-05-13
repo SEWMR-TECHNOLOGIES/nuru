@@ -46,6 +46,7 @@ import EventMeetings from '@/components/events/EventMeetings';
 import EventGroupCta from '@/components/eventGroups/EventGroupCta';
 import EventOverviewDashboard from '@/components/events/EventOverviewDashboard';
 import EventSponsors from '@/components/events/EventSponsors';
+import { LogOfflinePaymentDialog } from '@/components/events/LogOfflinePaymentDialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
@@ -96,6 +97,7 @@ const EventManagement = () => {
   const [showAddServiceDialog, setShowAddServiceDialog] = useState(false);
   const [serviceSearch, setServiceSearch] = useState('');
   const [deleteServiceId, setDeleteServiceId] = useState<string | null>(null);
+  const [logPaymentFor, setLogPaymentFor] = useState<{ id: string; vendorName: string; serviceTitle: string; agreedPrice?: number | null } | null>(null);
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -482,7 +484,7 @@ const EventManagement = () => {
           </div>
 
           {servicesLoading ? (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="rounded-2xl border border-border bg-card overflow-hidden">
                   <div className="h-32 bg-muted animate-pulse" />
@@ -507,7 +509,7 @@ const EventManagement = () => {
               )}
             </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
               {eventServices.map((service: any) => {
                 // Backend returns service.service.image (single string from _service_booking_dict)
                 const extractFirstImage = (arr: any) => {
@@ -554,7 +556,7 @@ const EventManagement = () => {
                       ${isCompleted ? 'border-emerald-200 dark:border-emerald-800/60' : 'border-border'}`}
                   >
                     {/* Image Header */}
-                    <div className="relative h-32 bg-gradient-to-br from-primary/10 to-muted overflow-hidden">
+                    <div className="relative aspect-[4/3] bg-muted overflow-hidden">
                       {serviceImage ? (
                         <img src={serviceImage} alt={service.service?.title} className="w-full h-full object-cover" />
                       ) : (
@@ -562,7 +564,6 @@ const EventManagement = () => {
                           <Users className="w-10 h-10 text-muted-foreground/20" />
                         </div>
                       )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
                       {/* Status badge */}
                       <div className="absolute top-3 left-3">
@@ -578,54 +579,8 @@ const EventManagement = () => {
                         </div>
                       )}
 
-                      {/* Service title on image */}
-                      <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between gap-2">
-                        <h3 className="text-white font-bold text-sm truncate">{service.service?.title || 'Unnamed Service'}</h3>
-                        {(permissions.can_manage_vendors || permissions.is_creator) && (
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <button
-                                onClick={(e) => e.stopPropagation()}
-                                className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full backdrop-blur-sm text-white border border-white/20 cursor-pointer hover:bg-white/20 transition-colors flex-shrink-0"
-                                style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-                              >
-                                {updatingStatusId === service.id ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${statusOptions.find(s => s.value === service.status)?.color || 'bg-gray-400'}`} />
-                                )}
-                                <span className="capitalize">{service.status?.replace('_', ' ') || 'Pending'}</span>
-                                <ChevronDown className="w-3 h-3 opacity-70" />
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent
-                              className="w-44 p-1 z-50 bg-popover border border-border shadow-lg rounded-lg"
-                              align="end"
-                              side="bottom"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {statusOptions.map((opt) => (
-                                <button
-                                  key={opt.value}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (opt.value !== service.status) updateServiceStatus(service.id, opt.value);
-                                  }}
-                                  className={`w-full flex items-center gap-2 px-3 py-2 text-xs rounded-md transition-colors ${
-                                    opt.value === service.status
-                                      ? 'bg-accent text-accent-foreground font-semibold'
-                                      : 'hover:bg-accent/50 text-foreground'
-                                  }`}
-                                >
-                                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${opt.color}`} />
-                                  {opt.label}
-                                  {opt.value === service.status && <CheckCircle2 className="w-3 h-3 ml-auto text-primary" />}
-                                </button>
-                              ))}
-                            </PopoverContent>
-                          </Popover>
-                        )}
-                      </div>
+                      {/* Status is system-driven (booking accepted → assigned, OTP confirmed → completed,
+                          booking cancelled → cancelled). It cannot be changed manually. */}
                     </div>
 
                     {/* Body */}
@@ -646,7 +601,7 @@ const EventManagement = () => {
                             <p className="text-[11px] text-muted-foreground truncate">{service.service.provider_name}</p>
                           )}
                         </div>
-                        {(permissions.can_manage_vendors || permissions.is_creator) && (
+                        {(permissions.can_manage_vendors || permissions.is_creator) && !isActiveService && (
                           <Button
                             size="sm"
                             variant="ghost"
@@ -687,6 +642,23 @@ const EventManagement = () => {
                             <span className="text-xs text-muted-foreground">No photo library shared yet</span>
                           </div>
                         )
+                      )}
+
+                      {/* Log offline payment CTA */}
+                      {(permissions.can_manage_vendors || permissions.is_creator) && service.status === 'assigned' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full min-h-8 text-xs whitespace-normal leading-tight"
+                          onClick={() => setLogPaymentFor({
+                            id: service.id,
+                            vendorName: service.service?.provider_name || service.service?.title || 'Vendor',
+                            serviceTitle: service.service?.title || 'Service',
+                            agreedPrice: service.quoted_price ? Number(service.quoted_price) : null,
+                          })}
+                        >
+                          Log offline payment
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -797,6 +769,19 @@ const EventManagement = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {logPaymentFor && (
+        <LogOfflinePaymentDialog
+          open={!!logPaymentFor}
+          onOpenChange={(v) => { if (!v) setLogPaymentFor(null); }}
+          eventId={id!}
+          eventServiceId={logPaymentFor.id}
+          vendorName={logPaymentFor.vendorName}
+          serviceTitle={logPaymentFor.serviceTitle}
+          agreedPrice={logPaymentFor.agreedPrice}
+          onLogged={() => loadEventServices()}
+        />
+      )}
     </div>
   );
 };

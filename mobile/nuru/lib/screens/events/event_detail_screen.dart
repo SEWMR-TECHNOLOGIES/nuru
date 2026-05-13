@@ -12,8 +12,10 @@ import '../../core/services/api_service.dart';
 import '../../core/services/ticketing_service.dart';
 import '../../core/services/report_generator.dart';
 import '../../core/widgets/app_snackbar.dart';
+import '../../core/widgets/event_cover_image.dart';
 import '../../providers/auth_provider.dart';
 import '../photos/my_photo_libraries_screen.dart';
+import '../meetings/meetings_calendar_sheet.dart';
 import 'widgets/event_guests_tab.dart';
 import 'widgets/event_budget_tab.dart';
 import 'widgets/event_checklist_tab.dart';
@@ -22,6 +24,7 @@ import 'widgets/event_expenses_tab.dart';
 import 'widgets/event_rsvp_tab.dart';
 import 'widgets/event_checkin_tab.dart';
 import 'widgets/event_tickets_tab.dart';
+import 'event_invitation_screen.dart';
 import 'widgets/event_committee_tab.dart';
 import 'widgets/event_services_tab.dart';
 import 'widgets/event_sponsors_tab.dart';
@@ -41,19 +44,35 @@ class EventDetailScreen extends StatefulWidget {
   final Map<String, dynamic>? initialData;
   final String? knownRole;
 
-  const EventDetailScreen({super.key, required this.eventId, this.initialData, this.knownRole});
+  const EventDetailScreen({
+    super.key,
+    required this.eventId,
+    this.initialData,
+    this.knownRole,
+  });
 
   @override
   State<EventDetailScreen> createState() => _EventDetailScreenState();
 }
 
-class _EventDetailScreenState extends State<EventDetailScreen> with TickerProviderStateMixin {
+class _EventDetailScreenState extends State<EventDetailScreen>
+    with TickerProviderStateMixin {
   static const List<String> _permissionFields = [
-    'can_view_guests', 'can_manage_guests', 'can_send_invitations',
-    'can_check_in_guests', 'can_view_budget', 'can_manage_budget',
-    'can_view_contributions', 'can_manage_contributions', 'can_view_vendors',
-    'can_manage_vendors', 'can_approve_bookings', 'can_edit_event',
-    'can_manage_committee', 'can_view_expenses', 'can_manage_expenses',
+    'can_view_guests',
+    'can_manage_guests',
+    'can_send_invitations',
+    'can_check_in_guests',
+    'can_view_budget',
+    'can_manage_budget',
+    'can_view_contributions',
+    'can_manage_contributions',
+    'can_view_vendors',
+    'can_manage_vendors',
+    'can_approve_bookings',
+    'can_edit_event',
+    'can_manage_committee',
+    'can_view_expenses',
+    'can_manage_expenses',
   ];
 
   TabController? _tabCtrl;
@@ -62,6 +81,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
   bool _loading = true;
   bool _permissionsResolved = false;
   String _permissionSource = 'unresolved';
+  DateTime? _lastLoadAt;
+  bool _loadInFlight = false;
 
   Map<String, dynamic> _contributionSummary = {};
   Map<String, dynamic> _budgetSummary = {};
@@ -71,21 +92,25 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
   String? _currentUserName;
   List<dynamic> _ticketClasses = const [];
   double _sponsorRevenue = 0.0;
-  Map<String, dynamic>? _overview; // unified backend KPIs (ticket sales, revenue, contribution status, sponsors)
+  Map<String, dynamic>?
+  _overview; // unified backend KPIs (ticket sales, revenue, contribution status, sponsors)
   List<Map<String, dynamic>> _recentActivity = const [];
 
   List<String> _visibleTabs = const ['Overview'];
   static const Set<String> _creatorRoles = {'creator', 'organizer', 'owner'};
   static const Set<String> _committeeRoles = {'committee', 'member'};
 
-  bool _asBool(dynamic value) => value == true || value == 1 || value == '1' || value == 'true';
+  bool _asBool(dynamic value) =>
+      value == true || value == 1 || value == '1' || value == 'true';
   num _asNum(dynamic value, [num fallback = 0]) {
     if (value is num) return value;
     return num.tryParse(value?.toString() ?? '') ?? fallback;
   }
 
-  int _asInt(dynamic value, [int fallback = 0]) => _asNum(value, fallback).toInt();
-  double _asDouble(dynamic value, [double fallback = 0]) => _asNum(value, fallback).toDouble();
+  int _asInt(dynamic value, [int fallback = 0]) =>
+      _asNum(value, fallback).toInt();
+  double _asDouble(dynamic value, [double fallback = 0]) =>
+      _asNum(value, fallback).toDouble();
 
   String? _roleHint(dynamic value) {
     if (value == null) return null;
@@ -95,16 +120,30 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
 
   String? _ownerIdFrom(Map<String, dynamic>? data) {
     if (data == null) return null;
-    final owner = data['user_id'] ?? data['organizer_id'] ?? data['owner_id'] ?? data['created_by_id'] ?? data['created_by'];
+    final owner =
+        data['user_id'] ??
+        data['organizer_id'] ??
+        data['owner_id'] ??
+        data['created_by_id'] ??
+        data['created_by'];
     final id = owner?.toString();
     return (id == null || id.isEmpty) ? null : id;
   }
 
   void _seedRoleHintsFromNavigation() {
     final knownRoleHint = _roleHint(widget.knownRole);
-    final initialRoleHint = _roleHint(widget.initialData?['role'] ?? widget.initialData?['viewer_role'] ?? widget.initialData?['my_role']);
-    final creatorHint = _creatorRoles.contains(knownRoleHint) || _creatorRoles.contains(initialRoleHint) || _asBool(widget.initialData?['is_creator']);
-    final committeeHint = _committeeRoles.contains(knownRoleHint) || _committeeRoles.contains(initialRoleHint);
+    final initialRoleHint = _roleHint(
+      widget.initialData?['role'] ??
+          widget.initialData?['viewer_role'] ??
+          widget.initialData?['my_role'],
+    );
+    final creatorHint =
+        _creatorRoles.contains(knownRoleHint) ||
+        _creatorRoles.contains(initialRoleHint) ||
+        _asBool(widget.initialData?['is_creator']);
+    final committeeHint =
+        _committeeRoles.contains(knownRoleHint) ||
+        _committeeRoles.contains(initialRoleHint);
 
     if (creatorHint) {
       _permissions = _creatorPermissions();
@@ -133,20 +172,29 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
     if (raw == null) return normalized;
 
     final role = raw['role']?.toString().toLowerCase();
-    final isCreator = _asBool(raw['is_creator']) || role == 'creator' || role == 'organizer' || role == 'owner';
+    final isCreator =
+        _asBool(raw['is_creator']) ||
+        role == 'creator' ||
+        role == 'organizer' ||
+        role == 'owner';
     if (isCreator) return _creatorPermissions();
 
     normalized['role'] = raw['role'];
-    for (final field in _permissionFields) normalized[field] = _asBool(raw[field]);
+    for (final field in _permissionFields)
+      normalized[field] = _asBool(raw[field]);
     return normalized;
   }
 
   bool get _isCreator => _asBool(_permissions?['is_creator']);
-  bool get _hasCommitteePermissions => _permissionFields.any((field) => _asBool(_permissions?[field]));
+  bool get _hasCommitteePermissions =>
+      _permissionFields.any((field) => _asBool(_permissions?[field]));
   bool get _isCommittee {
     final role = _permissions?['role']?.toString().toLowerCase();
-    return !_isCreator && ((role != null && role.isNotEmpty && role != 'guest') || _hasCommitteePermissions);
+    return !_isCreator &&
+        ((role != null && role.isNotEmpty && role != 'guest') ||
+            _hasCommitteePermissions);
   }
+
   bool get _hasManagementAccess => _isCreator || _isCommittee;
 
   List<String> _computeVisibleTabs() {
@@ -166,14 +214,15 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
       'guests',
       'rsvp',
       'schedule',
-      'meetings',
       if (sellsTickets) 'tickets',
       if (_isCreator && !isEnded) 'check_in',
     ];
   }
 
   bool _isEventEnded() {
-    final raw = (_event ?? {})['end_date']?.toString() ?? (_event ?? {})['start_date']?.toString();
+    final raw =
+        (_event ?? {})['end_date']?.toString() ??
+        (_event ?? {})['start_date']?.toString();
     if (raw == null || raw.isEmpty) return false;
     final d = DateTime.tryParse(raw);
     if (d == null) return false;
@@ -182,11 +231,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
 
   void _rebuildTabs() {
     final newTabs = _computeVisibleTabs();
-    if (_listsEqual(newTabs, _visibleTabs) && _tabCtrl != null && _tabCtrl!.length == newTabs.length) return;
+    if (_listsEqual(newTabs, _visibleTabs) &&
+        _tabCtrl != null &&
+        _tabCtrl!.length == newTabs.length)
+      return;
     final previousIndex = _tabCtrl?.index ?? 0;
     _visibleTabs = newTabs;
     _tabCtrl?.dispose();
-    _tabCtrl = TabController(length: _visibleTabs.length, vsync: this, initialIndex: previousIndex.clamp(0, _visibleTabs.length - 1).toInt());
+    _tabCtrl = TabController(
+      length: _visibleTabs.length,
+      vsync: this,
+      initialIndex: previousIndex.clamp(0, _visibleTabs.length - 1).toInt(),
+    );
   }
 
   bool _listsEqual(List<String> a, List<String> b) {
@@ -212,11 +268,25 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
     super.dispose();
   }
 
-  Future<void> _loadEvent() async {
+  Future<void> _loadEvent({bool force = false}) async {
+    // Guard against accidental/duplicate triggers (e.g. an over-eager
+    // pull-to-refresh while scrolling through the Overview tab). When data
+    // is already on screen and a fetch ran very recently, skip silently
+    // so the user does not see an unwanted reload spinner.
+    if (_loadInFlight) return;
+    if (!force && _event != null && _lastLoadAt != null) {
+      final delta = DateTime.now().difference(_lastLoadAt!);
+      if (delta.inSeconds < 8) return;
+    }
+    _loadInFlight = true;
     // Show loader only if we have nothing on screen yet. With initialData
     // (passed from the events list) we can render the header instantly.
     if (_event == null) setState(() => _loading = true);
-    final fallbackErr = {'success': false, 'message': 'Request failed', 'data': null};
+    final fallbackErr = {
+      'success': false,
+      'message': 'Request failed',
+      'data': null,
+    };
 
     // ── Phase 1: ONE blocking call — essential event payload (with inline permissions) ──
     Map<String, dynamic> eventRes;
@@ -229,15 +299,23 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
     if (!mounted) return;
 
     final eventData = (eventRes['success'] == true && eventRes['data'] is Map)
-        ? (eventRes['data'] as Map).cast<String, dynamic>() : null;
+        ? (eventRes['data'] as Map).cast<String, dynamic>()
+        : null;
 
     // Inline permissions returned by /user-events/{id}?fields=essential
     final inlinePermissions = (eventData?['permissions'] is Map)
-        ? (eventData!['permissions'] as Map).cast<String, dynamic>() : null;
+        ? (eventData!['permissions'] as Map).cast<String, dynamic>()
+        : null;
 
     final knownRoleHint = _roleHint(widget.knownRole);
-    final initialRoleHint = _roleHint(widget.initialData?['role'] ?? widget.initialData?['viewer_role'] ?? widget.initialData?['my_role']);
-    final eventRoleHint = _roleHint(eventData?['role'] ?? eventData?['viewer_role'] ?? eventData?['my_role']);
+    final initialRoleHint = _roleHint(
+      widget.initialData?['role'] ??
+          widget.initialData?['viewer_role'] ??
+          widget.initialData?['my_role'],
+    );
+    final eventRoleHint = _roleHint(
+      eventData?['role'] ?? eventData?['viewer_role'] ?? eventData?['my_role'],
+    );
     final permissionRoleHint = _roleHint(inlinePermissions?['role']);
     // current_user.id is already cached in AuthProvider — no need for AuthApi.me()
     String? currentUserId;
@@ -245,18 +323,32 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
       final auth = context.read<AuthProvider>();
       currentUserId = auth.user?['id']?.toString();
       _currentUserName = auth.user?['first_name']?.toString();
-    } catch (_) { /* provider unavailable, fine */ }
+    } catch (_) {
+      /* provider unavailable, fine */
+    }
     final eventOwnerId = _ownerIdFrom(eventData);
     final initialOwnerId = _ownerIdFrom(widget.initialData);
-    final ownerMatched = currentUserId != null && currentUserId.isNotEmpty &&
+    final ownerMatched =
+        currentUserId != null &&
+        currentUserId.isNotEmpty &&
         (eventOwnerId == currentUserId || initialOwnerId == currentUserId);
 
-    final creatorHint = _isCreator || _asBool(widget.initialData?['is_creator']) || _asBool(eventData?['is_creator']) ||
-        _asBool(inlinePermissions?['is_creator']) || _creatorRoles.contains(knownRoleHint) || _creatorRoles.contains(initialRoleHint) ||
-        _creatorRoles.contains(eventRoleHint) || _creatorRoles.contains(permissionRoleHint) || ownerMatched;
+    final creatorHint =
+        _isCreator ||
+        _asBool(widget.initialData?['is_creator']) ||
+        _asBool(eventData?['is_creator']) ||
+        _asBool(inlinePermissions?['is_creator']) ||
+        _creatorRoles.contains(knownRoleHint) ||
+        _creatorRoles.contains(initialRoleHint) ||
+        _creatorRoles.contains(eventRoleHint) ||
+        _creatorRoles.contains(permissionRoleHint) ||
+        ownerMatched;
 
-    final committeeHint = _committeeRoles.contains(knownRoleHint) || _committeeRoles.contains(initialRoleHint) ||
-        _committeeRoles.contains(eventRoleHint) || _committeeRoles.contains(permissionRoleHint);
+    final committeeHint =
+        _committeeRoles.contains(knownRoleHint) ||
+        _committeeRoles.contains(initialRoleHint) ||
+        _committeeRoles.contains(eventRoleHint) ||
+        _committeeRoles.contains(permissionRoleHint);
 
     if (creatorHint) {
       _permissions = _creatorPermissions();
@@ -278,6 +370,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
       _loading = false;
       if (eventData != null) _event = eventData;
     });
+    _lastLoadAt = DateTime.now();
+    _loadInFlight = false;
 
     // ── Phase 2: Fire-and-forget overview summaries ──
     // These hydrate the stat cards on the Overview tab WITHOUT blocking the UI.
@@ -287,7 +381,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
 
   Future<void> _hydrateOverviewSummaries() async {
     final eid = widget.eventId;
-    final fallbackErr = {'success': false, 'message': 'Request failed', 'data': null};
+    final fallbackErr = {
+      'success': false,
+      'message': 'Request failed',
+      'data': null,
+    };
 
     // Run summary calls in parallel but don't block the UI on them.
     final futures = await Future.wait([
@@ -300,16 +398,34 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
 
     if (!mounted) return;
 
-    final contributionSummary = (futures[0]['success'] == true && futures[0]['data'] is Map)
-        ? (((futures[0]['data'] as Map)['summary'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{}) : <String, dynamic>{};
-    final budgetSummary = (futures[1]['success'] == true && futures[1]['data'] is Map)
-        ? (((futures[1]['data'] as Map)['summary'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{}) : <String, dynamic>{};
-    final expenseSummary = (futures[2]['success'] == true && futures[2]['data'] is Map)
-        ? (((futures[2]['data'] as Map)['summary'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{}) : <String, dynamic>{};
+    var contributionSummary =
+        (futures[0]['success'] == true && futures[0]['data'] is Map)
+        ? (((futures[0]['data'] as Map)['summary'] as Map?)
+                  ?.cast<String, dynamic>() ??
+              <String, dynamic>{})
+        : <String, dynamic>{};
+    final budgetSummary =
+        (futures[1]['success'] == true && futures[1]['data'] is Map)
+        ? (((futures[1]['data'] as Map)['summary'] as Map?)
+                  ?.cast<String, dynamic>() ??
+              <String, dynamic>{})
+        : <String, dynamic>{};
+    final expenseSummary =
+        (futures[2]['success'] == true && futures[2]['data'] is Map)
+        ? (((futures[2]['data'] as Map)['summary'] as Map?)
+                  ?.cast<String, dynamic>() ??
+              <String, dynamic>{})
+        : <String, dynamic>{};
     final servicesData = futures[3]['data'];
-    final servicesItems = servicesData is List ? servicesData
-        : (servicesData is Map ? ((servicesData['items'] is List) ? servicesData['items'] as List
-            : ((servicesData['services'] is List) ? servicesData['services'] as List : <dynamic>[])) : <dynamic>[]);
+    final servicesItems = servicesData is List
+        ? servicesData
+        : (servicesData is Map
+              ? ((servicesData['items'] is List)
+                    ? servicesData['items'] as List
+                    : ((servicesData['services'] is List)
+                          ? servicesData['services'] as List
+                          : <dynamic>[]))
+              : <dynamic>[]);
     final completedServices = servicesItems.where((s) {
       if (s is! Map) return false;
       return s['service_status'] == 'completed' || s['status'] == 'completed';
@@ -328,9 +444,39 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
     double sponsorRevenue = 0.0;
     if (overview != null) {
       final ts = overview['ticket_sales'];
-      if (ts is Map && ts['classes'] is List) ticketClasses = ts['classes'] as List;
+      if (ts is Map && ts['classes'] is List)
+        ticketClasses = ts['classes'] as List;
       final rv = overview['revenue_summary'];
       if (rv is Map) sponsorRevenue = _asDouble(rv['sponsors']);
+    }
+
+    // Merge authoritative numbers from /management-overview into the
+    // contribution summary so Financial Overview + Revenue Summary always
+    // reflect real backend totals (paid/pledged counts and amounts).
+    if (overview != null) {
+      final cs = (overview['contribution_status'] is Map)
+          ? (overview['contribution_status'] as Map).cast<String, dynamic>()
+          : const <String, dynamic>{};
+      final rv = (overview['revenue_summary'] is Map)
+          ? (overview['revenue_summary'] as Map).cast<String, dynamic>()
+          : const <String, dynamic>{};
+      contributionSummary = {
+        ...contributionSummary,
+        'total_paid':
+            rv['contributions'] ??
+            cs['paid_total'] ??
+            contributionSummary['total_paid'] ??
+            0,
+        'total_pledged':
+            cs['pledged_total'] ??
+            contributionSummary['total_pledged'] ??
+            contributionSummary['total_amount'] ??
+            0,
+        'paid_count':
+            cs['paid_count'] ?? contributionSummary['paid_count'] ?? 0,
+        'pledged_count':
+            cs['pledged_count'] ?? contributionSummary['pledged_count'] ?? 0,
+      };
     }
 
     setState(() {
@@ -369,8 +515,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
       ),
       child: Scaffold(
         backgroundColor: AppColors.surface,
-        body: (_loading && _event == null) || (!_permissionsResolved && _event != null)
-            ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+        body:
+            (_loading && _event == null) ||
+                (!_permissionsResolved && _event != null)
+            ? const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              )
             : _buildContent(),
       ),
     );
@@ -393,26 +543,154 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
-            child: Row(children: [
-              IconButton(onPressed: () => Navigator.pop(context), icon: SvgPicture.asset('assets/icons/arrow-left-icon.svg', width: 22, height: 22, colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn))),
-              Expanded(child: Center(child: Text('Manage Event', style: appText(size: 16, weight: FontWeight.w700)))),
-              IconButton(onPressed: _showEventActions, icon: const Icon(Icons.more_horiz_rounded, color: AppColors.textPrimary, size: 22)),
-            ]),
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: SvgPicture.asset(
+                    'assets/icons/arrow-left-icon.svg',
+                    width: 22,
+                    height: 22,
+                    colorFilter: const ColorFilter.mode(
+                      AppColors.textPrimary,
+                      BlendMode.srcIn,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      'Manage Event',
+                      style: appText(size: 16, weight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: _showEventActions,
+                  icon: const Icon(
+                    Icons.more_horiz_rounded,
+                    color: AppColors.textPrimary,
+                    size: 22,
+                  ),
+                ),
+              ],
+            ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              ClipRRect(borderRadius: BorderRadius.circular(14), child: SizedBox(width: 72, height: 72, child: cover != null && cover.isNotEmpty ? Image.network(cover, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: AppColors.surfaceVariant)) : Container(color: AppColors.primarySoft, child: Center(child: SvgPicture.asset('assets/icons/calendar-icon.svg', width: 24, height: 24, colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn)))))),
-              const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: appText(size: 15, weight: FontWeight.w800, letterSpacing: -0.3))), const SizedBox(width: 8), _statusBadge(status)]),
-                if (startDate.isNotEmpty) ...[const SizedBox(height: 6), Row(children: [SvgPicture.asset('assets/icons/calendar-icon.svg', width: 11, height: 11, colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)), const SizedBox(width: 5), Flexible(child: Text(_formatDate(startDate) + (startTime.isNotEmpty ? '  •  $startTime' : ''), style: appText(size: 11, color: AppColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis))])],
-                if (location.isNotEmpty || venue.isNotEmpty) ...[const SizedBox(height: 4), Row(children: [SvgPicture.asset('assets/icons/location-icon.svg', width: 11, height: 11, colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)), const SizedBox(width: 5), Expanded(child: Text([venue, location].where((s) => s.isNotEmpty).join(', '), style: appText(size: 11, color: AppColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis))])],
-              ])),
-            ]),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                EventCoverImage(
+                  event: e,
+                  url: cover,
+                  width: 72,
+                  height: 72,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: appText(
+                                size: 15,
+                                weight: FontWeight.w800,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _statusBadge(status),
+                        ],
+                      ),
+                      if (startDate.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            SvgPicture.asset(
+                              'assets/icons/calendar-icon.svg',
+                              width: 11,
+                              height: 11,
+                              colorFilter: const ColorFilter.mode(
+                                AppColors.textTertiary,
+                                BlendMode.srcIn,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(
+                                _formatDate(startDate) +
+                                    (startTime.isNotEmpty
+                                        ? '  •  $startTime'
+                                        : ''),
+                                style: appText(
+                                  size: 11,
+                                  color: AppColors.textSecondary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      if (location.isNotEmpty || venue.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            SvgPicture.asset(
+                              'assets/icons/location-icon.svg',
+                              width: 11,
+                              height: 11,
+                              colorFilter: const ColorFilter.mode(
+                                AppColors.textTertiary,
+                                BlendMode.srcIn,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Text(
+                                [
+                                  venue,
+                                  location,
+                                ].where((s) => s.isNotEmpty).join(', '),
+                                style: appText(
+                                  size: 11,
+                                  color: AppColors.textSecondary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-          _UnderlineTabs(labels: _visibleTabs.map((t) => context.trw(t)).toList(), controller: _tabCtrl!),
-          Expanded(child: TabBarView(controller: _tabCtrl, children: _visibleTabs.map((tab) => _buildTabContent(tab)).toList())),
+          _UnderlineTabs(
+            labels: _visibleTabs.map((t) => context.trw(t)).toList(),
+            controller: _tabCtrl!,
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabCtrl,
+              children: _visibleTabs
+                  .map((tab) => _buildTabContent(tab))
+                  .toList(),
+            ),
+          ),
         ],
       ),
     );
@@ -420,35 +698,92 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
 
   Widget _buildTabContent(String tab) {
     switch (tab) {
-      case 'overview': return _overviewTab();
-      case 'checklist': return EventChecklistTab(eventId: widget.eventId, eventTypeId: _event?['event_type_id']?.toString() ?? _event?['event_type']?['id']?.toString());
-      case 'budget': return EventBudgetTab(eventId: widget.eventId, permissions: _permissions, eventTitle: extractStr((_event ?? {})['title']), eventBudget: (_event?['budget'] is num) ? (_event!['budget'] as num).toDouble() : double.tryParse((_event?['budget'] ?? '').toString()));
-      case 'expenses': return EventExpensesTab(eventId: widget.eventId, permissions: _permissions, eventTitle: extractStr((_event ?? {})['title']), eventBudget: (_event?['budget'] is num) ? (_event!['budget'] as num).toDouble() : double.tryParse((_event?['budget'] ?? '').toString()));
-      case 'services': return EventServicesTab(eventId: widget.eventId, permissions: _permissions, eventTypeId: _event?['event_type_id']?.toString() ?? _event?['event_type']?['id']?.toString());
-      case 'committee': return EventCommitteeTab(eventId: widget.eventId, permissions: _permissions, eventTitle: extractStr((_event ?? {})['title']));
-      case 'contributions': return EventContributionsTab(
-        eventId: widget.eventId,
-        permissions: _permissions,
-        eventTitle: extractStr((_event ?? {})['title']),
-        eventBudget: (_event?['budget'] is num) ? (_event!['budget'] as num).toDouble() : double.tryParse((_event?['budget'] ?? '').toString()),
-        isCreator: _permissions?['is_creator'] == true,
-      );
-      case 'sponsors': return EventSponsorsTab(eventId: widget.eventId, isCreator: _isCreator);
-      case 'guests': return EventGuestsTab(eventId: widget.eventId, permissions: _permissions);
-      case 'rsvp': return EventRsvpTab(eventId: widget.eventId);
-      case 'schedule': return EventScheduleTab(eventId: widget.eventId);
-      case 'meetings': return EventMeetingsTab(eventId: widget.eventId, isCreator: _isCreator, permissions: _permissions, eventName: extractStr((_event ?? {})['title']));
-      case 'tickets': return EventTicketsTab(eventId: widget.eventId, permissions: _permissions);
+      case 'overview':
+        return _overviewTab();
+      case 'checklist':
+        return EventChecklistTab(
+          eventId: widget.eventId,
+          eventTypeId:
+              _event?['event_type_id']?.toString() ??
+              _event?['event_type']?['id']?.toString(),
+        );
+      case 'budget':
+        return EventBudgetTab(
+          eventId: widget.eventId,
+          permissions: _permissions,
+          eventTitle: extractStr((_event ?? {})['title']),
+          eventBudget: (_event?['budget'] is num)
+              ? (_event!['budget'] as num).toDouble()
+              : double.tryParse((_event?['budget'] ?? '').toString()),
+        );
+      case 'expenses':
+        return EventExpensesTab(
+          eventId: widget.eventId,
+          permissions: _permissions,
+          eventTitle: extractStr((_event ?? {})['title']),
+          eventBudget: (_event?['budget'] is num)
+              ? (_event!['budget'] as num).toDouble()
+              : double.tryParse((_event?['budget'] ?? '').toString()),
+        );
+      case 'services':
+        return EventServicesTab(
+          eventId: widget.eventId,
+          permissions: _permissions,
+          eventTypeId:
+              _event?['event_type_id']?.toString() ??
+              _event?['event_type']?['id']?.toString(),
+        );
+      case 'committee':
+        return EventCommitteeTab(
+          eventId: widget.eventId,
+          permissions: _permissions,
+          eventTitle: extractStr((_event ?? {})['title']),
+        );
+      case 'contributions':
+        return EventContributionsTab(
+          eventId: widget.eventId,
+          permissions: _permissions,
+          eventTitle: extractStr((_event ?? {})['title']),
+          eventBudget: (_event?['budget'] is num)
+              ? (_event!['budget'] as num).toDouble()
+              : double.tryParse((_event?['budget'] ?? '').toString()),
+          isCreator: _permissions?['is_creator'] == true,
+        );
+      case 'sponsors':
+        return EventSponsorsTab(eventId: widget.eventId, isCreator: _isCreator);
+      case 'guests':
+        return EventGuestsTab(
+          eventId: widget.eventId,
+          permissions: _permissions,
+        );
+      case 'rsvp':
+        return EventRsvpTab(eventId: widget.eventId);
+      case 'schedule':
+        return EventScheduleTab(eventId: widget.eventId);
+      // 'meetings' moved out of tabs — accessible from Quick Actions sheet
+      case 'tickets':
+        return EventTicketsTab(
+          eventId: widget.eventId,
+          permissions: _permissions,
+        );
       // workspace tab removed — Group Chat lives on the overview as a CTA card
-      case 'check_in': return EventCheckinTab(
-        eventId: widget.eventId, permissions: _permissions,
-        eventTitle: extractStr((_event ?? {})['title']),
-        eventDate: extractStr((_event ?? {})['start_date']),
-        eventLocation: extractStr((_event ?? {})['location']),
-        guestCount: (_event ?? {})['guest_count'] ?? (_event ?? {})['total_guests'] ?? (_event ?? {})['expected_guests'] ?? 0,
-        confirmedCount: (_event ?? {})['confirmed_guest_count'] ?? 0,
-      );
-      default: return const SizedBox.shrink();
+      // invitation tab moved to the "..." actions sheet (opens full screen)
+      case 'check_in':
+        return EventCheckinTab(
+          eventId: widget.eventId,
+          permissions: _permissions,
+          eventTitle: extractStr((_event ?? {})['title']),
+          eventDate: extractStr((_event ?? {})['start_date']),
+          eventLocation: extractStr((_event ?? {})['location']),
+          guestCount:
+              (_event ?? {})['guest_count'] ??
+              (_event ?? {})['total_guests'] ??
+              (_event ?? {})['expected_guests'] ??
+              0,
+          confirmedCount: (_event ?? {})['confirmed_guest_count'] ?? 0,
+        );
+      default:
+        return const SizedBox.shrink();
     }
   }
 
@@ -463,19 +798,37 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
   Widget _overviewTab() {
     final e = _event ?? {};
     final description = extractStr(e['description']);
-    final guestCount = e['guest_count'] ?? e['total_guests'] ?? e['expected_guests'] ?? 0;
+    final guestCount =
+        e['guest_count'] ?? e['total_guests'] ?? e['expected_guests'] ?? 0;
     final expectedGuests = e['expected_guests'] ?? 0;
     final confirmedGuests = e['confirmed_guest_count'] ?? 0;
     final budget = e['budget'];
-    final budgetNum = budget != null ? (budget is num ? budget.toDouble() : double.tryParse(budget.toString()) ?? 0.0) : 0.0;
+    final budgetNum = budget != null
+        ? (budget is num
+              ? budget.toDouble()
+              : double.tryParse(budget.toString()) ?? 0.0)
+        : 0.0;
 
-    final totalPledged = _asDouble(_contributionSummary['total_pledged'] ?? _contributionSummary['total_amount']);
-    final totalPaid = _asDouble(_contributionSummary['total_paid'] ?? _contributionSummary['total_confirmed']);
-    final pledgedCount = _asInt(_contributionSummary['pledged_count'] ?? _contributionSummary['confirmed_count']);
+    final totalPledged = _asDouble(
+      _contributionSummary['total_pledged'] ??
+          _contributionSummary['total_amount'],
+    );
+    final totalPaid = _asDouble(
+      _contributionSummary['total_paid'] ??
+          _contributionSummary['total_confirmed'],
+    );
+    final pledgedCount = _asInt(
+      _contributionSummary['pledged_count'] ??
+          _contributionSummary['confirmed_count'],
+    );
     final paidCount = _asInt(_contributionSummary['paid_count']);
-    final unpledged = budgetNum > 0 ? (budgetNum - totalPledged).clamp(0, double.infinity) : 0.0;
+    final unpledged = budgetNum > 0
+        ? (budgetNum - totalPledged).clamp(0, double.infinity)
+        : 0.0;
     final outstanding = (totalPledged - totalPaid).clamp(0, double.infinity);
-    final collectionRate = totalPledged > 0 ? ((totalPaid / totalPledged) * 100).round() : 0;
+    final collectionRate = totalPledged > 0
+        ? ((totalPaid / totalPledged) * 100).round()
+        : 0;
 
     // Days to go
     int daysToGo = 0;
@@ -490,12 +843,20 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
 
     // ── Authoritative numbers from backend overview (no client recomputation) ──
     final ov = _overview ?? const {};
-    final ovKpis = (ov['kpis'] is Map) ? (ov['kpis'] as Map).cast<String, dynamic>() : const <String, dynamic>{};
-    final ovTickets = (ov['ticket_sales'] is Map) ? (ov['ticket_sales'] as Map).cast<String, dynamic>() : const <String, dynamic>{};
-    final ovRevenue = (ov['revenue_summary'] is Map) ? (ov['revenue_summary'] as Map).cast<String, dynamic>() : const <String, dynamic>{};
+    final ovKpis = (ov['kpis'] is Map)
+        ? (ov['kpis'] as Map).cast<String, dynamic>()
+        : const <String, dynamic>{};
+    final ovTickets = (ov['ticket_sales'] is Map)
+        ? (ov['ticket_sales'] as Map).cast<String, dynamic>()
+        : const <String, dynamic>{};
+    final ovRevenue = (ov['revenue_summary'] is Map)
+        ? (ov['revenue_summary'] as Map).cast<String, dynamic>()
+        : const <String, dynamic>{};
 
     int ticketsSold = _asInt(ovKpis['tickets_sold'] ?? ovTickets['total_sold']);
-    int ticketsCapacity = _asInt(ovKpis['tickets_capacity'] ?? ovTickets['total_capacity']);
+    int ticketsCapacity = _asInt(
+      ovKpis['tickets_capacity'] ?? ovTickets['total_capacity'],
+    );
     final donutSlices = <_DonutSlice>[];
     const sliceColors = [
       Color(0xFFF5B400), // gold
@@ -507,133 +868,317 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
       final tc = _ticketClasses[i];
       if (tc is! Map) continue;
       final sold = _asInt(tc['sold']);
-      donutSlices.add(_DonutSlice(
-        label: extractStr(tc['name'], fallback: 'Tier ${i + 1}'),
-        value: sold.toDouble(),
-        color: sliceColors[i % sliceColors.length],
-      ));
+      donutSlices.add(
+        _DonutSlice(
+          label: extractStr(tc['name'], fallback: 'Tier ${i + 1}'),
+          value: sold.toDouble(),
+          color: sliceColors[i % sliceColors.length],
+        ),
+      );
     }
-    final isTicketed = (ov['is_ticketed'] == true) ||
+    final isTicketed =
+        (ov['is_ticketed'] == true) ||
         _ticketClasses.isNotEmpty ||
-        (e['has_tickets'] == true) || (e['sells_tickets'] == true);
+        (e['has_tickets'] == true) ||
+        (e['sells_tickets'] == true);
 
     final ticketRevenue = _asDouble(ovRevenue['tickets']);
     final totalRevenue = _asDouble(ovRevenue['total_revenue']);
     daysToGo = _asInt(ovKpis['days_to_go'] ?? daysToGo);
-    final contributionsCount = _asInt(ovKpis['contributions_count'] ?? pledgedCount);
+    final contributionsCount = _asInt(
+      ovKpis['contributions_count'] ?? pledgedCount,
+    );
 
     return NuruRefreshIndicator(
-      onRefresh: _loadEvent, color: AppColors.primary,
-      child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), children: [
-        // ─── Section: Event Overview ───
-        Text('Event Overview', style: appText(size: 15, weight: FontWeight.w700)),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 78,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            children: [
-              if (isTicketed) ...[
-                _kpiCard(value: '$ticketsSold', label: 'Tickets Sold'),
+      onRefresh: () => _loadEvent(force: true),
+      color: AppColors.primary,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        children: [
+          // ─── Section: Event Overview ───
+          Text(
+            'Event Overview',
+            style: appText(size: 15, weight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 78,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              children: [
+                if (isTicketed) ...[
+                  _kpiCard(value: '$ticketsSold', label: 'Tickets Sold'),
+                  const SizedBox(width: 10),
+                ],
+                _kpiCard(
+                  value:
+                      '${getActiveCurrency()} ${_compactMoney(totalRevenue)}',
+                  label: 'Total Revenue',
+                ),
                 const SizedBox(width: 10),
+                _kpiCard(value: '$contributionsCount', label: 'Contributions'),
+                const SizedBox(width: 10),
+                _kpiCard(value: '$daysToGo', label: 'Days to Go'),
               ],
-              _kpiCard(value: '${getActiveCurrency()} ${_compactMoney(totalRevenue)}', label: 'Total Revenue'),
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // ─── Ticket Sales (Donut) + Revenue Summary ───
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _overview == null
+                    ? _donutSkeletonCard()
+                    : _ticketSalesCard(
+                        isTicketed,
+                        ticketsSold,
+                        ticketsCapacity,
+                        donutSlices,
+                      ),
+              ),
               const SizedBox(width: 10),
-              _kpiCard(value: '$contributionsCount', label: 'Contributions'),
-              const SizedBox(width: 10),
-              _kpiCard(value: '$daysToGo', label: 'Days to Go'),
+              Expanded(
+                child: _overview == null
+                    ? _revenueSkeletonCard()
+                    : _revenueSummaryCard(
+                        totalRevenue,
+                        ticketRevenue,
+                        totalPaid,
+                      ),
+              ),
             ],
           ),
-        ),
-        const SizedBox(height: 18),
-
-        // ─── Ticket Sales (Donut) + Revenue Summary ───
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: _ticketSalesCard(isTicketed, ticketsSold, ticketsCapacity, donutSlices)),
-          const SizedBox(width: 10),
-          Expanded(child: _revenueSummaryCard(totalRevenue, ticketRevenue, totalPaid)),
-        ]),
-        const SizedBox(height: 18),
-
-        if (_isCreator) ...[
-          _EventGroupCta(eventId: widget.eventId),
           const SizedBox(height: 18),
-        ],
 
-        // ─── Quick Actions ───
-        Text('Quick Actions', style: appText(size: 15, weight: FontWeight.w700)),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: _quickAction(Icons.edit_outlined, 'Edit Event', _editEvent)),
-          const SizedBox(width: 10),
-          Expanded(child: _quickAction(Icons.confirmation_number_outlined, 'Manage Tickets', () => _tabCtrl?.animateTo(_visibleTabs.indexOf('services').clamp(0, _visibleTabs.length - 1)))),
-          const SizedBox(width: 10),
-          Expanded(child: _quickAction(Icons.add_circle_outline, 'Add Service', () => _tabCtrl?.animateTo(_visibleTabs.indexOf('services').clamp(0, _visibleTabs.length - 1)))),
-          const SizedBox(width: 10),
-          Expanded(child: _quickAction(Icons.ios_share_outlined, 'Share Event', () { if (_event != null) ShareEventToFeedSheet.show(context, _event!); })),
-        ]),
-        const SizedBox(height: 18),
-
-        // ─── Recent Activity ───
-        Row(children: [
-          Expanded(child: Text('Recent Activity', style: appText(size: 15, weight: FontWeight.w700))),
-          GestureDetector(
-            onTap: () => _tabCtrl?.animateTo(_visibleTabs.indexOf('contributions').clamp(0, _visibleTabs.length - 1)),
-            child: Text('View All', style: appText(size: 12, weight: FontWeight.w700, color: AppColors.primary)),
-          ),
-        ]),
-        const SizedBox(height: 10),
-        _recentActivityCard(),
-
-        if (description.isNotEmpty) ...[
-          const SizedBox(height: 18),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.borderLight)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('About', style: appText(size: 11, color: AppColors.textTertiary, weight: FontWeight.w700)),
-              const SizedBox(height: 6),
-              Text(description, style: appText(size: 14, color: AppColors.textSecondary, height: 1.6)),
-            ]),
-          ),
-        ],
-
-        // Hidden secondary insights still available below for power users
-        const SizedBox(height: 20),
-        Text('Financial Overview', style: appText(size: 15, weight: FontWeight.w700)),
-        const SizedBox(height: 10),
-        _cashInHandCard(totalPaid, paidCount, outstanding.toDouble(), collectionRate),
-        const SizedBox(height: 12),
-        _financialCard(label: 'Budget', value: budgetNum > 0 ? formatTZS(budgetNum) : 'Not set', subtitle: 'Total budget allocated',
-            iconBg: const Color(0xFFDBEAFE), iconColor: const Color(0xFF2563EB), icon: Icons.account_balance_wallet_rounded),
-        const SizedBox(height: 8),
-        Row(children: [
-          Expanded(child: _financialCard(label: 'Pledged', value: formatTZS(totalPledged), subtitle: '$pledgedCount contributors',
-              iconBg: const Color(0xFFF3E8FF), iconColor: const Color(0xFF9333EA), icon: Icons.people_alt_rounded)),
-          if (budgetNum > 0) ...[
-            const SizedBox(width: 8),
-            Expanded(child: _financialCard(label: 'Unpledged', value: formatTZS(unpledged.toDouble()), subtitle: 'Budget − pledged',
-                iconBg: const Color(0xFFFEE2E2), iconColor: const Color(0xFFDC2626), icon: Icons.money_off_rounded)),
+          if (_isCreator) ...[
+            _EventGroupCta(eventId: widget.eventId),
+            const SizedBox(height: 18),
           ],
-        ]),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: _progressCard()),
-          const SizedBox(width: 8),
-          Expanded(child: _financialCard(label: 'Guests', value: '$guestCount', subtitle: 'of $expectedGuests expected',
-              iconBg: const Color(0xFFDCFCE7), iconColor: const Color(0xFF16A34A), icon: Icons.people_rounded)),
-        ]),
-        if (_hasVenueCoordinates()) ...[
-          const SizedBox(height: 16),
-          VenueMapPreview(
-            latitude: double.parse(e['venue_coordinates']['latitude'].toString()),
-            longitude: double.parse(e['venue_coordinates']['longitude'].toString()),
-            venueName: extractStr(e['venue']).isNotEmpty ? extractStr(e['venue']) : (extractStr(e['location']).isNotEmpty ? extractStr(e['location']) : null),
-            address: extractStr(e['venue_address']).isNotEmpty ? extractStr(e['venue_address']) : null,
+
+          // ─── Quick Actions ───
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Quick Actions',
+                  style: appText(size: 15, weight: FontWeight.w700),
+                ),
+              ),
+              GestureDetector(
+                onTap: _openQuickActionsSheet,
+                child: Row(children: [
+                  Text('More',
+                      style: appText(
+                        size: 12,
+                        weight: FontWeight.w700,
+                        color: AppColors.primary,
+                      )),
+                  const SizedBox(width: 2),
+                  const Icon(Icons.chevron_right_rounded,
+                      size: 18, color: AppColors.primary),
+                ]),
+              ),
+            ],
           ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _quickAction(
+                  'assets/icons/pen-icon.svg',
+                  'Edit Event',
+                  _editEvent,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _quickAction(
+                  'assets/icons/video-icon.svg',
+                  'Meetings',
+                  _openMeetingsScreen,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _quickAction(
+                  'assets/icons/ticket-icon.svg',
+                  'Tickets',
+                  () => _tabCtrl?.animateTo(
+                    _visibleTabs
+                        .indexOf('services')
+                        .clamp(0, _visibleTabs.length - 1),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _quickAction(
+                  'assets/icons/share-upload-icon.svg',
+                  'Share Event',
+                  () {
+                    if (_event != null)
+                      ShareEventToFeedSheet.show(context, _event!);
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+
+          // ─── Recent Activity ───
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Recent Activity',
+                  style: appText(size: 15, weight: FontWeight.w700),
+                ),
+              ),
+              GestureDetector(
+                onTap: () => _tabCtrl?.animateTo(
+                  _visibleTabs
+                      .indexOf('contributions')
+                      .clamp(0, _visibleTabs.length - 1),
+                ),
+                child: Text(
+                  'View All',
+                  style: appText(
+                    size: 12,
+                    weight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _recentActivityCard(),
+
+          if (description.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.borderLight),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'About',
+                    style: appText(
+                      size: 11,
+                      color: AppColors.textTertiary,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    description,
+                    style: appText(
+                      size: 14,
+                      color: AppColors.textSecondary,
+                      height: 1.6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Hidden secondary insights still available below for power users
+          const SizedBox(height: 20),
+          Text(
+            'Financial Overview',
+            style: appText(size: 15, weight: FontWeight.w700),
+          ),
+          const SizedBox(height: 10),
+          _cashInHandCard(
+            totalPaid,
+            paidCount,
+            outstanding.toDouble(),
+            collectionRate,
+          ),
+          const SizedBox(height: 12),
+          _financialCard(
+            label: 'Budget',
+            value: budgetNum > 0 ? formatTZS(budgetNum) : 'Not set',
+            subtitle: 'Total budget allocated',
+            iconBg: const Color(0xFFDBEAFE),
+            iconColor: const Color(0xFF2563EB),
+            icon: Icons.account_balance_wallet_rounded,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _financialCard(
+                  label: 'Pledged',
+                  value: formatTZS(totalPledged),
+                  subtitle: '$pledgedCount contributors',
+                  iconBg: const Color(0xFFF3E8FF),
+                  iconColor: const Color(0xFF9333EA),
+                  icon: Icons.people_alt_rounded,
+                ),
+              ),
+              if (budgetNum > 0) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _financialCard(
+                    label: 'Unpledged',
+                    value: formatTZS(unpledged.toDouble()),
+                    subtitle: 'Budget − pledged',
+                    iconBg: const Color(0xFFFEE2E2),
+                    iconColor: const Color(0xFFDC2626),
+                    icon: Icons.money_off_rounded,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _progressCard()),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _financialCard(
+                  label: 'Guests',
+                  value: '$guestCount',
+                  subtitle: 'of $expectedGuests expected',
+                  iconBg: const Color(0xFFDCFCE7),
+                  iconColor: const Color(0xFF16A34A),
+                  icon: Icons.people_rounded,
+                ),
+              ),
+            ],
+          ),
+          if (_hasVenueCoordinates()) ...[
+            const SizedBox(height: 16),
+            VenueMapPreview(
+              latitude: double.parse(
+                e['venue_coordinates']['latitude'].toString(),
+              ),
+              longitude: double.parse(
+                e['venue_coordinates']['longitude'].toString(),
+              ),
+              venueName: extractStr(e['venue']).isNotEmpty
+                  ? extractStr(e['venue'])
+                  : (extractStr(e['location']).isNotEmpty
+                        ? extractStr(e['location'])
+                        : null),
+              address: extractStr(e['venue_address']).isNotEmpty
+                  ? extractStr(e['venue_address'])
+                  : null,
+            ),
+          ],
         ],
-      ]),
+      ),
     );
   }
 
@@ -648,16 +1193,41 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.borderLight),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
-          child: Text(value, style: appText(size: 16, weight: FontWeight.w800, color: AppColors.textPrimary))),
-        const SizedBox(height: 4),
-        Text(label, style: appText(size: 11, color: AppColors.textTertiary, weight: FontWeight.w600)),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: appText(
+                size: 16,
+                weight: FontWeight.w800,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: appText(
+              size: 11,
+              color: AppColors.textTertiary,
+              weight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _ticketSalesCard(bool isTicketed, int sold, int capacity, List<_DonutSlice> slices) {
+  Widget _ticketSalesCard(
+    bool isTicketed,
+    int sold,
+    int capacity,
+    List<_DonutSlice> slices,
+  ) {
     // If non-ticketed, build a contribution donut from contribution status counts
     final List<_DonutSlice> donutData;
     final int centerNumber;
@@ -671,11 +1241,24 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
       final cs = (_overview != null && _overview!['contribution_status'] is Map)
           ? (_overview!['contribution_status'] as Map).cast<String, dynamic>()
           : const <String, dynamic>{};
-      final paid = _asInt(cs['paid_count'] ?? _contributionSummary['paid_count']);
-      final outstanding = _asInt(cs['outstanding_count'] ?? ((_asInt(cs['pledged_count']) - paid).clamp(0, 1 << 30)));
+      final paid = _asInt(
+        cs['paid_count'] ?? _contributionSummary['paid_count'],
+      );
+      final outstanding = _asInt(
+        cs['outstanding_count'] ??
+            ((_asInt(cs['pledged_count']) - paid).clamp(0, 1 << 30)),
+      );
       donutData = [
-        _DonutSlice(label: 'Paid', value: paid.toDouble(), color: const Color(0xFFF5B400)),
-        _DonutSlice(label: 'Outstanding', value: outstanding.toDouble(), color: const Color(0xFF111827)),
+        _DonutSlice(
+          label: 'Paid',
+          value: paid.toDouble(),
+          color: const Color(0xFFF5B400),
+        ),
+        _DonutSlice(
+          label: 'Outstanding',
+          value: outstanding.toDouble(),
+          color: const Color(0xFF111827),
+        ),
       ];
       centerNumber = paid + outstanding;
       centerLabel = 'Contributions';
@@ -688,38 +1271,89 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.borderLight),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(isTicketed ? 'Ticket Sales' : 'Contribution Status', style: appText(size: 13, weight: FontWeight.w700)),
-        const SizedBox(height: 12),
-        Center(
-          child: SizedBox(
-            width: 130, height: 130,
-            child: hasData
-                ? CustomPaint(
-                    painter: _DonutPainter(donutData),
-                    child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      Text('$centerNumber', style: appText(size: 22, weight: FontWeight.w800)),
-                      Text(centerLabel, style: appText(size: 10, color: AppColors.textTertiary, weight: FontWeight.w600)),
-                    ])),
-                  )
-                : Center(child: Text('No data yet', style: appText(size: 11, color: AppColors.textTertiary))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isTicketed ? 'Ticket Sales' : 'Contribution Status',
+            style: appText(size: 13, weight: FontWeight.w700),
           ),
-        ),
-        const SizedBox(height: 12),
-        for (final s in donutData) Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Row(children: [
-            Container(width: 8, height: 8, decoration: BoxDecoration(color: s.color, shape: BoxShape.circle)),
-            const SizedBox(width: 8),
-            Expanded(child: Text(s.label, style: appText(size: 11, weight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis)),
-            Text('${s.value.toInt()}', style: appText(size: 11, weight: FontWeight.w700)),
-          ]),
-        ),
-      ]),
+          const SizedBox(height: 12),
+          Center(
+            child: SizedBox(
+              width: 130,
+              height: 130,
+              child: hasData
+                  ? CustomPaint(
+                      painter: _DonutPainter(donutData),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '$centerNumber',
+                              style: appText(size: 22, weight: FontWeight.w800),
+                            ),
+                            Text(
+                              centerLabel,
+                              style: appText(
+                                size: 10,
+                                color: AppColors.textTertiary,
+                                weight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : Center(
+                      child: Text(
+                        'No data yet',
+                        style: appText(size: 11, color: AppColors.textTertiary),
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          for (final s in donutData)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: s.color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      s.label,
+                      style: appText(size: 11, weight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    '${s.value.toInt()}',
+                    style: appText(size: 11, weight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 
-  Widget _revenueSummaryCard(double totalRevenue, double ticketRev, double contribRev) {
+  Widget _revenueSummaryCard(
+    double totalRevenue,
+    double ticketRev,
+    double contribRev,
+  ) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -727,33 +1361,176 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.borderLight),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Revenue Summary', style: appText(size: 13, weight: FontWeight.w700)),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: Text('Total Revenue', style: appText(size: 11, color: AppColors.textTertiary, weight: FontWeight.w600))),
-        ]),
-        const SizedBox(height: 4),
-        FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
-          child: Text('${getActiveCurrency()} ${_compactMoney(totalRevenue)}', style: appText(size: 18, weight: FontWeight.w800))),
-        const SizedBox(height: 12),
-        Container(height: 1, color: AppColors.borderLight),
-        const SizedBox(height: 10),
-        _revRow('Tickets', '${getActiveCurrency()} ${_compactMoney(ticketRev)}'),
-        Container(height: 1, color: AppColors.borderLight, margin: const EdgeInsets.symmetric(vertical: 8)),
-        _revRow('Contributions', '${getActiveCurrency()} ${_compactMoney(contribRev)}'),
-        Container(height: 1, color: AppColors.borderLight, margin: const EdgeInsets.symmetric(vertical: 8)),
-        _revRow('Sponsors', '${getActiveCurrency()} ${_compactMoney(_sponsorRevenue)}'),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Revenue Summary',
+            style: appText(size: 13, weight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Total Revenue',
+                  style: appText(
+                    size: 11,
+                    color: AppColors.textTertiary,
+                    weight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '${getActiveCurrency()} ${_compactMoney(totalRevenue)}',
+              style: appText(size: 18, weight: FontWeight.w800),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(height: 1, color: AppColors.borderLight),
+          const SizedBox(height: 10),
+          _revRow(
+            'Tickets',
+            '${getActiveCurrency()} ${_compactMoney(ticketRev)}',
+          ),
+          Container(
+            height: 1,
+            color: AppColors.borderLight,
+            margin: const EdgeInsets.symmetric(vertical: 8),
+          ),
+          _revRow(
+            'Contributions',
+            '${getActiveCurrency()} ${_compactMoney(contribRev)}',
+          ),
+          Container(
+            height: 1,
+            color: AppColors.borderLight,
+            margin: const EdgeInsets.symmetric(vertical: 8),
+          ),
+          _revRow(
+            'Sponsors',
+            '${getActiveCurrency()} ${_compactMoney(_sponsorRevenue)}',
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _revRow(String label, String value) => Row(children: [
-        Expanded(child: Text(label, style: appText(size: 11, color: AppColors.textSecondary, weight: FontWeight.w600))),
-        Text(value, style: appText(size: 11, weight: FontWeight.w700)),
-      ]);
+  Widget _revRow(String label, String value) => Row(
+    children: [
+      Expanded(
+        child: Text(
+          label,
+          style: appText(
+            size: 11,
+            color: AppColors.textSecondary,
+            weight: FontWeight.w600,
+          ),
+        ),
+      ),
+      Text(value, style: appText(size: 11, weight: FontWeight.w700)),
+    ],
+  );
 
-  Widget _quickAction(IconData icon, String label, VoidCallback onTap) {
+  Widget _shimmerBox({double? w, double h = 12, double r = 6}) => Container(
+    width: w,
+    height: h,
+    decoration: BoxDecoration(
+      color: const Color(0xFFEEF1F4),
+      borderRadius: BorderRadius.circular(r),
+    ),
+  );
+
+  Widget _donutSkeletonCard() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _shimmerBox(w: 100, h: 12),
+          const SizedBox(height: 14),
+          Center(
+            child: Container(
+              width: 130,
+              height: 130,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFEEF1F4), width: 16),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          for (int i = 0; i < 2; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFEEF1F4),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: _shimmerBox(h: 10)),
+                  const SizedBox(width: 8),
+                  _shimmerBox(w: 24, h: 10),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _revenueSkeletonCard() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _shimmerBox(w: 110, h: 12),
+          const SizedBox(height: 14),
+          _shimmerBox(w: 80, h: 10),
+          const SizedBox(height: 8),
+          _shimmerBox(w: 130, h: 18),
+          const SizedBox(height: 14),
+          Container(height: 1, color: AppColors.borderLight),
+          const SizedBox(height: 12),
+          for (int i = 0; i < 3; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                children: [
+                  Expanded(child: _shimmerBox(w: 60, h: 10)),
+                  _shimmerBox(w: 70, h: 10),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _quickAction(String svgAsset, String label, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -764,32 +1541,247 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppColors.borderLight),
         ),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(icon, size: 20, color: AppColors.textPrimary),
-          const SizedBox(height: 8),
-          Text(label, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: appText(size: 10, weight: FontWeight.w700, color: AppColors.textPrimary)),
-        ]),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 34, height: 34,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: SvgPicture.asset(
+                  svgAsset,
+                  width: 18, height: 18,
+                  colorFilter: const ColorFilter.mode(
+                      AppColors.textPrimary, BlendMode.srcIn),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: appText(
+                size: 10,
+                weight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  void _openMeetingsScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: Colors.white,
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            scrolledUnderElevation: 0.5,
+            leading: IconButton(
+              icon: SvgPicture.asset('assets/icons/arrow-left-icon.svg',
+                  width: 22, height: 22,
+                  colorFilter: const ColorFilter.mode(
+                      AppColors.textPrimary, BlendMode.srcIn)),
+              onPressed: () => Navigator.of(context).maybePop(),
+            ),
+            title: Text('Event Meetings',
+                style: appText(size: 16, weight: FontWeight.w700)),
+            centerTitle: true,
+            actions: [
+              IconButton(
+                icon: SvgPicture.asset('assets/icons/calendar-icon.svg',
+                    width: 22, height: 22,
+                    colorFilter: const ColorFilter.mode(
+                        AppColors.textPrimary, BlendMode.srcIn)),
+                onPressed: () => MeetingsCalendarSheet.show(
+                  context,
+                  eventId: widget.eventId,
+                  eventName: extractStr((_event ?? {})['title']),
+                  isCreator: _isCreator,
+                ),
+              ),
+              const SizedBox(width: 4),
+            ],
+          ),
+          body: EventMeetingsTab(
+            eventId: widget.eventId,
+            isCreator: _isCreator,
+            permissions: _permissions,
+            eventName: extractStr((_event ?? {})['title']),
+            eventCover: (_event ?? {})['cover_image']?.toString(),
+            eventDate: extractStr((_event ?? {})['start_date']),
+            eventLocation: extractStr((_event ?? {})['location']).isNotEmpty
+                ? extractStr((_event ?? {})['location'])
+                : extractStr((_event ?? {})['venue']),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openQuickActionsSheet() {
+    final items = <_QaItem>[
+      _QaItem('assets/icons/video-icon.svg', 'Meetings', _openMeetingsScreen),
+      _QaItem('assets/icons/calendar-icon.svg', 'Schedule',
+          () => _jumpToTab('schedule')),
+      _QaItem('assets/icons/contributors-icon.svg', 'Committee',
+          () => _jumpToTab('committee')),
+      _QaItem('assets/icons/heart-icon.svg', 'Sponsors',
+          () => _jumpToTab('sponsors')),
+      _QaItem('assets/icons/user-icon.svg', 'Guests',
+          () => _jumpToTab('guests')),
+      _QaItem('assets/icons/package-icon.svg', 'Services',
+          () => _jumpToTab('services')),
+      _QaItem('assets/icons/pen-icon.svg', 'Edit Event', _editEvent),
+      _QaItem('assets/icons/share-upload-icon.svg', 'Share Event', () {
+        if (_event != null) ShareEventToFeedSheet.show(context, _event!);
+      }),
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 38, height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E2E8),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text('Quick Actions',
+                    style: appText(size: 17, weight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Text('Jump to anywhere in this event',
+                    style: appText(
+                      size: 12,
+                      color: AppColors.textTertiary,
+                      weight: FontWeight.w500,
+                    )),
+                const SizedBox(height: 18),
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 4,
+                  mainAxisSpacing: 14,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 0.85,
+                  children: items.map((it) {
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        it.onTap();
+                      },
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 48, height: 48,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: SvgPicture.asset(
+                                it.icon,
+                                width: 22, height: 22,
+                                colorFilter: const ColorFilter.mode(
+                                    AppColors.textPrimary, BlendMode.srcIn),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            it.label,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: appText(
+                              size: 11,
+                              weight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _jumpToTab(String key) {
+    final idx = _visibleTabs.indexOf(key);
+    if (idx >= 0) {
+      _tabCtrl?.animateTo(idx.clamp(0, _visibleTabs.length - 1));
+    }
   }
 
   Widget _recentActivityCard() {
     if (_recentActivity.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.borderLight)),
-        child: Center(child: Text('No recent activity yet', style: appText(size: 12, color: AppColors.textTertiary, weight: FontWeight.w600))),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.borderLight),
+        ),
+        child: Center(
+          child: Text(
+            'No recent activity yet',
+            style: appText(
+              size: 12,
+              color: AppColors.textTertiary,
+              weight: FontWeight.w600,
+            ),
+          ),
+        ),
       );
     }
     return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.borderLight)),
-      child: Column(children: [
-        for (int i = 0; i < _recentActivity.length; i++) ...[
-          if (i > 0) Divider(height: 1, color: AppColors.borderLight),
-          _activityRow(_recentActivity[i]),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: Column(
+        children: [
+          for (int i = 0; i < _recentActivity.length; i++) ...[
+            if (i > 0) Divider(height: 1, color: AppColors.borderLight),
+            _activityRow(_recentActivity[i]),
+          ],
         ],
-      ]),
+      ),
     );
   }
 
@@ -800,7 +1792,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
     IconData icon = Icons.bolt_outlined;
     Color tint = AppColors.primary;
     if (type == 'contribution') {
-      icon = subtype == 'payment' ? Icons.payments_outlined : Icons.handshake_outlined;
+      icon = subtype == 'payment'
+          ? Icons.payments_outlined
+          : Icons.handshake_outlined;
       tint = subtype == 'payment' ? const Color(0xFF16A34A) : AppColors.primary;
     } else if (type == 'ticket') {
       icon = Icons.confirmation_number_outlined;
@@ -814,21 +1808,43 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
     }
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      child: Row(children: [
-        Container(
-          width: 34, height: 34,
-          decoration: BoxDecoration(color: tint.withOpacity(0.10), borderRadius: BorderRadius.circular(10)),
-          child: Icon(icon, size: 16, color: tint),
-        ),
-        const SizedBox(width: 10),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(a['title']?.toString() ?? 'Activity', style: appText(size: 13, weight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 2),
-          Text(_relativeTime(a['time']?.toString()), style: appText(size: 10, color: AppColors.textTertiary)),
-        ])),
-        if (amount != null) Text('${getActiveCurrency()} ${_compactMoney((amount is num) ? amount.toDouble() : double.tryParse(amount.toString()) ?? 0)}',
-            style: appText(size: 12, weight: FontWeight.w800, color: tint)),
-      ]),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: tint.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 16, color: tint),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  a['title']?.toString() ?? 'Activity',
+                  style: appText(size: 13, weight: FontWeight.w700),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _relativeTime(a['time']?.toString()),
+                  style: appText(size: 10, color: AppColors.textTertiary),
+                ),
+              ],
+            ),
+          ),
+          if (amount != null)
+            Text(
+              '${getActiveCurrency()} ${_compactMoney((amount is num) ? amount.toDouble() : double.tryParse(amount.toString()) ?? 0)}',
+              style: appText(size: 12, weight: FontWeight.w800, color: tint),
+            ),
+        ],
+      ),
     );
   }
 
@@ -845,99 +1861,203 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
   }
 
   String _compactMoney(double n) {
-    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(n >= 10000000 ? 0 : 2)}M';
+    if (n >= 1000000)
+      return '${(n / 1000000).toStringAsFixed(n >= 10000000 ? 0 : 2)}M';
     if (n >= 1000) return '${(n / 1000).toStringAsFixed(n >= 10000 ? 0 : 1)}K';
     return n.toStringAsFixed(0);
   }
 
-  Widget _cashInHandCard(double totalPaid, int paidCount, double outstanding, int collectionRate) {
+  Widget _cashInHandCard(
+    double totalPaid,
+    int paidCount,
+    double outstanding,
+    int collectionRate,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.05), borderRadius: BorderRadius.circular(16),
+        color: AppColors.primary.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.primary.withOpacity(0.2)),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(context.trw('cash_in_hand'), style: appText(size: 11, color: AppColors.textTertiary)),
-            const SizedBox(height: 4),
-            Text(formatTZS(totalPaid), style: appText(size: 22, weight: FontWeight.w800, color: AppColors.primary)),
-          ])),
-          Container(
-            width: 42, height: 42,
-            decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-            child: const Icon(Icons.check_circle_rounded, size: 22, color: AppColors.primary),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      context.trw('cash_in_hand'),
+                      style: appText(size: 11, color: AppColors.textTertiary),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      formatTZS(totalPaid),
+                      style: appText(
+                        size: 22,
+                        weight: FontWeight.w800,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.check_circle_rounded,
+                  size: 22,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
           ),
-        ]),
-        const SizedBox(height: 14),
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-          child: Row(children: [
-            Expanded(child: _cashStat('$paidCount', context.trw('paid_contributors'))),
-            Container(width: 1, height: 36, color: AppColors.border),
-            Expanded(child: _cashStat(formatTZS(outstanding), context.trw('outstanding'))),
-            Container(width: 1, height: 36, color: AppColors.border),
-            Expanded(child: _cashStat('$collectionRate%', context.trw('collection_rate'))),
-          ]),
-        ),
-      ]),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _cashStat(
+                    '$paidCount',
+                    context.trw('paid_contributors'),
+                  ),
+                ),
+                Container(width: 1, height: 36, color: AppColors.border),
+                Expanded(
+                  child: _cashStat(
+                    formatTZS(outstanding),
+                    context.trw('outstanding'),
+                  ),
+                ),
+                Container(width: 1, height: 36, color: AppColors.border),
+                Expanded(
+                  child: _cashStat(
+                    '$collectionRate%',
+                    context.trw('collection_rate'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _progressCard() {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(context.trw('event_progress'), style: appText(size: 11, color: AppColors.textTertiary)),
-        const SizedBox(height: 6),
-        Text('$_completedServices/$_totalServices ${context.trw('services')}', style: appText(size: 15, weight: FontWeight.w700)),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: _totalServices > 0 ? _completedServices / _totalServices : 0,
-            minHeight: 6, backgroundColor: AppColors.border,
-            valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.trw('event_progress'),
+            style: appText(size: 11, color: AppColors.textTertiary),
           ),
-        ),
-      ]),
+          const SizedBox(height: 6),
+          Text(
+            '$_completedServices/$_totalServices ${context.trw('services')}',
+            style: appText(size: 15, weight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: _totalServices > 0
+                  ? _completedServices / _totalServices
+                  : 0,
+              minHeight: 6,
+              backgroundColor: AppColors.border,
+              valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _sectionHeader(String title) => Text(title, style: appText(size: 15, weight: FontWeight.w700));
+  Widget _sectionHeader(String title) =>
+      Text(title, style: appText(size: 15, weight: FontWeight.w700));
 
-  Widget _financialCard({required String label, required String value, required String subtitle, required Color iconBg, required Color iconColor, required IconData icon}) {
+  Widget _financialCard({
+    required String label,
+    required String value,
+    required String subtitle,
+    required Color iconBg,
+    required Color iconColor,
+    required IconData icon,
+  }) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-      child: Row(children: [
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: appText(size: 11, color: AppColors.textTertiary)),
-          const SizedBox(height: 4),
-          Text(value, style: appText(size: 15, weight: FontWeight.w700)),
-          const SizedBox(height: 2),
-          Text(subtitle, style: appText(size: 10, color: AppColors.textTertiary)),
-        ])),
-        Container(
-          width: 36, height: 36,
-          decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(10)),
-          child: Icon(icon, size: 16, color: iconColor),
-        ),
-      ]),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: appText(size: 11, color: AppColors.textTertiary),
+                ),
+                const SizedBox(height: 4),
+                Text(value, style: appText(size: 15, weight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: appText(size: 10, color: AppColors.textTertiary),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: iconBg,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 16, color: iconColor),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _cashStat(String value, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Column(children: [
-        Text(value, style: appText(size: 14, weight: FontWeight.w700)),
-        const SizedBox(height: 2),
-        Text(label, style: appText(size: 9, color: AppColors.textTertiary), textAlign: TextAlign.center),
-      ]),
+      child: Column(
+        children: [
+          Text(value, style: appText(size: 14, weight: FontWeight.w700)),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: appText(size: 9, color: AppColors.textTertiary),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 
@@ -947,29 +2067,76 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
     final isCancelled = status == 'cancelled';
     Color c = AppColors.textTertiary;
     Color bg = const Color(0xFFF1F5F9);
-    if (isPublished) { c = const Color(0xFF15803D); bg = const Color(0xFFDCFCE7); }
-    else if (isCompleted) { c = AppColors.blue; bg = const Color(0xFFDBEAFE); }
-    else if (isCancelled) { c = AppColors.error; bg = const Color(0xFFFEE2E2); }
-    final label = status.isEmpty ? '' : status[0].toUpperCase() + status.substring(1);
+    if (isPublished) {
+      c = const Color(0xFF15803D);
+      bg = const Color(0xFFDCFCE7);
+    } else if (isCompleted) {
+      c = AppColors.blue;
+      bg = const Color(0xFFDBEAFE);
+    } else if (isCancelled) {
+      c = AppColors.error;
+      bg = const Color(0xFFFEE2E2);
+    }
+    final label = status.isEmpty
+        ? ''
+        : status[0].toUpperCase() + status.substring(1);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        if (isPublished) Padding(padding: const EdgeInsets.only(right: 3), child: Icon(Icons.check_circle, size: 11, color: c)),
-        Text(label, style: appText(size: 10, weight: FontWeight.w700, color: c)),
-      ]),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isPublished)
+            Padding(
+              padding: const EdgeInsets.only(right: 3),
+              child: Icon(Icons.check_circle, size: 11, color: c),
+            ),
+          Text(
+            label,
+            style: appText(size: 10, weight: FontWeight.w700, color: c),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _statChip(String svgAsset, String text) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border.withOpacity(0.5))),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        SvgPicture.asset(svgAsset, width: 14, height: 14, colorFilter: const ColorFilter.mode(AppColors.textSecondary, BlendMode.srcIn)),
-        const SizedBox(width: 5),
-        Flexible(child: Text(text, style: appText(size: 12, color: AppColors.textSecondary, weight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
-      ]),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border.withOpacity(0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SvgPicture.asset(
+            svgAsset,
+            width: 14,
+            height: 14,
+            colorFilter: const ColorFilter.mode(
+              AppColors.textSecondary,
+              BlendMode.srcIn,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              text,
+              style: appText(
+                size: 12,
+                color: AppColors.textSecondary,
+                weight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -978,74 +2145,255 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
     final canEdit = _permissions?['can_edit_event'] == true || isCreator;
     final status = extractStr(_event?['status'], fallback: 'draft');
     showModalBottomSheet(
-      context: context, backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      isScrollControlled: true,
       builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 40, height: 4, margin: const EdgeInsets.only(top: 12), decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
-          const SizedBox(height: 20),
-          if (canEdit) _actionTile(Icons.edit_rounded, context.trw('edit_event_btn'), () { Navigator.pop(ctx); _editEvent(); }),
-          if (isCreator) _actionTile(Icons.photo_library_outlined, context.trw('event_photo_libraries'), () {
-            Navigator.pop(ctx);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => MyPhotoLibrariesScreen(eventId: widget.eventId, title: context.trw('event_photo_libraries'))));
-          }),
-          if (isCreator && status == 'draft') _actionTile(Icons.publish_rounded, context.trw('publish_event_btn'), () { Navigator.pop(ctx); _changeStatus('published'); }),
-          if (isCreator && status == 'published') _actionTile(Icons.cancel_outlined, context.trw('cancel_event'), () { Navigator.pop(ctx); _changeStatus('cancelled'); }),
-          _actionTile(Icons.description_rounded, context.trw('event_summary_report'), () { Navigator.pop(ctx); _generateFullReport(); }),
-          _actionTile(Icons.auto_awesome_rounded, context.trw('ai_budget_assistant'), () {
-            Navigator.pop(ctx);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => BudgetAssistantScreen(
-              eventType: _event?['event_type_id']?.toString(),
-              eventTypeName: extractStr(_event?['event_type']),
-              eventTitle: extractStr(_event?['title']),
-              location: extractStr(_event?['location']),
-              expectedGuests: (_event?['expected_guests'] ?? '').toString(),
-              budget: (_event?['budget'] ?? '').toString(),
-              firstName: _currentUserName,
-              onSaveBudget: (total) {
-                final amount = double.tryParse(total);
-                if (amount != null) {
-                  EventsService.updateEvent(widget.eventId, budget: amount).then((_) => _loadEvent());
-                  AppSnackbar.success(context, 'Budget updated to ${getActiveCurrency()} $total');
-                }
+        child: SingleChildScrollView(
+          child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (canEdit)
+              _svgActionTile(
+                'assets/icons/pen-icon.svg',
+                context.trw('edit_event_btn'),
+                () {
+                  Navigator.pop(ctx);
+                  _editEvent();
+                },
+              ),
+            _svgActionTile(
+              'assets/icons/video-icon.svg',
+              'Meetings',
+              () {
+                Navigator.pop(ctx);
+                _openMeetingsScreen();
               },
-            )));
-          }),
-          if (isCreator) _actionTile(Icons.delete_outline_rounded, context.trw('delete_event'), () { Navigator.pop(ctx); _confirmDelete(); }, isDestructive: true),
-          _actionTile(Icons.share_rounded, context.trw('share_event'), () {
-            Navigator.pop(ctx);
-            if (_event != null) {
-              ShareEventToFeedSheet.show(context, _event!);
-            }
-          }),
-          const SizedBox(height: 16),
-        ]),
+            ),
+            if (_permissions?['can_send_invitations'] == true || isCreator)
+              _svgActionTile(
+                'assets/icons/send-icon.svg',
+                'Create Invitation',
+                () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EventInvitationScreen(
+                        eventId: widget.eventId,
+                        eventTypeKey: (_event?['event_type'] is Map
+                                ? (_event!['event_type']['key'] ??
+                                    _event!['event_type']['name'])
+                                : null)
+                            ?.toString()
+                            .toLowerCase(),
+                        themeColorHex: _event?['theme_color']?.toString(),
+                        eventTitle: extractStr(_event?['title']),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            if (isCreator)
+              _svgActionTile(
+                'assets/icons/photos-icon.svg',
+                context.trw('event_photo_libraries'),
+                () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => MyPhotoLibrariesScreen(
+                        eventId: widget.eventId,
+                        title: context.trw('event_photo_libraries'),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            if (isCreator && status == 'draft')
+              _svgActionTile(
+                'assets/icons/thunder-icon.svg',
+                context.trw('publish_event_btn'),
+                () {
+                  Navigator.pop(ctx);
+                  _changeStatus('published');
+                },
+              ),
+            if (isCreator && status == 'published')
+              _svgActionTile(
+                'assets/icons/close-circle-icon.svg',
+                context.trw('cancel_event'),
+                () {
+                  Navigator.pop(ctx);
+                  _changeStatus('cancelled');
+                },
+              ),
+            _svgActionTile(
+              'assets/icons/print-icon.svg',
+              context.trw('event_summary_report'),
+              () {
+                Navigator.pop(ctx);
+                _generateFullReport();
+              },
+            ),
+            _svgActionTile(
+              'assets/icons/thunder-icon.svg',
+              context.trw('ai_budget_assistant'),
+              () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => BudgetAssistantScreen(
+                      eventType: _event?['event_type_id']?.toString(),
+                      eventTypeName: extractStr(_event?['event_type']),
+                      eventTitle: extractStr(_event?['title']),
+                      location: extractStr(_event?['location']),
+                      expectedGuests: (_event?['expected_guests'] ?? '')
+                          .toString(),
+                      budget: (_event?['budget'] ?? '').toString(),
+                      firstName: _currentUserName,
+                      onSaveBudget: (total) {
+                        final amount = double.tryParse(total);
+                        if (amount != null) {
+                          EventsService.updateEvent(
+                            widget.eventId,
+                            budget: amount,
+                          ).then((_) => _loadEvent());
+                          AppSnackbar.success(
+                            context,
+                            'Budget updated to ${getActiveCurrency()} $total',
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
+            if (isCreator)
+              _svgActionTile(
+                'assets/icons/delete-icon.svg',
+                context.trw('delete_event'),
+                () {
+                  Navigator.pop(ctx);
+                  _confirmDelete();
+                },
+                isDestructive: true,
+              ),
+            _svgActionTile(
+                'assets/icons/share-upload-icon.svg',
+                context.trw('share_event'), () {
+              Navigator.pop(ctx);
+              if (_event != null) {
+                ShareEventToFeedSheet.show(context, _event!);
+              }
+            }),
+            const SizedBox(height: 16),
+          ],
+        ),
+        ),
       ),
     );
   }
 
-  Widget _actionTile(IconData icon, String label, VoidCallback onTap, {bool isDestructive = false}) {
+  Widget _svgActionTile(
+    String svgAsset,
+    String label,
+    VoidCallback onTap, {
+    bool isDestructive = false,
+  }) {
+    final color =
+        isDestructive ? AppColors.error : AppColors.textSecondary;
     return ListTile(
-      leading: Icon(icon, color: isDestructive ? AppColors.error : AppColors.textSecondary, size: 22),
-      title: Text(label, style: appText(size: 15, weight: FontWeight.w600, color: isDestructive ? AppColors.error : AppColors.textPrimary)),
+      leading: SvgPicture.asset(
+        svgAsset,
+        width: 22,
+        height: 22,
+        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+      ),
+      title: Text(
+        label,
+        style: appText(
+          size: 15,
+          weight: FontWeight.w600,
+          color: isDestructive ? AppColors.error : AppColors.textPrimary,
+        ),
+      ),
+      onTap: onTap,
+    );
+  }
+
+  Widget _actionTile(
+    IconData icon,
+    String label,
+    VoidCallback onTap, {
+    bool isDestructive = false,
+  }) {
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: isDestructive ? AppColors.error : AppColors.textSecondary,
+        size: 22,
+      ),
+      title: Text(
+        label,
+        style: appText(
+          size: 15,
+          weight: FontWeight.w600,
+          color: isDestructive ? AppColors.error : AppColors.textPrimary,
+        ),
+      ),
       onTap: onTap,
     );
   }
 
   void _editEvent() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => CreateEventScreen(editEvent: _event))).then((result) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => CreateEventScreen(editEvent: _event)),
+    ).then((result) {
       if (result == true) _loadEvent();
     });
   }
 
   void _generateFullReport() {
-    _showReportFormatPicker(context.trw('event_summary_report'), (format) async {
+    _showReportFormatPicker(context.trw('event_summary_report'), (
+      format,
+    ) async {
       AppSnackbar.success(context, context.trw('generating_report'));
-      final res = await ReportGenerator.generateEventReport(widget.eventId, format: format, eventData: _event);
+      final res = await ReportGenerator.generateEventReport(
+        widget.eventId,
+        format: format,
+        eventData: _event,
+      );
       if (!mounted) return;
       if (res['success'] == true) {
         if (format == 'pdf' && res['bytes'] != null) {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => ReportPreviewScreen(title: context.trw('event_summary_report'), pdfBytes: res['bytes'] as Uint8List, filePath: res['path'] as String?)));
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ReportPreviewScreen(
+                title: context.trw('event_summary_report'),
+                pdfBytes: res['bytes'] as Uint8List,
+                filePath: res['path'] as String?,
+              ),
+            ),
+          );
         } else if (res['path'] != null) {
           AppSnackbar.success(context, context.trw('report_saved'));
         }
@@ -1055,39 +2403,110 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
     });
   }
 
-  void _showReportFormatPicker(String title, Future<void> Function(String format) onSelect) {
+  void _showReportFormatPicker(
+    String title,
+    Future<void> Function(String format) onSelect,
+  ) {
     showModalBottomSheet(
-      context: context, backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 40, height: 4, margin: const EdgeInsets.only(top: 12), decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
-          const SizedBox(height: 16),
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: Text(title, style: appText(size: 16, weight: FontWeight.w700))),
-          const SizedBox(height: 16),
-          ListTile(
-            leading: Container(width: 40, height: 40, decoration: BoxDecoration(color: const Color(0xFFFEE2E2), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.picture_as_pdf_rounded, size: 20, color: Color(0xFFDC2626))),
-            title: Text(context.trw('pdf_report'), style: appText(size: 14, weight: FontWeight.w600)),
-            subtitle: Text(context.trw('preview_and_share'), style: appText(size: 12, color: AppColors.textTertiary)),
-            onTap: () { Navigator.pop(ctx); onSelect('pdf'); },
-          ),
-          ListTile(
-            leading: Container(width: 40, height: 40, decoration: BoxDecoration(color: const Color(0xFFDCFCE7), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.table_chart_rounded, size: 20, color: Color(0xFF16A34A))),
-            title: Text(context.trw('excel_report'), style: appText(size: 14, weight: FontWeight.w600)),
-            subtitle: Text(context.trw('open_in_spreadsheet'), style: appText(size: 12, color: AppColors.textTertiary)),
-            onTap: () { Navigator.pop(ctx); onSelect('xlsx'); },
-          ),
-          const SizedBox(height: 20),
-        ]),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                title,
+                style: appText(size: 16, weight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.picture_as_pdf_rounded,
+                  size: 20,
+                  color: Color(0xFFDC2626),
+                ),
+              ),
+              title: Text(
+                context.trw('pdf_report'),
+                style: appText(size: 14, weight: FontWeight.w600),
+              ),
+              subtitle: Text(
+                context.trw('preview_and_share'),
+                style: appText(size: 12, color: AppColors.textTertiary),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                onSelect('pdf');
+              },
+            ),
+            ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDCFCE7),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.table_chart_rounded,
+                  size: 20,
+                  color: Color(0xFF16A34A),
+                ),
+              ),
+              title: Text(
+                context.trw('excel_report'),
+                style: appText(size: 14, weight: FontWeight.w600),
+              ),
+              subtitle: Text(
+                context.trw('open_in_spreadsheet'),
+                style: appText(size: 12, color: AppColors.textTertiary),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                onSelect('xlsx');
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
 
   Future<void> _changeStatus(String newStatus) async {
-    final res = await EventsService.updateEventStatus(widget.eventId, newStatus);
+    final res = await EventsService.updateEventStatus(
+      widget.eventId,
+      newStatus,
+    );
     if (mounted) {
       if (res['success'] == true) {
-        AppSnackbar.success(context, 'Event ${newStatus == 'published' ? 'published' : 'cancelled'}');
+        AppSnackbar.success(
+          context,
+          'Event ${newStatus == 'published' ? 'published' : 'cancelled'}',
+        );
         _loadEvent();
       } else {
         AppSnackbar.error(context, res['message'] ?? 'Failed');
@@ -1100,20 +2519,47 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(context.trw('delete_event_confirm'), style: appText(size: 18, weight: FontWeight.w700)),
-        content: Text(context.trw('action_cannot_undone'), style: appText(size: 14, color: AppColors.textSecondary)),
+        title: Text(
+          context.trw('delete_event_confirm'),
+          style: appText(size: 18, weight: FontWeight.w700),
+        ),
+        content: Text(
+          context.trw('action_cannot_undone'),
+          style: appText(size: 14, color: AppColors.textSecondary),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(context.trw('cancel'), style: appText(size: 14, weight: FontWeight.w600, color: AppColors.textSecondary))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              context.trw('cancel'),
+              style: appText(
+                size: 14,
+                weight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
               final res = await EventsService.deleteEvent(widget.eventId);
               if (mounted) {
-                if (res['success'] == true) { AppSnackbar.success(context, context.trw('event_deleted')); Navigator.pop(context); }
-                else { AppSnackbar.error(context, res['message'] ?? 'Failed'); }
+                if (res['success'] == true) {
+                  AppSnackbar.success(context, context.trw('event_deleted'));
+                  Navigator.pop(context);
+                } else {
+                  AppSnackbar.error(context, res['message'] ?? 'Failed');
+                }
               }
             },
-            child: Text(context.trw('delete'), style: appText(size: 14, weight: FontWeight.w700, color: AppColors.error)),
+            child: Text(
+              context.trw('delete'),
+              style: appText(
+                size: 14,
+                weight: FontWeight.w700,
+                color: AppColors.error,
+              ),
+            ),
           ),
         ],
       ),
@@ -1123,7 +2569,20 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
   String _formatDate(String dateStr) {
     try {
       final d = DateTime.parse(dateStr);
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
       const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       return '${weekdays[d.weekday - 1]}, ${months[d.month - 1]} ${d.day}, ${d.year}';
     } catch (_) {
@@ -1135,10 +2594,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> with TickerProvid
 class _TabBarDelegate extends SliverPersistentHeaderDelegate {
   final PreferredSizeWidget tabBar;
   _TabBarDelegate(this.tabBar);
-  @override double get minExtent => tabBar.preferredSize.height;
-  @override double get maxExtent => tabBar.preferredSize.height;
-  @override Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) => Container(color: AppColors.surface, child: tabBar);
-  @override bool shouldRebuild(covariant _TabBarDelegate oldDelegate) => false;
+  @override
+  double get minExtent => tabBar.preferredSize.height;
+  @override
+  double get maxExtent => tabBar.preferredSize.height;
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) => Container(color: AppColors.surface, child: tabBar);
+  @override
+  bool shouldRebuild(covariant _TabBarDelegate oldDelegate) => false;
 }
 
 /// Vendor-bookings style underline tabs — black bold active label with yellow bar.
@@ -1155,41 +2622,105 @@ class _UnderlineTabs extends StatefulWidget implements PreferredSizeWidget {
 
 class _UnderlineTabsState extends State<_UnderlineTabs> {
   late int _active;
+  final ScrollController _scrollCtrl = ScrollController();
+  final List<GlobalKey> _tabKeys = [];
+
   @override
   void initState() {
     super.initState();
     _active = widget.controller.index;
+    _ensureKeys();
     widget.controller.addListener(_onTab);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _scrollActiveIntoView(),
+    );
   }
+
+  void _ensureKeys() {
+    while (_tabKeys.length < widget.labels.length) _tabKeys.add(GlobalKey());
+  }
+
   void _onTab() {
     if (!mounted) return;
-    if (widget.controller.indexIsChanging || widget.controller.index != _active) {
+    if (widget.controller.indexIsChanging ||
+        widget.controller.index != _active) {
       setState(() => _active = widget.controller.index);
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _scrollActiveIntoView(),
+      );
     }
   }
+
+  void _scrollActiveIntoView() {
+    if (!mounted || _active >= _tabKeys.length) return;
+    final ctx = _tabKeys[_active].currentContext;
+    if (ctx == null || !_scrollCtrl.hasClients) return;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final viewportWidth = _scrollCtrl.position.viewportDimension;
+    final tabOffset = box
+        .localToGlobal(Offset.zero, ancestor: context.findRenderObject())
+        .dx;
+    final tabWidth = box.size.width;
+    final currentScroll = _scrollCtrl.offset;
+    final tabCenterAbs = currentScroll + tabOffset + tabWidth / 2;
+    final target = (tabCenterAbs - viewportWidth / 2).clamp(
+      _scrollCtrl.position.minScrollExtent,
+      _scrollCtrl.position.maxScrollExtent,
+    );
+    _scrollCtrl.animateTo(
+      target,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _UnderlineTabs oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _ensureKeys();
+  }
+
   @override
   void dispose() {
     widget.controller.removeListener(_onTab);
+    _scrollCtrl.dispose();
     super.dispose();
   }
+
   @override
   Widget build(BuildContext context) {
+    _ensureKeys();
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surface,
-        border: Border(bottom: BorderSide(color: AppColors.borderLight, width: 1)),
+        border: Border(
+          bottom: BorderSide(color: AppColors.borderLight, width: 1),
+        ),
       ),
       child: SingleChildScrollView(
+        controller: _scrollCtrl,
         scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 8),
         child: Row(
           children: List.generate(widget.labels.length, (i) {
             final selected = i == _active;
             return GestureDetector(
+              key: _tabKeys[i],
               behavior: HitTestBehavior.opaque,
-              onTap: () { widget.controller.animateTo(i); setState(() => _active = i); },
+              onTap: () {
+                widget.controller.animateTo(i);
+                setState(() => _active = i);
+                WidgetsBinding.instance.addPostFrameCallback(
+                  (_) => _scrollActiveIntoView(),
+                );
+              },
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 child: IntrinsicWidth(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1201,14 +2732,18 @@ class _UnderlineTabsState extends State<_UnderlineTabs> {
                         style: appText(
                           size: 13,
                           weight: selected ? FontWeight.w700 : FontWeight.w500,
-                          color: selected ? AppColors.textPrimary : AppColors.textTertiary,
+                          color: selected
+                              ? AppColors.textPrimary
+                              : AppColors.textTertiary,
                         ),
                       ),
                       const SizedBox(height: 6),
                       Container(
                         height: 3,
                         decoration: BoxDecoration(
-                          color: selected ? AppColors.primary : Colors.transparent,
+                          color: selected
+                              ? AppColors.primary
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -1250,7 +2785,8 @@ class _EventGroupCtaState extends State<_EventGroupCta> {
     setState(() {
       _loading = false;
       _group = (res['success'] == true && res['data'] is Map<String, dynamic>)
-          ? res['data'] as Map<String, dynamic> : null;
+          ? res['data'] as Map<String, dynamic>
+          : null;
     });
   }
 
@@ -1262,11 +2798,17 @@ class _EventGroupCtaState extends State<_EventGroupCta> {
     setState(() => _busy = false);
     final id = res['data']?['id']?.toString();
     if (id != null) {
-      Navigator.push(context, MaterialPageRoute(
-        builder: (_) => EventGroupWorkspaceScreen(groupId: id),
-      )).then((_) => _refresh());
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => EventGroupWorkspaceScreen(groupId: id),
+        ),
+      ).then((_) => _refresh());
     } else {
-      AppSnackbar.error(context, res['message']?.toString() ?? 'Could not create group');
+      AppSnackbar.error(
+        context,
+        res['message']?.toString() ?? 'Could not create group',
+      );
     }
   }
 
@@ -1281,54 +2823,104 @@ class _EventGroupCtaState extends State<_EventGroupCta> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppColors.primary.withOpacity(0.12), AppColors.primary.withOpacity(0.04)],
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary.withOpacity(0.12),
+            AppColors.primary.withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.primary.withOpacity(0.25)),
       ),
-      child: Row(children: [
-        Container(
-          width: 44, height: 44,
-          decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.18), borderRadius: BorderRadius.circular(12)),
-          child: Icon(Icons.chat_bubble_rounded, color: AppColors.primary, size: 22),
-        ),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(hasGroup ? 'Group Chat' : 'Create the Group Chat',
-            style: appText(size: 14, weight: FontWeight.w700, color: AppColors.textPrimary)),
-          const SizedBox(height: 2),
-          Text(hasGroup
-              ? '$memberCount members${unread > 0 ? " · $unread unread" : ""}'
-              : 'Private chat for your organizer team, committee and contributors — with a live contribution scoreboard.',
-            style: appText(size: 11, color: AppColors.textSecondary, height: 1.4)),
-        ])),
-        const SizedBox(width: 8),
-        ElevatedButton(
-          onPressed: _busy ? null : _createOrOpen,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary, foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), elevation: 0,
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            child: SvgPicture.asset(
+              'assets/icons/group-chat-icon.svg',
+              width: 22,
+              height: 22,
+              colorFilter: const ColorFilter.mode(
+                AppColors.primary,
+                BlendMode.srcIn,
+              ),
+            ),
           ),
-          child: _busy
-              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : Text(hasGroup ? 'Open' : 'Create',
-                  style: appText(size: 12, weight: FontWeight.w700, color: Colors.white)),
-        ),
-      ]),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasGroup ? 'Group Chat' : 'Create the Group Chat',
+                  style: appText(
+                    size: 14,
+                    weight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  hasGroup
+                      ? '$memberCount members${unread > 0 ? " · $unread unread" : ""}'
+                      : 'Private chat for your organizer team, committee and contributors — with a live contribution scoreboard.',
+                  style: appText(
+                    size: 11,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: _busy ? null : _createOrOpen,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              elevation: 0,
+            ),
+            child: _busy
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Text(
+                    hasGroup ? 'Open' : 'Create',
+                    style: appText(
+                      size: 12,
+                      weight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
-
-
 
 // ─── Donut chart helpers ─────────────────────────────────────────
 class _DonutSlice {
   final String label;
   final double value;
   final Color color;
-  const _DonutSlice({required this.label, required this.value, required this.color});
+  const _DonutSlice({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 }
 
 class _DonutPainter extends CustomPainter {
@@ -1339,7 +2931,12 @@ class _DonutPainter extends CustomPainter {
     final total = slices.fold<double>(0, (a, b) => a + b.value);
     if (total <= 0) return;
     final stroke = 16.0;
-    final rect = Rect.fromLTWH(stroke / 2, stroke / 2, size.width - stroke, size.height - stroke);
+    final rect = Rect.fromLTWH(
+      stroke / 2,
+      stroke / 2,
+      size.width - stroke,
+      size.height - stroke,
+    );
     // Background ring
     final bg = Paint()
       ..color = const Color(0xFFF1F5F9)
@@ -1361,5 +2958,13 @@ class _DonutPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _DonutPainter oldDelegate) => oldDelegate.slices != slices;
+  bool shouldRepaint(covariant _DonutPainter oldDelegate) =>
+      oldDelegate.slices != slices;
+}
+
+class _QaItem {
+  final String icon;
+  final String label;
+  final VoidCallback onTap;
+  const _QaItem(this.icon, this.label, this.onTap);
 }

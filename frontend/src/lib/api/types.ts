@@ -351,6 +351,9 @@ export interface UserService {
   service_category?: ServiceCategory;
   service_type_id?: string;
   service_type?: ServiceType;
+  /** All linked service types (multi). Backed by user_service_types join table. */
+  service_type_ids?: string[];
+  service_types?: Array<{ id: string; name: string }>;
   min_price?: number;
   max_price?: number;
   currency?: string;

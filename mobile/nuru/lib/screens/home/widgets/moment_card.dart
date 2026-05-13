@@ -6,10 +6,12 @@ import 'package:share_plus/share_plus.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/social_service.dart';
+import '../../../core/services/feed_interaction_tracker.dart';
 import '../../../core/widgets/nuru_video_player.dart';
 import '../../../core/widgets/image_gallery_viewer.dart';
 import '../../../core/widgets/video_thumbnail_image.dart';
 import '../../events/event_public_view_screen.dart';
+import '../../../core/widgets/event_cover_image.dart';
 import '../../../core/l10n/l10n_helper.dart';
 
 /// Feed post card — clean, modern white card with subtle border
@@ -37,6 +39,26 @@ class _MomentCardState extends State<MomentCard> {
     _glowed = widget.post['has_glowed'] == true;
     _glowCount = (widget.post['glow_count'] ?? 0) as int;
     _saved = widget.post['has_saved'] == true;
+  }
+
+  @override
+  void didUpdateWidget(covariant MomentCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // When the parent passes refreshed post data (e.g. after a silent feed
+    // refresh that re-hydrates `has_glowed` / `has_saved` from the server),
+    // sync the local optimistic state — but never overwrite an in-flight
+    // glow/save toggle.
+    if (_glowing || _saving) return;
+    final newGlowed = widget.post['has_glowed'] == true;
+    final newGlowCount = (widget.post['glow_count'] ?? _glowCount) as int;
+    final newSaved = widget.post['has_saved'] == true;
+    if (newGlowed != _glowed || newGlowCount != _glowCount || newSaved != _saved) {
+      setState(() {
+        _glowed = newGlowed;
+        _glowCount = newGlowCount;
+        _saved = newSaved;
+      });
+    }
   }
 
   String get _authorName {
@@ -109,10 +131,31 @@ class _MomentCardState extends State<MomentCard> {
     });
     try {
       final postId = widget.post['id'].toString();
+      Map<String, dynamic> res;
       if (wasGlowed) {
-        await SocialService.unglowPost(postId);
+        res = await SocialService.unglowPost(postId);
+        FeedInteractionTracker.log(postId, 'unglow');
       } else {
-        await SocialService.glowPost(postId);
+        res = await SocialService.glowPost(postId);
+        FeedInteractionTracker.log(postId, 'glow');
+      }
+      // Reconcile with server's authoritative state. Prevents drift when the
+      // server treats the call as a no-op (e.g. duplicate glow) or when the
+      // count differs from our local guess.
+      final data = res['data'];
+      if (res['success'] == true && data is Map) {
+        final serverGlowed = data['has_glowed'] == true;
+        final serverCount = (data['glow_count'] ?? _glowCount) as int;
+        if (mounted && (serverGlowed != _glowed || serverCount != _glowCount)) {
+          setState(() {
+            _glowed = serverGlowed;
+            _glowCount = serverCount;
+          });
+        }
+        // Mirror authoritative state back into the post map so parent
+        // widgets (detail modal, cached feed) read the correct values.
+        widget.post['has_glowed'] = serverGlowed;
+        widget.post['glow_count'] = serverCount;
       }
     } catch (_) {
       if (mounted) {
@@ -291,6 +334,9 @@ class _MomentCardState extends State<MomentCard> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 360),
               child: CachedNetworkImage(imageUrl: images[0], width: double.infinity, fit: BoxFit.contain,
+                fadeInDuration: Duration.zero, fadeOutDuration: Duration.zero, placeholderFadeInDuration: Duration.zero,
+                useOldImageOnUrlChange: true,
+                placeholder: (_, __) => const SizedBox.shrink(),
                 errorWidget: (_, __, ___) => Container(height: 200, color: AppColors.surfaceVariant,
                   child: Center(child: SvgPicture.asset('assets/icons/broken-image-icon.svg', width: 24, height: 24,
                     colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn))))),
@@ -373,6 +419,11 @@ class _MomentCardState extends State<MomentCard> {
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
+      fadeInDuration: Duration.zero,
+      fadeOutDuration: Duration.zero,
+      placeholderFadeInDuration: Duration.zero,
+      useOldImageOnUrlChange: true,
+      placeholder: (_, __) => const SizedBox.shrink(),
       errorWidget: (_, __, ___) => Container(color: AppColors.surfaceVariant),
     );
   }
@@ -423,25 +474,31 @@ class _MomentCardState extends State<MomentCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (eventImages.isNotEmpty)
-                  Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: const BorderRadius.only(topLeft: Radius.circular(11), topRight: Radius.circular(11)),
-                        child: CachedNetworkImage(imageUrl: eventImages[0], height: 160, width: double.infinity, fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => Container(height: 160, color: AppColors.surfaceVariant)),
-                      ),
-                      if (eventType.isNotEmpty)
-                        Positioned(
-                          top: 10, left: 10,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(6)),
-                            child: Text(eventType.toString(), style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.white, height: 1.0)),
-                          ),
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: const BorderRadius.only(topLeft: Radius.circular(11), topRight: Radius.circular(11)),
+                      child: SizedBox(
+                        height: 160,
+                        width: double.infinity,
+                        child: EventCoverImage(
+                          event: event,
+                          url: eventImages.isNotEmpty ? eventImages[0] : null,
+                          fit: BoxFit.cover,
                         ),
-                    ],
-                  ),
+                      ),
+                    ),
+                    if (eventType.isNotEmpty)
+                      Positioned(
+                        top: 10, left: 10,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(6)),
+                          child: Text(eventType.toString(), style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.white, height: 1.0)),
+                        ),
+                      ),
+                  ],
+                ),
                 Padding(
                   padding: const EdgeInsets.all(14),
                   child: Column(

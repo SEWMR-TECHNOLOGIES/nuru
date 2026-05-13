@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -405,7 +406,7 @@ class _PostDetailModalState extends State<PostDetailModal> {
             child: SizedBox(
               width: 40, height: 40,
               child: hasAvatar
-                  ? Image.network(avatar!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _initialsCircle(_authorName))
+                  ? CachedNetworkImage(imageUrl: avatar!, fit: BoxFit.cover, errorWidget: (_, __, ___) => _initialsCircle(_authorName))
                   : _initialsCircle(_authorName),
             ),
           ),
@@ -467,8 +468,8 @@ class _PostDetailModalState extends State<PostDetailModal> {
           borderRadius: BorderRadius.circular(12),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 400),
-            child: Image.network(images[0], width: double.infinity, fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => Container(height: 200, color: AppColors.surfaceVariant)),
+            child: CachedNetworkImage(imageUrl: images[0], width: double.infinity, fit: BoxFit.contain,
+              errorWidget: (_, __, ___) => Container(height: 200, color: AppColors.surfaceVariant)),
           ),
         ),
       );
@@ -487,8 +488,8 @@ class _PostDetailModalState extends State<PostDetailModal> {
             onTap: () => openAt(i),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.network(images[i], width: 200, height: 200, fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(width: 200, height: 200, color: AppColors.surfaceVariant)),
+              child: CachedNetworkImage(imageUrl: images[i], width: 200, height: 200, fit: BoxFit.cover,
+                errorWidget: (_, __, ___) => Container(width: 200, height: 200, color: AppColors.surfaceVariant)),
             ),
           );
         },
@@ -622,7 +623,7 @@ class _EchoItemWidgetState extends State<_EchoItemWidget> {
                   child: SizedBox(
                     width: 32, height: 32,
                     child: hasAvatar
-                        ? Image.network(_avatar!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _initialsFallback())
+                        ? CachedNetworkImage(imageUrl: _avatar!, fit: BoxFit.cover, errorWidget: (_, __, ___) => _initialsFallback())
                         : _initialsFallback(),
                   ),
                 ),

@@ -9,6 +9,7 @@ import 'dart:io' show Platform;
 
 import 'api_base.dart';
 import 'secure_token_storage.dart';
+import '../../screens/meetings/meeting_details_screen.dart';
 
 /// Top-level background handler — required by FCM. Must be a top-level fn.
 @pragma('vm:entry-point')
@@ -131,24 +132,54 @@ class PushNotificationService {
     }
   }
 
+  /// Return the current FCM token (cached or freshly fetched). Used at
+  /// logout time so callers can pass it to /auth/logout for cleanup.
+  Future<String?> currentToken() async {
+    if (_lastToken != null && _lastToken!.isNotEmpty) return _lastToken;
+    try {
+      final t = await FirebaseMessaging.instance.getToken();
+      if (t != null && t.isNotEmpty) _lastToken = t;
+      return t;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Unregister the current device on logout.
   Future<void> unregister() async {
-    if (_lastToken == null) return;
+    // Resolve the token even if registerWithBackend was never called this
+    // session (e.g. user opened the app already-logged-in and now signs out).
+    String? token = _lastToken;
+    try {
+      token ??= await FirebaseMessaging.instance.getToken();
+    } catch (_) {}
+    if (token == null || token.isEmpty) return;
+
     try {
       await http.delete(
         Uri.parse('${ApiBase.baseUrl}/calls/devices'),
         headers: await ApiBase.headers(),
         body: jsonEncode({
           'platform': Platform.isIOS ? 'ios' : 'android',
-          'token': _lastToken,
+          'token': token,
         }),
       );
     } catch (_) {}
+
+    // Force FCM to mint a fresh token on next login so the *new* user
+    // never inherits the previous user's token mapping on this device.
+    try {
+      await FirebaseMessaging.instance.deleteToken();
+    } catch (_) {}
+    _lastToken = null;
   }
 
   Future<void> _registerToken(String token) async {
     final auth = await SecureTokenStorage.getToken();
-    if (auth == null) return; // not signed in yet
+    if (auth == null) {
+      debugPrint('[push] skip register — no auth token (user not signed in yet)');
+      return;
+    }
     try {
       final res = await http.post(
         Uri.parse('${ApiBase.baseUrl}/calls/devices'),
@@ -159,9 +190,14 @@ class PushNotificationService {
           'kind': 'fcm',
         }),
       );
-      debugPrint('[push] device register status=${res.statusCode}');
+      final ok = res.statusCode >= 200 && res.statusCode < 300;
+      final preview = res.body.length > 160
+          ? '${res.body.substring(0, 160)}…'
+          : res.body;
+      debugPrint('[push] device register status=${res.statusCode} ok=$ok '
+          'token=${_redact(token)} body=$preview');
     } catch (e) {
-      debugPrint('[push] device register failed: $e');
+      debugPrint('[push] device register failed: $e (token=${_redact(token)})');
     }
   }
 
@@ -250,6 +286,20 @@ class PushNotificationService {
         final ref = (data['reference_id'] ?? '').toString();
         if (ref.isNotEmpty) {
           nav.pushNamed('/event', arguments: {'event_id': ref});
+        } else {
+          nav.pushNamed('/notifications');
+        }
+        break;
+      case 'meeting':
+      case 'meeting_invite':
+      case 'meeting_starting':
+      case 'meeting_reminder':
+        final eventId = (data['event_id'] ?? '').toString();
+        final meetingId = (data['meeting_id'] ?? data['reference_id'] ?? '').toString();
+        if (eventId.isNotEmpty && meetingId.isNotEmpty) {
+          nav.push(MaterialPageRoute(builder: (_) => MeetingDetailsScreen(
+            eventId: eventId, meetingId: meetingId,
+          )));
         } else {
           nav.pushNamed('/notifications');
         }
