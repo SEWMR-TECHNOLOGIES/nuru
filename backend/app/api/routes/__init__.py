@@ -59,6 +59,7 @@ from .event_sponsors import router as event_sponsors_router
 from .event_invitation_templates import router as event_invitation_templates_router
 from .account_deletion import router as account_deletion_router
 from .admin_account_deletion import router as admin_account_deletion_router
+from .offline_payments import router as offline_payments_router
 
 # All routers to be included in main app
 all_routers = [
@@ -119,6 +120,8 @@ all_routers = [
     event_invitation_templates_router,  # /events/.../invitation-templates + /invites/{id}/card
     account_deletion_router,            # /account-deletion/submit (public)
     admin_account_deletion_router,      # /admin/account-deletion/...
+    offline_payments_router,            # /user-events/.../offline-payments
+
 ]
 
 __all__ = [

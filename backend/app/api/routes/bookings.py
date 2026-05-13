@@ -298,6 +298,21 @@ def cancel_booking(booking_id: str, body: dict = Body(default={}), db: Session =
     b.status = "cancelled"
     b.vendor_notes = body.get("reason") or b.vendor_notes
     b.updated_at = datetime.now(EAT)
+
+    # Cascade to the linked EventService so the organiser's services tab reflects the cancellation.
+    if b.event_id and b.user_service_id:
+        try:
+            from models.enums import EventServiceStatusEnum
+            es = db.query(EventService).filter(
+                EventService.event_id == b.event_id,
+                EventService.provider_user_service_id == b.user_service_id,
+            ).first()
+            if es:
+                es.service_status = EventServiceStatusEnum.cancelled
+                es.updated_at = datetime.now(EAT)
+        except Exception:
+            pass
+
     db.commit()
 
     return standard_response(True, "Booking cancelled", {
@@ -369,7 +384,7 @@ def respond_to_booking(booking_id: str, body: dict = Body(...), db: Session = De
                 # SMS fallback
                 if requester and requester.phone:
                     from utils.sms import _send
-                    _send(requester.phone, f"Hello {requester.first_name}, {current_user.first_name} {current_user.last_name} has confirmed your booking for {service_name} at {event_name}. Open Nuru for details.")
+                    _send(requester.phone, f"NURU BOOKING\nHello {requester.first_name}, great news — {current_user.first_name} {current_user.last_name} has accepted your booking for \"{service_name}\" at {event_name}. Open Nuru to see the next steps.")
             elif new_status == "rejected":
                 from utils.notify import notify_booking_rejected
                 notify_booking_rejected(db, b.requester_user_id, current_user.id, b.event_id, event_name, service_name)

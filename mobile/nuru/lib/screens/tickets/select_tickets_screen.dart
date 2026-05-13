@@ -6,8 +6,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/text_styles.dart';
 import '../../core/services/ticketing_service.dart';
+import '../../core/services/wallet_service.dart';
 import '../../core/widgets/nuru_loader.dart';
-import '../wallet/checkout_sheet.dart';
+import '../wallet/make_payment_screen.dart';
 
 /// Full-screen ticket selection page (replaces the old bottom sheet).
 /// Mirrors the "Select Tickets" mockup: header with back + Secure Checkout,
@@ -45,8 +46,11 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
   String? _approvalStatus;
   // Map<classId, quantity>
   final Map<String, int> _quantities = {};
-  // Service fee in TZS — keep simple flat fee, change later if backend exposes it
-  static const double _serviceFee = 2000;
+  // Service fee resolved from backend `/payments/fee-preview` (per-country
+  // CommissionSetting). Falls back to 0 until loaded.
+  double _serviceFee = 0;
+  bool _feeLoading = false;
+  String _feeCurrency = '';
 
   @override
   void initState() {
@@ -66,6 +70,33 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
           _isOwner = data['is_owner'] == true;
           _approvalStatus = data['ticket_approval_status']?.toString();
         }
+      }
+    });
+    _loadFee();
+  }
+
+  Future<void> _loadFee() async {
+    if (_feeLoading) return;
+    setState(() => _feeLoading = true);
+    final currency = getActiveCurrency();
+    final country = currency == 'KES' ? 'KE' : 'TZ';
+    // Use a nominal gross of 1 — backend fee is currently a flat per-tx
+    // CommissionSetting; the amount only matters for percentage models.
+    final res = await WalletService.feePreview(
+      countryCode: country,
+      currencyCode: currency,
+      targetType: 'event_ticket',
+      grossAmount: 1,
+    );
+    if (!mounted) return;
+    setState(() {
+      _feeLoading = false;
+      if (res['success'] == true && res['data'] is Map) {
+        final d = res['data'] as Map;
+        _serviceFee = (d['commission_amount'] as num?)?.toDouble() ?? 0;
+        _feeCurrency = (d['currency_code'] ?? currency).toString();
+      } else {
+        _feeCurrency = currency;
       }
     });
   }
@@ -114,26 +145,32 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
         ? data['total_amount'] as num
         : num.tryParse(data['total_amount']?.toString() ?? '') ?? _grandTotal;
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => CheckoutSheet(
-        targetType: 'event_ticket',
-        targetId: pendingTicketId,
-        amount: totalAmount,
-        allowBank: false,
-        title: 'Tickets for ${widget.eventName}',
-        description: '$_totalQty ticket${_totalQty > 1 ? "s" : ""} • ${widget.eventName}',
-        onSuccess: (_) {
-          if (mounted) {
-            Navigator.pop(context);
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Payment confirmed — your ticket is now issued.'),
-            ));
-          }
-        },
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MakePaymentScreen(
+          targetType: 'event_ticket',
+          targetId: pendingTicketId,
+          amount: totalAmount,
+          allowBank: false,
+          title: 'Tickets for ${widget.eventName}',
+          description: '$_totalQty ticket${_totalQty > 1 ? "s" : ""} • ${widget.eventName}',
+          summaryImageUrl: widget.coverImage,
+          summarySubtitle: '$_totalQty ticket${_totalQty > 1 ? "s" : ""}',
+          summaryMeta: [widget.startDate, widget.startTime]
+              .where((s) => s != null && s.toString().trim().isNotEmpty)
+              .join(' • '),
+          showFee: true,
+          onSuccess: (_) {
+            if (mounted) {
+              Navigator.pop(context);
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('Payment confirmed — your ticket is now issued.'),
+              ));
+            }
+          },
+        ),
       ),
     );
   }

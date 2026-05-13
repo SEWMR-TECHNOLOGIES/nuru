@@ -16,7 +16,7 @@ class IdentityVerificationScreen extends StatefulWidget {
   State<IdentityVerificationScreen> createState() => _IdentityVerificationScreenState();
 }
 
-enum _Slot { idFront, idBack, selfie }
+enum _Slot { idFront, idBack }
 
 class _IdentityVerificationScreenState extends State<IdentityVerificationScreen> {
   static const _maxBytes = 5 * 1024 * 1024;
@@ -29,8 +29,6 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
 
   String? _idFrontPath;
   String? _idBackPath;
-  String? _selfiePath;
-  final _docNumberCtrl = TextEditingController();
 
   final _picker = ImagePicker();
 
@@ -42,7 +40,6 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
 
   @override
   void dispose() {
-    _docNumberCtrl.dispose();
     super.dispose();
   }
 
@@ -116,7 +113,6 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
         switch (slot) {
           case _Slot.idFront: _idFrontPath = picked.path; break;
           case _Slot.idBack: _idBackPath = picked.path; break;
-          case _Slot.selfie: _selfiePath = picked.path; break;
         }
       });
     } catch (_) {
@@ -156,12 +152,16 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
       AppSnackbar.error(context, 'Please upload the front of your ID');
       return;
     }
+    if (_idBackPath == null) {
+      AppSnackbar.error(context, 'Please upload the back of your ID');
+      return;
+    }
     setState(() => _submitting = true);
     final res = await EventExtrasService.submitVerification(
-      documentNumber: _docNumberCtrl.text,
+      documentNumber: '',
       idFrontPath: _idFrontPath!,
       idBackPath: _idBackPath,
-      selfiePath: _selfiePath,
+      selfiePath: null,
     );
     if (!mounted) return;
     setState(() => _submitting = false);
@@ -170,8 +170,6 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
         _status = 'pending';
         _idFrontPath = null;
         _idBackPath = null;
-        _selfiePath = null;
-        _docNumberCtrl.clear();
       });
       AppSnackbar.success(context, 'Verification submitted for review');
     } else {
@@ -182,7 +180,7 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
   }
 
   TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.3}) =>
-      GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color, height: height);
+      GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
 
   bool get _canEdit => _status == 'unverified' || _status == 'rejected';
 
@@ -190,9 +188,9 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
     int c = 0;
     if (_idFrontPath != null) c++;
     if (_idBackPath != null) c++;
-    if (_selfiePath != null) c++;
     return c;
   }
+  int get _requiredTotal => 2;
 
   @override
   Widget build(BuildContext context) {
@@ -231,41 +229,8 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
                   Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Expanded(child: _uploadCard('Front of ID', _idFrontPath, true, () => _pickFor(_Slot.idFront))),
                     const SizedBox(width: 12),
-                    Expanded(child: _uploadCard('Back of ID', _idBackPath, false, () => _pickFor(_Slot.idBack))),
+                    Expanded(child: _uploadCard('Back of ID', _idBackPath, true, () => _pickFor(_Slot.idBack))),
                   ]),
-
-                  const SizedBox(height: 22),
-                  _sectionHeader('Selfie with ID', 'Optional', required: false),
-                  const SizedBox(height: 10),
-                  _uploadCard('Hold your ID next to your face', _selfiePath, false, () => _pickFor(_Slot.selfie), tall: true),
-
-                  const SizedBox(height: 22),
-                  _sectionHeader('Document number', 'Optional', required: false),
-                  const SizedBox(height: 10),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.borderLight),
-                    ),
-                    child: TextField(
-                      controller: _docNumberCtrl,
-                      autocorrect: false,
-                      enableSuggestions: false,
-                      style: _f(size: 14, weight: FontWeight.w500),
-                      decoration: InputDecoration(
-                        hintText: 'e.g. 19900101-12345-67890-1',
-                        hintStyle: _f(size: 13, color: AppColors.textHint),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                        border: InputBorder.none,
-                        prefixIcon: const Padding(
-                          padding: EdgeInsets.only(left: 14, right: 8),
-                          child: Icon(Icons.badge_outlined, size: 18, color: AppColors.textTertiary),
-                        ),
-                        prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-                      ),
-                    ),
-                  ),
 
                   const SizedBox(height: 18),
                   Container(
@@ -300,7 +265,7 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
                   SizedBox(
                     width: double.infinity, height: 54,
                     child: ElevatedButton(
-                      onPressed: (_submitting || _idFrontPath == null) ? null : _submit,
+                      onPressed: (_submitting || _idFrontPath == null || _idBackPath == null) ? null : _submit,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
@@ -391,15 +356,13 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
               ),
               const Spacer(),
               if (_canEdit)
-                Text('${_completedCount}/3 uploaded',
+                Text('${_completedCount}/$_requiredTotal uploaded',
                     style: _f(size: 11, weight: FontWeight.w600, color: Colors.white.withOpacity(0.7))),
             ]),
             const SizedBox(height: 18),
             Text(
               isVerified ? 'You\u2019re verified' : isPending ? 'Under review' : isRejected ? 'Verification rejected' : 'Verify your identity',
-              style: GoogleFonts.playfairDisplay(
-                fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white, height: 1.15,
-              ),
+              style: _f(size: 24, weight: FontWeight.w700, color: Colors.white, height: 1.15),
             ),
             const SizedBox(height: 8),
             Text(
@@ -411,7 +374,7 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: LinearProgressIndicator(
-                  value: _completedCount / 3,
+                  value: _completedCount / _requiredTotal,
                   minHeight: 6,
                   backgroundColor: Colors.white.withOpacity(0.12),
                   valueColor: AlwaysStoppedAnimation<Color>(accent),
@@ -493,7 +456,6 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
                       onTap: () => setState(() {
                         if (path == _idFrontPath) _idFrontPath = null;
                         else if (path == _idBackPath) _idBackPath = null;
-                        else if (path == _selfiePath) _selfiePath = null;
                       }),
                       child: Container(
                         width: 30, height: 30,

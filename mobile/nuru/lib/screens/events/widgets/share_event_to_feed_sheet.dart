@@ -3,6 +3,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/text_styles.dart';
 import '../../../core/services/social_service.dart';
 import '../../../core/widgets/app_snackbar.dart';
+import '../../../core/widgets/event_cover_image.dart';
 
 /// Mobile parity for `ShareEventToFeed` (web).
 /// Posts a 'event_share' moment that the feed renders as a Rich Event Card.
@@ -107,21 +108,12 @@ class _ShareEventToFeedSheetState extends State<ShareEventToFeedSheet> {
               padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
-                  ClipRRect(
+                  EventCoverImage(
+                    event: ev,
+                    url: cover.isNotEmpty ? cover : null,
+                    width: 56,
+                    height: 56,
                     borderRadius: BorderRadius.circular(10),
-                    child: cover.isNotEmpty
-                        ? Image.network(cover,
-                            width: 56, height: 56, fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                                width: 56,
-                                height: 56,
-                                color: AppColors.borderLight))
-                        : Container(
-                            width: 56,
-                            height: 56,
-                            color: AppColors.borderLight,
-                            child: const Icon(Icons.event_rounded,
-                                color: AppColors.textTertiary)),
                   ),
                   const SizedBox(width: 12),
                   Expanded(

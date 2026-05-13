@@ -1544,6 +1544,8 @@ def build_event_service_dicts(
             "id": str(es.id),
             "event_id": str(es.event_id),
             "service_id": str(es.service_id) if es.service_id else None,
+            "provider_user_id": str(es.provider_user_id) if es.provider_user_id else None,
+            "provider_user_service_id": str(es.provider_user_service_id) if es.provider_user_service_id else None,
             "service": {
                 "title": provider_svc.title if provider_svc else (svc_type.name if svc_type else None),
                 "category": cat.name if cat else None,

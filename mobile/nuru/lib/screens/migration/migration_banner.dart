@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/migration_provider.dart';
 import '../wallet/payout_profile_screen.dart';
 
@@ -57,8 +59,41 @@ class MigrationBanner extends StatefulWidget {
   State<MigrationBanner> createState() => _MigrationBannerState();
 }
 
-class _MigrationBannerState extends State<MigrationBanner> {
+class _MigrationBannerState extends State<MigrationBanner>
+    with WidgetsBindingObserver {
   bool _hidden = false;
+  Timer? _pollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Kick a refresh immediately + start a soft poll while the banner
+    // is visible. Auto-clears the banner once the user finishes payout setup.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshIfNeeded());
+    _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) => _refreshIfNeeded());
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refreshIfNeeded();
+  }
+
+  Future<void> _refreshIfNeeded() async {
+    if (!mounted) return;
+    final mig = context.read<MigrationProvider>();
+    if (!mig.needsSetup) return;
+    final uid = context.read<AuthProvider>().user?['id']?.toString();
+    if (uid == null || uid.isEmpty) return;
+    await mig.load(uid);
+  }
 
   @override
   Widget build(BuildContext context) {

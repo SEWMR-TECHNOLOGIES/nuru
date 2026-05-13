@@ -28,6 +28,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import EscrowStatusCard from './EscrowStatusCard';
 import DeliveryOtpCard from './DeliveryOtpCard';
 import PayDepositDialog from './PayDepositDialog';
+import { VendorOfflinePaymentsPanel } from './VendorOfflinePaymentsPanel';
 
 const BookingDetail = () => {
   const { format: formatPrice } = useCurrency();
@@ -239,7 +240,10 @@ const BookingDetail = () => {
             </CardContent>
           </Card>
 
-          {/* Service Provider + Client — side-by-side on desktop */}
+          {/* Offline payments — vendor-only */}
+          {detectedRole === 'vendor' && (
+            <VendorOfflinePaymentsPanel eventId={(booking as any)?.event?.id || (booking as any)?.event_id || null} />
+          )}
           <div className="grid sm:grid-cols-2 gap-4">
             {booking.provider && (
               <Card>

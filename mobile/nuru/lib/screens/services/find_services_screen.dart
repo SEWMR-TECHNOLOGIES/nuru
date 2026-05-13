@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/events_service.dart';
 import '../../core/services/user_services_service.dart';
@@ -10,7 +11,10 @@ import '../../core/widgets/nuru_refresh.dart';
 import '../../core/widgets/nuru_loader.dart';
 
 class FindServicesScreen extends StatefulWidget {
-  const FindServicesScreen({super.key});
+  /// When true, the screen opens already filtered to the user's saved vendors.
+  /// Used by the Profile → "Saved Vendors" entry point.
+  final bool initialSavedOnly;
+  const FindServicesScreen({super.key, this.initialSavedOnly = false});
 
   @override
   State<FindServicesScreen> createState() => _FindServicesScreenState();
@@ -25,6 +29,8 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
   String _searchQuery = '';
   bool _showTrustBanner = true;
   final Set<String> _favorites = <String>{};
+  bool _savedOnly = false;
+  static const _favoritesKey = 'saved_vendors_v1';
 
   // Top categories shown as fixed chips like the reference design.
   static const _topCategories = ['Catering', 'Decor', 'Photography'];
@@ -32,7 +38,24 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
   @override
   void initState() {
     super.initState();
+    _savedOnly = widget.initialSavedOnly;
+    _loadFavorites();
     _load();
+  }
+
+  Future<void> _loadFavorites() async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      final saved = sp.getStringList(_favoritesKey) ?? const [];
+      if (mounted) setState(() => _favorites..clear()..addAll(saved));
+    } catch (_) {}
+  }
+
+  Future<void> _persistFavorites() async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      await sp.setStringList(_favoritesKey, _favorites.toList());
+    } catch (_) {}
   }
 
   @override
@@ -90,6 +113,12 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final visibleServices = _savedOnly
+        ? _services.where((s) {
+            final id = (s is Map ? (s['id'] ?? s['service_id']) : null)?.toString() ?? '';
+            return _favorites.contains(id);
+          }).toList()
+        : _services;
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: AppBar(
@@ -103,8 +132,19 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         centerTitle: true,
-        title: Text('Vendors',
+        title: Text(_savedOnly ? 'Saved Vendors' : 'Vendors',
           style: _f(size: 17, weight: FontWeight.w700, letterSpacing: -0.2)),
+        actions: [
+          IconButton(
+            tooltip: _savedOnly ? 'Show all vendors' : 'Show saved only',
+            onPressed: () => setState(() => _savedOnly = !_savedOnly),
+            icon: SvgPicture.asset(
+              _savedOnly ? 'assets/icons/bookmark-filled-icon.svg' : 'assets/icons/bookmark-icon.svg',
+              width: 22, height: 22,
+              colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn),
+            ),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -124,10 +164,15 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
                           _trustBanner(),
                           const SizedBox(height: 14),
                         ],
-                        if (_services.isEmpty)
-                          _emptyState()
+                        if (visibleServices.isEmpty)
+                          _emptyState(
+                            isFiltered: _savedOnly ||
+                                _searchQuery.trim().isNotEmpty ||
+                                _selectedCategory != null,
+                            savedOnly: _savedOnly,
+                          )
                         else
-                          ..._services.map((s) => Padding(
+                          ...visibleServices.map((s) => Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: _vendorCard(s as Map<String, dynamic>),
                           )),
@@ -431,6 +476,7 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
                         onTap: () => setState(() {
                           if (isFav) { _favorites.remove(serviceId); }
                           else { _favorites.add(serviceId); }
+                          _persistFavorites();
                         }),
                         child: SvgPicture.asset(
                           isFav ? 'assets/icons/heart-filled-icon.svg'
@@ -487,17 +533,35 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
     );
   }
 
-  Widget _emptyState() {
+  Widget _emptyState({bool isFiltered = false, bool savedOnly = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 60),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        SvgPicture.asset('assets/icons/package-icon.svg',
+        SvgPicture.asset(
+          savedOnly
+              ? 'assets/icons/bookmark-icon.svg'
+              : (isFiltered ? 'assets/icons/search-icon.svg' : 'assets/icons/package-icon.svg'),
           width: 44, height: 44,
-          colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
+          colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn),
+        ),
         const SizedBox(height: 12),
-        Text('No vendors found', style: _f(size: 14, color: AppColors.textTertiary)),
+        Text(savedOnly
+              ? 'No saved vendors yet'
+              : (isFiltered ? 'No results found' : 'No vendors yet'),
+            style: _f(size: 14, color: AppColors.textTertiary)),
         const SizedBox(height: 4),
-        Text('Try adjusting your search or filters', style: _f(size: 12, color: AppColors.textHint)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Text(
+            savedOnly
+                ? 'Tap the heart on any vendor to save it here for quick access.'
+                : (isFiltered
+                    ? 'Try a different keyword or clear your filters to see more vendors.'
+                    : 'Vendors will appear here as soon as they join the platform.'),
+            textAlign: TextAlign.center,
+            style: _f(size: 12, color: AppColors.textHint),
+          ),
+        ),
       ]),
     );
   }

@@ -29,6 +29,7 @@ class MomentsService {
     String contentType = 'image',
     String? backgroundColor,
     int durationHours = 24,
+    void Function(double progress)? onProgress,
   }) async {
     final fields = <String, String>{
       'content_type': contentType,
@@ -43,7 +44,12 @@ class MomentsService {
     if (mediaPath != null && mediaPath.isNotEmpty) {
       files.add(MapEntry('media', mediaPath));
     }
-    return ApiBase.postMultipart('/moments/', fields: fields, files: files);
+    return ApiBase.postMultipart(
+      '/moments/',
+      fields: fields,
+      files: files,
+      onProgress: onProgress,
+    );
   }
 
   static Future<Map<String, dynamic>> deleteMoment(String momentId) async {

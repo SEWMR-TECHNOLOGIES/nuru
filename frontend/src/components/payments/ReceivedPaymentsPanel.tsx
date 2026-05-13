@@ -7,13 +7,14 @@
  * place beneficiaries see them.
  */
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, ChevronLeft, ChevronRight, ExternalLink, Search, Printer } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, ExternalLink, Search, Printer, ShieldCheck, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { receivedPaymentsApi } from "@/lib/api/receivedPayments";
 import type { ReceivedPayment, ReceivedPaymentsPage } from "@/lib/api/receivedPayments";
+import { offlinePaymentsApi, type OfflineVendorPayment } from "@/lib/api/offlinePayments";
 import { openPaymentReceipt } from "@/utils/printPaymentReceipt";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -44,6 +45,7 @@ export default function ReceivedPaymentsPanel({ source, title }: Props) {
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [offlineItems, setOfflineItems] = useState<OfflineVendorPayment[]>([]);
 
   // Debounce the search input → reset to page 1 when it changes.
   useEffect(() => {
@@ -77,6 +79,17 @@ export default function ReceivedPaymentsPanel({ source, title }: Props) {
           setError(null);
         } else {
           setError(res.message || "Failed to load payments.");
+        }
+
+        if (source.kind === "service") {
+          const offlineRes = await offlinePaymentsApi.listMine();
+          if (!cancelled && offlineRes.success) {
+            setOfflineItems((offlineRes.data?.items || []).filter(
+              (p) => p.provider_user_service_id === source.serviceId
+            ));
+          }
+        } else if (!cancelled) {
+          setOfflineItems([]);
         }
       } catch (e: any) {
         if (!cancelled) setError(e?.message || "Failed to load payments.");
@@ -210,6 +223,31 @@ export default function ReceivedPaymentsPanel({ source, title }: Props) {
                 </Button>
               </div>
             )}
+          </div>
+        )}
+
+        {source.kind === "service" && offlineItems.length > 0 && (
+          <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+            <div>
+              <h4 className="text-sm font-semibold text-foreground">Offline payments</h4>
+              <p className="text-xs text-muted-foreground">Paid outside platform — not added to wallet.</p>
+            </div>
+            <div className="space-y-2">
+              {offlineItems.map((p) => (
+                <div key={p.id} className="flex items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-foreground">{fmtMoney(Number(p.amount || 0), p.currency || "TZS")}</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {p.service_title}{p.method ? ` · ${p.method.replace("_", " ")}` : ""}{p.reference ? ` · ${p.reference}` : ""}
+                    </div>
+                  </div>
+                  <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize ${p.status === "confirmed" ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-amber-500/15 text-amber-700 dark:text-amber-400"}`}>
+                    {p.status === "confirmed" ? <ShieldCheck className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                    {p.status}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </CardContent>

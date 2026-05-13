@@ -47,7 +47,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
@@ -100,6 +100,16 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Foreground service required for LiveKit/flutter_webrtc screen sharing.
+             Without this declaration, Android 14+ kills the process the moment the
+             user backgrounds the app while sharing the screen, which forces them to
+             rejoin the meeting. The MEDIA_PROJECTION foreground service type also
+             requires the matching uses-permission above. -->
+        <service
+            android:name="com.cloudwebrtc.webrtc.ForegroundService"
+            android:foregroundServiceType="mediaProjection|microphone|camera"
+            android:exported="false" />
 
         <!-- Firebase Cloud Messaging: use launcher icon for push notifications -->
         <meta-data

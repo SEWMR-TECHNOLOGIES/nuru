@@ -216,7 +216,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                   _vendorHero(),
                   const SizedBox(height: 18),
                   if (_services.isEmpty)
-                    _emptyState()
+                    _emptyState(isFiltered: _search.trim().isNotEmpty)
                   else ...[
                     Padding(
                       padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
@@ -837,7 +837,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
       );
 
   // ─── Empty state ─────────────────────────────────────────────────
-  Widget _emptyState() {
+  Widget _emptyState({bool isFiltered = false}) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 32, 20, 24),
       child: Container(
@@ -866,7 +866,9 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
               ),
               child: Center(
                 child: SvgPicture.asset(
-                  'assets/icons/package-icon.svg',
+                  isFiltered
+                      ? 'assets/icons/search-icon.svg'
+                      : 'assets/icons/package-icon.svg',
                   width: 30,
                   height: 30,
                   colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn),
@@ -874,35 +876,40 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
               ),
             ),
             const SizedBox(height: 18),
-            Text('No services yet', style: _f(size: 18, weight: FontWeight.w800)),
+            Text(isFiltered ? 'No results found' : 'No services yet',
+                style: _f(size: 18, weight: FontWeight.w800)),
             const SizedBox(height: 6),
             Text(
-              'Add your first service so clients can find you and send bookings.',
+              isFiltered
+                  ? 'No services match your search. Try a different keyword or clear the search to see all your services.'
+                  : 'Add your first service so clients can find you and send bookings.',
               style: _f(size: 13, color: AppColors.textTertiary, height: 1.45),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                onPressed: _onAddNew,
-                icon: SvgPicture.asset(
-                  'assets/icons/plus-icon.svg',
-                  width: 16,
-                  height: 16,
-                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-                ),
-                label: Text('Add Service',
-                    style: _f(size: 14, weight: FontWeight.w700, color: Colors.white)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            if (!isFiltered) ...[
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: _onAddNew,
+                  icon: SvgPicture.asset(
+                    'assets/icons/plus-icon.svg',
+                    width: 16,
+                    height: 16,
+                    colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                  ),
+                  label: Text('Add Service',
+                      style: _f(size: 14, weight: FontWeight.w700, color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),

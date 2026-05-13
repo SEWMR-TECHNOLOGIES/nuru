@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/event_image.dart';
 import '../../events/event_detail_screen.dart';
 import '../../events/event_public_view_screen.dart';
 import '../../services/public_service_screen.dart';
@@ -12,9 +13,12 @@ import '../../tickets/my_tickets_screen.dart';
 import '../../event_groups/my_groups_screen.dart';
 import '../../meetings/meeting_room_screen.dart';
 import '../../../core/services/social_service.dart';
+import '../../../core/services/event_groups_service.dart';
+import '../../event_groups/event_group_workspace_screen.dart';
 import '../../../core/services/meetings_service.dart';
 import '../../public_profile/public_profile_screen.dart';
 import '../../../core/l10n/l10n_helper.dart';
+import '../home_tab_controller.dart';
 
 class HomeRightDrawer extends StatelessWidget {
   final List<dynamic> myEvents;
@@ -61,64 +65,100 @@ class HomeRightDrawer extends StatelessWidget {
   bool _isFuture(dynamic e, DateTime now) {
     final d = e['start_date']?.toString() ?? '';
     if (d.isEmpty) return true;
-    try { return DateTime.parse(d).isAfter(now); } catch (_) { return false; }
+    try {
+      return DateTime.parse(d).isAfter(now);
+    } catch (_) {
+      return false;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final upcomingEvents = _mergeUpcomingEvents();
     return Drawer(
-      width: 310,
-      backgroundColor: AppColors.background,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(24),
-          bottomLeft: Radius.circular(24),
-        ),
-      ),
+      width: 320,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       child: Column(
         children: [
           // ── Header ──
           Container(
             padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + 20,
-              left: 24, right: 20, bottom: 20,
+              top: MediaQuery.of(context).padding.top + 22,
+              left: 22,
+              right: 18,
+              bottom: 22,
             ),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.surface,
-              border: Border(bottom: BorderSide(color: AppColors.borderLight, width: 1)),
+              border: Border(
+                bottom: BorderSide(
+                  color: AppColors.borderLight.withOpacity(0.6),
+                  width: 1,
+                ),
+              ),
             ),
-            child: Row(children: [
-              Container(
-                width: 36, height: 36,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.dashboard_rounded, size: 18, color: AppColors.primary),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  context.trw('quick_view'),
-                  style: GoogleFonts.inter(
-                    fontSize: 18, fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary, height: 1.2,
-                  ),
-                ),
-              ),
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Container(
-                  width: 32, height: 32,
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceVariant,
-                    borderRadius: BorderRadius.circular(8),
+                    color: AppColors.primary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Icon(Icons.close_rounded, size: 16, color: AppColors.textSecondary),
+                  child: Center(
+                    child: SvgPicture.asset(
+                      'assets/icons/panel-right-icon.svg',
+                      width: 20,
+                      height: 20,
+                      colorFilter: const ColorFilter.mode(
+                        AppColors.primary,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ]),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    context.trw('quick_view'),
+                    style: GoogleFonts.sora(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                      height: 1.2,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.borderLight,
+                        width: 1,
+                      ),
+                    ),
+                    child: Center(
+                      child: SvgPicture.asset(
+                        'assets/icons/close-icon.svg',
+                        width: 14,
+                        height: 14,
+                        colorFilter: const ColorFilter.mode(
+                          AppColors.textSecondary,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
 
           // ── Content ──
@@ -134,7 +174,9 @@ class HomeRightDrawer extends StatelessWidget {
                     count: upcomingEvents.length,
                   ),
                   const SizedBox(height: 12),
-                  ...upcomingEvents.take(6).map((item) => _UpcomingEventCard(item: item)),
+                  ...upcomingEvents
+                      .take(6)
+                      .map((item) => _UpcomingEventCard(item: item)),
                   const SizedBox(height: 28),
                 ],
 
@@ -142,17 +184,7 @@ class HomeRightDrawer extends StatelessWidget {
                 const _MyMeetingsSection(),
 
                 // My Groups (Event Workspaces)
-                _SectionHeaderAction(
-                  iconData: Icons.forum_outlined,
-                  title: 'My Groups',
-                  action: 'View all',
-                  onAction: () {
-                    Navigator.pop(context);
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const MyGroupsScreen()));
-                  },
-                ),
-                const SizedBox(height: 28),
-
+                const _MyGroupsSection(),
 
                 // My Tickets
                 if (upcomingTickets.isNotEmpty) ...[
@@ -162,7 +194,7 @@ class HomeRightDrawer extends StatelessWidget {
                     action: context.trw('view_all'),
                     onAction: () {
                       Navigator.pop(context);
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const MyTicketsScreen()));
+                      HomeTabController.openTickets();
                     },
                   ),
                   const SizedBox(height: 12),
@@ -178,18 +210,25 @@ class HomeRightDrawer extends StatelessWidget {
                     action: context.trw('view_all'),
                     onAction: () {
                       Navigator.pop(context);
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const BrowseTicketsScreen()));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const BrowseTicketsScreen(),
+                        ),
+                      );
                     },
                   ),
                   const SizedBox(height: 12),
-                  ...ticketedEvents.take(5).map((e) => _TicketedEventCard(event: e)),
+                  ...ticketedEvents
+                      .take(5)
+                      .map((e) => _TicketedEventCard(event: e)),
                   const SizedBox(height: 28),
                 ],
 
                 // Service Providers
                 if (myServices.isNotEmpty) ...[
                   _SectionHeader(
-                    iconData: Icons.work_outline_rounded,
+                    icon: 'assets/icons/package-icon.svg',
                     title: context.trw('service_providers'),
                     count: myServices.length,
                   ),
@@ -201,15 +240,23 @@ class HomeRightDrawer extends StatelessWidget {
                 // Suggested for You
                 if (followSuggestions.isNotEmpty) ...[
                   _SectionHeader(
-                    iconData: Icons.people_outline_rounded,
+                    icon: 'assets/icons/user-icon.svg',
                     title: context.trw('suggested_for_you'),
                   ),
                   const SizedBox(height: 12),
-                  ...followSuggestions.map((u) => _SuggestionCard(user: u, onFollowChanged: onFollowChanged)),
+                  ...followSuggestions.map(
+                    (u) => _SuggestionCard(
+                      user: u,
+                      onFollowChanged: onFollowChanged,
+                    ),
+                  ),
                 ],
 
                 // Empty state
-                if (upcomingEvents.isEmpty && followSuggestions.isEmpty && upcomingTickets.isEmpty && myServices.isEmpty)
+                if (upcomingEvents.isEmpty &&
+                    followSuggestions.isEmpty &&
+                    upcomingTickets.isEmpty &&
+                    myServices.isEmpty)
                   _EmptyState(),
               ],
             ),
@@ -230,47 +277,69 @@ class _SectionHeader extends StatelessWidget {
   final String title;
   final int? count;
 
-  const _SectionHeader({this.icon, this.iconData, required this.title, this.count});
+  const _SectionHeader({
+    this.icon,
+    this.iconData,
+    required this.title,
+    this.count,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Row(children: [
-      Container(
-        width: 28, height: 28,
-        decoration: BoxDecoration(
-          color: AppColors.primary.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: icon != null
-            ? Center(child: SvgPicture.asset(icon!, width: 14, height: 14,
-                colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn)))
-            : Icon(iconData, size: 14, color: AppColors.primary),
-      ),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Text(
-          title.toUpperCase(),
-          style: GoogleFonts.inter(
-            fontSize: 11, fontWeight: FontWeight.w700,
-            color: AppColors.textTertiary, letterSpacing: 1.2, height: 1.0,
-          ),
-        ),
-      ),
-      if (count != null)
+    return Row(
+      children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
-            color: AppColors.surfaceVariant,
+            color: AppColors.primary.withOpacity(0.12),
             borderRadius: BorderRadius.circular(10),
           ),
+          child: icon != null
+              ? Center(
+                  child: SvgPicture.asset(
+                    icon!,
+                    width: 16,
+                    height: 16,
+                    colorFilter: const ColorFilter.mode(
+                      AppColors.primary,
+                      BlendMode.srcIn,
+                    ),
+                  ),
+                )
+              : Icon(iconData, size: 16, color: AppColors.primary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
           child: Text(
-            '$count',
-            style: GoogleFonts.inter(
-              fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textSecondary,
+            title,
+            style: GoogleFonts.sora(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textPrimary,
+              letterSpacing: 0,
+              height: 1.2,
             ),
           ),
         ),
-    ]);
+        if (count != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '$count',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
 
@@ -282,53 +351,74 @@ class _SectionHeaderAction extends StatelessWidget {
   final VoidCallback onAction;
 
   const _SectionHeaderAction({
-    this.icon, this.iconData, required this.title,
-    required this.action, required this.onAction,
+    this.icon,
+    this.iconData,
+    required this.title,
+    required this.action,
+    required this.onAction,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(children: [
-      Container(
-        width: 28, height: 28,
-        decoration: BoxDecoration(
-          color: AppColors.primary.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Center(
-          child: icon != null
-              ? SvgPicture.asset(icon!, width: 14, height: 14,
-                  colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn))
-              : Icon(iconData ?? Icons.circle_outlined, size: 14, color: AppColors.primary),
-        ),
-      ),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Text(
-          title.toUpperCase(),
-          style: GoogleFonts.inter(
-            fontSize: 11, fontWeight: FontWeight.w700,
-            color: AppColors.textTertiary, letterSpacing: 1.2, height: 1.0,
-          ),
-        ),
-      ),
-      GestureDetector(
-        onTap: onAction,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(8),
+            color: AppColors.primary.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(10),
           ),
+          child: Center(
+            child: icon != null
+                ? SvgPicture.asset(
+                    icon!,
+                    width: 16,
+                    height: 16,
+                    colorFilter: const ColorFilter.mode(
+                      AppColors.primary,
+                      BlendMode.srcIn,
+                    ),
+                  )
+                : Icon(
+                    iconData ?? Icons.circle_outlined,
+                    size: 16,
+                    color: AppColors.primary,
+                  ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
           child: Text(
-            action,
-            style: GoogleFonts.inter(
-              fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary,
+            title,
+            style: GoogleFonts.sora(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textPrimary,
+              height: 1.2,
             ),
           ),
         ),
-      ),
-    ]);
+        GestureDetector(
+          onTap: onAction,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              action,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -354,79 +444,138 @@ class _UpcomingEventCard extends StatelessWidget {
       child: GestureDetector(
         onTap: () {
           Navigator.pop(context);
-          Navigator.push(context, MaterialPageRoute(
-            builder: (_) => role == 'guest'
-                ? EventPublicViewScreen(eventId: e['id'].toString(), initialData: e)
-                : EventDetailScreen(eventId: e['id'].toString(), initialData: e, knownRole: role),
-          ));
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => role == 'guest'
+                  ? EventPublicViewScreen(
+                      eventId: e['id'].toString(),
+                      initialData: e,
+                    )
+                  : EventDetailScreen(
+                      eventId: e['id'].toString(),
+                      initialData: e,
+                      knownRole: role,
+                    ),
+            ),
+          );
         },
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.borderLight, width: 1),
+            borderRadius: BorderRadius.circular(18),
             boxShadow: const [
-              BoxShadow(color: Color(0x06000000), blurRadius: 8, offset: Offset(0, 2)),
+              BoxShadow(
+                color: Color(0x08000000),
+                blurRadius: 12,
+                offset: Offset(0, 3),
+              ),
             ],
           ),
-          child: Row(children: [
-            _Thumbnail(imageUrl: cover, fallbackSvg: 'assets/icons/calendar-icon.svg', size: 48, radius: 12),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(
-                  title.toString(),
-                  style: GoogleFonts.inter(
-                    fontSize: 13, fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary, height: 1.3,
-                  ),
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Row(children: [
-                  const Icon(Icons.schedule_rounded, size: 11, color: AppColors.textTertiary),
-                  const SizedBox(width: 4),
-                  Text(
-                    _formatDateShort(date.toString()),
-                    style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary, height: 1.2),
-                  ),
-                ]),
-                if (location.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Row(children: [
-                    const Icon(Icons.place_outlined, size: 11, color: AppColors.textTertiary),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        location,
-                        style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary, height: 1.2),
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
+          child: Row(
+            children: [
+              _Thumbnail(
+                imageUrl: resolveEventImageUrl(e),
+                fallbackSvg: 'assets/icons/calendar-icon.svg',
+                size: 56,
+                radius: 14,
+                useEventFallback: true,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title.toString(),
+                      style: GoogleFonts.sora(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                        height: 1.3,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ]),
-                ],
-              ]),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: role == 'creator'
-                    ? AppColors.primary.withOpacity(0.08)
-                    : AppColors.surfaceVariant,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                role,
-                style: GoogleFonts.inter(
-                  fontSize: 9, fontWeight: FontWeight.w600,
-                  color: role == 'creator' ? AppColors.primary : AppColors.textTertiary,
-                  height: 1.0,
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        SvgPicture.asset(
+                          'assets/icons/clock-icon.svg',
+                          width: 11,
+                          height: 11,
+                          colorFilter: const ColorFilter.mode(
+                            AppColors.textTertiary,
+                            BlendMode.srcIn,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatDateShort(date.toString()),
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            color: AppColors.textTertiary,
+                            height: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (location.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          SvgPicture.asset(
+                            'assets/icons/location-icon.svg',
+                            width: 11,
+                            height: 11,
+                            colorFilter: const ColorFilter.mode(
+                              AppColors.textTertiary,
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              location,
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                color: AppColors.textTertiary,
+                                height: 1.2,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
                 ),
               ),
-            ),
-          ]),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: role == 'creator'
+                      ? AppColors.primary.withOpacity(0.08)
+                      : AppColors.surfaceVariant,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  role,
+                  style: GoogleFonts.inter(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    color: role == 'creator'
+                        ? AppColors.primary
+                        : AppColors.textTertiary,
+                    height: 1.0,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -444,16 +593,25 @@ class _TicketCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ticket is Map<String, dynamic> ? ticket : <String, dynamic>{};
-    final event = t['event'] is Map<String, dynamic> ? t['event'] as Map<String, dynamic> : t;
-    final eventName = event['name']?.toString() ?? t['event_name']?.toString() ?? 'Event';
+    final event = t['event'] is Map<String, dynamic>
+        ? t['event'] as Map<String, dynamic>
+        : t;
+    final eventName =
+        event['name']?.toString() ?? t['event_name']?.toString() ?? 'Event';
     final coverImage = event['cover_image']?.toString() ?? '';
     final startDate = event['start_date']?.toString() ?? '';
     final ticketCode = t['ticket_code']?.toString() ?? '';
     final status = t['status']?.toString() ?? 'pending';
     final quantity = t['quantity'] ?? 1;
     DateTime? d;
-    try { d = DateTime.parse(startDate); } catch (_) {}
-    final isToday = d != null && d.year == DateTime.now().year && d.month == DateTime.now().month && d.day == DateTime.now().day;
+    try {
+      d = DateTime.parse(startDate);
+    } catch (_) {}
+    final isToday =
+        d != null &&
+        d.year == DateTime.now().year &&
+        d.month == DateTime.now().month &&
+        d.day == DateTime.now().day;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -462,7 +620,12 @@ class _TicketCard extends StatelessWidget {
           Navigator.pop(context);
           final eventId = event['id']?.toString();
           if (eventId != null && eventId.isNotEmpty) {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => EventPublicViewScreen(eventId: eventId)));
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => EventPublicViewScreen(eventId: eventId),
+              ),
+            );
           }
         },
         child: Container(
@@ -470,48 +633,86 @@ class _TicketCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.borderLight, width: 1),
           ),
-          child: Row(children: [
-            Stack(children: [
-              _Thumbnail(
-                imageUrl: coverImage.isNotEmpty ? coverImage : null,
-                fallbackSvg: 'assets/icons/ticket-icon.svg',
-                size: 44, radius: 10,
-              ),
-              if (isToday)
-                Positioned(top: 0, right: 0,
-                  child: Container(
-                    width: 10, height: 10,
-                    decoration: BoxDecoration(
-                      color: AppColors.success, shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.surface, width: 2),
-                    ),
+          child: Row(
+            children: [
+              Stack(
+                children: [
+                  _Thumbnail(
+                    imageUrl: resolveEventImageUrl(event),
+                    fallbackSvg: 'assets/icons/ticket-icon.svg',
+                    size: 44,
+                    radius: 10,
+                    useEventFallback: true,
                   ),
+                  if (isToday)
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: AppColors.success,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.surface,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      eventName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isToday
+                          ? context.trw('today')
+                          : (d != null
+                                ? _formatDateShort(startDate)
+                                : 'Date TBD'),
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        if (ticketCode.isNotEmpty) _CodeBadge(code: ticketCode),
+                        _StatusBadge(status: status),
+                        if (quantity > 1)
+                          Text(
+                            '×$quantity',
+                            style: GoogleFonts.inter(
+                              fontSize: 9,
+                              color: AppColors.textTertiary,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
-            ]),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(
-                  eventName, maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  isToday ? context.trw('today') : (d != null ? _formatDateShort(startDate) : 'Date TBD'),
-                  style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary),
-                ),
-                const SizedBox(height: 6),
-                Wrap(spacing: 6, runSpacing: 4, children: [
-                  if (ticketCode.isNotEmpty) _CodeBadge(code: ticketCode),
-                  _StatusBadge(status: status),
-                  if (quantity > 1)
-                    Text('×$quantity', style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary)),
-                ]),
-              ]),
-            ),
-          ]),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -526,7 +727,8 @@ class _TicketedEventCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final e = event is Map<String, dynamic> ? event : <String, dynamic>{};
     final coverImage = e['cover_image']?.toString() ?? '';
-    final eventName = e['name']?.toString() ?? e['title']?.toString() ?? 'Event';
+    final eventName =
+        e['name']?.toString() ?? e['title']?.toString() ?? 'Event';
     final startDate = e['start_date']?.toString() ?? '';
     final minPrice = e['min_price'];
     final soldOut = (e['total_available'] ?? 0) <= 0;
@@ -538,7 +740,12 @@ class _TicketedEventCard extends StatelessWidget {
           Navigator.pop(context);
           final eventId = e['id']?.toString();
           if (eventId != null && eventId.isNotEmpty) {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => EventPublicViewScreen(eventId: eventId)));
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => EventPublicViewScreen(eventId: eventId),
+              ),
+            );
           }
         },
         child: Container(
@@ -546,61 +753,93 @@ class _TicketedEventCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.borderLight, width: 1),
           ),
-          child: Row(children: [
-            _Thumbnail(
-              imageUrl: coverImage.isNotEmpty ? coverImage : null,
-              fallbackSvg: 'assets/icons/ticket-icon.svg',
-              size: 48, radius: 12,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(
-                  eventName,
-                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.3),
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                ),
-                if (startDate.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    _formatDateShort(startDate),
-                    style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary, height: 1.2),
-                  ),
-                ],
-                const SizedBox(height: 6),
-                Row(children: [
-                  if (minPrice != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceVariant,
-                        borderRadius: BorderRadius.circular(10),
+          child: Row(
+            children: [
+              _Thumbnail(
+                imageUrl: resolveEventImageUrl(e),
+                fallbackSvg: 'assets/icons/ticket-icon.svg',
+                size: 48,
+                radius: 12,
+                useEventFallback: true,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      eventName,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                        height: 1.3,
                       ),
-                      child: Text(
-                        '${context.trw('from')} ${_formatCompactMoney(minPrice)}',
-                        style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  if (soldOut) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppColors.error.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
+                    if (startDate.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        _formatDateShort(startDate),
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          color: AppColors.textTertiary,
+                          height: 1.2,
+                        ),
                       ),
-                      child: Text(
-                        context.trw('sold_out'),
-                        style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.error),
-                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        if (minPrice != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceVariant,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${context.trw('from')} ${_formatCompactMoney(minPrice)}',
+                              style: GoogleFonts.inter(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        if (soldOut) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.error.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              context.trw('sold_out'),
+                              style: GoogleFonts.inter(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.error,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
-                ]),
-              ]),
-            ),
-          ]),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -618,45 +857,87 @@ class _ServicesGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Wrap(
-      spacing: 12, runSpacing: 16,
+      spacing: 12,
+      runSpacing: 16,
       children: services.take(4).map((service) {
-        final s = service is Map<String, dynamic> ? service : <String, dynamic>{};
-        final title = s['title']?.toString() ?? s['name']?.toString() ?? 'Service';
-        final initials = title.split(' ').map((w) => w.isNotEmpty ? w[0] : '').join('').toUpperCase();
+        final s = service is Map<String, dynamic>
+            ? service
+            : <String, dynamic>{};
+        final title =
+            s['title']?.toString() ?? s['name']?.toString() ?? 'Service';
+        final initials = title
+            .split(' ')
+            .map((w) => w.isNotEmpty ? w[0] : '')
+            .join('')
+            .toUpperCase();
         final imgUrl = _extractServiceImage(s);
         return GestureDetector(
           onTap: () {
             final svcId = s['id']?.toString();
             Navigator.pop(context);
             if (svcId != null && svcId.isNotEmpty) {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => PublicServiceScreen(serviceId: svcId)));
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PublicServiceScreen(serviceId: svcId),
+                ),
+              );
             }
           },
           child: SizedBox(
             width: 120,
-            child: Column(children: [
-              Container(
-                width: 56, height: 56,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.borderLight, width: 1),
+            child: Column(
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceVariant,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: imgUrl != null
+                      ? CachedNetworkImage(
+                          imageUrl: imgUrl,
+                          width: 56,
+                          height: 56,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) => Center(
+                            child: Text(
+                              initials,
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textTertiary,
+                              ),
+                            ),
+                          ),
+                        )
+                      : Center(
+                          child: Text(
+                            initials,
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textTertiary,
+                            ),
+                          ),
+                        ),
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: imgUrl != null
-                    ? Image.network(imgUrl, width: 56, height: 56, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Center(child: Text(initials,
-                          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textTertiary))))
-                    : Center(child: Text(initials,
-                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textTertiary))),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                title,
-                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
-                textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
-              ),
-            ]),
+                const SizedBox(height: 8),
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         );
       }).toList(),
@@ -688,7 +969,9 @@ class _SuggestionCardState extends State<_SuggestionCard> {
     final lastName = user['last_name'] ?? '';
     final fullName = '$firstName $lastName'.trim();
     final username = user['username'] ?? '';
-    final avatar = (user['avatar'] ?? user['profile_picture_url'] ?? user['avatar_url']) as String?;
+    final avatar =
+        (user['avatar'] ?? user['profile_picture_url'] ?? user['avatar_url'])
+            as String?;
     final bio = user['bio'] as String? ?? '';
 
     return Padding(
@@ -698,28 +981,38 @@ class _SuggestionCardState extends State<_SuggestionCard> {
           final uid = user['id']?.toString() ?? '';
           if (uid.isEmpty) return;
           Navigator.pop(context);
-          Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: uid)));
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: uid)),
+          );
         },
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.borderLight, width: 1),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
             ],
           ),
           child: Row(
             children: [
               // Avatar
               Container(
-                width: 48, height: 48,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
                   gradient: avatar == null || avatar.isEmpty
                       ? LinearGradient(
-                          colors: [AppColors.primary.withOpacity(0.15), AppColors.primary.withOpacity(0.05)],
+                          colors: [
+                            AppColors.primary.withOpacity(0.15),
+                            AppColors.primary.withOpacity(0.05),
+                          ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         )
@@ -728,13 +1021,21 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                 clipBehavior: Clip.antiAlias,
                 child: avatar != null && avatar.isNotEmpty
                     ? CachedNetworkImage(
-                        imageUrl: avatar, fit: BoxFit.cover, width: 48, height: 48,
-                        errorWidget: (_, __, ___) => _SmallAvatar(name: fullName),
+                        imageUrl: avatar,
+                        fit: BoxFit.cover,
+                        width: 48,
+                        height: 48,
+                        errorWidget: (_, __, ___) =>
+                            _SmallAvatar(name: fullName),
                       )
                     : Center(
                         child: Text(
                           fullName.isNotEmpty ? fullName[0].toUpperCase() : '?',
-                          style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.primary),
+                          style: GoogleFonts.inter(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primary,
+                          ),
                         ),
                       ),
               ),
@@ -746,16 +1047,27 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                   children: [
                     Text(
                       fullName.isNotEmpty ? fullName : '@$username',
-                      style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.2),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                        height: 1.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     if (username.isNotEmpty && fullName.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
                           '@$username',
-                          style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary, height: 1.2),
-                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: AppColors.textTertiary,
+                            height: 1.2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     if (bio.isNotEmpty)
@@ -763,8 +1075,13 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                         padding: const EdgeInsets.only(top: 3),
                         child: Text(
                           bio,
-                          style: GoogleFonts.inter(fontSize: 11, color: AppColors.textSecondary, height: 1.3),
-                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                            height: 1.3,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                   ],
@@ -773,28 +1090,51 @@ class _SuggestionCardState extends State<_SuggestionCard> {
               const SizedBox(width: 10),
               // Follow button
               GestureDetector(
-                onTap: _loading || _followed ? null : () async {
-                  final id = user['id']?.toString() ?? '';
-                  if (id.isEmpty) return;
-                  setState(() => _loading = true);
-                  await SocialService.followUser(id);
-                  if (mounted) setState(() { _loading = false; _followed = true; });
-                  widget.onFollowChanged?.call();
-                },
+                onTap: _loading || _followed
+                    ? null
+                    : () async {
+                        final id = user['id']?.toString() ?? '';
+                        if (id.isEmpty) return;
+                        setState(() => _loading = true);
+                        await SocialService.followUser(id);
+                        if (mounted)
+                          setState(() {
+                            _loading = false;
+                            _followed = true;
+                          });
+                        widget.onFollowChanged?.call();
+                      },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
-                    color: _followed ? AppColors.surfaceVariant : AppColors.primary,
+                    color: _followed
+                        ? AppColors.surfaceVariant
+                        : AppColors.primary,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: _loading
-                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
                       : Text(
-                          _followed ? context.trw('following') : context.trw('follow'),
+                          _followed
+                              ? context.trw('following')
+                              : context.trw('follow'),
                           style: GoogleFonts.inter(
-                            fontSize: 12, fontWeight: FontWeight.w700,
-                            color: _followed ? AppColors.textSecondary : Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: _followed
+                                ? AppColors.textSecondary
+                                : Colors.white,
                           ),
                         ),
                 ),
@@ -816,26 +1156,48 @@ class _EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 60),
-      child: Column(children: [
-        Container(
-          width: 64, height: 64,
-          decoration: BoxDecoration(
-            color: AppColors.surfaceVariant,
-            borderRadius: BorderRadius.circular(20),
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceVariant,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Center(
+              child: SvgPicture.asset(
+                'assets/icons/panel-right-icon.svg',
+                width: 28,
+                height: 28,
+                colorFilter: const ColorFilter.mode(
+                  AppColors.textHint,
+                  BlendMode.srcIn,
+                ),
+              ),
+            ),
           ),
-          child: const Icon(Icons.dashboard_outlined, size: 28, color: AppColors.textHint),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          context.trw('all_caught_up'),
-          style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.2),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          context.trw('nothing_here_yet'),
-          style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary, height: 1.3),
-        ),
-      ]),
+          const SizedBox(height: 16),
+          Text(
+            context.trw('all_caught_up'),
+            style: GoogleFonts.inter(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            context.trw('nothing_here_yet'),
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: AppColors.textTertiary,
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -874,8 +1236,15 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
       final res = await MeetingsService().myMeetings();
       if (res['success'] == true && res['data'] != null) {
         final all = List<Map<String, dynamic>>.from(res['data']);
-        final active = all.where((m) => m['status'] != 'ended').take(5).toList();
-        if (mounted) setState(() { _meetings = active; _loaded = true; });
+        final active = all
+            .where((m) => m['status'] != 'ended')
+            .take(5)
+            .toList();
+        if (mounted)
+          setState(() {
+            _meetings = active;
+            _loaded = true;
+          });
       } else {
         if (mounted) setState(() => _loaded = true);
       }
@@ -892,32 +1261,42 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Section header with meeting icon
-        Row(children: [
-          Container(
-            width: 28, height: 28,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(
-              child: SvgPicture.asset(
-                'assets/icons/video_chat_icon.svg',
-                width: 14, height: 14,
-                colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn),
+        Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: SvgPicture.asset(
+                  'assets/icons/video_chat_icon.svg',
+                  width: 14,
+                  height: 14,
+                  colorFilter: const ColorFilter.mode(
+                    AppColors.primary,
+                    BlendMode.srcIn,
+                  ),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              context.trw('my_meetings').toUpperCase(),
-              style: GoogleFonts.inter(
-                fontSize: 11, fontWeight: FontWeight.w700,
-                color: AppColors.textTertiary, letterSpacing: 1.2, height: 1.0,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                context.trw('my_meetings').toUpperCase(),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textTertiary,
+                  letterSpacing: 1.2,
+                  height: 1.0,
+                ),
               ),
             ),
-          ),
-        ]),
+          ],
+        ),
         const SizedBox(height: 12),
 
         ..._meetings.map((m) {
@@ -931,9 +1310,23 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
           if (scheduledAt != null) {
             try {
               final dt = DateTime.parse(scheduledAt).toLocal();
-              const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+              const months = [
+                'Jan',
+                'Feb',
+                'Mar',
+                'Apr',
+                'May',
+                'Jun',
+                'Jul',
+                'Aug',
+                'Sep',
+                'Oct',
+                'Nov',
+                'Dec',
+              ];
               dateStr = '${months[dt.month - 1]} ${dt.day}';
-              timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+              timeStr =
+                  '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
             } catch (_) {}
           }
 
@@ -942,13 +1335,18 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
             child: GestureDetector(
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => MeetingRoomScreen(
-                    eventId: m['event_id']?.toString() ?? '',
-                    meetingId: m['id']?.toString() ?? '',
-                    roomId: m['room_id']?.toString() ?? '',
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MeetingRoomScreen(
+                      eventId: m['event_id']?.toString() ?? '',
+                      meetingId: m['id']?.toString() ?? '',
+                      roomId: m['room_id']?.toString() ?? '',
+                      eventName: m['event_name']?.toString() ??
+                          m['event_title']?.toString(),
+                    ),
                   ),
-                ));
+                );
               },
               child: Container(
                 padding: const EdgeInsets.all(14),
@@ -956,89 +1354,147 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                   color: isLive ? const Color(0x0A22C55E) : AppColors.surface,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: isLive ? const Color(0x4D22C55E) : AppColors.borderLight,
+                    color: isLive
+                        ? const Color(0x4D22C55E)
+                        : AppColors.borderLight,
                     width: isLive ? 1.5 : 1,
                   ),
                   boxShadow: isLive
-                      ? [const BoxShadow(color: Color(0x0D22C55E), blurRadius: 12, offset: Offset(0, 4))]
+                      ? [
+                          const BoxShadow(
+                            color: Color(0x0D22C55E),
+                            blurRadius: 12,
+                            offset: Offset(0, 4),
+                          ),
+                        ]
                       : null,
                 ),
-                child: Row(children: [
-                  Container(
-                    width: 42, height: 42,
-                    decoration: BoxDecoration(
-                      color: isLive ? const Color(0x1A22C55E) : AppColors.primary.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Center(
-                      child: SvgPicture.asset(
-                        'assets/icons/video_chat_icon.svg',
-                        width: 20, height: 20,
-                        colorFilter: ColorFilter.mode(
-                          isLive ? const Color(0xFF22C55E) : AppColors.primary,
-                          BlendMode.srcIn,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: isLive
+                            ? const Color(0x1A22C55E)
+                            : AppColors.primary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: SvgPicture.asset(
+                          'assets/icons/video_chat_icon.svg',
+                          width: 20,
+                          height: 20,
+                          colorFilter: ColorFilter.mode(
+                            isLive
+                                ? const Color(0xFF22C55E)
+                                : AppColors.primary,
+                            BlendMode.srcIn,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [
-                        Flexible(
-                          child: Text(
-                            title,
-                            style: GoogleFonts.inter(
-                              fontSize: 13, fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary, height: 1.3,
-                            ),
-                            maxLines: 1, overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (isLive) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF22C55E),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'LIVE',
-                              style: GoogleFonts.inter(
-                                fontSize: 8, fontWeight: FontWeight.w700, color: Colors.white,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  title,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                    height: 1.3,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
+                              if (isLive) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF22C55E),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'LIVE',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          if (eventName.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              eventName,
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                color: AppColors.textTertiary,
+                                height: 1.3,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
+                          ],
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              SvgPicture.asset(
+                                'assets/icons/clock-icon.svg',
+                                width: 10,
+                                height: 10,
+                                colorFilter: const ColorFilter.mode(
+                                  AppColors.textTertiary,
+                                  BlendMode.srcIn,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$dateStr · $timeStr',
+                                style: GoogleFonts.inter(
+                                  fontSize: 9,
+                                  color: AppColors.textTertiary,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              SvgPicture.asset(
+                                'assets/icons/user-icon.svg',
+                                width: 10,
+                                height: 10,
+                                colorFilter: const ColorFilter.mode(
+                                  AppColors.textTertiary,
+                                  BlendMode.srcIn,
+                                ),
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                '$participantCount',
+                                style: GoogleFonts.inter(
+                                  fontSize: 9,
+                                  color: AppColors.textTertiary,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
-                      ]),
-                      if (eventName.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          eventName,
-                          style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary, height: 1.3),
-                          maxLines: 1, overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                      const SizedBox(height: 6),
-                      Row(children: [
-                        const Icon(Icons.schedule_rounded, size: 10, color: AppColors.textTertiary),
-                        const SizedBox(width: 4),
-                        Text(
-                          '$dateStr · $timeStr',
-                          style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary),
-                        ),
-                        const SizedBox(width: 12),
-                        const Icon(Icons.people_outline_rounded, size: 10, color: AppColors.textTertiary),
-                        const SizedBox(width: 3),
-                        Text(
-                          '$participantCount',
-                          style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary),
-                        ),
-                      ]),
-                    ]),
-                  ),
-                ]),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
@@ -1058,27 +1514,60 @@ class _Thumbnail extends StatelessWidget {
   final String fallbackSvg;
   final double size;
   final double radius;
+  /// When true, missing/broken images render the branded Nuru event default
+  /// asset instead of the SVG glyph.
+  final bool useEventFallback;
 
-  const _Thumbnail({this.imageUrl, required this.fallbackSvg, required this.size, this.radius = 10});
+  const _Thumbnail({
+    this.imageUrl,
+    required this.fallbackSvg,
+    required this.size,
+    this.radius = 10,
+    this.useEventFallback = false,
+  });
+
+  Widget _fallback() {
+    if (useEventFallback) {
+      return Image.asset(
+        'assets/images/event-default.png',
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+      );
+    }
+    return Center(
+      child: SvgPicture.asset(
+        fallbackSvg,
+        width: 18,
+        height: 18,
+        colorFilter: const ColorFilter.mode(
+          AppColors.textHint,
+          BlendMode.srcIn,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: size, height: size,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: AppColors.surfaceVariant,
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(color: AppColors.borderLight, width: 0.5),
       ),
       clipBehavior: Clip.antiAlias,
-      child: imageUrl != null
+      child: imageUrl != null && imageUrl!.isNotEmpty
           ? CachedNetworkImage(
-              imageUrl: imageUrl!, width: size, height: size, fit: BoxFit.cover,
-              errorWidget: (_, __, ___) => Center(child: SvgPicture.asset(fallbackSvg, width: 18, height: 18,
-                colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn))),
+              imageUrl: imageUrl!,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorWidget: (_, __, ___) => _fallback(),
             )
-          : Center(child: SvgPicture.asset(fallbackSvg, width: 18, height: 18,
-              colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn))),
+          : _fallback(),
     );
   }
 }
@@ -1090,11 +1579,18 @@ class _SmallAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 40, height: 40, color: AppColors.surfaceVariant,
+      width: 40,
+      height: 40,
+      color: AppColors.surfaceVariant,
       child: Center(
         child: Text(
           name.isNotEmpty ? name[0].toUpperCase() : '?',
-          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textSecondary, height: 1.0),
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textSecondary,
+            height: 1.0,
+          ),
         ),
       ),
     );
@@ -1115,7 +1611,12 @@ class _CodeBadge extends StatelessWidget {
       ),
       child: Text(
         code,
-        style: GoogleFonts.jetBrainsMono(fontSize: 9, fontWeight: FontWeight.w500, color: AppColors.textPrimary, letterSpacing: 0.5),
+        style: GoogleFonts.jetBrainsMono(
+          fontSize: 9,
+          fontWeight: FontWeight.w500,
+          color: AppColors.textPrimary,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }
@@ -1149,14 +1650,30 @@ class _StatusBadge extends StatelessWidget {
 String _formatDateShort(String dateStr) {
   try {
     final d = DateTime.parse(dateStr);
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${months[d.month - 1]} ${d.day}, ${d.year}';
-  } catch (_) { return dateStr; }
+  } catch (_) {
+    return dateStr;
+  }
 }
 
 String _formatCompactMoney(dynamic amount) {
   if (amount == null) return '';
-  final n = (amount is String ? double.tryParse(amount) : amount.toDouble()) ?? 0.0;
+  final n =
+      (amount is String ? double.tryParse(amount) : amount.toDouble()) ?? 0.0;
   if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
   if (n >= 1000) return '${(n / 1000).toStringAsFixed(0)}K';
   return n.toStringAsFixed(0);
@@ -1164,13 +1681,203 @@ String _formatCompactMoney(dynamic amount) {
 
 String? _extractServiceImage(Map<String, dynamic> s) {
   final primary = s['primary_image'];
-  if (primary is Map) return primary['thumbnail_url']?.toString() ?? primary['url']?.toString();
+  if (primary is Map)
+    return primary['thumbnail_url']?.toString() ?? primary['url']?.toString();
   if (primary is String && primary.isNotEmpty) return primary;
   final images = s['images'];
   if (images is List && images.isNotEmpty) {
     final first = images.first;
-    if (first is Map) return first['thumbnail_url']?.toString() ?? first['url']?.toString();
+    if (first is Map)
+      return first['thumbnail_url']?.toString() ?? first['url']?.toString();
     if (first is String) return first;
   }
   return s['cover_image']?.toString() ?? s['image_url']?.toString();
+}
+
+// ═══════════════════════════════════════════════
+// My Groups Section (stateful)
+// ═══════════════════════════════════════════════
+
+class _MyGroupsSection extends StatefulWidget {
+  const _MyGroupsSection();
+
+  @override
+  State<_MyGroupsSection> createState() => _MyGroupsSectionState();
+}
+
+class _MyGroupsSectionState extends State<_MyGroupsSection> {
+  List<dynamic> _groups = [];
+  bool _loaded = false;
+  Timer? _poll;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    _poll = Timer.periodic(const Duration(seconds: 30), (_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final res = await EventGroupsService.listMyGroups();
+      if (!mounted) return;
+      if (res['success'] == true) {
+        final data = res['data'];
+        final groups = data is Map ? (data['groups'] ?? []) : [];
+        setState(() {
+          _groups = groups is List ? groups : [];
+          _loaded = true;
+        });
+      } else {
+        setState(() => _loaded = true);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loaded = true);
+    }
+  }
+
+  String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    return parts.take(2).map((s) => s.isEmpty ? '' : s[0].toUpperCase()).join();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded || _groups.isEmpty) return const SizedBox.shrink();
+    final visible = _groups.take(4).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeaderAction(
+          icon: 'assets/icons/group-chat-icon.svg',
+          title: 'My Groups',
+          action: 'View all',
+          onAction: () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MyGroupsScreen()),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        ...visible.map((g) {
+          final group = g as Map;
+          final name = (group['name'] ?? 'Group').toString();
+          final imageUrl = group['image_url'] as String?;
+          final unread = (group['unread_count'] ?? 0) as int;
+          final memberCount = group['member_count'] ?? 0;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: GestureDetector(
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => EventGroupWorkspaceScreen(
+                      groupId: group['id'].toString(),
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.primary.withOpacity(0.1),
+                        image: (imageUrl != null && imageUrl.isNotEmpty)
+                            ? DecorationImage(
+                                image: NetworkImage(imageUrl),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                      ),
+                      child: (imageUrl == null || imageUrl.isEmpty)
+                          ? Center(
+                              child: Text(
+                                _initials(name),
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                              height: 1.3,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$memberCount members',
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              color: AppColors.textTertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (unread > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        constraints: const BoxConstraints(minWidth: 20),
+                        child: Text(
+                          unread > 99 ? '99+' : '$unread',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }),
+        const SizedBox(height: 28),
+      ],
+    );
+  }
 }

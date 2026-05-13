@@ -38,6 +38,16 @@ def validate_phone_number(phone: str) -> str:
     if len(phone) == 9 and phone[0] in ("6", "7"):
         phone = "255" + phone
 
+    # Defensive: strip an erroneous leading 0 right after the TZ country code
+    # (e.g. 25507XXXXXXXX → 2557XXXXXXXX). Happens when a local-format number
+    # was concatenated with the dial code on the client.
+    if phone.startswith("2550") and len(phone) == 13 and phone[4] in ("6", "7"):
+        phone = "255" + phone[4:]
+
+    # Same defensive cleanup for Kenyan numbers (2540 → 254).
+    if phone.startswith("2540") and len(phone) == 13 and phone[4] in ("1", "7"):
+        phone = "254" + phone[4:]
+
     # Must be all digits
     if not phone.isdigit():
         raise ValueError("Phone number must contain only digits")

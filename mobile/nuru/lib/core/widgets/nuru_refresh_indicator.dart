@@ -4,9 +4,8 @@ import 'nuru_loader.dart';
 /// Drop-in replacement for [RefreshIndicator] that renders the branded
 /// NuruLoader (3-dot wave) instead of the default circular spinner.
 ///
-/// API surface mirrors the most common parameters used across the app so the
-/// migration is a simple class-name swap. Unsupported visual parameters
-/// (color, backgroundColor, strokeWidth, etc.) are accepted and ignored.
+/// Hardened so refresh only triggers from a true top-edge pull (avoids
+/// accidental refresh while scrolling content mid-list).
 class NuruRefreshIndicator extends StatefulWidget {
   final Future<void> Function() onRefresh;
   final Widget child;
@@ -24,7 +23,7 @@ class NuruRefreshIndicator extends StatefulWidget {
     super.key,
     required this.onRefresh,
     required this.child,
-    this.displacement = 40.0,
+    this.displacement = 60.0,
     this.edgeOffset = 0.0,
     this.color,
     this.backgroundColor,
@@ -57,24 +56,34 @@ class _NuruRefreshIndicatorState extends State<NuruRefreshIndicator> {
     if (mounted) setState(() => _refreshing = false);
   }
 
+  // Strict predicate: only allow refresh from depth 0 AND when scroll is at
+  // (or above) the very top of the list. This prevents the indicator from
+  // appearing when the user pulls down mid-scroll.
+  bool _strictPredicate(ScrollNotification n) {
+    if (n.depth != 0) return false;
+    final m = n.metrics;
+    if (m.axis != Axis.vertical) return false;
+    // Only trigger when content is anchored at the top.
+    return m.pixels <= m.minScrollExtent + 0.5;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final predicate = widget.notificationPredicate ?? _strictPredicate;
     return ScrollConfiguration(
       behavior: const _NoGlowBehavior(),
       child: Stack(
         children: [
           RefreshIndicator(
             onRefresh: _handle,
-            // Make the default spinner invisible — we render our own.
             color: Colors.transparent,
             backgroundColor: Colors.transparent,
             elevation: 0,
             strokeWidth: 0.0001,
             displacement: widget.displacement,
             edgeOffset: widget.edgeOffset,
-            triggerMode: widget.triggerMode,
-            notificationPredicate: widget.notificationPredicate ??
-                defaultScrollNotificationPredicate,
+            triggerMode: RefreshIndicatorTriggerMode.onEdge,
+            notificationPredicate: predicate,
             child: widget.child,
           ),
           if (_refreshing)

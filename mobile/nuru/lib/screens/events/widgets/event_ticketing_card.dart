@@ -72,7 +72,10 @@ class EventTicketingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -83,18 +86,27 @@ class EventTicketingCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            SvgPicture.asset('assets/icons/ticket-icon.svg', width: 20, height: 20,
-              colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
-            const SizedBox(width: 8),
-            Expanded(child: Text('Event Ticketing',
-              style: appText(size: 15, weight: FontWeight.w700))),
-            Switch.adaptive(
-              value: sellsTickets,
-              onChanged: onSellsTicketsChanged,
-              activeColor: AppColors.primary,
+          InkWell(
+            onTap: () => onSellsTicketsChanged(!sellsTickets),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(children: [
+                SvgPicture.asset('assets/icons/ticket-icon.svg', width: 20, height: 20,
+                  colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Event Ticketing',
+                  style: appText(size: 15, weight: FontWeight.w700))),
+                Switch(
+                  key: const ValueKey('event_ticketing_toggle'),
+                  value: sellsTickets,
+                  onChanged: onSellsTicketsChanged,
+                  activeColor: AppColors.primary,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ]),
             ),
-          ]),
+          ),
 
           if (sellsTickets) ...[
             const SizedBox(height: 16),
@@ -107,19 +119,25 @@ class EventTicketingCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: AppColors.border),
               ),
-              child: Row(children: [
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Public Event', style: appText(size: 14, weight: FontWeight.w600)),
-                  const SizedBox(height: 2),
-                  Text('Allow anyone to discover and purchase tickets',
-                    style: appText(size: 11, color: AppColors.textTertiary)),
-                ])),
-                Switch.adaptive(
-                  value: isPublic,
-                  onChanged: onIsPublicChanged,
-                  activeColor: AppColors.primary,
-                ),
-              ]),
+              child: InkWell(
+                onTap: () => onIsPublicChanged(!isPublic),
+                borderRadius: BorderRadius.circular(10),
+                child: Row(children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Public Event', style: appText(size: 14, weight: FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    Text('Allow anyone to discover and purchase tickets',
+                      style: appText(size: 11, color: AppColors.textTertiary)),
+                  ])),
+                  Switch(
+                    key: const ValueKey('event_public_toggle'),
+                    value: isPublic,
+                    onChanged: onIsPublicChanged,
+                    activeColor: AppColors.primary,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ]),
+              ),
             ),
             const SizedBox(height: 14),
 
@@ -268,6 +286,7 @@ class EventTicketingCard extends StatelessWidget {
             ),
           ],
         ],
+      ),
       ),
     );
   }

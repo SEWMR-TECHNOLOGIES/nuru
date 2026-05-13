@@ -46,12 +46,15 @@ const EditService = () => {
   const [title, setTitle] = useState('');
   const [serviceCategoryId, setServiceCategoryId] = useState('');
   const [serviceTypeId, setServiceTypeId] = useState('');
+  const [serviceTypeIds, setServiceTypeIds] = useState<string[]>([]);
   const [description, setDescription] = useState('');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [location, setLocation] = useState('');
   const [locationData, setLocationData] = useState<LocationData | null>(null);
-  const [images, setImages] = useState<string[]>([]);
+  // Existing persisted images (have an id) and locally added new ones (no id, dataURL).
+  const [images, setImages] = useState<Array<{ id?: string; url: string }>>([]);
+  const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
 
   // Intro media state
   const [introMedia, setIntroMedia] = useState<Array<{ id: string; media_type: string; media_url: string }>>([]);
@@ -82,6 +85,7 @@ const EditService = () => {
   const originalTitleRef = useRef<string>('');
   const originalCategoryRef = useRef<string>('');
   const originalTypeRef = useRef<string>('');
+  const originalTypeIdsRef = useRef<string[]>([]);
 
   // When the service is loaded, set initial form values
   useEffect(() => {
@@ -103,10 +107,20 @@ const EditService = () => {
         || ''
       );
       setServiceTypeId(typeId);
+      // Multi-type prefill: prefer service_type_ids array, else service_types[].id, else fall back to single id.
+      const multiIds: string[] = Array.isArray((service as any).service_type_ids) && (service as any).service_type_ids.length
+        ? (service as any).service_type_ids.map(String)
+        : Array.isArray((service as any).service_types) && (service as any).service_types.length
+          ? (service as any).service_types.map((t: any) => String(t.id))
+          : (typeId ? [typeId] : []);
+      setServiceTypeIds(multiIds);
+      // Description prefill (was missing — caused empty textarea on edit)
+      setDescription(service.description || '');
       // Store originals for change detection
       originalTitleRef.current = service.title || '';
       originalCategoryRef.current = categoryId;
       originalTypeRef.current = typeId;
+      originalTypeIdsRef.current = [...multiIds].sort();
       const minPriceValue = service.min_price?.toString() || '';
       const maxPriceValue = service.max_price?.toString() || '';
       setMinPrice(minPriceValue.replace(/,/g, ''));
@@ -130,10 +144,12 @@ const EditService = () => {
         });
       }
 
-      const imageUrls = (service.images || []).map(img =>
-        typeof img === 'string' ? img : img.url
+      const imageObjs = (service.images || []).map((img: any) =>
+        typeof img === 'string'
+          ? { url: img }
+          : { id: img.id, url: img.url || img.image_url || img.file_url || '' }
       );
-      setImages(imageUrls);
+      setImages(imageObjs);
 
       // Load intro media
       if ((service as any).intro_media) {
@@ -184,15 +200,35 @@ const EditService = () => {
         }
         const reader = new FileReader();
         reader.onloadend = () => {
-          setImages(prev => [...prev, reader.result as string]);
+          setImages(prev => [...prev, { url: reader.result as string }]);
         };
         reader.readAsDataURL(file);
       });
     }
   };
 
-  const removeImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
+  const removeImage = async (index: number) => {
+    const img = images[index];
+    // Local-only (newly added, not yet uploaded) — just drop from state.
+    if (!img?.id) {
+      setImages(prev => prev.filter((_, i) => i !== index));
+      return;
+    }
+    if (!id) return;
+    setDeletingImageId(img.id);
+    try {
+      const res = await userServicesApi.deleteImage(id, img.id);
+      if (res.success) {
+        setImages(prev => prev.filter((_, i) => i !== index));
+        toast({ title: 'Photo removed' });
+      } else {
+        showApiErrors(res, 'Failed to remove photo');
+      }
+    } catch (err: any) {
+      showCaughtError(err, 'Failed to remove photo');
+    } finally {
+      setDeletingImageId(null);
+    }
   };
 
   // Intro media handlers
@@ -257,11 +293,18 @@ const EditService = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (serviceTypeIds.length === 0) {
+      toast({ title: 'Service type required', description: 'Please select at least one service type.', variant: 'destructive' });
+      return;
+    }
+
     try {
       const form = new FormData();
       form.append('title', title);
       if (serviceCategoryId) form.append('service_category_id', serviceCategoryId);
-      if (serviceTypeId) form.append('service_type_id', serviceTypeId);
+      // Multi-types — backend also keeps legacy single field in sync.
+      serviceTypeIds.forEach((tid) => form.append('service_type_ids', tid));
+      if (serviceTypeIds[0]) form.append('service_type_id', serviceTypeIds[0]);
       form.append('description', description);
       form.append('min_price', String(parseInt(minPrice.replace(/,/g, ''), 10) || 0));
       form.append('max_price', String(parseInt(maxPrice.replace(/,/g, ''), 10) || 0));
@@ -272,11 +315,12 @@ const EditService = () => {
         if (locationData.address) form.append('formatted_address', locationData.address);
       }
 
-      // Detect if key fields changed — requires KYC reset
-      const keyFieldChanged =
-        title !== originalTitleRef.current ||
-        serviceCategoryId !== originalCategoryRef.current ||
-        serviceTypeId !== originalTypeRef.current;
+      // Detect MAJOR changes — only category or the SET of types changing
+      // should trigger a re-verification cycle.
+      const sortedNow = [...serviceTypeIds].sort();
+      const sortedOrig = originalTypeIdsRef.current;
+      const typesChanged = sortedNow.length !== sortedOrig.length || sortedNow.some((v, i) => v !== sortedOrig[i]);
+      const keyFieldChanged = serviceCategoryId !== originalCategoryRef.current || typesChanged;
 
       if (keyFieldChanged) {
         form.append('reset_verification', 'true');
@@ -288,12 +332,12 @@ const EditService = () => {
         toast({
           title: 'Service updated!',
           description: keyFieldChanged
-            ? 'Key details changed — please re-verify to keep your service active.'
+            ? 'Service category or type changed — please upload your KYC documents to re-verify.'
             : (response.message || 'Your service has been updated successfully.'),
         });
-        // If key fields changed, redirect to verification/KYC flow
+        // If key fields changed, redirect to the KYC upload page.
         if (keyFieldChanged) {
-          navigate(`/my-services/${id}/verify`);
+          navigate(`/services/verify/${id}/${serviceTypeIds[0] || 'default'}`);
         } else {
           navigate('/my-services');
         }
@@ -357,19 +401,35 @@ const EditService = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="type">Service Type</Label>
-                <Select value={serviceTypeId} onValueChange={setServiceTypeId} required>
-                  <SelectTrigger><SelectValue placeholder={t('select_service_type')} /></SelectTrigger>
-                  <SelectContent>
-                    {loadingTypes ? (
-                      <SelectItem value="loading" disabled>{t("loading")}</SelectItem>
-                    ) : (
-                      (serviceTypes || []).map((type: any) => (
-                        <SelectItem key={type.id} value={String(type.id)}>{type.name}</SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                <Label>Service Types <span className="text-xs font-normal text-muted-foreground">(pick one or more)</span></Label>
+                {loadingTypes ? (
+                  <span className="flex items-center gap-2 text-muted-foreground text-sm">
+                    <Loader2 className="w-4 h-4 animate-spin" />Loading types...
+                  </span>
+                ) : (serviceTypes || []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No service types available for this category.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {(serviceTypes || []).map((type: any) => {
+                      const tid = String(type.id);
+                      const active = serviceTypeIds.includes(tid);
+                      return (
+                        <button
+                          type="button"
+                          key={tid}
+                          onClick={() => {
+                            setServiceTypeIds(prev => active ? prev.filter(i => i !== tid) : [...prev, tid]);
+                            if (!active) setServiceTypeId(tid);
+                          }}
+                          className={`px-3 py-1.5 rounded-full border text-sm transition-colors ${active ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-foreground border-border hover:bg-muted'}`}
+                          aria-pressed={active}
+                        >
+                          {type.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -650,9 +710,17 @@ const EditService = () => {
             {images.length > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                 {images.map((image, index) => (
-                  <div key={index} className="relative group">
-                    <img src={image} alt={`Service image ${index + 1}`} className="w-full h-32 object-cover rounded-lg" />
-                    <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeImage(index)}>
+                  <div key={image.id ?? index} className="relative group">
+                    <img src={image.url} alt={`Service image ${index + 1}`} className="w-full h-32 object-cover rounded-lg" />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => removeImage(index)}
+                      disabled={deletingImageId === image.id}
+                      aria-label="Remove photo"
+                    >
                       <X className="w-4 h-4" />
                     </Button>
                   </div>

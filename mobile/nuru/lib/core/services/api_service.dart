@@ -241,7 +241,7 @@ class AuthApi {
   }
 
   /// POST /auth/logout
-  static Future<Map<String, dynamic>> logout() {
-    return ApiService.post('/auth/logout', {});
+  static Future<Map<String, dynamic>> logout({Map<String, dynamic>? body}) {
+    return ApiService.post('/auth/logout', body ?? {});
   }
 }

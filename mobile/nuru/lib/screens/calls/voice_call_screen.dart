@@ -92,9 +92,11 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   Duration _elapsed = Duration.zero;
 
   // WhatsApp-style ringback tone played to the caller while the other side
-  // is ringing. Stops as soon as the remote participant joins.
+  // is ringing. Stops as soon as the remote participant joins. The user can
+  // mute the ringer independently via the on-screen "Silence" button.
   final AudioPlayer _ringback = AudioPlayer();
   bool _ringbackStarted = false;
+  bool _ringerMuted = false;
 
   // Polls the backend so the caller's screen dismisses the moment the
   // callee declines / ends / the call times out (mirrors WhatsApp UX).
@@ -135,7 +137,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     _ringbackStarted = true;
     try {
       await _ringback.setReleaseMode(ReleaseMode.loop);
-      await _ringback.setVolume(0.6);
+      await _ringback.setVolume(_ringerMuted ? 0.0 : 0.6);
       await _ringback.play(AssetSource('audio/ringback.wav'));
     } catch (_) {}
   }
@@ -144,6 +146,12 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     if (!_ringbackStarted) return;
     _ringbackStarted = false;
     try { await _ringback.stop(); } catch (_) {}
+  }
+
+  Future<void> _toggleRinger() async {
+    final next = !_ringerMuted;
+    try { await _ringback.setVolume(next ? 0.0 : 0.6); } catch (_) {}
+    if (mounted) setState(() => _ringerMuted = next);
   }
 
   Future<void> _bootstrap() async {
@@ -237,19 +245,41 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     final lp = _room?.localParticipant;
     if (lp == null) return;
     final next = !_muted;
-    await lp.setMicrophoneEnabled(!next);
-    setState(() => _muted = next);
+    try {
+      // Prefer track.mute()/unmute() so the audio publication stays alive
+      // (setMicrophoneEnabled(false) unpublishes the track entirely, which
+      // some servers/clients don't pick up correctly mid-call).
+      final pub = lp.audioTrackPublications.isNotEmpty
+          ? lp.audioTrackPublications.first
+          : null;
+      if (pub?.track != null) {
+        if (next) {
+          await pub!.mute();
+        } else {
+          await pub!.unmute();
+        }
+      } else {
+        await lp.setMicrophoneEnabled(!next);
+      }
+    } catch (_) {
+      try {
+        await lp.setMicrophoneEnabled(!next);
+      } catch (_) {}
+    }
+    if (mounted) setState(() => _muted = next);
   }
 
   Future<void> _toggleSpeaker() async {
     final next = !_speakerOn;
     try {
-      // LiveKit speakerOn API name varies between minor versions; fall back
-      // silently if it's not available.
-      // ignore: invalid_use_of_internal_member
-      await Hardware.instance.setSpeakerphoneOn(next);
+      // forceSpeakerOutput is required on iOS to actually route audio to the
+      // loudspeaker even when headphones/Bluetooth would otherwise win.
+      // On Android, this argument is ignored and the standard speakerphone
+      // toggle is applied via the underlying AudioManager.
+      await Hardware.instance
+          .setSpeakerphoneOn(next, forceSpeakerOutput: next);
     } catch (_) {}
-    setState(() => _speakerOn = next);
+    if (mounted) setState(() => _speakerOn = next);
   }
 
   Future<void> _hangup({bool notifyServer = true}) async {
@@ -297,6 +327,11 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   void dispose() {
     _statusTimer?.cancel();
     _durationTimer?.cancel();
+    // Defensive: always silence the ringer if the screen leaves the tree
+    // for any reason (route push, hot reload, app backgrounding into a
+    // different flow). Without this the loop has been known to keep
+    // playing after the call screen is gone.
+    try { _ringback.stop(); } catch (_) {}
     _listener?.dispose();
     _room?.dispose();
     _ringback.dispose();
@@ -392,6 +427,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   }
 
   Widget _controls() {
+    final showRinger = !_connected; // ringer button only relevant while ringing
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
@@ -401,6 +437,13 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
           active: _muted,
           onTap: _connecting ? null : _toggleMute,
         ),
+        if (showRinger)
+          _circleBtn(
+            icon: _ringerMuted ? Icons.notifications_off_rounded : Icons.notifications_active_rounded,
+            label: _ringerMuted ? 'Silenced' : 'Silence',
+            active: _ringerMuted,
+            onTap: _toggleRinger,
+          ),
         _endBtn(),
         _circleBtn(
           icon: _speakerOn ? Icons.volume_up_rounded : Icons.volume_down_rounded,

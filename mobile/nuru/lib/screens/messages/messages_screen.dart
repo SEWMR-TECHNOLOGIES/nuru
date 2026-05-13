@@ -18,6 +18,7 @@ import '../../widgets/inline_voice_player.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/messages_service.dart';
 import '../../core/services/uploads_service.dart';
+import '../services/public_service_screen.dart';
 import '../../core/services/calls_service.dart';
 import '../../core/services/call_ui_coordinator.dart';
 import '../../core/widgets/app_snackbar.dart';
@@ -46,7 +47,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
   String _search = '';
   Timer? _pollTimer;
   Timer? _searchDebounce;
-  String _filter = 'all'; // all | people | vendors
+  String _filter = 'all'; // all | people | vendors | unread | services | attachments
   String? _currentUserId;
 
   @override
@@ -203,13 +204,31 @@ class _MessagesScreenState extends State<MessagesScreen> {
   }
 
   List<dynamic> get _filteredConversations {
-    if (_filter == 'people') {
-      return _conversations.where((c) => !_isVendorConv(c)).toList();
+    Iterable<dynamic> src = _conversations;
+    switch (_filter) {
+      case 'people':
+        src = src.where((c) => !_isVendorConv(c));
+        break;
+      case 'vendors':
+        src = src.where((c) => _isVendorConv(c));
+        break;
+      case 'unread':
+        src = src.where((c) => _isUnread(c));
+        break;
+      case 'services':
+        src = src.where((c) => c is Map && (c['service'] != null || c['service_id'] != null || c['service_context'] != null));
+        break;
+      case 'attachments':
+        src = src.where((c) {
+          if (c is! Map) return false;
+          final last = c['last_message'];
+          if (last is! Map) return false;
+          final t = (last['message_type'] ?? '').toString();
+          return t == 'image' || t == 'video' || t == 'audio' || t == 'file';
+        });
+        break;
     }
-    if (_filter == 'vendors') {
-      return _conversations.where((c) => _isVendorConv(c)).toList();
-    }
-    return _conversations;
+    return src.toList();
   }
 
   String _getConversationName(dynamic conv) {
@@ -473,6 +492,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
     final userName = user['full_name']?.toString() ??
         (rawName.isNotEmpty ? rawName : user['username']?.toString() ?? 'Unknown');
     final avatarUrl = user['avatar']?.toString();
+    final bool isVerifiedUser = user['is_verified'] == true ||
+        user['verified'] == true ||
+        user['kyc_verified'] == true;
 
     if (existingConv != null) {
       Navigator.pop(sheetCtx);
@@ -483,6 +505,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
           conversationId: existingConv['id'].toString(),
           name: name,
           avatar: avatar,
+          isVerified: _isVerified(existingConv) || isVerifiedUser,
         ),
       ));
       return;
@@ -510,6 +533,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
         conversationId: convId,
         name: userName,
         avatar: avatarUrl,
+        isVerified: isVerifiedUser,
       ),
     ));
   }
@@ -630,18 +654,33 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   const SizedBox(width: 10),
                   Expanded(child: _filterChip('vendors', context.tr('vendors'), 'assets/icons/package-icon.svg')),
                   const SizedBox(width: 10),
-                  Container(
-                    width: 46, height: 46,
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.border, width: 1),
-                    ),
-                    child: Center(
-                      child: SvgPicture.asset(
-                        'assets/icons/menu-icon.svg',
-                        width: 18, height: 18,
-                        colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn),
+                  GestureDetector(
+                    onTap: _openFilterSheet,
+                    child: Container(
+                      width: 46, height: 46,
+                      decoration: BoxDecoration(
+                        color: _filter == 'all' || _filter == 'people' || _filter == 'vendors'
+                            ? AppColors.surface
+                            : AppColors.primarySoft,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: _filter == 'all' || _filter == 'people' || _filter == 'vendors'
+                              ? AppColors.border
+                              : AppColors.primary,
+                          width: 1,
+                        ),
+                      ),
+                      child: Center(
+                        child: SvgPicture.asset(
+                          'assets/icons/menu-icon.svg',
+                          width: 18, height: 18,
+                          colorFilter: ColorFilter.mode(
+                            _filter == 'all' || _filter == 'people' || _filter == 'vendors'
+                                ? AppColors.textPrimary
+                                : AppColors.primary,
+                            BlendMode.srcIn,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -653,7 +692,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
               child: _loading
                   ? _buildShimmer()
                   : _filteredConversations.isEmpty
-                      ? _buildEmpty()
+                      ? _buildEmpty(
+                          // Distinguish "no DB data" from "filter/search returned nothing".
+                          isFiltered: _conversations.isNotEmpty &&
+                              (_filter != 'all' || _search.isNotEmpty),
+                        )
                       : NuruRefresh(
                           onRefresh: () => _loadConversations(silent: true),
                           child: ListView.separated(
@@ -678,6 +721,153 @@ class _MessagesScreenState extends State<MessagesScreen> {
       return service['title']?.toString() ?? service['name']?.toString() ?? '';
     }
     return conv['service_title']?.toString() ?? conv['service_name']?.toString() ?? '';
+  }
+
+  void _openFilterSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) {
+        const options = [
+          {'value': 'all', 'label': 'All', 'desc': 'Every chat', 'icon': 'assets/icons/chat-icon.svg'},
+          {'value': 'unread', 'label': 'Unread', 'desc': 'New messages', 'icon': 'assets/icons/bell-icon.svg'},
+          {'value': 'people', 'label': 'People', 'desc': 'Direct chats', 'icon': 'assets/icons/user-icon.svg'},
+          {'value': 'vendors', 'label': 'Vendors', 'desc': 'Service providers', 'icon': 'assets/icons/package-icon.svg'},
+          {'value': 'services', 'label': 'Services', 'desc': 'Bookings & inquiries', 'icon': 'assets/icons/package-icon.svg'},
+          {'value': 'attachments', 'label': 'Attachments', 'desc': 'Photos, files', 'icon': 'assets/icons/chat-icon.svg'},
+        ];
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
+            String current = _filter;
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(height: 10),
+                      Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(4))),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+                        child: Row(children: [
+                          Text('Filter', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary, letterSpacing: -0.3)),
+                          const Spacer(),
+                          if (_filter != 'all')
+                            GestureDetector(
+                              onTap: () { setState(() => _filter = 'all'); Navigator.pop(ctx); },
+                              child: Text('Reset', style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.primary)),
+                            ),
+                        ]),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                        child: Text(
+                          'Narrow your inbox to exactly what you need.',
+                          style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textTertiary, height: 1.4),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: GridView.count(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                          childAspectRatio: 2.4,
+                          children: options.map((o) {
+                            final v = o['value']!;
+                            final sel = current == v;
+                            return GestureDetector(
+                              onTap: () {
+                                setState(() => _filter = v);
+                                Navigator.pop(ctx);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: sel ? AppColors.primarySoft : AppColors.surface,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: sel ? AppColors.primary : AppColors.border,
+                                    width: sel ? 1.5 : 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 34, height: 34,
+                                      decoration: BoxDecoration(
+                                        color: sel ? Colors.white : AppColors.surfaceVariant,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Center(
+                                        child: SvgPicture.asset(
+                                          o['icon']!,
+                                          width: 16, height: 16,
+                                          colorFilter: ColorFilter.mode(
+                                            sel ? AppColors.primary : AppColors.textSecondary,
+                                            BlendMode.srcIn,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            o['label']!,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.textPrimary,
+                                              height: 1.2,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            o['desc']!,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 11,
+                                              color: AppColors.textTertiary,
+                                              height: 1.25,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Widget _filterChip(String value, String label, String svgAsset) {
@@ -832,7 +1022,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Content with name and two message preview lines.
+                // Content with name + two-line preview (left side).
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -882,16 +1072,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         ],
                       ),
                       const SizedBox(height: 6),
-                      // Last message — bold, dark. May include a leading
-                      // icon for non-text messages (photo, voice note, video).
                       Row(
                         children: [
                           if (lastPreview.icon != null) ...[
-                            Icon(
-                              lastPreview.icon,
-                              size: 14,
-                              color: AppColors.textSecondary,
-                            ),
+                            Icon(lastPreview.icon, size: 14, color: AppColors.textSecondary),
                             const SizedBox(width: 4),
                           ],
                           Expanded(
@@ -909,17 +1093,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
                           ),
                         ],
                       ),
-                      // Previous message — lighter (matches design's "two lines" preview)
                       if (prevMsg.isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Row(
                           children: [
                             if (prevPreview.icon != null) ...[
-                              Icon(
-                                prevPreview.icon,
-                                size: 13,
-                                color: AppColors.textTertiary,
-                              ),
+                              Icon(prevPreview.icon, size: 13, color: AppColors.textTertiary),
                               const SizedBox(width: 4),
                             ],
                             Expanded(
@@ -941,11 +1120,15 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 10),
+                // Trailing column: time on top, unread badge below — both
+                // anchored to the same right edge for clean vertical alignment
+                // across all rows (no zig-zag).
+                const SizedBox(width: 8),
                 SizedBox(
-                  width: 74,
+                  width: 64,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         time,
@@ -960,7 +1143,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         ),
                       ),
                       if (unreadCount > 0) ...[
-                        const SizedBox(height: 17),
+                        const SizedBox(height: 8),
                         Container(
                           constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
                           padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -1023,30 +1206,59 @@ class _MessagesScreenState extends State<MessagesScreen> {
     );
   }
 
-  Widget _buildEmpty() {
+  Widget _buildEmpty({bool isFiltered = false}) {
+    final title = isFiltered
+        ? 'No matching conversations'
+        : context.tr('no_conversations');
+    final subtitle = isFiltered
+        ? 'Try a different filter or search term'
+        : context.tr('start_conversation');
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 64, height: 64,
-            decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(18)),
-            child: Center(child: SvgPicture.asset('assets/icons/chat-icon.svg', width: 28, height: 28, colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn))),
-          ),
-          const SizedBox(height: 20),
-          Text(context.tr('no_conversations'), style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
-          const SizedBox(height: 6),
-          Text(context.tr('start_conversation'), style: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary, height: 1.4)),
-          const SizedBox(height: 20),
-          GestureDetector(
-            onTap: _showNewConversationSheet,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(10)),
-              child: Text(context.tr('new_message'), style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white, height: 1.2)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64, height: 64,
+              decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(18)),
+              child: Center(
+                child: SvgPicture.asset(
+                  isFiltered ? 'assets/icons/search-icon.svg' : 'assets/icons/chat-icon.svg',
+                  width: 28, height: 28,
+                  colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn),
+                ),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 20),
+            Text(title, textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
+            const SizedBox(height: 6),
+            Text(subtitle, textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary, height: 1.4)),
+            const SizedBox(height: 20),
+            if (isFiltered)
+              GestureDetector(
+                onTap: () => setState(() { _filter = 'all'; _search = ''; }),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Text('Clear filters', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.2)),
+                ),
+              )
+            else
+              GestureDetector(
+                onTap: _showNewConversationSheet,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(10)),
+                  child: Text(context.tr('new_message'), style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white, height: 1.2)),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -1197,6 +1409,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final _scrollCtrl = ScrollController();
   final _picker = ImagePicker();
   final _threadSearchCtrl = TextEditingController();
+  final FocusNode _threadSearchFocus = FocusNode();
   List<dynamic> _messages = [];
   bool _loading = true;
   bool _sending = false;
@@ -1414,6 +1627,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _msgCtrl.dispose();
     _scrollCtrl.dispose();
     _threadSearchCtrl.dispose();
+    _threadSearchFocus.dispose();
     _recordTimer?.cancel();
     _recorder.dispose();
     _composerFocus.dispose();
@@ -1681,6 +1895,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         if (_messages.length > prevCount) _scrollToBottom();
       } else if (newFromOthers > 0) {
         setState(() => _newMessagesCount += newFromOthers);
+      }
+      // The user is currently inside this conversation, so any new
+      // incoming messages from the other participant should NOT count as
+      // unread. Tell the backend right away — otherwise the conversations
+      // list keeps showing a stale unread badge until the user backs out
+      // and re-opens the thread.
+      if (newFromOthers > 0) {
+        MessagesService.markAsRead(widget.conversationId);
       }
     }
   }
@@ -2023,6 +2245,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     bottom: 12,
                     child: _buildScrollToBottomPill(),
                   ),
+                if (_showThreadSearch) _buildSearchNav(),
               ],
             ),
           ),
@@ -2126,7 +2349,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           label: 'Search',
                           onTap: () {
                             Navigator.pop(ctx);
+                            FocusManager.instance.primaryFocus?.unfocus();
                             setState(() => _showThreadSearch = true);
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) _threadSearchFocus.requestFocus();
+                            });
                           },
                         ),
                       ],
@@ -2616,10 +2843,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           IconButton(
             icon: Icon(_showThreadSearch ? Icons.close_rounded : Icons.more_horiz_rounded, size: 22, color: AppColors.textPrimary),
             splashRadius: 22,
-            onPressed: () => setState(() {
-              _showThreadSearch = !_showThreadSearch;
-              if (!_showThreadSearch) { _threadSearch = ''; _threadSearchCtrl.clear(); }
-            }),
+            onPressed: () {
+              FocusManager.instance.primaryFocus?.unfocus();
+              setState(() {
+                _showThreadSearch = !_showThreadSearch;
+                if (!_showThreadSearch) { _threadSearch = ''; _threadSearchCtrl.clear(); }
+              });
+              if (_showThreadSearch) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) _threadSearchFocus.requestFocus();
+                });
+              }
+            },
             tooltip: _showThreadSearch ? 'Close search' : 'More',
           ),
         ],
@@ -2627,26 +2862,181 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  Widget _buildThreadSearchBar() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      color: AppColors.surface,
-      child: TextField(
-        controller: _threadSearchCtrl,
-        autofocus: true,
-        onChanged: (v) => setState(() => _threadSearch = v.trim().toLowerCase()),
-        style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary, decorationThickness: 0),
-        decoration: InputDecoration(
-          isDense: true,
-          hintText: 'Search in conversation…',
-          hintStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary),
-          prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.textTertiary),
-          filled: true,
-          fillColor: AppColors.surfaceVariant,
-          contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+  // Highlight matches of [_threadSearch] in a body of text.
+  Widget _buildHighlightedText(String text, TextStyle base) {
+    if (_threadSearch.isEmpty) return Text(text, style: base);
+    final q = _threadSearch;
+    final lower = text.toLowerCase();
+    if (!lower.contains(q)) return Text(text, style: base);
+    final spans = <TextSpan>[];
+    int i = 0;
+    while (i < text.length) {
+      final idx = lower.indexOf(q, i);
+      if (idx < 0) {
+        spans.add(TextSpan(text: text.substring(i), style: base));
+        break;
+      }
+      if (idx > i) spans.add(TextSpan(text: text.substring(i, idx), style: base));
+      spans.add(TextSpan(
+        text: text.substring(idx, idx + q.length),
+        style: base.copyWith(
+          backgroundColor: AppColors.primary.withValues(alpha: 0.22),
+          fontWeight: FontWeight.w700,
+          color: AppColors.primaryDark,
         ),
+      ));
+      i = idx + q.length;
+    }
+    return RichText(text: TextSpan(children: spans));
+  }
+
+  // Indices of messages matching the current thread search query.
+  List<int> get _searchMatchIndices {
+    if (_threadSearch.isEmpty) return const [];
+    final q = _threadSearch;
+    final out = <int>[];
+    for (int i = 0; i < _messages.length; i++) {
+      final m = _messages[i];
+      if (m is! Map) continue;
+      final t = (m['content']?.toString() ?? m['message_text']?.toString() ?? '').toLowerCase();
+      if (t.contains(q)) out.add(i);
+    }
+    return out;
+  }
+
+  int _currentMatch = 0;
+
+  void _jumpToMatch(int direction) {
+    final matches = _searchMatchIndices;
+    if (matches.isEmpty) return;
+    setState(() {
+      // Wrap-around so user can keep tapping arrows endlessly.
+      final next = _currentMatch + direction;
+      if (next < 0) {
+        _currentMatch = matches.length - 1;
+      } else if (next >= matches.length) {
+        _currentMatch = 0;
+      } else {
+        _currentMatch = next;
+      }
+    });
+    final target = matches[_currentMatch];
+    final ratio = _messages.isEmpty ? 0.0 : target / _messages.length;
+    if (_scrollCtrl.hasClients) {
+      final max = _scrollCtrl.position.maxScrollExtent;
+      // List is NOT reversed — bottom of list is at maxScrollExtent.
+      // Higher index = lower in list = larger scroll offset.
+      _scrollCtrl.animateTo(
+        (max * ratio).clamp(0.0, max),
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  Widget _buildSearchNav() {
+    final matches = _searchMatchIndices;
+    if (_threadSearch.isEmpty || matches.isEmpty) return const SizedBox.shrink();
+    final cur = (_currentMatch + 1).clamp(1, matches.length);
+    return Positioned(
+      right: 16,
+      top: 12,
+      child: Material(
+        color: Colors.white,
+        elevation: 4,
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: AppColors.borderLight),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            InkWell(
+              onTap: () => _jumpToMatch(-1),
+              borderRadius: BorderRadius.circular(20),
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(Icons.keyboard_arrow_up_rounded, size: 20, color: AppColors.textPrimary),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Text('$cur/${matches.length}',
+                  style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+            ),
+            InkWell(
+              onTap: () => _jumpToMatch(1),
+              borderRadius: BorderRadius.circular(20),
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: AppColors.textPrimary),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThreadSearchBar() {
+    // Mirrors the conversations-list search style: white pill, hairline
+    // border, soft prefix icon — so users get one consistent search affordance
+    // across the inbox and individual chats (WhatsApp-style "find in chat").
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 8),
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: const Color(0xFFEDEDEF), width: 1),
+        ),
+        child: Row(children: [
+          const Icon(Icons.search_rounded, size: 20, color: Color(0xFF8E8E93)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _threadSearchCtrl,
+              focusNode: _threadSearchFocus,
+              autofocus: true,
+              cursorColor: Colors.black,
+              textAlignVertical: TextAlignVertical.center,
+              onChanged: (v) => setState(() {
+                _threadSearch = v.trim().toLowerCase();
+                _currentMatch = 0;
+              }),
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.black, decorationThickness: 0),
+              decoration: InputDecoration(
+                isDense: true,
+                filled: false,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                focusedErrorBorder: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                hintText: 'Search in chat',
+                hintStyle: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: const Color(0xFF9E9E9E),
+                ),
+              ),
+            ),
+          ),
+          if (_threadSearch.isNotEmpty)
+            GestureDetector(
+              onTap: () {
+                _threadSearchCtrl.clear();
+                setState(() => _threadSearch = '');
+                _threadSearchFocus.requestFocus();
+              },
+              child: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF8E8E93)),
+            ),
+        ]),
       ),
     );
   }
@@ -2667,13 +3057,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       );
     }
 
-    final visible = _threadSearch.isEmpty
-        ? _messages
-        : _messages.where((m) {
-            if (m is! Map) return false;
-            final t = (m['content']?.toString() ?? m['message_text']?.toString() ?? '').toLowerCase();
-            return t.contains(_threadSearch);
-          }).toList();
+    // When searching we keep ALL messages visible (so jump up/down navigates
+    // through highlighted matches in context), instead of filtering them out.
+    final visible = _messages;
 
     final rows = <Widget>[
       _buildEncryptionBanner(),
@@ -2901,10 +3287,134 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ],
             ),
             const SizedBox(height: 2),
-            Text('Learn more',
-                style: GoogleFonts.inter(fontSize: 12, color: AppColors.textPrimary, fontWeight: FontWeight.w600, decoration: TextDecoration.underline, decorationColor: AppColors.textPrimary.withValues(alpha: 0.4))),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _showEncryptionLearnMoreSheet(context),
+              child: Text(
+                'Learn more',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.underline,
+                  decorationColor: AppColors.textPrimary.withValues(alpha: 0.4),
+                ),
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Friendly bottom-sheet explaining what end-to-end encryption means
+  /// in Nuru conversations. Triggered from the encryption banner's
+  /// "Learn more" tap.
+  void _showEncryptionLearnMoreSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.black12,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF1C7),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.lock_rounded,
+                        size: 20, color: AppColors.textPrimary),
+                  ),
+                  const SizedBox(width: 12),
+                  Text('End-to-end encryption',
+                      style: GoogleFonts.inter(
+                          fontSize: 17, fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Your messages and calls in this conversation are secured with '
+                'end-to-end encryption. That means only you and the person you\'re '
+                'chatting with can read or listen to them — not even Nuru.',
+                style: GoogleFonts.inter(
+                    fontSize: 14, height: 1.5,
+                    color: AppColors.textPrimary.withValues(alpha: 0.85)),
+              ),
+              const SizedBox(height: 14),
+              _learnMoreBullet('Messages stay private between you and the recipient.'),
+              _learnMoreBullet('Voice and video calls are encrypted end-to-end.'),
+              _learnMoreBullet('Nuru never stores the keys needed to read them.'),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.textOnPrimary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text('Got it',
+                      style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w700, fontSize: 15)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _learnMoreBullet(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Container(
+              width: 5, height: 5,
+              decoration: const BoxDecoration(
+                color: Colors.black54,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text,
+                style: GoogleFonts.inter(
+                    fontSize: 13.5, height: 1.45,
+                    color: AppColors.textPrimary.withValues(alpha: 0.85))),
+          ),
+        ],
       ),
     );
   }
@@ -2978,7 +3488,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             ),
             const SizedBox(width: 8),
             OutlinedButton(
-              onPressed: () {},
+              onPressed: () {
+                final svcId = (widget.service ?? const {})['id']?.toString();
+                if (svcId == null || svcId.isEmpty) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PublicServiceScreen(serviceId: svcId),
+                  ),
+                );
+              },
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.borderLight),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -3073,9 +3592,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           child: _fileChip(u),
         )),
         if (text.isNotEmpty)
-          Text(
+          _buildHighlightedText(
             text,
-            style: GoogleFonts.inter(fontSize: 14.5, color: textColor, height: 1.4, fontWeight: FontWeight.w400),
+            GoogleFonts.inter(fontSize: 14.5, color: textColor, height: 1.4, fontWeight: FontWeight.w400),
           ),
         const SizedBox(height: 4),
         Row(

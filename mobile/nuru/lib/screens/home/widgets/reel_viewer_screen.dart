@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -203,7 +204,7 @@ class _ReelViewerScreenState extends State<ReelViewerScreen>
                             Flexible(
                               child: Text(
                                 user['is_self'] == true
-                                    ? 'You'
+                                    ? 'My Reel'
                                     : (user['name']?.toString() ?? 'Unknown'),
                                 overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.inter(
@@ -213,9 +214,11 @@ class _ReelViewerScreenState extends State<ReelViewerScreen>
                                 ),
                               ),
                             ),
+                            // Show verified badge for any verified author,
+                            // including the current user viewing their own reel.
                             if (user['is_verified'] == true || user['is_identity_verified'] == true) ...[
                               const SizedBox(width: 4),
-                              const Icon(Icons.verified_rounded, size: 15, color: Color(0xFF4FA3FF)),
+                              const Icon(Icons.verified_rounded, size: 15, color: AppColors.primary),
                             ],
                           ],
                         ),
@@ -240,21 +243,13 @@ class _ReelViewerScreenState extends State<ReelViewerScreen>
                 ],
               ),
             ),
-            // Caption for media moments
+            // Premium caption block for media moments
             if (type != 'text' && caption.isNotEmpty)
               Positioned(
-                left: 16,
-                right: 16,
-                bottom: 32,
-                child: Text(
-                  caption,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: Colors.white,
-                    height: 1.5,
-                    shadows: const [Shadow(blurRadius: 8, color: Colors.black54)],
-                  ),
-                ),
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _CaptionBlock(caption: caption),
               ),
           ],
         ),
@@ -311,19 +306,115 @@ class _ReelViewerScreenState extends State<ReelViewerScreen>
       );
     }
     if (imageUrl != null && imageUrl.isNotEmpty) {
-      return CachedNetworkImage(
-        imageUrl: imageUrl,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        placeholder: (_, __) => Container(color: Colors.black),
-        errorWidget: (_, __, ___) => const Center(
-          child: Icon(Icons.broken_image_outlined,
-              color: Colors.white54, size: 48),
-        ),
+      // Show full image (BoxFit.contain) over a blurred copy of itself so
+      // portrait/landscape photos are never cropped or zoomed.
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          // Blurred backdrop to fill the dead space around the contained image.
+          CachedNetworkImage(
+            imageUrl: imageUrl,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            placeholder: (_, __) => Container(color: Colors.black),
+            errorWidget: (_, __, ___) => Container(color: Colors.black),
+          ),
+          BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+            child: Container(color: Colors.black.withOpacity(0.55)),
+          ),
+          Center(
+            child: CachedNetworkImage(
+              imageUrl: imageUrl,
+              fit: BoxFit.contain,
+              width: double.infinity,
+              height: double.infinity,
+              placeholder: (_, __) => const SizedBox.shrink(),
+              errorWidget: (_, __, ___) => const Center(
+                child: Icon(Icons.broken_image_outlined,
+                    color: Colors.white54, size: 48),
+              ),
+            ),
+          ),
+        ],
       );
     }
     return const SizedBox.shrink();
+  }
+}
+
+/// Premium caption block shown at the bottom of media reels. Includes a
+/// gradient scrim, expandable text, and a subtle glass background so the
+/// caption is always legible regardless of the underlying media.
+class _CaptionBlock extends StatefulWidget {
+  final String caption;
+  const _CaptionBlock({required this.caption});
+
+  @override
+  State<_CaptionBlock> createState() => _CaptionBlockState();
+}
+
+class _CaptionBlockState extends State<_CaptionBlock> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLong = widget.caption.length > 110;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: isLong ? () => setState(() => _expanded = !_expanded) : null,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(
+            18, 28, 18, 28 + MediaQuery.of(context).padding.bottom),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.transparent,
+              Colors.black.withOpacity(0.55),
+              Colors.black.withOpacity(0.85),
+            ],
+            stops: const [0.0, 0.45, 1.0],
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AnimatedSize(
+              duration: const Duration(milliseconds: 180),
+              alignment: Alignment.topLeft,
+              child: Text(
+                widget.caption,
+                maxLines: _expanded ? 12 : 3,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 14.5,
+                  height: 1.45,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ),
+            if (isLong) ...[
+              const SizedBox(height: 6),
+              Text(
+                _expanded ? 'Tap to collapse' : 'Tap to read more',
+                style: GoogleFonts.inter(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white70,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import '../../core/services/secure_token_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
+import 'service_verification_screen.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/user_services_service.dart';
 import '../../core/widgets/app_snackbar.dart';
@@ -264,9 +265,10 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
       if (_selectedCategoryId.isNotEmpty) request.fields['service_category_id'] = _selectedCategoryId;
       if (_selectedTypeId.isNotEmpty) request.fields['service_type_id'] = _selectedTypeId;
 
-      // Detect key field changes for KYC reset
-      final keyChanged = _titleCtrl.text.trim() != _originalTitle ||
-          _selectedCategoryId != _originalCategoryId ||
+      // Detect MAJOR field changes that require re-verification.
+      // Only category / type changes count — title edits etc. should not
+      // bounce a verified service back to "pending".
+      final keyChanged = _selectedCategoryId != _originalCategoryId ||
           _selectedTypeId != _originalTypeId;
       if (keyChanged) request.fields['reset_verification'] = 'true';
 
@@ -281,8 +283,23 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
 
       if (mounted) {
         if (streamedRes.statusCode >= 200 && streamedRes.statusCode < 300) {
-          AppSnackbar.success(context, keyChanged ? 'Service updated — please re-verify' : 'Service updated');
-          Navigator.pop(context, true);
+          AppSnackbar.success(
+            context,
+            keyChanged
+                ? 'Service updated — please upload KYC to re-verify'
+                : 'Service updated',
+          );
+          if (keyChanged) {
+            // Route to KYC upload (verification) screen instead of just popping.
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ServiceVerificationScreen(serviceId: serviceId),
+              ),
+            );
+          } else {
+            Navigator.pop(context, true);
+          }
         } else {
           AppSnackbar.error(context, resData['message']?.toString() ?? 'Unable to update service');
         }

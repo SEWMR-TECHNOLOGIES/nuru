@@ -64,6 +64,13 @@ class AuthProvider extends ChangeNotifier {
               _user = {..._user!, ...profileData};
             }
           } catch (_) {}
+
+          // Re-assert this device's FCM token belongs to the restored user.
+          // Without this, opening the app already-logged-in leaves _lastToken
+          // null, so a later signOut can't unregister the device.
+          try {
+            await PushNotificationService.instance.registerWithBackend();
+          } catch (_) {}
         } else {
           await _clearTokens();
         }
@@ -229,11 +236,26 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
-    // Unregister this device from FCM so we stop getting pushes for the
-    // previous user. Fire-and-forget.
+    // Resolve the current FCM token first so we can hand it to BOTH the
+    // device-unregister call and the /auth/logout safety net. Doing this
+    // before _clearTokens() guarantees the bearer token is still valid.
+    String? fcmToken;
+    try {
+      fcmToken = await PushNotificationService.instance.currentToken();
+    } catch (_) {}
+
+    // Primary path: unbind the device row by (platform, token).
     try { await PushNotificationService.instance.unregister(); } catch (_) {}
-    // Fire-and-forget the server call — don't let it block local cleanup
-    AuthApi.logout().catchError((_) => <String, dynamic>{});
+
+    // Belt-and-suspenders: tell /auth/logout the token so the backend can
+    // delete any leftover row owned by this user. Awaited (not fire-and-
+    // forget) so we know the unbind happened before we drop the bearer.
+    try {
+      await AuthApi.logout(body: {
+        if (fcmToken != null && fcmToken.isNotEmpty) 'fcm_token': fcmToken,
+      });
+    } catch (_) {}
+
     await _clearTokens();
     _isLoggedIn = false;
     _user = null;

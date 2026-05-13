@@ -24,6 +24,7 @@ from models import (
     ServiceIntroMedia, ServiceBusinessPhone, ServiceMediaTypeEnum,
     BusinessPhoneStatusEnum,
     EventService, EventServiceStatusEnum, Event,
+    UserServiceType,
 )
 from utils.auth import get_current_user
 from utils.helpers import format_price, standard_response, generate_otp, get_expiry
@@ -32,6 +33,59 @@ from utils.notification_service import send_business_phone_otp, send_otp_with_ro
 EAT = pytz.timezone("Africa/Nairobi")
 
 router = APIRouter(prefix="/user-services", tags=["User Services"])
+
+
+def _parse_type_ids(raw):
+    """Accept list of strings or comma-separated string; return list[UUID]."""
+    if not raw:
+        return []
+    if isinstance(raw, str):
+        parts = [p.strip() for p in raw.split(',') if p.strip()]
+    else:
+        parts = []
+        for item in raw:
+            if not item:
+                continue
+            for p in str(item).split(','):
+                p = p.strip()
+                if p:
+                    parts.append(p)
+    out = []
+    seen = set()
+    for p in parts:
+        try:
+            u = uuid.UUID(p)
+            if u not in seen:
+                seen.add(u)
+                out.append(u)
+        except ValueError:
+            continue
+    return out
+
+
+def _sync_service_types(db, service, type_ids, primary_id=None):
+    """Replace the user_service_types rows for `service` with `type_ids`.
+    Also keeps `service.service_type_id` in sync (= primary or first id)."""
+    existing = {l.service_type_id: l for l in service.type_links}
+    target = list(type_ids or [])
+    # Remove unwanted
+    for tid, link in list(existing.items()):
+        if tid not in target:
+            db.delete(link)
+    # Add missing
+    primary = primary_id if primary_id in target else (target[0] if target else None)
+    for tid in target:
+        if tid not in existing:
+            db.add(UserServiceType(
+                id=uuid.uuid4(),
+                user_service_id=service.id,
+                service_type_id=tid,
+                is_primary=(tid == primary),
+            ))
+        else:
+            existing[tid].is_primary = (tid == primary)
+    service.service_type_id = primary
+    db.flush()
 
 
 def _service_dict(db, service):
@@ -51,10 +105,30 @@ def _service_dict(db, service):
     ratings = [r.rating for r in service.ratings]
     avg_rating = round(sum(ratings) / len(ratings), 1) if ratings else 0
 
-    kyc_mappings = db.query(ServiceKYCMapping).filter(ServiceKYCMapping.service_type_id == service.service_type_id).all()
+    # Resolve linked service types (multi). Falls back to legacy single column.
+    linked_type_ids = [l.service_type_id for l in (service.type_links or []) if l.service_type_id]
+    if not linked_type_ids and service.service_type_id:
+        linked_type_ids = [service.service_type_id]
+
+    # Aggregate KYC mappings across all linked service types (deduped by requirement)
+    kyc_mappings = []
+    if linked_type_ids:
+        kyc_mappings = (
+            db.query(ServiceKYCMapping)
+            .filter(ServiceKYCMapping.service_type_id.in_(linked_type_ids))
+            .all()
+        )
+    seen_kyc = set()
+    deduped_mappings = []
+    for m in kyc_mappings:
+        if m.kyc_requirement_id in seen_kyc:
+            continue
+        seen_kyc.add(m.kyc_requirement_id)
+        deduped_mappings.append(m)
+
     verified_count = 0
     kyc_list = []
-    for mapping in kyc_mappings:
+    for mapping in deduped_mappings:
         kyc_req = mapping.kyc_requirement
         kyc_status = db.query(UserServiceKYCStatus).filter(UserServiceKYCStatus.user_service_id == service.id, UserServiceKYCStatus.kyc_requirement_id == kyc_req.id).first()
         status = kyc_status.status if kyc_status else None
@@ -62,10 +136,20 @@ def _service_dict(db, service):
             verified_count += 1
         kyc_list.append({"id": str(kyc_req.id), "name": kyc_req.name, "description": kyc_req.description, "is_mandatory": mapping.is_mandatory, "status": status.value if status else None, "remarks": kyc_status.remarks if kyc_status else None})
 
-    total_kyc = len(kyc_mappings)
+    total_kyc = len(deduped_mappings)
     verification_progress = int((verified_count / total_kyc) * 100) if total_kyc > 0 else 0
 
     packages = [{"id": str(p.id), "name": p.name, "price": float(p.price) if p.price else None, "description": p.description, "features": p.features or []} for p in getattr(service, "packages", [])]
+
+    # Build service_types list (with names)
+    service_types_full = []
+    if linked_type_ids:
+        rows = db.query(ServiceType).filter(ServiceType.id.in_(linked_type_ids)).all()
+        by_id = {r.id: r for r in rows}
+        for tid in linked_type_ids:
+            r = by_id.get(tid)
+            if r:
+                service_types_full.append({"id": str(r.id), "name": r.name})
 
     return {
         "id": str(service.id),
@@ -75,6 +159,8 @@ def _service_dict(db, service):
         "service_category_id": str(service.category_id) if service.category_id else None,
         "service_category": {"id": str(service.category.id), "name": service.category.name} if service.category else None,
         "service_type_id": str(service.service_type_id) if service.service_type_id else None,
+        "service_type_ids": [str(t) for t in linked_type_ids],
+        "service_types": service_types_full,
         "service_type": {"id": str(service.service_type.id), "name": service.service_type.name} if service.service_type else None,
         "service_type_name": service.service_type.name if service.service_type else None,
         "category": service.category.name if service.category else None,
@@ -263,6 +349,7 @@ def get_service(service_id: str, db: Session = Depends(get_db), current_user: Us
 async def create_service(
     title: str = Form(...), description: Optional[str] = Form(None),
     category_id: Optional[str] = Form(None), service_type_id: Optional[str] = Form(None),
+    service_type_ids: Optional[List[str]] = Form(None),
     min_price: Optional[float] = Form(None), max_price: Optional[float] = Form(None),
     location: Optional[str] = Form(None),
     latitude: Optional[float] = Form(None),
@@ -275,12 +362,18 @@ async def create_service(
     if not title or not title.strip():
         return standard_response(False, "Service title is required")
 
+    # Resolve type ids: prefer multi field, fall back to single legacy field
+    type_ids = _parse_type_ids(service_type_ids)
+    if not type_ids and service_type_id:
+        type_ids = _parse_type_ids(service_type_id)
+    primary_type = type_ids[0] if type_ids else None
+
     now = datetime.now(EAT)
     service = UserService(
         id=uuid.uuid4(), user_id=current_user.id, title=title.strip(),
         description=description.strip() if description else None,
         category_id=uuid.UUID(category_id) if category_id else None,
-        service_type_id=uuid.UUID(service_type_id) if service_type_id else None,
+        service_type_id=primary_type,
         min_price=min_price, max_price=max_price,
         location=location.strip() if location else None,
         latitude=latitude, longitude=longitude,
@@ -291,6 +384,8 @@ async def create_service(
     )
     db.add(service)
     db.flush()
+    if type_ids:
+        _sync_service_types(db, service, type_ids, primary_id=primary_type)
 
     if images:
         for i, file in enumerate(images):
@@ -336,13 +431,17 @@ async def create_service(
 @router.put("/{service_id}")
 async def update_service(
     service_id: str, title: Optional[str] = Form(None), description: Optional[str] = Form(None),
-    category_id: Optional[str] = Form(None), service_type_id: Optional[str] = Form(None),
+    category_id: Optional[str] = Form(None),
+    service_category_id: Optional[str] = Form(None),
+    service_type_id: Optional[str] = Form(None),
+    service_type_ids: Optional[List[str]] = Form(None),
     min_price: Optional[float] = Form(None), max_price: Optional[float] = Form(None),
     location: Optional[str] = Form(None),
     latitude: Optional[float] = Form(None),
     longitude: Optional[float] = Form(None),
     formatted_address: Optional[str] = Form(None),
     business_phone_id: Optional[str] = Form(None),
+    reset_verification: Optional[str] = Form(None),
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     try:
@@ -354,10 +453,26 @@ async def update_service(
     if not service:
         return standard_response(False, "Service not found")
 
+    # Snapshot original key fields for change detection
+    original_category = service.category_id
+    original_type_ids = sorted([l.service_type_id for l in (service.type_links or [])]) or (
+        [service.service_type_id] if service.service_type_id else []
+    )
+
     if title is not None: service.title = title.strip()
     if description is not None: service.description = description.strip()
-    if category_id is not None: service.category_id = uuid.UUID(category_id)
-    if service_type_id is not None: service.service_type_id = uuid.UUID(service_type_id)
+    # Accept either category_id or service_category_id (web sends the latter)
+    cat_in = category_id if category_id is not None else service_category_id
+    if cat_in is not None and cat_in != "":
+        service.category_id = uuid.UUID(cat_in)
+
+    # Sync service types (multi). Falls back to legacy single field.
+    type_ids_in = _parse_type_ids(service_type_ids)
+    if not type_ids_in and service_type_id:
+        type_ids_in = _parse_type_ids(service_type_id)
+    if type_ids_in or service_type_ids is not None or service_type_id is not None:
+        _sync_service_types(db, service, type_ids_in, primary_id=(type_ids_in[0] if type_ids_in else None))
+
     if min_price is not None: service.min_price = min_price
     if max_price is not None: service.max_price = max_price
     if location is not None: service.location = location.strip()
@@ -366,6 +481,15 @@ async def update_service(
     if formatted_address is not None: service.formatted_address = formatted_address.strip()
     if business_phone_id is not None: service.business_phone_id = uuid.UUID(business_phone_id) if business_phone_id else None
     service.updated_at = datetime.now(EAT)
+
+    # Determine whether key fields actually changed (category or set of types).
+    new_type_ids = sorted([l.service_type_id for l in (service.type_links or [])]) or (
+        [service.service_type_id] if service.service_type_id else []
+    )
+    key_changed = (service.category_id != original_category) or (new_type_ids != original_type_ids)
+    if key_changed or (str(reset_verification or "").lower() in ("1", "true", "yes")):
+        service.verification_status = VerificationStatusEnum.pending
+        service.is_verified = False
 
     db.commit()
     try:
@@ -415,7 +539,16 @@ def get_kyc_status(service_id: str, db: Session = Depends(get_db), current_user:
     if not service:
         return standard_response(False, "Service not found")
 
-    kyc_mappings = db.query(ServiceKYCMapping).join(KYCRequirement).filter(ServiceKYCMapping.service_type_id == service.service_type_id, KYCRequirement.is_active == True).all()
+    type_ids = [l.service_type_id for l in (service.type_links or []) if l.service_type_id]
+    if not type_ids and service.service_type_id:
+        type_ids = [service.service_type_id]
+    kyc_mappings = db.query(ServiceKYCMapping).join(KYCRequirement).filter(ServiceKYCMapping.service_type_id.in_(type_ids or [uuid.uuid4()]), KYCRequirement.is_active == True).all()
+    # Dedupe by requirement
+    seen = set(); deduped = []
+    for m in kyc_mappings:
+        if m.kyc_requirement_id in seen: continue
+        seen.add(m.kyc_requirement_id); deduped.append(m)
+    kyc_mappings = deduped
 
     kyc_list = []
     for mapping in kyc_mappings:

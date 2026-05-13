@@ -7,6 +7,7 @@ import '../../../core/services/events_service.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import '../../../core/theme/text_styles.dart';
 import '../../../core/l10n/l10n_helper.dart';
+import 'log_offline_payment_sheet.dart';
 
 class EventServicesTab extends StatefulWidget {
   final String eventId;
@@ -440,7 +441,7 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
                 Text(double.tryParse(rating.toString())?.toStringAsFixed(1) ?? '$rating', style: appText(size: 11, weight: FontWeight.w600)),
               ],
               const Spacer(),
-              if (_canManage)
+              if (_canManage && !['assigned', 'in_progress', 'completed'].contains(status))
                 GestureDetector(
                   onTap: isRemoving ? null : () => _confirmRemoveService(service),
                   child: isRemoving
@@ -448,9 +449,49 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
                       : Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error.withOpacity(0.7)),
                 ),
             ]),
+            if (_canManage && status == 'assigned' && serviceId.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: () => _openLogPayment(service),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySoft,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.receipt_long_rounded, size: 13, color: AppColors.primary),
+                    const SizedBox(width: 5),
+                    Text('Log offline payment', style: appText(size: 11, weight: FontWeight.w700, color: AppColors.primary)),
+                  ]),
+                ),
+              ),
+            ],
           ]),
         )),
       ]),
+    );
+  }
+
+  void _openLogPayment(Map<String, dynamic> service) {
+    final nested = service['service'] as Map<String, dynamic>? ?? {};
+    final vendor = (service['provider_name'] ?? service['provider']?['name'] ?? nested['provider_name'] ?? nested['title'] ?? 'Vendor').toString();
+    final title = (service['service_name'] ?? nested['title'] ?? service['title'] ?? 'Service').toString();
+    final agreed = service['agreed_price'] ?? service['quoted_price'];
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => LogOfflinePaymentSheet(
+        eventId: widget.eventId,
+        eventServiceId: service['id'].toString(),
+        vendorName: vendor,
+        serviceTitle: title,
+        agreedPrice: agreed is num ? agreed : num.tryParse(agreed?.toString() ?? ''),
+        onLogged: _loadAssigned,
+      ),
     );
   }
 

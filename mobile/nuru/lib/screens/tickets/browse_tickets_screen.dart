@@ -5,13 +5,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/event_cover_image.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/widgets/expanding_search_action.dart';
 import '../../core/services/ticketing_service.dart';
-import 'my_tickets_screen.dart';
 import '../../core/l10n/l10n_helper.dart';
+import '../home/home_tab_controller.dart';
 import '../../core/widgets/empty_state_illustration.dart';
-import '../wallet/checkout_sheet.dart';
+import '../wallet/make_payment_screen.dart';
 import 'select_tickets_screen.dart';
 
 class BrowseTicketsScreen extends StatefulWidget {
@@ -94,10 +95,7 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
                 ),
                 const SizedBox(width: 8),
                 GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const MyTicketsScreen()),
-                  ),
+                  onTap: () => HomeTabController.openTickets(),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                     decoration: BoxDecoration(
@@ -241,17 +239,12 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
             // Cover image with price badge overlay (matches web)
             Stack(
               children: [
-                if (cover.isNotEmpty)
-                  CachedNetworkImage(
-                    imageUrl: cover, width: double.infinity, height: 150, fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(height: 150, color: AppColors.surfaceVariant),
-                  )
-                else
-                  Container(
-                    height: 120, width: double.infinity, color: AppColors.surfaceVariant,
-                    child: Center(child: SvgPicture.asset('assets/icons/ticket-icon.svg', width: 32, height: 32,
-                        colorFilter: ColorFilter.mode(AppColors.textHint.withOpacity(0.3), BlendMode.srcIn))),
-                  ),
+                EventCoverImage(
+                  event: e,
+                  width: double.infinity,
+                  height: 150,
+                  fit: BoxFit.cover,
+                ),
                 // Price badge bottom-left (matches web)
                 if (minPrice != null)
                   Positioned(
@@ -511,25 +504,29 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
       final totalAmount = map['total_amount'] is num
           ? map['total_amount'] as num
           : num.tryParse(map['total_amount']?.toString() ?? '') ?? 0;
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (_) => CheckoutSheet(
-          targetType: 'event_ticket',
-          targetId: pendingTicketId,
-          amount: totalAmount,
-          allowBank: false,
-          title: 'Buy ${_quantity} ${_selectedClassName()} ticket${_quantity > 1 ? 's' : ''}',
-          description: 'Ticket for ${widget.eventName} — ${_selectedClassName()} × $_quantity',
-          onSuccess: (_) {
-            if (mounted) {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text('Payment confirmed — your ticket is now issued.'),
-              ));
-            }
-          },
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MakePaymentScreen(
+            targetType: 'event_ticket',
+            targetId: pendingTicketId,
+            amount: totalAmount,
+            allowBank: false,
+            title: 'Buy $_quantity ${_selectedClassName()} ticket${_quantity > 1 ? 's' : ''}',
+            description: 'Ticket for ${widget.eventName} — ${_selectedClassName()} × $_quantity',
+            summaryImageUrl: widget.coverImage,
+            summarySubtitle: '${_selectedClassName()} × $_quantity',
+            summaryMeta: widget.eventName,
+            showFee: true,
+            onSuccess: (_) {
+              if (mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('Payment confirmed — your ticket is now issued.'),
+                ));
+              }
+            },
+          ),
         ),
       );
     } else {

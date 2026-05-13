@@ -16,8 +16,9 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/widgets/app_snackbar.dart';
+import '../../core/widgets/event_cover_image.dart';
 import '../../core/services/api_base.dart';
-import '../wallet/checkout_sheet.dart';
+import '../wallet/make_payment_screen.dart';
 
 class PublicContributeScreen extends StatefulWidget {
   final String token;
@@ -71,21 +72,25 @@ class _PublicContributeScreenState extends State<PublicContributeScreen> {
     final eventTitle = _link?['event']?['title']?.toString()
         ?? _link?['event_title']?.toString()
         ?? 'Event contribution';
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => CheckoutSheet(
-        targetType: 'event_contribution',
-        targetId: eventId,
-        amount: _suggestedAmount(),
-        amountEditable: true,
-        allowBank: false,
-        title: 'Pay contribution',
-        description: 'For $eventTitle',
-        onSuccess: (_) {
-          if (mounted) Navigator.pop(context, true);
-        },
+    final cover = _link?['event']?['cover_image']?.toString()
+        ?? _link?['cover_image']?.toString() ?? '';
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MakePaymentScreen(
+          targetType: 'event_contribution',
+          targetId: eventId,
+          amount: _suggestedAmount(),
+          amountEditable: true,
+          allowBank: false,
+          title: 'Pay contribution',
+          description: 'For $eventTitle',
+          summaryImageUrl: cover.isNotEmpty ? cover : null,
+          summaryMeta: eventTitle,
+          onSuccess: (_) {
+            if (mounted) Navigator.pop(context, true);
+          },
+        ),
       ),
     );
   }
@@ -122,12 +127,11 @@ class _PublicContributeScreenState extends State<PublicContributeScreen> {
                       ),
                       padding: const EdgeInsets.all(16),
                       child: Row(children: [
-                        ClipRRect(
+                        EventCoverImage(
+                          url: cover.isNotEmpty ? cover : null,
+                          width: 64,
+                          height: 64,
                           borderRadius: BorderRadius.circular(12),
-                          child: cover.isNotEmpty
-                              ? Image.network(cover, width: 64, height: 64, fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => _coverFallback())
-                              : _coverFallback(),
                         ),
                         const SizedBox(width: 12),
                         Expanded(

@@ -12,6 +12,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/services/events_service.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
+import '../../core/widgets/event_cover_image.dart';
 import '../photos/my_photo_libraries_screen.dart';
 import 'invitation_qr_screen.dart';
 import '../tickets/select_tickets_screen.dart';
@@ -683,6 +684,29 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
                         ],
                       ),
                     )
+                  else if (_loading)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          'From ',
+                          style: appText(
+                            size: 13,
+                            color: AppColors.textTertiary,
+                            weight: FontWeight.w500,
+                          ),
+                        ),
+                        Container(
+                          width: 110,
+                          height: 16,
+                          decoration: BoxDecoration(
+                            color: AppColors.borderLight.withOpacity(0.6),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ],
+                    )
                   else
                     Text(
                       'Get Tickets',
@@ -873,14 +897,7 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
                   child: SizedBox(
                     height: 220,
                     width: double.infinity,
-                    child: cover != null && cover.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: cover,
-                            fit: BoxFit.cover,
-                            errorWidget: (_, __, ___) =>
-                                Container(color: AppColors.primarySoft),
-                          )
-                        : Container(color: AppColors.primarySoft),
+                    child: EventCoverImage(event: e, fit: BoxFit.cover),
                   ),
                 ),
                 Positioned(right: 14, bottom: 14, child: _attendanceBadge(e)),

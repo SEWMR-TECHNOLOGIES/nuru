@@ -51,7 +51,7 @@ from models.services import (
     UserService, UserServiceImage, ServicePackage, UserServiceRating,
     UserServiceVerification, UserServiceVerificationFile,
     UserServiceKYCStatus, ServiceReviewPhoto, ServiceReviewHelpful,
-    ServiceIntroMedia, ServiceBusinessPhone,
+    ServiceIntroMedia, ServiceBusinessPhone, UserServiceType,
 )
 from models.events import (
     EventType, Event, EventTypeService, EventImage,
@@ -60,6 +60,7 @@ from models.events import (
 from models.committees import CommitteeRole, EventCommitteeMember, CommitteePermission
 from models.expenses import EventExpense
 from models.event_services import EventService, EventServicePayment
+from models.offline_payments import OfflineVendorPayment
 from models.contributions import (
     UserContributor, EventContributionTarget, EventContributor,
     EventContribution, ContributionThankYouMessage,

@@ -642,6 +642,36 @@ class SocialService {
     }
   }
 
+  static Future<Map<String, dynamic>> getCircleInvitations() async {
+    try {
+      final res = await http.get(
+        Uri.parse('$_baseUrl/circles/invitations'),
+        headers: await _headers(),
+      );
+      return jsonDecode(res.body);
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Unable to fetch invitations',
+        'data': null,
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> cancelCircleInvitation(
+    String invitationId,
+  ) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$_baseUrl/circles/invitations/$invitationId'),
+        headers: await _headers(),
+      );
+      return jsonDecode(res.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Unable to cancel invitation'};
+    }
+  }
+
   static Future<Map<String, dynamic>> createCircle(
     Map<String, dynamic> data,
   ) async {
@@ -748,6 +778,24 @@ class SocialService {
     }
   }
 
+  static Future<Map<String, dynamic>> getRecommendedCommunities({
+    int page = 1,
+    int limit = 20,
+  }) async {
+    try {
+      final uri = Uri.parse(
+          '$_baseUrl/communities/recommended?page=$page&limit=$limit');
+      final res = await http.get(uri, headers: await _headers());
+      return jsonDecode(res.body);
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Unable to fetch recommended communities',
+        'data': null,
+      };
+    }
+  }
+
   static Future<Map<String, dynamic>> getCommunityDetail(
     String communityId,
   ) async {
@@ -792,15 +840,27 @@ class SocialService {
 
   static Future<Map<String, dynamic>> createCommunity({
     required String name,
-    required String description,
+    String description = '',
+    String? tagline,
+    String? category,
+    bool isPublic = true,
+    String? coverImagePath,
   }) async {
     try {
-      final res = await http.post(
-        Uri.parse('$_baseUrl/communities'),
-        headers: await _headers(),
-        body: jsonEncode({'name': name, 'description': description}),
-      );
-      return jsonDecode(res.body);
+      final uri = Uri.parse('$_baseUrl/communities/');
+      final request = http.MultipartRequest('POST', uri);
+      request.headers.addAll(await _authOnlyHeaders());
+      request.fields['name'] = name;
+      if (description.isNotEmpty) request.fields['description'] = description;
+      if (tagline != null && tagline.trim().isNotEmpty) request.fields['tagline'] = tagline.trim();
+      if (category != null && category.trim().isNotEmpty) request.fields['category'] = category.trim();
+      request.fields['is_public'] = isPublic ? 'true' : 'false';
+      if (coverImagePath != null && coverImagePath.isNotEmpty) {
+        request.files.add(await http.MultipartFile.fromPath('cover_image', coverImagePath));
+      }
+      final streamed = await request.send();
+      final body = await streamed.stream.bytesToString();
+      return jsonDecode(body);
     } catch (e) {
       return {'success': false, 'message': 'Unable to create community'};
     }
@@ -843,6 +903,166 @@ class SocialService {
         'message': 'Unable to fetch members',
         'data': null,
       };
+    }
+  }
+
+  /// POST /communities/{id}/posts (multipart) — creator-only.
+  static Future<Map<String, dynamic>> createCommunityPost({
+    required String communityId,
+    required String content,
+    List<String>? imagePaths,
+  }) async {
+    try {
+      final uri = Uri.parse('$_baseUrl/communities/$communityId/posts');
+      final request = http.MultipartRequest('POST', uri);
+      request.headers.addAll(await _authOnlyHeaders());
+      if (content.isNotEmpty) request.fields['content'] = content;
+      if (imagePaths != null) {
+        for (final p in imagePaths) {
+          request.files.add(await http.MultipartFile.fromPath('images', p));
+        }
+      }
+      final streamed = await request.send();
+      final body = await streamed.stream.bytesToString();
+      return jsonDecode(body);
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to create post', 'data': null};
+    }
+  }
+
+  static Future<Map<String, dynamic>> glowCommunityPost(String communityId, String postId) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$_baseUrl/communities/$communityId/posts/$postId/glow'),
+        headers: await _headers(),
+      );
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': false};
+    }
+  }
+
+  static Future<Map<String, dynamic>> unglowCommunityPost(String communityId, String postId) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$_baseUrl/communities/$communityId/posts/$postId/glow'),
+        headers: await _headers(),
+      );
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': false};
+    }
+  }
+
+  // ── Community post comments / save / share / mute / edit-delete ──
+
+  static Future<Map<String, dynamic>> getCommunityPostComments(String communityId, String postId, {int page = 1, int limit = 50}) async {
+    try {
+      final res = await http.get(
+        Uri.parse('$_baseUrl/communities/$communityId/posts/$postId/comments?page=$page&limit=$limit'),
+        headers: await _headers(),
+      );
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': false, 'data': null};
+    }
+  }
+
+  static Future<Map<String, dynamic>> addCommunityPostComment(String communityId, String postId, String content, {String? parentId}) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$_baseUrl/communities/$communityId/posts/$postId/comments'),
+        headers: await _headers(),
+        body: jsonEncode({'content': content, if (parentId != null) 'parent_id': parentId}),
+      );
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': false};
+    }
+  }
+
+  static Future<Map<String, dynamic>> deleteCommunityPostComment(String communityId, String postId, String commentId) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$_baseUrl/communities/$communityId/posts/$postId/comments/$commentId'),
+        headers: await _headers(),
+      );
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': false};
+    }
+  }
+
+  static Future<Map<String, dynamic>> saveCommunityPost(String communityId, String postId) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$_baseUrl/communities/$communityId/posts/$postId/save'),
+        headers: await _headers(),
+      );
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': false};
+    }
+  }
+
+  static Future<Map<String, dynamic>> unsaveCommunityPost(String communityId, String postId) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$_baseUrl/communities/$communityId/posts/$postId/save'),
+        headers: await _headers(),
+      );
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': false};
+    }
+  }
+
+  static Future<Map<String, dynamic>> shareCommunityPost(String communityId, String postId) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$_baseUrl/communities/$communityId/posts/$postId/share'),
+        headers: await _headers(),
+      );
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': false};
+    }
+  }
+
+  static Future<Map<String, dynamic>> muteCommunity(String communityId) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$_baseUrl/communities/$communityId/mute'),
+        headers: await _headers(),
+      );
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': false};
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateCommunityPost(String communityId, String postId, String content) async {
+    try {
+      final res = await http.put(
+        Uri.parse('$_baseUrl/communities/$communityId/posts/$postId'),
+        headers: await _headers(),
+        body: jsonEncode({'content': content}),
+      );
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': false};
+    }
+  }
+
+  static Future<Map<String, dynamic>> deleteCommunityPost(String communityId, String postId) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$_baseUrl/communities/$communityId/posts/$postId'),
+        headers: await _headers(),
+      );
+      return jsonDecode(res.body);
+    } catch (_) {
+      return {'success': false};
     }
   }
 

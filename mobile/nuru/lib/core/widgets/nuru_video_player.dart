@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:video_player/video_player.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../theme/app_colors.dart';
 import '../../core/l10n/l10n_helper.dart';
 
@@ -30,35 +32,52 @@ class NuruVideoPlayer extends StatefulWidget {
 }
 
 class _NuruVideoPlayerState extends State<NuruVideoPlayer> {
-  late VideoPlayerController _controller;
+  VideoPlayerController _controller =
+      VideoPlayerController.networkUrl(Uri.parse('about:blank'));
   bool _initialized = false;
   bool _showControls = true;
   bool _hasError = false;
   Timer? _hideTimer;
+  bool _disposed = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
-      ..initialize().then((_) {
-        if (mounted) {
-          setState(() => _initialized = true);
-          if (widget.autoPlay) {
-            _controller.play();
-            _startHideTimer();
-          }
-        }
-      }).catchError((e) {
-        if (mounted) setState(() => _hasError = true);
-      });
+    _initController();
+  }
 
-    _controller.addListener(() {
+  Future<void> _initController() async {
+    VideoPlayerController controller;
+    try {
+      final file = await DefaultCacheManager().getSingleFile(widget.url);
+      controller = VideoPlayerController.file(File(file.path));
+    } catch (_) {
+      controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    }
+    if (_disposed) {
+      controller.dispose();
+      return;
+    }
+    _controller = controller;
+    controller.addListener(() {
       if (mounted) setState(() {});
     });
+    try {
+      await controller.initialize();
+      if (!mounted) return;
+      setState(() => _initialized = true);
+      if (widget.autoPlay) {
+        controller.play();
+        _startHideTimer();
+      }
+    } catch (_) {
+      if (mounted) setState(() => _hasError = true);
+    }
   }
 
   @override
   void dispose() {
+    _disposed = true;
     _hideTimer?.cancel();
     _controller.dispose();
     super.dispose();

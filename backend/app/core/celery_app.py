@@ -108,6 +108,11 @@ celery_app.conf.update(
             "task": "tasks.maintenance.expire_moments",
             "schedule": crontab(minute="*/15"),
         },
+        # Physically delete media files for expired moments to free storage.
+        "cleanup-expired-moment-assets": {
+            "task": "tasks.maintenance.cleanup_expired_moment_assets",
+            "schedule": crontab(minute="*/30"),
+        },
         # Security: drop expired OTPs, password-reset tokens, and sessions.
         "purge-expired-auth-tokens": {
             "task": "tasks.maintenance.purge_expired_auth_tokens",

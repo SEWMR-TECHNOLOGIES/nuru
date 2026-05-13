@@ -74,6 +74,9 @@ class _VideoThumbnailImageState extends State<VideoThumbnailImage> {
       image = CachedNetworkImage(
         imageUrl: widget.posterUrl!,
         fit: widget.fit, width: widget.width, height: widget.height,
+        fadeInDuration: Duration.zero,
+        fadeOutDuration: Duration.zero,
+        placeholderFadeInDuration: Duration.zero,
         placeholder: (_, __) => Container(color: AppColors.surfaceVariant),
         errorWidget: (_, __, ___) => Container(color: AppColors.surfaceVariant),
       );

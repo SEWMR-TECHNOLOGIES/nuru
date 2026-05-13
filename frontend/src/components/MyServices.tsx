@@ -274,232 +274,117 @@ const MyServices = () => {
         ))}
       </div>
 
-      {/* Services Portfolio */}
-      <div className="space-y-6">
+      {/* Services Portfolio — 4 cards per row on large screens */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         {services.map((service) => {
           const images = getServiceImages(service);
+          const cover = images.length > 0 ? getImageUrl(images[0]) : '';
           const isPhoto = isPhotographyService(service);
           const isVerified = service.verification_status === 'verified';
 
           return (
-            <Card key={service.id} className="overflow-hidden border-border/60 shadow-sm hover:shadow-md transition-all">
-              {/* Portfolio Image Strip */}
-              {images.length > 0 && (
-                <div className="relative h-52 bg-muted overflow-hidden group">
-                  {images.length === 1 ? (
-                    <img src={getImageUrl(images[0])} alt={service.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  ) : images.length === 2 ? (
-                    <div className="grid grid-cols-2 h-full gap-0.5">
-                      {images.slice(0, 2).map((img, idx) => (
-                        <img key={idx} src={getImageUrl(img)} alt={service.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                      ))}
-                    </div>
-                  ) : images.length === 3 ? (
-                    <div className="grid grid-cols-3 h-full gap-0.5">
-                      {images.slice(0, 3).map((img, idx) => (
-                        <img key={idx} src={getImageUrl(img)} alt={service.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-4 h-full gap-0.5">
-                      <div className="col-span-2 row-span-2">
-                        <img src={getImageUrl(images[0])} alt={service.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                      </div>
-                      {images.slice(1, 4).map((img, idx) => (
-                        <img key={idx} src={getImageUrl(img)} alt={service.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Gradient overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-
-                  {/* Status badge - only show non-verified statuses */}
-                  <div className="absolute top-3 left-3 flex gap-2">
-                    {!isVerified && service.verification_status === 'pending' && (
-                      <Badge className="bg-amber-500/90 text-white border-0 shadow">Pending Activation</Badge>
-                    )}
-                    {!isVerified && service.verification_status && service.verification_status !== 'pending' && service.verification_status !== 'verified' && (
-                      <Badge className="bg-muted text-muted-foreground border-0 shadow">{service.verification_status}</Badge>
-                    )}
+            <Card key={service.id} className="overflow-hidden border-border/60 shadow-sm hover:shadow-lg transition-all flex flex-col group">
+              {/* Single cover image — clean, consistent ratio */}
+              <div className="relative aspect-[4/3] bg-muted overflow-hidden">
+                {cover ? (
+                  <img
+                    src={cover}
+                    alt={service.title}
+                    loading="lazy"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/10">
+                    <img src={PackageSVG} alt="" className="w-10 h-10 opacity-40 dark:invert" />
                   </div>
+                )}
 
-                  {/* Image count */}
-                  {images.length > 4 && (
-                    <div className="absolute bottom-3 right-3 bg-black/60 text-white text-xs px-2 py-1 rounded-full">
-                      +{images.length - 4} more
-                    </div>
+                {/* Status badge */}
+                <div className="absolute top-2 left-2 flex gap-2">
+                  {!isVerified && service.verification_status === 'pending' && (
+                    <Badge className="bg-amber-500/95 text-white border-0 shadow text-[10px] px-2 py-0.5">Pending</Badge>
                   )}
+                  {isVerified && (
+                    <Badge className="bg-green-500/95 text-white border-0 shadow text-[10px] px-2 py-0.5">Verified</Badge>
+                  )}
+                </div>
 
-                  {/* Action buttons overlay */}
-                  <div className="absolute bottom-3 left-3 flex gap-2">
-                    <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white text-foreground shadow"
-                      onClick={() => navigate(`/service/${service.id}`)}>
-                      <img src={ViewSVG} alt="" className="w-3.5 h-3.5 mr-1.5 dark:invert" /> View
-                    </Button>
-                    {service.verification_status !== 'verified' && (
-                      <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white text-foreground shadow"
-                        onClick={() => navigate(`/services/edit/${service.id}`)}>
-                        <Edit className="w-3.5 h-3.5 mr-1.5" /> Edit
-                      </Button>
+                {/* Image count chip */}
+                {images.length > 1 && (
+                  <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
+                    {images.length} photos
+                  </div>
+                )}
+              </div>
+
+              <CardContent className="p-4 flex-1 flex flex-col gap-3">
+                {/* Title + category */}
+                <div className="min-w-0">
+                  <h3 className="font-bold text-base leading-tight line-clamp-1">{service.title}</h3>
+                  <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getCategoryName(service)}</Badge>
+                    {getServiceTypeName(service) && (
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/30 text-primary bg-primary/5">
+                        {getServiceTypeName(service)}
+                      </Badge>
                     )}
-                    {isVerified && (
-                      <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white text-foreground shadow"
-                        onClick={() => handleAddPackage(service.id)}>
-                        <img src={PackageSVG} alt="" className="w-3.5 h-3.5 mr-1.5 dark:invert" /> Package
-                      </Button>
-                    )}
-                    <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white text-foreground shadow"
-                      onClick={() => setImageDialogService(service)}>
-                      <img src={PhotosSVG} alt="" className="w-3.5 h-3.5 mr-1.5 dark:invert" /> Photos
-                    </Button>
-                    <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white text-foreground shadow"
-                      onClick={() => openMediaDialog(service)}>
-                      <img src={VideoSVG} alt="" className="w-3.5 h-3.5 mr-1.5 dark:invert" /> Intro Clip
-                    </Button>
                   </div>
                 </div>
-              )}
 
-              <CardContent className="p-6">
-                <div className="flex flex-col md:flex-row gap-6">
-                  {/* No images fallback actions */}
-                  {images.length === 0 && (
-                    <div className="flex gap-2 flex-wrap mb-2">
-                      <Button size="sm" variant="outline" onClick={() => navigate(`/service/${service.id}`)}>
-                        <img src={ViewSVG} alt="" className="w-3.5 h-3.5 mr-1.5 dark:invert" /> View
-                      </Button>
-                      {service.verification_status !== 'verified' && (
-                        <Button size="sm" variant="outline" onClick={() => navigate(`/services/edit/${service.id}`)}>
-                          <Edit className="w-3.5 h-3.5 mr-1.5" /> Edit
-                        </Button>
-                      )}
-                      {isVerified && (
-                        <Button size="sm" variant="outline" onClick={() => handleAddPackage(service.id)}>
-                          <img src={PackageSVG} alt="" className="w-3.5 h-3.5 mr-1.5 dark:invert" /> Add Package
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline" onClick={() => setImageDialogService(service)}>
-                        <img src={PhotosSVG} alt="" className="w-3.5 h-3.5 mr-1.5 dark:invert" /> Photos
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => openMediaDialog(service)}>
-                        <img src={VideoSVG} alt="" className="w-3.5 h-3.5 mr-1.5 dark:invert" /> Intro Clip
-                      </Button>
-                    </div>
-                  )}
-
-                  <div className="flex-1 space-y-4">
-                    {/* Title + badges */}
-                    <div>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <h3 className="text-xl font-bold">{service.title}</h3>
-
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap mt-2">
-                        <Badge variant="secondary">{getCategoryName(service)}</Badge>
-                        {getServiceTypeName(service) && (
-                          <Badge variant="outline" className="border-primary/30 text-primary bg-primary/5">
-                            {getServiceTypeName(service)}
-                          </Badge>
-                        )}
-                        <Badge variant="outline" className={service.availability === 'available' ? 'border-green-300 text-green-700 bg-green-50 dark:bg-green-900/20' : 'border-orange-300 text-orange-700'}>
-                          {service.availability || 'available'}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    {/* Stats row */}
-                    <div className="flex items-center gap-4 text-sm flex-wrap">
-                      <div className="flex items-center gap-1">
-                        {renderStars(service.rating || 0)}
-                        <span className="ml-1 font-semibold">{(service.rating || 0).toFixed(1)}</span>
-                        <span className="text-muted-foreground">({service.review_count || 0})</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                        <span>{service.completed_events || 0} events completed</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <MapPin className="w-4 h-4" />
-                        <span>{service.location || 'Location not set'}</span>
-                      </div>
-                    </div>
-
-                    <p className="text-muted-foreground text-sm leading-relaxed line-clamp-2">{service.description}</p>
-
-                    {/* Price */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg font-bold text-primary">{formatPriceDisplay(service)}</span>
-                    </div>
-
-                    {/* Verification Progress */}
-                    {!isVerified && (
-                      service.kyc_all_approved && !service.identity_verified ? (
-                        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
-                          <div className="flex items-center gap-2 mb-2">
-                            <CheckCircle className="w-4 h-4 text-green-600" />
-                            <span className="text-xs font-semibold text-blue-800 dark:text-blue-200">Business Documents Approved</span>
-                          </div>
-                          <p className="text-xs text-blue-700 dark:text-blue-300 mb-2">
-                            Complete your identity verification to activate this service and start receiving bookings.
-                          </p>
-                          <Button variant="link" size="sm" className="h-auto p-0 text-xs text-blue-700 dark:text-blue-300"
-                            onClick={() => navigate('/profile')}>
-                            Verify My Identity →
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-semibold text-amber-800 dark:text-amber-200">Activation Progress</span>
-                            <span className="text-xs font-bold text-amber-700">{service.verification_progress || 0}%</span>
-                          </div>
-                          <div className="w-full bg-amber-100 dark:bg-amber-900/40 rounded-full h-2 mb-2">
-                            <div className="bg-amber-500 h-2 rounded-full transition-all" style={{ width: `${service.verification_progress || 0}%` }} />
-                          </div>
-                          <Button variant="link" size="sm" className="h-auto p-0 text-xs text-amber-700 dark:text-amber-300"
-                            onClick={() => navigate(`/services/verify/${service.id}/${service.service_type_id || 'default'}`)}>
-                            {(service.verification_progress || 0) > 0 ? 'Continue Activation →' : 'Activate Service →'}
-                          </Button>
-                        </div>
-                      )
-                    )}
-
-                    {/* Quick Actions */}
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigate(`/bookings?service=${service.id}`)}
-                        className="gap-2"
-                      >
-                        <BookOpen className="w-4 h-4" />
-                        Bookings
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigate(`/services/events/${service.id}`)}
-                        className="gap-2"
-                      >
-                        <img src={CalendarSVG} alt="" className="w-4 h-4 dark:invert" />
-                        My Events
-                      </Button>
-
-                      {isPhoto && isVerified && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(`/services/photo-libraries/${service.id}`)}
-                          className="gap-2 border-purple-300 text-purple-700 hover:bg-purple-50 dark:text-purple-300 dark:border-purple-700"
-                        >
-                          <img src={PhotosSVG} alt="" className="w-4 h-4 dark:invert" />
-                          Photo Libraries
-                        </Button>
-                      )}
-                    </div>
+                {/* Rating + location */}
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    {renderStars(service.rating || 0)}
+                    <span className="ml-0.5 font-semibold text-foreground">{(service.rating || 0).toFixed(1)}</span>
+                    <span>({service.review_count || 0})</span>
                   </div>
+                  <div className="flex items-center gap-1 truncate max-w-[45%]">
+                    <MapPin className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate">{service.location || '—'}</span>
+                  </div>
+                </div>
+
+                {/* Description */}
+                {service.description && (
+                  <p className="text-muted-foreground text-xs leading-relaxed line-clamp-2">{service.description}</p>
+                )}
+
+                {/* Price */}
+                <div className="text-sm font-bold text-primary mt-auto">{formatPriceDisplay(service)}</div>
+
+                {/* Verification CTA (compact) */}
+                {!isVerified && (
+                  <Button variant="outline" size="sm" className="w-full text-xs border-amber-300 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                    onClick={() => navigate(`/services/verify/${service.id}/${service.service_type_id || 'default'}`)}>
+                    Activate · {service.verification_progress || 0}%
+                  </Button>
+                )}
+
+                {/* Primary actions */}
+                <div className="grid grid-cols-2 gap-2">
+                  <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate(`/service/${service.id}`)}>
+                    <img src={ViewSVG} alt="" className="w-3 h-3 mr-1 dark:invert" /> View
+                  </Button>
+                  <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate(`/services/edit/${service.id}`)}>
+                    <Edit className="w-3 h-3 mr-1" /> Edit
+                  </Button>
+                  <Button size="sm" variant="outline" className="text-xs" onClick={() => setImageDialogService(service)}>
+                    <img src={PhotosSVG} alt="" className="w-3 h-3 mr-1 dark:invert" /> Photos
+                  </Button>
+                  <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate(`/bookings?service=${service.id}`)}>
+                    <BookOpen className="w-3 h-3 mr-1" /> Bookings
+                  </Button>
+                  {isVerified && (
+                    <Button size="sm" variant="outline" className="text-xs col-span-2" onClick={() => handleAddPackage(service.id)}>
+                      <img src={PackageSVG} alt="" className="w-3 h-3 mr-1 dark:invert" /> Add Package
+                    </Button>
+                  )}
+                  {isPhoto && isVerified && (
+                    <Button size="sm" variant="outline" className="text-xs col-span-2 border-purple-300 text-purple-700 hover:bg-purple-50 dark:text-purple-300 dark:border-purple-700"
+                      onClick={() => navigate(`/services/photo-libraries/${service.id}`)}>
+                      <img src={PhotosSVG} alt="" className="w-3 h-3 mr-1 dark:invert" /> Photo Libraries
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -507,7 +392,7 @@ const MyServices = () => {
         })}
 
         {services.length === 0 && (
-          <div className="text-center py-20 border-2 border-dashed border-muted-foreground/20 rounded-2xl">
+          <div className="col-span-full text-center py-20 border-2 border-dashed border-muted-foreground/20 rounded-2xl">
             <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
               <img src={PackageSVG} alt="" className="w-10 h-10 dark:invert" />
             </div>

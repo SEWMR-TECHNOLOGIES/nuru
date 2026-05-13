@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/event_cover_image.dart';
 import '../../events/event_detail_screen.dart';
 import '../../../core/l10n/l10n_helper.dart';
 
@@ -40,7 +41,6 @@ class ProfileEventsTab extends StatelessWidget {
         final e = events[i] is Map<String, dynamic> ? events[i] as Map<String, dynamic> : <String, dynamic>{};
         final title = e['title']?.toString() ?? 'Untitled';
         final date = e['start_date']?.toString() ?? '';
-        final cover = e['cover_image'] as String?;
         final status = e['status']?.toString() ?? 'draft';
         return GestureDetector(
           onTap: () => Navigator.push(context, MaterialPageRoute(
@@ -52,14 +52,11 @@ class ProfileEventsTab extends StatelessWidget {
             decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14),
               border: Border.all(color: AppColors.borderLight, width: 1)),
             child: Row(children: [
-              Container(
-                width: 56, height: 56,
-                decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(12)),
-                clipBehavior: Clip.antiAlias,
-                child: cover != null
-                    ? Image.network(cover, width: 56, height: 56, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _calendarIcon())
-                    : _calendarIcon(),
+              EventCoverImage(
+                event: e,
+                width: 56,
+                height: 56,
+                borderRadius: BorderRadius.circular(12),
               ),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -13,6 +13,11 @@ class HomeHeader extends StatelessWidget {
   final VoidCallback onNotificationsTap;
   final VoidCallback onRightPanelTap;
   final VoidCallback onProfileTap;
+  final String? title;
+  /// Optional "Create moment" action shown immediately after the search icon.
+  /// When null the button is hidden so other tabs aren't affected.
+  final VoidCallback? onMomentTap;
+  final bool momentActive;
 
   const HomeHeader({
     super.key,
@@ -24,6 +29,9 @@ class HomeHeader extends StatelessWidget {
     required this.onNotificationsTap,
     required this.onRightPanelTap,
     required this.onProfileTap,
+    this.title,
+    this.onMomentTap,
+    this.momentActive = false,
   });
 
   @override
@@ -35,30 +43,58 @@ class HomeHeader extends StatelessWidget {
         color: AppColors.surface,
         border: Border(bottom: BorderSide(color: AppColors.borderLight, width: 0.5)),
       ),
-      child: Row(
+      child: SizedBox(
+        height: 44,
+        child: Row(
         children: [
           _iconButton('assets/icons/menu-icon.svg', onMenuTap),
           const SizedBox(width: 12),
-          Transform.translate(
-            offset: const Offset(0, -4),
-            child: Image.asset(
-              'assets/images/nuru-logo.png',
-              height: 44,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => Image.asset(
-                'assets/images/nuru-logo-square.png',
+          if (title != null)
+            Expanded(
+              child: Text(
+                title!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                  letterSpacing: -0.4,
+                ),
+              ),
+            )
+          else ...[
+            Transform.translate(
+              offset: const Offset(0, -4),
+              child: Image.asset(
+                'assets/images/nuru-logo.png',
                 height: 44,
                 fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => Image.asset(
+                  'assets/images/nuru-logo-square.png',
+                  height: 44,
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
-          ),
-          const Spacer(),
+            const Spacer(),
+          ],
           _iconButton('assets/icons/search-icon.svg', onSearchTap),
           const SizedBox(width: 6),
+          if (onMomentTap != null) ...[
+            _iconButton(
+              momentActive
+                  ? 'assets/icons/close-circle-icon.svg'
+                  : 'assets/icons/pen-icon.svg',
+              onMomentTap!,
+            ),
+            const SizedBox(width: 6),
+          ],
           _iconButton('assets/icons/bell-icon.svg', onNotificationsTap, badge: unreadNotifications),
           const SizedBox(width: 6),
           _iconButton('assets/icons/panel-right-icon.svg', onRightPanelTap),
         ],
+        ),
       ),
     );
   }

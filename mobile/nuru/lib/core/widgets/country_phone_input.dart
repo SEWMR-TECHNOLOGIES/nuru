@@ -102,7 +102,17 @@ class _CountryPhoneInputState extends State<CountryPhoneInput> {
   }
 
   void _notify() {
-    final digits = widget.controller.text.replaceAll(RegExp(r'[^\d]'), '');
+    var digits = widget.controller.text.replaceAll(RegExp(r'[^\d]'), '');
+    // Strip a single leading 0 (local format e.g. 0712… → 712…) so we don't
+    // produce a malformed +255 0712… → 25507… number after concatenation.
+    if (digits.startsWith('0')) {
+      digits = digits.replaceFirst(RegExp(r'^0+'), '');
+    }
+    // If the user pasted a number that already includes the dial code, strip it.
+    final cc = _selected.dialCode.replaceAll('+', '');
+    if (digits.startsWith(cc)) {
+      digits = digits.substring(cc.length);
+    }
     widget.onFullNumberChanged?.call('${_selected.dialCode}$digits');
   }
 

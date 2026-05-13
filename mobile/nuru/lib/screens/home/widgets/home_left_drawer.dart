@@ -170,9 +170,7 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
     return Drawer(
       width: 290,
       backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.only(topRight: Radius.circular(20), bottomRight: Radius.circular(20)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       child: Column(
         children: [
           _buildProfileHeader(context, fullName, username, avatar),

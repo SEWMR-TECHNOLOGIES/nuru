@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/received_payments_service.dart';
 import '../../../core/utils/money_format.dart';
+import '../../payments/payment_receipt_screen.dart';
 
 /// My Contribution Payments — receipts for every contribution the current
 /// user has paid towards events. Mirrors `MyTicketPaymentsTab` exactly.
@@ -133,7 +134,14 @@ class _MyContributionPaymentsTabState extends State<MyContributionPaymentsTab>
     final provider = (p['provider_name'] ?? '').toString();
     final ts = (p['completed_at'] ?? p['confirmed_at'] ?? p['initiated_at'])?.toString();
     final currency = (p['currency_code'] ?? getActiveCurrency()).toString();
-    return Container(
+    final canRetry = p['can_retry'] == true;
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => PaymentReceiptScreen(payment: p)),
+      ),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -161,11 +169,27 @@ class _MyContributionPaymentsTabState extends State<MyContributionPaymentsTab>
             style: _txt(size: 10, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis),
           if (ts != null) Text(ts.replaceAll('T', ' ').split('.').first,
             style: _txt(size: 10, color: AppColors.textHint)),
+          if (canRetry) Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.refresh_rounded, size: 12, color: AppColors.primary),
+                const SizedBox(width: 4),
+                Text('Tap to retry', style: _txt(size: 10, weight: FontWeight.w700, color: AppColors.primary)),
+              ]),
+            ),
+          ),
         ])),
         const SizedBox(width: 8),
         Text(formatMoney(amount, currency: currency),
           style: _txt(size: 13, weight: FontWeight.w700, color: AppColors.textPrimary)),
       ]),
+    ),
     );
   }
 }

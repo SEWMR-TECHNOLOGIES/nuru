@@ -21,6 +21,26 @@ class WalletService {
   }
 
   // ── Payments ──
+
+  /// Preview platform service fee for the given country/currency/target/amount.
+  /// Backend reads the active CommissionSetting per country.
+  static Future<Map<String, dynamic>> feePreview({
+    required String countryCode,
+    required String currencyCode,
+    required String targetType,
+    required num grossAmount,
+  }) {
+    return ApiBase.get(
+      '/payments/fee-preview',
+      queryParams: {
+        'country_code': countryCode,
+        'currency_code': currencyCode,
+        'target_type': targetType,
+        'gross_amount': grossAmount.toString(),
+      },
+      fallbackError: 'Unable to load fee preview',
+    );
+  }
   static Future<Map<String, dynamic>> listProviders({
     required String countryCode,
     bool collection = true,
@@ -127,11 +147,15 @@ class WalletService {
   }
 
   // ── Country / currency ──
+  // NOTE: backend route is mounted at POST /users/profile/country
+  // (see backend/app/api/routes/profile.py). The previous path
+  // `/users/me/country` returned 404, which made the "Where are you?"
+  // confirm button silently no-op on mobile.
   static Future<Map<String, dynamic>> confirmCountry({
     required String countryCode,
     String source = 'manual',
   }) {
-    return ApiBase.post('/users/me/country', {
+    return ApiBase.post('/users/profile/country', {
       'country_code': countryCode,
       'source': source,
     });

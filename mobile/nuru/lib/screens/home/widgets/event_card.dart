@@ -1,328 +1,448 @@
-import 'package:nuru/core/utils/money_format.dart' show getActiveCurrency;
+import 'package:nuru/core/utils/money_format.dart' show getActiveCurrency, formatMoney;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/event_image.dart';
+import '../../../core/widgets/event_cover_image.dart';
 import '../../events/invitation_qr_screen.dart';
+import '../../events/event_checkin_screen.dart';
 
-/// Clean event card — modern white with subtle border, no heavy shadows
+/// Horizontal "list-row" event card (image left, details right) with a
+/// trailing 3-dot menu. Matches the My Events visual reference.
 class EventCard extends StatelessWidget {
   final Map<String, dynamic> event;
   final String? role;
   final VoidCallback? onTap;
+  final VoidCallback? onView;
+  final VoidCallback? onEdit;
+  final VoidCallback? onShare;
+  final VoidCallback? onDelete;
+  final ValueChanged<String>? onStatusChange;
 
-  const EventCard({super.key, required this.event, this.role, this.onTap});
+  const EventCard({
+    super.key,
+    required this.event,
+    this.role,
+    this.onTap,
+    this.onView,
+    this.onEdit,
+    this.onShare,
+    this.onDelete,
+    this.onStatusChange,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final title = event['title'] ?? event['name'] ?? 'Untitled Event';
+    final title = (event['title'] ?? event['name'] ?? 'Untitled Event').toString();
     final status = (event['status'] ?? 'draft').toString();
-    final startDate = event['start_date'] ?? '';
-    final location = event['location'] ?? event['venue'] ?? '';
-    final coverImage = event['cover_image'] as String?;
-    final guestCount =
-        (event['guest_count'] ?? event['expected_guests'] ?? 0) as int;
-    final confirmedGuests = (event['confirmed_guest_count'] ?? 0) as int;
+    final startDate = (event['start_date'] ?? '').toString();
+    final startTime = (event['start_time'] ?? '').toString();
+    final location = (event['location'] ?? event['venue'] ?? '').toString();
+    final eventType = (event['event_type'] is Map
+            ? event['event_type']['name']
+            : event['eventType'] ?? '')
+        .toString();
+    final currency = (event['currency'] ?? getActiveCurrency()).toString();
     final budget = event['budget'];
-    final currency = event['currency'] ?? getActiveCurrency();
-    final eventType =
-        (event['event_type'] is Map ? event['event_type']['name'] : null) ??
-        event['eventType'] ??
-        '';
-    final description = event['description'] ?? '';
+    final sellsTickets = event['sells_tickets'] == true;
+
+    final ticketsSold = _toInt(event['tickets_sold']);
+    final ticketsCapacity = _toInt(event['tickets_capacity']);
+    final invitationsSent = _toInt(event['invitations_sent']);
+    final invitationsTotal = _toInt(event['invitations_total']);
+    final expectedGuests = _toInt(event['expected_guests']);
+    final guestCount = _toInt(event['guest_count']);
+
+    // Pick the most meaningful "progress" line to show.
+    String? progressLabel;
+    if (sellsTickets && ticketsCapacity > 0) {
+      progressLabel = '$ticketsSold/$ticketsCapacity Tickets Sold';
+    } else if (invitationsTotal > 0) {
+      progressLabel = '$invitationsSent/$invitationsTotal Invitations Sent';
+    } else if (expectedGuests > 0) {
+      progressLabel = '$guestCount/$expectedGuests Guests';
+    } else if (budget != null && _toNum(budget) > 0) {
+      progressLabel = 'Event Budget';
+    }
+
+    final rightAmount = _formatRightAmount(
+      sellsTickets: sellsTickets,
+      ticketsSold: ticketsSold,
+      ticketsCapacity: ticketsCapacity,
+      budget: budget,
+      currency: currency,
+      ticketRevenue: _toNum(event['ticket_revenue']),
+    );
 
     final images = _getImages(event);
     final statusCfg = _statusConfig(status);
-    final countdown = _getCountdown(startDate);
 
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Container(
-        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.borderLight, width: 1),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // ── Image section ──
-            SizedBox(
-              height: 140,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (images.isNotEmpty)
-                    Image.network(
-                      images[0],
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _imagePlaceholder(),
-                    )
-                  else
-                    _imagePlaceholder(),
-
-                  Positioned(
-                    top: 10,
-                    right: 10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusCfg['color'] as Color,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        statusCfg['label'] as String,
-                        style: GoogleFonts.inter(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                          letterSpacing: 0.3,
-                          height: 1.0,
-                        ),
+              // ── Left cover image (square, rounded) ──
+              SizedBox(
+                width: 96,
+                height: 96,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: EventCoverImage(
+                        url: images.isNotEmpty ? images[0] : null,
+                        fit: BoxFit.cover,
                       ),
                     ),
-                  ),
-
-                  if (eventType.isNotEmpty)
-                    Positioned(
-                      top: 10,
-                      left: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.6),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          eventType.toString(),
-                          style: GoogleFonts.inter(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                            height: 1.0,
+                    if (role == 'guest')
+                      Positioned(
+                        bottom: 6,
+                        left: 6,
+                        right: 6,
+                        child: GestureDetector(
+                          onTap: () {
+                            final eventId = event['id']?.toString() ?? '';
+                            if (eventId.isNotEmpty) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      InvitationQRScreen(eventId: eventId),
+                                ),
+                              );
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.55),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.qr_code_2_rounded,
+                                  size: 12,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'QR',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                    height: 1.0,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-
-                  if (role != null)
-                    Positioned(
-                      bottom: 0,
-                      left: 0,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: role == 'creator'
-                              ? AppColors.primary
-                              : role == 'committee'
-                              ? AppColors.warning
-                              : AppColors.blue,
-                          borderRadius: const BorderRadius.only(
-                            topRight: Radius.circular(6),
-                          ),
-                        ),
-                        child: Text(
-                          role == 'creator'
-                              ? 'My Event'
-                              : role == 'committee'
-                              ? 'Committee'
-                              : 'Invited',
-                          style: GoogleFonts.inter(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                            letterSpacing: 0.3,
-                            height: 1.0,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
 
-            // ── Card body ──
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+              // ── Right details ──
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 0, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Expanded(
-                        child: Text(
-                          title.toString(),
-                          style: GoogleFonts.inter(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                            letterSpacing: -0.2,
-                            height: 1.3,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              style: GoogleFonts.inter(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                                letterSpacing: -0.2,
+                                height: 1.25,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                          _menuButton(context, status),
+                        ],
                       ),
-                      SvgPicture.asset(
-                        'assets/icons/chevron-right-icon.svg',
-                        width: 16,
-                        height: 16,
-                        colorFilter: const ColorFilter.mode(
-                          AppColors.textHint,
-                          BlendMode.srcIn,
+
+                      const SizedBox(height: 4),
+
+                      if (eventType.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: (statusCfg['color'] as Color).withOpacity(0.10),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            eventType,
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: statusCfg['color'] as Color,
+                              height: 1.1,
+                            ),
+                          ),
                         ),
+
+                      // ── "Happening today" indicator + quick check-in ──
+                      // Surfaces only on event day for organizers and any
+                      // committee member that has the check-in permission.
+                      if (_isHappeningToday(startDate) && _canCheckIn(role, event)) ...[
+                        const SizedBox(height: 6),
+                        _happeningTodayPill(context),
+                      ],
+
+                      const SizedBox(height: 6),
+
+                      _metaItem(
+                        'assets/icons/calendar-icon.svg',
+                        _formatDateTime(startDate, startTime),
                       ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 4,
-                    children: [
-                      if (countdown != null)
-                        _metaChip(
-                          'assets/icons/clock-icon.svg',
-                          countdown['text']!,
-                          isPast: countdown['isPast'] == 'true',
-                        ),
-                      if (_formatDate(startDate.toString()).isNotEmpty)
-                        _metaItem(
-                          'assets/icons/calendar-icon.svg',
-                          _formatDate(startDate.toString()),
-                        ),
-                      if (location.isNotEmpty)
+                      if (location.isNotEmpty) ...[
+                        const SizedBox(height: 3),
                         _metaItem(
                           'assets/icons/location-icon.svg',
-                          location.toString(),
+                          location,
                         ),
-                    ],
-                  ),
+                      ],
 
-                  if (description.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      description.toString(),
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: AppColors.textTertiary,
-                        height: 1.4,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-
-                  // Show QR button for invited events
-                  if (role == 'guest') ...[
-                    const SizedBox(height: 10),
-                    GestureDetector(
-                      onTap: () {
-                        final eventId = event['id']?.toString() ?? '';
-                        if (eventId.isNotEmpty) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  InvitationQRScreen(eventId: eventId),
-                            ),
-                          );
-                        }
-                      },
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: AppColors.primarySoft,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: AppColors.primary.withOpacity(0.2),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                      if (progressLabel != null || rightAmount != null) ...[
+                        const SizedBox(height: 8),
+                        Row(
                           children: [
-                            Icon(
-                              Icons.qr_code_2_rounded,
-                              size: 16,
-                              color: AppColors.primary,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Show Invitation QR',
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.primary,
+                            if (progressLabel != null)
+                              Expanded(
+                                child: Text(
+                                  progressLabel,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textSecondary,
+                                    height: 1.2,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              )
+                            else
+                              const Spacer(),
+                            if (rightAmount != null)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: Text(
+                                  rightAmount,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.success,
+                                    height: 1.2,
+                                  ),
+                                ),
                               ),
-                            ),
                           ],
                         ),
-                      ),
-                    ),
-                  ],
-
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: const BoxDecoration(
-                      border: Border(
-                        top: BorderSide(color: AppColors.borderLight, width: 1),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        _statCell('Expected', '$guestCount'),
-                        Container(
-                          width: 1,
-                          height: 24,
-                          color: AppColors.borderLight,
-                        ),
-                        _statCell('Confirmed', '$confirmedGuests'),
-                        Container(
-                          width: 1,
-                          height: 24,
-                          color: AppColors.borderLight,
-                        ),
-                        _statCell('Budget', _formatBudget(budget, currency)),
                       ],
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
         ),
       ),
     );
   }
 
-  Widget _imagePlaceholder() => Container(
-    color: AppColors.surfaceVariant,
-    child: const Center(
-      child: SizedBox(
-        width: 32,
-        height: 32,
-        child: Icon(
-          Icons.calendar_month_outlined,
-          color: AppColors.textHint,
-          size: 32,
+  // ── Event-day helpers ──────────────────────────────────────────────────
+  static bool _isHappeningToday(String startDate) {
+    if (startDate.isEmpty) return false;
+    try {
+      final d = DateTime.parse(startDate).toLocal();
+      final now = DateTime.now();
+      return d.year == now.year && d.month == now.month && d.day == now.day;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static bool _canCheckIn(String? role, Map<String, dynamic> event) {
+    if (role == 'creator') return true;
+    if (role == 'committee') {
+      final perms = event['committee_permissions'] ?? event['permissions'];
+      if (perms is Map) {
+        return perms['can_check_in_guests'] == true ||
+            perms['can_check_in'] == true ||
+            perms['is_organizer'] == true;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  Widget _happeningTodayPill(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          Navigator.push(context, MaterialPageRoute(
+            builder: (_) => EventCheckinScreen(
+              eventId: (event['id'] ?? '').toString(),
+              eventTitle: (event['title'] ?? event['name'] ?? '').toString(),
+              eventDate: (event['start_date'] ?? '').toString(),
+              eventLocation: (event['location'] ?? event['venue'] ?? '').toString(),
+              permissions: event['committee_permissions'] is Map
+                  ? Map<String, dynamic>.from(event['committee_permissions'] as Map)
+                  : (event['permissions'] is Map
+                      ? Map<String, dynamic>.from(event['permissions'] as Map)
+                      : null),
+            ),
+          ));
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: AppColors.success.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.success.withOpacity(0.35), width: 0.8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 7,
+                height: 7,
+                decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 6),
+              Text('Happening today',
+                  style: GoogleFonts.inter(
+                      fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.success)),
+              const SizedBox(width: 8),
+              Container(width: 1, height: 10, color: AppColors.success.withOpacity(0.35)),
+              const SizedBox(width: 8),
+              Icon(Icons.qr_code_scanner_rounded, size: 13, color: AppColors.success),
+              const SizedBox(width: 4),
+              Text('Check in',
+                  style: GoogleFonts.inter(
+                      fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.success)),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
+
+  Widget _menuButton(BuildContext context, String status) {
+    final isCreator = role == null || role == 'creator';
+    return SizedBox(
+      width: 32,
+      height: 32,
+      child: PopupMenuButton<String>(
+        tooltip: 'More',
+        padding: EdgeInsets.zero,
+        icon: const Icon(
+          Icons.more_horiz_rounded,
+          size: 20,
+          color: AppColors.textTertiary,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        onSelected: (v) {
+          switch (v) {
+            case 'view':
+              (onView ?? onTap)?.call();
+              break;
+            case 'edit':
+              onEdit?.call();
+              break;
+            case 'share':
+              onShare?.call();
+              break;
+            case 'delete':
+              _confirmDelete(context);
+              break;
+            case 'publish':
+            case 'cancel':
+            case 'complete':
+              onStatusChange?.call(v == 'publish'
+                  ? 'published'
+                  : v == 'cancel'
+                      ? 'cancelled'
+                      : 'completed');
+              break;
+          }
+        },
+        itemBuilder: (_) => [
+          const PopupMenuItem(value: 'view', child: _MenuRow(icon: Icons.visibility_outlined, label: 'View')),
+          if (isCreator)
+            const PopupMenuItem(value: 'edit', child: _MenuRow(icon: Icons.edit_outlined, label: 'Edit')),
+          const PopupMenuItem(value: 'share', child: _MenuRow(icon: Icons.share_outlined, label: 'Share')),
+          if (isCreator && status == 'draft')
+            const PopupMenuItem(value: 'publish', child: _MenuRow(icon: Icons.public_rounded, label: 'Publish')),
+          if (isCreator && status == 'published')
+            const PopupMenuItem(value: 'complete', child: _MenuRow(icon: Icons.check_circle_outline, label: 'Mark Completed')),
+          if (isCreator && status != 'cancelled')
+            const PopupMenuItem(value: 'cancel', child: _MenuRow(icon: Icons.block_rounded, label: 'Cancel Event')),
+          if (isCreator)
+            const PopupMenuItem(value: 'delete', child: _MenuRow(icon: Icons.delete_outline, label: 'Delete', destructive: true)),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Delete event?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+        content: Text(
+          'This will remove the event and its data. This cannot be undone.',
+          style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Keep')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              onDelete?.call();
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _metaItem(String svgAsset, String text) {
     return Row(
@@ -330,21 +450,21 @@ class EventCard extends StatelessWidget {
       children: [
         SvgPicture.asset(
           svgAsset,
-          width: 13,
-          height: 13,
+          width: 12,
+          height: 12,
           colorFilter: const ColorFilter.mode(
             AppColors.textTertiary,
             BlendMode.srcIn,
           ),
         ),
-        const SizedBox(width: 4),
+        const SizedBox(width: 5),
         Flexible(
           child: Text(
             text,
             style: GoogleFonts.inter(
               fontSize: 12,
               color: AppColors.textTertiary,
-              height: 1.4,
+              height: 1.3,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -354,83 +474,58 @@ class EventCard extends StatelessWidget {
     );
   }
 
-  Widget _metaChip(String svgAsset, String text, {bool isPast = false}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: isPast ? AppColors.surfaceVariant : AppColors.primarySoft,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SvgPicture.asset(
-            svgAsset,
-            width: 11,
-            height: 11,
-            colorFilter: ColorFilter.mode(
-              isPast ? AppColors.textTertiary : AppColors.primary,
-              BlendMode.srcIn,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            text,
-            style: GoogleFonts.inter(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: isPast ? AppColors.textTertiary : AppColors.primary,
-              height: 1.2,
-            ),
-          ),
-        ],
-      ),
-    );
+  static int _toInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return int.tryParse(v.toString()) ?? 0;
   }
 
-  Widget _statCell(String label, String value) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 9,
-              color: AppColors.textTertiary,
-              letterSpacing: 0.3,
-              height: 1.2,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-              height: 1.2,
-            ),
-          ),
-        ],
-      ),
-    );
+  static num _toNum(dynamic v) {
+    if (v == null) return 0;
+    if (v is num) return v;
+    return num.tryParse(v.toString().replaceAll(RegExp(r'[^0-9.\-]'), '')) ?? 0;
+  }
+
+  static String? _formatRightAmount({
+    required bool sellsTickets,
+    required int ticketsSold,
+    required int ticketsCapacity,
+    required dynamic budget,
+    required String currency,
+    required num ticketRevenue,
+  }) {
+    if (sellsTickets && ticketsCapacity > 0) {
+      // For ticketed events show revenue if known, otherwise per-ticket avg via budget.
+      if (ticketRevenue > 0) {
+        return formatMoney(ticketRevenue, currency: currency, bare: false);
+      }
+      if (budget != null && _toNum(budget) > 0) {
+        return formatMoney(_toNum(budget), currency: currency, bare: false);
+      }
+      return null;
+    }
+    final b = _toNum(budget);
+    if (b > 0) return formatMoney(b, currency: currency, bare: false);
+    return null;
   }
 
   static List<String> _getImages(Map<String, dynamic> e) {
     final gallery = e['gallery_images'] as List?;
-    if (gallery != null && gallery.isNotEmpty)
+    if (gallery != null && gallery.isNotEmpty) {
       return gallery.cast<String>().take(4).toList();
+    }
     final images = e['images'] as List?;
     if (images != null && images.isNotEmpty) {
       final featured = images.firstWhere(
         (i) => i['is_featured'] == true,
         orElse: () => images.first,
       );
-      return [featured['image_url'] ?? featured['url'] ?? ''];
+      final url = (featured['image_url'] ?? featured['url'] ?? '') as String;
+      if (url.isNotEmpty) return [url];
     }
-    final cover = e['cover_image'] as String?;
-    if (cover != null && cover.isNotEmpty) return [cover];
-    return [];
+    final resolved = resolveEventImageUrl(e);
+    return resolved != null ? [resolved] : [];
   }
 
   static Map<String, dynamic> _statusConfig(String status) {
@@ -448,68 +543,64 @@ class EventCard extends StatelessWidget {
     }
   }
 
+  static String _formatDateTime(String dateStr, String timeStr) {
+    final date = _formatDate(dateStr);
+    if (date.isEmpty) return timeStr;
+    if (timeStr.isEmpty) return date;
+    return '$date • ${_formatTime(timeStr)}';
+  }
+
   static String _formatDate(String dateStr) {
     if (dateStr.isEmpty) return '';
     try {
       final d = DateTime.parse(dateStr);
       const months = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
       ];
-      return '${d.day} ${months[d.month - 1]} ${d.year}';
+      return '${months[d.month - 1]} ${d.day}, ${d.year}';
     } catch (_) {
       return dateStr;
     }
   }
 
-  static Map<String, String>? _getCountdown(String dateStr) {
-    if (dateStr.isEmpty) return null;
+  static String _formatTime(String t) {
+    // Accepts "HH:mm" or "HH:mm:ss"
     try {
-      final d = DateTime.parse(dateStr);
-      final now = DateTime.now();
-      final diff = d.difference(now);
-      if (diff.isNegative) {
-        final days = diff.inDays.abs();
-        if (days == 0) return {'text': 'Today', 'isPast': 'false'};
-        return {'text': '${days}d ago', 'isPast': 'true'};
-      }
-      if (diff.inDays == 0) return {'text': 'Today', 'isPast': 'false'};
-      if (diff.inDays == 1) return {'text': 'Tomorrow', 'isPast': 'false'};
-      if (diff.inDays < 7)
-        return {'text': '${diff.inDays} days left', 'isPast': 'false'};
-      if (diff.inDays < 30)
-        return {
-          'text': '${(diff.inDays / 7).floor()} weeks left',
-          'isPast': 'false',
-        };
-      return {
-        'text': '${(diff.inDays / 30).floor()} months left',
-        'isPast': 'false',
-      };
+      final parts = t.split(':');
+      var h = int.parse(parts[0]);
+      final m = parts.length > 1 ? parts[1] : '00';
+      final period = h >= 12 ? 'PM' : 'AM';
+      h = h % 12;
+      if (h == 0) h = 12;
+      return '$h:$m $period';
     } catch (_) {
-      return null;
+      return t;
     }
   }
+}
 
-  static String _formatBudget(dynamic budget, String currency) {
-    if (budget == null) return '--';
-    final amount = budget is num
-        ? budget
-        : num.tryParse(budget.toString().replaceAll(RegExp(r'[^0-9.]'), '')) ??
-              0;
-    if (amount == 0) return '--';
-    if (amount >= 1000000) return '${(amount / 1000000).toStringAsFixed(1)}M';
-    if (amount >= 1000) return '${(amount / 1000).toStringAsFixed(0)}K';
-    return amount.toStringAsFixed(0);
+class _MenuRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool destructive;
+  const _MenuRow({required this.icon, required this.label, this.destructive = false});
+  @override
+  Widget build(BuildContext context) {
+    final color = destructive ? AppColors.error : AppColors.textPrimary;
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 10),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: color,
+          ),
+        ),
+      ],
+    );
   }
 }

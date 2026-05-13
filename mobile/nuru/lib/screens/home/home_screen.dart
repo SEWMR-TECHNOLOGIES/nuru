@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
@@ -10,6 +11,7 @@ import '../../core/services/social_service.dart';
 import '../../core/services/messages_service.dart';
 import '../../core/services/ticketing_service.dart';
 import '../../core/services/user_services_service.dart';
+import '../../core/services/app_update_service.dart';
 import '../../core/widgets/premium_button.dart';
 import '../../core/widgets/nuru_refresh.dart';
 import '../../providers/auth_provider.dart';
@@ -38,11 +40,16 @@ import 'widgets/home_right_drawer.dart';
 import 'widgets/home_notifications_tab.dart';
 import '../../core/services/moments_service.dart';
 import '../../core/utils/home_cache.dart';
+import '../../core/utils/feed_persistent_cache.dart';
+import '../../core/utils/media_prefetcher.dart';
+import '../../core/services/feed_interaction_tracker.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../onboarding/country_confirm_sheet.dart';
 import '../migration/migration_welcome_sheet.dart';
 import '../../providers/migration_provider.dart';
 import '../events/create_event_screen.dart';
+import 'home_tab_controller.dart';
+import '../../core/utils/notification_center.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -64,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _feedPage = 1;
   int _feedTotalPages = 1;
   // Session id for ranked feed — clearing it resets server impression history.
-  String _feedSessionId = DateTime.now().millisecondsSinceEpoch.toString();
+  String _feedSessionId = FeedInteractionTracker.sessionId;
   int _feedRequestId = 0;
   List<dynamic> _myEvents = [];
   List<dynamic> _invitedEvents = [];
@@ -80,6 +87,11 @@ class _HomeScreenState extends State<HomeScreen> {
   int _eventsSubTab = 0;
   String _eventsSearch = '';
   Timer? _eventsSearchDebounce;
+  Timer? _myEventsPollTimer; // periodic refresh of all event lists
+  bool _eventsSearchOpen = false;
+  bool _eventsPollInProgress = false; // prevents overlapping background polls
+  final TextEditingController _eventsSearchCtl = TextEditingController();
+  final GlobalKey<MyTicketsScreenState> _ticketsKey = GlobalKey<MyTicketsScreenState>();
 
   // Feed pill tabs: 0 All, 1 Moments, 2 Events, 3 Reels
   int _feedTab = 0;
@@ -89,6 +101,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    HomeTabController.requestSeq.addListener(_onTabRequest);
+    NotificationCenter.unreadCount.addListener(_onNotifCenterChange);
     // Seed from cache so re-entering Home is instant; refresh in background.
     if (HomeCache.feedPosts != null && HomeCache.feedPosts!.isNotEmpty) {
       _feedPosts = List<dynamic>.from(HomeCache.feedPosts!);
@@ -121,7 +135,65 @@ class _HomeScreenState extends State<HomeScreen> {
     final silent = HomeCache.hasLoadedOnce ||
         (HomeCache.feedPosts != null && HomeCache.feedPosts!.isNotEmpty);
     if (silent) _loading = false;
+    // Hydrate the chronological feed list from disk so re-launches render
+    // instantly. Falls through to a silent network refresh below.
+    if (_feedPosts.isEmpty) {
+      FeedPersistentCache.readFeed().then((cached) {
+        if (!mounted || cached == null || cached.posts.isEmpty) return;
+        setState(() {
+          _feedPosts = _dedupePosts(cached.posts);
+          _feedPage = cached.page;
+          _feedTotalPages = cached.totalPages;
+          _feedLoading = false;
+        });
+        HomeCache.feedPosts = _feedPosts;
+      });
+    }
+    if (_reels.isEmpty) {
+      FeedPersistentCache.readReels().then((cached) {
+        if (!mounted || cached == null) return;
+        setState(() {
+          _reels = cached;
+          _reelsLoading = false;
+        });
+        HomeCache.reels = _reels;
+      });
+    }
     _loadAllData(silent: silent);
+    // Continuous background polling of the user's event lists so newly
+    // accepted invites, RSVP/check-in changes and freshly created events
+    // appear without forcing a pull-to-refresh.  Overlapping polls are
+    // skipped so the UI never stutters.
+    _myEventsPollTimer = Timer.periodic(const Duration(seconds: 25), (_) {
+      if (!mounted || _eventsPollInProgress) return;
+      _eventsPollInProgress = true;
+      _loadEvents(silent: true).whenComplete(() => _eventsPollInProgress = false);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) AppUpdateService.checkAndPrompt(context);
+    });
+  }
+
+  @override
+  void dispose() {
+    _eventsSearchDebounce?.cancel();
+    _myEventsPollTimer?.cancel();
+    _eventsSearchCtl.dispose();
+    HomeTabController.requestSeq.removeListener(_onTabRequest);
+    NotificationCenter.unreadCount.removeListener(_onNotifCenterChange);
+    super.dispose();
+  }
+
+  /// Mirror central unread count into local state so the existing
+  /// AppBar wiring (which reads `_unreadNotifications`) stays in sync
+  /// when another screen (Profile, notifications tab) updates the badge.
+  void _onNotifCenterChange() {
+    if (!mounted) return;
+    final v = NotificationCenter.unreadCount.value;
+    if (v != _unreadNotifications) {
+      setState(() => _unreadNotifications = v);
+      HomeCache.unreadNotifications = v;
+    }
   }
 
   Future<void> _loadAllData({bool silent = false}) async {
@@ -152,6 +224,28 @@ class _HomeScreenState extends State<HomeScreen> {
       _reelsLoading = false;
     });
     HomeCache.reels = _reels;
+    FeedPersistentCache.saveReels(_reels);
+  }
+
+  /// Listener for [HomeTabController] requests coming from any screen.
+  /// When fired, pop any pushed routes back to the Home shell, then switch
+  /// the bottom-nav tab. Used by "My Tickets" buttons in Profile / Drawer
+  /// / Browse Tickets so they activate the Tickets tab instead of pushing
+  /// a new full-screen route.
+  void _onTabRequest() {
+    if (!mounted) return;
+    final target = HomeTabController.requestedTab;
+    final subTab = HomeTabController.requestedEventsSubTab;
+    HomeTabController.requestedEventsSubTab = null;
+    // Pop only routes stacked above this Home shell. Never pop back to Splash.
+    final homeRoute = ModalRoute.of(context);
+    Navigator.of(context).popUntil((route) => identical(route, homeRoute) || route.isFirst);
+    setState(() {
+      if (_tab != target) _tab = target;
+      if (target == HomeTabController.events && subTab != null) {
+        _eventsSubTab = subTab;
+      }
+    });
   }
 
   Future<void> _loadProfile() async {
@@ -208,11 +302,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadFeed({bool refresh = true, bool resetSession = false, bool silent = false}) async {
     if (refresh) {
       if (resetSession) {
-        _feedSessionId = DateTime.now().millisecondsSinceEpoch.toString();
+        FeedInteractionTracker.resetSession();
+        _feedSessionId = FeedInteractionTracker.sessionId;
       }
       if (!silent) {
         setState(() {
-          _feedLoading = true;
+          // Only show the full skeleton when we have nothing on screen.
+          // If posts are already rendered (from memory or disk cache), refresh
+          // silently so the feed never blanks out.
+          if (_feedPosts.isEmpty) _feedLoading = true;
           _feedFallbackTried = false;
           _feedPage = 1;
         });
@@ -237,7 +335,7 @@ class _HomeScreenState extends State<HomeScreen> {
         // During a silent refresh, never wipe existing posts if the new
         // fetch returned empty (transient/network glitch). Keeps content
         // visible while we silently retry.
-        if (silent && items.isEmpty && _feedPosts.isNotEmpty) {
+        if (items.isEmpty && _feedPosts.isNotEmpty) {
           // keep existing
         } else {
           _feedPosts = _dedupePosts(items);
@@ -254,6 +352,11 @@ class _HomeScreenState extends State<HomeScreen> {
     HomeCache.feedPosts = _feedPosts;
     HomeCache.feedPage = _feedPage;
     HomeCache.feedTotalPages = _feedTotalPages;
+    FeedPersistentCache.saveFeed(
+      posts: _feedPosts,
+      page: _feedPage,
+      totalPages: _feedTotalPages,
+    );
     if (_feedPosts.isEmpty && refresh && !_feedFallbackTried && !silent) {
       _feedFallbackTried = true;
       await _loadTrendingFallback();
@@ -302,18 +405,40 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Lightweight equality check for event lists so background polls only
+  /// call [setState] when data actually changed.
+  bool _eventsListsEqual(List<dynamic> a, List<dynamic> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      final am = a[i] is Map ? a[i] as Map : null;
+      final bm = b[i] is Map ? b[i] as Map : null;
+      if ((am?['id']?.toString()) != (bm?['id']?.toString())) return false;
+      if ((am?['updated_at']?.toString()) != (bm?['updated_at']?.toString())) return false;
+    }
+    return true;
+  }
+
   Future<void> _loadEvents({bool silent = false}) async {
-    final s = _eventsSearch.trim().isEmpty ? null : _eventsSearch.trim();
     final results = await Future.wait([
-      EventsService.getMyEvents(limit: 20, search: s),
+      EventsService.getMyEvents(limit: 20),
       EventsService.getInvitedEvents(limit: 20),
       EventsService.getCommitteeEvents(limit: 20),
     ]);
-    if (mounted) {
+    if (!mounted) return;
+
+    final newMyEvents = _extractEvents(results[0]);
+    final newInvitedEvents = _extractEvents(results[1]);
+    final newCommitteeEvents = _extractEvents(results[2]);
+
+    final unchanged = _eventsListsEqual(_myEvents, newMyEvents) &&
+        _eventsListsEqual(_invitedEvents, newInvitedEvents) &&
+        _eventsListsEqual(_committeeEvents, newCommitteeEvents);
+
+    if (!unchanged) {
       setState(() {
-        _myEvents = _extractEvents(results[0]);
-        _invitedEvents = _extractEvents(results[1]);
-        _committeeEvents = _extractEvents(results[2]);
+        _myEvents = newMyEvents;
+        _invitedEvents = newInvitedEvents;
+        _committeeEvents = newCommitteeEvents;
       });
       HomeCache.myEvents = _myEvents;
       HomeCache.invitedEvents = _invitedEvents;
@@ -340,6 +465,8 @@ class _HomeScreenState extends State<HomeScreen> {
           _unreadNotifications = data is Map ? (data['unread_count'] ?? 0) : 0;
           HomeCache.notifications = _notifications;
           HomeCache.unreadNotifications = _unreadNotifications;
+          // Broadcast to every app-bar badge in the app (Profile, etc).
+          NotificationCenter.setUnread(_unreadNotifications);
         }
       });
     }
@@ -503,13 +630,24 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             // Global header is only shown on tabs that need it (Home, Events).
             // Tickets (3) and Profile (4) own their headers per design.
-            if (_tab == 0 || _tab == 1)
+            if (_tab == 0 || _tab == 1 || _tab == 3)
               HomeHeader(
                 name: name,
                 avatar: avatar,
+                title: _tab == 1
+                    ? context.tr('my_events')
+                    : (_tab == 3 ? context.tr('my_tickets') : null),
                 unreadNotifications: _unreadNotifications,
                 onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
-                onSearchTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchScreen())),
+                onSearchTap: () {
+                  if (_tab == 1) {
+                    setState(() => _eventsSearchOpen = !_eventsSearchOpen);
+                  } else if (_tab == 3) {
+                    _ticketsKey.currentState?.toggleSearch();
+                  } else {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchScreen()));
+                  }
+                },
                 onNotificationsTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -531,6 +669,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ).then((_) => _loadNotifications()),
                 onRightPanelTap: () => _scaffoldKey.currentState?.openEndDrawer(),
                 onProfileTap: () => setState(() => _tab = 4),
+                onMomentTap: _tab == 0
+                    ? () => setState(() => _showCreatePost = !_showCreatePost)
+                    : null,
+                momentActive: _tab == 0 && _showCreatePost,
               ),
             Expanded(
               child: IndexedStack(
@@ -540,7 +682,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   _eventsContent(),
                   // Index 2 is reserved for the center "+" create action.
                   const SizedBox.shrink(),
-                  const MyTicketsScreen(),
+                  MyTicketsScreen(key: _ticketsKey),
                   _profileContent(),
                 ],
               ),
@@ -652,8 +794,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   myAvatar: (_profile?['avatar'] as String?),
                   onCreateTap: _openCreateReel,
                   onAuthorTap: _openReelViewer,
-                  onShareMomentTap: () => setState(() => _showCreatePost = !_showCreatePost),
-                  shareMomentExpanded: _showCreatePost,
                 ),
               );
             }
@@ -713,7 +853,25 @@ class _HomeScreenState extends State<HomeScreen> {
             }
             final post = filtered[itemIndex];
             final postMap = post is Map<String, dynamic> ? post : <String, dynamic>{};
-            return Padding(padding: const EdgeInsets.only(bottom: 16), child: MomentCard(post: postMap, onTap: () => PostDetailModal.show(context, postMap)));
+            final postId = (postMap['id'] ?? postMap['post_id'] ?? '').toString();
+            // Log a one-time view for ranking + warm media for the next few cards.
+            if (postId.isNotEmpty) {
+              FeedInteractionTracker.logView(postId);
+            }
+            MediaPrefetcher.prefetchUpcoming(context, filtered, itemIndex + 1);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: MomentCard(
+                key: ValueKey('moment_${postId.isNotEmpty ? postId : itemIndex}'),
+                post: postMap,
+                onTap: () {
+                  if (postId.isNotEmpty) {
+                    FeedInteractionTracker.log(postId, 'click_image');
+                  }
+                  PostDetailModal.show(context, postMap);
+                },
+              ),
+            );
           },
         ),
       ),
@@ -724,107 +882,131 @@ class _HomeScreenState extends State<HomeScreen> {
     return StatefulBuilder(
       builder: (context, setLocalState) {
         final rawEvents = _eventsSubTab == 0 ? _myEvents : _eventsSubTab == 1 ? _invitedEvents : _committeeEvents;
-        // Mirror web: no date-range filter, just full list (search is server-side).
-        final events = rawEvents;
-        final showStats = !_loading && _myEvents.isNotEmpty;
-        return NuruRefresh(
-          onRefresh: () async => await _loadEvents(silent: true),
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
-            children: [
-              // ── Header (title + New Event) ──
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('My Events', style: GoogleFonts.inter(fontSize: 26, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -0.5, height: 1.1)),
-                        const SizedBox(height: 4),
-                        Text('Plan, manage, and track all your events in one place', style: GoogleFonts.inter(fontSize: 14, color: AppColors.textTertiary, height: 1.4)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  SizedBox(
-                    width: 132,
-                    child: PremiumButton(
-                      label: 'New Event',
-                      icon: Icons.add_rounded,
-                      onPressed: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateEventScreen()));
-                      },
-                      height: 44,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
+        final q = _eventsSearch.trim().toLowerCase();
+        final events = (_eventsSubTab == 0 && q.isNotEmpty)
+            ? rawEvents.where((e) {
+                if (e is! Map) return false;
+                final hay = [e['title'], e['name'], e['location'], e['venue'], e['description']]
+                    .whereType<Object>()
+                    .map((x) => x.toString().toLowerCase())
+                    .join(' ');
+                return hay.contains(q);
+              }).toList()
+            : rawEvents;
 
-              // ── Stats row (only when there are events) ──
-              if (showStats) ...[
-                StatsRow(items: [
-                  StatItem('Total Events', '$_totalEvents'),
-                  StatItem('Upcoming', '$_kpiUpcoming'),
-                  StatItem('Completed', '$_kpiCompleted'),
-                  StatItem('Total Guests', '$_kpiTotalGuests'),
-                ]),
-                const SizedBox(height: 16),
-              ],
-
-              // ── Tabs ──
-              PillTabs(tabs: const ['My Events', 'Invited', 'Committee', 'My Contributions'], selected: _eventsSubTab, onChanged: (i) => setLocalState(() => _eventsSubTab = i)),
-              const SizedBox(height: 16),
-
-              // ── Search (right-aligned, premium pill) — only on My Events tab ──
-              if (_eventsSubTab == 0) ...[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Flexible(child: _eventsSearchBar(setLocalState)),
-                  ],
+        // Sticky header (tabs + optional search). Each tab body owns its
+        // own scrollable so switching tabs preserves scroll offset and the
+        // tab bar stays pinned — mirrors the event-detail screen pattern.
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                _UnderlineTabs(
+                  tabs: const ['My Events', 'Invited', 'Committee', 'My Contributions'],
+                  selected: _eventsSubTab,
+                  onChanged: (i) => setLocalState(() => _eventsSubTab = i),
                 ),
                 const SizedBox(height: 14),
-              ],
-
-              if (_eventsSubTab == 3)
-                const MyContributionsTab()
-              else if (_loading) ...List.generate(3, (_) => const Padding(padding: EdgeInsets.only(bottom: 16), child: ShimmerCard()))
-              else if (events.isEmpty)
-                EmptyState(
-                  icon: _eventsSubTab == 0 ? Icons.calendar_month_outlined : _eventsSubTab == 1 ? Icons.mail_outline_rounded : Icons.groups_outlined,
-                  title: _eventsSubTab == 0
-                      ? (_eventsSearch.isNotEmpty ? 'No matches' : 'No Events Yet')
-                      : _eventsSubTab == 1 ? 'No invitations' : 'No committee events',
-                  subtitle: _eventsSubTab == 0
-                      ? (_eventsSearch.isNotEmpty
-                          ? 'Nothing matched "$_eventsSearch". Try a different keyword.'
-                          : 'Create your first event to start planning, managing guests, and tracking contributions.')
-                      : _eventsSubTab == 1 ? 'No invitations yet' : 'Not on any committees',
-                  action: _eventsSubTab == 0 && _eventsSearch.isEmpty
-                      ? SizedBox(width: 200, child: PremiumButton(label: 'Create Your First Event', icon: Icons.add_rounded, onPressed: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateEventScreen()));
-                        }, height: 44))
-                      : null,
-                )
-              else ...events.map((e) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: EventCard(
-                  event: e,
-                  role: _eventsSubTab == 0 ? 'creator' : _eventsSubTab == 1 ? 'guest' : 'committee',
-                  onTap: () {
-                    final role = _eventsSubTab == 0 ? 'creator' : _eventsSubTab == 1 ? 'guest' : 'committee';
-                    Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => role == 'guest'
-                          ? EventPublicViewScreen(eventId: e['id']?.toString() ?? '', initialData: e)
-                          : EventDetailScreen(eventId: e['id']?.toString() ?? '', initialData: e, knownRole: role),
-                    ));
-                  },
-                ),
-              )),
-            ],
-          ),
+                if (_eventsSubTab == 0 && _eventsSearchOpen) ...[
+                  SizedBox(width: double.infinity, child: _eventsSearchBar(setLocalState)),
+                  const SizedBox(height: 14),
+                ],
+              ]),
+            ),
+            Expanded(
+              child: _eventsSubTab == 3
+                  ? const MyContributionsTab()
+                  : NuruRefresh(
+                      onRefresh: () async => await _loadEvents(silent: true),
+                      child: _loading
+                          ? ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                              children: List.generate(3, (_) => const Padding(padding: EdgeInsets.only(bottom: 16), child: ShimmerCard())),
+                            )
+                          : events.isEmpty
+                              ? ListView(
+                                  physics: const AlwaysScrollableScrollPhysics(),
+                                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
+                                  children: [
+                                    EmptyState(
+                                      icon: _eventsSubTab == 0 ? Icons.calendar_month_outlined : _eventsSubTab == 1 ? Icons.mail_outline_rounded : Icons.groups_outlined,
+                                      title: _eventsSubTab == 0
+                                          ? (_eventsSearch.isNotEmpty ? 'No matches' : 'No Events Yet')
+                                          : _eventsSubTab == 1 ? 'No invitations' : 'No committee events',
+                                      subtitle: _eventsSubTab == 0
+                                          ? (_eventsSearch.isNotEmpty
+                                              ? 'Nothing matched "$_eventsSearch". Try a different keyword.'
+                                              : 'Create your first event to start planning, managing guests, and tracking contributions.')
+                                          : _eventsSubTab == 1 ? 'No invitations yet' : 'Not on any committees',
+                                      action: _eventsSubTab == 0 && _eventsSearch.isEmpty
+                                          ? SizedBox(width: 200, child: PremiumButton(label: 'Create Your First Event', icon: Icons.add_rounded, onPressed: () {
+                                              Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateEventScreen()));
+                                            }, height: 44))
+                                          : null,
+                                    ),
+                                  ],
+                                )
+                              : ListView.builder(
+                                  key: PageStorageKey<String>('events_tab_$_eventsSubTab'),
+                                  physics: const AlwaysScrollableScrollPhysics(),
+                                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                                  itemCount: events.length,
+                                  itemBuilder: (_, i) {
+                                    final e = events[i];
+                                    return Padding(
+                                      padding: const EdgeInsets.only(bottom: 12),
+                                      child: EventCard(
+                                        event: e,
+                                        role: _eventsSubTab == 0 ? 'creator' : _eventsSubTab == 1 ? 'guest' : 'committee',
+                                        onTap: () {
+                                          final role = _eventsSubTab == 0 ? 'creator' : _eventsSubTab == 1 ? 'guest' : 'committee';
+                                          Navigator.push(context, MaterialPageRoute(
+                                            builder: (_) => role == 'guest'
+                                                ? EventPublicViewScreen(eventId: e['id']?.toString() ?? '', initialData: e)
+                                                : EventDetailScreen(eventId: e['id']?.toString() ?? '', initialData: e, knownRole: role),
+                                          ));
+                                        },
+                                        onView: () {
+                                          Navigator.push(context, MaterialPageRoute(
+                                            builder: (_) => EventPublicViewScreen(eventId: e['id']?.toString() ?? '', initialData: e),
+                                          ));
+                                        },
+                                        onEdit: () {
+                                          Navigator.push(context, MaterialPageRoute(
+                                            builder: (_) => EventDetailScreen(eventId: e['id']?.toString() ?? '', initialData: e, knownRole: 'creator'),
+                                          ));
+                                        },
+                                        onShare: () {
+                                          final id = e['id']?.toString() ?? '';
+                                          final title = (e['title'] ?? e['name'] ?? 'Event').toString();
+                                          final url = 'https://nuru.tz/events/$id';
+                                          Share.share('$title\n$url');
+                                        },
+                                        onStatusChange: (newStatus) async {
+                                          final res = await EventsService.updateEventStatus(e['id']?.toString() ?? '', newStatus);
+                                          if (!mounted) return;
+                                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                            content: Text(res['success'] == true ? 'Event updated' : (res['message']?.toString() ?? 'Could not update')),
+                                          ));
+                                          if (res['success'] == true) _loadEvents(silent: true);
+                                        },
+                                        onDelete: () async {
+                                          final res = await EventsService.deleteEvent(e['id']?.toString() ?? '');
+                                          if (!mounted) return;
+                                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                            content: Text(res['success'] == true ? 'Event deleted' : (res['message']?.toString() ?? 'Could not delete')),
+                                          ));
+                                          if (res['success'] == true) _loadEvents(silent: true);
+                                        },
+                                      ),
+                                    );
+                                  },
+                                ),
+                    ),
+            ),
+          ],
         );
       },
     );
@@ -839,45 +1021,103 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // (legacy _heroStat / _heroDivider removed — Events tab now uses clean white layout)
+
   Widget _eventsSearchBar(StateSetter setLocalState) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 320),
-      child: TextField(
-        controller: TextEditingController(text: _eventsSearch)
-          ..selection = TextSelection.collapsed(offset: _eventsSearch.length),
-        onChanged: (v) {
-          _eventsSearchDebounce?.cancel();
-          _eventsSearchDebounce = Timer(const Duration(milliseconds: 350), () {
-            setState(() => _eventsSearch = v);
-            _loadEvents();
-          });
-        },
-        style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary),
-        decoration: InputDecoration(
-          isDense: true,
-          hintText: 'Search by title, location…',
-          hintStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary),
-          prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.textTertiary),
-          suffixIcon: _eventsSearch.isEmpty
-              ? null
-              : IconButton(
-                  icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textTertiary),
-                  onPressed: () {
-                    _eventsSearchDebounce?.cancel();
-                    setState(() => _eventsSearch = '');
-                    _loadEvents();
-                  },
-                  splashRadius: 18,
-                ),
-          filled: true,
-          fillColor: AppColors.surface,
-          contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide(color: AppColors.borderLight, width: 1)),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide(color: AppColors.borderLight, width: 1)),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide(color: AppColors.primary, width: 1.5)),
+    return Container(
+        height: 44,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: const Color(0xFFEDEDEF), width: 1),
         ),
-      ),
+        child: Row(children: [
+          const Icon(Icons.search_rounded, size: 18, color: Color(0xFF8E8E93)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _eventsSearchCtl,
+              onChanged: (v) {
+                _eventsSearch = v;
+                setLocalState(() {});
+              },
+              cursorColor: Colors.black,
+              textAlignVertical: TextAlignVertical.center,
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.black),
+              decoration: InputDecoration(
+                isDense: true,
+                filled: false,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                focusedErrorBorder: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                hintText: 'Search by title, location…',
+                hintStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w400, color: const Color(0xFF9E9E9E)),
+              ),
+            ),
+          ),
+          if (_eventsSearchCtl.text.isNotEmpty)
+            GestureDetector(
+              onTap: () {
+                _eventsSearchCtl.clear();
+                _eventsSearch = '';
+                setLocalState(() {});
+              },
+              child: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF8E8E93)),
+            ),
+        ]),
     );
   }
 
+}
+
+/// Mockup-faithful underline tab bar used by the Events tab.
+/// Active tab gets a yellow (secondary) underline and bold text.
+class _UnderlineTabs extends StatelessWidget {
+  final List<String> tabs;
+  final int selected;
+  final ValueChanged<int> onChanged;
+  const _UnderlineTabs({required this.tabs, required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: List.generate(tabs.length, (i) {
+          final active = i == selected;
+          return GestureDetector(
+            onTap: () => onChanged(i),
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(2, 6, 2, 10),
+              margin: const EdgeInsets.only(right: 22),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: active ? AppColors.secondary : Colors.transparent,
+                    width: 2.5,
+                  ),
+                ),
+              ),
+              child: Text(
+                tabs[i],
+                style: GoogleFonts.inter(
+                  fontSize: 14.5,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                  color: active ? AppColors.textPrimary : AppColors.textSecondary,
+                  letterSpacing: -0.1,
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
 }

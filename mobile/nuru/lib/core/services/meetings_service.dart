@@ -16,6 +16,7 @@ class MeetingsService {
     String? timezone,
     String durationMinutes = '60',
     List<String> participantUserIds = const [],
+    String? passcode,
   }) async {
     return await ApiService.post('/events/$eventId/meetings', {
       'title': title,
@@ -24,6 +25,7 @@ class MeetingsService {
       'timezone': timezone ?? DateTime.now().timeZoneName,
       'duration_minutes': durationMinutes,
       'participant_user_ids': participantUserIds,
+      if (passcode != null && passcode.isNotEmpty) 'passcode': passcode,
     });
   }
 

@@ -14,7 +14,7 @@ import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/auth_skyline.dart';
 import '../../providers/auth_provider.dart';
 import '../../core/services/otp_service.dart';
-import '../home/home_screen.dart';
+import '../onboarding/interests_onboarding_screen.dart';
 import 'widgets/auth_text_field.dart';
 
 // ─── Reference palette (match uploaded mockup) ───
@@ -804,7 +804,7 @@ class _SignupScreenState extends State<SignupScreen> {
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted && _step == 5) {
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
+          MaterialPageRoute(builder: (_) => const InterestsOnboardingScreen()),
           (_) => false,
         );
       }

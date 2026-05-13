@@ -259,20 +259,27 @@ async def create_moment(
         file_content = await media.read()
         _, ext = os.path.splitext(media.filename)
         unique_name = f"{uuid.uuid4().hex}{ext}"
-        async with httpx.AsyncClient() as client:
-            try:
+        # Videos take longer to upload — use a generous timeout and surface
+        # any failure to the client so the composer can show a real error
+        # instead of a silent "Request failed".
+        upload_timeout = 180.0 if media_content_type == "video" else 60.0
+        try:
+            async with httpx.AsyncClient(timeout=upload_timeout) as client:
                 resp = await client.post(
                     UPLOAD_SERVICE_URL,
                     data={"target_path": f"nuru/uploads/moments/{current_user.id}/"},
                     files={"file": (unique_name, file_content, media.content_type)},
-                    timeout=20,
                 )
-                result = resp.json()
-                if result.get("success"):
-                    media_url = result["data"]["url"]
-                    thumbnail_url = result["data"].get("thumbnail_url")
-            except Exception:
-                pass
+            result = resp.json()
+            if result.get("success"):
+                media_url = result["data"]["url"]
+                thumbnail_url = result["data"].get("thumbnail_url")
+            else:
+                return standard_response(False, result.get("message") or "Upload failed")
+        except httpx.TimeoutException:
+            return standard_response(False, "Upload timed out — please try again on a stronger connection")
+        except Exception as exc:  # noqa: BLE001
+            return standard_response(False, f"Upload failed: {exc}")
 
     # Validate text moments
     if media_content_type == "text":

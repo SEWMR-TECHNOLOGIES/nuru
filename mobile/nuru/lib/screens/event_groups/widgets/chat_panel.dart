@@ -1,6 +1,8 @@
 import 'dart:async';
-// Image uploads use UploadsService.uploadFile(filePath).
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
@@ -15,6 +17,12 @@ const _fullEmojis = [
   '🙌','👀','🚀','💡','✅','❌',
 ];
 
+/// Premium chat panel — web parity:
+/// - Soft gradient + radial-glow background
+/// - WhatsApp-style bubbles with subtle shadow + rounded "tail" corner
+/// - Floating pill composer with attach + send pulse
+/// - Pretty day separators, optimistic sending, reply preview, reactions
+/// - "New messages" pill when scrolled up
 class ChatPanel extends StatefulWidget {
   final String groupId;
   final String? meMemberId;
@@ -25,9 +33,10 @@ class ChatPanel extends StatefulWidget {
   State<ChatPanel> createState() => _ChatPanelState();
 }
 
-class _ChatPanelState extends State<ChatPanel> {
+class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
   final _scroll = ScrollController();
   final _input = TextEditingController();
+  final _focus = FocusNode();
   final _picker = ImagePicker();
   List<dynamic> _messages = [];
   bool _loading = true;
@@ -37,16 +46,27 @@ class _ChatPanelState extends State<ChatPanel> {
   Timer? _poll;
   Map<String, dynamic>? _replyTo;
   bool _stickToBottom = true;
+  int _newCount = 0;
+  bool _hasText = false;
+  _PendingImage? _pendingImage;
 
   @override
   void initState() {
     super.initState();
-    _scroll.addListener(() {
-      _stickToBottom = _scroll.hasClients &&
-          _scroll.position.maxScrollExtent - _scroll.position.pixels < 80;
+    _scroll.addListener(_onScroll);
+    _input.addListener(() {
+      final has = _input.text.trim().isNotEmpty;
+      if (has != _hasText) setState(() => _hasText = has);
     });
     _initial();
     _poll = Timer.periodic(const Duration(seconds: 6), (_) => _pollNew());
+  }
+
+  void _onScroll() {
+    if (!_scroll.hasClients) return;
+    final atBottom = _scroll.position.maxScrollExtent - _scroll.position.pixels < 80;
+    _stickToBottom = atBottom;
+    if (atBottom && _newCount > 0) setState(() => _newCount = 0);
   }
 
   Future<void> _initial() async {
@@ -74,13 +94,17 @@ class _ChatPanelState extends State<ChatPanel> {
       if (fresh.isEmpty) return;
       setState(() {
         final ids = _messages.map((m) => m['id']).toSet();
+        var added = 0;
         for (final m in fresh) {
-          if (!ids.contains(m['id'])) _messages.add(m);
+          if (!ids.contains(m['id'])) { _messages.add(m); added++; }
         }
         _cursor = fresh.last['created_at'];
+        if (!_stickToBottom) _newCount += added;
       });
-      if (_stickToBottom) _scrollEnd();
-      EventGroupsService.markRead(widget.groupId);
+      if (_stickToBottom) {
+        _scrollEnd();
+        EventGroupsService.markRead(widget.groupId);
+      }
     }
   }
 
@@ -88,9 +112,16 @@ class _ChatPanelState extends State<ChatPanel> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) {
         _scroll.animateTo(_scroll.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+            duration: const Duration(milliseconds: 260), curve: Curves.easeOut);
       }
     });
+  }
+
+  void _jumpLatest() {
+    setState(() => _newCount = 0);
+    _stickToBottom = true;
+    _scrollEnd();
+    EventGroupsService.markRead(widget.groupId);
   }
 
   @override
@@ -98,13 +129,13 @@ class _ChatPanelState extends State<ChatPanel> {
     _poll?.cancel();
     _scroll.dispose();
     _input.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
   Future<void> _send() async {
     final text = _input.text.trim();
     if (text.isEmpty || _sending || widget.isClosed) return;
-    // Optimistic — clear input + show pending bubble immediately (WhatsApp-style).
     final tempId = 'tmp-${DateTime.now().microsecondsSinceEpoch}';
     final reply = _replyTo;
     final optimistic = <String, dynamic>{
@@ -144,26 +175,58 @@ class _ChatPanelState extends State<ChatPanel> {
     _scrollEnd();
   }
 
-  Future<void> _pickAndSendImage() async {
+  Future<void> _pickImage() async {
     if (widget.isClosed) return;
-    final XFile? file = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 1920, imageQuality: 85);
+    final XFile? file = await _picker.pickImage(
+        source: ImageSource.gallery, maxWidth: 1920, imageQuality: 85);
     if (file == null) return;
-    setState(() => _uploading = true);
+    setState(() => _pendingImage = _PendingImage(file: file, caption: ''));
+  }
+
+  Future<void> _sendPendingImage() async {
+    final p = _pendingImage;
+    if (p == null || _uploading) return;
+    final tempId = 'tmp-${DateTime.now().microsecondsSinceEpoch}';
+    setState(() {
+      _messages.add({
+        'id': tempId,
+        'message_type': 'image',
+        'content': p.caption.trim().isEmpty ? null : p.caption.trim(),
+        'image_url': p.file.path,
+        '_local': true,
+        'sender_member_id': widget.meMemberId,
+        'sender_name': 'You',
+        'reactions': [],
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+        '_pending': true,
+      });
+      _pendingImage = null;
+      _stickToBottom = true;
+      _uploading = true;
+    });
+    _scrollEnd();
     try {
-      final upRes = await UploadsService.uploadFile(file.path);
+      final upRes = await UploadsService.uploadFile(p.file.path);
       final url = upRes['data']?['url'] ?? upRes['data']?['file_url'] ?? upRes['data']?['public_url'];
       if (url == null) throw 'Upload failed';
-      final res = await EventGroupsService.sendMessage(widget.groupId, imageUrl: url);
-      if (mounted && res['success'] == true && res['data'] is Map) {
+      final res = await EventGroupsService.sendMessage(widget.groupId,
+          imageUrl: url, content: p.caption.trim().isEmpty ? null : p.caption.trim());
+      if (!mounted) return;
+      if (res['success'] == true && res['data'] is Map) {
         setState(() {
-          _messages.add(Map<String, dynamic>.from(res['data']));
-          _cursor = res['data']['created_at'];
-          _stickToBottom = true;
+          final i = _messages.indexWhere((m) => m['id'] == tempId);
+          final real = Map<String, dynamic>.from(res['data']);
+          if (i >= 0) _messages[i] = real; else _messages.add(real);
+          _cursor = real['created_at'];
         });
-        _scrollEnd();
+      } else {
+        setState(() => _messages.removeWhere((m) => m['id'] == tempId));
       }
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Image upload failed')));
+      if (mounted) {
+        setState(() => _messages.removeWhere((m) => m['id'] == tempId));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Image upload failed')));
+      }
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
@@ -198,24 +261,27 @@ class _ChatPanelState extends State<ChatPanel> {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2))),
-          const SizedBox(height: 12),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            for (final e in _fullEmojis)
-              GestureDetector(
-                onTap: () { Navigator.pop(context); _react(msg, e); },
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(10)),
-                  child: Text(e, style: const TextStyle(fontSize: 22)),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            Wrap(spacing: 10, runSpacing: 10, alignment: WrapAlignment.center, children: [
+              for (final e in _fullEmojis)
+                GestureDetector(
+                  onTap: () { Navigator.pop(context); _react(msg, e); },
+                  child: Container(
+                    width: 46, height: 46,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(14)),
+                    child: Text(e, style: const TextStyle(fontSize: 24)),
+                  ),
                 ),
-              ),
+            ]),
           ]),
-        ]),
+        ),
       ),
     );
   }
@@ -223,23 +289,25 @@ class _ChatPanelState extends State<ChatPanel> {
   String _formatTime(String iso) {
     final d = DateTime.tryParse(iso);
     if (d == null) return '';
-    final h = d.hour.toString().padLeft(2, '0');
-    final m = d.minute.toString().padLeft(2, '0');
+    final local = d.toLocal();
+    final h = local.hour.toString().padLeft(2, '0');
+    final m = local.minute.toString().padLeft(2, '0');
     return '$h:$m';
   }
 
   bool _sameDay(String a, String b) {
-    final da = DateTime.tryParse(a); final db = DateTime.tryParse(b);
+    final da = DateTime.tryParse(a)?.toLocal();
+    final db = DateTime.tryParse(b)?.toLocal();
     if (da == null || db == null) return false;
     return da.year == db.year && da.month == db.month && da.day == db.day;
   }
 
   String _dayLabel(String iso) {
-    final d = DateTime.tryParse(iso);
+    final d = DateTime.tryParse(iso)?.toLocal();
     if (d == null) return '';
     final now = DateTime.now();
-    if (_sameDay(iso, now.toIso8601String())) return 'Today';
-    if (_sameDay(iso, now.subtract(const Duration(days: 1)).toIso8601String())) return 'Yesterday';
+    if (_sameDay(iso, now.toIso8601String())) return 'TODAY';
+    if (_sameDay(iso, now.subtract(const Duration(days: 1)).toIso8601String())) return 'YESTERDAY';
     return '${d.day}/${d.month}/${d.year}';
   }
 
@@ -249,87 +317,430 @@ class _ChatPanelState extends State<ChatPanel> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return Container(
+        decoration: _bgDecoration(),
+        child: const Center(child: CircularProgressIndicator()),
+      );
     }
-    return Column(
+    return Stack(
       children: [
-        Expanded(
-          child: _messages.isEmpty
-              ? Center(
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Container(
-                      width: 56, height: 56,
-                      decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.primarySoft),
-                      child: Icon(Icons.send_outlined, color: AppColors.primary),
-                    ),
-                    const SizedBox(height: 12),
-                    Text('No messages yet', style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
-                    Text('Say hi to your group 👋', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
-                  ]),
-                )
-              : ListView.builder(
-                  controller: _scroll,
-                  padding: const EdgeInsets.all(12),
-                  itemCount: _messages.length,
-                  itemBuilder: (_, i) {
-                    final m = _messages[i];
-                    final prev = i > 0 ? _messages[i - 1] : null;
-                    final showDay = prev == null || !_sameDay(prev['created_at'], m['created_at']);
-                    final mine = m['sender_member_id'] != null && m['sender_member_id'] == widget.meMemberId;
-                    final isSystem = m['message_type'] == 'system';
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (showDay) Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Center(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(20)),
-                              child: Text(_dayLabel(m['created_at']),
-                                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 0.6)),
-                            ),
-                          ),
-                        ),
-                        if (isSystem)
-                          Center(
-                            child: Container(
-                              margin: const EdgeInsets.symmetric(vertical: 4),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(20)),
-                              child: Text(m['content'] ?? '',
-                                  textAlign: TextAlign.center,
-                                  style: GoogleFonts.inter(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600)),
-                            ),
-                          )
-                        else
-                          _bubble(m, mine),
-                      ],
-                    );
-                  },
-                ),
+        Container(
+          decoration: _bgDecoration(),
+          child: Column(
+            children: [
+              Expanded(
+                child: _messages.isEmpty
+                    ? _emptyState()
+                    : ListView.builder(
+                        controller: _scroll,
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                        itemCount: _messages.length,
+                        itemBuilder: (_, i) {
+                          final m = _messages[i];
+                          final prev = i > 0 ? _messages[i - 1] : null;
+                          final next = i < _messages.length - 1 ? _messages[i + 1] : null;
+                          final showDay = prev == null || !_sameDay(prev['created_at'], m['created_at']);
+                          final mine = m['sender_member_id'] != null && m['sender_member_id'] == widget.meMemberId;
+                          final isSystem = m['message_type'] == 'system';
+                          // Group consecutive bubbles by sender — hide avatar/name on follow-ups.
+                          final groupedWithPrev = prev != null
+                              && !showDay
+                              && prev['sender_member_id'] == m['sender_member_id']
+                              && prev['message_type'] != 'system';
+                          final groupedWithNext = next != null
+                              && _sameDay(next['created_at'], m['created_at'])
+                              && next['sender_member_id'] == m['sender_member_id']
+                              && next['message_type'] != 'system';
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (showDay) _daySeparator(_dayLabel(m['created_at'])),
+                              if (isSystem)
+                                _systemMsg(m)
+                              else
+                                _bubble(m, mine,
+                                    showAvatar: !mine && !groupedWithNext,
+                                    showName: !mine && !groupedWithPrev,
+                                    isTail: !groupedWithNext),
+                            ],
+                          );
+                        },
+                      ),
+              ),
+              if (_replyTo != null) _replyPreview(),
+              _composer(),
+            ],
+          ),
         ),
-        if (_replyTo != null) _replyPreview(),
-        _composer(),
+        if (_newCount > 0)
+          Positioned(
+            bottom: (_replyTo != null ? 132 : 88),
+            left: 0, right: 0,
+            child: Center(
+              child: GestureDetector(
+                onTap: _jumpLatest,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.35), blurRadius: 16, offset: const Offset(0, 4))],
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.arrow_downward_rounded, color: Colors.white, size: 14),
+                    const SizedBox(width: 6),
+                    Text('$_newCount new message${_newCount > 1 ? 's' : ''}',
+                        style: GoogleFonts.inter(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        if (_pendingImage != null) _imagePreviewSheet(),
       ],
     );
   }
 
-  Widget _bubble(Map m, bool mine) {
-    final reactions = (m['reactions'] ?? []) as List;
+  BoxDecoration _bgDecoration() => BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            AppColors.background,
+            AppColors.surfaceVariant.withOpacity(0.45),
+          ],
+        ),
+      );
+
+  Widget _emptyState() => Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 72, height: 72,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
+                colors: [AppColors.primarySoft, AppColors.primary.withOpacity(0.18)],
+              ),
+            ),
+            child: SvgPicture.asset('assets/icons/chat-icon.svg',
+                width: 28, height: 28,
+                colorFilter: ColorFilter.mode(AppColors.primary, BlendMode.srcIn),
+                fit: BoxFit.scaleDown),
+          ),
+          const SizedBox(height: 14),
+          Text('No messages yet',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.textPrimary)),
+          const SizedBox(height: 4),
+          Text('Say hi to your group 👋',
+              style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
+        ]),
+      );
+
+  Widget _daySeparator(String label) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            decoration: BoxDecoration(
+              color: AppColors.surface.withOpacity(0.92),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.border.withOpacity(0.6)),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
+            ),
+            child: Text(label,
+                style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.textTertiary, letterSpacing: 1.1)),
+          ),
+        ),
+      );
+
+  Widget _systemMsg(Map m) {
+    final meta = (m['metadata'] is Map) ? m['metadata'] as Map : null;
+    final isPayment = meta != null && meta['kind'] == 'payment' && meta['amount'] is num;
+    if (!isPayment) {
+      // Plain centered pill (joined / left / closed / etc).
+      return Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceVariant,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85),
+          child: Text(
+            (m['content'] ?? '').toString(),
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      );
+    }
+    // ── Rich payment / pledge card (web parity) ──
+    final name = (meta['contributor_name'] ?? 'Someone').toString();
+    final amount = (meta['amount'] as num).toDouble();
+    final pledge = (meta['pledge'] is num) ? (meta['pledge'] as num).toDouble() : 0.0;
+    final paid = (meta['paid'] is num) ? (meta['paid'] as num).toDouble() : 0.0;
+    final balanceRaw = meta['balance'];
+    final balance = balanceRaw is num
+        ? balanceRaw.toDouble()
+        : (pledge - paid).clamp(0.0, double.infinity);
+    final currency = (meta['currency'] ?? 'TZS').toString();
+    final pct = pledge > 0
+        ? (paid / pledge * 100).clamp(0, 100).round()
+        : 0;
+    final overpaid = paid > pledge && pledge > 0;
+    final extra = overpaid ? (paid - pledge) : 0.0;
+    final complete = pledge > 0 && balance <= 0 && !overpaid;
+    String fmt(double n) =>
+        '$currency ${n.round().toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
+    final initials = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .take(2)
+        .map((s) => s.isEmpty ? '' : s[0].toUpperCase())
+        .join();
+    final dt = DateTime.tryParse(m['created_at'] ?? '')?.toLocal();
+    final dateLabel = dt == null
+        ? ''
+        : '${dt.day.toString().padLeft(2, '0')} ${const ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.month - 1]}';
+    final timeLabel = _formatTime(m['created_at'] ?? '');
+
+    const emerald = Color(0xFF059669);
+    const emeraldSoft = Color(0x14059669);
+    const amber = Color(0xFFB45309);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.88,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Date · time meta above the card
+              Padding(
+                padding: const EdgeInsets.only(right: 4, bottom: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      dateLabel,
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textTertiary,
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(width: 2, height: 2, decoration: BoxDecoration(color: AppColors.textTertiary.withOpacity(0.4), shape: BoxShape.circle)),
+                    const SizedBox(width: 6),
+                    Text(
+                      timeLabel,
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: emerald,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Card with subtle gradient border (1px padding around inner card)
+              Container(
+                padding: const EdgeInsets.all(1.2),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: complete
+                        ? [emerald.withOpacity(0.55), emerald.withOpacity(0.15)]
+                        : [emerald.withOpacity(0.35), emerald.withOpacity(0.08)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: emerald.withOpacity(0.18),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Avatar circle
+                      Container(
+                        width: 38,
+                        height: 38,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: complete ? emerald : emeraldSoft,
+                          border: complete ? null : Border.all(color: emerald.withOpacity(0.30)),
+                        ),
+                        child: Text(
+                          complete ? '✓' : initials,
+                          style: GoogleFonts.inter(
+                            fontSize: complete ? 16 : 12,
+                            fontWeight: FontWeight.w800,
+                            color: complete ? Colors.white : emerald,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Body
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    complete ? 'PLEDGE COMPLETE' : 'NEW CONTRIBUTION',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: emerald,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  '+${fmt(amount)}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: emerald,
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            if (pledge > 0) ...[
+                              const SizedBox(height: 8),
+                              // Progress bar
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: Container(
+                                  height: 6,
+                                  color: AppColors.surfaceVariant,
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: FractionallySizedBox(
+                                      widthFactor: (pct / 100).clamp(0.0, 1.0),
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: overpaid ? const Color(0xFFD97706) : emerald,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '${fmt(paid)}  of  ${fmt(pledge)}',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 10.5,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    '$pct%',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                overpaid
+                                    ? 'Over by ${fmt(extra)}'
+                                    : balance > 0
+                                        ? 'Balance ${fmt(balance)}'
+                                        : 'Fully paid',
+                                style: GoogleFonts.inter(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: overpaid
+                                      ? amber
+                                      : balance > 0
+                                          ? AppColors.error
+                                          : emerald,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _bubble(Map m, bool mine, {required bool showAvatar, required bool showName, required bool isTail}) {
+    final reactions = (m['reactions'] ?? []) as List;
+    final pending = m['_pending'] == true;
+    return Padding(
+      padding: EdgeInsets.only(top: 2, bottom: isTail ? 6 : 2),
       child: Row(
         mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!mine) ...[
-            CircleAvatar(
-              radius: 14,
-              backgroundColor: AppColors.primarySoft,
-              backgroundImage: m['sender_avatar_url'] != null ? NetworkImage(m['sender_avatar_url']) : null,
-              child: m['sender_avatar_url'] == null
-                  ? Text(_initials(m['sender_name'] ?? '?'), style: GoogleFonts.inter(fontSize: 10, color: AppColors.primary, fontWeight: FontWeight.w700))
+            SizedBox(
+              width: 30,
+              child: showAvatar
+                  ? CircleAvatar(
+                      radius: 14,
+                      backgroundColor: AppColors.primarySoft,
+                      backgroundImage: m['sender_avatar_url'] != null ? NetworkImage(m['sender_avatar_url']) : null,
+                      child: m['sender_avatar_url'] == null
+                          ? Text(_initials(m['sender_name'] ?? '?'),
+                              style: GoogleFonts.inter(fontSize: 10, color: AppColors.primary, fontWeight: FontWeight.w800))
+                          : null,
+                    )
                   : null,
             ),
             const SizedBox(width: 6),
@@ -340,92 +751,144 @@ class _ChatPanelState extends State<ChatPanel> {
               child: Column(
                 crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                 children: [
-                  if (!mine && m['sender_name'] != null)
+                  if (showName && m['sender_name'] != null)
                     Padding(
-                      padding: const EdgeInsets.only(left: 4, bottom: 2),
+                      padding: const EdgeInsets.only(left: 6, bottom: 3),
                       child: Text(m['sender_name'],
-                          style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textTertiary)),
+                          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primary.withOpacity(0.85))),
                     ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: m['image_url'] != null
+                        ? const EdgeInsets.all(4)
+                        : const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: mine ? AppColors.primary : AppColors.surface,
+                      // Web parity: mine = soft primary tint with subtle border, NOT solid red.
+                      color: mine
+                          ? AppColors.primary.withOpacity(0.10)
+                          : AppColors.surface,
                       borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(16),
-                        topRight: const Radius.circular(16),
-                        bottomLeft: Radius.circular(mine ? 16 : 4),
-                        bottomRight: Radius.circular(mine ? 4 : 16),
+                        topLeft: const Radius.circular(18),
+                        topRight: const Radius.circular(18),
+                        bottomLeft: Radius.circular(mine ? 18 : (isTail ? 4 : 18)),
+                        bottomRight: Radius.circular(mine ? (isTail ? 4 : 18) : 18),
                       ),
-                      border: mine ? null : Border.all(color: AppColors.border),
+                      border: Border.all(
+                        color: mine
+                            ? AppColors.primary.withOpacity(0.18)
+                            : AppColors.border.withOpacity(0.7),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
                     ),
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
+                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (m['reply_to'] != null)
                           Container(
-                            margin: const EdgeInsets.only(bottom: 6),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            margin: EdgeInsets.only(bottom: 6, left: m['image_url'] != null ? 4 : 0, right: m['image_url'] != null ? 4 : 0, top: m['image_url'] != null ? 4 : 0),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                             decoration: BoxDecoration(
-                              color: (mine ? Colors.white : AppColors.primary).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border(left: BorderSide(color: mine ? Colors.white : AppColors.primary, width: 2)),
+                              // Reply quote: same soft tint regardless of side (web parity).
+                              color: AppColors.primary.withOpacity(mine ? 0.12 : 0.08),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border(
+                                left: BorderSide(
+                                  color: AppColors.primary.withOpacity(mine ? 0.6 : 0.85),
+                                  width: 2.5,
+                                ),
+                              ),
                             ),
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text(m['reply_to']['sender_name'] ?? '',
-                                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
-                                      color: mine ? Colors.white.withOpacity(0.85) : AppColors.primary)),
-                              Text(m['reply_to']['content'] ?? '',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.primary,
+                                  )),
+                              const SizedBox(height: 1),
+                              Text(m['reply_to']['content'] ?? 'Image',
                                   maxLines: 1, overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.inter(fontSize: 11,
-                                      color: mine ? Colors.white.withOpacity(0.8) : AppColors.textSecondary)),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11.5,
+                                    color: AppColors.textSecondary,
+                                  )),
                             ]),
                           ),
                         if (m['image_url'] != null) ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: CachedNetworkImage(imageUrl: m['image_url'], fit: BoxFit.cover, width: 220),
+                          borderRadius: BorderRadius.circular(14),
+                          child: m['_local'] == true
+                              ? Image.file(File(m['image_url']), width: 240, fit: BoxFit.cover)
+                              : CachedNetworkImage(imageUrl: m['image_url'], fit: BoxFit.cover, width: 240),
                         ),
                         if (m['content'] != null && (m['content'] as String).isNotEmpty)
                           Padding(
-                            padding: EdgeInsets.only(top: m['image_url'] != null ? 6 : 0),
+                            padding: EdgeInsets.fromLTRB(
+                                m['image_url'] != null ? 8 : 0,
+                                m['image_url'] != null ? 8 : 0,
+                                m['image_url'] != null ? 8 : 0,
+                                0),
                             child: Text(m['content'],
                                 style: GoogleFonts.inter(
-                                  color: mine ? Colors.white : AppColors.textPrimary,
-                                  fontSize: 14, height: 1.3,
+                                  color: AppColors.textPrimary,
+                                  fontSize: 14.5,
+                                  height: 1.35,
+                                  fontWeight: FontWeight.w500,
                                 )),
                           ),
-                        const SizedBox(height: 4),
-                        Row(mainAxisSize: MainAxisSize.min, children: [
-                          Text(_formatTime(m['created_at']),
-                              style: GoogleFonts.inter(fontSize: 9,
-                                  color: mine ? Colors.white.withOpacity(0.75) : AppColors.textTertiary)),
-                          if (mine) ...[
-                            const SizedBox(width: 3),
-                            Icon(Icons.done_all, size: 11, color: Colors.white.withOpacity(0.75)),
-                          ],
-                        ]),
+                        Padding(
+                          padding: EdgeInsets.only(
+                            top: 4,
+                            left: m['image_url'] != null ? 8 : 0,
+                            right: m['image_url'] != null ? 8 : 0,
+                            bottom: m['image_url'] != null ? 6 : 0,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(_formatTime(m['created_at']),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 9.5,
+                                    color: AppColors.textTertiary,
+                                  )),
+                              if (mine) ...[
+                                const SizedBox(width: 4),
+                                pending
+                                    ? Icon(Icons.access_time, size: 11, color: AppColors.textTertiary)
+                                    : Icon(Icons.done_all, size: 12, color: AppColors.primary.withOpacity(0.7)),
+                              ],
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
                   if (reactions.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
+                    Transform.translate(
+                      offset: const Offset(0, -8),
                       child: Wrap(spacing: 4, children: [
                         for (final r in reactions)
                           GestureDetector(
                             onTap: () => _react(m, r['emoji']),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                               decoration: BoxDecoration(
                                 color: r['mine'] == true ? AppColors.primarySoft : AppColors.surface,
                                 border: Border.all(color: r['mine'] == true ? AppColors.primary : AppColors.border),
                                 borderRadius: BorderRadius.circular(20),
+                                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 1))],
                               ),
                               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                Text(r['emoji'], style: const TextStyle(fontSize: 11)),
+                                Text(r['emoji'], style: const TextStyle(fontSize: 12)),
                                 const SizedBox(width: 3),
                                 Text('${r['count']}',
-                                    style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
+                                    style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w800,
                                         color: r['mine'] == true ? AppColors.primary : AppColors.textSecondary)),
                               ]),
                             ),
@@ -445,41 +908,50 @@ class _ChatPanelState extends State<ChatPanel> {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(width: 36, height: 4, margin: const EdgeInsets.only(bottom: 12),
+            Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 14),
                 decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2))),
-            // Quick reactions row
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(28)),
               child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
                 for (final e in _quickEmojis)
                   GestureDetector(
                     onTap: () { Navigator.pop(context); _react(m, e); },
-                    child: Text(e, style: const TextStyle(fontSize: 26)),
+                    child: Padding(padding: const EdgeInsets.all(4), child: Text(e, style: const TextStyle(fontSize: 26))),
                   ),
                 GestureDetector(
                   onTap: () { Navigator.pop(context); _showReactPicker(m); },
                   child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(color: AppColors.surfaceVariant, shape: BoxShape.circle),
-                    child: const Icon(Icons.add, size: 18),
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(color: AppColors.surface, shape: BoxShape.circle, border: Border.all(color: AppColors.border)),
+                    child: Icon(Icons.add, size: 18, color: AppColors.textSecondary),
                   ),
                 ),
               ]),
             ),
-            const Divider(),
+            const SizedBox(height: 6),
             ListTile(
-              leading: const Icon(Icons.reply),
-              title: const Text('Reply'),
-              onTap: () { Navigator.pop(context); setState(() => _replyTo = Map<String, dynamic>.from(m)); },
+              leading: const Icon(Icons.reply_rounded),
+              title: Text('Reply', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+              onTap: () { Navigator.pop(context); setState(() => _replyTo = Map<String, dynamic>.from(m)); _focus.requestFocus(); },
             ),
+            if ((m['content'] ?? '').toString().isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.copy_rounded),
+                title: Text('Copy', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: m['content'] ?? ''));
+                  Navigator.pop(context);
+                },
+              ),
             if (mine) ListTile(
               leading: Icon(Icons.delete_outline, color: AppColors.error),
-              title: Text('Delete', style: TextStyle(color: AppColors.error)),
+              title: Text('Delete', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: AppColors.error)),
               onTap: () { Navigator.pop(context); _delete(m); },
             ),
           ]),
@@ -490,15 +962,22 @@ class _ChatPanelState extends State<ChatPanel> {
 
   Widget _replyPreview() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      color: AppColors.surfaceVariant,
+      margin: const EdgeInsets.fromLTRB(10, 4, 10, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
+      ),
       child: Row(children: [
-        Container(width: 3, height: 30, color: AppColors.primary),
-        const SizedBox(width: 8),
+        Container(width: 3, height: 32, decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(2))),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Text('Replying to ${_replyTo!['sender_name'] ?? ''}',
-                style: GoogleFonts.inter(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w700)),
+                style: GoogleFonts.inter(fontSize: 11.5, color: AppColors.primary, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 2),
             Text(_replyTo!['content'] ?? 'Image',
                 maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary)),
@@ -506,8 +985,8 @@ class _ChatPanelState extends State<ChatPanel> {
         ),
         IconButton(
           padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(),
-          icon: const Icon(Icons.close, size: 18),
+          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          icon: Icon(Icons.close_rounded, size: 18, color: AppColors.textTertiary),
           onPressed: () => setState(() => _replyTo = null),
         ),
       ]),
@@ -517,54 +996,234 @@ class _ChatPanelState extends State<ChatPanel> {
   Widget _composer() {
     if (widget.isClosed) {
       return Container(
-        padding: const EdgeInsets.all(12),
-        color: AppColors.surface,
+        padding: EdgeInsets.fromLTRB(16, 14, 16, 14 + MediaQuery.of(context).padding.bottom),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          border: Border(top: BorderSide(color: AppColors.border)),
+        ),
         child: Center(
-          child: Text('🔒 This event has ended. Group is read-only.',
-              style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.lock_outline, size: 14, color: AppColors.textTertiary),
+            const SizedBox(width: 6),
+            Text('Event has ended — chat is read-only',
+                style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textTertiary, fontWeight: FontWeight.w600)),
+          ]),
         ),
       );
     }
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.border)),
-      ),
-      padding: EdgeInsets.fromLTRB(8, 8, 8, 8 + MediaQuery.of(context).padding.bottom),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(10, 8, 10, 10 + MediaQuery.of(context).padding.bottom),
       child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-        IconButton(
-          onPressed: _uploading ? null : _pickAndSendImage,
-          icon: _uploading
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : Icon(Icons.image_outlined, color: AppColors.textSecondary),
-        ),
         Expanded(
           child: Container(
             decoration: BoxDecoration(
-              color: AppColors.surfaceVariant,
-              borderRadius: BorderRadius.circular(22),
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: AppColors.border),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 2))],
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: TextField(
-              controller: _input,
-              minLines: 1, maxLines: 4,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(border: InputBorder.none, hintText: 'Write a message…'),
-              style: GoogleFonts.inter(fontSize: 14),
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              IconButton(
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(),
+                onPressed: _uploading ? null : _pickImage,
+                icon: _uploading
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : SvgPicture.asset('assets/icons/attach-icon.svg',
+                        width: 20, height: 20,
+                        colorFilter: ColorFilter.mode(AppColors.textSecondary, BlendMode.srcIn)),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: TextField(
+                    controller: _input,
+                    focusNode: _focus,
+                    minLines: 1, maxLines: 5,
+                    autocorrect: true,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      hintText: 'Message…',
+                      hintStyle: GoogleFonts.inter(fontSize: 14.5, color: AppColors.textTertiary),
+                    ),
+                    style: GoogleFonts.inter(fontSize: 14.5, height: 1.35, color: AppColors.textPrimary, decorationThickness: 0),
+                  ),
+                ),
+              ),
+              IconButton(
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(),
+                onPressed: () => _showEmojiPicker(),
+                icon: Icon(Icons.emoji_emotions_outlined, color: AppColors.textSecondary, size: 22),
+              ),
+            ]),
           ),
         ),
-        const SizedBox(width: 6),
-        Material(
-          color: AppColors.primary,
-          shape: const CircleBorder(),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: _sending ? null : _send,
-            child: const Padding(padding: EdgeInsets.all(10), child: Icon(Icons.send, size: 18, color: Colors.white)),
+        const SizedBox(width: 8),
+        AnimatedScale(
+          scale: _hasText || _sending ? 1.0 : 0.92,
+          duration: const Duration(milliseconds: 160),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
+                colors: _hasText
+                    ? [AppColors.primary, AppColors.primary.withOpacity(0.85)]
+                    : [AppColors.primary.withOpacity(0.55), AppColors.primary.withOpacity(0.45)],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(_hasText ? 0.35 : 0.18),
+                  blurRadius: _hasText ? 14 : 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: _sending || !_hasText ? null : _send,
+                child: Padding(
+                  padding: const EdgeInsets.all(13),
+                  child: _sending
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : SvgPicture.asset('assets/icons/send-icon.svg',
+                          width: 18, height: 18,
+                          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
+                ),
+              ),
+            ),
           ),
         ),
       ]),
     );
   }
+
+  void _showEmojiPicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 14),
+            Wrap(spacing: 10, runSpacing: 10, alignment: WrapAlignment.center, children: [
+              for (final e in _fullEmojis)
+                GestureDetector(
+                  onTap: () {
+                    final sel = _input.selection;
+                    final txt = _input.text;
+                    final start = sel.start >= 0 ? sel.start : txt.length;
+                    final end = sel.end >= 0 ? sel.end : txt.length;
+                    _input.text = txt.replaceRange(start, end, e);
+                    _input.selection = TextSelection.collapsed(offset: start + e.length);
+                    Navigator.pop(context);
+                  },
+                  child: Container(
+                    width: 46, height: 46,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(14)),
+                    child: Text(e, style: const TextStyle(fontSize: 24)),
+                  ),
+                ),
+            ]),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _imagePreviewSheet() {
+    final p = _pendingImage!;
+    return Positioned.fill(
+      child: GestureDetector(
+        onTap: () => setState(() => _pendingImage = null),
+        child: Container(
+          color: Colors.black.withOpacity(0.78),
+          child: SafeArea(
+            child: GestureDetector(
+              onTap: () {},
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Row(children: [
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: () => setState(() => _pendingImage = null),
+                      ),
+                      const Spacer(),
+                      Text('Send image',
+                          style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+                      const Spacer(),
+                      const SizedBox(width: 48),
+                    ]),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.file(File(p.file.path), fit: BoxFit.contain),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(12, 8, 12, 12 + MediaQuery.of(context).padding.bottom),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(24)),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                          child: TextField(
+                            minLines: 1, maxLines: 4,
+                            onChanged: (v) => p.caption = v,
+                            decoration: InputDecoration(
+                                border: InputBorder.none,
+                                hintText: 'Add a caption…',
+                                hintStyle: GoogleFonts.inter(color: AppColors.textTertiary)),
+                            style: GoogleFonts.inter(fontSize: 14.5, decorationThickness: 0),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Material(
+                        color: AppColors.primary,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: _uploading ? null : _sendPendingImage,
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: SvgPicture.asset('assets/icons/send-icon.svg',
+                                width: 18, height: 18,
+                                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
+                          ),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PendingImage {
+  final XFile file;
+  String caption;
+  _PendingImage({required this.file, required this.caption});
 }

@@ -6,10 +6,12 @@ import 'package:http/http.dart' as http;
 import '../../core/services/secure_token_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../events/event_detail_screen.dart';
+import '../events/event_public_view_screen.dart';
 import '../public_profile/public_profile_screen.dart';
 import '../services/public_service_screen.dart';
 import '../../core/services/api_service.dart';
 import '../../core/l10n/l10n_helper.dart';
+import '../../core/widgets/event_cover_image.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -119,28 +121,43 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
         ),
         title: Container(
           height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
-            color: AppColors.surfaceVariant,
-            borderRadius: BorderRadius.circular(12),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: const Color(0xFFEDEDEF), width: 1),
           ),
-          child: TextField(
-            controller: _ctrl,
-            autofocus: true,
-            style: _f(size: 14),
-            decoration: InputDecoration(
-              hintText: 'Search people, events, services...',
-              hintStyle: _f(size: 14, color: AppColors.textHint),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 10),
-              isDense: true,
+          child: Row(children: [
+            const Icon(Icons.search_rounded, size: 18, color: Color(0xFF8E8E93)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                controller: _ctrl,
+                autofocus: true,
+                cursorColor: Colors.black,
+                textAlignVertical: TextAlignVertical.center,
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.black),
+                decoration: InputDecoration(
+                  isDense: true,
+                  filled: false,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  focusedErrorBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  hintText: 'Search people, events, services...',
+                  hintStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w400, color: const Color(0xFF9E9E9E)),
+                ),
+                onChanged: (v) {
+                  if (v.trim().length >= 2) _search(v);
+                },
+                onSubmitted: _search,
+                textInputAction: TextInputAction.search,
+              ),
             ),
-            onChanged: (v) {
-              if (v.trim().length >= 2) _search(v);
-            },
-            onSubmitted: _search,
-            textInputAction: TextInputAction.search,
-          ),
+          ]),
         ),
         actions: [
           if (_ctrl.text.isNotEmpty)
@@ -154,20 +171,16 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
             ),
           const SizedBox(width: 8),
         ],
-        bottom: _query.isNotEmpty ? TabBar(
-          controller: _tabCtrl,
-          labelStyle: _f(size: 12, weight: FontWeight.w600),
-          unselectedLabelStyle: _f(size: 12, weight: FontWeight.w500),
-          labelColor: AppColors.primary,
-          unselectedLabelColor: AppColors.textTertiary,
-          indicatorColor: AppColors.primary,
-          indicatorSize: TabBarIndicatorSize.label,
-          tabs: [
-            Tab(text: '${context.tr('search_people')} (${_users.length})'),
-            Tab(text: '${context.tr('events')} (${_events.length})'),
-            Tab(text: '${context.tr('services')} (${_services.length})'),
-          ],
-        ) : null,
+        bottom: _query.isNotEmpty
+            ? _SearchUnderlineTabs(
+                controller: _tabCtrl,
+                labels: [
+                  '${context.tr('search_people')} (${_users.length})',
+                  '${context.tr('events')} (${_events.length})',
+                  '${context.tr('services')} (${_services.length})',
+                ],
+              )
+            : null,
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
@@ -249,17 +262,31 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           tileColor: AppColors.surface,
-          leading: Container(
-            width: 40, height: 40,
-            decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(10)),
-            child: Center(child: SvgPicture.asset('assets/icons/calendar-icon.svg', width: 20, height: 20,
-              colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn))),
+          leading: EventCoverImage(
+            event: e,
+            width: 44,
+            height: 44,
+            borderRadius: BorderRadius.circular(10),
           ),
           title: Text(title.toString(), style: _f(size: 14, weight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle: date.isNotEmpty ? Text(date.substring(0, date.length >= 10 ? 10 : date.length), style: _f(size: 11, color: AppColors.textTertiary)) : null,
           trailing: SvgPicture.asset('assets/icons/chevron-right-icon.svg', width: 16, height: 16,
             colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => EventDetailScreen(eventId: e['id'].toString(), initialData: e, knownRole: knownRole))),
+          onTap: () {
+            final eventId = e['id'].toString();
+            // Route to management only when the viewer is the creator/committee.
+            // Everyone else (including invitees and the public) lands on the
+            // public event page rather than the management overview.
+            if (knownRole == 'creator' || knownRole == 'committee') {
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => EventDetailScreen(eventId: eventId, initialData: e, knownRole: knownRole),
+              ));
+            } else {
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => EventPublicViewScreen(eventId: eventId, initialData: e),
+              ));
+            }
+          },
         );
       },
     );
@@ -313,6 +340,133 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
           const SizedBox(height: 12),
           Text(msg, style: _f(size: 14, color: AppColors.textTertiary)),
         ],
+      ),
+    );
+  }
+}
+
+class _SearchUnderlineTabs extends StatefulWidget implements PreferredSizeWidget {
+  final List<String> labels;
+  final TabController controller;
+  const _SearchUnderlineTabs({required this.labels, required this.controller});
+  @override
+  Size get preferredSize => const Size.fromHeight(54);
+  @override
+  State<_SearchUnderlineTabs> createState() => _SearchUnderlineTabsState();
+}
+
+class _SearchUnderlineTabsState extends State<_SearchUnderlineTabs> {
+  late int _active;
+  final ScrollController _scrollCtrl = ScrollController();
+  final List<GlobalKey> _tabKeys = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _active = widget.controller.index;
+    _ensureKeys();
+    widget.controller.addListener(_onTab);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollActiveIntoView());
+  }
+
+  void _ensureKeys() {
+    while (_tabKeys.length < widget.labels.length) _tabKeys.add(GlobalKey());
+  }
+
+  void _onTab() {
+    if (!mounted) return;
+    if (widget.controller.indexIsChanging || widget.controller.index != _active) {
+      setState(() => _active = widget.controller.index);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollActiveIntoView());
+    }
+  }
+
+  void _scrollActiveIntoView() {
+    if (!mounted || _active >= _tabKeys.length) return;
+    final ctx = _tabKeys[_active].currentContext;
+    if (ctx == null || !_scrollCtrl.hasClients) return;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final viewportWidth = _scrollCtrl.position.viewportDimension;
+    final tabOffset = box.localToGlobal(Offset.zero, ancestor: context.findRenderObject()).dx;
+    final tabWidth = box.size.width;
+    final currentScroll = _scrollCtrl.offset;
+    final tabCenterAbs = currentScroll + tabOffset + tabWidth / 2;
+    final target = (tabCenterAbs - viewportWidth / 2).clamp(
+      _scrollCtrl.position.minScrollExtent,
+      _scrollCtrl.position.maxScrollExtent,
+    );
+    _scrollCtrl.animateTo(target, duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
+  }
+
+  @override
+  void didUpdateWidget(covariant _SearchUnderlineTabs oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _ensureKeys();
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onTab);
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _ensureKeys();
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(bottom: BorderSide(color: AppColors.borderLight, width: 1)),
+      ),
+      child: SingleChildScrollView(
+        controller: _scrollCtrl,
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Row(
+          children: List.generate(widget.labels.length, (i) {
+            final selected = i == _active;
+            return GestureDetector(
+              key: _tabKeys[i],
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                widget.controller.animateTo(i);
+                setState(() => _active = i);
+                WidgetsBinding.instance.addPostFrameCallback((_) => _scrollActiveIntoView());
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: IntrinsicWidth(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.labels[i],
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                          color: selected ? AppColors.textPrimary : AppColors.textTertiary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: selected ? AppColors.primary : Colors.transparent,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
       ),
     );
   }
