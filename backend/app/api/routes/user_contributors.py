@@ -1886,11 +1886,24 @@ def my_contributions(
             if featured:
                 cover = featured.image_url
 
+        balance_val = max(0.0, pledge - paid - pending)
+        # status:
+        #   complete = fully paid (no balance, no pending)
+        #   pending  = nothing paid yet
+        #   active   = partially paid with remaining balance/pending
+        if pledge > 0 and balance_val == 0 and pending == 0:
+            status = "complete"
+        elif paid == 0 and pending == 0:
+            status = "pending"
+        else:
+            status = "active"
+
         results.append({
             "event_id": str(event.id),
             "event_name": event.name,
             "event_cover_image_url": cover,
             "event_start_date": event.start_date.isoformat() if event.start_date else None,
+            "event_start_time": event.start_date.strftime("%H:%M") if event.start_date else None,
             "event_location": event.location,
             "organizer_name": f"{organizer.first_name} {organizer.last_name}".strip() if organizer else None,
             "event_contributor_id": str(ec.id),
@@ -1898,7 +1911,8 @@ def my_contributions(
             "pledge_amount": pledge,
             "total_paid": paid,
             "pending_amount": pending,
-            "balance": max(0, pledge - paid - pending),
+            "balance": balance_val,
+            "status": status,
             "last_payment_at": max(
                 (c.contributed_at for c in ec.contributions if c.contributed_at),
                 default=None,
@@ -1917,9 +1931,21 @@ def my_contributions(
             or term in (r.get("organizer_name") or "").lower()
         ]
 
+    summary = {
+        "total_pledged": sum(r["pledge_amount"] for r in results),
+        "total_paid": sum(r["total_paid"] for r in results),
+        "total_pending": sum(r["pending_amount"] for r in results),
+        "total_balance": sum(r["balance"] for r in results),
+        "active_pledges": sum(1 for r in results if r["status"] == "active"),
+        "complete_count": sum(1 for r in results if r["status"] == "complete"),
+        "pending_count": sum(1 for r in results if r["status"] == "pending"),
+        "currency": results[0]["currency"] if results else None,
+    }
+
     return standard_response(True, "My contributions fetched", {
         "events": results,
         "count": len(results),
+        "summary": summary,
     })
 
 
