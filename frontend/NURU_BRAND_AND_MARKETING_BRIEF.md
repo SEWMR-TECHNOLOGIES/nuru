@@ -17,15 +17,19 @@ Nuru is headquartered in Tanzania and operates under the laws of the United Repu
 ## Who Nuru Serves
 
 ### Event Organizers
+
 People planning weddings, birthday parties, anniversaries, baby showers, graduations, corporate events, memorials, community gatherings, and ceremonies of all kinds. Nuru gives them a centralized command center to manage timelines, budgets, tasks, vendors, guest lists, contributions, and communications.
 
 ### Service Providers (Vendors)
+
 Photographers, caterers, DJs, entertainers, venue decorators, event coordinators, florists, and other event professionals. Vendors create verified profiles, showcase their portfolios, receive bookings, and get paid through Nuru's secure payment system.
 
 ### Guests and Attendees
+
 People invited to events. They receive digital invitations, RSVP with ease, contribute financially, purchase tickets, check in using NFC technology, and engage with event content through the social feed.
 
 ### Contributors
+
 Individuals who send money to support an event. Contributions are tracked, acknowledged, and managed transparently through the platform.
 
 ---
@@ -33,6 +37,7 @@ Individuals who send money to support an event. Contributions are tracked, ackno
 ## Core Features
 
 ### 1. Smart Event Planning Tools
+
 Nuru replaces scattered spreadsheets and forgotten notes with an integrated planning dashboard.
 
 - **Timeline Management:** Set milestones, track progress, and stay ahead of every deadline.
@@ -43,6 +48,7 @@ Nuru replaces scattered spreadsheets and forgotten notes with an integrated plan
 - **Smart Reminders:** Automated notifications keep everyone on schedule without manual follow-ups.
 
 ### 2. Digital Invitations and RSVP Management
+
 Nuru transforms how invitations are sent, received, and tracked.
 
 - **Beautiful Templates:** Customizable invitation designs that match the style and tone of any event.
@@ -53,6 +59,7 @@ Nuru transforms how invitations are sent, received, and tracked.
 - **Easy Exports:** Download guest data in any format, anytime.
 
 ### 3. Verified Service Provider Marketplace
+
 Every vendor on Nuru goes through an identity verification process to protect organizers and maintain trust.
 
 - **Provider Categories:** Photographers, caterers, DJs and entertainment, venue decorators, event coordinators, florists, and more.
@@ -63,6 +70,7 @@ Every vendor on Nuru goes through an identity verification process to protect or
 - **Portfolio Showcases:** Vendors display their best work with photos, videos, and descriptions.
 
 ### 4. Secure Payments and Financial Management
+
 Nuru handles all financial transactions with industry-standard encryption and trusted payment processors.
 
 - **Cards Accepted:** Visa, Mastercard, and all major credit cards.
@@ -78,6 +86,7 @@ Nuru handles all financial transactions with industry-standard encryption and tr
 - **Escrow Protection:** Funds are held securely until service delivery is confirmed or the automatic release period expires.
 
 ### 5. NFC Smart Cards
+
 Nuru's NFC-enabled cards bring contactless technology to events.
 
 - **Event Check-Ins:** Instant tap-to-enter for seamless guest arrivals. No queues, no paper lists.
@@ -91,6 +100,7 @@ Nuru's NFC-enabled cards bring contactless technology to events.
 - **Offline Capable:** Functions without internet connection at the venue.
 
 ### 6. Ticketing System
+
 Nuru provides a complete ticketing solution for paid events.
 
 - **Multiple Ticket Classes:** Create different tiers (VIP, Regular, Early Bird, etc.) with individual pricing.
@@ -100,6 +110,7 @@ Nuru provides a complete ticketing solution for paid events.
 - **Ticket Code Tracking:** Every ticket has a unique, traceable code.
 
 ### 7. Event Contributions
+
 For events where guests contribute financially (weddings, fundraisers, memorials), Nuru provides a transparent contribution management system.
 
 - **Contribution Tracking:** See who contributed, how much, and when.
@@ -109,6 +120,7 @@ For events where guests contribute financially (weddings, fundraisers, memorials
 - **Export and Reporting:** Download contribution data for record-keeping.
 
 ### 8. Social Feed and Community Features
+
 Nuru is more than a planning tool. It is a social platform where event moments come alive.
 
 - **Moments:** Short-form content (photos, videos, text) shared on the social feed for others to see and engage with.
@@ -120,6 +132,7 @@ Nuru is more than a planning tool. It is a social platform where event moments c
 - **Direct Messaging:** In-platform messaging for coordination, networking, and social interaction.
 
 ### 9. Photo Libraries
+
 Vendors manage event photo libraries with flexible privacy controls.
 
 - **Privacy Settings:** Public, event creator only, or restricted access.
@@ -127,6 +140,7 @@ Vendors manage event photo libraries with flexible privacy controls.
 - **Portfolio Integration:** Vendors can showcase event photos as part of their professional portfolio.
 
 ### 10. Card Templates and Custom Design
+
 Nuru allows creation of custom event cards with branded templates.
 
 - **Custom Positioning:** Control placement of names, QR codes, and event details on card designs.
@@ -138,21 +152,27 @@ Nuru allows creation of custom event cards with branded templates.
 ## Platform Highlights
 
 ### Trust and Verification
+
 Every service provider on Nuru is verified using national ID or passport. This protects organizers from fraud and ensures only legitimate professionals operate on the platform.
 
 ### Escrow Payment Protection
+
 Funds paid for vendor bookings are held in escrow until service delivery is confirmed. If no dispute is raised within 48 hours after the event, funds are automatically released to the vendor. If a vendor cancels, the organizer receives a full refund including the booking deposit.
 
 ### Standardized Cancellation Framework
+
 Nuru uses three standardized cancellation tiers (Flexible, Moderate, Strict) based on service category. Vendors do not create custom cancellation policies. This ensures consistency and fairness across all bookings.
 
 ### Multi-Language and Local Focus
+
 Nuru is built with the Tanzanian market at its core. SMS messages, contribution acknowledgments, and reminders are sent in Swahili, the language most comfortable for the majority of users.
 
 ### Responsive and Device-Agnostic
+
 Every feature works beautifully on any device: desktop, tablet, or smartphone. Invitations, RSVP forms, event pages, and the social feed are all optimized for mobile-first usage.
 
 ### Free and Premium Plans
+
 Nuru offers a free plan that includes event creation, invitations, and RSVP tracking. Premium features unlock advanced analytics, priority support, and access to exclusive providers.
 
 ---
@@ -293,6 +313,7 @@ Headline: "Built in Tanzania. Built for you."
 Supporting text: "Nuru speaks your language. Swahili SMS, mobile money payments, local vendor networks, and a platform designed for how East Africans celebrate."
 
 **Visual direction:**
+
 - Include subtle African-inspired geometric patterns or textures as background accents (not overwhelming, just enough to ground the design culturally)
 - Use lifestyle imagery of well-dressed people at elegant events (weddings, parties, conferences) or abstract golden light motifs
 - The Nuru logo or wordmark should always be visible

@@ -31,7 +31,7 @@ def verify_pending_transactions(self, limit: int = 100):
     Celery worker so it doesn't depend on an external cron pinging HTTP.
     """
     # Imported lazily to avoid circular imports at worker boot.
-    from models.transactions import Transaction, MobilePaymentAttempt
+    from models.payments import Transaction, MobilePaymentAttempt
     from models.enums import TransactionStatusEnum
     from services.payment_gateway import gateway
     from api.routes.payments import (
@@ -141,7 +141,7 @@ def verify_pending_transactions(self, limit: int = 100):
 def sweep_expired_ticket_reservations(self):
     """Hard-delete ticket reservations past their `reserved_until` so
     seat inventory is freed for other buyers."""
-    from models.tickets import EventTicket
+    from models.ticketing import EventTicket
     from models.enums import TicketOrderStatusEnum
 
     db = SessionLocal()
