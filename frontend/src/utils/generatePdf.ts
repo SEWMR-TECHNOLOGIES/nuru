@@ -493,50 +493,60 @@ export const generateReceiptHtml = (tx: ReceiptTransactionLike): string => {
   const description = tx.payment_description || tx.description || `Nuru · ${purpose}`;
   const methodLabel = tx.provider_name || tx.method_type || '—';
 
+  // ── Mobile-app inspired dark-navy receipt ──
+  // Mirrors mobile/nuru/lib/screens/wallet/receipt_screen.dart:
+  //   • Dark gradient hero (#1F1F2E → #111827) with white "RECEIPT" tag + status pill
+  //   • Big amount with currency caption + description line
+  //   • Inline-SVG icon rows for Reference / Date / Completed / Status / Method
+  //   • Soft-bordered totals card with Subtotal / Service fee / Total
+  //   • QR with embedded Nuru mark, "Scan to verify" caption
   return `
     <!DOCTYPE html>
     <html><head><meta charset="utf-8"><title>Receipt ${tx.transaction_code}</title>
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap');
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; background: #ffffff; font-family: 'Inter', sans-serif; padding: 24px 16px; color: #0a0a0a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .receipt { width: 720px; max-width: 100%; background: #fff; border-radius: 16px; overflow: hidden; border: 1px solid #eee; }
-      .hero { position: relative; padding: 28px 32px 26px; background: linear-gradient(135deg, #FF8A5C 0%, #FF7145 55%, #E85A30 100%); color: #fff; overflow: hidden; }
-      .hero::before { content: ''; position: absolute; top: -40px; right: -40px; width: 180px; height: 180px; border-radius: 50%; background: rgba(255,255,255,0.10); }
-      .hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; position: relative; }
-      .brand { display: flex; align-items: center; gap: 8px; }
-      .brand img { height: 22px; width: auto; }
-      .brand .label { font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.85; }
-      .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 999px; font-size: 11px; font-weight: 700; background: ${statusBg}; color: ${statusFg}; }
+      body { display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; background: #F7F7F8; font-family: 'Inter', sans-serif; padding: 24px 16px; color: #0F172A; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .receipt { width: 720px; max-width: 100%; background: #fff; border-radius: 20px; overflow: hidden; border: 1px solid #EDEDF2; }
+      .hero { padding: 28px 32px 26px; background: linear-gradient(135deg, #1F1F2E 0%, #111827 100%); color: #fff; }
+      .hero-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .tag { display: inline-block; padding: 5px 11px; border-radius: 6px; background: rgba(255,255,255,0.15); font-size: 10px; letter-spacing: 0.18em; font-weight: 800; }
+      .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; font-size: 11px; font-weight: 700; background: ${statusBg}; color: ${statusFg}; }
       .status-pill::before { content: '●'; font-size: 8px; }
-      .amount-block { margin-top: 22px; position: relative; }
-      .amount-block .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.16em; color: rgba(255,255,255,0.55); font-weight: 500; }
-      .amount-block .amount { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; }
-      .amount-block .amount h1 { font-size: 36px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
-      .amount-block .amount .ccy { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.55); text-transform: uppercase; letter-spacing: 0.1em; }
-      .amount-block .desc { margin-top: 8px; font-size: 13px; color: rgba(255,255,255,0.7); }
-      .verified { display: inline-flex; align-items: center; gap: 6px; margin-top: 18px; font-size: 11px; background: rgba(255,255,255,0.08); padding: 5px 11px; border-radius: 999px; color: rgba(255,255,255,0.85); position: relative; }
-      .verified svg { width: 11px; height: 11px; }
-      .body { padding: 28px 32px; }
-      .body-row { display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: flex-start; }
-      .details { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 32px; }
-      .detail .k { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: #999; font-weight: 500; }
-      .detail .v { margin-top: 4px; font-size: 14px; font-weight: 500; color: #0a0a0a; word-break: break-word; }
-      .detail .v.mono { font-family: 'Space Mono', monospace; font-weight: 600; font-size: 13px; }
-      .detail .v.cap { text-transform: capitalize; }
+      .amount-block { margin-top: 22px; }
+      .amount-block .label { font-size: 10px; letter-spacing: 0.16em; color: rgba(255,255,255,0.65); font-weight: 700; text-transform: uppercase; }
+      .amount-block h1 { margin-top: 6px; font-size: 32px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; }
+      .amount-block .desc { margin-top: 6px; font-size: 13px; color: rgba(255,255,255,0.72); }
+      .perforation { position: relative; height: 22px; background: #fff; }
+      .perforation::before, .perforation::after { content: ''; position: absolute; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; border-radius: 50%; background: #F7F7F8; }
+      .perforation::before { left: -11px; }
+      .perforation::after { right: -11px; }
+      .perforation .dash { position: absolute; left: 22px; right: 22px; top: 50%; border-top: 2px dashed #E5E7EB; }
+      .body { padding: 6px 32px 8px; }
+      .body-row { display: grid; grid-template-columns: 1fr auto; gap: 28px; align-items: flex-start; }
+      .rows { display: flex; flex-direction: column; gap: 14px; }
+      .row { display: flex; align-items: center; gap: 12px; }
+      .row .icon { width: 32px; height: 32px; border-radius: 10px; background: #F4F4F7; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; color: #6B7280; }
+      .row .icon svg { width: 16px; height: 16px; }
+      .row .meta { flex: 1; min-width: 0; }
+      .row .k { font-size: 10px; letter-spacing: 0.14em; color: #9CA3AF; font-weight: 600; text-transform: uppercase; }
+      .row .v { margin-top: 2px; font-size: 14px; font-weight: 600; color: #0F172A; word-break: break-word; }
+      .row .v.mono { font-family: 'Space Mono', monospace; letter-spacing: 0.06em; font-size: 13px; }
       .qr { text-align: center; }
-      .qr-box { padding: 6px; background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; position: relative; display: inline-block; line-height: 0; }
-      .qr-box img.code { width: 96px; height: 96px; display: block; }
-      .qr-box img.logo { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 24px; height: 24px; object-fit: contain; background: transparent; }
-      .qr .scan { margin-top: 6px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.14em; color: #999; font-weight: 600; }
-      .totals { margin-top: 26px; border: 1px solid #eee; border-radius: 12px; overflow: hidden; }
-      .totals .row { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; font-size: 14px; border-bottom: 1px solid #f1f1f1; }
-      .totals .row:last-child { border-bottom: none; font-weight: 700; }
-      .totals .muted { color: #999; }
-      .reason { margin-top: 18px; padding: 12px 14px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 10px; font-size: 12px; color: #991B1B; }
-      .reason b { display: block; margin-bottom: 2px; }
-      .footer { padding: 16px 32px; background: #fafafa; border-top: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 11px; color: #888; }
-      .footer .badge { padding: 4px 10px; border: 1px solid #e5e5e5; border-radius: 999px; font-size: 10px; color: #666; background: #fff; }
+      .qr-box { padding: 8px; background: #fff; border: 1px solid #EDEDF2; border-radius: 14px; display: inline-block; line-height: 0; position: relative; }
+      .qr-box img.code { width: 110px; height: 110px; display: block; }
+      .qr-box img.logo { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 26px; height: 26px; object-fit: contain; background: #fff; padding: 2px; border-radius: 6px; }
+      .qr .scan { margin-top: 8px; font-size: 10px; letter-spacing: 0.14em; color: #9CA3AF; font-weight: 700; text-transform: uppercase; }
+      .totals { margin: 22px 32px 0; border: 1px solid #EDEDF2; border-radius: 14px; overflow: hidden; }
+      .totals .trow { display: flex; justify-content: space-between; align-items: center; padding: 13px 18px; font-size: 14px; border-bottom: 1px solid #F3F4F7; }
+      .totals .trow:last-child { border-bottom: none; font-weight: 700; background: #FAFAFB; }
+      .totals .muted { color: #9CA3AF; }
+      .reason { margin: 18px 32px 0; padding: 12px 14px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 12px; font-size: 12px; color: #991B1B; }
+      .reason b { display: block; margin-bottom: 2px; font-weight: 700; }
+      .gateway { margin: 14px 32px 0; font-size: 11px; color: #9CA3AF; }
+      .gateway span { font-family: 'Space Mono', monospace; color: #6B7280; }
+      .footer { margin-top: 22px; padding: 16px 32px; border-top: 1px solid #F0F0F4; display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 11px; color: #9CA3AF; background: #FAFAFB; }
+      .footer .badge { padding: 4px 10px; border: 1px solid #EDEDF2; border-radius: 999px; font-size: 10px; color: #6B7280; background: #fff; }
       @media print {
         body { background: #fff; padding: 0; }
         .receipt { border: none; border-radius: 0; width: 100%; }
@@ -547,50 +557,62 @@ export const generateReceiptHtml = (tx: ReceiptTransactionLike): string => {
       <div class="receipt">
         <div class="hero">
           <div class="hero-top">
-            <div class="brand">
-              <img src="${logoAbsoluteUrl}" alt="Nuru" />
-              <span class="label">Receipt</span>
-            </div>
+            <span class="tag">RECEIPT</span>
             <span class="status-pill">${statusText}</span>
           </div>
           <div class="amount-block">
             <div class="label">${isPaid ? 'Amount paid' : 'Amount'}</div>
-            <div class="amount">
-              <h1>${fmt(tx.gross_amount || 0)}</h1>
-            </div>
+            <h1>${fmt(tx.gross_amount || 0)}</h1>
             <div class="desc">${description}</div>
           </div>
-          <div class="verified"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg> Verified by Nuru</div>
         </div>
+
+        <div class="perforation"><div class="dash"></div></div>
 
         <div class="body">
           <div class="body-row">
-            <div class="details">
-              <div class="detail"><div class="k">Reference</div><div class="v mono">${tx.transaction_code}</div></div>
-              <div class="detail"><div class="k">Date</div><div class="v">${dateStr(tx.initiated_at || tx.created_at)}</div></div>
-              ${tx.completed_at ? `<div class="detail"><div class="k">Completed</div><div class="v">${dateStr(tx.completed_at)}</div></div>` : ''}
-              <div class="detail"><div class="k">Type</div><div class="v cap">${purpose}</div></div>
-              <div class="detail"><div class="k">Method</div><div class="v cap">${methodLabel}</div></div>
+            <div class="rows">
+              <div class="row">
+                <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+                <div class="meta"><div class="k">Reference</div><div class="v mono">${tx.transaction_code}</div></div>
+              </div>
+              <div class="row">
+                <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+                <div class="meta"><div class="k">Date</div><div class="v">${dateStr(tx.initiated_at || tx.created_at)}</div></div>
+              </div>
+              ${tx.completed_at ? `
+              <div class="row">
+                <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+                <div class="meta"><div class="k">Completed</div><div class="v">${dateStr(tx.completed_at)}</div></div>
+              </div>` : ''}
+              <div class="row">
+                <span class="icon" style="color:${statusFg};background:${statusBg}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg></span>
+                <div class="meta"><div class="k">Status</div><div class="v" style="color:${statusFg};text-transform:capitalize">${statusText}</div></div>
+              </div>
+              <div class="row">
+                <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span>
+                <div class="meta"><div class="k">Method</div><div class="v" style="text-transform:capitalize">${methodLabel}</div></div>
+              </div>
             </div>
             <div class="qr">
               <div class="qr-box"><img class="code" src="${qrSrc}" alt="QR" /><img class="logo" src="${logoSquareAbsoluteUrl}" alt="Nuru" /></div>
               <div class="scan">Scan to verify</div>
             </div>
           </div>
-
-          <div class="totals">
-            <div class="row"><span>Amount</span><span>${fmt(subtotal)}</span></div>
-            <div class="row"><span class="muted">Service fee</span><span class="muted">${fee > 0 ? fmt(fee) : 'Free'}</span></div>
-            <div class="row"><span>Total</span><span>${fmt(tx.gross_amount || 0)}</span></div>
-          </div>
-
-          ${tx.failure_reason ? `<div class="reason"><b>Reason</b>${tx.failure_reason}</div>` : ''}
-          ${tx.external_reference ? `<p style="font-size:11px;color:#888;margin-top:14px">Gateway reference: <span style="font-family:'Space Mono',monospace">${tx.external_reference}</span></p>` : ''}
         </div>
+
+        <div class="totals">
+          <div class="trow"><span class="muted">Subtotal</span><span>${fmt(subtotal)}</span></div>
+          <div class="trow"><span class="muted">Service fee</span><span class="muted">${fee > 0 ? fmt(fee) : 'Free'}</span></div>
+          <div class="trow"><span>Total</span><span>${fmt(tx.gross_amount || 0)}</span></div>
+        </div>
+
+        ${tx.failure_reason ? `<div class="reason"><b>Reason</b>${tx.failure_reason}</div>` : ''}
+        ${tx.external_reference ? `<p class="gateway">Gateway reference: <span>${tx.external_reference}</span></p>` : ''}
 
         <div class="footer">
           <span>Verify at ${host}/shared/receipt/${tx.transaction_code}</span>
-          <span class="badge">© ${new Date().getFullYear()} Nuru</span>
+          <span class="badge"><img src="${logoAbsoluteUrl}" alt="Nuru" style="height:10px;vertical-align:middle;margin-right:4px"/>© ${new Date().getFullYear()} Nuru</span>
         </div>
       </div>
     </body></html>

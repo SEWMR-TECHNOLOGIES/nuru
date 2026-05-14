@@ -272,6 +272,9 @@ const MyTicketsSection = ({ navigate }: { navigate: (path: string) => void }) =>
                           total_amount: ticket.total_amount,
                           currency: ticket.currency,
                           status: ticket.status,
+                          cover_image_url: getEventImage(event),
+                          checked_in: (ticket as any).checked_in,
+                          checked_in_at: (ticket as any).checked_in_at,
                         });
                       }}
                       className="flex-shrink-0 p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"

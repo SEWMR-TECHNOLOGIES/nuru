@@ -1,12 +1,16 @@
 import '../../../core/widgets/nuru_refresh_indicator.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/event_groups_service.dart';
 
-/// Premium scoreboard panel — podium top 3 + ranked leaderboard.
+/// Contributors tab — stat grid + searchable, filterable contributor list.
+///
+/// Reuses the `EventGroupsService.scoreboard` endpoint and the existing
+/// 8-second poll so live progress keeps refreshing.
 class ScoreboardPanel extends StatefulWidget {
   final String groupId;
   const ScoreboardPanel({super.key, required this.groupId});
@@ -15,16 +19,34 @@ class ScoreboardPanel extends StatefulWidget {
   State<ScoreboardPanel> createState() => _ScoreboardPanelState();
 }
 
+enum _ContribFilter { all, complete, pending }
+
+// Module-level cache so flipping tabs doesn't flash a skeleton.
+class _ScoreCache {
+  final List<dynamic> rows;
+  final Map<String, dynamic>? summary;
+  _ScoreCache(this.rows, this.summary);
+}
+final Map<String, _ScoreCache> _scoreCache = {};
+
 class _ScoreboardPanelState extends State<ScoreboardPanel> {
   List<dynamic> _rows = [];
   Map<String, dynamic>? _summary;
   bool _loading = true;
   Timer? _poll;
+  String _search = '';
+  _ContribFilter _filter = _ContribFilter.all;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    final cached = _scoreCache[widget.groupId];
+    if (cached != null) {
+      _rows = cached.rows;
+      _summary = cached.summary;
+      _loading = false;
+    }
+    _load(silent: cached != null);
     _poll = Timer.periodic(const Duration(seconds: 8), (_) => _load(silent: true));
   }
 
@@ -43,219 +65,351 @@ class _ScoreboardPanelState extends State<ScoreboardPanel> {
       if (res['success'] == true && res['data'] is Map) {
         _rows = List.from(res['data']['rows'] ?? []);
         _summary = Map<String, dynamic>.from(res['data']['summary'] ?? {});
+        _scoreCache[widget.groupId] = _ScoreCache(_rows, _summary);
       }
     });
   }
 
-  String _money(num? v) {
-    final f = NumberFormat('#,##0', 'en_US');
-    return f.format((v ?? 0).round());
-  }
+  String _money(num? v) =>
+      NumberFormat('#,##0', 'en_US').format((v ?? 0).round());
 
   String _initials(String n) =>
       n.trim().split(RegExp(r'\s+')).take(2).map((s) => s.isEmpty ? '' : s[0].toUpperCase()).join();
 
-  Widget _statCard(String label, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.15)),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(label, style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary, fontWeight: FontWeight.w600)),
-          Icon(icon, size: 14, color: color),
-        ]),
-        const SizedBox(height: 6),
-        Text(value, style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 16, color: color)),
-      ]),
-    );
+  String _currency() {
+    // Pull currency off summary or first row when available.
+    final c = _summary?['currency'] ?? _summary?['currency_code'];
+    if (c is String && c.isNotEmpty) return c;
+    if (_rows.isNotEmpty && _rows.first is Map) {
+      final r = _rows.first as Map;
+      final rc = r['currency'] ?? r['currency_code'];
+      if (rc is String && rc.isNotEmpty) return rc;
+    }
+    return 'TZS';
   }
 
-  Widget _podiumSlot({required Map row, required int rank, required double height, required Color ring}) {
-    return Expanded(
-      child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-        CircleAvatar(
-          radius: 26,
-          backgroundColor: ring,
-          child: CircleAvatar(
-            radius: 23,
-            backgroundColor: AppColors.surface,
-            backgroundImage: row['avatar_url'] != null ? NetworkImage(row['avatar_url']) : null,
-            child: row['avatar_url'] == null
-                ? Text(_initials(row['display_name'] ?? '?'), style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: AppColors.primary))
-                : null,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          height: height,
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter, end: Alignment.bottomCenter,
-              colors: [ring.withOpacity(0.35), ring.withOpacity(0.05)],
-            ),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            border: Border.all(color: ring.withOpacity(0.4)),
-          ),
-          child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-            Text('#$rank', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 12)),
-            const SizedBox(height: 2),
-            Text(row['display_name'] ?? '',
-                maxLines: 1, overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 11, color: AppColors.textPrimary)),
-            Text(_money(row['paid']),
-                style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 11, color: AppColors.primary)),
-          ]),
-        ),
-      ]),
-    );
+  bool _isComplete(Map r) {
+    final pledged = (r['pledged'] as num?)?.toDouble() ?? 0;
+    final paid = (r['paid'] as num?)?.toDouble() ?? 0;
+    return pledged > 0 && paid >= pledged;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    final top3 = _rows.take(3).toList();
-    // Show ALL contributors in the leaderboard list (not just rank 4+).
-    final rest = _rows;
-    final rate = (_summary?['collection_rate'] ?? 0).toDouble();
+    if (_loading && _rows.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final cur = _currency();
+    final pledged = (_summary?['total_pledged'] as num?) ?? 0;
+    final paid = (_summary?['total_paid'] as num?) ?? 0;
+    final outstanding = (_summary?['outstanding'] as num?) ?? (pledged - paid);
+    final rate = (_summary?['collection_rate'] as num?)?.toDouble() ?? 0.0;
+    final budget = (_summary?['budget'] as num?)?.toDouble() ?? 0.0;
+    final goalPct = (_summary?['goal_progress'] as num?)?.toDouble()
+        ?? (budget > 0 ? ((pledged / budget) * 100).clamp(0, 100).toDouble() : 0.0);
+    final paidPct = pledged > 0 ? ((paid / pledged) * 100).clamp(0, 100).round() : 0;
+    final outstandingPct = pledged > 0 ? ((outstanding / pledged) * 100).clamp(0, 100).round() : 0;
+
+    // Apply search + filter (client-side only — no endpoint changes)
+    final q = _search.trim().toLowerCase();
+    final filtered = _rows.where((r) {
+      if (r is! Map) return false;
+      final name = (r['display_name'] ?? r['name'] ?? '').toString().toLowerCase();
+      if (q.isNotEmpty && !name.contains(q)) return false;
+      switch (_filter) {
+        case _ContribFilter.all:
+          return true;
+        case _ContribFilter.complete:
+          return _isComplete(r);
+        case _ContribFilter.pending:
+          return !_isComplete(r);
+      }
+    }).toList();
 
     return NuruRefreshIndicator(
       onRefresh: _load,
       color: AppColors.primary,
       child: ListView(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 96),
         children: [
-          // Stat grid
-          GridView.count(
-            shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2, mainAxisSpacing: 8, crossAxisSpacing: 8, childAspectRatio: 2.2,
-            children: [
-              _statCard('Total Pledged', _money(_summary?['total_pledged']), Icons.trending_up, AppColors.primary),
-              _statCard('Cash in Hand', _money(_summary?['total_paid']), Icons.account_balance_wallet, AppColors.success),
-              _statCard('Outstanding', _money(_summary?['outstanding']), Icons.hourglass_empty, AppColors.warning),
-              _statCard('Contributors', '${_summary?['contributors'] ?? 0}', Icons.group, AppColors.blue),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if ((_summary?['total_pledged'] ?? 0) > 0)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Text('Collection Progress', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
-                  Text('${rate.round()}%', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.primary)),
-                ]),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: (rate / 100).clamp(0.0, 1.0),
-                    minHeight: 6, color: AppColors.primary, backgroundColor: AppColors.surfaceVariant,
-                  ),
-                ),
-              ]),
-            ),
-          const SizedBox(height: 16),
-          if (top3.isNotEmpty) ...[
-            SizedBox(
-              height: 180,
-              child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                if (top3.length >= 2) _podiumSlot(row: top3[1], rank: 2, height: 80, ring: const Color(0xFFB6C0CE))
-                else const Spacer(),
-                if (top3.isNotEmpty) _podiumSlot(row: top3[0], rank: 1, height: 110, ring: const Color(0xFFFFB72D))
-                else const Spacer(),
-                if (top3.length >= 3) _podiumSlot(row: top3[2], rank: 3, height: 60, ring: const Color(0xFFFF9F66))
-                else const Spacer(),
-              ]),
-            ),
-            const SizedBox(height: 16),
-          ],
-          // Leaderboard
+          // ─── Stat grid card (4 stats) ───
           Container(
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-            child: Column(children: [
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(children: [
-                  Icon(Icons.emoji_events_outlined, size: 16, color: AppColors.primary),
-                  const SizedBox(width: 6),
-                  Text('Leaderboard', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
-                  const Spacer(),
-                  Text('${_rows.length}', style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
-                ]),
-              ),
-              const Divider(height: 1),
-              if (_rows.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text('No contributors yet', style: GoogleFonts.inter(color: AppColors.textTertiary)),
-                )
-              else
-                ...rest.asMap().entries.map((e) {
-                  final r = e.value as Map;
-                  final rank = e.key + 1;
-                  final pct = (r['pledged'] ?? 0) > 0 ? ((r['paid'] ?? 0) / (r['pledged'] ?? 1) * 100).clamp(0, 100).toInt() : 0;
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(border: Border(top: BorderSide(color: AppColors.borderLight))),
-                    child: Row(children: [
-                      SizedBox(width: 24, child: Text('#$rank', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textTertiary))),
-                      const SizedBox(width: 4),
-                      CircleAvatar(
-                        radius: 16,
-                        backgroundColor: AppColors.primarySoft,
-                        backgroundImage: r['avatar_url'] != null ? NetworkImage(r['avatar_url']) : null,
-                        child: r['avatar_url'] == null
-                            ? Text(_initials(r['display_name'] ?? '?'), style: GoogleFonts.inter(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w700))
-                            : null,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Row(children: [
-                            Expanded(
-                              child: Text(r['display_name'] ?? '',
-                                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
-                            ),
-                            Text(_money(r['paid']),
-                                style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.primary)),
-                          ]),
-                          const SizedBox(height: 4),
-                          Row(children: [
-                            Expanded(
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: LinearProgressIndicator(
-                                  value: pct / 100, minHeight: 4,
-                                  color: AppColors.primary, backgroundColor: AppColors.surfaceVariant,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            SizedBox(width: 28, child: Text('$pct%', textAlign: TextAlign.right,
-                                style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary, fontWeight: FontWeight.w600))),
-                          ]),
-                          const SizedBox(height: 2),
-                          Text('Pledged ${_money(r['pledged'])} · Bal ${_money(r['balance'])}',
-                              style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiary)),
-                        ]),
-                      ),
-                    ]),
-                  );
-                }),
-            ]),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: AppColors.subtleShadow,
+            ),
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _statBlock(
+                  iconWidget: Icon(Icons.description_outlined, size: 18, color: AppColors.primary),
+                  label: 'Total Pledged',
+                  value: '$cur ${_money(pledged)}',
+                  sub: '${goalPct.round()}% of goal',
+                  subColor: AppColors.textTertiary,
+                )),
+                _vDivider(),
+                Expanded(child: _statBlock(
+                  iconWidget: Icon(Icons.check_circle_outline, size: 18, color: AppColors.success),
+                  label: 'Total Paid',
+                  value: '$cur ${_money(paid)}',
+                  sub: '$paidPct% of goal',
+                  subColor: AppColors.success,
+                )),
+                _vDivider(),
+                Expanded(child: _statBlock(
+                  iconWidget: SvgPicture.asset('assets/icons/wallet-icon.svg',
+                      width: 18, height: 18,
+                      colorFilter: ColorFilter.mode(AppColors.warning, BlendMode.srcIn)),
+                  label: 'Balance',
+                  value: '$cur ${_money(outstanding)}',
+                  sub: '$outstandingPct% remaining',
+                  subColor: AppColors.warning,
+                )),
+                _vDivider(),
+                Expanded(child: _statBlock(
+                  iconWidget: Icon(Icons.pie_chart_outline_rounded, size: 18, color: AppColors.blue),
+                  label: 'Completion Rate',
+                  value: '${rate.round()}%',
+                  customSub: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: (rate / 100).clamp(0.0, 1.0),
+                      minHeight: 4,
+                      color: AppColors.primary,
+                      backgroundColor: AppColors.borderLight,
+                    ),
+                  ),
+                )),
+              ],
+            ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 14),
+
+          // ─── Search + filter pills (one row, events-style search) ───
+          Row(children: [
+            Expanded(
+              child: TextField(
+                onChanged: (v) => setState(() => _search = v),
+                style: GoogleFonts.inter(fontSize: 12, color: AppColors.textPrimary),
+                decoration: InputDecoration(
+                  isDense: true,
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide(color: AppColors.border, width: 1)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide(color: AppColors.border, width: 1)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide(color: AppColors.primary, width: 1)),
+                  hintText: 'Search contributors...',
+                  hintStyle: GoogleFonts.inter(color: AppColors.textHint, fontSize: 11.5),
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: SvgPicture.asset('assets/icons/search-icon.svg',
+                        width: 14, height: 14,
+                        colorFilter: ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
+                  ),
+                  prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 14),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            _filterPill('All', _ContribFilter.all),
+            const SizedBox(width: 4),
+            _filterPill('Complete', _ContribFilter.complete),
+            const SizedBox(width: 4),
+            _filterPill('Pending', _ContribFilter.pending),
+          ]),
+          const SizedBox(height: 12),
+
+          // ─── Contributors list (single container, inset bottom borders) ───
+          if (filtered.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              alignment: Alignment.center,
+              child: Text(_rows.isEmpty ? 'No contributors yet' : 'No matches',
+                  style: GoogleFonts.inter(color: AppColors.textTertiary, fontSize: 13)),
+            )
+          else
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppColors.borderLight),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  for (int i = 0; i < filtered.length; i++) ...[
+                    _contributorRow(filtered[i] as Map),
+                    if (i != filtered.length - 1)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        child: Divider(height: 1, thickness: 1, color: AppColors.borderLight),
+                      ),
+                  ],
+                ],
+              ),
+            ),
         ],
       ),
     );
   }
+
+  Widget _contributorRow(Map r) {
+    final name = (r['display_name'] ?? r['name'] ?? '?').toString();
+    final pledged = (r['pledged'] as num?)?.toDouble() ?? 0;
+    final paid = (r['paid'] as num?)?.toDouble() ?? 0;
+    final balance = (pledged - paid).clamp(0, double.infinity);
+    final pct = pledged > 0 ? ((paid / pledged) * 100).clamp(0, 100).round() : (paid > 0 ? 100 : 0);
+    final avatar = r['avatar_url'] as String?;
+    final complete = pct >= 100;
+
+    final labelStyle = GoogleFonts.inter(
+        fontSize: 9.5, color: AppColors.textTertiary, fontWeight: FontWeight.w500);
+    final valueStyle = GoogleFonts.inter(
+        fontSize: 11, color: AppColors.textPrimary, fontWeight: FontWeight.w600);
+
+    Widget col(String label, String value) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label, style: labelStyle, maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 2),
+            Text(value, style: valueStyle, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ],
+        );
+
+    String fmt(double v) => 'TZS ${v.toStringAsFixed(0).replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',')}';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        CircleAvatar(
+          radius: 18,
+          backgroundColor: AppColors.primarySoft,
+          backgroundImage: (avatar != null && avatar.isNotEmpty) ? NetworkImage(avatar) : null,
+          child: (avatar == null || avatar.isEmpty)
+              ? Text(_initials(name),
+                  style: GoogleFonts.inter(color: AppColors.primary, fontWeight: FontWeight.w800, fontSize: 11.5))
+              : null,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(name,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 12.5, color: AppColors.textPrimary)),
+            const SizedBox(height: 6),
+            Row(children: [
+              Expanded(child: col('Pledged', fmt(pledged))),
+              Expanded(child: col('Paid', fmt(paid))),
+              Expanded(child: col('Balance', fmt(balance.toDouble()))),
+            ]),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: pct / 100,
+                minHeight: 4,
+                backgroundColor: AppColors.borderLight,
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              ),
+            ),
+          ]),
+        ),
+        const SizedBox(width: 10),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text('$pct%',
+              style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w700, fontSize: 12,
+                  color: const Color(0xFF0F7A4A))),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: complete
+                  ? const Color(0xFFD6EFE0)
+                  : const Color(0xFFFFE9B0),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(complete ? 'Complete' : 'Pending',
+                style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: complete ? const Color(0xFF0F7A4A) : const Color(0xFFB07A12))),
+          ),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _vDivider() => Container(
+        width: 1,
+        height: 64,
+        margin: const EdgeInsets.symmetric(horizontal: 6),
+        color: AppColors.borderLight,
+      );
+
+  Widget _statBlock({
+    required Widget iconWidget,
+    required String label,
+    required String value,
+    String? sub,
+    Color? subColor,
+    Widget? customSub,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        iconWidget,
+        const SizedBox(height: 6),
+        Text(label,
+            textAlign: TextAlign.center,
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(
+                fontSize: 9, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        Text(value,
+            textAlign: TextAlign.center,
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(
+                fontSize: 11.5, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -0.2)),
+        const SizedBox(height: 6),
+        if (customSub != null)
+          customSub
+        else if (sub != null)
+          Text(sub,
+              textAlign: TextAlign.center,
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(
+                  fontSize: 9, color: subColor ?? AppColors.textTertiary, fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+
+  Widget _filterPill(String label, _ContribFilter value) {
+    final active = _filter == value;
+    return GestureDetector(
+      onTap: () => setState(() => _filter = value),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: active ? AppColors.primary : Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: active ? AppColors.primary : AppColors.primary.withOpacity(0.55)),
+        ),
+        child: Text(label,
+            style: GoogleFonts.inter(
+                fontWeight: FontWeight.w600,
+                fontSize: 10.5,
+                color: active ? Colors.white : AppColors.primary)),
+      ),
+    );
+  }
+
 }

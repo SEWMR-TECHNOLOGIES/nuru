@@ -12,7 +12,7 @@ from typing import List, Optional
 
 import httpx
 import pytz
-from fastapi import APIRouter, Depends, File, Form, UploadFile, Body
+from fastapi import APIRouter, Depends, File, Form, UploadFile, Body, Query
 from sqlalchemy import func as sa_func, or_
 from sqlalchemy.orm import Session
 
@@ -2579,43 +2579,62 @@ def _extract_scan_code(raw: str) -> str:
     return s
 
 
-def _scan_event_aggregates(db: Session, eid: uuid.UUID) -> dict:
-    """Combined scan stats for the unified scanner UI.
+def _event_has_ticket_sales(db: Session, event: Event) -> bool:
+    if bool(getattr(event, "sells_tickets", False)):
+        return True
+    return db.query(EventTicketClass.id).filter(EventTicketClass.event_id == event.id).first() is not None
 
-    Aggregates BOTH event guests (invitations) AND tickets so the scanner
-    header reflects total attendance, regardless of which type of QR is
-    being scanned.
+
+def _scan_event_aggregates(db: Session, event: Event) -> dict:
+    """Scan stats for the unified scanner UI.
+
+    For ticketed events: counts ticket seats (sum of quantity over confirmed/
+    approved orders). Total/Checked In/Pending refer to TICKETS.
+
+    For non-ticketed events: counts ATTENDEES who have accepted the
+    invitation (rsvp_status = confirmed OR checked_in). Total = accepted
+    guests, Checked In = those scanned, Pending = accepted but not yet
+    scanned. Guests who declined or never replied are not counted.
     """
-    # Guests
-    g_total = db.query(sa_func.count(EventAttendee.id)).filter(EventAttendee.event_id == eid).scalar() or 0
-    g_checked = db.query(sa_func.count(EventAttendee.id)).filter(
-        EventAttendee.event_id == eid, EventAttendee.checked_in == True
-    ).scalar() or 0
+    eid = event.id
+    sells_tickets = _event_has_ticket_sales(db, event)
 
-    # Tickets (count individual seats via SUM(quantity), only confirmed/approved)
-    t_total = db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
-        EventTicket.event_id == eid,
-        EventTicket.status.in_([TicketOrderStatusEnum.approved, TicketOrderStatusEnum.confirmed]),
-    ).scalar() or 0
-    t_checked = db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
-        EventTicket.event_id == eid,
-        EventTicket.status.in_([TicketOrderStatusEnum.approved, TicketOrderStatusEnum.confirmed]),
-        EventTicket.checked_in == True,
-    ).scalar() or 0
+    if sells_tickets:
+        total = int(db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
+            EventTicket.event_id == eid,
+            EventTicket.status.in_([TicketOrderStatusEnum.approved, TicketOrderStatusEnum.confirmed]),
+        ).scalar() or 0)
+        checked = int(db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
+            EventTicket.event_id == eid,
+            EventTicket.status.in_([TicketOrderStatusEnum.approved, TicketOrderStatusEnum.confirmed]),
+            EventTicket.checked_in == True,
+        ).scalar() or 0)
+        mode = "tickets"
+        labels = {"total": "Total Tickets", "checked_in": "Checked In", "pending": "Pending"}
+    else:
+        accepted_statuses = [RSVPStatusEnum.confirmed, RSVPStatusEnum.checked_in]
+        total = int(db.query(sa_func.count(EventAttendee.id)).filter(
+            EventAttendee.event_id == eid,
+            EventAttendee.rsvp_status.in_(accepted_statuses),
+        ).scalar() or 0)
+        checked = int(db.query(sa_func.count(EventAttendee.id)).filter(
+            EventAttendee.event_id == eid,
+            EventAttendee.checked_in == True,
+        ).scalar() or 0)
+        mode = "guests"
+        labels = {"total": "Total Guests", "checked_in": "Checked In", "pending": "Pending"}
 
-    total = int(g_total) + int(t_total)
-    checked_in = int(g_checked) + int(t_checked)
     return {
+        "mode": mode,
+        "labels": labels,
         "total": total,
-        "checked_in": checked_in,
-        "pending": max(0, total - checked_in),
-        "guests": {"total": int(g_total), "checked_in": int(g_checked)},
-        "tickets": {"total": int(t_total), "checked_in": int(t_checked)},
+        "checked_in": checked,
+        "pending": max(0, total - checked),
     }
 
 
 @router.get("/{event_id}/scan/stats")
-def get_scan_stats(event_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_scan_stats(event_id: str, limit: int = Query(10, ge=1, le=100), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Premium scanner header data: event card + aggregate counts + recent scans."""
     try:
         eid = uuid.UUID(event_id)
@@ -2628,41 +2647,60 @@ def get_scan_stats(event_id: str, db: Session = Depends(get_db), current_user: U
 
     from api.routes.ticketing import _resolve_event_cover
 
-    stats = _scan_event_aggregates(db, eid)
+    stats = _scan_event_aggregates(db, event)
+    sells_tickets = _event_has_ticket_sales(db, event)
+    title = "Ticket Check In" if sells_tickets else "Guest Check In"
+    cover = _resolve_event_cover(event, db)
 
-    # Recent scans (last 10) merged from attendees + tickets
-    recent = []
-    for att in db.query(EventAttendee).filter(
-        EventAttendee.event_id == eid, EventAttendee.checked_in == True
-    ).order_by(EventAttendee.checked_in_at.desc().nullslast()).limit(10).all():
-        recent.append({
-            "kind": "guest",
-            "name": _resolve_guest_name(db, att) or "Guest",
-            "ref": str(att.id)[:8].upper(),
-            "checked_in_at": att.checked_in_at.isoformat() if att.checked_in_at else None,
-            "status": "checked_in",
-        })
-    for t in db.query(EventTicket).filter(
-        EventTicket.event_id == eid, EventTicket.checked_in == True
-    ).order_by(EventTicket.checked_in_at.desc().nullslast()).limit(10).all():
-        recent.append({
-            "kind": "ticket",
-            "name": t.buyer_name or "Ticket Holder",
-            "ref": t.ticket_code,
-            "checked_in_at": t.checked_in_at.isoformat() if t.checked_in_at else None,
-            "status": "checked_in",
-        })
-    recent.sort(key=lambda r: r["checked_in_at"] or "", reverse=True)
-    recent = recent[:10]
+    # Recent scans — restricted to the relevant kind for this event mode.
+    # Includes the latest checked-in records first, then pending ones to fill
+    # the list (mirrors the design mockup which shows both states).
+    recent: list[dict] = []
+    if sells_tickets:
+        rows = db.query(EventTicket).filter(
+            EventTicket.event_id == eid,
+            EventTicket.status.in_([TicketOrderStatusEnum.approved, TicketOrderStatusEnum.confirmed]),
+        ).order_by(
+            EventTicket.checked_in.desc(),
+            EventTicket.checked_in_at.desc().nullslast(),
+            EventTicket.created_at.desc(),
+        ).limit(limit).all()
+        for t in rows:
+            recent.append({
+                "kind": "ticket",
+                "name": t.buyer_name or "Ticket Holder",
+                "ref": t.ticket_code,
+                "checked_in_at": t.checked_in_at.isoformat() if t.checked_in_at else None,
+                "status": "checked_in" if t.checked_in else "pending",
+            })
+    else:
+        rows = db.query(EventAttendee).filter(
+            EventAttendee.event_id == eid,
+            EventAttendee.rsvp_status.in_([RSVPStatusEnum.confirmed, RSVPStatusEnum.checked_in]),
+        ).order_by(
+            EventAttendee.checked_in.desc(),
+            EventAttendee.checked_in_at.desc().nullslast(),
+            EventAttendee.updated_at.desc(),
+        ).limit(limit).all()
+        for att in rows:
+            recent.append({
+                "kind": "guest",
+                "name": _resolve_guest_name(db, att) or "Guest",
+                "ref": str(att.id)[:8].upper(),
+                "checked_in_at": att.checked_in_at.isoformat() if att.checked_in_at else None,
+                "status": "checked_in" if att.checked_in else "pending",
+            })
 
     return standard_response(True, "Scan stats", {
+        "title": title,
         "event": {
             "id": str(event.id),
             "name": event.name,
             "start_date": str(event.start_date) if event.start_date else None,
             "location": event.location,
-            "cover_image": _resolve_event_cover(event, db),
-            "sells_tickets": bool(getattr(event, "sells_tickets", False)),
+            "cover_image": cover,
+            "image": cover,
+            "sells_tickets": sells_tickets,
         },
         "stats": stats,
         "recent_scans": recent,
@@ -2734,21 +2772,38 @@ def checkin_guest_qr(event_id: str, body: dict = Body(...), db: Session = Depend
     if err:
         return err
 
-    # Validate event timing
     now = datetime.now(EAT)
+    stats = _scan_event_aggregates(db, event)
+
+    # Validate event timing
     if hasattr(event, 'start_date') and event.start_date:
         from datetime import date as date_type, timedelta
         event_date = event.start_date if isinstance(event.start_date, date_type) else (event.start_date.date() if hasattr(event.start_date, 'date') else None)
         if event_date:
             today = now.date()
             if event_date < today:
-                return standard_response(False, "Cannot check in — this event has already ended")
+                return standard_response(False, "Cannot check in — this event has already ended", {
+                    "reason": "event_ended",
+                    "scan_time": now.isoformat(),
+                    "event": {"id": str(event.id), "name": event.name},
+                    "stats": stats,
+                })
             if event_date > today + timedelta(days=1):
-                return standard_response(False, "Cannot check in — this event hasn't started yet")
+                return standard_response(False, "Cannot check in — this event hasn't started yet", {
+                    "reason": "event_not_started",
+                    "scan_time": now.isoformat(),
+                    "event": {"id": str(event.id), "name": event.name},
+                    "stats": stats,
+                })
 
     raw = (body.get("code") or body.get("qr_code") or "").strip()
     if not raw:
-        return standard_response(False, "QR code is required")
+        return standard_response(False, "QR code is required", {
+            "reason": "empty_code",
+            "scan_time": now.isoformat(),
+            "event": {"id": str(event.id), "name": event.name},
+            "stats": stats,
+        })
     code = _extract_scan_code(raw)
 
     # ── Try TICKET first by ticket_code (most distinctive) ──
@@ -2769,8 +2824,6 @@ def checkin_guest_qr(event_id: str, body: dict = Body(...), db: Session = Depend
             inv = db.query(EventInvitation).filter(EventInvitation.event_id == eid, EventInvitation.invitation_code == code).first()
             if inv:
                 att = db.query(EventAttendee).filter(EventAttendee.invitation_id == inv.id).first()
-
-    stats = _scan_event_aggregates(db, eid)
 
     if not ticket and not att:
         return standard_response(False, "QR code not recognised for this event", {
@@ -2795,7 +2848,7 @@ def checkin_guest_qr(event_id: str, body: dict = Body(...), db: Session = Depend
         ticket.checked_in = True
         ticket.checked_in_at = now
         db.commit()
-        stats = _scan_event_aggregates(db, eid)
+        stats = _scan_event_aggregates(db, event)
         payload = _ticket_payload(db, ticket, event)
         payload.update({"scan_time": now.isoformat(), "stats": stats})
         return standard_response(True, "Ticket checked in successfully", payload)
@@ -2808,10 +2861,10 @@ def checkin_guest_qr(event_id: str, body: dict = Body(...), db: Session = Depend
 
     att.checked_in = True
     att.checked_in_at = now
-    att.rsvp_status = RSVPStatusEnum.confirmed
+    att.rsvp_status = RSVPStatusEnum.checked_in
     att.updated_at = now
     db.commit()
-    stats = _scan_event_aggregates(db, eid)
+    stats = _scan_event_aggregates(db, event)
     payload = _attendee_payload(db, att, event)
     payload.update({"scan_time": now.isoformat(), "stats": stats})
     return standard_response(True, "Guest checked in successfully", payload)

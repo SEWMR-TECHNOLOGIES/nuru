@@ -96,6 +96,44 @@ class EventContributorsService {
     );
   }
 
+  /// All payments (online, offline-claim or organiser-recorded) the
+  /// current user has made towards a single event.
+  static Future<Map<String, dynamic>> getMyPaymentsForEvent(String eventId) {
+    return ApiBase.get(
+      '/user-contributors/my-contributions/$eventId/payments',
+      fallbackError: 'Unable to fetch your payments',
+    );
+  }
+
+  /// Aggregate giving insights for the current user (summary, streak,
+  /// monthly trend, method mix, top organisers, biggest gift, on-time
+  /// rate, friendly impact line).
+  static Future<Map<String, dynamic>> getMyContributionInsights() {
+    return ApiBase.get(
+      '/user-contributors/my-contributions/insights',
+      fallbackError: 'Unable to fetch contribution insights',
+    );
+  }
+
+  /// Issue a signed verification token for the user's aggregate
+  /// contribution receipt for a given event. The token is embedded in
+  /// the receipt's QR code so an organiser can scan and verify totals.
+  static Future<Map<String, dynamic>> getAggregateVerifyToken(String eventId) {
+    return ApiBase.get(
+      '/user-contributors/my-contributions/$eventId/verify-token',
+      fallbackError: 'Unable to issue verification token',
+    );
+  }
+
+  /// Resolve a scanned verification token (by an organiser) and return
+  /// the authoritative aggregate summary.
+  static Future<Map<String, dynamic>> verifyAggregateContribution(String token) {
+    return ApiBase.get(
+      '/user-contributors/contributions/verify/$token',
+      fallbackError: 'Unable to verify contribution token',
+    );
+  }
+
   /// Submit a pending self-contribution awaiting organiser approval.
   static Future<Map<String, dynamic>> selfContribute(String eventId, Map<String, dynamic> data) {
     return ApiBase.postRaw('/user-contributors/events/$eventId/self-contribute', data);
