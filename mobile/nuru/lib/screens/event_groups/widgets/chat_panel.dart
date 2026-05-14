@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/event_groups_service.dart';
 import '../../../core/services/uploads_service.dart';
+import '../../../core/utils/event_groups_cache.dart';
 
 const _quickEmojis = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 const _fullEmojis = [
@@ -17,12 +18,13 @@ const _fullEmojis = [
   '🙌','👀','🚀','💡','✅','❌',
 ];
 
-/// Premium chat panel — web parity:
-/// - Soft gradient + radial-glow background
-/// - WhatsApp-style bubbles with subtle shadow + rounded "tail" corner
-/// - Floating pill composer with attach + send pulse
-/// - Pretty day separators, optimistic sending, reply preview, reactions
-/// - "New messages" pill when scrolled up
+/// Modern chat panel — redesigned to match mobile UI:
+/// - Flat #F8F8FA background
+/// - White rounded bubbles (16px) with soft shadow
+/// - Sender name + time above bubbles
+/// - Reactions chip below
+/// - System contribution card with gift icon
+/// - Composer with attach + send SVG icons
 class ChatPanel extends StatefulWidget {
   final String groupId;
   final String? meMemberId;
@@ -58,7 +60,15 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
       final has = _input.text.trim().isNotEmpty;
       if (has != _hasText) setState(() => _hasText = has);
     });
-    _initial();
+    // Seed from cache for instant render on re-entry.
+    final cached = EventGroupsCache.getMessages(widget.groupId);
+    if (cached != null && cached.isNotEmpty) {
+      _messages = List.from(cached);
+      _cursor = _messages.last['created_at'];
+      _loading = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollEnd());
+    }
+    _initial(silent: cached != null && cached.isNotEmpty);
     _poll = Timer.periodic(const Duration(seconds: 6), (_) => _pollNew());
   }
 
@@ -69,7 +79,7 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
     if (atBottom && _newCount > 0) setState(() => _newCount = 0);
   }
 
-  Future<void> _initial() async {
+  Future<void> _initial({bool silent = false}) async {
     final res = await EventGroupsService.messages(widget.groupId, limit: 50);
     if (!mounted) return;
     setState(() {
@@ -78,9 +88,10 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
         final data = res['data'];
         _messages = data is Map ? List.from(data['messages'] ?? []) : [];
         if (_messages.isNotEmpty) _cursor = _messages.last['created_at'];
+        EventGroupsCache.putMessages(widget.groupId, _messages);
       }
     });
-    _scrollEnd();
+    if (!silent) _scrollEnd();
     EventGroupsService.markRead(widget.groupId);
   }
 
@@ -100,6 +111,7 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
         }
         _cursor = fresh.last['created_at'];
         if (!_stickToBottom) _newCount += added;
+        EventGroupsCache.putMessages(widget.groupId, _messages);
       });
       if (_stickToBottom) {
         _scrollEnd();
@@ -165,7 +177,17 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
       final idx = _messages.indexWhere((m) => m['id'] == tempId);
       if (res['success'] == true && res['data'] is Map) {
         final real = Map<String, dynamic>.from(res['data']);
-        if (idx >= 0) _messages[idx] = real; else _messages.add(real);
+        // De-dupe: if poll already inserted the real message while we were
+        // awaiting the server, drop the optimistic placeholder so we don't
+        // render the same message twice.
+        final dupIdx = _messages.indexWhere((m) => m['id'] == real['id']);
+        if (dupIdx >= 0 && dupIdx != idx) {
+          if (idx >= 0) _messages.removeAt(idx);
+        } else if (idx >= 0) {
+          _messages[idx] = real;
+        } else {
+          _messages.add(real);
+        }
         _cursor = real['created_at'];
       } else if (idx >= 0) {
         _messages.removeAt(idx);
@@ -233,16 +255,44 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
   }
 
   Future<void> _react(Map msg, String emoji) async {
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       final reactions = List<Map<String, dynamic>>.from((msg['reactions'] ?? []) as List);
-      final idx = reactions.indexWhere((r) => r['emoji'] == emoji);
-      if (idx >= 0) {
-        final r = Map<String, dynamic>.from(reactions[idx]);
-        r['mine'] = !(r['mine'] == true);
-        r['count'] = (r['count'] as int) + (r['mine'] == true ? 1 : -1);
-        if ((r['count'] as int) <= 0) reactions.removeAt(idx); else reactions[idx] = r;
+      final mineIdx = reactions.indexWhere((r) => r['mine'] == true);
+      final sameIdx = reactions.indexWhere((r) => r['emoji'] == emoji);
+
+      // If user already reacted with this same emoji → toggle it off.
+      if (mineIdx >= 0 && mineIdx == sameIdx) {
+        final r = Map<String, dynamic>.from(reactions[mineIdx]);
+        r['mine'] = false;
+        r['count'] = ((r['count'] as int) - 1).clamp(0, 1 << 31);
+        if ((r['count'] as int) <= 0) {
+          reactions.removeAt(mineIdx);
+        } else {
+          reactions[mineIdx] = r;
+        }
       } else {
-        reactions.add({'emoji': emoji, 'count': 1, 'mine': true});
+        // Enforce single reaction per user — remove any previous one first.
+        if (mineIdx >= 0) {
+          final prev = Map<String, dynamic>.from(reactions[mineIdx]);
+          prev['mine'] = false;
+          prev['count'] = ((prev['count'] as int) - 1).clamp(0, 1 << 31);
+          if ((prev['count'] as int) <= 0) {
+            reactions.removeAt(mineIdx);
+          } else {
+            reactions[mineIdx] = prev;
+          }
+        }
+        // Add or increment the new emoji bucket.
+        final newSameIdx = reactions.indexWhere((r) => r['emoji'] == emoji);
+        if (newSameIdx >= 0) {
+          final r = Map<String, dynamic>.from(reactions[newSameIdx]);
+          r['mine'] = true;
+          r['count'] = (r['count'] as int) + 1;
+          reactions[newSameIdx] = r;
+        } else {
+          reactions.add({'emoji': emoji, 'count': 1, 'mine': true});
+        }
       }
       msg['reactions'] = reactions;
     });
@@ -275,8 +325,8 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
                   child: Container(
                     width: 46, height: 46,
                     alignment: Alignment.center,
-                    decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(14)),
-                    child: Text(e, style: const TextStyle(fontSize: 24)),
+                    decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(14)),
+                    child: _emoji(e, size: 24),
                   ),
                 ),
             ]),
@@ -286,28 +336,70 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
     );
   }
 
+  /// Server timestamps may be naive UTC (no `Z`/offset). Treat them as UTC
+  /// before converting to local — otherwise `DateTime.parse` assumes the
+  /// device's local zone and the chat shows server time instead of local.
+  DateTime? _parseUtc(String iso) {
+    if (iso.isEmpty) return null;
+    var s = iso;
+    final hasTz = s.endsWith('Z') || RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(s);
+    if (!hasTz) {
+      if (s.contains('T')) {
+        s = '${s}Z';
+      } else if (RegExp(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}').hasMatch(s)) {
+        s = '${s.replaceFirst(' ', 'T')}Z';
+      }
+    }
+    return DateTime.tryParse(s)?.toLocal();
+  }
+
   String _formatTime(String iso) {
-    final d = DateTime.tryParse(iso);
-    if (d == null) return '';
-    final local = d.toLocal();
-    final h = local.hour.toString().padLeft(2, '0');
+    final local = _parseUtc(iso);
+    if (local == null) return '';
+    var h = local.hour;
     final m = local.minute.toString().padLeft(2, '0');
-    return '$h:$m';
+    final period = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h == 0) h = 12;
+    return '$h:$m $period';
+  }
+
+  /// Force OS color emoji rendering — Flutter inherits the surrounding
+  /// text color which makes ❤️ render as monochrome (looks black).
+  static const TextStyle _emojiStyle = TextStyle(
+    fontSize: 13,
+    color: null,
+    fontFamilyFallback: [
+      'Apple Color Emoji',
+      'Segoe UI Emoji',
+      'Noto Color Emoji',
+      'EmojiOne Color',
+    ],
+  );
+
+  /// Heart emoji is often rendered monochrome on Android — force red tint.
+  static bool _isHeart(String e) => e == '❤️' || e == '❤' || e == '♥';
+
+  Widget _emoji(String e, {double size = 13}) {
+    final style = _isHeart(e)
+        ? _emojiStyle.copyWith(fontSize: size, color: const Color(0xFFE0245E))
+        : _emojiStyle.copyWith(fontSize: size);
+    return Text(e, style: style);
   }
 
   bool _sameDay(String a, String b) {
-    final da = DateTime.tryParse(a)?.toLocal();
-    final db = DateTime.tryParse(b)?.toLocal();
+    final da = _parseUtc(a);
+    final db = _parseUtc(b);
     if (da == null || db == null) return false;
     return da.year == db.year && da.month == db.month && da.day == db.day;
   }
 
   String _dayLabel(String iso) {
-    final d = DateTime.tryParse(iso)?.toLocal();
+    final d = _parseUtc(iso);
     if (d == null) return '';
     final now = DateTime.now();
-    if (_sameDay(iso, now.toIso8601String())) return 'TODAY';
-    if (_sameDay(iso, now.subtract(const Duration(days: 1)).toIso8601String())) return 'YESTERDAY';
+    if (_sameDay(iso, now.toIso8601String())) return 'Today';
+    if (_sameDay(iso, now.subtract(const Duration(days: 1)).toIso8601String())) return 'Yesterday';
     return '${d.day}/${d.month}/${d.year}';
   }
 
@@ -318,14 +410,14 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     if (_loading) {
       return Container(
-        decoration: _bgDecoration(),
+          color: Colors.white,
         child: const Center(child: CircularProgressIndicator()),
       );
     }
     return Stack(
       children: [
         Container(
-          decoration: _bgDecoration(),
+          color: Colors.white,
           child: Column(
             children: [
               Expanded(
@@ -333,7 +425,7 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
                     ? _emptyState()
                     : ListView.builder(
                         controller: _scroll,
-                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
                         itemCount: _messages.length,
                         itemBuilder: (_, i) {
                           final m = _messages[i];
@@ -342,7 +434,6 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
                           final showDay = prev == null || !_sameDay(prev['created_at'], m['created_at']);
                           final mine = m['sender_member_id'] != null && m['sender_member_id'] == widget.meMemberId;
                           final isSystem = m['message_type'] == 'system';
-                          // Group consecutive bubbles by sender — hide avatar/name on follow-ups.
                           final groupedWithPrev = prev != null
                               && !showDay
                               && prev['sender_member_id'] == m['sender_member_id']
@@ -359,8 +450,8 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
                                 _systemMsg(m)
                               else
                                 _bubble(m, mine,
-                                    showAvatar: !mine && !groupedWithNext,
-                                    showName: !mine && !groupedWithPrev,
+                                    showAvatar: true,
+                                    showName: true,
                                     isTail: !groupedWithNext),
                             ],
                           );
@@ -402,29 +493,15 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
     );
   }
 
-  BoxDecoration _bgDecoration() => BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            AppColors.background,
-            AppColors.surfaceVariant.withOpacity(0.45),
-          ],
-        ),
-      );
-
   Widget _emptyState() => Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Container(
             width: 72, height: 72,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft, end: Alignment.bottomRight,
-                colors: [AppColors.primarySoft, AppColors.primary.withOpacity(0.18)],
-              ),
+              color: AppColors.primarySoft,
             ),
-            child: SvgPicture.asset('assets/icons/chat-icon.svg',
+            child: SvgPicture.asset('assets/icons/group-chat-icon.svg',
                 width: 28, height: 28,
                 colorFilter: ColorFilter.mode(AppColors.primary, BlendMode.srcIn),
                 fit: BoxFit.scaleDown),
@@ -444,10 +521,9 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
             decoration: BoxDecoration(
-              color: AppColors.surface.withOpacity(0.92),
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.border.withOpacity(0.6)),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
+              border: Border.all(color: AppColors.border),
             ),
             child: Text(label,
                 style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.textTertiary, letterSpacing: 1.1)),
@@ -459,13 +535,12 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
     final meta = (m['metadata'] is Map) ? m['metadata'] as Map : null;
     final isPayment = meta != null && meta['kind'] == 'payment' && meta['amount'] is num;
     if (!isPayment) {
-      // Plain centered pill (joined / left / closed / etc).
       return Center(
         child: Container(
           margin: const EdgeInsets.symmetric(vertical: 8),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: AppColors.surfaceVariant,
+            color: AppColors.background,
             borderRadius: BorderRadius.circular(20),
           ),
           constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85),
@@ -481,7 +556,6 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
         ),
       );
     }
-    // ── Rich payment / pledge card (web parity) ──
     final name = (meta['contributor_name'] ?? 'Someone').toString();
     final amount = (meta['amount'] as num).toDouble();
     final pledge = (meta['pledge'] is num) ? (meta['pledge'] as num).toDouble() : 0.0;
@@ -491,225 +565,136 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
         ? balanceRaw.toDouble()
         : (pledge - paid).clamp(0.0, double.infinity);
     final currency = (meta['currency'] ?? 'TZS').toString();
-    final pct = pledge > 0
-        ? (paid / pledge * 100).clamp(0, 100).round()
-        : 0;
+    final pct = pledge > 0 ? (paid / pledge * 100).clamp(0, 100).round() : 0;
     final overpaid = paid > pledge && pledge > 0;
     final extra = overpaid ? (paid - pledge) : 0.0;
     final complete = pledge > 0 && balance <= 0 && !overpaid;
     String fmt(double n) =>
         '$currency ${n.round().toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
-    final initials = name
-        .trim()
-        .split(RegExp(r'\s+'))
-        .take(2)
-        .map((s) => s.isEmpty ? '' : s[0].toUpperCase())
-        .join();
+    final initials = name.trim().split(RegExp(r'\s+')).take(2).map((s) => s.isEmpty ? '' : s[0].toUpperCase()).join();
     final dt = DateTime.tryParse(m['created_at'] ?? '')?.toLocal();
     final dateLabel = dt == null
         ? ''
         : '${dt.day.toString().padLeft(2, '0')} ${const ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.month - 1]}';
     final timeLabel = _formatTime(m['created_at'] ?? '');
 
-    const emerald = Color(0xFF059669);
-    const emeraldSoft = Color(0x14059669);
-    const amber = Color(0xFFB45309);
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Center(
         child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.88,
-          ),
+          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.88),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Date · time meta above the card
+              // Date/time meta above card
               Padding(
                 padding: const EdgeInsets.only(right: 4, bottom: 4),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      dateLabel,
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textTertiary,
-                        letterSpacing: 0.1,
-                      ),
-                    ),
+                    Text(dateLabel,
+                        style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textTertiary)),
                     const SizedBox(width: 6),
-                    Container(width: 2, height: 2, decoration: BoxDecoration(color: AppColors.textTertiary.withOpacity(0.4), shape: BoxShape.circle)),
+                    Container(width: 3, height: 3, decoration: BoxDecoration(color: AppColors.textTertiary, shape: BoxShape.circle)),
                     const SizedBox(width: 6),
-                    Text(
-                      timeLabel,
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: emerald,
-                      ),
-                    ),
+                    Text(timeLabel,
+                        style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.success)),
                   ],
                 ),
               ),
-              // Card with subtle gradient border (1px padding around inner card)
+              // Contribution card
               Container(
-                padding: const EdgeInsets.all(1.2),
                 decoration: BoxDecoration(
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: complete
-                        ? [emerald.withOpacity(0.55), emerald.withOpacity(0.15)]
-                        : [emerald.withOpacity(0.35), emerald.withOpacity(0.08)],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: emerald.withOpacity(0.18),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
+                  border: Border.all(color: AppColors.border),
+                  boxShadow: AppColors.cardShadow,
                 ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Avatar circle
-                      Container(
-                        width: 38,
-                        height: 38,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: complete ? emerald : emeraldSoft,
-                          border: complete ? null : Border.all(color: emerald.withOpacity(0.30)),
-                        ),
-                        child: Text(
-                          complete ? '✓' : initials,
-                          style: GoogleFonts.inter(
-                            fontSize: complete ? 16 : 12,
-                            fontWeight: FontWeight.w800,
-                            color: complete ? Colors.white : emerald,
-                          ),
-                        ),
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 40, height: 40,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: complete ? AppColors.successSoft : AppColors.primarySoft,
                       ),
-                      const SizedBox(width: 12),
-                      // Body
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
+                      child: SvgPicture.asset('assets/icons/donation-icon.svg',
+                          width: 22, height: 22,
+                          colorFilter: ColorFilter.mode(complete ? AppColors.success : AppColors.primary, BlendMode.srcIn)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  complete ? 'Pledge Complete' : 'New Contribution',
+                                  style: GoogleFonts.inter(fontSize: 9.5, fontWeight: FontWeight.w800, color: AppColors.success, letterSpacing: 1.2),
+                                ),
+                              ),
+                              Text('+${fmt(amount)}',
+                                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.success, letterSpacing: -0.2)),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(name,
+                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                          if (pledge > 0) ...[
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: Container(
+                                height: 6,
+                                color: AppColors.background,
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: FractionallySizedBox(
+                                    widthFactor: (pct / 100).clamp(0.0, 1.0),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: overpaid ? AppColors.warning : AppColors.success,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 5),
                             Row(
                               children: [
                                 Expanded(
-                                  child: Text(
-                                    complete ? 'PLEDGE COMPLETE' : 'NEW CONTRIBUTION',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 9.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: emerald,
-                                      letterSpacing: 1.2,
-                                    ),
-                                  ),
+                                  child: Text('${fmt(paid)} of ${fmt(pledge)}',
+                                      style: GoogleFonts.inter(fontSize: 10.5, color: AppColors.textSecondary)),
                                 ),
-                                Text(
-                                  '+${fmt(amount)}',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w800,
-                                    color: emerald,
-                                    letterSpacing: -0.2,
-                                  ),
-                                ),
+                                Text('$pct%',
+                                    style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
                               ],
                             ),
-                            const SizedBox(height: 2),
+                            const SizedBox(height: 3),
                             Text(
-                              name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              overpaid
+                                  ? 'Over by ${fmt(extra)}'
+                                  : balance > 0
+                                      ? 'Balance ${fmt(balance)}'
+                                      : 'Fully paid',
                               style: GoogleFonts.inter(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
+                                fontSize: 10.5, fontWeight: FontWeight.w700,
+                                color: overpaid ? AppColors.warning : balance > 0 ? AppColors.error : AppColors.success,
                               ),
                             ),
-                            if (pledge > 0) ...[
-                              const SizedBox(height: 8),
-                              // Progress bar
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: Container(
-                                  height: 6,
-                                  color: AppColors.surfaceVariant,
-                                  child: Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: FractionallySizedBox(
-                                      widthFactor: (pct / 100).clamp(0.0, 1.0),
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: overpaid ? const Color(0xFFD97706) : emerald,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      '${fmt(paid)}  of  ${fmt(pledge)}',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 10.5,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    '$pct%',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                overpaid
-                                    ? 'Over by ${fmt(extra)}'
-                                    : balance > 0
-                                        ? 'Balance ${fmt(balance)}'
-                                        : 'Fully paid',
-                                style: GoogleFonts.inter(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: overpaid
-                                      ? amber
-                                      : balance > 0
-                                          ? AppColors.error
-                                          : emerald,
-                                ),
-                              ),
-                            ],
                           ],
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -722,184 +707,168 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
   Widget _bubble(Map m, bool mine, {required bool showAvatar, required bool showName, required bool isTail}) {
     final reactions = (m['reactions'] ?? []) as List;
     final pending = m['_pending'] == true;
-    return Padding(
-      padding: EdgeInsets.only(top: 2, bottom: isTail ? 6 : 2),
-      child: Row(
-        mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (!mine) ...[
-            SizedBox(
-              width: 30,
-              child: showAvatar
-                  ? CircleAvatar(
-                      radius: 14,
-                      backgroundColor: AppColors.primarySoft,
-                      backgroundImage: m['sender_avatar_url'] != null ? NetworkImage(m['sender_avatar_url']) : null,
-                      child: m['sender_avatar_url'] == null
-                          ? Text(_initials(m['sender_name'] ?? '?'),
-                              style: GoogleFonts.inter(fontSize: 10, color: AppColors.primary, fontWeight: FontWeight.w800))
-                          : null,
-                    )
+    final senderName = (m['sender_name'] ?? '').toString();
+    final timeLabel = _formatTime(m['created_at']);
+
+    Widget avatar = SizedBox(
+      width: 36,
+      child: showAvatar
+          ? CircleAvatar(
+              radius: 17,
+              backgroundColor: AppColors.primarySoft,
+              backgroundImage: m['sender_avatar_url'] != null ? NetworkImage(m['sender_avatar_url']) : null,
+              child: m['sender_avatar_url'] == null
+                  ? Text(_initials(senderName.isEmpty ? (mine ? 'You' : '?') : senderName),
+                      style: GoogleFonts.inter(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w800))
                   : null,
+            )
+          : null,
+    );
+
+    final bubble = Container(
+      padding: m['image_url'] != null
+          ? const EdgeInsets.all(4)
+          : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: mine ? AppColors.primarySoft : AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: mine ? AppColors.primary.withOpacity(0.18) : AppColors.border,
+        ),
+        boxShadow: AppColors.subtleShadow,
+      ),
+      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.62),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (m['reply_to'] != null)
+            Container(
+              margin: EdgeInsets.only(bottom: 6, left: m['image_url'] != null ? 4 : 0, right: m['image_url'] != null ? 4 : 0, top: m['image_url'] != null ? 4 : 0),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(mine ? 0.12 : 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border(
+                  left: BorderSide(color: AppColors.primary.withOpacity(mine ? 0.6 : 0.85), width: 2.5),
+                ),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(m['reply_to']['sender_name'] ?? '',
+                    style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.primary)),
+                const SizedBox(height: 1),
+                Text(m['reply_to']['content'] ?? 'Image',
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(fontSize: 11.5, color: AppColors.textSecondary)),
+              ]),
             ),
-            const SizedBox(width: 6),
-          ],
+          if (m['image_url'] != null) ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: m['_local'] == true
+                ? Image.file(File(m['image_url']), width: 240, fit: BoxFit.cover)
+                : CachedNetworkImage(imageUrl: m['image_url'], fit: BoxFit.cover, width: 240),
+          ),
+          if (m['content'] != null && (m['content'] as String).isNotEmpty)
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                  m['image_url'] != null ? 8 : 0,
+                  m['image_url'] != null ? 8 : 0,
+                  m['image_url'] != null ? 8 : 0,
+                  m['image_url'] != null ? 6 : 0),
+              child: Text(m['content'],
+                  style: GoogleFonts.inter(
+                    color: AppColors.textPrimary,
+                    fontSize: 14.5,
+                    height: 1.4,
+                    fontWeight: FontWeight.w500,
+                  )),
+            ),
+          if (pending) Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Icon(Icons.access_time, size: 11, color: AppColors.textTertiary),
+          ),
+        ],
+      ),
+    );
+
+    final reactionsRow = reactions.isEmpty
+        ? const SizedBox.shrink()
+        : Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Wrap(spacing: 6, children: [
+              for (final r in reactions)
+                GestureDetector(
+                  onTap: () => _react(m, r['emoji']),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: r['mine'] == true ? AppColors.primarySoft : AppColors.surface,
+                      border: Border.all(color: r['mine'] == true ? AppColors.primary : AppColors.border),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: AppColors.subtleShadow,
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      _emoji(r['emoji'], size: 13),
+                      const SizedBox(width: 4),
+                      Text('${r['count']}',
+                          style: GoogleFonts.inter(
+                              fontSize: 10.5, fontWeight: FontWeight.w800,
+                              color: r['mine'] == true ? AppColors.primary : AppColors.textSecondary)),
+                    ]),
+                  ),
+                ),
+            ]),
+          );
+
+    final headerRow = Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
           Flexible(
-            child: GestureDetector(
-              onLongPress: widget.isClosed ? null : () => _showActionSheet(m, mine),
+            child: Text(
+              mine ? 'You' : (senderName.isEmpty ? 'Member' : senderName),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(
+                  fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary, letterSpacing: -0.1),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            timeLabel,
+            style: GoogleFonts.inter(
+                fontSize: 11.5, fontWeight: FontWeight.w500, color: AppColors.textTertiary),
+          ),
+        ],
+      ),
+    );
+
+    return Padding(
+      padding: EdgeInsets.only(top: 4, bottom: isTail ? 8 : 2),
+      child: GestureDetector(
+        onLongPress: widget.isClosed ? null : () => _showActionSheet(m, mine),
+        child: Row(
+          mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!mine) ...[avatar, const SizedBox(width: 10)],
+            Flexible(
               child: Column(
                 crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (showName && m['sender_name'] != null)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 6, bottom: 3),
-                      child: Text(m['sender_name'],
-                          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primary.withOpacity(0.85))),
-                    ),
-                  Container(
-                    padding: m['image_url'] != null
-                        ? const EdgeInsets.all(4)
-                        : const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      // Web parity: mine = soft primary tint with subtle border, NOT solid red.
-                      color: mine
-                          ? AppColors.primary.withOpacity(0.10)
-                          : AppColors.surface,
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(18),
-                        topRight: const Radius.circular(18),
-                        bottomLeft: Radius.circular(mine ? 18 : (isTail ? 4 : 18)),
-                        bottomRight: Radius.circular(mine ? (isTail ? 4 : 18) : 18),
-                      ),
-                      border: Border.all(
-                        color: mine
-                            ? AppColors.primary.withOpacity(0.18)
-                            : AppColors.border.withOpacity(0.7),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (m['reply_to'] != null)
-                          Container(
-                            margin: EdgeInsets.only(bottom: 6, left: m['image_url'] != null ? 4 : 0, right: m['image_url'] != null ? 4 : 0, top: m['image_url'] != null ? 4 : 0),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                            decoration: BoxDecoration(
-                              // Reply quote: same soft tint regardless of side (web parity).
-                              color: AppColors.primary.withOpacity(mine ? 0.12 : 0.08),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border(
-                                left: BorderSide(
-                                  color: AppColors.primary.withOpacity(mine ? 0.6 : 0.85),
-                                  width: 2.5,
-                                ),
-                              ),
-                            ),
-                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text(m['reply_to']['sender_name'] ?? '',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.primary,
-                                  )),
-                              const SizedBox(height: 1),
-                              Text(m['reply_to']['content'] ?? 'Image',
-                                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 11.5,
-                                    color: AppColors.textSecondary,
-                                  )),
-                            ]),
-                          ),
-                        if (m['image_url'] != null) ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
-                          child: m['_local'] == true
-                              ? Image.file(File(m['image_url']), width: 240, fit: BoxFit.cover)
-                              : CachedNetworkImage(imageUrl: m['image_url'], fit: BoxFit.cover, width: 240),
-                        ),
-                        if (m['content'] != null && (m['content'] as String).isNotEmpty)
-                          Padding(
-                            padding: EdgeInsets.fromLTRB(
-                                m['image_url'] != null ? 8 : 0,
-                                m['image_url'] != null ? 8 : 0,
-                                m['image_url'] != null ? 8 : 0,
-                                0),
-                            child: Text(m['content'],
-                                style: GoogleFonts.inter(
-                                  color: AppColors.textPrimary,
-                                  fontSize: 14.5,
-                                  height: 1.35,
-                                  fontWeight: FontWeight.w500,
-                                )),
-                          ),
-                        Padding(
-                          padding: EdgeInsets.only(
-                            top: 4,
-                            left: m['image_url'] != null ? 8 : 0,
-                            right: m['image_url'] != null ? 8 : 0,
-                            bottom: m['image_url'] != null ? 6 : 0,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(_formatTime(m['created_at']),
-                                  style: GoogleFonts.inter(
-                                    fontSize: 9.5,
-                                    color: AppColors.textTertiary,
-                                  )),
-                              if (mine) ...[
-                                const SizedBox(width: 4),
-                                pending
-                                    ? Icon(Icons.access_time, size: 11, color: AppColors.textTertiary)
-                                    : Icon(Icons.done_all, size: 12, color: AppColors.primary.withOpacity(0.7)),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (reactions.isNotEmpty)
-                    Transform.translate(
-                      offset: const Offset(0, -8),
-                      child: Wrap(spacing: 4, children: [
-                        for (final r in reactions)
-                          GestureDetector(
-                            onTap: () => _react(m, r['emoji']),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: r['mine'] == true ? AppColors.primarySoft : AppColors.surface,
-                                border: Border.all(color: r['mine'] == true ? AppColors.primary : AppColors.border),
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 1))],
-                              ),
-                              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                Text(r['emoji'], style: const TextStyle(fontSize: 12)),
-                                const SizedBox(width: 3),
-                                Text('${r['count']}',
-                                    style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w800,
-                                        color: r['mine'] == true ? AppColors.primary : AppColors.textSecondary)),
-                              ]),
-                            ),
-                          ),
-                      ]),
-                    ),
+                  if (showName) headerRow,
+                  bubble,
+                  reactionsRow,
                 ],
               ),
             ),
-          ),
-        ],
+            if (mine) ...[const SizedBox(width: 10), avatar],
+          ],
+        ),
       ),
     );
   }
@@ -917,12 +886,12 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
                 decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2))),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(28)),
+              decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(28)),
               child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
                 for (final e in _quickEmojis)
                   GestureDetector(
                     onTap: () { Navigator.pop(context); _react(m, e); },
-                    child: Padding(padding: const EdgeInsets.all(4), child: Text(e, style: const TextStyle(fontSize: 26))),
+                    child: Padding(padding: const EdgeInsets.all(4), child: _emoji(e, size: 26)),
                   ),
                 GestureDetector(
                   onTap: () { Navigator.pop(context); _showReactPicker(m); },
@@ -968,7 +937,7 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
+        boxShadow: AppColors.subtleShadow,
       ),
       child: Row(children: [
         Container(width: 3, height: 32, decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(2))),
@@ -996,7 +965,7 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
   Widget _composer() {
     if (widget.isClosed) {
       return Container(
-        padding: EdgeInsets.fromLTRB(16, 14, 16, 14 + MediaQuery.of(context).padding.bottom),
+        padding: EdgeInsets.fromLTRB(20, 14, 20, 14 + MediaQuery.of(context).padding.bottom),
         decoration: BoxDecoration(
           color: AppColors.surface,
           border: Border(top: BorderSide(color: AppColors.border)),
@@ -1011,98 +980,94 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
         ),
       );
     }
+    // Floating pill composer per spec — borderless, gold send.
+    final sendGold = AppColors.primary;
+    const navy = Color(0xFF0A1C40);
+    const hintBlueGrey = Color(0xFF8E9BB0);
     return Padding(
-      padding: EdgeInsets.fromLTRB(10, 8, 10, 10 + MediaQuery.of(context).padding.bottom),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: AppColors.border),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 2))],
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              IconButton(
-                padding: const EdgeInsets.all(8),
-                constraints: const BoxConstraints(),
-                onPressed: _uploading ? null : _pickImage,
-                icon: _uploading
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : SvgPicture.asset('assets/icons/attach-icon.svg',
-                        width: 20, height: 20,
-                        colorFilter: ColorFilter.mode(AppColors.textSecondary, BlendMode.srcIn)),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: TextField(
-                    controller: _input,
-                    focusNode: _focus,
-                    minLines: 1, maxLines: 5,
-                    autocorrect: true,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: InputDecoration(
-                      isDense: true,
-                      border: InputBorder.none,
-                      hintText: 'Message…',
-                      hintStyle: GoogleFonts.inter(fontSize: 14.5, color: AppColors.textTertiary),
-                    ),
-                    style: GoogleFonts.inter(fontSize: 14.5, height: 1.35, color: AppColors.textPrimary, decorationThickness: 0),
-                  ),
-                ),
-              ),
-              IconButton(
-                padding: const EdgeInsets.all(8),
-                constraints: const BoxConstraints(),
-                onPressed: () => _showEmojiPicker(),
-                icon: Icon(Icons.emoji_emotions_outlined, color: AppColors.textSecondary, size: 22),
-              ),
-            ]),
-          ),
+        padding: EdgeInsets.fromLTRB(20, 8, 20, 12 + MediaQuery.of(context).padding.bottom),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 64),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(32),
+          // The OUTER container carries the border (around attach + input + send).
+          // The inner TextField has no border or focus outline.
+          border: Border.all(color: AppColors.border, width: 1),
+          boxShadow: const [
+            BoxShadow(color: Color(0x14000000), blurRadius: 22, offset: Offset(0, 6)),
+          ],
         ),
-        const SizedBox(width: 8),
-        AnimatedScale(
-          scale: _hasText || _sending ? 1.0 : 0.92,
-          duration: const Duration(milliseconds: 160),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft, end: Alignment.bottomRight,
-                colors: _hasText
-                    ? [AppColors.primary, AppColors.primary.withOpacity(0.85)]
-                    : [AppColors.primary.withOpacity(0.55), AppColors.primary.withOpacity(0.45)],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withOpacity(_hasText ? 0.35 : 0.18),
-                  blurRadius: _hasText ? 14 : 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+        padding: const EdgeInsets.fromLTRB(8, 6, 6, 6),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          // Attach (left) — match mock composer (no IconButton min-size)
+          InkWell(
+            onTap: _uploading ? null : _pickImage,
+            customBorder: const CircleBorder(),
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: _uploading
+                  ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+                  : SvgPicture.asset('assets/icons/attach-icon.svg',
+                      width: 22, height: 22,
+                      colorFilter: const ColorFilter.mode(navy, BlendMode.srcIn)),
             ),
+          ),
+          // Textfield (middle) — outer padding mirrors the inactive composer so
+          // the placeholder x-position never shifts when switching tabs.
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+              child: TextField(
+                controller: _input,
+                focusNode: _focus,
+                minLines: 1, maxLines: 5,
+                autocorrect: true,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  isDense: true,
+                  filled: true,
+                  fillColor: Colors.transparent,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  focusedErrorBorder: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                  hintText: 'Message the group...',
+                  hintStyle: GoogleFonts.inter(
+                      fontSize: 15.5, color: hintBlueGrey, fontWeight: FontWeight.w500),
+                ),
+                style: GoogleFonts.inter(
+                    fontSize: 15.5, color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          // Send (right) — circular gold
+          SizedBox(
+            width: 54, height: 54,
             child: Material(
-              color: Colors.transparent,
+              color: _hasText ? sendGold : sendGold.withOpacity(0.55),
               shape: const CircleBorder(),
               child: InkWell(
                 customBorder: const CircleBorder(),
                 onTap: _sending || !_hasText ? null : _send,
-                child: Padding(
-                  padding: const EdgeInsets.all(13),
+                child: Center(
                   child: _sending
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      ? const SizedBox(
+                          width: 20, height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : SvgPicture.asset('assets/icons/send-icon.svg',
-                          width: 18, height: 18,
+                          width: 22, height: 22,
                           colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
                 ),
               ),
             ),
           ),
-        ),
-      ]),
+        ]),
+      ),
     );
   }
 
@@ -1132,8 +1097,8 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
                   child: Container(
                     width: 46, height: 46,
                     alignment: Alignment.center,
-                    decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(14)),
-                    child: Text(e, style: const TextStyle(fontSize: 24)),
+                    decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(14)),
+                    child: _emoji(e, size: 24),
                   ),
                 ),
             ]),

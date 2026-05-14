@@ -18,6 +18,7 @@ import '../../../core/widgets/app_snackbar.dart';
 import '../report_preview_screen.dart';
 import '../../../core/widgets/deleting_overlay.dart';
 import '../../../core/theme/text_styles.dart';
+import '../../contributors/verify_contribution_scanner_screen.dart';
 import '../../../core/l10n/l10n_helper.dart';
 
 const _kPaymentMethods = [
@@ -500,6 +501,14 @@ class _EventContributionsTabState extends State<EventContributionsTab>
             _showAddContributorSheet,
             filled: true,
             svgIcon: 'assets/icons/plus-icon.svg',
+          ),
+        if (_canManage)
+          _actionChip(
+            Icons.qr_code_scanner_rounded,
+            'Verify QR',
+            () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => const VerifyContributionScannerScreen(),
+            )),
           ),
         if (widget.isCreator)
           _actionChip(

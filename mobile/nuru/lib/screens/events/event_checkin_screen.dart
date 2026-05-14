@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/text_styles.dart';
 import 'widgets/event_checkin_tab.dart';
 
-/// Standalone host for [EventCheckinTab] so the QR check-in flow can be
-/// opened directly from the My Events list when an event is happening
-/// today, without forcing the user to navigate into the full event
-/// detail screen first.
-class EventCheckinScreen extends StatelessWidget {
+/// Standalone host for [EventCheckinTab] — used when the user opens the
+/// scanner directly from a quick action. Title resolves dynamically from
+/// the backend ("Guest Check In" or "Ticket Check In").
+class EventCheckinScreen extends StatefulWidget {
   final String eventId;
   final String? eventTitle;
   final String? eventDate;
@@ -24,24 +24,38 @@ class EventCheckinScreen extends StatelessWidget {
   });
 
   @override
+  State<EventCheckinScreen> createState() => _EventCheckinScreenState();
+}
+
+class _EventCheckinScreenState extends State<EventCheckinScreen> {
+  String _title = 'Check In';
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: Text(eventTitle ?? 'Check-in', style: appText(size: 16, weight: FontWeight.w700)),
+        title: Text(_title, style: appText(size: 18, weight: FontWeight.w800)),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: AppColors.textPrimary),
+          icon: SvgPicture.asset(
+            'assets/icons/arrow-left-icon.svg',
+            width: 22, height: 22,
+            colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn),
+          ),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
       ),
       body: EventCheckinTab(
-        eventId: eventId,
-        permissions: permissions,
-        eventTitle: eventTitle,
-        eventDate: eventDate,
-        eventLocation: eventLocation,
+        eventId: widget.eventId,
+        permissions: widget.permissions,
+        eventTitle: widget.eventTitle,
+        eventDate: widget.eventDate,
+        eventLocation: widget.eventLocation,
+        onTitleResolved: (t) {
+          if (mounted && t != _title) setState(() => _title = t);
+        },
       ),
     );
   }

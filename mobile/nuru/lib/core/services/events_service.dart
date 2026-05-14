@@ -371,6 +371,8 @@ class EventsService {
     String eventId,
     String qrCode,
   ) => EventGuestsService.checkinByQR(eventId, qrCode);
+  static Future<Map<String, dynamic>> getScanStats(String eventId, {int limit = 10}) =>
+      EventGuestsService.getScanStats(eventId, limit: limit);
   static Future<Map<String, dynamic>> undoCheckin(
     String eventId,
     String guestId,

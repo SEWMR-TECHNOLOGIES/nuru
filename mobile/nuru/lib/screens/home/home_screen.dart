@@ -92,6 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _eventsPollInProgress = false; // prevents overlapping background polls
   final TextEditingController _eventsSearchCtl = TextEditingController();
   final GlobalKey<MyTicketsScreenState> _ticketsKey = GlobalKey<MyTicketsScreenState>();
+  final GlobalKey<MyContributionsTabState> _myContribKey = GlobalKey<MyContributionsTabState>();
 
   // Feed pill tabs: 0 All, 1 Moments, 2 Events, 3 Reels
   int _feedTab = 0;
@@ -641,7 +642,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
                 onSearchTap: () {
                   if (_tab == 1) {
-                    setState(() => _eventsSearchOpen = !_eventsSearchOpen);
+                    if (_eventsSubTab == 3) {
+                      _myContribKey.currentState?.toggleSearch();
+                    } else {
+                      setState(() => _eventsSearchOpen = !_eventsSearchOpen);
+                    }
                   } else if (_tab == 3) {
                     _ticketsKey.currentState?.toggleSearch();
                   } else {
@@ -916,7 +921,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             Expanded(
               child: _eventsSubTab == 3
-                  ? const MyContributionsTab()
+                  ? MyContributionsTab(key: _myContribKey)
                   : NuruRefresh(
                       onRefresh: () async => await _loadEvents(silent: true),
                       child: _loading
@@ -1077,22 +1082,81 @@ class _HomeScreenState extends State<HomeScreen> {
 
 /// Mockup-faithful underline tab bar used by the Events tab.
 /// Active tab gets a yellow (secondary) underline and bold text.
-class _UnderlineTabs extends StatelessWidget {
+class _UnderlineTabs extends StatefulWidget {
   final List<String> tabs;
   final int selected;
   final ValueChanged<int> onChanged;
   const _UnderlineTabs({required this.tabs, required this.selected, required this.onChanged});
 
   @override
+  State<_UnderlineTabs> createState() => _UnderlineTabsState();
+}
+
+class _UnderlineTabsState extends State<_UnderlineTabs> {
+  final ScrollController _scrollCtrl = ScrollController();
+  final List<GlobalKey> _tabKeys = [];
+
+  void _ensureKeys() {
+    while (_tabKeys.length < widget.tabs.length) _tabKeys.add(GlobalKey());
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _ensureKeys();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollActiveIntoView());
+  }
+
+  @override
+  void didUpdateWidget(covariant _UnderlineTabs oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _ensureKeys();
+    if (oldWidget.selected != widget.selected) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollActiveIntoView());
+    }
+  }
+
+  void _scrollActiveIntoView() {
+    if (!mounted || widget.selected >= _tabKeys.length) return;
+    final ctx = _tabKeys[widget.selected].currentContext;
+    if (ctx == null || !_scrollCtrl.hasClients) return;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final viewportWidth = _scrollCtrl.position.viewportDimension;
+    final tabOffset = box.localToGlobal(Offset.zero, ancestor: context.findRenderObject()).dx;
+    final tabWidth = box.size.width;
+    final tabCenterAbs = _scrollCtrl.offset + tabOffset + tabWidth / 2;
+    final target = (tabCenterAbs - viewportWidth / 2).clamp(
+      _scrollCtrl.position.minScrollExtent,
+      _scrollCtrl.position.maxScrollExtent,
+    );
+    _scrollCtrl.animateTo(target,
+        duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    _ensureKeys();
     return SingleChildScrollView(
+      controller: _scrollCtrl,
       scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Row(
-        children: List.generate(tabs.length, (i) {
-          final active = i == selected;
+        children: List.generate(widget.tabs.length, (i) {
+          final active = i == widget.selected;
           return GestureDetector(
-            onTap: () => onChanged(i),
+            key: _tabKeys[i],
+            onTap: () {
+              widget.onChanged(i);
+              WidgetsBinding.instance.addPostFrameCallback((_) => _scrollActiveIntoView());
+            },
             behavior: HitTestBehavior.opaque,
             child: Container(
               padding: const EdgeInsets.fromLTRB(2, 6, 2, 10),
@@ -1106,7 +1170,7 @@ class _UnderlineTabs extends StatelessWidget {
                 ),
               ),
               child: Text(
-                tabs[i],
+                widget.tabs[i],
                 style: GoogleFonts.inter(
                   fontSize: 14.5,
                   fontWeight: active ? FontWeight.w700 : FontWeight.w500,

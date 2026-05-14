@@ -63,6 +63,15 @@ class EventGuestsService {
     return ApiBase.post('/user-events/$eventId/guests/checkin-qr', {'qr_code': qrCode}, fallbackError: 'Unable to check in');
   }
 
+  /// Premium scanner header data (event card + aggregate stats + recent scans).
+  static Future<Map<String, dynamic>> getScanStats(String eventId, {int limit = 10}) {
+    return ApiBase.get(
+      '/user-events/$eventId/scan/stats',
+      queryParams: {'limit': '$limit'},
+      fallbackError: 'Unable to load scan stats',
+    );
+  }
+
   static Future<Map<String, dynamic>> undoCheckin(String eventId, String guestId) {
     return ApiBase.post('/user-events/$eventId/guests/$guestId/undo-checkin', {}, fallbackError: 'Unable to undo check-in');
   }

@@ -54,7 +54,11 @@ class _PaymentReceiptScreenState extends State<PaymentReceiptScreen> {
   String get _provider => p['provider_name']?.toString() ?? '';
   bool get _canRetry => p['can_retry'] == true;
 
-  String get _verifyUrl => 'https://nuru.tz/wallet/receipt/$_txCode';
+  String get _verifyUrl {
+    final override = p['verification_url']?.toString();
+    if (override != null && override.isNotEmpty) return override;
+    return 'https://nuru.tz/wallet/receipt/$_txCode';
+  }
 
   String _formatDate(String? iso) {
     if (iso == null || iso.isEmpty) return '';
@@ -202,7 +206,10 @@ class _PaymentReceiptScreenState extends State<PaymentReceiptScreen> {
             children: [
               RepaintBoundary(
                 key: _receiptKey,
-                child: ClipPath(
+                child: Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.all(2),
+                  child: ClipPath(
                   clipper: TicketShapeClipper(
                     notchY: 170,
                     notchRadius: 12,
@@ -235,6 +242,7 @@ class _PaymentReceiptScreenState extends State<PaymentReceiptScreen> {
                         ),
                       ],
                     ),
+                  ),
                   ),
                 ),
               ),
@@ -445,11 +453,16 @@ class _PaymentReceiptScreenState extends State<PaymentReceiptScreen> {
               ),
               const Spacer(),
               if (_txCode.isNotEmpty)
-                Text('Receipt #$_txCode',
-                    style: GoogleFonts.robotoMono(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textTertiary)),
+                Flexible(
+                  child: Text('Receipt #$_txCode',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      style: GoogleFonts.robotoMono(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textTertiary)),
+                ),
             ],
           ),
           const SizedBox(height: 18),
