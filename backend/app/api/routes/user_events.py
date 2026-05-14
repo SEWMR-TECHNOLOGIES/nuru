@@ -2665,11 +2665,20 @@ def get_scan_stats(event_id: str, limit: int = Query(10, ge=1, le=100), db: Sess
             EventTicket.checked_in_at.desc().nullslast(),
             EventTicket.created_at.desc(),
         ).limit(limit).all()
+        buyer_ids = {t.buyer_user_id for t in rows if t.buyer_user_id}
+        avatars = {}
+        if buyer_ids:
+            for uid, pic in db.query(UserProfile.user_id, UserProfile.profile_picture_url).filter(
+                UserProfile.user_id.in_(buyer_ids)
+            ).all():
+                if pic:
+                    avatars[uid] = pic
         for t in rows:
             recent.append({
                 "kind": "ticket",
                 "name": t.buyer_name or "Ticket Holder",
                 "ref": t.ticket_code,
+                "avatar": avatars.get(t.buyer_user_id),
                 "checked_in_at": t.checked_in_at.isoformat() if t.checked_in_at else None,
                 "status": "checked_in" if t.checked_in else "pending",
             })
@@ -2682,11 +2691,20 @@ def get_scan_stats(event_id: str, limit: int = Query(10, ge=1, le=100), db: Sess
             EventAttendee.checked_in_at.desc().nullslast(),
             EventAttendee.updated_at.desc(),
         ).limit(limit).all()
+        user_ids = {att.user_id for att in rows if getattr(att, 'user_id', None)}
+        avatars = {}
+        if user_ids:
+            for uid, pic in db.query(UserProfile.user_id, UserProfile.profile_picture_url).filter(
+                UserProfile.user_id.in_(user_ids)
+            ).all():
+                if pic:
+                    avatars[uid] = pic
         for att in rows:
             recent.append({
                 "kind": "guest",
                 "name": _resolve_guest_name(db, att) or "Guest",
                 "ref": str(att.id)[:8].upper(),
+                "avatar": avatars.get(getattr(att, 'user_id', None)),
                 "checked_in_at": att.checked_in_at.isoformat() if att.checked_in_at else None,
                 "status": "checked_in" if att.checked_in else "pending",
             })
