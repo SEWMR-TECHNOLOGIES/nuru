@@ -97,6 +97,188 @@ def _event_contributor_dict(ec: EventContributor, show_recorder: bool = False) -
     }
 
 
+# ──────────────────────────────────────────────
+# Aggregate Contribution Receipt — QR Verification
+# ──────────────────────────────────────────────
+# A signed, opaque token that encodes (event_id, user_id, issued_at).
+# Used for the QR on the aggregate contribution receipt so an organiser
+# (or anyone with the token) can verify the totals are authentic.
+
+import base64
+import hmac
+import hashlib
+import json as _json
+from core.config import SECRET_KEY as _SECRET
+
+_VERIFY_TOKEN_VERSION = "v1"
+
+
+def _b64url_encode(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def _b64url_decode(data: str) -> bytes:
+    pad = "=" * (-len(data) % 4)
+    return base64.urlsafe_b64decode(data + pad)
+
+
+def _sign_contribution_token(event_id: str, user_id: str) -> str:
+    payload = {
+        "v": _VERIFY_TOKEN_VERSION,
+        "e": str(event_id),
+        "u": str(user_id),
+        "t": int(datetime.utcnow().timestamp()),
+    }
+    body = _b64url_encode(_json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+    sig = hmac.new(
+        (_SECRET or "nuru-dev").encode("utf-8"),
+        body.encode("ascii"),
+        hashlib.sha256,
+    ).digest()
+    return f"{body}.{_b64url_encode(sig)[:32]}"
+
+
+def _verify_contribution_token(token: str) -> Optional[dict]:
+    try:
+        body, sig = token.split(".", 1)
+        expected = hmac.new(
+            (_SECRET or "nuru-dev").encode("utf-8"),
+            body.encode("ascii"),
+            hashlib.sha256,
+        ).digest()
+        if not hmac.compare_digest(sig, _b64url_encode(expected)[:32]):
+            return None
+        return _json.loads(_b64url_decode(body))
+    except Exception:
+        return None
+
+
+def _aggregate_summary_for(db: Session, user_id: uuid.UUID, event_id: uuid.UUID) -> Optional[dict]:
+    """Compute the same aggregate the receipt shows: pledge / paid /
+    pending / balance for a (user, event) pair, including phone-mapped
+    contributor rows. Returns None if no contributor record exists."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return None
+    me_phone_digits = _normalize_phone_digits(user.phone) if getattr(user, "phone", None) else ""
+    contribs = db.query(UserContributor).filter(
+        UserContributor.contributor_user_id == user.id
+    ).all()
+    if me_phone_digits:
+        from sqlalchemy import func as _f
+        legacy = db.query(UserContributor).filter(
+            UserContributor.contributor_user_id.is_(None),
+            UserContributor.phone.isnot(None),
+            _f.right(_f.regexp_replace(UserContributor.phone, r'[^0-9]', '', 'g'), 9) == me_phone_digits,
+        ).all()
+        contribs.extend(legacy)
+    if not contribs:
+        return None
+    contributor_ids = list({c.id for c in contribs})
+
+    ev = db.query(Event).filter(Event.id == event_id).first()
+    if not ev:
+        return None
+    currency = "TZS"
+    if ev.currency_id:
+        cur = db.query(Currency).filter(Currency.id == ev.currency_id).first()
+        if cur:
+            currency = cur.code.strip()
+
+    ecs = db.query(EventContributor).options(joinedload(EventContributor.contributions)).filter(
+        EventContributor.event_id == event_id,
+        EventContributor.contributor_id.in_(contributor_ids),
+    ).all()
+
+    pledge = sum(float(ec.pledge_amount or 0) for ec in ecs)
+    paid = 0.0
+    pending = 0.0
+    last_at = None
+    payment_count = 0
+    for ec in ecs:
+        for p in ec.contributions:
+            amt = float(p.amount or 0)
+            if p.confirmation_status == ContributionStatusEnum.pending:
+                pending += amt
+            else:
+                paid += amt
+            payment_count += 1
+            d = p.contributed_at or p.confirmed_at or p.created_at
+            if d and (last_at is None or d > last_at):
+                last_at = d
+    balance = max(0.0, pledge - paid - pending)
+
+    return {
+        "event_id": str(ev.id),
+        "event_name": ev.name,
+        "event_cover_image": getattr(ev, "cover_image_url", None),
+        "contributor_name": (f"{user.first_name or ''} {user.last_name or ''}".strip() or user.phone or "Contributor"),
+        "currency": currency,
+        "total_pledged": round(pledge, 2),
+        "total_paid": round(paid, 2),
+        "total_pending": round(pending, 2),
+        "balance": round(balance, 2),
+        "payment_count": payment_count,
+        "is_complete": pledge > 0 and balance == 0 and pending == 0,
+        "last_contribution_at": last_at.isoformat() if last_at else None,
+    }
+
+
+@router.get("/my-contributions/{event_id}/verify-token")
+def get_aggregate_verify_token(
+    event_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Issue a signed token for the current user's aggregate contribution
+    receipt for an event. Embedded into the QR code on the receipt."""
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID")
+
+    summary = _aggregate_summary_for(db, current_user.id, eid)
+    if summary is None:
+        return standard_response(False, "No contributions found for this event")
+
+    token = _sign_contribution_token(event_id, str(current_user.id))
+    return standard_response(True, "Token issued", {
+        "token": token,
+        "verify_url": f"https://nuru.tz/verify/contribution/{token}",
+        "summary": summary,
+    })
+
+
+@router.get("/contributions/verify/{token}")
+def verify_contribution_token(
+    token: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Resolve an aggregate-receipt verification token and return the
+    authoritative summary. Auth-required: only Nuru users (typically the
+    organiser scanning the QR) can verify."""
+    payload = _verify_contribution_token(token)
+    if not payload:
+        return standard_response(False, "Invalid or tampered token")
+    try:
+        eid = uuid.UUID(payload["e"])
+        uid = uuid.UUID(payload["u"])
+    except Exception:
+        return standard_response(False, "Malformed token payload")
+
+    summary = _aggregate_summary_for(db, uid, eid)
+    if summary is None:
+        return standard_response(False, "No contribution record matches this token")
+
+    issued_at = payload.get("t")
+    summary["issued_at"] = (
+        datetime.utcfromtimestamp(issued_at).isoformat() + "Z" if issued_at else None
+    )
+    summary["verified"] = True
+    return standard_response(True, "Verified", summary)
+
+
 
 def _get_event_access(db: Session, event_id, current_user) -> tuple:
     """Returns (event, is_creator, committee_member_or_None, permissions_or_None)"""
@@ -372,7 +554,11 @@ def my_contributions_insights(
             (c.contributed_at for c in r["ec"].contributions if c.contributed_at),
             default=None,
         )
-        if last_pay is None or last_pay <= ev_d:
+        # event.start_date is a `date`; contributed_at is a `datetime`.
+        # Compare as dates to avoid TypeError.
+        last_pay_d = last_pay.date() if hasattr(last_pay, 'date') else last_pay
+        ev_d_d = ev_d.date() if hasattr(ev_d, 'date') and hasattr(ev_d, 'hour') else ev_d
+        if last_pay is None or last_pay_d <= ev_d_d:
             on_time_kept += 1
     on_time_rate = round((on_time_kept / on_time_total) * 100, 1) if on_time_total else 0.0
     avg_per_event = round((total_paid / events_count), 2) if events_count else 0
