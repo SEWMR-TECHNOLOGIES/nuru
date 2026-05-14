@@ -116,11 +116,13 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
           child: RepaintBoundary(
             key: _cardKey,
             child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFEDEDF2)),
-              ),
+              color: Colors.white,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFEDEDF2)),
+                ),
               child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -198,6 +200,7 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
                 ] else
                   const SizedBox(height: 18),
               ],
+              ),
               ),
             ),
           ),
@@ -315,12 +318,18 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
                       style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: const Color(0xFFF7F7F8), letterSpacing: 0.6)),
                   ),
                 const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(color: _statusBg, borderRadius: BorderRadius.circular(8)),
-                  child: Text(_status[0].toUpperCase() + _status.substring(1),
-                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _statusFg, letterSpacing: 0.2)),
-                ),
+                Builder(builder: (_) {
+                  final showUsed = _checkedIn;
+                  final label = showUsed ? 'Used' : (_status[0].toUpperCase() + _status.substring(1));
+                  final bg = showUsed ? const Color(0xFFE5E7EB) : _statusBg;
+                  final fg = showUsed ? const Color(0xFF374151) : _statusFg;
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+                    child: Text(label,
+                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: fg, letterSpacing: 0.2)),
+                  );
+                }),
               ],
             ),
           ),
@@ -424,15 +433,19 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
                 : null,
             ),
             const SizedBox(width: 12),
-            Flexible(
-              child: Text(name, overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            Expanded(
+              child: Row(children: [
+                Flexible(
+                  child: Text(name, overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                ),
+                if (isVerified) ...[
+                  const SizedBox(width: 6),
+                  const Icon(Icons.verified_rounded, color: AppColors.primary, size: 16),
+                ],
+              ]),
             ),
-            if (isVerified) ...[
-              const SizedBox(width: 6),
-              const Icon(Icons.verified_rounded, color: AppColors.primary, size: 16),
-            ],
-            const Spacer(),
+            const SizedBox(width: 8),
             const Icon(Icons.chevron_right, color: AppColors.textTertiary, size: 22),
           ],
         ),
@@ -443,7 +456,9 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
   Widget _usedBanner() {
     String when = '';
     if (_checkedInAt.isNotEmpty) {
-      final dt = DateTime.tryParse(_checkedInAt)?.toLocal();
+      final raw = _checkedInAt;
+      final iso = (raw.endsWith('Z') || RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(raw)) ? raw : '${raw}Z';
+      final dt = DateTime.tryParse(iso)?.toLocal();
       if (dt != null) {
         const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         when = ' · ${dt.day} ${mo[dt.month-1]} ${dt.year}, '

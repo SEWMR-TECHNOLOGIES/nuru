@@ -87,43 +87,46 @@ class _YourTicketScreenState extends State<YourTicketScreen> {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
           child: RepaintBoundary(
             key: _ticketKey,
-            child: ClipPath(
-              clipper: TicketShapeClipper(
-                notchY: _heroHeight,
-                notchRadius: 12,
-                scallopedBottom: true,
-                scallopRadius: 7,
-              ),
-              child: Container(
-                color: Colors.white,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildHero(d),
-                    const SizedBox(height: 24),
-                    _buildQrSection(),
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(20, 18, 20, 18),
-                      child: DashedDivider(),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: _buildInfoRow(currency, totalAmount),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(20, 18, 20, 18),
-                      child: DashedDivider(),
-                    ),
-                    if (_location.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-                        child: _buildVenueBlock(),
+            child: Container(
+              color: Colors.white,
+              child: ClipPath(
+                clipper: TicketShapeClipper(
+                  notchY: _heroHeight,
+                  notchRadius: 12,
+                  scallopedBottom: true,
+                  scallopRadius: 7,
+                ),
+                child: Container(
+                  color: Colors.white,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildHero(d),
+                      const SizedBox(height: 24),
+                      _buildQrSection(),
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(20, 18, 20, 18),
+                        child: DashedDivider(),
                       ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-                      child: _buildImportantBlock(),
-                    ),
-                  ],
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: _buildInfoRow(currency, totalAmount),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(20, 18, 20, 18),
+                        child: DashedDivider(),
+                      ),
+                      if (_location.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                          child: _buildVenueBlock(),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                        child: _buildImportantBlock(),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -291,7 +294,8 @@ class _YourTicketScreenState extends State<YourTicketScreen> {
     final usedAt = ticket['checked_in_at']?.toString() ?? '';
     String usedLabel = 'Used at the gate';
     if (usedAt.isNotEmpty) {
-      final dt = DateTime.tryParse(usedAt)?.toLocal();
+      final iso = (usedAt.endsWith('Z') || RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(usedAt)) ? usedAt : '${usedAt}Z';
+      final dt = DateTime.tryParse(iso)?.toLocal();
       if (dt != null) {
         const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         usedLabel = 'Used · ${dt.day} ${mo[dt.month-1]} ${dt.year}, '

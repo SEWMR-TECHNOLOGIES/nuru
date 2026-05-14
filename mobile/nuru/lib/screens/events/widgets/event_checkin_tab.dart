@@ -599,12 +599,22 @@ class _EventCheckinTabState extends State<EventCheckinTab>
         border: isLast ? null : Border(bottom: BorderSide(color: AppColors.borderLight.withOpacity(0.7))),
       ),
       child: Row(children: [
-        CircleAvatar(
-          radius: 20,
-          backgroundColor: avatarBg,
-          child: Text(initials,
-              style: appText(size: 12, weight: FontWeight.w800, color: avatarFg)),
-        ),
+        Builder(builder: (_) {
+          final av = (r['avatar'] ?? '').toString();
+          if (av.isNotEmpty) {
+            return CircleAvatar(
+              radius: 20,
+              backgroundColor: avatarBg,
+              backgroundImage: NetworkImage(av),
+            );
+          }
+          return CircleAvatar(
+            radius: 20,
+            backgroundColor: avatarBg,
+            child: Text(initials,
+                style: appText(size: 12, weight: FontWeight.w800, color: avatarFg)),
+          );
+        }),
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -641,7 +651,8 @@ class _EventCheckinTabState extends State<EventCheckinTab>
 
   String _formatTime(String? iso) {
     if (iso == null || iso.isEmpty) return '';
-    final dt = DateTime.tryParse(iso)?.toLocal();
+    final norm = (iso.endsWith('Z') || RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(iso)) ? iso : '${iso}Z';
+    final dt = DateTime.tryParse(norm)?.toLocal();
     if (dt == null) return '';
     final h = dt.hour == 0 ? 12 : (dt.hour > 12 ? dt.hour - 12 : dt.hour);
     final m = dt.minute.toString().padLeft(2, '0');
