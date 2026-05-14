@@ -189,6 +189,226 @@ def my_contributions_early(
     return my_contributions(search=search, db=db, current_user=current_user)  # type: ignore[name-defined]
 
 
+@router.get("/my-contributions/insights")
+def my_contributions_insights(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Aggregate "Contribution Insights" for the current user — total
+    pledged/paid/balance, giving streak (consecutive months with at least
+    one payment), monthly trend (last 12 months), method mix, top
+    organisations supported, biggest gift, on-time completion rate and
+    a friendly impact message. Used by the mobile Insights screen."""
+    me_phone_digits = _normalize_phone_digits(current_user.phone) if getattr(current_user, "phone", None) else ""
+    contribs = db.query(UserContributor).filter(
+        UserContributor.contributor_user_id == current_user.id
+    ).all()
+    if me_phone_digits:
+        from sqlalchemy import func as _f
+        legacy = db.query(UserContributor).filter(
+            UserContributor.contributor_user_id.is_(None),
+            UserContributor.phone.isnot(None),
+            _f.right(_f.regexp_replace(UserContributor.phone, r'[^0-9]', '', 'g'), 9) == me_phone_digits,
+        ).all()
+        contribs.extend(legacy)
+
+    user_currency = (getattr(current_user, "currency_code", None) or "").strip() or "TZS"
+
+    if not contribs:
+        return standard_response(True, "No insights yet", {
+            "summary": {"total_pledged": 0, "total_paid": 0, "total_balance": 0,
+                        "total_pending": 0, "currency": user_currency},
+            "counts": {"events_count": 0, "complete_count": 0, "active_count": 0,
+                       "pending_count": 0, "payments_count": 0, "organisations_supported": 0},
+            "streak_months": 0, "biggest_contribution": None,
+            "first_contribution_at": None, "last_contribution_at": None,
+            "avg_per_event": 0, "on_time_rate": 0,
+            "by_month": [], "by_method": [], "top_organisers": [],
+            "impact_message": "Make your first contribution to see your impact.",
+        })
+
+    contributor_ids = [c.id for c in contribs]
+    ecs = db.query(EventContributor).options(
+        joinedload(EventContributor.event),
+        joinedload(EventContributor.contributions),
+    ).filter(EventContributor.contributor_id.in_(contributor_ids)).all()
+
+    per_event = []
+    for ec in ecs:
+        if not ec.event:
+            continue
+        ev = ec.event
+        if ev.currency_id:
+            cur = db.query(Currency).filter(Currency.id == ev.currency_id).first()
+            currency = (cur.code.strip() if cur else user_currency)
+        else:
+            currency = user_currency
+        pledge = float(ec.pledge_amount or 0)
+        paid = sum(
+            float(c.amount or 0) for c in ec.contributions
+            if c.confirmation_status is None or c.confirmation_status == ContributionStatusEnum.confirmed
+        )
+        pending = sum(
+            float(c.amount or 0) for c in ec.contributions
+            if c.confirmation_status == ContributionStatusEnum.pending
+        )
+        balance = max(0.0, pledge - paid - pending)
+        complete = pledge > 0 and balance == 0 and pending == 0
+        per_event.append({"ec": ec, "event": ev, "currency": currency,
+                          "pledge": pledge, "paid": paid, "pending": pending,
+                          "balance": balance, "complete": complete})
+
+    cur_amounts = {}
+    for r in per_event:
+        cur_amounts[r["currency"]] = cur_amounts.get(r["currency"], 0) + r["paid"] + r["pledge"]
+    dominant_currency = max(cur_amounts.items(), key=lambda x: x[1])[0] if cur_amounts else user_currency
+
+    filtered = [r for r in per_event if r["currency"] == dominant_currency]
+    total_pledged = sum(r["pledge"] for r in filtered)
+    total_paid = sum(r["paid"] for r in filtered)
+    total_pending = sum(r["pending"] for r in filtered)
+    total_balance = sum(r["balance"] for r in filtered)
+    events_count = len(filtered)
+    complete_count = sum(1 for r in filtered if r["complete"])
+    active_count = sum(1 for r in filtered if not r["complete"] and (r["paid"] > 0 or r["pending"] > 0))
+    pending_count = sum(1 for r in filtered if r["paid"] == 0 and r["pending"] == 0)
+    organisations_supported = len({str(r["event"].organizer_id) for r in filtered if r["event"].organizer_id})
+
+    payments = []
+    for r in filtered:
+        for p in r["ec"].contributions:
+            if not (p.confirmation_status is None or p.confirmation_status == ContributionStatusEnum.confirmed):
+                continue
+            payments.append({"p": p, "event": r["event"], "currency": r["currency"]})
+    payments_count = len(payments)
+
+    biggest = None
+    if payments:
+        bp = max(payments, key=lambda x: float(x["p"].amount or 0))
+        d = bp["p"].contributed_at or bp["p"].confirmed_at or bp["p"].created_at
+        biggest = {
+            "amount": float(bp["p"].amount or 0),
+            "currency": bp["currency"],
+            "event_id": str(bp["event"].id),
+            "event_name": bp["event"].name,
+            "contributed_at": d.isoformat() if d else None,
+        }
+
+    payment_dates = [
+        (x["p"].contributed_at or x["p"].confirmed_at or x["p"].created_at)
+        for x in payments
+        if (x["p"].contributed_at or x["p"].confirmed_at or x["p"].created_at)
+    ]
+    first_at = min(payment_dates).isoformat() if payment_dates else None
+    last_at = max(payment_dates).isoformat() if payment_dates else None
+
+    from collections import OrderedDict
+    now_eat = datetime.now(EAT)
+    months = OrderedDict()
+    for i in range(11, -1, -1):
+        y = now_eat.year + ((now_eat.month - 1 - i) // 12)
+        m = ((now_eat.month - 1 - i) % 12) + 1
+        months[f"{y:04d}-{m:02d}"] = {"month": f"{y:04d}-{m:02d}", "amount": 0.0, "count": 0}
+    for x in payments:
+        d = x["p"].contributed_at or x["p"].confirmed_at or x["p"].created_at
+        if not d:
+            continue
+        try:
+            d_local = d.astimezone(EAT) if d.tzinfo else EAT.localize(d)
+        except Exception:
+            d_local = d
+        key = f"{d_local.year:04d}-{d_local.month:02d}"
+        if key in months:
+            months[key]["amount"] += float(x["p"].amount or 0)
+            months[key]["count"] += 1
+    by_month = list(months.values())
+
+    streak = 0
+    for k in reversed(list(months.keys())):
+        if months[k]["count"] > 0:
+            streak += 1
+        else:
+            break
+
+    method_totals = {}
+    for x in payments:
+        m = x["p"].payment_method.value if x["p"].payment_method else (
+            "manual" if x["p"].recorded_by else "other"
+        )
+        method_totals.setdefault(m, {"method": m, "amount": 0.0, "count": 0})
+        method_totals[m]["amount"] += float(x["p"].amount or 0)
+        method_totals[m]["count"] += 1
+    mt_total = sum(v["amount"] for v in method_totals.values()) or 1
+    by_method = sorted(
+        [{**v, "percent": round((v["amount"] / mt_total) * 100, 1)} for v in method_totals.values()],
+        key=lambda v: v["amount"], reverse=True,
+    )
+
+    org_totals = {}
+    for r in filtered:
+        oid = str(r["event"].organizer_id) if r["event"].organizer_id else None
+        if not oid:
+            continue
+        org_totals.setdefault(oid, {"organizer_id": oid, "amount": 0.0, "events": 0, "name": None})
+        org_totals[oid]["amount"] += r["paid"]
+        org_totals[oid]["events"] += 1
+    if org_totals:
+        org_users = db.query(User).filter(User.id.in_(list(org_totals.keys()))).all()
+        for u in org_users:
+            org_totals[str(u.id)]["name"] = f"{u.first_name or ''} {u.last_name or ''}".strip() or "Organiser"
+    top_organisers = sorted(org_totals.values(), key=lambda v: v["amount"], reverse=True)[:5]
+
+    pledged_events = [r for r in filtered if r["pledge"] > 0]
+    on_time_total = len(pledged_events)
+    on_time_kept = 0
+    for r in pledged_events:
+        if not r["complete"]:
+            continue
+        ev_d = r["event"].start_date
+        if not ev_d:
+            on_time_kept += 1
+            continue
+        last_pay = max(
+            (c.contributed_at for c in r["ec"].contributions if c.contributed_at),
+            default=None,
+        )
+        if last_pay is None or last_pay <= ev_d:
+            on_time_kept += 1
+    on_time_rate = round((on_time_kept / on_time_total) * 100, 1) if on_time_total else 0.0
+    avg_per_event = round((total_paid / events_count), 2) if events_count else 0
+
+    if total_paid <= 0:
+        impact_message = "Your generosity story starts with your first contribution."
+    elif organisations_supported >= 3:
+        impact_message = (f"You've helped {organisations_supported} organisers across "
+                          f"{events_count} event{'s' if events_count != 1 else ''}. Keep showing up.")
+    elif streak >= 3:
+        impact_message = f"{streak} months of giving in a row — that's real consistency."
+    else:
+        impact_message = (f"You've contributed {payments_count} time"
+                          f"{'s' if payments_count != 1 else ''} so far. Every gift counts.")
+
+    return standard_response(True, "Insights fetched", {
+        "summary": {"total_pledged": total_pledged, "total_paid": total_paid,
+                    "total_pending": total_pending, "total_balance": total_balance,
+                    "currency": dominant_currency},
+        "counts": {"events_count": events_count, "complete_count": complete_count,
+                   "active_count": active_count, "pending_count": pending_count,
+                   "payments_count": payments_count,
+                   "organisations_supported": organisations_supported},
+        "streak_months": streak,
+        "biggest_contribution": biggest,
+        "first_contribution_at": first_at,
+        "last_contribution_at": last_at,
+        "avg_per_event": avg_per_event,
+        "on_time_rate": on_time_rate,
+        "by_month": by_month,
+        "by_method": by_method,
+        "top_organisers": top_organisers,
+        "impact_message": impact_message,
+    })
+
+
 @router.get("/my-contributions/{event_id}/payments")
 def my_contribution_payments(
     event_id: str,
