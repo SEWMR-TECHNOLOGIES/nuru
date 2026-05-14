@@ -1471,8 +1471,9 @@ def scoreboard(
         "by_method": by_method,
         "engagement": engagement,
         "top_topics": [],
+        "event_start_date": event.start_date.isoformat() if event.start_date else None,
         "event_end_date": event.end_date.isoformat() if event.end_date else None,
-        "target_date": event.end_date.isoformat() if event.end_date else None,
+        "target_date": (event.start_date or event.end_date).isoformat() if (event.start_date or event.end_date) else None,
     }
 
     return standard_response(True, "Scoreboard", {
