@@ -189,6 +189,99 @@ def my_contributions_early(
     return my_contributions(search=search, db=db, current_user=current_user)  # type: ignore[name-defined]
 
 
+@router.get("/my-contributions/{event_id}/payments")
+def my_contribution_payments(
+    event_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """All EventContribution rows the current user has paid towards a given
+    event. Matches the user across every event_contributor row that points
+    to them either via contributor_user_id OR phone-equivalence (Nuru
+    contributors don't have to be Nuru users — we map by phone). Includes
+    online (gateway), offline-claim, and organiser-recorded payments."""
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID")
+
+    me_phone_digits = _normalize_phone_digits(current_user.phone) if getattr(current_user, "phone", None) else ""
+    contribs = db.query(UserContributor).filter(
+        UserContributor.contributor_user_id == current_user.id
+    ).all()
+    if me_phone_digits:
+        from sqlalchemy import func as _f
+        legacy = db.query(UserContributor).filter(
+            UserContributor.contributor_user_id.is_(None),
+            UserContributor.phone.isnot(None),
+            _f.right(_f.regexp_replace(UserContributor.phone, r'[^0-9]', '', 'g'), 9) == me_phone_digits,
+        ).all()
+        contribs.extend(legacy)
+    if not contribs:
+        return standard_response(True, "No payments", {"payments": [], "total_paid": 0, "total_pending": 0})
+
+    contributor_ids = list({c.id for c in contribs})
+
+    ecs = db.query(EventContributor).options(joinedload(EventContributor.contributions)).filter(
+        EventContributor.event_id == eid,
+        EventContributor.contributor_id.in_(contributor_ids),
+    ).all()
+    if not ecs:
+        return standard_response(True, "No payments", {"payments": [], "total_paid": 0, "total_pending": 0})
+
+    rows = []
+    total_paid = 0.0
+    total_pending = 0.0
+    for ec in ecs:
+        for p in ec.contributions:
+            amt = float(p.amount or 0)
+            status = p.confirmation_status.value if p.confirmation_status else "confirmed"
+            if status == "pending":
+                total_pending += amt
+            else:
+                total_paid += amt
+            method = p.payment_method.value if p.payment_method else None
+            if method == "wallet":
+                source = "Wallet"
+            elif method == "mobile_money":
+                source = (p.provider_name or "Mobile Money")
+            elif method == "bank":
+                source = (p.provider_name or "Bank Transfer")
+            elif method == "cash":
+                source = "Cash"
+            elif method == "card":
+                source = (p.provider_name or "Card")
+            elif p.recorded_by:
+                source = "Recorded by organiser"
+            else:
+                source = (p.provider_name or "Other")
+
+            rows.append({
+                "id": str(p.id),
+                "event_contributor_id": str(p.event_contributor_id),
+                "amount": amt,
+                "payment_method": method,
+                "payment_channel": p.payment_channel,
+                "provider_name": p.provider_name,
+                "transaction_ref": p.transaction_ref,
+                "source_label": source,
+                "confirmation_status": status,
+                "recorded_by_organiser": p.recorded_by is not None,
+                "contributed_at": p.contributed_at.isoformat() if p.contributed_at else None,
+                "confirmed_at": p.confirmed_at.isoformat() if p.confirmed_at else None,
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+            })
+
+    rows.sort(key=lambda r: r["contributed_at"] or r["created_at"] or "", reverse=True)
+
+    return standard_response(True, "Payments fetched", {
+        "payments": rows,
+        "count": len(rows),
+        "total_paid": total_paid,
+        "total_pending": total_pending,
+    })
+
+
 @router.get("/{contributor_id}")
 def get_contributor(contributor_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
@@ -1856,12 +1949,23 @@ def my_contributions(
         joinedload(EventContributor.contributions),
     ).filter(EventContributor.contributor_id.in_(contributor_ids)).all()
 
+    # Fallback currency: prefer the signed-in user's profile currency over a
+    # hardcoded "TZS" so users in other regions never see the wrong code.
+    user_currency = (getattr(current_user, "currency_code", None) or "").strip() or None
+
     results = []
     for ec in ecs:
         event = ec.event
         if not event:
             continue
-        currency = _currency_code(db, event)
+        # Prefer the event's own currency; otherwise fall back to the user's
+        # profile currency (set at signup based on locale), and only as a
+        # last resort to the global default.
+        if event.currency_id:
+            cur = db.query(Currency).filter(Currency.id == event.currency_id).first()
+            currency = cur.code.strip() if cur else (user_currency or "TZS")
+        else:
+            currency = user_currency or "TZS"
         pledge = float(ec.pledge_amount or 0)
         paid = sum(
             float(c.amount or 0)
@@ -1939,7 +2043,7 @@ def my_contributions(
         "active_pledges": sum(1 for r in results if r["status"] == "active"),
         "complete_count": sum(1 for r in results if r["status"] == "complete"),
         "pending_count": sum(1 for r in results if r["status"] == "pending"),
-        "currency": results[0]["currency"] if results else None,
+        "currency": (results[0]["currency"] if results else None) or user_currency,
     }
 
     return standard_response(True, "My contributions fetched", {
