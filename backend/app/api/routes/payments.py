@@ -251,6 +251,31 @@ def _sync_target_after_payment(db: Session, tx: Transaction):
             TicketOrderStatusEnum.rejected,
         ):
             ticket.status = TicketOrderStatusEnum.confirmed
+        # Auto-deliver the ticket via WhatsApp (fire-and-forget).
+        try:
+            if ticket.buyer_phone:
+                from utils.whatsapp_cards import wa_send_ticket
+                from models.events import Event as _Ev
+                from models.ticketing import EventTicketClass as _Tc
+                ev = db.query(_Ev).filter(_Ev.id == ticket.event_id).first()
+                tc = db.query(_Tc).filter(_Tc.id == ticket.ticket_class_id).first()
+                ev_date = ""
+                try:
+                    if ev and getattr(ev, "start_at", None):
+                        ev_date = ev.start_at.strftime("%d %b %Y")
+                except Exception:
+                    pass
+                wa_send_ticket(
+                    phone=ticket.buyer_phone,
+                    event_id=str(ticket.event_id),
+                    ticket_code=ticket.ticket_code,
+                    buyer_name=ticket.buyer_name or "Friend",
+                    event_name=(ev.name if ev else "the event"),
+                    event_date=ev_date or "TBD",
+                    ticket_class=(tc.name if tc else "General"),
+                )
+        except Exception as _e:
+            print(f"[payments] wa_send_ticket (online) failed: {_e}")
         return
 
     # ── Event contributions ────────────────────────────────────────────────

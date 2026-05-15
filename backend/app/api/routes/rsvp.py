@@ -316,6 +316,52 @@ def respond_to_rsvp(code: str, body: RSVPResponseInput):
         db.commit()
 
         status_label = "confirmed" if rsvp_enum == RSVPStatusEnum.confirmed else "declined"
+
+        # Auto-send WhatsApp invitation card on RSVP accept (fire-and-forget).
+        if rsvp_enum == RSVPStatusEnum.confirmed:
+            try:
+                from utils.whatsapp_cards import wa_send_invitation_card
+                from models.users import User as _U
+                guest_phone = None
+                guest_display = inv.guest_name or "Guest"
+                if inv.invited_user_id:
+                    u = db.query(_U).filter(_U.id == inv.invited_user_id).first()
+                    if u:
+                        guest_phone = u.phone
+                        guest_display = (
+                            f"{u.first_name or ''} {u.last_name or ''}".strip()
+                            or guest_display
+                        )
+                if not guest_phone:
+                    guest_phone = getattr(inv, "guest_phone", None)
+                organizer_name = "Your host"
+                if event.organizer_id:
+                    org = db.query(_U).filter(_U.id == event.organizer_id).first()
+                    if org:
+                        organizer_name = (
+                            f"{org.first_name or ''} {org.last_name or ''}".strip()
+                            or organizer_name
+                        )
+                event_date = ""
+                try:
+                    if getattr(event, "start_at", None):
+                        event_date = event.start_at.strftime("%d %b %Y")
+                except Exception:
+                    pass
+                if guest_phone:
+                    wa_send_invitation_card(
+                        phone=guest_phone,
+                        event_id=str(event.id),
+                        guest_id=str(inv.id),
+                        guest_name=guest_display,
+                        event_name=event.name or "the event",
+                        event_date=event_date or "TBD",
+                        organizer_name=organizer_name,
+                        rsvp_code=inv.invitation_code or "",
+                    )
+            except Exception as _e:
+                print(f"[rsvp] wa_send_invitation_card failed: {_e}")
+
         return standard_response(True, f"Your RSVP has been {status_label} successfully", data={
             "rsvp_status": status_label,
             "event_name": event.name,

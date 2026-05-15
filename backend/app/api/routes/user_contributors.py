@@ -2139,7 +2139,7 @@ def send_bulk_contributor_message(event_id: str, body: dict = Body(...), db: Ses
         member = db.query(EventCommitteeMember).filter(
             EventCommitteeMember.event_id == eid,
             EventCommitteeMember.user_id == current_user.id,
-            EventCommitteeMember.status == "active"
+            EventCommitteeMember.status == "active",
         ).first()
         if not member:
             return standard_response(False, "Not authorized", status_code=403)
@@ -2292,7 +2292,7 @@ def get_bulk_message_status(
         member = db.query(EventCommitteeMember).filter(
             EventCommitteeMember.event_id == eid,
             EventCommitteeMember.user_id == current_user.id,
-            EventCommitteeMember.status == "active"
+            EventCommitteeMember.status == "active",
         ).first()
         if not member:
             return standard_response(False, "Not authorized", status_code=403)

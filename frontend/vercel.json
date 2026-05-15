@@ -8,7 +8,7 @@
           "key": "r"
         }
       ],
-      "destination": "https://jvwvydheznkjlvojhuhi.supabase.co/functions/v1/og-meta?short=:shortId&type=post"
+      "destination": "https://lmfprculxhspqxppscbn.supabase.co/functions/v1/og-meta?short=:shortId&type=post"
     },
     {
       "source": "/shared/post/:id",
@@ -18,7 +18,7 @@
           "key": "r"
         }
       ],
-      "destination": "https://jvwvydheznkjlvojhuhi.supabase.co/functions/v1/og-meta?id=:id"
+      "destination": "https://lmfprculxhspqxppscbn.supabase.co/functions/v1/og-meta?id=:id"
     },
     {
       "source": "/rsvp/:code",
@@ -28,7 +28,7 @@
           "key": "r"
         }
       ],
-      "destination": "https://jvwvydheznkjlvojhuhi.supabase.co/functions/v1/og-meta?id=:code&type=rsvp"
+      "destination": "https://lmfprculxhspqxppscbn.supabase.co/functions/v1/og-meta?id=:code&type=rsvp"
     },
     {
       "source": "/shared/photo-library/:token",
@@ -38,7 +38,7 @@
           "key": "r"
         }
       ],
-      "destination": "https://jvwvydheznkjlvojhuhi.supabase.co/functions/v1/og-meta?id=:token&type=photo-library"
+      "destination": "https://lmfprculxhspqxppscbn.supabase.co/functions/v1/og-meta?id=:token&type=photo-library"
     },
     {
       "source": "/meet/:roomId",
@@ -48,7 +48,7 @@
           "key": "r"
         }
       ],
-      "destination": "https://jvwvydheznkjlvojhuhi.supabase.co/functions/v1/og-meta?id=:roomId&type=meeting"
+      "destination": "https://lmfprculxhspqxppscbn.supabase.co/functions/v1/og-meta?id=:roomId&type=meeting"
     },
     { "source": "/(.*)", "destination": "/index.html" }
   ]

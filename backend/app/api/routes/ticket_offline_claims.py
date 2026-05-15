@@ -282,6 +282,28 @@ def confirm_ticket_offline_claim(
     except Exception as e:
         print(f"[ticket-offline-claim] buyer confirm notify failed: {e}")
 
+    # Auto-deliver the ticket card via WhatsApp (fire-and-forget).
+    try:
+        if claim.claimant_phone:
+            from utils.whatsapp_cards import wa_send_ticket
+            ev_date = ""
+            try:
+                if getattr(event, "start_at", None):
+                    ev_date = event.start_at.strftime("%d %b %Y")
+            except Exception:
+                pass
+            wa_send_ticket(
+                phone=claim.claimant_phone,
+                event_id=str(event.id),
+                ticket_code=ticket_code,
+                buyer_name=claim.claimant_name or "Friend",
+                event_name=event.name or "the event",
+                event_date=ev_date or "TBD",
+                ticket_class=tc.name or "General",
+            )
+    except Exception as e:
+        print(f"[ticket-offline-claim] wa_send_ticket failed: {e}")
+
     return standard_response(True, "Claim confirmed and ticket issued", {
         "claim": _claim_dict(claim),
         "ticket_code": ticket_code,
