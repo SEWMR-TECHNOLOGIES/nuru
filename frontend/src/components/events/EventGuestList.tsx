@@ -55,6 +55,8 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [selectedGuest, setSelectedGuest] = useState<EventGuest | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Tracks which invitation send button is in flight so only that one spins.
+  const [sendingMethod, setSendingMethod] = useState<null | 'email' | 'sms' | 'whatsapp' | 'card'>(null);
   const [selectedUser, setSelectedUser] = useState<SearchedUser | null>(null);
   const [selectedContributor, setSelectedContributor] = useState<UserContributor | null>(null);
   const [guestSourceTab, setGuestSourceTab] = useState<string>('user');
@@ -136,7 +138,7 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
 
   const handleSendInvitation = async (method: "email" | "sms" | "whatsapp") => {
     if (!selectedGuest) return;
-    setIsSubmitting(true);
+    setSendingMethod(method);
     try {
       await sendInvitation(selectedGuest.id, method);
       toast.success(`Invitation sent via ${method}`);
@@ -145,7 +147,7 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
     } catch (err: any) {
       showCaughtError(err, 'Failed to send invitation');
     } finally {
-      setIsSubmitting(false);
+      setSendingMethod(null);
     }
   };
 
@@ -154,7 +156,7 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
       toast.error('Guest phone number is required');
       return;
     }
-    setIsSubmitting(true);
+    setSendingMethod('card');
     try {
       // 1. Render the invitation card PNG
       const { data: render, error: rErr } = await supabase.functions.invoke('render-card', {
@@ -190,7 +192,7 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
     } catch (err: any) {
       showCaughtError(err, 'Failed to send invitation card');
     } finally {
-      setIsSubmitting(false);
+      setSendingMethod(null);
     }
   };
 
@@ -424,20 +426,20 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
             </p>
             <div className="grid gap-3">
               {selectedGuest?.email && (
-                <Button variant="outline" className="justify-start" onClick={() => handleSendInvitation('email')} disabled={isSubmitting}>
-                  {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}Send via Email
+                <Button variant="outline" className="justify-start" onClick={() => handleSendInvitation('email')} disabled={sendingMethod !== null}>
+                  {sendingMethod === 'email' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}Send via Email
                 </Button>
               )}
               {selectedGuest?.phone && (
                 <>
-                  <Button variant="outline" className="justify-start" onClick={() => handleSendInvitation('sms')} disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Phone className="w-4 h-4 mr-2" />}Send via SMS
+                  <Button variant="outline" className="justify-start" onClick={() => handleSendInvitation('sms')} disabled={sendingMethod !== null}>
+                    {sendingMethod === 'sms' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Phone className="w-4 h-4 mr-2" />}Send via SMS
                   </Button>
-                  <Button variant="outline" className="justify-start" onClick={() => handleSendInvitation('whatsapp')} disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}Send via WhatsApp (text)
+                  <Button variant="outline" className="justify-start" onClick={() => handleSendInvitation('whatsapp')} disabled={sendingMethod !== null}>
+                    {sendingMethod === 'whatsapp' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}Send via WhatsApp (text)
                   </Button>
-                  <Button variant="outline" className="justify-start" onClick={handleSendInvitationCard} disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ImageIcon className="w-4 h-4 mr-2" />}Send Invitation Card (WhatsApp image)
+                  <Button variant="outline" className="justify-start" onClick={handleSendInvitationCard} disabled={sendingMethod !== null}>
+                    {sendingMethod === 'card' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ImageIcon className="w-4 h-4 mr-2" />}Send Invitation Card (WhatsApp image)
                   </Button>
                 </>
               )}
