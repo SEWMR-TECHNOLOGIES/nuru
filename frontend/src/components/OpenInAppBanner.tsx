@@ -27,6 +27,7 @@ const DEEP_LINK_PREFIXES = [
   "/moment/",
   "/c/",
   "/rsvp/",
+  "/i/",
 ];
 
 const PLAY_STORE = "https://play.google.com/store/apps/details?id=tz.nuru.app";
@@ -59,24 +60,37 @@ export default function OpenInAppBanner() {
   if (!show) return null;
 
   const handleOpen = () => {
-    const target = window.location.href;
+    // Same-domain https:// navigation does NOT trigger iOS Universal Links
+    // and is unreliable for Android App Links. Use a custom scheme on iOS
+    // and an intent:// URL on Android so the OS hands off to the app.
+    const path = window.location.pathname + window.location.search + window.location.hash;
     const fallback = isIos() ? APP_STORE : PLAY_STORE;
-    // Try to hand off to the installed app. If the OS doesn't intercept the
-    // navigation within ~1.2s, route to the store as a fallback.
-    const start = Date.now();
-    const t = window.setTimeout(() => {
-      if (Date.now() - start < 1500 && document.visibilityState === "visible") {
-        window.location.href = fallback;
-      }
-    }, 1200);
-    document.addEventListener(
-      "visibilitychange",
-      () => {
-        if (document.visibilityState === "hidden") window.clearTimeout(t);
-      },
-      { once: true },
-    );
-    window.location.href = target;
+
+    if (isIos()) {
+      // iOS: custom scheme. App must register "nuru" URL scheme in Info.plist.
+      const start = Date.now();
+      const t = window.setTimeout(() => {
+        if (Date.now() - start < 1500 && document.visibilityState === "visible") {
+          window.location.href = fallback;
+        }
+      }, 1200);
+      document.addEventListener(
+        "visibilitychange",
+        () => {
+          if (document.visibilityState === "hidden") window.clearTimeout(t);
+        },
+        { once: true },
+      );
+      window.location.href = `nuru://${path.replace(/^\//, "")}`;
+    } else {
+      // Android: intent:// hands off to the app if installed, otherwise
+      // S.browser_fallback_url sends the user to the Play Store.
+      const intent =
+        `intent://${window.location.host}${path}` +
+        `#Intent;scheme=https;package=tz.nuru.app;` +
+        `S.browser_fallback_url=${encodeURIComponent(fallback)};end`;
+      window.location.href = intent;
+    }
   };
 
   const handleDismiss = () => {

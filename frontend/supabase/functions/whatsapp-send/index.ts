@@ -84,6 +84,15 @@ Deno.serve(async (req) => {
       case "text":
         result = await sendTextMessage(phone, params?.message || "", WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
         break;
+      case "send_invitation_text":
+        result = await sendTemplate(
+          phone,
+          "event_invitation_text",
+          buildInvitationTextComponents(params),
+          WHATSAPP_ACCESS_TOKEN,
+          WHATSAPP_PHONE_NUMBER_ID,
+        );
+        break;
       case "send_invitation_card":
         console.log(`[WhatsApp] Invitation card params:`, JSON.stringify({
           guest_name: params?.guest_name,
@@ -559,7 +568,60 @@ async function checkWhatsAppBySending(
   return { is_whatsapp: "unknown", wa_id: null, error: data?.error?.message };
 }
 
+// ── Invitation text template (no image) ──
+// Body params (7): {{1}} guest_name, {{2}} event_name, {{3}} organizer_name,
+// {{4}} event_date, {{5}} event_time, {{6}} venue, {{7}} rsvp_code
+// Two URL buttons, each with a single dynamic suffix variable. The Meta
+// template's button URLs are configured as https://nuru.tz/i/{{1}} and
+// https://nuru.tz/rsvp/{{1}}, where the {{1}} is the per-button suffix —
+// we pass the rsvp_code so the link resolves to the correct invitation.
+function buildInvitationTextComponents(params: {
+  guest_name?: string; event_name?: string; organizer_name?: string;
+  event_date?: string; event_time?: string; venue?: string; rsvp_code?: string;
+}) {
+  const code = (params.rsvp_code || "").trim() || "—";
+  return [
+    {
+      type: "body",
+      parameters: [
+        { type: "text", text: params.guest_name || "Guest" },
+        { type: "text", text: params.event_name || "the event" },
+        { type: "text", text: params.organizer_name || "the organizer" },
+        { type: "text", text: params.event_date || "TBA" },
+        { type: "text", text: params.event_time || "TBA" },
+        { type: "text", text: params.venue || "TBA" },
+        { type: "text", text: code },
+      ],
+    },
+    {
+      type: "button",
+      sub_type: "url",
+      index: "0",
+      parameters: [{ type: "text", text: code }],
+    },
+    {
+      type: "button",
+      sub_type: "url",
+      index: "1",
+      parameters: [{ type: "text", text: code }],
+    },
+  ];
+}
+
 // ── Invitation card / ticket media-template builders ──
+//
+// WhatsApp template image headers occasionally fail to render PNG images
+// (especially PNGs with an alpha channel) — the message delivers but the
+// image slot stays empty. We always proxy the image URL through wsrv.nl
+// to force a JPEG (flat, no alpha, ≤2MB) so Meta consistently displays it.
+function toWaImageLink(rawUrl: string): string {
+  if (!rawUrl) return "";
+  // Already converted, leave as-is.
+  if (rawUrl.includes("wsrv.nl")) return rawUrl;
+  const stripped = rawUrl.replace(/^https?:\/\//, "");
+  return `https://wsrv.nl/?url=${encodeURIComponent(stripped)}&output=jpg&q=95&we`;
+}
+
 function buildInvitationCardComponents(params: {
   image_url?: string; guest_name?: string; event_name?: string;
   event_date?: string; organizer_name?: string; rsvp_code?: string;
@@ -567,7 +629,7 @@ function buildInvitationCardComponents(params: {
   return [
     {
       type: "header",
-      parameters: [{ type: "image", image: { link: params.image_url || "" } }],
+      parameters: [{ type: "image", image: { link: toWaImageLink(params.image_url || "") } }],
     },
     {
       type: "body",
@@ -589,7 +651,7 @@ function buildTicketDeliveryComponents(params: {
   return [
     {
       type: "header",
-      parameters: [{ type: "image", image: { link: params.image_url || "" } }],
+      parameters: [{ type: "image", image: { link: toWaImageLink(params.image_url || "") } }],
     },
     {
       type: "body",

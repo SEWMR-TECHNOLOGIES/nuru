@@ -88,6 +88,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import GuestPost from "@/pages/GuestPost";
 import ShortLinkRedirect from "@/pages/ShortLinkRedirect";
 import RSVPConfirmation from "@/pages/RSVPConfirmation";
+import InvitationView from "@/pages/InvitationView";
 import ChangePassword from "@/pages/ChangePassword";
 import TicketVerification from "@/pages/TicketVerification";
 import EventGroupWorkspace from "@/pages/EventGroupWorkspace";
@@ -251,6 +252,7 @@ function InnerRoutes() {
         <Route path="/shared/photo-library/:token" element={<SharedPhotoLibrary />} />
         <Route path="/shared/receipt/:transaction_code" element={<SharedReceiptPage />} />
         <Route path="/rsvp/:code" element={<RSVPConfirmation />} />
+        <Route path="/i/:code" element={<InvitationView />} />
         <Route path="/ticket/:code" element={<TicketVerification />} />
         <Route path="/g/:token" element={<GuestGroupJoin />} />
         <Route path="/c/:token" element={<PublicContribute />} />

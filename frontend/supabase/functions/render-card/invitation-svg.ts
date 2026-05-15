@@ -202,7 +202,8 @@ export function buildInvitationSvg(a: BuildArgs): string {
   const titleFontPx = Math.round(22 * S);                              // 60
   const typePillY = titleBaselineY - Math.round(22 * S) - titleFontPx + 6; // sits above title
   const typeText = eventType;
-  const typePillW = typeText ? Math.max(120, typeText.length * 14 + 40) : 0;
+  // Pill width must accommodate font-size 25 + letter-spacing 6.6 per char.
+  const typePillW = typeText ? Math.max(180, typeText.length * 22 + 80) : 0;
 
   // INVITATION pill in hero top-right
   const invPillW = 240;
