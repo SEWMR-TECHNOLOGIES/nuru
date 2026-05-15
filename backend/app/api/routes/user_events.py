@@ -39,7 +39,7 @@ from utils.sms import (
     sms_guest_added, sms_committee_invite, sms_contribution_recorded,
     sms_contribution_target_set, sms_thank_you, sms_booking_notification,
 )
-from utils.whatsapp_cards import wa_send_invitation_card
+from utils.whatsapp_cards import wa_send_invitation_card, wa_send_invitation_text
 
 EAT = pytz.timezone("Africa/Nairobi")
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
@@ -2552,6 +2552,9 @@ def send_invitation(event_id: str, guest_id: str, body: dict = Body(default={}),
     try:
         if method == "whatsapp" and guest_phone:
             wa_send_invitation_card(guest_phone, str(event.id), str(invitation.id), guest_name, event.name or "your event", event_date_str, organizer_name, invitation.invitation_code or "", event_cover_image, event_time=getattr(event, "start_time", None).isoformat() if getattr(event, "start_time", None) else "", venue=getattr(event, "location", None) or "")
+            delivered = True
+        elif method == "whatsapp_text" and guest_phone:
+            wa_send_invitation_text(guest_phone, guest_name, event.name or "your event", organizer_name, event_date_str, getattr(event, "start_time", None).isoformat() if getattr(event, "start_time", None) else "", getattr(event, "location", None) or "", invitation.invitation_code or "")
             delivered = True
         elif method == "sms" and guest_phone:
             sms_guest_added(guest_phone, first_name, event.name or "your event", event_date_str, organizer_name, invitation.invitation_code or "")

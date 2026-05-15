@@ -227,19 +227,19 @@ export const eventsApi = {
   /**
    * Send invitation to guest
    */
-  sendInvitation: (eventId: string, guestId: string, data: { method: "email" | "sms" | "whatsapp"; custom_message?: string; include_calendar?: boolean; include_map?: boolean }) => 
+  sendInvitation: (eventId: string, guestId: string, data: { method: "email" | "sms" | "whatsapp" | "whatsapp_text"; custom_message?: string; include_calendar?: boolean; include_map?: boolean }) => 
     post<{ guest_id: string; method: string; sent_at: string; invitation_url: string }>(`/user-events/${eventId}/guests/${guestId}/invite`, data),
 
   /**
    * Send bulk invitations
    */
-  sendBulkInvitations: (eventId: string, data: { method: "email" | "sms" | "whatsapp"; guest_ids?: string[]; filter?: { rsvp_status?: string; invitation_sent?: boolean; tags?: string[] }; custom_message?: string }) => 
+  sendBulkInvitations: (eventId: string, data: { method: "email" | "sms" | "whatsapp" | "whatsapp_text"; guest_ids?: string[]; filter?: { rsvp_status?: string; invitation_sent?: boolean; tags?: string[] }; custom_message?: string }) => 
     post<{ total_selected: number; sent_count: number; failed_count: number; failures: Array<{ guest_id: string; name: string; reason: string }> }>(`/user-events/${eventId}/guests/invite-all`, data),
 
   /**
    * Resend invitation
    */
-  resendInvitation: (eventId: string, guestId: string, data: { method: "email" | "sms" | "whatsapp"; custom_message?: string }) => 
+  resendInvitation: (eventId: string, guestId: string, data: { method: "email" | "sms" | "whatsapp" | "whatsapp_text"; custom_message?: string }) => 
     post<{ guest_id: string; method: string; sent_at: string; resend_count: number }>(`/user-events/${eventId}/guests/${guestId}/resend-invite`, data),
 
   /**
