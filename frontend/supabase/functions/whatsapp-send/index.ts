@@ -85,6 +85,15 @@ Deno.serve(async (req) => {
         result = await sendTextMessage(phone, params?.message || "", WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
         break;
       case "send_invitation_card":
+        console.log(`[WhatsApp] Invitation card params:`, JSON.stringify({
+          guest_name: params?.guest_name,
+          event_name: params?.event_name,
+          event_date: params?.event_date,
+          organizer_name: params?.organizer_name,
+          rsvp_code: params?.rsvp_code,
+          has_image_url: Boolean(params?.image_url),
+          image_url: params?.image_url,
+        }));
         result = await sendTemplate(
           phone,
           "event_invitation_card",

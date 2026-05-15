@@ -83,16 +83,19 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
 // (Invitation cards and tickets are now built inline by buildInvitationSvg /
 // buildTicketSvg — no external template SVG fetches needed.)
 
-async function fetchAsDataUrl(url: string): Promise<string | null> {
+async function fetchAsDataUrl(url: string, label = 'image'): Promise<string | null> {
   try {
     const r = await fetch(url);
+    console.log(`[render-card] fetch ${label}: ${url} -> ${r.status}`);
     if (!r.ok) return null;
     const ct = r.headers.get('content-type') || 'image/jpeg';
     const buf = new Uint8Array(await r.arrayBuffer());
+    console.log(`[render-card] ${label} content-type=${ct} bytes=${buf.byteLength}`);
     let bin = '';
     for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
     return `data:${ct};base64,${btoa(bin)}`;
-  } catch {
+  } catch (e) {
+    console.error(`[render-card] fetch ${label} failed`, e);
     return null;
   }
 }
@@ -135,13 +138,25 @@ async function uploadPng(path: string, png: Uint8Array): Promise<string> {
 }
 
 async function fetchEvent(eventId: string): Promise<any | null> {
-  if (!NURU_API) return null;
+  if (!NURU_API) {
+    console.log('[render-card] NURU_API_BASE_URL is not set; using request payload only');
+    return null;
+  }
   try {
-    const r = await fetch(`${NURU_API.replace(/\/$/, '')}/api/events/${eventId}`);
-    if (!r.ok) return null;
+    const url = `${NURU_API.replace(/\/$/, '')}/api/events/${eventId}`;
+    const r = await fetch(url);
+    console.log(`[render-card] fetch event ${eventId} -> ${r.status}`);
+    if (!r.ok) {
+      const text = await r.text().catch(() => '');
+      console.log(`[render-card] fetch event failed body: ${text.slice(0, 240)}`);
+      return null;
+    }
     const j = await r.json();
     return j?.data ?? j;
-  } catch { return null; }
+  } catch (e) {
+    console.error('[render-card] fetch event exception', e);
+    return null;
+  }
 }
 
 async function fetchTicket(ticketCode: string): Promise<any | null> {
@@ -160,7 +175,7 @@ async function fetchTicket(ticketCode: string): Promise<any | null> {
 const NURU_LOGO_URL = 'https://nuru.lovable.app/nuru-logo.png';
 let logoPromise: Promise<string | null> | null = null;
 async function nuruLogoDataUrl(): Promise<string | null> {
-  if (!logoPromise) logoPromise = fetchAsDataUrl(NURU_LOGO_URL);
+  if (!logoPromise) logoPromise = fetchAsDataUrl(NURU_LOGO_URL, 'nuru-logo');
   return logoPromise;
 }
 
