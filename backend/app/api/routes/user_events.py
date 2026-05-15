@@ -2128,7 +2128,7 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
             event_date = _wa_event_date(event)
             organizer_name = f"{current_user.first_name} {current_user.last_name}"
             sms_guest_added(contributor.phone, contributor.name.split(" ")[0], event.name, event_date, organizer_name, invitation.invitation_code)
-            wa_send_invitation_card(contributor.phone, str(event.id), str(invitation.id), contributor.name, event.name, event_date, organizer_name, invitation.invitation_code, getattr(event, "cover_image_url", None) or "")
+            wa_send_invitation_card(contributor.phone, str(event.id), str(invitation.id), contributor.name, event.name, event_date, organizer_name, invitation.invitation_code, getattr(event, "cover_image_url", None) or "", event_time=getattr(event, "start_time", None).isoformat() if getattr(event, "start_time", None) else "", venue=getattr(event, "location", None) or "")
 
         return standard_response(True, "Guest added successfully", _attendee_dict(db, att))
 
@@ -2214,7 +2214,7 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
             organizer_name = f"{current_user.first_name} {current_user.last_name}"
             sms_guest_added(attendee_user.phone, f"{attendee_user.first_name}", event.name, event_date, organizer_name, invitation.invitation_code)
             guest_full_name = f"{attendee_user.first_name or ''} {attendee_user.last_name or ''}".strip() or f"{attendee_user.first_name}"
-            wa_send_invitation_card(attendee_user.phone, str(event.id), str(invitation.id), guest_full_name, event.name, event_date, organizer_name, invitation.invitation_code, getattr(event, "cover_image_url", None) or "")
+            wa_send_invitation_card(attendee_user.phone, str(event.id), str(invitation.id), guest_full_name, event.name, event_date, organizer_name, invitation.invitation_code, getattr(event, "cover_image_url", None) or "", event_time=getattr(event, "start_time", None).isoformat() if getattr(event, "start_time", None) else "", venue=getattr(event, "location", None) or "")
 
         return standard_response(True, "Guest added successfully", _attendee_dict(db, att))
 
@@ -2356,7 +2356,7 @@ def add_contributors_as_guests(event_id: str, body: dict = Body(...), db: Sessio
             organizer_name = f"{current_user.first_name} {current_user.last_name}"
             try:
                 sms_guest_added(contributor.phone, contributor.name.split(" ")[0], event.name, event_date, organizer_name, invitation.invitation_code)
-                wa_send_invitation_card(contributor.phone, str(event.id), str(invitation.id), contributor.name, event.name, event_date, organizer_name, invitation.invitation_code, getattr(event, "cover_image_url", None) or "")
+                wa_send_invitation_card(contributor.phone, str(event.id), str(invitation.id), contributor.name, event.name, event_date, organizer_name, invitation.invitation_code, getattr(event, "cover_image_url", None) or "", event_time=getattr(event, "start_time", None).isoformat() if getattr(event, "start_time", None) else "", venue=getattr(event, "location", None) or "")
             except Exception:
                 pass  # Don't fail the whole batch for one SMS/WhatsApp error
 
@@ -2532,7 +2532,7 @@ def send_invitation(event_id: str, guest_id: str, body: dict = Body(default={}),
     delivered = False
     try:
         if method == "whatsapp" and guest_phone:
-            wa_send_invitation_card(guest_phone, str(event.id), str(invitation.id), guest_name, event.name or "your event", event_date_str, organizer_name, invitation.invitation_code or "", getattr(event, "cover_image_url", None) or "")
+            wa_send_invitation_card(guest_phone, str(event.id), str(invitation.id), guest_name, event.name or "your event", event_date_str, organizer_name, invitation.invitation_code or "", getattr(event, "cover_image_url", None) or "", event_time=getattr(event, "start_time", None).isoformat() if getattr(event, "start_time", None) else "", venue=getattr(event, "location", None) or "")
             delivered = True
         elif method == "sms" and guest_phone:
             sms_guest_added(guest_phone, first_name, event.name or "your event", event_date_str, organizer_name, invitation.invitation_code or "")

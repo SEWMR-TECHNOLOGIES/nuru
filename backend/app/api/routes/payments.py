@@ -274,9 +274,11 @@ def _sync_target_after_payment(db: Session, tx: Transaction):
                     ticket_code=ticket.ticket_code,
                     buyer_name=ticket.buyer_name or "Friend",
                     event_name=(ev.name if ev else "the event"),
-                    event_date=ev_date or "TBD",
+                    event_date=ev_date or "",
                     ticket_class=(tc.name if tc else "General"),
                     cover_image=(getattr(ev, "cover_image_url", None) if ev else None) or "",
+                    event_time=(getattr(ev, "start_time", None).isoformat() if ev and getattr(ev, "start_time", None) else ""),
+                    venue=(getattr(ev, "location", None) if ev else None) or "",
                 )
         except Exception as _e:
             print(f"[payments] wa_send_ticket (online) failed: {_e}")

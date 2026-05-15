@@ -66,15 +66,23 @@ def wa_send_invitation_card(
     guest_id: str,
     guest_name: str,
     event_name: str,
-    event_date: str = "TBD",
-    organizer_name: str = "Your host",
+    event_date: str = "",
+    organizer_name: str = "",
     rsvp_code: str = "",
     cover_image: str = "",
+    event_time: str = "",
+    venue: str = "",
+    address: str = "",
 ):
     """Render + send the invitation card. Fire-and-forget."""
     intl = _normalize_phone(phone)
     if not intl:
         return
+
+    safe_event = (event_name or "").strip() or "the event"
+    safe_date = (event_date or "").strip() or "TBA"
+    safe_host = (organizer_name or "").strip() or "the organizer"
+    safe_name = (guest_name or "").strip() or "Guest"
 
     def _run():
         invite_code = (rsvp_code or str(guest_id) or "").strip().upper()
@@ -82,10 +90,13 @@ def wa_send_invitation_card(
             "kind": "invitation",
             "event_id": str(event_id),
             "guest_id": str(guest_id),
-            "guest_name": guest_name or "Guest",
-            "event_name": event_name or "the event",
+            "guest_name": safe_name,
+            "event_name": safe_event,
             "date": event_date or "",
-            "host_line": organizer_name or "Your host",
+            "time": event_time or "",
+            "venue": venue or "",
+            "address": address or "",
+            "host_line": safe_host,
             "invitation_code": invite_code,
             "qr_value": invite_code or str(guest_id),
             "cover_image": cover_image or "",
@@ -94,10 +105,10 @@ def wa_send_invitation_card(
             return
         _send("send_invitation_card", intl, {
             "image_url": url,
-            "guest_name": guest_name or "Guest",
-            "event_name": event_name or "the event",
-            "event_date": event_date or "TBA",
-            "organizer_name": organizer_name or "Your host",
+            "guest_name": safe_name,
+            "event_name": safe_event,
+            "event_date": safe_date,
+            "organizer_name": safe_host,
             "rsvp_code": invite_code or "—",
         })
 
@@ -110,14 +121,22 @@ def wa_send_ticket(
     ticket_code: str,
     buyer_name: str,
     event_name: str,
-    event_date: str = "TBD",
+    event_date: str = "",
     ticket_class: str = "General",
     cover_image: str = "",
+    event_time: str = "",
+    venue: str = "",
+    address: str = "",
 ):
     """Render + send the ticket card. Fire-and-forget."""
     intl = _normalize_phone(phone)
     if not intl:
         return
+
+    safe_event = (event_name or "").strip() or "the event"
+    safe_date = (event_date or "").strip() or "TBA"
+    safe_name = (buyer_name or "").strip() or "Friend"
+    safe_class = (ticket_class or "").strip() or "General"
 
     def _run():
         url = _render({
@@ -125,10 +144,17 @@ def wa_send_ticket(
             "event_id": str(event_id),
             "ticket_code": ticket_code,
             "ticket_data": {
-                "event_name": event_name or "the event",
+                "event_name": safe_event,
                 "cover_image": cover_image or "",
-                "event": {"name": event_name or "the event", "start_date": event_date or "", "cover_image": cover_image or ""},
-                "ticket_class_name": ticket_class or "General",
+                "event": {
+                    "name": safe_event,
+                    "start_date": event_date or "",
+                    "start_time": event_time or "",
+                    "location": venue or "",
+                    "cover_image": cover_image or "",
+                },
+                "ticket_class_name": safe_class,
+                "event_location": venue or "",
                 "status": "confirmed",
             },
         })
@@ -136,10 +162,10 @@ def wa_send_ticket(
             return
         _send("send_ticket", intl, {
             "image_url": url,
-            "guest_name": buyer_name or "Friend",
-            "event_name": event_name or "the event",
-            "event_date": event_date or "TBA",
-            "ticket_class": ticket_class or "General",
+            "guest_name": safe_name,
+            "event_name": safe_event,
+            "event_date": safe_date,
+            "ticket_class": safe_class,
             "ticket_code": ticket_code,
         })
 
