@@ -22,7 +22,7 @@ class MyTicketsScreen extends StatefulWidget {
 }
 
 class MyTicketsScreenState extends State<MyTicketsScreen> {
-  static const _tabs = ['Upcoming', 'Past', 'Cancelled', 'Payments'];
+  static const _tabs = ['All', 'Upcoming', 'Past', 'Cancelled', 'Payments'];
   int _activeTab = 0;
   bool _searchOpen = false;
 
@@ -41,6 +41,9 @@ class MyTicketsScreenState extends State<MyTicketsScreen> {
   static const _cacheKey = 'cache_my_tickets_v1';
   static const _cacheUpcomingKey = 'cache_my_tickets_upcoming_v1';
 
+  final ScrollController _tabsScrollCtrl = ScrollController();
+  final List<GlobalKey> _tabKeys = List.generate(_tabs.length, (_) => GlobalKey());
+
   @override
   void initState() {
     super.initState();
@@ -48,7 +51,38 @@ class MyTicketsScreenState extends State<MyTicketsScreen> {
   }
 
   @override
-  void dispose() { _searchCtl.dispose(); super.dispose(); }
+  void dispose() {
+    _searchCtl.dispose();
+    _tabsScrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _selectTab(int i) {
+    setState(() => _activeTab = i);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollActiveTabIntoView());
+  }
+
+  void _scrollActiveTabIntoView() {
+    if (!mounted) return;
+    final ctx = _tabKeys[_activeTab].currentContext;
+    if (ctx == null || !_tabsScrollCtrl.hasClients) return;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final viewportWidth = _tabsScrollCtrl.position.viewportDimension;
+    final tabOffset = box.localToGlobal(Offset.zero, ancestor: context.findRenderObject()).dx;
+    final tabWidth = box.size.width;
+    final currentScroll = _tabsScrollCtrl.offset;
+    final tabCenterAbs = currentScroll + tabOffset + tabWidth / 2;
+    final target = (tabCenterAbs - viewportWidth / 2).clamp(
+      _tabsScrollCtrl.position.minScrollExtent,
+      _tabsScrollCtrl.position.maxScrollExtent,
+    );
+    _tabsScrollCtrl.animateTo(
+      target,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOut,
+    );
+  }
 
   Future<void> _hydrateFromCache() async {
     try {
@@ -138,9 +172,11 @@ class MyTicketsScreenState extends State<MyTicketsScreen> {
 
   List<dynamic> get _filteredTickets {
     final base = switch (_activeTab) {
-      1 => _tickets.where(_isPast),
-      2 => _tickets.where(_isCancelled),
-      _ => _tickets.where((t) => !_isPast(t) && !_isCancelled(t)),
+      0 => _tickets,
+      1 => _tickets.where((t) => !_isPast(t) && !_isCancelled(t)),
+      2 => _tickets.where(_isPast),
+      3 => _tickets.where(_isCancelled),
+      _ => _tickets,
     };
     Iterable<dynamic> filtered = base.where(_matchesSearch);
     if (_statusFilter == 'active') {
@@ -200,7 +236,7 @@ class MyTicketsScreenState extends State<MyTicketsScreen> {
       body: Column(
         children: [
           Expanded(
-            child: _activeTab == 3
+            child: _activeTab == 4
                 ? Column(children: [
                     const SizedBox(height: 8),
                     _buildTabPills(),
@@ -253,13 +289,16 @@ class MyTicketsScreenState extends State<MyTicketsScreen> {
 
   Widget _buildTabPills() {
     return SingleChildScrollView(
+      controller: _tabsScrollCtrl,
       scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: List.generate(_tabs.length, (i) {
           final active = _activeTab == i;
           return GestureDetector(
-            onTap: () => setState(() => _activeTab = i),
+            key: _tabKeys[i],
+            onTap: () => _selectTab(i),
             behavior: HitTestBehavior.opaque,
             child: Container(
               padding: const EdgeInsets.fromLTRB(2, 6, 2, 10),

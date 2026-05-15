@@ -11,7 +11,20 @@ import { ticketingApi } from "@/lib/api/ticketing";
 
 import AppRoutes from "./AppRoutes";
 
-const queryClient = new QueryClient();
+// Sensible global React Query defaults so revisiting a screen does not
+// trigger a fresh network round-trip when the cached payload is still warm.
+// Per-hook overrides (e.g. notifications with staleTime: 30s) keep working.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,           // 30s — data considered fresh
+      gcTime: 5 * 60_000,          // 5 min in memory after last subscriber unmounts
+      refetchOnWindowFocus: false, // no refetch when the user tabs back
+      refetchOnReconnect: true,
+      retry: 1,
+    },
+  },
+});
 
 export default function App() {
   // Fire-and-forget system sweep of expired ticket reservations on every

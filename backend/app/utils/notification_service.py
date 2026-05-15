@@ -100,12 +100,30 @@ def send_otp_with_routing(phone: str, code: str, first_name: str = "", context: 
     Send OTP using WhatsApp-first routing with SMS fallback.
     This is the single entry point all OTP sends should use.
 
+    On the VPS the heavy WhatsApp/SMS HTTPS calls are dispatched to a
+    Celery worker (``tasks.notifications.send_otp_async``) so the auth
+    request returns instantly. We still return a success-shaped
+    ``OtpDeliveryResult`` so existing callers don't change.
+
     Args:
         phone: Normalised phone number (e.g. "255712345678")
         code: The OTP code
         first_name: User's first name for personalised SMS
         context: "verification" | "business_phone" | "password_reset"
     """
+    try:
+        from core.celery_app import CELERY_ENABLED
+    except Exception:
+        CELERY_ENABLED = False
+
+    if CELERY_ENABLED:
+        try:
+            from tasks.notifications import send_otp_async
+            send_otp_async.delay(phone, code, first_name, context)
+            return OtpDeliveryResult(channel="queued", success=True, message="OTP queued for delivery")
+        except Exception as e:
+            print(f"[OTP] enqueue failed, sending inline: {e}")
+
     if context == "business_phone":
         msg = f"Hello {first_name}, use the code {code} to verify your business phone number on Nuru. "
     elif context == "password_reset":

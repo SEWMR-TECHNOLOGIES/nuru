@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 
@@ -6,6 +7,10 @@ import '../theme/app_colors.dart';
 ///
 /// Back affordance is a chevron-left inside a soft rounded white tile,
 /// matching the Nuru mobile design system across all sub-pages.
+///
+/// Also forces the Android system navigation bar to a white background
+/// (with dark icons) so the on-screen home/back gesture area never blends
+/// with our content and users do not accidentally tap system buttons.
 class NuruSubPageAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final List<Widget>? actions;
@@ -27,8 +32,18 @@ class NuruSubPageAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     return AppBar(
       backgroundColor: AppColors.surface,
+      surfaceTintColor: AppColors.surface,
       elevation: 0,
       scrolledUnderElevation: 0,
+      systemOverlayStyle: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+        systemNavigationBarColor: AppColors.surface,
+        systemNavigationBarIconBrightness: Brightness.dark,
+        systemNavigationBarContrastEnforced: false,
+        systemNavigationBarDividerColor: AppColors.surface,
+      ),
       leadingWidth: 48,
       leading: IconButton(
         onPressed: onBack ?? () => Navigator.of(context).maybePop(),

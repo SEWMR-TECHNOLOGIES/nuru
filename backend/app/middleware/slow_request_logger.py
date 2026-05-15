@@ -25,8 +25,10 @@ if not log.handlers:
     log.addHandler(h)
     log.setLevel(logging.INFO)
 
-SLOW_THRESHOLD_MS = int(os.getenv("SLOW_REQUEST_THRESHOLD_MS", "3000"))
-LOG_SLOW_REQUESTS = os.getenv("LOG_SLOW_REQUESTS", "false").lower() == "true"
+SLOW_THRESHOLD_MS = int(os.getenv("SLOW_REQUEST_THRESHOLD_MS", "800"))
+# Default ON in production so the admin slow-endpoints dashboard has data.
+_DEFAULT_LOG_SLOW = "true" if os.getenv("ENV", "development").lower() == "production" else "false"
+LOG_SLOW_REQUESTS = os.getenv("LOG_SLOW_REQUESTS", _DEFAULT_LOG_SLOW).lower() == "true"
 SAMPLE_RETENTION_SECONDS = 3600  # keep 1 hour of samples
 REDIS_KEY = "perf:samples"  # sorted set: score = timestamp, member = json sample
 

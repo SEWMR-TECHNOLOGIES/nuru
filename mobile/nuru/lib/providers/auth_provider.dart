@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/services/api_service.dart';
@@ -41,45 +42,112 @@ class AuthProvider extends ChangeNotifier {
 
     final token = await SecureTokenStorage.getToken();
     if (token != null) {
-      try {
-        final res = await AuthApi.me();
-        Map<String, dynamic>? userData;
-        if (res['success'] == true && res['data'] != null) {
-          userData = res['data'] is Map<String, dynamic> ? res['data'] : null;
-        } else {
-          final rawUser = res['data'] ?? res;
-          if (rawUser is Map<String, dynamic> && rawUser['id'] != null) {
-            userData = rawUser;
-          }
-        }
-
-        if (userData != null) {
-          _user = userData;
-          _isLoggedIn = true;
-
-          try {
-            final profileRes = await EventsService.getProfile();
-            if (profileRes['success'] == true && profileRes['data'] != null) {
-              final profileData = profileRes['data'] as Map<String, dynamic>;
-              _user = {..._user!, ...profileData};
-            }
-          } catch (_) {}
-
-          // Re-assert this device's FCM token belongs to the restored user.
-          // Without this, opening the app already-logged-in leaves _lastToken
-          // null, so a later signOut can't unregister the device.
-          try {
-            await PushNotificationService.instance.registerWithBackend();
-          } catch (_) {}
-        } else {
-          await _clearTokens();
-        }
-      } catch (_) {
-        await _clearTokens();
+      // Optimistic restore: a valid token in secure storage means we trust
+      // the previous session. Bring the user straight into the app and
+      // hydrate /auth/me + profile in the background. This shaves the cold-
+      // start latency that previously waited on two sequential network
+      // round-trips before the splash could dismiss.
+      _isLoggedIn = true;
+      // Use the lightweight cached snapshot while the network call is in
+      // flight so screens that read userName/avatar don't flash empty.
+      final cachedUser = prefs.getString('cached_user');
+      if (cachedUser != null && cachedUser.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(cachedUser);
+          if (decoded is Map<String, dynamic>) _user = decoded;
+        } catch (_) {}
       }
+      _syncCurrencyFromUser();
+      _isLoading = false;
+      notifyListeners();
+
+      // Background hydration — never blocks UI.
+      // Roll the 30-day refresh window forward FIRST so a long-dormant
+      // user who just opened the app gets a brand-new pair of tokens
+      // before anything else hits the network.
+      // ignore: discarded_futures
+      _rollRefreshAndHydrate();
+      return;
     }
     _isLoading = false;
     notifyListeners();
+  }
+
+  Future<void> _rollRefreshAndHydrate() async {
+    // Best-effort proactive refresh. If it fails (offline, server down,
+    // refresh token finally expired after 30 days of total inactivity), we
+    // simply fall through to /auth/me — ApiBase will retry the refresh on
+    // any 401 it sees and we still won't sign the user out automatically.
+    try {
+      final rt = await SecureTokenStorage.getRefreshToken();
+      if (rt != null && rt.isNotEmpty) {
+        final res = await AuthApi.refresh(rt);
+        if (res['success'] == true && res['data'] is Map) {
+          final data = res['data'] as Map;
+          final newAccess = data['access_token']?.toString();
+          final newRefresh = data['refresh_token']?.toString();
+          if (newAccess != null && newAccess.isNotEmpty) {
+            await SecureTokenStorage.setToken(newAccess);
+          }
+          if (newRefresh != null && newRefresh.isNotEmpty) {
+            await SecureTokenStorage.setRefreshToken(newRefresh);
+          }
+        }
+      }
+    } catch (_) {}
+    await _hydrateUserInBackground();
+  }
+
+  Future<void> _hydrateUserInBackground() async {
+    try {
+      final results = await Future.wait([
+        AuthApi.me(),
+        EventsService.getProfile(),
+      ]);
+      final meRes = results[0];
+      final profileRes = results[1];
+
+      // Only treat the session as dead if the backend explicitly says the
+      // bearer is invalid AND our refresh attempt (handled inside ApiBase)
+      // already failed. Transient network/server errors must NOT log the
+      // user out — that's what was wiping sessions even though tokens are
+      // valid for 24h with a 30-day refresh window.
+      final meSucceeded = meRes['success'] == true && meRes['data'] != null;
+      final msg = meRes['message']?.toString().toLowerCase() ?? '';
+      final isAuthDead = meRes['success'] == false &&
+          (msg.contains('unauthor') ||
+              msg.contains('expired') ||
+              msg.contains('invalid token') ||
+              msg.contains('not authenticated'));
+
+      if (meSucceeded) {
+        Map<String, dynamic>? userData =
+            meRes['data'] is Map<String, dynamic> ? meRes['data'] : null;
+        if (userData != null) {
+          _user = userData;
+          if (profileRes['success'] == true &&
+              profileRes['data'] is Map<String, dynamic>) {
+            _user = {..._user!, ...profileRes['data'] as Map<String, dynamic>};
+          }
+          _syncCurrencyFromUser();
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('cached_user', jsonEncode(_user));
+          } catch (_) {}
+          notifyListeners();
+        }
+        try {
+          await PushNotificationService.instance.registerWithBackend();
+        } catch (_) {}
+      }
+      // Session is permanent until the user explicitly signs out: even if
+      // /auth/me returns an auth-dead response, we keep the local session
+      // intact. ApiBase will keep trying to refresh on the next request,
+      // and the refresh-token window (30 days) is rolled forward on every
+      // cold start by `_rollRefreshTokenForward()`.
+    } catch (_) {
+      // Network exceptions never log the user out.
+    }
   }
 
   /// Refresh the cached user from the server (used after profile changes
@@ -140,6 +208,11 @@ class AuthProvider extends ChangeNotifier {
             final profileData = profileRes['data'] as Map<String, dynamic>;
             _user = {...(_user ?? {}), ...profileData};
           }
+        } catch (_) {}
+
+        _syncCurrencyFromUser();
+        try {
+          await prefs.setString('cached_user', jsonEncode(_user));
         } catch (_) {}
 
         // Register the device's FCM token with the backend so push
@@ -266,5 +339,8 @@ class AuthProvider extends ChangeNotifier {
     await SecureTokenStorage.clearTokens();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyIsLoggedIn, false);
+    await prefs.remove('cached_user');
+    _isLoggedIn = false;
+    _user = null;
   }
 }

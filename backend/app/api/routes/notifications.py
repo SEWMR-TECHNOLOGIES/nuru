@@ -34,15 +34,15 @@ def get_notifications(
             return standard_response(True, "Notifications retrieved", cached)
 
     from utils.batch_loaders import build_notification_dicts
-    from sqlalchemy import func as sa_func, or_
+    from sqlalchemy import func as sa_func, or_, cast, Text
 
     query = db.query(Notification).filter(Notification.recipient_id == current_user.id)
     if search and search.strip():
         term = f"%{search.strip().lower()}%"
+        # Notification model exposes `message_template` (text) + `type` (enum). Cast enum to text for ILIKE.
         query = query.filter(or_(
-            sa_func.lower(Notification.title).like(term),
-            sa_func.lower(Notification.message).like(term),
-            sa_func.lower(Notification.notification_type).like(term),
+            sa_func.lower(Notification.message_template).like(term),
+            sa_func.lower(cast(Notification.type, Text)).like(term),
         ))
     query = query.order_by(Notification.created_at.desc())
 

@@ -44,6 +44,8 @@ celery_app = Celery(
         "tasks.sms_dispatch",
         "tasks.payments_verify",
         "tasks.maintenance",
+        "tasks.whatsapp_dispatch",
+        "tasks.push_dispatch",
     ],
 )
 
@@ -60,6 +62,17 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     task_reject_on_worker_lost=True,
+
+    # Queue routing — keep auth OTPs and bulk SMS on dedicated queues so
+    # interactive auth flows are never blocked behind a 1000-recipient
+    # reminder batch. Workers should subscribe to all three:
+    #   celery -A core.celery_app worker -Q auth_otp,default,bulk_sms --concurrency=4
+    task_default_queue="default",
+    task_routes={
+        "tasks.notifications.send_otp_async": {"queue": "auth_otp"},
+        "tasks.sms_dispatch.send_batch": {"queue": "bulk_sms"},
+        "tasks.sms_dispatch.resume_pending_batches": {"queue": "bulk_sms"},
+    },
 
     # Result backend
     result_expires=3600,  # 1 hour

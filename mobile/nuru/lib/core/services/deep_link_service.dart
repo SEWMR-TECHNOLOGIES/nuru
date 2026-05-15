@@ -54,11 +54,20 @@ class DeepLinkService {
   }
 
   void _handle(Uri uri) {
-    if (!_supportedHosts.contains(uri.host)) return;
+    // Accept either https://nuru.tz/* (App Links / Universal Links) or the
+    // custom scheme nuru://* used by the web "Open in app" banner. For the
+    // custom scheme there is no host, so we skip the host check.
+    final isCustomScheme = uri.scheme == 'nuru';
+    if (!isCustomScheme && !_supportedHosts.contains(uri.host)) return;
     final nav = _navigatorKey?.currentState;
     if (nav == null) return;
 
-    final segments = uri.pathSegments;
+    // For custom-scheme URIs like nuru://i/CODE the "i" lives in uri.host,
+    // not in pathSegments. Normalize by prepending the host as the first
+    // segment so the switch below treats https:// and nuru:// the same.
+    final segments = isCustomScheme && uri.host.isNotEmpty
+        ? <String>[uri.host, ...uri.pathSegments]
+        : uri.pathSegments;
     if (segments.isEmpty) {
       nav.pushNamedAndRemoveUntil('/', (_) => false);
       return;
@@ -93,6 +102,11 @@ class DeepLinkService {
         if (rest != null) nav.pushNamed('/contribute', arguments: {'token': rest});
         break;
       case 'rsvp':
+        if (rest != null) nav.pushNamed('/rsvp', arguments: {'code': rest});
+        break;
+      case 'i':
+        // Invitation landing — same code as RSVP, route to RSVP screen so
+        // the user can immediately respond.
         if (rest != null) nav.pushNamed('/rsvp', arguments: {'code': rest});
         break;
       default:

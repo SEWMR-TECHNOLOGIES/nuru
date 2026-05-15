@@ -58,6 +58,28 @@ export const chatTools = [
   {
     type: "function" as const,
     function: {
+      name: "get_my_events",
+      description:
+        "Get the signed-in user's Nuru events across organiser, invited guest, committee member, contributor, and ticket-holder contexts. Use this for 'my events', 'remind me my events', 'events I am part of', 'upcoming events', or event-related reminders.",
+      parameters: {
+        type: "object",
+        properties: {
+          scope: {
+            type: "string",
+            description:
+              "Optional scope: all, organising, invited, committee, contributions, tickets. Default all.",
+          },
+          limit: {
+            type: "number",
+            description: "Max events to return per source (default 8)",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "search_people",
       description:
         "Search for people/users on the Nuru platform. Use this when users ask to find someone, look up a person, or ask about a specific user on the platform.",

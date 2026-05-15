@@ -59,8 +59,12 @@ def get_admin_notify_phone(db=None) -> str:
     return normalize_tz_phone(ADMIN_NOTIFY_PHONE) or "255764413610"
 
 
-def _send(phone: str, message: str):
-    """Fire-and-forget SMS. Normalizes phone, appends signature, never raises."""
+def _send_sync(phone: str, message: str):
+    """Synchronous SMS transport — only call from Celery workers.
+
+    Normalizes phone, appends signature, never raises. Performs the actual
+    HTTPS POST to the SewmrSMS gateway.
+    """
     normalized = normalize_tz_phone(phone)
     if not normalized:
         return
@@ -69,6 +73,29 @@ def _send(phone: str, message: str):
         client.send_quick_sms(message=message + SMS_SIGNATURE, recipients=[normalized])
     except Exception as e:
         print(f"[SMS] Failed to send to {normalized}: {e}")
+
+
+def _send(phone: str, message: str):
+    """Public entry-point used by every ``sms_*`` helper.
+
+    On the VPS (Celery + Redis available) this enqueues a background task
+    so the API request returns instantly. Otherwise falls back to the
+    synchronous transport so behavior doesn't disappear in dev.
+    """
+    if not phone:
+        return
+    try:
+        from core.celery_app import CELERY_ENABLED
+    except Exception:
+        CELERY_ENABLED = False
+    if CELERY_ENABLED:
+        try:
+            from tasks.sms_dispatch import send_one
+            send_one.delay(phone, message)
+            return
+        except Exception as e:
+            print(f"[SMS] enqueue failed, sending inline: {e}")
+    _send_sync(phone, message)
 
 
 def sms_guest_added(phone: str, guest_name: str, event_title: str, event_date: str = "", organizer_name: str = "", invitation_code: str = ""):

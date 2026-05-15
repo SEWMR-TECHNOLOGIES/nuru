@@ -80,6 +80,17 @@
                 <data android:pathPrefix="/moment/" />
                 <data android:pathPrefix="/c/" />
                 <data android:pathPrefix="/rsvp/" />
+                <data android:pathPrefix="/i/" />
+            </intent-filter>
+
+            <!-- Custom scheme: nuru://event/123, nuru://i/CODE, etc.
+                 Used by the web "Open in app" banner on iOS-style fallbacks
+                 and as a reliable hand-off path on Android. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="nuru" />
             </intent-filter>
         </activity>
         <!-- UCrop activity for image_cropper -->

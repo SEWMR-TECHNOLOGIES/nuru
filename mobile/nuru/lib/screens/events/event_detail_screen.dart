@@ -1850,14 +1850,23 @@ class _EventDetailScreenState extends State<EventDetailScreen>
 
   String _relativeTime(String? iso) {
     if (iso == null || iso.isEmpty) return 'Just now';
-    final dt = DateTime.tryParse(iso);
+    // Backend timestamps are stored in UTC but often serialized without a
+    // timezone suffix. DateTime.tryParse on a naive string treats it as
+    // local, which makes "x minutes ago" wildly wrong (e.g. shows "3h ago"
+    // for events that just happened in EAT). Force-tag as UTC when missing.
+    var s = iso.trim();
+    final hasTz = s.endsWith('Z') ||
+        RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(s);
+    if (!hasTz) s = '${s}Z';
+    final dt = DateTime.tryParse(s);
     if (dt == null) return 'Just now';
-    final diff = DateTime.now().toUtc().difference(dt.toUtc());
-    if (diff.inMinutes < 1) return 'Just now';
+    final local = dt.toLocal();
+    final diff = DateTime.now().difference(local);
+    if (diff.isNegative || diff.inMinutes < 1) return 'Just now';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     if (diff.inDays < 7) return '${diff.inDays}d ago';
-    return '${dt.day}/${dt.month}/${dt.year}';
+    return '${local.day}/${local.month}/${local.year}';
   }
 
   String _compactMoney(double n) {

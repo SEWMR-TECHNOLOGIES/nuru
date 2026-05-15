@@ -33,7 +33,7 @@ def get_event_types(db: Session = Depends(get_db)):
         for event in event_types
     ]
 
-    cache_set(CacheKeys.EVENT_TYPES, data, ttl_seconds=1800)  # 30 min
+    cache_set(CacheKeys.EVENT_TYPES, data, ttl_seconds=21600)  # 30 min
     return standard_response(True, "Event types retrieved successfully.", data)
 
 
@@ -61,7 +61,7 @@ def get_service_categories(db: Session = Depends(get_db)):
         for category in categories
     ]
 
-    cache_set(CacheKeys.SERVICE_CATEGORIES, data, ttl_seconds=1800)
+    cache_set(CacheKeys.SERVICE_CATEGORIES, data, ttl_seconds=21600)
     return standard_response(True, "Service categories retrieved successfully.", data)
 
 
@@ -100,7 +100,7 @@ def get_service_types_by_category(category_id: str, db: Session = Depends(get_db
         for service in service_types
     ]
 
-    cache_set(cache_key, data, ttl_seconds=1800)
+    cache_set(cache_key, data, ttl_seconds=21600)
     return standard_response(True, f"Service types retrieved successfully for category '{category.name}'.", data)
 
 
@@ -131,7 +131,7 @@ def get_all_service_types(db: Session = Depends(get_db)):
         for service in service_types
     ]
 
-    cache_set(cache_key, data, ttl_seconds=1800)
+    cache_set(cache_key, data, ttl_seconds=21600)
     return standard_response(True, "Service types retrieved successfully.", data)
 
 
@@ -172,7 +172,7 @@ def get_service_type_kyc(service_type_id: str, db: Session = Depends(get_db)):
         for mapping in kyc_mappings
     ]
 
-    cache_set(cache_key, kyc_data, ttl_seconds=1800)
+    cache_set(cache_key, kyc_data, ttl_seconds=21600)
     return standard_response(True, f"KYC requirements retrieved for service type '{service_type.name}'", kyc_data)
 
 
@@ -201,7 +201,7 @@ def get_currencies(db: Session = Depends(get_db)):
         for c in currencies
     ]
 
-    cache_set(cache_key, data, ttl_seconds=1800)
+    cache_set(cache_key, data, ttl_seconds=21600)
     return standard_response(True, "Currencies retrieved successfully", data)
 
 
@@ -231,5 +231,5 @@ def get_countries(db: Session = Depends(get_db)):
         for c in countries
     ]
 
-    cache_set(cache_key, data, ttl_seconds=1800)
+    cache_set(cache_key, data, ttl_seconds=21600)
     return standard_response(True, "Countries retrieved successfully", data)
