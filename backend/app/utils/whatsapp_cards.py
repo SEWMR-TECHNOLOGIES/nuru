@@ -27,13 +27,17 @@ _HEADERS = {
 
 def _render(payload: dict) -> str | None:
     if not RENDER_URL or not SUPABASE_ANON_KEY:
+        print("[wa_cards] render skipped: missing SUPABASE_URL or SUPABASE_ANON_KEY")
         return None
     try:
+        print(f"[wa_cards] render payload: {payload}")
         r = requests.post(RENDER_URL, json=payload, headers=_HEADERS, timeout=30)
         if not r.ok:
             print(f"[wa_cards] render failed ({r.status_code}): {r.text[:200]}")
             return None
-        return (r.json() or {}).get("url")
+        data = r.json() or {}
+        print(f"[wa_cards] render response: {data}")
+        return data.get("url")
     except Exception as e:
         print(f"[wa_cards] render exception: {e}")
         return None
@@ -41,8 +45,10 @@ def _render(payload: dict) -> str | None:
 
 def _send(action: str, phone: str, params: dict) -> bool:
     if not SEND_URL or not SUPABASE_ANON_KEY:
+        print("[wa_cards] send skipped: missing SUPABASE_URL or SUPABASE_ANON_KEY")
         return False
     try:
+        print(f"[wa_cards] send action={action} phone={phone} params={params}")
         r = requests.post(
             SEND_URL,
             json={"action": action, "phone": phone, "params": params},
@@ -52,6 +58,7 @@ def _send(action: str, phone: str, params: dict) -> bool:
         if not r.ok:
             print(f"[wa_cards] send failed ({r.status_code}): {r.text[:200]}")
             return False
+        print(f"[wa_cards] send response: {r.text[:300]}")
         return True
     except Exception as e:
         print(f"[wa_cards] send exception: {e}")
@@ -86,6 +93,13 @@ def wa_send_invitation_card(
 
     def _run():
         invite_code = (rsvp_code or str(guest_id) or "").strip().upper()
+        print(
+            "[wa_cards] invitation input "
+            f"event_id={event_id} guest_id={guest_id} guest_name={safe_name!r} "
+            f"event_name={safe_event!r} date={event_date!r} time={event_time!r} "
+            f"venue={venue!r} address={address!r} organizer={safe_host!r} "
+            f"cover_image={cover_image!r} code={invite_code!r}"
+        )
         url = _render({
             "kind": "invitation",
             "event_id": str(event_id),
