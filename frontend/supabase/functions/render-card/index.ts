@@ -143,16 +143,25 @@ async function fetchEvent(eventId: string): Promise<any | null> {
     return null;
   }
   try {
-    const url = `${NURU_API.replace(/\/$/, '')}/api/events/${eventId}`;
-    const r = await fetch(url);
-    console.log(`[render-card] fetch event ${eventId} -> ${r.status}`);
-    if (!r.ok) {
-      const text = await r.text().catch(() => '');
-      console.log(`[render-card] fetch event failed body: ${text.slice(0, 240)}`);
-      return null;
+    const base = NURU_API.replace(/\/$/, '');
+    const urls = Array.from(new Set([
+      `${base}/events/${eventId}`,
+      `${base}/api/v1/events/${eventId}`,
+      `${base}/api/events/${eventId}`,
+    ]));
+    for (const url of urls) {
+      const r = await fetch(url);
+      console.log(`[render-card] fetch event ${eventId} url=${url} -> ${r.status}`);
+      if (!r.ok) {
+        const text = await r.text().catch(() => '');
+        console.log(`[render-card] fetch event failed body: ${text.slice(0, 240)}`);
+        continue;
+      }
+      const j = await r.json();
+      const data = j?.data ?? j;
+      if (data && data.success !== false) return data;
     }
-    const j = await r.json();
-    return j?.data ?? j;
+    return null;
   } catch (e) {
     console.error('[render-card] fetch event exception', e);
     return null;
@@ -162,10 +171,20 @@ async function fetchEvent(eventId: string): Promise<any | null> {
 async function fetchTicket(ticketCode: string): Promise<any | null> {
   if (!NURU_API) return null;
   try {
-    const r = await fetch(`${NURU_API.replace(/\/$/, '')}/api/tickets/by-code/${ticketCode}`);
-    if (!r.ok) return null;
-    const j = await r.json();
-    return j?.data ?? j;
+    const base = NURU_API.replace(/\/$/, '');
+    const urls = Array.from(new Set([
+      `${base}/tickets/by-code/${ticketCode}`,
+      `${base}/api/v1/tickets/by-code/${ticketCode}`,
+      `${base}/api/tickets/by-code/${ticketCode}`,
+    ]));
+    for (const url of urls) {
+      const r = await fetch(url);
+      if (!r.ok) continue;
+      const j = await r.json();
+      const data = j?.data ?? j;
+      if (data && data.success !== false) return data;
+    }
+    return null;
   } catch { return null; }
 }
 
