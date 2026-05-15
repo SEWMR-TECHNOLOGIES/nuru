@@ -256,10 +256,30 @@ def send_push_async(db, user_id, *, title: str, body: str,
                     image: str | None = None):
     """Schedule a push without blocking the caller.
 
-    We don't have a Celery task wired here yet, so spawn a daemon thread.
-    The DB session is *not* shared with the thread — we open a fresh one.
+    Prefers a Celery task on the VPS so retries, rate-limiting, logging,
+    and DB session lifecycle are owned by the worker. Falls back to a
+    daemon thread only when Celery + Redis aren't available (e.g. local
+    dev or Vercel deploys).
     """
     payload_data = dict(data or {})
+
+    try:
+        from core.celery_app import CELERY_ENABLED
+    except Exception:
+        CELERY_ENABLED = False
+
+    if CELERY_ENABLED:
+        try:
+            from tasks.push_dispatch import send_to_user
+            send_to_user.delay(
+                str(user_id),
+                title=title, body=body, data=payload_data,
+                high_priority=high_priority, collapse_key=collapse_key,
+                image=image,
+            )
+            return
+        except Exception as e:  # noqa: BLE001
+            print(f"[fcm] enqueue failed, falling back to thread: {e}")
 
     def _worker():
         try:

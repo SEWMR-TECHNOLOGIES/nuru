@@ -14,7 +14,10 @@ import os
 # ─────────────────────────────────────────────
 # Rule of thumb: 2 × cores + 1
 # For async (uvicorn) workers, fewer workers with more concurrency each
-workers = int(os.getenv("GUNICORN_WORKERS", min(multiprocessing.cpu_count() * 2 + 1, 9)))
+# Cap workers so total Postgres connections (workers × DB_POOL_SIZE) stays
+# well under the database max_connections limit. With pool_size=10 + overflow=20
+# per worker, 5 workers = 50 base / 150 burst connections.
+workers = int(os.getenv("GUNICORN_WORKERS", min(multiprocessing.cpu_count() * 2 + 1, 5)))
 worker_class = "uvicorn.workers.UvicornWorker"
 
 # ─────────────────────────────────────────────

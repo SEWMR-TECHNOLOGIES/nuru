@@ -78,3 +78,43 @@ def resume_pending_batches():
             print(f"[sms_dispatch] failed to enqueue resume for {bid}: {e}")
 
     return {"resumed": len(batch_ids)}
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Single-recipient transactional SMS
+# ──────────────────────────────────────────────────────────────────────────
+# Used by ``utils.sms._send`` (and every ``sms_*`` helper that wraps it) so
+# routes never block on the SewmrSMS HTTP call. The bulk pipeline above
+# (``send_batch`` + ``sms_send_jobs``) is still preferred for >1 recipient
+# because it carries idempotency + retry state in the database.
+
+@celery_app.task(
+    name="tasks.sms_dispatch.send_one",
+    bind=True,
+    max_retries=3,
+    default_retry_delay=30,
+    rate_limit="300/m",
+)
+def send_one(self, phone: str, message: str):
+    """Send a single SMS via the SewmrSMS gateway."""
+    from services.SewmrSmsClient import SewmrSmsClient
+    from utils.sms import normalize_tz_phone, SMS_SIGNATURE
+    normalized = normalize_tz_phone(phone)
+    if not normalized:
+        print(f"[sms_dispatch] skip — unparseable phone {phone!r}")
+        return {"ok": False, "skipped": True}
+    try:
+        client = SewmrSmsClient()
+        result = client.send_quick_sms(
+            message=(message or "") + SMS_SIGNATURE,
+            recipients=[normalized],
+        )
+        ok = bool(result.get("success"))
+        if ok:
+            print(f"[sms_dispatch] ok phone={normalized[-4:]}")
+        else:
+            print(f"[sms_dispatch] failed phone={normalized[-4:]} err={result.get('error')}")
+        return {"ok": ok}
+    except Exception as exc:  # noqa: BLE001
+        print(f"[sms_dispatch] retry phone={normalized[-4:]}: {exc}")
+        raise self.retry(exc=exc)

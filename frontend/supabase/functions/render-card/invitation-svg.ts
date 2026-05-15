@@ -266,14 +266,15 @@ export function buildInvitationSvg(a: BuildArgs): string {
 
     <!-- Event type pill (bottom-left, above title) -->
     ${typeText ? (() => {
-      const typePillH = Math.round(38 * S);
-      const typePillRx = Math.round(typePillH * 0.25); // 25% radius like INVITATION/TICKET pills
-      const adjPillY = typePillY - Math.round(10 * S); // shift up to keep above title
+      // Match INVITATION pill aesthetic: same height, same rx ratio (rectangle-ish, not oval)
+      const typePillH = invPillH;            // same height as INVITATION pill (~78)
+      const typePillRx = 14;                 // same corner radius as INVITATION pill
+      const adjPillY = typePillY - Math.round(6 * S);
       return `
     <rect x="${sidePad}" y="${adjPillY}" width="${typePillW}" height="${typePillH}" rx="${typePillRx}"
           fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="1.6"/>
-    <text x="${sidePad + typePillW / 2}" y="${adjPillY + typePillH / 2 + 9}" text-anchor="middle"
-          fill="#FFFFFF" font-size="25" font-weight="700" letter-spacing="6.6">${escapeXml(typeText)}</text>
+    <text x="${sidePad + typePillW / 2}" y="${adjPillY + typePillH / 2 + 10}" text-anchor="middle"
+          fill="#FFFFFF" font-size="28" font-weight="800" letter-spacing="4.4">${escapeXml(typeText)}</text>
     `;
     })() : ''}
 

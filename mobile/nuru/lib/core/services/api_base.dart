@@ -16,6 +16,57 @@ void _checkRateLimit(http.Response res, String endpoint) {
   RateLimitNotifier.instance.trigger(retryAfter: retryAfter, isAuth: isAuth);
 }
 
+/// Single-flight refresh: if multiple requests hit 401 simultaneously, only
+/// the first one calls /auth/refresh; the rest await the same Future. This
+/// prevents thundering-herd refresh storms and racey token overwrites that
+/// would otherwise log the user out.
+Completer<bool>? _refreshInFlight;
+Future<bool> _attemptRefresh() async {
+  if (_refreshInFlight != null) return _refreshInFlight!.future;
+  final c = Completer<bool>();
+  _refreshInFlight = c;
+  try {
+    final rt = await SecureTokenStorage.getRefreshToken();
+    if (rt == null || rt.isEmpty) {
+      c.complete(false);
+      return false;
+    }
+    final res = await http.post(
+      Uri.parse('${ApiConfig.baseUrl}/auth/refresh'),
+      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+      body: jsonEncode({'refresh_token': rt}),
+    ).timeout(const Duration(seconds: 15));
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      c.complete(false);
+      return false;
+    }
+    final body = jsonDecode(res.body);
+    final data = (body is Map && body['data'] is Map) ? body['data'] as Map : body;
+    final newAccess = (data is Map ? data['access_token'] : null)?.toString();
+    final newRefresh = (data is Map ? data['refresh_token'] : null)?.toString();
+    if (newAccess == null || newAccess.isEmpty) {
+      c.complete(false);
+      return false;
+    }
+    await SecureTokenStorage.setToken(newAccess);
+    if (newRefresh != null && newRefresh.isNotEmpty) {
+      await SecureTokenStorage.setRefreshToken(newRefresh);
+    }
+    c.complete(true);
+    return true;
+  } catch (_) {
+    if (!c.isCompleted) c.complete(false);
+    return false;
+  } finally {
+    _refreshInFlight = null;
+  }
+}
+
+/// Returns true if the response indicates an expired/invalid bearer token
+/// that the refresh-token flow should attempt to recover from.
+bool _isAuthExpired(http.Response res) =>
+    res.statusCode == 401 || res.statusCode == 419;
+
 class ApiBase {
   static String get baseUrl => ApiConfig.baseUrl;
 
@@ -68,7 +119,10 @@ class ApiBase {
       if (queryParams != null) {
         uri = uri.replace(queryParameters: queryParams);
       }
-      final res = await http.get(uri, headers: await headers(auth: auth));
+      var res = await http.get(uri, headers: await headers(auth: auth));
+      if (auth && _isAuthExpired(res) && await _attemptRefresh()) {
+        res = await http.get(uri, headers: await headers(auth: auth));
+      }
       _checkRateLimit(res, endpoint);
       return normalizeResponse(res, fallbackError: fallbackError);
     } catch (_) {
@@ -83,11 +137,12 @@ class ApiBase {
     String fallbackError = 'Request failed',
   }) async {
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl$endpoint'),
-        headers: await headers(auth: auth),
-        body: jsonEncode(body),
-      );
+      final uri = Uri.parse('$baseUrl$endpoint');
+      final encoded = jsonEncode(body);
+      var res = await http.post(uri, headers: await headers(auth: auth), body: encoded);
+      if (auth && _isAuthExpired(res) && await _attemptRefresh()) {
+        res = await http.post(uri, headers: await headers(auth: auth), body: encoded);
+      }
       _checkRateLimit(res, endpoint);
       return normalizeResponse(res, fallbackError: fallbackError);
     } catch (_) {
@@ -102,11 +157,12 @@ class ApiBase {
     String fallbackError = 'Request failed',
   }) async {
     try {
-      final res = await http.put(
-        Uri.parse('$baseUrl$endpoint'),
-        headers: await headers(auth: auth),
-        body: jsonEncode(body),
-      );
+      final uri = Uri.parse('$baseUrl$endpoint');
+      final encoded = jsonEncode(body);
+      var res = await http.put(uri, headers: await headers(auth: auth), body: encoded);
+      if (auth && _isAuthExpired(res) && await _attemptRefresh()) {
+        res = await http.put(uri, headers: await headers(auth: auth), body: encoded);
+      }
       _checkRateLimit(res, endpoint);
       return normalizeResponse(res, fallbackError: fallbackError);
     } catch (_) {
@@ -120,10 +176,11 @@ class ApiBase {
     String fallbackError = 'Request failed',
   }) async {
     try {
-      final res = await http.delete(
-        Uri.parse('$baseUrl$endpoint'),
-        headers: await headers(auth: auth),
-      );
+      final uri = Uri.parse('$baseUrl$endpoint');
+      var res = await http.delete(uri, headers: await headers(auth: auth));
+      if (auth && _isAuthExpired(res) && await _attemptRefresh()) {
+        res = await http.delete(uri, headers: await headers(auth: auth));
+      }
       _checkRateLimit(res, endpoint);
       return normalizeResponse(res, fallbackError: fallbackError);
     } catch (_) {

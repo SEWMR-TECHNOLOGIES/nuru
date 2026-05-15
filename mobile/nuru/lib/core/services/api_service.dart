@@ -213,6 +213,17 @@ class AuthApi {
     return ApiService.get('/auth/me');
   }
 
+  /// POST /auth/refresh — exchange a refresh token for a fresh access token.
+  /// Sent unauthenticated so a stale access token doesn't trigger another
+  /// 401 inside the refresh flow itself.
+  static Future<Map<String, dynamic>> refresh(String refreshToken) {
+    return ApiService.post(
+      '/auth/refresh',
+      {'refresh_token': refreshToken},
+      auth: false,
+    );
+  }
+
   /// POST /auth/forgot-password
   static Future<Map<String, dynamic>> forgotPassword(String email) {
     return ApiService.post('/auth/forgot-password', {'email': email}, auth: false);

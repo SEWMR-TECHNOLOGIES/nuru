@@ -42,6 +42,17 @@ class Notification(Base):
 # ─────────────────────────────────────────────────────────────────────
 @event.listens_for(Notification, "after_insert")
 def _fanout_push_on_notification_insert(mapper, connection, target):  # noqa: ANN001
+    # 1) Bust the recipient's cached notifications page + unread count so the
+    #    in-app badge / list reflects new items immediately (no 30-60s stale
+    #    window). Best-effort — Redis may be unavailable on Vercel.
+    try:
+        from core.redis import invalidate_user_notifications
+        if target.recipient_id:
+            invalidate_user_notifications(str(target.recipient_id))
+    except Exception as _e:  # noqa: BLE001
+        pass
+
+    # 2) Fan-out push notification to the recipient's devices.
     try:
         from utils.fcm import send_push_async
         from utils.notification_titles import title_for_notification

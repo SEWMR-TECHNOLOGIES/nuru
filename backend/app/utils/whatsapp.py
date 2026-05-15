@@ -28,8 +28,12 @@ def _normalize_phone(phone: str) -> str:
     return phone
 
 
-def _send_whatsapp(action: str, phone: str, params: dict):
-    """Send WhatsApp message via edge function. Returns True on success, False on failure. Never raises."""
+def _send_whatsapp_sync(action: str, phone: str, params: dict):
+    """Synchronous transport — only call this from Celery workers.
+
+    Performs the actual HTTPS POST to the ``whatsapp-send`` edge function.
+    Returns True on success, False on failure. Never raises.
+    """
     if not phone or not WHATSAPP_SEND_URL or not SUPABASE_ANON_KEY:
         return False
 
@@ -51,7 +55,6 @@ def _send_whatsapp(action: str, phone: str, params: dict):
         if not resp.ok:
             print(f"[WhatsApp] Failed ({resp.status_code}): {resp.text[:200]}")
             return False
-        # Check if the edge function reported success
         try:
             data = resp.json()
             if data.get("success") is False:
@@ -63,6 +66,31 @@ def _send_whatsapp(action: str, phone: str, params: dict):
     except Exception as e:
         print(f"[WhatsApp] Error sending to {international_phone}: {e}")
         return False
+
+
+def _send_whatsapp(action: str, phone: str, params: dict):
+    """Public entry-point used by every ``wa_*`` helper.
+
+    On the VPS (where Celery + Redis are available) this enqueues a
+    background task and returns immediately so the API request is never
+    blocked on a 15s HTTPS call. On Vercel / local without a worker we fall
+    back to the synchronous transport so behavior doesn't silently disappear
+    in dev.
+    """
+    if not phone:
+        return False
+    try:
+        from core.celery_app import CELERY_ENABLED
+    except Exception:
+        CELERY_ENABLED = False
+    if CELERY_ENABLED:
+        try:
+            from tasks.whatsapp_dispatch import send_action
+            send_action.delay(action, phone, params or {})
+            return True
+        except Exception as e:  # broker hiccup → inline fallback
+            print(f"[WhatsApp] enqueue failed, sending inline: {e}")
+    return _send_whatsapp_sync(action, phone, params or {})
 
 
 def _send_whatsapp_text(phone: str, message: str):

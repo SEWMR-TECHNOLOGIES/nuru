@@ -36,7 +36,9 @@ function buildQS(params: Record<string, any>): string {
 
 export async function searchServices(args: any): Promise<string> {
   const params: Record<string, any> = { limit: args.limit || 10 };
-  if (args.q) params.q = args.q;
+  const rawQ = String(args.q || "").trim();
+  const broadProviderQuery = /^(service providers?|providers?|vendors?|services?|find vendors?|find service providers?|show vendors?|show service providers?)$/i.test(rawQ);
+  if (rawQ && !broadProviderQuery) params.q = rawQ;
   if (args.category) params.category = args.category;
   if (args.location) params.location = args.location;
 
@@ -48,34 +50,23 @@ export async function searchServices(args: any): Promise<string> {
     return `No services found matching your search. Try broadening your criteria or checking available categories.`;
   }
 
-  let result = `Found ${services.length} service(s):\n\n`;
-  result += "| # | Service | Category | Location | Rating | Price Range | Verified |\n";
-  result += "|---|---------|----------|----------|--------|-------------|----------|\n";
-
-  for (let i = 0; i < services.length; i++) {
-    const s = services[i];
-    const name = s.title || s.name || "Unnamed";
-    const cat = s.category_name || s.service_category?.name || s.service_type_name || "-";
-    const loc = s.location || "-";
-
-    // Fix rating: use average_rating first, then rating, and format properly
-    let rating = "-";
+  const items = services.map((s: any) => {
     const ratingValue = s.average_rating ?? s.avg_rating ?? s.rating;
-    if (ratingValue != null && ratingValue > 0) {
-      rating = `${Number(ratingValue).toFixed(1)} ⭐ (${s.reviews_count || s.total_reviews || 0} reviews)`;
-    } else {
-      rating = "No reviews yet";
-    }
-
-    const price =
-      s.min_price && s.max_price
-        ? `${(s.currency || "TZS")} ${Number(s.min_price).toLocaleString()} - ${Number(s.max_price).toLocaleString()}`
-        : s.price_range || "-";
-    const verified = s.verified || s.verification_status === "verified" ? "✅ Yes" : "No";
-    result += `| ${i + 1} | ${name} | ${cat} | ${loc} | ${rating} | ${price} | ${verified} |\n`;
-  }
-
-  return result;
+    const rating = ratingValue != null && Number(ratingValue) > 0
+      ? `${Number(ratingValue).toFixed(1)} rating, ${s.reviews_count || s.total_reviews || s.review_count || 0} reviews`
+      : "No reviews yet";
+    const price = s.min_price && s.max_price
+      ? `${s.currency || "TZS"} ${Number(s.min_price).toLocaleString()} to ${Number(s.max_price).toLocaleString()}`
+      : s.price_range || "Price on request";
+    return {
+      title: s.title || s.name || "Service provider",
+      subtitle: s.category_name || s.service_category?.name || s.service_type?.name || s.service_type_name || "Service",
+      meta: [s.location, rating, price].filter(Boolean).join(" • "),
+      badge: s.verified || s.verification_status === "verified" ? "Verified" : null,
+    };
+  });
+  return `Found ${items.length} Nuru service provider${items.length === 1 ? "" : "s"}:` +
+    cardBlock("results_list", { title: "Service providers", icon: "service", items });
 }
 
 export async function searchEvents(args: any): Promise<string> {
@@ -93,20 +84,14 @@ export async function searchEvents(args: any): Promise<string> {
     return "No published events found matching your search.";
   }
 
-  let result = `Found ${events.length} published event(s):\n\n`;
-  result += "| # | Event | Type | Date | Location |\n";
-  result += "|---|-------|------|------|----------|\n";
-
-  for (let i = 0; i < events.length; i++) {
-    const e = events[i];
-    const name = e.title || "Untitled";
-    const type = e.event_type?.name || e.event_type_name || "-";
-    const date = e.start_date ? new Date(e.start_date).toLocaleDateString("en-GB") : "-";
-    const loc = e.location || "-";
-    result += `| ${i + 1} | ${name} | ${type} | ${date} | ${loc} |\n`;
-  }
-
-  return result;
+  const items = events.map((e: any) => ({
+    title: e.title || e.name || "Event",
+    subtitle: e.event_type?.name || e.event_type_name || "Public event",
+    meta: [e.start_date ? new Date(e.start_date).toLocaleDateString("en-GB") : null, e.location].filter(Boolean).join(" • "),
+    badge: e.status || null,
+  }));
+  return `Found ${items.length} public Nuru event${items.length === 1 ? "" : "s"}:` +
+    cardBlock("results_list", { title: "Public events", icon: "event", items });
 }
 
 export async function searchPeople(args: any): Promise<string> {
@@ -121,19 +106,14 @@ export async function searchPeople(args: any): Promise<string> {
     return "No people found matching your search.";
   }
 
-  let result = `Found ${people.length} person(s):\n\n`;
-  result += "| # | Name | Username | Verified |\n";
-  result += "|---|------|----------|----------|\n";
-
-  for (let i = 0; i < people.length; i++) {
-    const p = people[i];
-    const name = p.full_name || "-";
-    const username = p.username ? `@${p.username}` : "-";
-    const verified = p.is_verified ? "✅ Yes" : "No";
-    result += `| ${i + 1} | ${name} | ${username} | ${verified} |\n`;
-  }
-
-  return result;
+  const items = people.map((p: any) => ({
+    title: p.full_name || p.name || "Nuru user",
+    subtitle: p.username ? `@${p.username}` : "Nuru profile",
+    meta: p.is_verified ? "Verified account" : "Profile",
+    badge: p.is_verified ? "Verified" : null,
+  }));
+  return `Found ${items.length} Nuru profile${items.length === 1 ? "" : "s"}:` +
+    cardBlock("results_list", { title: "People", icon: "person", items });
 }
 
 export async function getServiceCategories(): Promise<string> {
@@ -273,6 +253,8 @@ export async function executeTool(
       return searchServices(args);
     case "search_events":
       return searchEvents(args);
+    case "get_my_events":
+      return getMyEvents(args, authHeader);
     case "search_people":
       return searchPeople(args);
     case "get_service_categories":
@@ -310,6 +292,96 @@ function cardBlock(kind: string, payload: unknown): string {
   return "\n\n```nuru-card:" + kind + "\n" + JSON.stringify(payload) + "\n```\n";
 }
 
+function eventName(e: any): string {
+  return e?.title || e?.name || e?.event_name || e?.event?.title || e?.event?.name || "Event";
+}
+
+function eventDate(e: any): string | null {
+  return e?.start_date || e?.event_date || e?.event?.start_date || null;
+}
+
+function eventLocation(e: any): string | null {
+  return e?.location || e?.venue || e?.event?.location || e?.event?.venue || null;
+}
+
+function normalizeEvent(raw: any, role: string): Record<string, unknown> {
+  const e = raw?.event && typeof raw.event === "object" ? raw.event : raw;
+  return {
+    id: String(raw?.event_id || e?.id || raw?.id || ""),
+    title: eventName(e),
+    role,
+    start_date: eventDate(e),
+    start_time: e?.start_time || raw?.start_time || null,
+    location: eventLocation(e),
+    status: e?.status || raw?.status || null,
+    type: e?.event_type?.name || raw?.event_type?.name || raw?.event_type_name || null,
+  };
+}
+
+function extractList(data: any, ...keys: string[]): any[] {
+  for (const key of keys) {
+    const value = key.split(".").reduce((acc, part) => acc?.[part], data);
+    if (Array.isArray(value)) return value;
+  }
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data)) return data;
+  return [];
+}
+
+export async function getMyEvents(args: any, authHeader?: string): Promise<string> {
+  if (!authHeader) {
+    return "I need you to be signed in to look up your Nuru events. Please sign in and try again.";
+  }
+  const limit = Math.max(1, Math.min(Number(args?.limit || 8), 20));
+  const scope = String(args?.scope || "all").toLowerCase();
+  const requests: Array<{ key: string; role: string; path: string }> = [];
+  if (scope === "all" || scope === "organising" || scope === "organizing") {
+    requests.push({ key: "organising", role: "Organiser", path: `/user-events?page=1&limit=${limit}&sort_by=start_date&sort_order=asc` });
+  }
+  if (scope === "all" || scope === "invited") {
+    requests.push({ key: "invited", role: "Invited", path: `/user-events/invited?page=1&limit=${limit}` });
+  }
+  if (scope === "all" || scope === "committee") {
+    requests.push({ key: "committee", role: "Committee", path: `/user-events/committee?page=1&limit=${limit}` });
+  }
+  if (scope === "all" || scope === "contributions") {
+    requests.push({ key: "contributions", role: "Contributor", path: `/user-contributors/my-contributions` });
+  }
+  if (scope === "all" || scope === "tickets") {
+    requests.push({ key: "tickets", role: "Ticket holder", path: `/ticketing/my-tickets?limit=${limit}` });
+  }
+
+  const results = await Promise.all(requests.map(async (r) => ({ ...r, data: await apiFetch(r.path, authHeader) })));
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const r of results) {
+    if (!r.data) continue;
+    const rows = extractList(r.data, "data.events", "events", "data.tickets", "tickets", "data.items", "items");
+    for (const raw of rows) {
+      const item = normalizeEvent(raw, r.role);
+      const id = String(item.id || `${item.title}-${item.start_date}-${r.key}`);
+      const existing = byId.get(id);
+      if (existing) {
+        const roles = new Set(String(existing.role || "").split(", ").filter(Boolean));
+        roles.add(r.role);
+        existing.role = Array.from(roles).join(", ");
+      } else {
+        byId.set(id, item);
+      }
+    }
+  }
+
+  const items = Array.from(byId.values()).sort((a, b) => {
+    const ad = a.start_date ? Date.parse(String(a.start_date)) : Number.MAX_SAFE_INTEGER;
+    const bd = b.start_date ? Date.parse(String(b.start_date)) : Number.MAX_SAFE_INTEGER;
+    return ad - bd;
+  }).slice(0, limit);
+
+  if (items.length === 0) {
+    return "I could not find Nuru events linked to your account yet. Try checking tickets, invitations, contributions, or events you organise.";
+  }
+  return `Here ${items.length === 1 ? "is" : "are"} your Nuru event${items.length === 1 ? "" : "s"}:` + cardBlock("events_list", { items });
+}
+
 export async function getMyContributionProgress(args: any, authHeader?: string): Promise<string> {
   if (!authHeader) {
     return "I need you to be signed in to look up your contributions. Please sign in and try again.";
@@ -317,7 +389,8 @@ export async function getMyContributionProgress(args: any, authHeader?: string):
   const data = await apiFetch(`/user-contributors/my-contributions`, authHeader);
   if (!data) return "I could not load your contributions right now. Please try again shortly.";
 
-  const items: any[] = data?.data?.items || data?.items || data?.data || [];
+  // Backend returns { events: [...], count, summary }
+  const items: any[] = data?.data?.events || data?.events || data?.data?.items || data?.items || [];
   let list = Array.isArray(items) ? items : [];
   if (args?.event_id) {
     list = list.filter((r: any) => String(r.event_id || r.event?.id) === String(args.event_id));
@@ -328,10 +401,10 @@ export async function getMyContributionProgress(args: any, authHeader?: string):
 
   let text = `Here ${list.length === 1 ? "is your" : "are your"} contribution${list.length === 1 ? "" : "s"}:\n`;
   for (const row of list.slice(0, 6)) {
-    const pledged = Number(row.pledged_amount ?? row.amount_pledged ?? row.pledge ?? 0);
-    const paid = Number(row.paid_amount ?? row.amount_paid ?? row.paid ?? 0);
+    const pledged = Number(row.pledge_amount ?? row.pledged_amount ?? row.amount_pledged ?? 0);
+    const paid = Number(row.total_paid ?? row.paid_amount ?? row.amount_paid ?? 0);
     const pct = pledged > 0 ? Math.min(100, Math.round((paid / pledged) * 100)) : 0;
-    const eventName = row.event_title || row.event?.title || row.event_name || "Event";
+    const eventName = row.event_name || row.event_title || row.event?.name || row.event?.title || "Event";
     text += cardBlock("contribution_progress", {
       event_id: row.event_id || row.event?.id || null,
       event_name: eventName,
@@ -349,10 +422,13 @@ export async function getMyTickets(args: any, authHeader?: string): Promise<stri
     return "I need you to be signed in to look up your tickets. Please sign in and try again.";
   }
   const limit = args?.limit || 10;
-  const data = await apiFetch(`/tickets/my?limit=${limit}`, authHeader);
+  const data = await apiFetch(`/ticketing/my-tickets?limit=${limit}`, authHeader);
   if (!data) return "I could not load your tickets right now. Please try again shortly.";
 
-  const tickets: any[] = data?.data?.tickets || data?.tickets || data?.data?.items || data?.items || [];
+  const tickets: any[] =
+    data?.data?.tickets || data?.tickets ||
+    data?.data?.items || data?.items ||
+    (Array.isArray(data?.data) ? data.data : []);
   if (!Array.isArray(tickets) || tickets.length === 0) {
     return "You don't have any tickets yet.";
   }
@@ -360,9 +436,10 @@ export async function getMyTickets(args: any, authHeader?: string): Promise<stri
   // Group by event
   const grouped: Record<string, { event_id: string; event_name: string; date: string | null; count: number }> = {};
   for (const t of tickets) {
-    const eid = String(t.event_id || t.event?.id || "");
-    const name = t.event_title || t.event?.title || t.event_name || "Event";
-    const date = t.event_date || t.event?.start_date || t.start_date || null;
+    const ev = t.event || {};
+    const eid = String(t.event_id || ev.id || "");
+    const name = ev.name || t.event_title || ev.title || t.event_name || "Event";
+    const date = ev.start_date || t.event_date || t.start_date || null;
     if (!grouped[eid]) {
       grouped[eid] = { event_id: eid, event_name: name, date, count: 0 };
     }

@@ -107,5 +107,20 @@
 		<string>applinks:nuru.ke</string>
 		<string>applinks:www.nuru.ke</string>
 	</array>
+
+	<!-- Custom URL scheme: nuru://event/123, nuru://i/CODE, etc.
+	     Used as a fallback when same-domain Universal Links don't trigger
+	     (e.g. tapping "Open in app" from Safari while on nuru.tz). -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>tz.nuru.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>nuru</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
