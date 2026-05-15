@@ -261,10 +261,13 @@ def _sync_target_after_payment(db: Session, tx: Transaction):
                 tc = db.query(_Tc).filter(_Tc.id == ticket.ticket_class_id).first()
                 ev_date = ""
                 try:
-                    if ev and getattr(ev, "start_at", None):
-                        ev_date = ev.start_at.strftime("%d %b %Y")
+                    if ev and getattr(ev, "start_date", None):
+                        ev_date = ev.start_date.strftime("%a, %-d %b %Y")
                 except Exception:
-                    pass
+                    try:
+                        ev_date = ev.start_date.strftime("%a, %d %b %Y") if ev and getattr(ev, "start_date", None) else ""
+                    except Exception:
+                        pass
                 wa_send_ticket(
                     phone=ticket.buyer_phone,
                     event_id=str(ticket.event_id),
@@ -273,6 +276,7 @@ def _sync_target_after_payment(db: Session, tx: Transaction):
                     event_name=(ev.name if ev else "the event"),
                     event_date=ev_date or "TBD",
                     ticket_class=(tc.name if tc else "General"),
+                    cover_image=(getattr(ev, "cover_image_url", None) if ev else None) or "",
                 )
         except Exception as _e:
             print(f"[payments] wa_send_ticket (online) failed: {_e}")

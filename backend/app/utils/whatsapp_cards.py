@@ -69,6 +69,7 @@ def wa_send_invitation_card(
     event_date: str = "TBD",
     organizer_name: str = "Your host",
     rsvp_code: str = "",
+    cover_image: str = "",
 ):
     """Render + send the invitation card. Fire-and-forget."""
     intl = _normalize_phone(phone)
@@ -76,12 +77,18 @@ def wa_send_invitation_card(
         return
 
     def _run():
+        invite_code = (rsvp_code or str(guest_id) or "").strip().upper()
         url = _render({
             "kind": "invitation",
             "event_id": str(event_id),
             "guest_id": str(guest_id),
             "guest_name": guest_name or "Guest",
-            "qr_value": str(guest_id),
+            "event_name": event_name or "the event",
+            "date": event_date or "",
+            "host_line": organizer_name or "Your host",
+            "invitation_code": invite_code,
+            "qr_value": invite_code or str(guest_id),
+            "cover_image": cover_image or "",
         })
         if not url:
             return
@@ -89,9 +96,9 @@ def wa_send_invitation_card(
             "image_url": url,
             "guest_name": guest_name or "Guest",
             "event_name": event_name or "the event",
-            "event_date": event_date or "TBD",
+            "event_date": event_date or "TBA",
             "organizer_name": organizer_name or "Your host",
-            "rsvp_code": (rsvp_code or str(guest_id))[:8] or "—",
+            "rsvp_code": invite_code or "—",
         })
 
     threading.Thread(target=_run, daemon=True).start()
@@ -105,6 +112,7 @@ def wa_send_ticket(
     event_name: str,
     event_date: str = "TBD",
     ticket_class: str = "General",
+    cover_image: str = "",
 ):
     """Render + send the ticket card. Fire-and-forget."""
     intl = _normalize_phone(phone)
@@ -116,6 +124,13 @@ def wa_send_ticket(
             "kind": "ticket",
             "event_id": str(event_id),
             "ticket_code": ticket_code,
+            "ticket_data": {
+                "event_name": event_name or "the event",
+                "cover_image": cover_image or "",
+                "event": {"name": event_name or "the event", "start_date": event_date or "", "cover_image": cover_image or ""},
+                "ticket_class_name": ticket_class or "General",
+                "status": "confirmed",
+            },
         })
         if not url:
             return
@@ -123,7 +138,7 @@ def wa_send_ticket(
             "image_url": url,
             "guest_name": buyer_name or "Friend",
             "event_name": event_name or "the event",
-            "event_date": event_date or "TBD",
+            "event_date": event_date or "TBA",
             "ticket_class": ticket_class or "General",
             "ticket_code": ticket_code,
         })

@@ -39,11 +39,23 @@ from utils.sms import (
     sms_guest_added, sms_committee_invite, sms_contribution_recorded,
     sms_contribution_target_set, sms_thank_you, sms_booking_notification,
 )
-from utils.whatsapp import wa_guest_invited
+from utils.whatsapp_cards import wa_send_invitation_card
 
 EAT = pytz.timezone("Africa/Nairobi")
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 VALID_STATUS_FILTERS = {"draft", "confirmed", "published", "cancelled", "completed", "all"}
+
+
+def _wa_event_date(event) -> str:
+    try:
+        if getattr(event, "start_date", None):
+            return event.start_date.strftime("%a, %-d %b %Y")
+    except Exception:
+        try:
+            return event.start_date.strftime("%a, %d %b %Y")
+        except Exception:
+            return ""
+    return ""
 
 
 def _initial_status(raw: Optional[str]):
@@ -2113,10 +2125,10 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
 
         # SMS + WhatsApp to contributor if they have a phone
         if contributor.phone:
-            event_date = event.start_date.strftime("%d/%m/%Y") if event.start_date else ""
+            event_date = _wa_event_date(event)
             organizer_name = f"{current_user.first_name} {current_user.last_name}"
             sms_guest_added(contributor.phone, contributor.name.split(" ")[0], event.name, event_date, organizer_name, invitation.invitation_code)
-            wa_guest_invited(contributor.phone, contributor.name.split(" ")[0], event.name, event_date, organizer_name, invitation.invitation_code)
+            wa_send_invitation_card(contributor.phone, str(event.id), str(invitation.id), contributor.name, event.name, event_date, organizer_name, invitation.invitation_code, getattr(event, "cover_image_url", None) or "")
 
         return standard_response(True, "Guest added successfully", _attendee_dict(db, att))
 
@@ -2198,10 +2210,11 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
                 db.commit()
             except Exception:
                 pass
-            event_date = event.start_date.strftime("%d/%m/%Y") if event.start_date else ""
+            event_date = _wa_event_date(event)
             organizer_name = f"{current_user.first_name} {current_user.last_name}"
             sms_guest_added(attendee_user.phone, f"{attendee_user.first_name}", event.name, event_date, organizer_name, invitation.invitation_code)
-            wa_guest_invited(attendee_user.phone, f"{attendee_user.first_name}", event.name, event_date, organizer_name, invitation.invitation_code)
+            guest_full_name = f"{attendee_user.first_name or ''} {attendee_user.last_name or ''}".strip() or f"{attendee_user.first_name}"
+            wa_send_invitation_card(attendee_user.phone, str(event.id), str(invitation.id), guest_full_name, event.name, event_date, organizer_name, invitation.invitation_code, getattr(event, "cover_image_url", None) or "")
 
         return standard_response(True, "Guest added successfully", _attendee_dict(db, att))
 
@@ -2339,11 +2352,11 @@ def add_contributors_as_guests(event_id: str, body: dict = Body(...), db: Sessio
 
         # Send SMS if opted in
         if send_sms and contributor.phone:
-            event_date = event.start_date.strftime("%d/%m/%Y") if event.start_date else ""
+            event_date = _wa_event_date(event)
             organizer_name = f"{current_user.first_name} {current_user.last_name}"
             try:
                 sms_guest_added(contributor.phone, contributor.name.split(" ")[0], event.name, event_date, organizer_name, invitation.invitation_code)
-                wa_guest_invited(contributor.phone, contributor.name.split(" ")[0], event.name, event_date, organizer_name, invitation.invitation_code)
+                wa_send_invitation_card(contributor.phone, str(event.id), str(invitation.id), contributor.name, event.name, event_date, organizer_name, invitation.invitation_code, getattr(event, "cover_image_url", None) or "")
             except Exception:
                 pass  # Don't fail the whole batch for one SMS/WhatsApp error
 
@@ -2513,18 +2526,13 @@ def send_invitation(event_id: str, guest_id: str, body: dict = Body(default={}),
     except Exception:
         organizer_name = ""
 
-    event_date_str = ""
-    try:
-        if getattr(event, "start_date", None):
-            event_date_str = event.start_date.strftime("%a, %d %b %Y") if hasattr(event.start_date, "strftime") else str(event.start_date)
-    except Exception:
-        event_date_str = ""
+    event_date_str = _wa_event_date(event)
 
     first_name = guest_name.split(" ")[0] if guest_name else "Guest"
     delivered = False
     try:
         if method == "whatsapp" and guest_phone:
-            wa_guest_invited(guest_phone, first_name, event.name or "your event", event_date_str, organizer_name, invitation.invitation_code or "")
+            wa_send_invitation_card(guest_phone, str(event.id), str(invitation.id), guest_name, event.name or "your event", event_date_str, organizer_name, invitation.invitation_code or "", getattr(event, "cover_image_url", None) or "")
             delivered = True
         elif method == "sms" and guest_phone:
             sms_guest_added(guest_phone, first_name, event.name or "your event", event_date_str, organizer_name, invitation.invitation_code or "")
