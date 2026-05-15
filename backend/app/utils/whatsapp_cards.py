@@ -13,8 +13,9 @@ import requests
 
 from utils.whatsapp import _normalize_phone
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+SUPABASE_URL = (os.getenv("EDGE_FUNCTION_URL", "") or os.getenv("SUPABASE_URL", "") or os.getenv("VITE_SUPABASE_URL", "")).rstrip("/")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "") or os.getenv("SUPABASE_PUBLISHABLE_KEY", "") or os.getenv("VITE_SUPABASE_PUBLISHABLE_KEY", "")
+CURRENT_FUNCTIONS_URL = "https://lmfprculxhspqxppscbn.supabase.co"
 RENDER_URL = f"{SUPABASE_URL}/functions/v1/render-card" if SUPABASE_URL else ""
 SEND_URL = f"{SUPABASE_URL}/functions/v1/whatsapp-send" if SUPABASE_URL else ""
 
@@ -26,43 +27,55 @@ _HEADERS = {
 
 
 def _render(payload: dict) -> str | None:
-    if not RENDER_URL or not SUPABASE_ANON_KEY:
-        print("[wa_cards] render skipped: missing SUPABASE_URL or SUPABASE_ANON_KEY")
+    urls = [RENDER_URL] if RENDER_URL else []
+    fallback_url = f"{CURRENT_FUNCTIONS_URL}/functions/v1/render-card"
+    if fallback_url not in urls:
+        urls.append(fallback_url)
+    if not urls:
+        print("[wa_cards] render skipped: missing edge function URL")
         return None
-    try:
-        print(f"[wa_cards] render payload: {payload}")
-        r = requests.post(RENDER_URL, json=payload, headers=_HEADERS, timeout=30)
-        if not r.ok:
-            print(f"[wa_cards] render failed ({r.status_code}): {r.text[:200]}")
-            return None
-        data = r.json() or {}
-        print(f"[wa_cards] render response: {data}")
-        return data.get("url")
-    except Exception as e:
-        print(f"[wa_cards] render exception: {e}")
-        return None
+    print(f"[wa_cards] render payload: {payload}")
+    for url in urls:
+        try:
+            print(f"[wa_cards] render url={url}")
+            r = requests.post(url, json=payload, headers=_HEADERS, timeout=30)
+            if not r.ok:
+                print(f"[wa_cards] render failed ({r.status_code}): {r.text[:200]}")
+                continue
+            data = r.json() or {}
+            print(f"[wa_cards] render response: {data}")
+            return data.get("url")
+        except Exception as e:
+            print(f"[wa_cards] render exception url={url}: {e}")
+    return None
 
 
 def _send(action: str, phone: str, params: dict) -> bool:
-    if not SEND_URL or not SUPABASE_ANON_KEY:
-        print("[wa_cards] send skipped: missing SUPABASE_URL or SUPABASE_ANON_KEY")
+    urls = [SEND_URL] if SEND_URL else []
+    fallback_url = f"{CURRENT_FUNCTIONS_URL}/functions/v1/whatsapp-send"
+    if fallback_url not in urls:
+        urls.append(fallback_url)
+    if not urls:
+        print("[wa_cards] send skipped: missing edge function URL")
         return False
-    try:
-        print(f"[wa_cards] send action={action} phone={phone} params={params}")
-        r = requests.post(
-            SEND_URL,
-            json={"action": action, "phone": phone, "params": params},
-            headers=_HEADERS,
-            timeout=15,
-        )
-        if not r.ok:
-            print(f"[wa_cards] send failed ({r.status_code}): {r.text[:200]}")
-            return False
-        print(f"[wa_cards] send response: {r.text[:300]}")
-        return True
-    except Exception as e:
-        print(f"[wa_cards] send exception: {e}")
-        return False
+    print(f"[wa_cards] send action={action} phone={phone} params={params}")
+    for url in urls:
+        try:
+            print(f"[wa_cards] send url={url}")
+            r = requests.post(
+                url,
+                json={"action": action, "phone": phone, "params": params},
+                headers=_HEADERS,
+                timeout=15,
+            )
+            if not r.ok:
+                print(f"[wa_cards] send failed ({r.status_code}): {r.text[:200]}")
+                continue
+            print(f"[wa_cards] send response: {r.text[:300]}")
+            return True
+        except Exception as e:
+            print(f"[wa_cards] send exception url={url}: {e}")
+    return False
 
 
 # ── Public helpers ────────────────────────────────────────────────────────────

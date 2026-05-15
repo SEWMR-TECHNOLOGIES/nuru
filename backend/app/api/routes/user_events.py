@@ -58,6 +58,23 @@ def _wa_event_date(event) -> str:
     return ""
 
 
+def _wa_event_cover_image(db: Session, event: Event) -> str:
+    cover = (getattr(event, "cover_image_url", None) or "").strip()
+    if cover:
+        return cover
+    try:
+        image = (
+            db.query(EventImage)
+            .filter(EventImage.event_id == event.id)
+            .order_by(EventImage.is_featured.desc(), EventImage.created_at.asc())
+            .first()
+        )
+        return (getattr(image, "image_url", None) or "").strip() if image else ""
+    except Exception as e:
+        print(f"[wa_cards] cover fallback lookup failed event_id={getattr(event, 'id', '')}: {e}")
+        return ""
+
+
 def _initial_status(raw: Optional[str]):
     """Map an incoming `status` form value to an EventStatusEnum.
 
@@ -2527,12 +2544,14 @@ def send_invitation(event_id: str, guest_id: str, body: dict = Body(default={}),
         organizer_name = ""
 
     event_date_str = _wa_event_date(event)
+    event_cover_image = _wa_event_cover_image(db, event)
+    print(f"[send_invitation] event_id={event.id} cover_image={event_cover_image!r}")
 
     first_name = guest_name.split(" ")[0] if guest_name else "Guest"
     delivered = False
     try:
         if method == "whatsapp" and guest_phone:
-            wa_send_invitation_card(guest_phone, str(event.id), str(invitation.id), guest_name, event.name or "your event", event_date_str, organizer_name, invitation.invitation_code or "", getattr(event, "cover_image_url", None) or "", event_time=getattr(event, "start_time", None).isoformat() if getattr(event, "start_time", None) else "", venue=getattr(event, "location", None) or "")
+            wa_send_invitation_card(guest_phone, str(event.id), str(invitation.id), guest_name, event.name or "your event", event_date_str, organizer_name, invitation.invitation_code or "", event_cover_image, event_time=getattr(event, "start_time", None).isoformat() if getattr(event, "start_time", None) else "", venue=getattr(event, "location", None) or "")
             delivered = True
         elif method == "sms" and guest_phone:
             sms_guest_added(guest_phone, first_name, event.name or "your event", event_date_str, organizer_name, invitation.invitation_code or "")
