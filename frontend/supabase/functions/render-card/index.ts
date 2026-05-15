@@ -23,6 +23,41 @@ async function ensureWasm() {
   }
   return wasmReady;
 }
+
+// Cache font buffers for the worker lifetime so resvg-wasm can rasterize text.
+// Without these buffers (and with loadSystemFonts:false), <text> renders blank.
+const FONT_URLS = [
+  // Inter (sans) — regular, semibold, bold, extrabold
+  'https://cdn.jsdelivr.net/fontsource/fonts/inter@latest/latin-400-normal.ttf',
+  'https://cdn.jsdelivr.net/fontsource/fonts/inter@latest/latin-600-normal.ttf',
+  'https://cdn.jsdelivr.net/fontsource/fonts/inter@latest/latin-700-normal.ttf',
+  'https://cdn.jsdelivr.net/fontsource/fonts/inter@latest/latin-800-normal.ttf',
+  // Playfair Display (serif) — for big titles + names
+  'https://cdn.jsdelivr.net/fontsource/fonts/playfair-display@latest/latin-700-normal.ttf',
+  'https://cdn.jsdelivr.net/fontsource/fonts/playfair-display@latest/latin-400-italic.ttf',
+  // Great Vibes (script) — editorial "You're Invited" greeting
+  'https://cdn.jsdelivr.net/fontsource/fonts/great-vibes@latest/latin-400-normal.ttf',
+  // Space Mono — invitation/ticket code
+  'https://cdn.jsdelivr.net/fontsource/fonts/space-mono@latest/latin-700-normal.ttf',
+];
+let fontBuffersPromise: Promise<Uint8Array[]> | null = null;
+async function loadFontBuffers(): Promise<Uint8Array[]> {
+  if (!fontBuffersPromise) {
+    fontBuffersPromise = Promise.all(
+      FONT_URLS.map(async (u) => {
+        try {
+          const r = await fetch(u);
+          if (!r.ok) throw new Error(`font ${u} -> ${r.status}`);
+          return new Uint8Array(await r.arrayBuffer());
+        } catch (e) {
+          console.error('[render-card] font load failed', u, e);
+          return new Uint8Array(0);
+        }
+      }),
+    ).then((bufs) => bufs.filter((b) => b.byteLength > 0));
+  }
+  return fontBuffersPromise;
+}
 import QRCode from 'npm:qrcode@1.5.4';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { buildTicketSvg } from './ticket-svg.ts';
@@ -73,10 +108,17 @@ async function qrPngDataUrl(value: string, size = 480, dark = '#111111', light =
 
 async function rasterize(svg: string, width = 1080): Promise<Uint8Array> {
   await ensureWasm();
+  const fontBuffers = await loadFontBuffers();
   const r = new Resvg(svg, {
     fitTo: { mode: 'width', value: width },
     background: 'white',
-    font: { loadSystemFonts: false, defaultFontFamily: 'Arial' },
+    font: {
+      loadSystemFonts: false,
+      fontBuffers,
+      defaultFontFamily: 'Inter',
+      serifFamily: 'Playfair Display',
+      sansSerifFamily: 'Inter',
+    },
   });
   return r.render().asPng();
 }
@@ -132,13 +174,15 @@ async function renderInvitation(body: any): Promise<Response> {
   const svg = buildInvitationSvg({
     guestName: guest_name,
     eventName: event?.name || body.event_name || 'Our Event',
+    eventType: event?.event_type || body.event_type || null,
     hostLine: content.host_line || event?.organizer_name || body.host_line || null,
     date: body.date || event?.start_date || null,
     time: body.time || event?.start_time || null,
     venue: body.venue || event?.location || null,
     address: body.address || event?.address || null,
     dressCode: content.dress_code || body.dress_code || null,
-    rsvpCode: (guest_id || qrVal).toString().slice(0, 10).toUpperCase(),
+    rsvpCode: ((body.invitation_code || guest_id || qrVal) || '').toString().slice(0, 12).toUpperCase(),
+    accent: event?.theme_color || body.accent || '#D4AF37',
     coverImageDataUrl: cover,
     qrPngDataUrl: qrPng,
   });

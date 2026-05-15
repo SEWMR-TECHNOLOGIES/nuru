@@ -2486,7 +2486,63 @@ def send_invitation(event_id: str, guest_id: str, body: dict = Body(default={}),
         att.invitation_id = invitation.id
 
     db.commit()
-    return standard_response(True, "Invitation sent successfully", {"guest_id": str(att.id), "method": method, "sent_at": now.isoformat(), "invitation_url": f"https://nuru.tz/rsvp/{invitation.invitation_code}"})
+
+    # Actually deliver the invitation through the requested channel.
+    # Resolve guest name/phone from the attendee row, falling back to the linked
+    # User if this is a registered attendee.
+    guest_name = (att.guest_name or "").strip()
+    guest_phone = (att.guest_phone or "").strip()
+    guest_email = (att.guest_email or "").strip()
+    if att.attendee_id and (not guest_name or not guest_phone or not guest_email):
+        u = db.query(User).filter(User.id == att.attendee_id).first()
+        if u:
+            if not guest_name:
+                guest_name = f"{(u.first_name or '').strip()} {(u.last_name or '').strip()}".strip() or "Guest"
+            if not guest_phone:
+                guest_phone = (u.phone or "").strip()
+            if not guest_email:
+                guest_email = (u.email or "").strip()
+    if not guest_name:
+        guest_name = "Guest"
+
+    organizer_name = ""
+    try:
+        organizer = db.query(User).filter(User.id == event.organizer_id).first() if getattr(event, "organizer_id", None) else None
+        if organizer:
+            organizer_name = f"{(organizer.first_name or '').strip()} {(organizer.last_name or '').strip()}".strip()
+    except Exception:
+        organizer_name = ""
+
+    event_date_str = ""
+    try:
+        if getattr(event, "start_date", None):
+            event_date_str = event.start_date.strftime("%a, %d %b %Y") if hasattr(event.start_date, "strftime") else str(event.start_date)
+    except Exception:
+        event_date_str = ""
+
+    first_name = guest_name.split(" ")[0] if guest_name else "Guest"
+    delivered = False
+    try:
+        if method == "whatsapp" and guest_phone:
+            wa_guest_invited(guest_phone, first_name, event.name or "your event", event_date_str, organizer_name, invitation.invitation_code or "")
+            delivered = True
+        elif method == "sms" and guest_phone:
+            sms_guest_added(guest_phone, first_name, event.name or "your event", event_date_str, organizer_name, invitation.invitation_code or "")
+            delivered = True
+        elif method == "email":
+            # Email delivery path is not wired yet — keep DB stamp but report honestly.
+            delivered = False
+    except Exception as e:
+        print(f"[send_invitation] delivery failed via {method}: {e}")
+        delivered = False
+
+    return standard_response(True, "Invitation sent successfully" if delivered else "Invitation recorded (delivery pending)", {
+        "guest_id": str(att.id),
+        "method": method,
+        "delivered": delivered,
+        "sent_at": now.isoformat(),
+        "invitation_url": f"https://nuru.tz/rsvp/{invitation.invitation_code}",
+    })
 
 
 @router.post("/{event_id}/guests/invite-all")
