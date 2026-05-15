@@ -135,12 +135,12 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
     }
   };
 
-  const handleSendInvitation = async (method: "email" | "sms" | "whatsapp") => {
+  const handleSendInvitation = async (method: "email" | "sms" | "whatsapp" | "whatsapp_text") => {
     if (!selectedGuest) return;
-    setSendingMethod(method);
+    setSendingMethod(method === 'whatsapp_text' ? 'whatsapp' : method);
     try {
       await sendInvitation(selectedGuest.id, method);
-      toast.success(`Invitation sent via ${method}`);
+      toast.success(`Invitation sent via ${method === 'whatsapp_text' ? 'WhatsApp' : method}`);
       setInviteDialogOpen(false);
       setSelectedGuest(null);
     } catch (err: any) {
@@ -407,7 +407,7 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
                   <Button variant="outline" className="justify-start" onClick={() => handleSendInvitation('sms')} disabled={sendingMethod !== null}>
                     {sendingMethod === 'sms' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Phone className="w-4 h-4 mr-2" />}Send via SMS
                   </Button>
-                  <Button variant="outline" className="justify-start" onClick={() => handleSendInvitation('whatsapp')} disabled={sendingMethod !== null}>
+                  <Button variant="outline" className="justify-start" onClick={() => handleSendInvitation('whatsapp_text')} disabled={sendingMethod !== null}>
                     {sendingMethod === 'whatsapp' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}Send via WhatsApp (text)
                   </Button>
                   <Button variant="outline" className="justify-start" onClick={handleSendInvitationCard} disabled={sendingMethod !== null}>

@@ -212,7 +212,7 @@ export const useEventGuests = (eventId: string | null, initialParams?: GuestQuer
     }
   };
 
-  const sendInvitation = async (guestId: string, method: "email" | "sms" | "whatsapp", customMessage?: string) => {
+  const sendInvitation = async (guestId: string, method: "email" | "sms" | "whatsapp" | "whatsapp_text", customMessage?: string) => {
     if (!eventId) return null;
     try {
       const response = await eventsApi.sendInvitation(eventId, guestId, { method, custom_message: customMessage });

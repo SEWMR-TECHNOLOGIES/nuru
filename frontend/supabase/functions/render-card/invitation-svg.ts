@@ -266,7 +266,7 @@ export function buildInvitationSvg(a: BuildArgs): string {
 
     <!-- Event type pill (bottom-left, above title) -->
     ${typeText ? `
-    <rect x="${sidePad}" y="${typePillY}" width="${typePillW}" height="${Math.round(20 * S)}" rx="100"
+    <rect x="${sidePad}" y="${typePillY}" width="${typePillW}" height="${Math.round(20 * S)}" rx="${Math.round(20 * S * 0.25)}"
           fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="1.6"/>
     <text x="${sidePad + typePillW / 2}" y="${typePillY + Math.round(20 * S) / 2 + 9}" text-anchor="middle"
           fill="#FFFFFF" font-size="25" font-weight="700" letter-spacing="6.6">${escapeXml(typeText)}</text>
