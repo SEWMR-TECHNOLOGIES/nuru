@@ -265,12 +265,17 @@ export function buildInvitationSvg(a: BuildArgs): string {
           fill="#FFFFFF" font-size="28" font-weight="800" letter-spacing="4.4">INVITATION</text>
 
     <!-- Event type pill (bottom-left, above title) -->
-    ${typeText ? `
-    <rect x="${sidePad}" y="${typePillY}" width="${typePillW}" height="${Math.round(20 * S)}" rx="${Math.round(20 * S * 0.25)}"
+    ${typeText ? (() => {
+      const typePillH = Math.round(38 * S);
+      const typePillRx = Math.round(typePillH * 0.25); // 25% radius like INVITATION/TICKET pills
+      const adjPillY = typePillY - Math.round(10 * S); // shift up to keep above title
+      return `
+    <rect x="${sidePad}" y="${adjPillY}" width="${typePillW}" height="${typePillH}" rx="${typePillRx}"
           fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="1.6"/>
-    <text x="${sidePad + typePillW / 2}" y="${typePillY + Math.round(20 * S) / 2 + 9}" text-anchor="middle"
+    <text x="${sidePad + typePillW / 2}" y="${adjPillY + typePillH / 2 + 9}" text-anchor="middle"
           fill="#FFFFFF" font-size="25" font-weight="700" letter-spacing="6.6">${escapeXml(typeText)}</text>
-    ` : ''}
+    `;
+    })() : ''}
 
     <!-- Event title (Playfair, white) -->
     <text x="${sidePad}" y="${titleBaselineY}" fill="#FFFFFF" font-family="Playfair Display, serif"
