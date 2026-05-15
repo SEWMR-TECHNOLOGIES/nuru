@@ -211,8 +211,12 @@ async function renderInvitation(body: any): Promise<Response> {
   const organizerName = event?.organizer_name || event?.organizer?.name || body.host_line || null;
 
   const coverUrl = event?.cover_image || event?.cover_image_url || body.cover_image || '';
+  // resvg-wasm can't decode AVIF/HEIC — proxy through wsrv.nl to force JPEG.
+  const proxiedCover = coverUrl
+    ? `https://wsrv.nl/?url=${encodeURIComponent(coverUrl.replace(/^https?:\/\//, ''))}&w=1200&h=600&fit=cover&output=jpg&q=95`
+    : '';
   const [cover, logo] = await Promise.all([
-    coverUrl ? fetchAsDataUrl(coverUrl) : Promise.resolve(null),
+    proxiedCover ? fetchAsDataUrl(proxiedCover, 'cover') : Promise.resolve(null),
     nuruLogoDataUrl(),
   ]);
 
@@ -253,7 +257,10 @@ async function renderTicket(body: any): Promise<Response> {
   const eventTitle = event.name || event.title || data.event_name || data.event_title || data.ticket_class_name || 'Event';
 
   const coverUrl = event.cover_image || event.cover_image_url || event.event_cover || data.cover_image || data.event_cover || '';
-  const cover = coverUrl ? await fetchAsDataUrl(coverUrl) : null;
+  const proxiedCover = coverUrl
+    ? `https://wsrv.nl/?url=${encodeURIComponent(coverUrl.replace(/^https?:\/\//, ''))}&w=1200&h=600&fit=cover&output=jpg&q=95`
+    : '';
+  const cover = proxiedCover ? await fetchAsDataUrl(proxiedCover, 'cover') : null;
 
   const qrPng = await qrPngDataUrl(ticket_code, 480, '#111111', '#FFFFFF');
 

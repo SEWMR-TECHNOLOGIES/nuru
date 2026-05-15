@@ -129,6 +129,17 @@ def wa_send_invitation_card(
             "cover_image": cover_image or "",
         })
         if not url:
+            # Card render failed — fall back to the approved text template
+            # so the guest still receives a usable WhatsApp invitation.
+            _send("send_invitation_text", intl, {
+                "guest_name": safe_name,
+                "event_name": safe_event,
+                "organizer_name": safe_host,
+                "event_date": safe_date,
+                "event_time": (event_time or "").strip() or "TBA",
+                "venue": (venue or "").strip() or "TBA",
+                "rsvp_code": invite_code or "—",
+            })
             return
         _send("send_invitation_card", intl, {
             "image_url": url,
@@ -137,6 +148,35 @@ def wa_send_invitation_card(
             "event_date": safe_date,
             "organizer_name": safe_host,
             "rsvp_code": invite_code or "—",
+        })
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def wa_send_invitation_text(
+    phone: str,
+    guest_name: str,
+    event_name: str,
+    organizer_name: str = "",
+    event_date: str = "",
+    event_time: str = "",
+    venue: str = "",
+    rsvp_code: str = "",
+):
+    """Send the plain-text WhatsApp invitation (no image). Fire-and-forget."""
+    intl = _normalize_phone(phone)
+    if not intl:
+        return
+
+    def _run():
+        _send("send_invitation_text", intl, {
+            "guest_name": (guest_name or "").strip() or "Guest",
+            "event_name": (event_name or "").strip() or "the event",
+            "organizer_name": (organizer_name or "").strip() or "the organizer",
+            "event_date": (event_date or "").strip() or "TBA",
+            "event_time": (event_time or "").strip() or "TBA",
+            "venue": (venue or "").strip() or "TBA",
+            "rsvp_code": (rsvp_code or "").strip() or "—",
         })
 
     threading.Thread(target=_run, daemon=True).start()
