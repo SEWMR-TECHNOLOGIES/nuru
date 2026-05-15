@@ -239,7 +239,10 @@ def get_rsvp_details(code: str):
                 "dietary_restrictions": attendee.dietary_restrictions,
                 "special_requests": attendee.special_requests,
                 "plus_ones": existing_plus_ones,
+                "checked_in": bool(getattr(attendee, "checked_in", False)),
+                "checked_in_at": attendee.checked_in_at.isoformat() if getattr(attendee, "checked_in_at", None) else None,
             }
+        data["invitation"]["is_used"] = bool(attendee and getattr(attendee, "checked_in", False))
 
         return standard_response(True, "RSVP details retrieved", data=data)
     finally:
@@ -268,6 +271,30 @@ def respond_to_rsvp(code: str, body: RSVPResponseInput):
             return standard_response(False, "Event not found", errors=["EVENT_NOT_FOUND"])
 
         rsvp_enum = RSVPStatusEnum.confirmed if body.rsvp_status == "confirmed" else RSVPStatusEnum.declined
+
+        # If guest already checked in (manually by organizer or via QR scan),
+        # the invitation is "used" and cannot be modified.
+        existing_att = None
+        if inv.guest_type == GuestTypeEnum.user and inv.invited_user_id:
+            existing_att = db.query(EventAttendee).filter(
+                EventAttendee.event_id == event.id,
+                EventAttendee.attendee_id == inv.invited_user_id,
+            ).first()
+        elif inv.guest_type == GuestTypeEnum.contributor and inv.contributor_id:
+            existing_att = db.query(EventAttendee).filter(
+                EventAttendee.event_id == event.id,
+                EventAttendee.contributor_id == inv.contributor_id,
+            ).first()
+        else:
+            existing_att = db.query(EventAttendee).filter(
+                EventAttendee.invitation_id == inv.id,
+            ).first()
+        if existing_att and getattr(existing_att, "checked_in", False):
+            return standard_response(
+                False,
+                "This invitation has already been used for check-in and can no longer be changed.",
+                errors=["ALREADY_USED"],
+            )
 
         # Update invitation record
         inv.rsvp_status = rsvp_enum
