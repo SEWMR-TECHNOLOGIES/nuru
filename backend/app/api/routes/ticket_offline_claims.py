@@ -288,10 +288,13 @@ def confirm_ticket_offline_claim(
             from utils.whatsapp_cards import wa_send_ticket
             ev_date = ""
             try:
-                if getattr(event, "start_at", None):
-                    ev_date = event.start_at.strftime("%d %b %Y")
+                if getattr(event, "start_date", None):
+                    ev_date = event.start_date.strftime("%a, %-d %b %Y")
             except Exception:
-                pass
+                try:
+                    ev_date = event.start_date.strftime("%a, %d %b %Y") if getattr(event, "start_date", None) else ""
+                except Exception:
+                    pass
             wa_send_ticket(
                 phone=claim.claimant_phone,
                 event_id=str(event.id),
@@ -300,6 +303,7 @@ def confirm_ticket_offline_claim(
                 event_name=event.name or "the event",
                 event_date=ev_date or "TBD",
                 ticket_class=tc.name or "General",
+                cover_image=(getattr(event, "cover_image_url", None) or ""),
             )
     except Exception as e:
         print(f"[ticket-offline-claim] wa_send_ticket failed: {e}")

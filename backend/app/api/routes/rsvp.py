@@ -344,10 +344,13 @@ def respond_to_rsvp(code: str, body: RSVPResponseInput):
                         )
                 event_date = ""
                 try:
-                    if getattr(event, "start_at", None):
-                        event_date = event.start_at.strftime("%d %b %Y")
+                    if getattr(event, "start_date", None):
+                        event_date = event.start_date.strftime("%a, %-d %b %Y")
                 except Exception:
-                    pass
+                    try:
+                        event_date = event.start_date.strftime("%a, %d %b %Y") if getattr(event, "start_date", None) else ""
+                    except Exception:
+                        pass
                 if guest_phone:
                     wa_send_invitation_card(
                         phone=guest_phone,
@@ -358,6 +361,7 @@ def respond_to_rsvp(code: str, body: RSVPResponseInput):
                         event_date=event_date or "TBD",
                         organizer_name=organizer_name,
                         rsvp_code=inv.invitation_code or "",
+                        cover_image=getattr(event, "cover_image_url", None) or "",
                     )
             except Exception as _e:
                 print(f"[rsvp] wa_send_invitation_card failed: {_e}")

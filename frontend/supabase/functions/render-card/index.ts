@@ -164,8 +164,11 @@ async function renderInvitation(body: any): Promise<Response> {
 
   const event = await fetchEvent(event_id);
   const content = event?.invitation_content || {};
+  const eventTitle = event?.name || event?.title || body.event_name || 'Our Event';
+  const eventType = typeof event?.event_type === 'string' ? event.event_type : event?.event_type?.name;
+  const organizerName = event?.organizer_name || event?.organizer?.name || body.host_line || null;
 
-  const coverUrl = event?.cover_image || body.cover_image || '';
+  const coverUrl = event?.cover_image || event?.cover_image_url || body.cover_image || '';
   const cover = coverUrl ? await fetchAsDataUrl(coverUrl) : null;
 
   const qrVal = qr_value || guest_id || `${event_id}:${guest_name}`;
@@ -173,14 +176,14 @@ async function renderInvitation(body: any): Promise<Response> {
 
   const svg = buildInvitationSvg({
     guestName: guest_name,
-    eventName: event?.name || body.event_name || 'Our Event',
-    eventType: event?.event_type || body.event_type || null,
-    hostLine: content.host_line || event?.organizer_name || body.host_line || null,
+    eventName: eventTitle,
+    eventType: eventType || body.event_type || null,
+    hostLine: content.host_line || organizerName,
     date: body.date || event?.start_date || null,
     time: body.time || event?.start_time || null,
-    venue: body.venue || event?.location || null,
-    address: body.address || event?.address || null,
-    dressCode: content.dress_code || body.dress_code || null,
+    venue: body.venue || event?.venue || event?.location || null,
+    address: body.address || event?.venue_address || event?.address || null,
+    dressCode: content.dress_code || event?.dress_code || body.dress_code || null,
     rsvpCode: ((body.invitation_code || guest_id || qrVal) || '').toString().slice(0, 12).toUpperCase(),
     accent: event?.theme_color || body.accent || '#D4AF37',
     coverImageDataUrl: cover,
@@ -201,21 +204,22 @@ async function renderTicket(body: any): Promise<Response> {
 
   const data = ticket_data || (await fetchTicket(ticket_code)) || {};
   const event = data.event || (await fetchEvent(event_id)) || {};
+  const eventTitle = event.name || event.title || data.event_name || data.event_title || data.ticket_class_name || 'Event';
 
-  const coverUrl = event.cover_image || data.cover_image || '';
+  const coverUrl = event.cover_image || event.cover_image_url || event.event_cover || data.cover_image || data.event_cover || '';
   const cover = coverUrl ? await fetchAsDataUrl(coverUrl) : null;
 
   const qrPng = await qrPngDataUrl(ticket_code, 480, '#111111', '#FFFFFF');
 
   const svg = buildTicketSvg({
-    eventName: event.name || data.event_name || data.ticket_class_name || 'Event',
+    eventName: eventTitle,
     ticketCode: ticket_code,
     ticketClass: data.ticket_class_name || data.ticket_class || 'General',
     status: data.status || 'pending',
-    location: event.location || '',
+    location: event.location || event.event_location || data.event_location || '',
     coverImageDataUrl: cover,
-    date: event.start_date || null,
-    time: event.start_time || null,
+    date: event.start_date || data.event_date || null,
+    time: event.start_time || data.event_time || null,
     quantity: typeof data.quantity === 'number' ? data.quantity : 1,
     currency: data.currency || 'TZS',
     totalAmount: data.total_amount != null ? Number(data.total_amount) : null,
