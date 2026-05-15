@@ -156,6 +156,14 @@ async function fetchTicket(ticketCode: string): Promise<any | null> {
 
 // ────────────────────────── handlers ──────────────────────────
 
+// Cache the Nuru logo as a data URL across invocations.
+const NURU_LOGO_URL = 'https://nuru.lovable.app/nuru-logo.png';
+let logoPromise: Promise<string | null> | null = null;
+async function nuruLogoDataUrl(): Promise<string | null> {
+  if (!logoPromise) logoPromise = fetchAsDataUrl(NURU_LOGO_URL);
+  return logoPromise;
+}
+
 async function renderInvitation(body: any): Promise<Response> {
   const { event_id, guest_name, guest_id, qr_value } = body;
   if (!event_id || !guest_name) {
@@ -169,7 +177,10 @@ async function renderInvitation(body: any): Promise<Response> {
   const organizerName = event?.organizer_name || event?.organizer?.name || body.host_line || null;
 
   const coverUrl = event?.cover_image || event?.cover_image_url || body.cover_image || '';
-  const cover = coverUrl ? await fetchAsDataUrl(coverUrl) : null;
+  const [cover, logo] = await Promise.all([
+    coverUrl ? fetchAsDataUrl(coverUrl) : Promise.resolve(null),
+    nuruLogoDataUrl(),
+  ]);
 
   const qrVal = qr_value || guest_id || `${event_id}:${guest_name}`;
   const qrPng = await qrPngDataUrl(qrVal, 512, '#111111', '#FFFFFF');
@@ -188,6 +199,7 @@ async function renderInvitation(body: any): Promise<Response> {
     accent: event?.theme_color || body.accent || '#D4AF37',
     coverImageDataUrl: cover,
     qrPngDataUrl: qrPng,
+    logoDataUrl: logo,
   });
 
   const png = await rasterize(svg, 1080);

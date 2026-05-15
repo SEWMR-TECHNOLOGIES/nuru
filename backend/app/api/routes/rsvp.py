@@ -358,10 +358,12 @@ def respond_to_rsvp(code: str, body: RSVPResponseInput):
                         guest_id=str(inv.id),
                         guest_name=guest_display,
                         event_name=event.name or "the event",
-                        event_date=event_date or "TBD",
+                        event_date=event_date or "",
                         organizer_name=organizer_name,
                         rsvp_code=inv.invitation_code or "",
                         cover_image=getattr(event, "cover_image_url", None) or "",
+                        event_time=getattr(event, "start_time", None).isoformat() if getattr(event, "start_time", None) else "",
+                        venue=getattr(event, "location", None) or "",
                     )
             except Exception as _e:
                 print(f"[rsvp] wa_send_invitation_card failed: {_e}")

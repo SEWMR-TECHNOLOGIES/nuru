@@ -57,17 +57,34 @@ const MO = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','D
 
 function fmtDate(iso?: string | null): string {
   if (!iso) return '';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
+  const s = String(iso).trim();
+  if (!s) return '';
+  // Already-formatted strings (e.g. "Sat, 20 Jun 2026") — pass through.
+  if (!/^\d{4}-\d{2}-\d{2}/.test(s) && !/^\d{2}\/\d{2}\/\d{4}/.test(s) && s.includes(' ')) {
+    return s;
+  }
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return s;
   return `${WK[(d.getDay() + 6) % 7]}, ${d.getDate()} ${MO[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 function fmtTime(t?: string | null): string {
   if (!t) return '';
-  const parts = t.split(':');
-  if (parts.length < 2) return t;
-  let h = parseInt(parts[0], 10) || 0;
-  const m = parts[1].padStart(2, '0');
+  const s = String(t).trim();
+  if (!s) return '';
+  // ISO datetime — extract time portion.
+  let hStr: string, mStr: string;
+  const isoMatch = /T(\d{2}):(\d{2})/.exec(s);
+  if (isoMatch) {
+    hStr = isoMatch[1]; mStr = isoMatch[2];
+  } else if (/^\d{1,2}:\d{2}/.test(s)) {
+    const parts = s.split(':');
+    hStr = parts[0]; mStr = parts[1];
+  } else {
+    return s; // Already formatted (e.g. "7:00 PM")
+  }
+  let h = parseInt(hStr, 10) || 0;
+  const m = mStr.padStart(2, '0');
   const ampm = h >= 12 ? 'PM' : 'AM';
   if (h === 0) h = 12;
   if (h > 12) h -= 12;
@@ -88,6 +105,7 @@ interface BuildArgs {
   accent?: string | null;         // theme color, defaults to gold
   coverImageDataUrl: string | null;
   qrPngDataUrl: string;
+  logoDataUrl?: string | null;    // Nuru wordmark/sun PNG
 }
 
 export function buildInvitationSvg(a: BuildArgs): string {
@@ -235,9 +253,10 @@ export function buildInvitationSvg(a: BuildArgs): string {
     ${cover}
     <rect x="0" y="0" width="${W}" height="${HERO_H}" fill="url(#heroGrad)"/>
 
-    <!-- nuru wordmark + sun -->
-    <text x="${logoX}" y="${logoY}" fill="#FFFFFF" font-size="${Math.round(22 * S * 0.85)}" font-weight="700" letter-spacing="-1">nuru</text>
-    <circle cx="${logoX + 130}" cy="${logoY - 18}" r="9" fill="${accent}"/>
+    <!-- Nuru logo (top-left) -->
+    ${a.logoDataUrl
+      ? `<image x="${logoX}" y="${Math.round(16 * S)}" height="${Math.round(28 * S)}" href="${a.logoDataUrl}" preserveAspectRatio="xMinYMid meet"/>`
+      : `<circle cx="${logoX + 18}" cy="${Math.round(16 * S) + Math.round(14 * S)}" r="14" fill="${accent}"/>`}
 
     <!-- INVITATION pill (top-right) -->
     <rect x="${invPillX}" y="${invPillY}" width="${invPillW}" height="${invPillH}" rx="14" fill="${accent}"/>

@@ -301,9 +301,11 @@ def confirm_ticket_offline_claim(
                 ticket_code=ticket_code,
                 buyer_name=claim.claimant_name or "Friend",
                 event_name=event.name or "the event",
-                event_date=ev_date or "TBD",
+                event_date=ev_date or "",
                 ticket_class=tc.name or "General",
                 cover_image=(getattr(event, "cover_image_url", None) or ""),
+                event_time=(getattr(event, "start_time", None).isoformat() if getattr(event, "start_time", None) else ""),
+                venue=(getattr(event, "location", None) or ""),
             )
     except Exception as e:
         print(f"[ticket-offline-claim] wa_send_ticket failed: {e}")
