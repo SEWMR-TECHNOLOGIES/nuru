@@ -84,6 +84,47 @@ Deno.serve(async (req) => {
       case "text":
         result = await sendTextMessage(phone, params?.message || "", WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
         break;
+      case "send_invitation_card":
+        result = await sendTemplate(
+          phone,
+          "event_invitation_card",
+          buildInvitationCardComponents(params),
+          WHATSAPP_ACCESS_TOKEN,
+          WHATSAPP_PHONE_NUMBER_ID,
+        );
+        break;
+      case "send_ticket":
+        result = await sendTemplate(
+          phone,
+          "event_ticket_delivery",
+          buildTicketDeliveryComponents(params),
+          WHATSAPP_ACCESS_TOKEN,
+          WHATSAPP_PHONE_NUMBER_ID,
+        );
+        break;
+      case "vendor_payment_otp":
+        result = await sendTemplate(
+          phone,
+          "vendor_payment_otp",
+          buildVendorPaymentOtpComponents(params),
+          WHATSAPP_ACCESS_TOKEN,
+          WHATSAPP_PHONE_NUMBER_ID,
+        );
+        break;
+      case "vendor_payment_confirmed":
+        result = await sendTemplate(
+          phone,
+          "vendor_payment_confirmed",
+          buildVendorPaymentConfirmedComponents(params),
+          WHATSAPP_ACCESS_TOKEN,
+          WHATSAPP_PHONE_NUMBER_ID,
+        );
+        break;
+      case "image":
+        // Freeform image (only delivers within the 24h customer service window;
+        // safe fallback for organisers chatting with confirmed contacts)
+        result = await sendImageMessage(phone, params?.image_url || "", params?.caption || "", WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        break;
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
@@ -507,4 +548,107 @@ async function checkWhatsAppBySending(
 
   console.log(`[WhatsApp Check] Send-check returned error ${errorCode}: ${data?.error?.message}`);
   return { is_whatsapp: "unknown", wa_id: null, error: data?.error?.message };
+}
+
+// ── Invitation card / ticket media-template builders ──
+function buildInvitationCardComponents(params: {
+  image_url?: string; guest_name?: string; event_name?: string;
+  event_date?: string; organizer_name?: string; rsvp_code?: string;
+}) {
+  return [
+    {
+      type: "header",
+      parameters: [{ type: "image", image: { link: params.image_url || "" } }],
+    },
+    {
+      type: "body",
+      parameters: [
+        { type: "text", text: params.guest_name || "Guest" },
+        { type: "text", text: params.event_name || "the event" },
+        { type: "text", text: params.event_date || "TBD" },
+        { type: "text", text: params.organizer_name || "Your host" },
+        { type: "text", text: params.rsvp_code || "—" },
+      ],
+    },
+  ];
+}
+
+function buildTicketDeliveryComponents(params: {
+  image_url?: string; guest_name?: string; event_name?: string;
+  event_date?: string; ticket_class?: string; ticket_code?: string;
+}) {
+  return [
+    {
+      type: "header",
+      parameters: [{ type: "image", image: { link: params.image_url || "" } }],
+    },
+    {
+      type: "body",
+      parameters: [
+        { type: "text", text: params.guest_name || "Friend" },
+        { type: "text", text: params.event_name || "the event" },
+        { type: "text", text: params.event_date || "TBD" },
+        { type: "text", text: params.ticket_class || "General" },
+        { type: "text", text: params.ticket_code || "—" },
+      ],
+    },
+  ];
+}
+
+// ── Send freeform image (24h window only) ─────────────
+async function sendImageMessage(phone: string, imageUrl: string, caption: string, token: string, phoneId: string) {
+  const url = `${GRAPH_API}/${phoneId}/messages`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "image",
+      image: { link: imageUrl, caption: caption || undefined },
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    console.error(`WhatsApp image send error [${res.status}]:`, JSON.stringify(data));
+    throw new Error(`WhatsApp image send failed [${res.status}]: ${JSON.stringify(data)}`);
+  }
+  return { sent: true, message_id: data.messages?.[0]?.id };
+}
+
+// ── Vendor offline-payment OTP ──
+// Body: "NURU PAYMENT\n\nHello {{1}}, {{2}} has made a payment claim of {{3}} for your service \"{{4}}\" at {{5}}.\n\nUse this code to confirm the payment: {{6}}\n\nCode expires in 10 minutes."
+function buildVendorPaymentOtpComponents(params: {
+  vendor_name?: string; organiser_name?: string; amount?: string;
+  service_title?: string; event_name?: string; otp?: string;
+}) {
+  return [{
+    type: "body",
+    parameters: [
+      { type: "text", text: params.vendor_name || "there" },
+      { type: "text", text: params.organiser_name || "An organiser" },
+      { type: "text", text: params.amount || "an amount" },
+      { type: "text", text: params.service_title || "your service" },
+      { type: "text", text: params.event_name || "the event" },
+      { type: "text", text: params.otp || "------" },
+    ],
+  }];
+}
+
+// ── Vendor payment confirmed ──
+// Body: "NURU PAYMENT\n\nHello {{1}}, you have received a payment of {{2}} from {{3}} for {{4}}.\n\n{{5}}"
+function buildVendorPaymentConfirmedComponents(params: {
+  vendor_name?: string; amount?: string; organiser_name?: string;
+  event_name?: string; remaining_msg?: string;
+}) {
+  return [{
+    type: "body",
+    parameters: [
+      { type: "text", text: params.vendor_name || "there" },
+      { type: "text", text: params.amount || "an amount" },
+      { type: "text", text: params.organiser_name || "the organiser" },
+      { type: "text", text: params.event_name || "the event" },
+      { type: "text", text: params.remaining_msg || "Payment is fully settled." },
+    ],
+  }];
 }

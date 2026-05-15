@@ -55,6 +55,11 @@ TOOL USE:
 - Categories → get_service_categories
 - Event types → get_event_types
 - Budget/cost estimation → create_event_budget tool (ask for event type, guest count, and budget tier if not provided)
+- "My contributions / how much have I paid / my pledge" → get_my_contribution_progress
+- "My tickets / show my tickets" → get_my_tickets
+- When you NEED a value before answering (event id, amount, phone, date), call request_user_input INSTEAD of guessing.
+- Before any irreversible action, call request_confirmation.
+- For >=3 rows of structured data, call render_table instead of writing a markdown table.
 - Present results naturally. If none found, suggest alternatives briefly.`;
 
 serve(async (req) => {
@@ -77,6 +82,7 @@ serve(async (req) => {
     }
 
     const { messages, firstName, skipTools } = body;
+    const incomingAuth = req.headers.get("authorization") || undefined;
     if (!messages || !Array.isArray(messages)) {
       return jsonRes(cors, { error: "Missing or invalid 'messages' array" }, 400);
     }
@@ -193,7 +199,7 @@ serve(async (req) => {
               }
 
               console.log(`[nuru-chat] Executing tool: ${fnName}`, fnArgs);
-              const result = await executeTool(fnName, fnArgs);
+              const result = await executeTool(fnName, fnArgs, incomingAuth);
               console.log(`[nuru-chat] Tool result length: ${result.length} chars`);
 
               toolResults.push({

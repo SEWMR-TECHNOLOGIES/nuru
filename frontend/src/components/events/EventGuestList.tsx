@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { 
   UserPlus, Send, Search, Filter, CheckCircle, Clock, X,
-  QrCode, Mail, Phone, MoreVertical, Trash, Loader2, BookUser, Download
+  QrCode, Mail, Phone, MoreVertical, Trash, Loader2, BookUser, Download, Image as ImageIcon
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -143,6 +144,51 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
       setSelectedGuest(null);
     } catch (err: any) {
       showCaughtError(err, 'Failed to send invitation');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSendInvitationCard = async () => {
+    if (!selectedGuest?.phone) {
+      toast.error('Guest phone number is required');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      // 1. Render the invitation card PNG
+      const { data: render, error: rErr } = await supabase.functions.invoke('render-card', {
+        body: {
+          kind: 'invitation',
+          event_id: eventId,
+          guest_id: selectedGuest.id,
+          guest_name: selectedGuest.name || 'Guest',
+          qr_value: selectedGuest.id,
+        },
+      });
+      if (rErr || !render?.url) throw new Error(rErr?.message || 'Failed to render card');
+
+      // 2. Send via WhatsApp media template
+      const { data: send, error: sErr } = await supabase.functions.invoke('whatsapp-send', {
+        body: {
+          action: 'send_invitation_card',
+          phone: selectedGuest.phone,
+          params: {
+            image_url: render.url,
+            guest_name: selectedGuest.name || 'Guest',
+            event_name: (selectedGuest as any).event_name || 'the event',
+            event_date: (selectedGuest as any).event_date || 'TBD',
+            organizer_name: (selectedGuest as any).organizer_name || 'Your host',
+            rsvp_code: selectedGuest.id?.slice(0, 8) || '—',
+          },
+        },
+      });
+      if (sErr) throw new Error(sErr.message);
+      toast.success('Invitation card sent via WhatsApp');
+      setInviteDialogOpen(false);
+      setSelectedGuest(null);
+    } catch (err: any) {
+      showCaughtError(err, 'Failed to send invitation card');
     } finally {
       setIsSubmitting(false);
     }
@@ -388,7 +434,10 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
                     {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Phone className="w-4 h-4 mr-2" />}Send via SMS
                   </Button>
                   <Button variant="outline" className="justify-start" onClick={() => handleSendInvitation('whatsapp')} disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}Send via WhatsApp
+                    {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}Send via WhatsApp (text)
+                  </Button>
+                  <Button variant="outline" className="justify-start" onClick={handleSendInvitationCard} disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ImageIcon className="w-4 h-4 mr-2" />}Send Invitation Card (WhatsApp image)
                   </Button>
                 </>
               )}

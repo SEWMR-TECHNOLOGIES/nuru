@@ -2,13 +2,16 @@
 
 const API_BASE = Deno.env.get("NURU_API_BASE_URL") || "";
 
-async function apiFetch(path: string): Promise<any> {
+async function apiFetch(path: string, authHeader?: string): Promise<any> {
   const url = `${API_BASE}${path}`;
   console.log(`[RAG] Fetching: ${url}`);
 
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (authHeader) headers["Authorization"] = authHeader;
+
   const res = await fetch(url, {
     method: "GET",
-    headers: { "Content-Type": "application/json" },
+    headers,
   });
 
   if (!res.ok) {
@@ -260,7 +263,11 @@ export function createEventBudget(args: any): string {
 }
 
 // Execute a tool call by name
-export async function executeTool(name: string, args: any): Promise<string> {
+export async function executeTool(
+  name: string,
+  args: any,
+  authHeader?: string,
+): Promise<string> {
   switch (name) {
     case "search_services":
       return searchServices(args);
@@ -274,7 +281,122 @@ export async function executeTool(name: string, args: any): Promise<string> {
       return getEventTypes();
     case "create_event_budget":
       return createEventBudget(args);
+    case "get_my_contribution_progress":
+      return getMyContributionProgress(args, authHeader);
+    case "get_my_tickets":
+      return getMyTickets(args, authHeader);
+    case "request_user_input":
+      return renderUserInputCard(args);
+    case "request_confirmation":
+      return renderConfirmCard(args);
+    case "render_table":
+      return renderTableCard(args);
     default:
       return `Unknown tool: ${name}`;
   }
+}
+
+// ─── New handlers ──────────────────────────────────────────────
+
+function fmtTzs(n: number | string | null | undefined): string {
+  const v = Number(n);
+  if (!isFinite(v)) return "TZS 0";
+  return `TZS ${v.toLocaleString()}`;
+}
+
+function cardBlock(kind: string, payload: unknown): string {
+  // Mobile/web clients parse fenced ```nuru-card:<kind>\n<json>\n``` blocks
+  // out of the assistant's text and render them as rich UI cards.
+  return "\n\n```nuru-card:" + kind + "\n" + JSON.stringify(payload) + "\n```\n";
+}
+
+export async function getMyContributionProgress(args: any, authHeader?: string): Promise<string> {
+  if (!authHeader) {
+    return "I need you to be signed in to look up your contributions. Please sign in and try again.";
+  }
+  const data = await apiFetch(`/user-contributors/my-contributions`, authHeader);
+  if (!data) return "I could not load your contributions right now. Please try again shortly.";
+
+  const items: any[] = data?.data?.items || data?.items || data?.data || [];
+  let list = Array.isArray(items) ? items : [];
+  if (args?.event_id) {
+    list = list.filter((r: any) => String(r.event_id || r.event?.id) === String(args.event_id));
+  }
+  if (list.length === 0) {
+    return "You don't have any contribution records yet.";
+  }
+
+  let text = `Here ${list.length === 1 ? "is your" : "are your"} contribution${list.length === 1 ? "" : "s"}:\n`;
+  for (const row of list.slice(0, 6)) {
+    const pledged = Number(row.pledged_amount ?? row.amount_pledged ?? row.pledge ?? 0);
+    const paid = Number(row.paid_amount ?? row.amount_paid ?? row.paid ?? 0);
+    const pct = pledged > 0 ? Math.min(100, Math.round((paid / pledged) * 100)) : 0;
+    const eventName = row.event_title || row.event?.title || row.event_name || "Event";
+    text += cardBlock("contribution_progress", {
+      event_id: row.event_id || row.event?.id || null,
+      event_name: eventName,
+      paid,
+      pledged,
+      percent: pct,
+      currency: row.currency || "TZS",
+    });
+  }
+  return text;
+}
+
+export async function getMyTickets(args: any, authHeader?: string): Promise<string> {
+  if (!authHeader) {
+    return "I need you to be signed in to look up your tickets. Please sign in and try again.";
+  }
+  const limit = args?.limit || 10;
+  const data = await apiFetch(`/tickets/my?limit=${limit}`, authHeader);
+  if (!data) return "I could not load your tickets right now. Please try again shortly.";
+
+  const tickets: any[] = data?.data?.tickets || data?.tickets || data?.data?.items || data?.items || [];
+  if (!Array.isArray(tickets) || tickets.length === 0) {
+    return "You don't have any tickets yet.";
+  }
+
+  // Group by event
+  const grouped: Record<string, { event_id: string; event_name: string; date: string | null; count: number }> = {};
+  for (const t of tickets) {
+    const eid = String(t.event_id || t.event?.id || "");
+    const name = t.event_title || t.event?.title || t.event_name || "Event";
+    const date = t.event_date || t.event?.start_date || t.start_date || null;
+    if (!grouped[eid]) {
+      grouped[eid] = { event_id: eid, event_name: name, date, count: 0 };
+    }
+    grouped[eid].count += Number(t.quantity || 1);
+  }
+
+  const items = Object.values(grouped);
+  let text = `Here are your recent tickets:\n`;
+  text += cardBlock("tickets_list", { items });
+  return text;
+}
+
+export function renderUserInputCard(args: any): string {
+  return cardBlock("input_prompt", {
+    field: String(args?.field || "value"),
+    label: String(args?.label || "Please provide a value"),
+    input_type: String(args?.input_type || "text"),
+    placeholder: args?.placeholder ? String(args.placeholder) : null,
+  });
+}
+
+export function renderConfirmCard(args: any): string {
+  return cardBlock("confirm_action", {
+    question: String(args?.question || "Are you sure?"),
+    action_id: args?.action_id ? String(args.action_id) : null,
+  });
+}
+
+export function renderTableCard(args: any): string {
+  const headers = Array.isArray(args?.headers) ? args.headers.map(String) : [];
+  const rows = Array.isArray(args?.rows) ? args.rows.map((r: any[]) => (Array.isArray(r) ? r.map(String) : [])) : [];
+  return cardBlock("table", {
+    title: args?.title ? String(args.title) : null,
+    headers,
+    rows,
+  });
 }

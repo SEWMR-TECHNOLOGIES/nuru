@@ -130,4 +130,93 @@ export const chatTools = [
       },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "get_my_contribution_progress",
+      description:
+        "Get the signed-in user's contribution progress for events they have been listed as a contributor on. Use when the user asks 'how much have I paid', 'my pledge', 'my contribution progress', or wants a status of what they owe vs paid.",
+      parameters: {
+        type: "object",
+        properties: {
+          event_id: {
+            type: "string",
+            description: "Optional event UUID to filter to one event. Omit to return all events the user contributes to.",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "get_my_tickets",
+      description:
+        "Get the signed-in user's purchased / claimed event tickets. Use when the user asks 'my tickets', 'show my tickets', 'recent tickets', or wants to find a ticket they own.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: { type: "number", description: "Max tickets (default 10)" },
+        },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "request_user_input",
+      description:
+        "Ask the user for a single piece of information BEFORE you can answer (e.g. which event, which date, an amount, a phone number). Use only when you genuinely need the value to proceed; never use it as a greeting. The UI renders an inline input the user can fill and submit.",
+      parameters: {
+        type: "object",
+        properties: {
+          field: { type: "string", description: "Logical field id, e.g. 'event_id', 'amount', 'phone'." },
+          label: { type: "string", description: "Short human prompt shown above the input." },
+          input_type: {
+            type: "string",
+            description: "One of: text, number, phone, email, date.",
+          },
+          placeholder: { type: "string", description: "Optional placeholder hint." },
+        },
+        required: ["field", "label"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "request_confirmation",
+      description:
+        "Ask the user to confirm Yes/No before performing an irreversible or sensitive action (e.g. 'Send reminder to 12 contributors?', 'Cancel ticket?'). The UI renders inline Yes/No buttons.",
+      parameters: {
+        type: "object",
+        properties: {
+          question: { type: "string", description: "The Yes/No question to display." },
+          action_id: { type: "string", description: "Logical action identifier you'll branch on after confirmation." },
+        },
+        required: ["question"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "render_table",
+      description:
+        "Render arbitrary tabular data the user asked for as a clean table card (NOT inline markdown). Prefer this over markdown tables when you have ≥3 rows of structured data.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Table title shown above the grid." },
+          headers: { type: "array", items: { type: "string" } },
+          rows: {
+            type: "array",
+            description: "Array of row arrays; each row length must equal headers length.",
+            items: { type: "array", items: { type: "string" } },
+          },
+        },
+        required: ["headers", "rows"],
+      },
+    },
+  },
 ];

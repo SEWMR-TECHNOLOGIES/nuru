@@ -1,0 +1,207 @@
+// render-card edge function
+// Renders an invitation card or a ticket as a PNG, uploads it to the
+// 'invitation-media' Supabase Storage bucket and returns its public URL.
+//
+// Body:
+//   { kind: "invitation", event_id, guest_name, guest_id?, qr_value?, second_name?, force? }
+//   { kind: "ticket",     event_id, ticket_code, ticket_data?, force? }
+//
+// `ticket_data` is the same shape the mobile YourTicketScreen consumes.
+// If omitted, the function will fetch from FastAPI (NURU_API_BASE_URL).
+
+import { Resvg, initWasm } from 'npm:@resvg/resvg-wasm@2.6.2';
+
+// Initialise the WASM module once per worker
+let wasmReady: Promise<unknown> | null = null;
+async function ensureWasm() {
+  if (!wasmReady) {
+    wasmReady = (async () => {
+      const resp = await fetch('https://unpkg.com/@resvg/resvg-wasm@2.6.2/index_bg.wasm');
+      const bytes = new Uint8Array(await resp.arrayBuffer());
+      await initWasm(bytes);
+    })();
+  }
+  return wasmReady;
+}
+import QRCode from 'npm:qrcode@1.5.4';
+import { createClient } from 'npm:@supabase/supabase-js@2';
+import { buildTicketSvg } from './ticket-svg.ts';
+import { buildInvitationSvg } from './invitation-svg.ts';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const NURU_API = Deno.env.get('NURU_API_BASE_URL') || '';
+const BUCKET = 'invitation-media';
+
+const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+
+// ────────────────────────── helpers ──────────────────────────
+
+// (Invitation cards and tickets are now built inline by buildInvitationSvg /
+// buildTicketSvg — no external template SVG fetches needed.)
+
+async function fetchAsDataUrl(url: string): Promise<string | null> {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    const ct = r.headers.get('content-type') || 'image/jpeg';
+    const buf = new Uint8Array(await r.arrayBuffer());
+    let bin = '';
+    for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+    return `data:${ct};base64,${btoa(bin)}`;
+  } catch {
+    return null;
+  }
+}
+
+async function qrPngDataUrl(value: string, size = 480, dark = '#111111', light = '#FFFFFF'): Promise<string> {
+  return await QRCode.toDataURL(value, {
+    width: size,
+    margin: 0,
+    errorCorrectionLevel: 'M',
+    color: { dark, light },
+  });
+}
+
+async function rasterize(svg: string, width = 1080): Promise<Uint8Array> {
+  await ensureWasm();
+  const r = new Resvg(svg, {
+    fitTo: { mode: 'width', value: width },
+    background: 'white',
+    font: { loadSystemFonts: false, defaultFontFamily: 'Arial' },
+  });
+  return r.render().asPng();
+}
+
+async function uploadPng(path: string, png: Uint8Array): Promise<string> {
+  const { error } = await admin.storage.from(BUCKET).upload(path, png, {
+    contentType: 'image/png',
+    upsert: true,
+    cacheControl: '3600',
+  });
+  if (error) throw new Error(`upload failed: ${error.message}`);
+  const { data } = admin.storage.from(BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+async function fetchEvent(eventId: string): Promise<any | null> {
+  if (!NURU_API) return null;
+  try {
+    const r = await fetch(`${NURU_API.replace(/\/$/, '')}/api/events/${eventId}`);
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j?.data ?? j;
+  } catch { return null; }
+}
+
+async function fetchTicket(ticketCode: string): Promise<any | null> {
+  if (!NURU_API) return null;
+  try {
+    const r = await fetch(`${NURU_API.replace(/\/$/, '')}/api/tickets/by-code/${ticketCode}`);
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j?.data ?? j;
+  } catch { return null; }
+}
+
+// ────────────────────────── handlers ──────────────────────────
+
+async function renderInvitation(body: any): Promise<Response> {
+  const { event_id, guest_name, guest_id, qr_value } = body;
+  if (!event_id || !guest_name) {
+    return json({ error: 'event_id and guest_name are required' }, 400);
+  }
+
+  const event = await fetchEvent(event_id);
+  const content = event?.invitation_content || {};
+
+  const coverUrl = event?.cover_image || body.cover_image || '';
+  const cover = coverUrl ? await fetchAsDataUrl(coverUrl) : null;
+
+  const qrVal = qr_value || guest_id || `${event_id}:${guest_name}`;
+  const qrPng = await qrPngDataUrl(qrVal, 512, '#111111', '#FFFFFF');
+
+  const svg = buildInvitationSvg({
+    guestName: guest_name,
+    eventName: event?.name || body.event_name || 'Our Event',
+    hostLine: content.host_line || event?.organizer_name || body.host_line || null,
+    date: body.date || event?.start_date || null,
+    time: body.time || event?.start_time || null,
+    venue: body.venue || event?.location || null,
+    address: body.address || event?.address || null,
+    dressCode: content.dress_code || body.dress_code || null,
+    rsvpCode: (guest_id || qrVal).toString().slice(0, 10).toUpperCase(),
+    coverImageDataUrl: cover,
+    qrPngDataUrl: qrPng,
+  });
+
+  const png = await rasterize(svg, 1080);
+  const objectPath = `cards/${event_id}/${guest_id || guest_name.replace(/\s+/g, '_')}.png`;
+  const url = await uploadPng(objectPath, png);
+  return json({ url, path: objectPath, kind: 'invitation' });
+}
+
+async function renderTicket(body: any): Promise<Response> {
+  const { event_id, ticket_code, ticket_data, force } = body;
+  if (!event_id || !ticket_code) {
+    return json({ error: 'event_id and ticket_code are required' }, 400);
+  }
+
+  const data = ticket_data || (await fetchTicket(ticket_code)) || {};
+  const event = data.event || (await fetchEvent(event_id)) || {};
+
+  const coverUrl = event.cover_image || data.cover_image || '';
+  const cover = coverUrl ? await fetchAsDataUrl(coverUrl) : null;
+
+  const qrPng = await qrPngDataUrl(ticket_code, 480, '#111111', '#FFFFFF');
+
+  const svg = buildTicketSvg({
+    eventName: event.name || data.event_name || data.ticket_class_name || 'Event',
+    ticketCode: ticket_code,
+    ticketClass: data.ticket_class_name || data.ticket_class || 'General',
+    status: data.status || 'pending',
+    location: event.location || '',
+    coverImageDataUrl: cover,
+    date: event.start_date || null,
+    time: event.start_time || null,
+    quantity: typeof data.quantity === 'number' ? data.quantity : 1,
+    currency: data.currency || 'TZS',
+    totalAmount: data.total_amount != null ? Number(data.total_amount) : null,
+    organizerName: event.organizer_name || '',
+    qrPngDataUrl: qrPng,
+  });
+
+  const png = await rasterize(svg, 1080);
+  const objectPath = `tickets/${event_id}/${ticket_code}.png`;
+  const url = await uploadPng(objectPath, png);
+  return json({ url, path: objectPath, kind: 'ticket' });
+}
+
+function json(payload: unknown, status = 200): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  try {
+    const body = await req.json().catch(() => ({}));
+    const kind = body?.kind;
+    if (kind === 'invitation') return await renderInvitation(body);
+    if (kind === 'ticket') return await renderTicket(body);
+    return json({ error: 'kind must be "invitation" or "ticket"' }, 400);
+  } catch (e) {
+    console.error('[render-card]', e);
+    return json({ error: String(e?.message || e) }, 500);
+  }
+});

@@ -25,7 +25,25 @@ from models import (
 from utils.auth import get_current_user
 from utils.helpers import standard_response
 from utils.sms import _send as sms_send
+from utils.whatsapp import _send_whatsapp
 from utils.notify import create_notification
+
+
+def _wa_or_sms(action: str, phone: str, params: dict, sms_text: str) -> None:
+    """Try WhatsApp template; on failure, fall back to SMS (mirrors auth-OTP flow)."""
+    if not phone:
+        return
+    sent = False
+    try:
+        sent = _send_whatsapp(action, phone, params)
+    except Exception as e:
+        print(f"[offline_payments] WA {action} exception: {e}")
+        sent = False
+    if not sent:
+        try:
+            sms_send(phone, sms_text)
+        except Exception as e:
+            print(f"[offline_payments] SMS fallback failed: {e}")
 
 
 router = APIRouter(prefix="/user-events", tags=["Offline Vendor Payments"])
@@ -208,10 +226,14 @@ def log_offline_payment(
         f"Use this code to confirm the payment: {code}. "
         f"Code expires in {OTP_TTL_MINUTES} minutes."
     )
-    try:
-        sms_send(vendor_user.phone, msg)
-    except Exception as e:
-        print(f"[offline_payments] SMS send failed: {e}")
+    _wa_or_sms("vendor_payment_otp", vendor_user.phone, {
+        "vendor_name": vendor_user.first_name or "there",
+        "organiser_name": organiser_name,
+        "amount": amt_str,
+        "service_title": service_title,
+        "event_name": event.name,
+        "otp": code,
+    }, msg)
 
     # In-app notification to vendor
     try:
@@ -392,21 +414,22 @@ def confirm_offline_payment(
     event_name = event.name if event else "the event"
     amt_str = _format_amount(p.currency, p.amount)
 
-    # SMS the vendor confirming receipt
-    try:
-        if current_user.phone:
-            vendor_first = current_user.first_name or vendor_name
-            sms_send(
-                current_user.phone,
-                (
-                    f"NURU PAYMENT\n"
-                    f"Hello {vendor_first}, you have received a payment of "
-                    f"{amt_str} from {organiser_name} for {event_name}."
-                    f"{remaining_msg}"
-                ),
-            )
-    except Exception as e:
-        print(f"[offline_payments] confirm SMS failed: {e}")
+    # WhatsApp the vendor confirming receipt (SMS fallback)
+    if current_user.phone:
+        vendor_first = current_user.first_name or vendor_name
+        confirm_sms = (
+            f"NURU PAYMENT\n"
+            f"Hello {vendor_first}, you have received a payment of "
+            f"{amt_str} from {organiser_name} for {event_name}."
+            f"{remaining_msg}"
+        )
+        _wa_or_sms("vendor_payment_confirmed", current_user.phone, {
+            "vendor_name": vendor_first,
+            "amount": amt_str,
+            "organiser_name": organiser_name,
+            "event_name": event_name,
+            "remaining_msg": remaining_msg.strip() or "Payment is fully settled.",
+        }, confirm_sms)
 
     # Notify event committee + organiser (in-app + SMS + WhatsApp), mirroring expense flow
     try:
@@ -553,19 +576,21 @@ def resend_offline_payment_otp(
     organiser_name = f"{(current_user.first_name or '').strip()} {(current_user.last_name or '').strip()}".strip() or "An organiser"
     amt_str = _format_amount(p.currency, p.amount)
     if vendor and vendor.phone:
-        try:
-            sms_send(
-                vendor.phone,
-                (
-                    f"NURU PAYMENT\n"
-                    f"Hello {vendor.first_name or ''}, {organiser_name} has made a payment claim of "
-                    f"{amt_str} for your service \"{service_title}\" at {event.name}. "
-                    f"Use this code to confirm the payment: {code}. "
-                    f"Code expires in {OTP_TTL_MINUTES} minutes."
-                ),
-            )
-        except Exception as e:
-            print(f"[offline_payments] resend SMS failed: {e}")
+        resend_sms = (
+            f"NURU PAYMENT\n"
+            f"Hello {vendor.first_name or ''}, {organiser_name} has made a payment claim of "
+            f"{amt_str} for your service \"{service_title}\" at {event.name}. "
+            f"Use this code to confirm the payment: {code}. "
+            f"Code expires in {OTP_TTL_MINUTES} minutes."
+        )
+        _wa_or_sms("vendor_payment_otp", vendor.phone, {
+            "vendor_name": vendor.first_name or "there",
+            "organiser_name": organiser_name,
+            "amount": amt_str,
+            "service_title": service_title,
+            "event_name": event.name,
+            "otp": code,
+        }, resend_sms)
 
     return standard_response(True, "OTP resent.", _serialize(db, p))
 

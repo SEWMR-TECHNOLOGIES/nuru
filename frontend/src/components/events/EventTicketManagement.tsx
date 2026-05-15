@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Loader2, Check, X, ChevronLeft, ChevronRight, CheckCircle2, ShieldCheck, AlertTriangle, Phone, Mail, Calendar, MapPin, Clock, Keyboard } from "lucide-react";
+import { Loader2, Check, X, ChevronLeft, ChevronRight, CheckCircle2, ShieldCheck, AlertTriangle, Phone, Mail, Calendar, MapPin, Clock, Keyboard, Send } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import SvgIcon from '@/components/ui/svg-icon';
 import CameraIcon from "@/assets/icons/camera-icon.svg";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -47,6 +48,43 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
   const [pagination, setPagination] = useState<any>(null);
   
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+
+  const handleSendTicket = async (ticket: any) => {
+    if (!ticket?.buyer_phone) {
+      toast.error('Buyer phone number is missing');
+      return;
+    }
+    setSendingId(ticket.id);
+    try {
+      const { data: render, error: rErr } = await supabase.functions.invoke('render-card', {
+        body: { kind: 'ticket', event_id: eventId, ticket_code: ticket.ticket_code },
+      });
+      if (rErr || !render?.url) throw new Error(rErr?.message || 'Failed to render ticket');
+
+      const { error: sErr } = await supabase.functions.invoke('whatsapp-send', {
+        body: {
+          action: 'send_ticket',
+          phone: ticket.buyer_phone,
+          params: {
+            image_url: render.url,
+            guest_name: ticket.buyer_name || 'Friend',
+            event_name: ticket.event_name || 'the event',
+            event_date: ticket.event_date || 'TBD',
+            ticket_class: ticket.ticket_class || 'General',
+            ticket_code: ticket.ticket_code,
+          },
+        },
+      });
+      if (sErr) throw new Error(sErr.message);
+      toast.success('Ticket sent via WhatsApp');
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to send ticket');
+    } finally {
+      setSendingId(null);
+    }
+  };
+
   const [scanOpen, setScanOpen] = useState(false);
   const [scanMode, setScanMode] = useState<'manual' | 'camera'>('manual');
   const [scanCode, setScanCode] = useState("");
@@ -421,6 +459,18 @@ const EventTicketManagement = ({ eventId, isCreator }: EventTicketManagementProp
                 {/* Actions */}
                 {isCreator && ticket.status !== 'cancelled' && (
                   <div className="flex items-center gap-1 flex-shrink-0">
+                    {ticket.status === 'approved' && ticket.buyer_phone && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                        disabled={sendingId === ticket.id}
+                        onClick={() => handleSendTicket(ticket)}
+                        title="Send ticket via WhatsApp"
+                      >
+                        {sendingId === ticket.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                      </Button>
+                    )}
                     {ticket.status !== 'approved' && (
                       <Button
                         size="icon"

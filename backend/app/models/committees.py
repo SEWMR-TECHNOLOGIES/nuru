@@ -31,6 +31,7 @@ class EventCommitteeMember(Base):
     role_id = Column(UUID(as_uuid=True), ForeignKey('committee_roles.id', ondelete='SET NULL'))
     assigned_by = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'))
     assigned_at = Column(DateTime, server_default=func.now())
+    status = Column(Text, nullable=False, server_default="active")  # active | suspended | pending
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
