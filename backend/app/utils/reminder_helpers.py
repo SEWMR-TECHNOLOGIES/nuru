@@ -71,9 +71,39 @@ def render_body(body: str, params: dict[str, str]) -> str:
     return PLACEHOLDER_RE.sub(_sub, body or "").strip()
 
 
+def _with_positional_aliases(template, params: dict[str, str]) -> dict[str, str]:
+    """Add WhatsApp positional aliases for stored template bodies.
+
+    Meta templates use {{1}}, {{2}}, … while the application resolves named
+    values at dispatch time. Keeping both lets previews/SMS fallbacks render
+    correctly without requiring organisers to type system-filled placeholders.
+    """
+    merged = dict(params or {})
+    atype = getattr(template, "automation_type", "") if template is not None else ""
+    if atype == "fundraise_attend":
+        aliases = {"1": "recipient_name", "2": "body"}
+    elif atype == "pledge_remind":
+        aliases = {
+            "1": "recipient_name", "2": "event_name", "3": "event_datetime",
+            "4": "pledge_amount", "5": "balance", "6": "pay_link",
+        }
+    elif atype == "guest_remind":
+        aliases = {
+            "1": "recipient_name", "2": "event_name",
+            "3": "event_datetime", "4": "event_venue",
+        }
+    else:
+        aliases = {}
+    for position, name in aliases.items():
+        if position not in merged and name in merged:
+            merged[position] = merged.get(name, "")
+    return merged
+
+
 def render_full_message(template, body_override: str | None,
                         params: dict[str, str]) -> str:
     """Final outbound text: protected_prefix + rendered body + protected_suffix."""
+    params = _with_positional_aliases(template, params)
     body = body_override if body_override is not None else template.body_default
     rendered = render_body(body, params)
     parts = []
