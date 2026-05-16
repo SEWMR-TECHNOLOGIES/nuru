@@ -60,6 +60,7 @@ from .event_invitation_templates import router as event_invitation_templates_rou
 from .account_deletion import router as account_deletion_router
 from .admin_account_deletion import router as admin_account_deletion_router
 from .offline_payments import router as offline_payments_router
+from .reminder_automations import router as reminder_automations_router
 
 # All routers to be included in main app
 all_routers = [
@@ -121,6 +122,7 @@ all_routers = [
     account_deletion_router,            # /account-deletion/submit (public)
     admin_account_deletion_router,      # /admin/account-deletion/...
     offline_payments_router,            # /user-events/.../offline-payments
+    reminder_automations_router,        # /events/.../automations + /reminder-templates
 
 ]
 

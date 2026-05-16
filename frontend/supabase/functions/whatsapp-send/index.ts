@@ -84,6 +84,24 @@ Deno.serve(async (req) => {
       case "text":
         result = await sendTextMessage(phone, params?.message || "", WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
         break;
+      case "fundraise_attend": {
+        const lang = (params?.lang || "en").toLowerCase() === "sw" ? "sw" : "en";
+        const tplName = lang === "sw" ? "nuru_fundraise_notice_sw" : "nuru_fundraise_notice_en";
+        result = await sendTemplate(phone, tplName, buildFundraiseAttendComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, lang);
+        break;
+      }
+      case "pledge_remind": {
+        const lang = (params?.lang || "en").toLowerCase() === "sw" ? "sw" : "en";
+        const tplName = lang === "sw" ? "nuru_pledge_remind_sw" : "nuru_pledge_remind_en";
+        result = await sendTemplate(phone, tplName, buildPledgeRemindComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, lang);
+        break;
+      }
+      case "guest_remind": {
+        const lang = (params?.lang || "en").toLowerCase() === "sw" ? "sw" : "en";
+        const tplName = lang === "sw" ? "nuru_guest_remind_sw" : "nuru_guest_remind_en";
+        result = await sendTemplate(phone, tplName, buildGuestRemindComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, lang);
+        break;
+      }
       case "send_invitation_text":
         result = await sendTemplate(
           phone,
@@ -720,6 +738,68 @@ function buildVendorPaymentConfirmedComponents(params: {
       { type: "text", text: params.organiser_name || "the organiser" },
       { type: "text", text: params.event_name || "the event" },
       { type: "text", text: params.remaining_msg || "Payment is fully settled." },
+    ],
+  }];
+}
+
+// ── Reminder automation templates ─────────────────────
+// nuru_fundraise_notice_{en|sw}
+//   Body: {{1}} recipient_name, {{2}} body
+function buildFundraiseAttendComponents(params: {
+  recipient_name?: string; body?: string;
+}) {
+  return [{
+    type: "body",
+    parameters: [
+      { type: "text", text: params.recipient_name || "Friend" },
+      { type: "text", text: params.body || "" },
+    ],
+  }];
+}
+
+// nuru_pledge_remind_{en|sw}
+//   Body: {{1}} recipient_name, {{2}} event_name, {{3}} event_datetime,
+//         {{4}} pledge_amount, {{5}} balance
+//   URL button [0]: dynamic suffix = pay_token (the share token)
+function buildPledgeRemindComponents(params: {
+  recipient_name?: string; event_name?: string; event_datetime?: string;
+  pledge_amount?: string; balance?: string; pay_token?: string;
+}) {
+  const token = (params.pay_token || "").trim() || "—";
+  return [
+    {
+      type: "body",
+      parameters: [
+        { type: "text", text: params.recipient_name || "Friend" },
+        { type: "text", text: params.event_name || "the event" },
+        { type: "text", text: params.event_datetime || "TBA" },
+        { type: "text", text: params.pledge_amount || "—" },
+        { type: "text", text: params.balance || "—" },
+      ],
+    },
+    {
+      type: "button",
+      sub_type: "url",
+      index: "0",
+      parameters: [{ type: "text", text: token }],
+    },
+  ];
+}
+
+// nuru_guest_remind_{en|sw}
+//   Body: {{1}} recipient_name, {{2}} event_name, {{3}} event_datetime,
+//         {{4}} event_venue
+function buildGuestRemindComponents(params: {
+  recipient_name?: string; event_name?: string;
+  event_datetime?: string; event_venue?: string;
+}) {
+  return [{
+    type: "body",
+    parameters: [
+      { type: "text", text: params.recipient_name || "Friend" },
+      { type: "text", text: params.event_name || "the event" },
+      { type: "text", text: params.event_datetime || "TBA" },
+      { type: "text", text: params.event_venue || "TBA" },
     ],
   }];
 }

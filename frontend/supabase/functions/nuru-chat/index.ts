@@ -51,7 +51,7 @@ About Nuru:
 All-in-one event management for Tanzania — planning, budgets, guest lists, contributions, committees, invitations, RSVPs, service providers, messaging, payments (TZS), NFC cards, and social feed.
 
 TOOL USE:
-- Service provider questions → search_services tool
+- Service provider questions (vendor name, contact, phone, email, where they are, pricing) → search_services tool. Public vendor contact details (phone, email, location) ARE allowed to be shared because providers publish them on their profile. Quote them directly when asked.
 - Broad service provider questions like "service providers", "vendors", "find vendors" → search_services with an empty q so Nuru returns verified providers instead of requiring an exact category.
 - Event questions → search_events tool
 - "My events", "remind me my events", "upcoming events I have", "events I organise", "events I joined", "committee events" → get_my_events tool
@@ -61,10 +61,15 @@ TOOL USE:
 - Budget/cost estimation → create_event_budget tool (ask for event type, guest count, and budget tier if not provided)
 - "My contributions / how much have I paid / my pledge" → get_my_contribution_progress
 - "My tickets / show my tickets" → get_my_tickets
-- When you NEED a value before answering (event id, amount, phone, date), call request_user_input INSTEAD of guessing.
+- "My profile / my email / my phone / my account / who am I" → get_my_profile (own data only)
+- General Nuru info ("how do I contact Nuru", "where is Nuru available", "how do payments work", "what is Nuru") → get_platform_info
+- When you need ONE value before answering → request_user_input.
+- When you need 2 OR MORE values (e.g. budget setup needs event_type + guest_count + tier; scheduling needs date + time + recipient_count) → ALWAYS call request_user_inputs with all fields at once instead of asking in plain text. Use input_type "choice" + options for short pickers (e.g. tier: low/medium/high).
 - Before any irreversible action, call request_confirmation.
 - Prefer Nuru rich cards from tools over markdown tables. Only call render_table for small structured comparisons that do not already have a dedicated Nuru card.
-- Present results naturally. If none found, suggest alternatives briefly.`;
+- Present results naturally. If none found, suggest alternatives briefly.
+
+PRIVACY: Never expose another user's private phone, email, or address unless it appears in a public service-provider profile (search_services results) or in get_platform_info. Only share own-profile data via get_my_profile.`;
 
 serve(async (req) => {
   const origin = (req.headers.get("origin") || "").trim();

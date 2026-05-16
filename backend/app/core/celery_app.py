@@ -46,6 +46,7 @@ celery_app = Celery(
         "tasks.maintenance",
         "tasks.whatsapp_dispatch",
         "tasks.push_dispatch",
+        "tasks.reminder_dispatch",
     ],
 )
 
@@ -141,6 +142,12 @@ celery_app.conf.update(
         "prune-old-page-views": {
             "task": "tasks.maintenance.prune_old_page_views",
             "schedule": crontab(minute=30, hour=3),  # daily at 03:30 EAT
+        },
+        # Reminder automation scheduler — picks up due automations and
+        # dispatches them to per-recipient send tasks.
+        "scan-due-reminder-automations": {
+            "task": "tasks.reminder_dispatch.scan_due_automations",
+            "schedule": crontab(minute="*/5"),
         },
     },
 )

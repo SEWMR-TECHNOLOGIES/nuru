@@ -50,23 +50,46 @@ export async function searchServices(args: any): Promise<string> {
     return `No services found matching your search. Try broadening your criteria or checking available categories.`;
   }
 
-  const items = services.map((s: any) => {
+  const enriched = services.map((s: any) => {
     const ratingValue = s.average_rating ?? s.avg_rating ?? s.rating;
-    const rating = ratingValue != null && Number(ratingValue) > 0
-      ? `${Number(ratingValue).toFixed(1)} rating, ${s.reviews_count || s.total_reviews || s.review_count || 0} reviews`
+    const ratingText = ratingValue != null && Number(ratingValue) > 0
+      ? `${Number(ratingValue).toFixed(1)}★ (${s.reviews_count || s.total_reviews || s.review_count || 0} reviews)`
       : "No reviews yet";
     const price = s.min_price && s.max_price
-      ? `${s.currency || "TZS"} ${Number(s.min_price).toLocaleString()} to ${Number(s.max_price).toLocaleString()}`
+      ? `${s.currency || "TZS"} ${Number(s.min_price).toLocaleString()}–${Number(s.max_price).toLocaleString()}`
       : s.price_range || "Price on request";
-    return {
-      title: s.title || s.name || "Service provider",
-      subtitle: s.category_name || s.service_category?.name || s.service_type?.name || s.service_type_name || "Service",
-      meta: [s.location, rating, price].filter(Boolean).join(" • "),
-      badge: s.verified || s.verification_status === "verified" ? "Verified" : null,
-    };
+    const name = s.title || s.name || "Service provider";
+    const category = s.category_name || s.service_category?.name || s.service_type?.name || s.service_type_name || "Service";
+    const location = s.location || s.city || null;
+    const phone = s.contact_phone || s.phone || s.provider?.phone || null;
+    const email = s.contact_email || s.email || s.provider?.email || null;
+    const verified = s.verified || s.verification_status === "verified";
+    return { name, category, location, phone, email, verified, ratingText, price, description: s.description || s.tagline || null };
   });
-  return `Found ${items.length} Nuru service provider${items.length === 1 ? "" : "s"}:` +
-    cardBlock("results_list", { title: "Service providers", icon: "service", items });
+
+  const items = enriched.map((s) => ({
+    title: s.name,
+    subtitle: s.category,
+    meta: [s.location, s.ratingText, s.price].filter(Boolean).join(" • "),
+    badge: s.verified ? "Verified" : null,
+  }));
+
+  // The LLM sees this raw text, so include contact + location lines so it
+  // can answer follow-ups like "what's their phone?" or "where are they?"
+  let summary = `Found ${enriched.length} Nuru service provider${enriched.length === 1 ? "" : "s"}. Public contact details:\n`;
+  for (const s of enriched) {
+    const bits = [
+      `- **${s.name}** (${s.category})`,
+      s.location ? `Location: ${s.location}` : null,
+      s.phone ? `Phone: ${s.phone}` : null,
+      s.email ? `Email: ${s.email}` : null,
+      `Pricing: ${s.price}`,
+      s.verified ? "Verified" : null,
+    ].filter(Boolean);
+    summary += bits.join(" · ") + "\n";
+  }
+
+  return summary + cardBlock("results_list", { title: "Service providers", icon: "service", items });
 }
 
 export async function searchEvents(args: any): Promise<string> {
@@ -117,7 +140,7 @@ export async function searchPeople(args: any): Promise<string> {
 }
 
 export async function getServiceCategories(): Promise<string> {
-  const data = await apiFetch("/services/categories");
+  const data = await apiFetch("/references/service-categories");
   if (!data) return "I could not fetch service categories right now.";
 
   const categories = data?.data?.categories || data?.categories || data?.data || [];
@@ -135,7 +158,7 @@ export async function getServiceCategories(): Promise<string> {
 }
 
 export async function getEventTypes(): Promise<string> {
-  const data = await apiFetch("/events/types");
+  const data = await apiFetch("/references/event-types");
   if (!data) return "I could not fetch event types right now.";
 
   const types = data?.data?.event_types || data?.event_types || data?.data || [];
@@ -269,10 +292,16 @@ export async function executeTool(
       return getMyTickets(args, authHeader);
     case "request_user_input":
       return renderUserInputCard(args);
+    case "request_user_inputs":
+      return renderMultiInputCard(args);
     case "request_confirmation":
       return renderConfirmCard(args);
     case "render_table":
       return renderTableCard(args);
+    case "get_my_profile":
+      return getMyProfile(authHeader);
+    case "get_platform_info":
+      return getPlatformInfo(args);
     default:
       return `Unknown tool: ${name}`;
   }
@@ -475,5 +504,67 @@ export function renderTableCard(args: any): string {
     title: args?.title ? String(args.title) : null,
     headers,
     rows,
+  });
+}
+
+// ─── General info handlers ────────────────────────────────────
+
+export async function getMyProfile(authHeader?: string): Promise<string> {
+  if (!authHeader) {
+    return "I need you to be signed in to look up your profile. Please sign in and try again.";
+  }
+  const data = await apiFetch(`/auth/me`, authHeader);
+  if (!data) return "I could not load your profile right now. Please try again shortly.";
+  const u = data?.data?.user || data?.user || data?.data || data;
+  if (!u || typeof u !== "object") return "Your profile is unavailable right now.";
+  const lines = [
+    u.full_name || u.name ? `- Name: ${u.full_name || u.name}` : null,
+    u.username ? `- Username: @${u.username}` : null,
+    u.email ? `- Email: ${u.email}` : null,
+    u.phone ? `- Phone: ${u.phone}` : null,
+    u.location || u.city ? `- Location: ${u.location || u.city}` : null,
+    u.region ? `- Region: ${u.region}` : null,
+    u.is_verified ? `- Verified account` : null,
+    u.created_at ? `- Member since: ${new Date(u.created_at).toLocaleDateString("en-GB")}` : null,
+  ].filter(Boolean);
+  return `Here is your Nuru profile:\n${lines.join("\n")}`;
+}
+
+export function getPlatformInfo(args: any): string {
+  const topic = String(args?.topic || "general").toLowerCase();
+  const infos: Record<string, string> = {
+    general:
+      "Nuru is Tanzania's all-in-one event workspace — plan events, manage guests and committees, collect contributions and ticket payments in TZS, send WhatsApp/SMS invitations and reminders, browse verified vendors, and design NFC business cards.",
+    contact:
+      "Reach the Nuru team at hello@nuru.tz or use the Help → Live Chat screen in the app. We're based in Tanzania and reply during business hours (EAT).",
+    support:
+      "Need help? Open Help → Live Chat in the app, email hello@nuru.tz, or browse the FAQs page on nuru.tz.",
+    payments:
+      "Payments are processed in TZS via mobile money and card. Contributors and ticket buyers pay through a secure escrow flow and organisers withdraw to their payout profile.",
+    vendors:
+      "Verified vendors include caterers, photographers, venues, decorators, DJs, MCs, transportation and more across Dar es Salaam, Arusha, Mwanza, Dodoma and Zanzibar. Search them with the service search.",
+    privacy:
+      "Nuru only shares contact details that providers have published on their public profile, or that you have explicitly listed on yours. Private contributor details are never exposed.",
+    location:
+      "Nuru operates across Tanzania, with active vendors and events in Dar es Salaam, Arusha, Mwanza, Dodoma, Mbeya, Tanga and Zanzibar.",
+  };
+  const body = infos[topic] || infos.general;
+  return body;
+}
+
+export function renderMultiInputCard(args: any): string {
+  const fields = Array.isArray(args?.fields) ? args.fields : [];
+  return cardBlock("multi_input_prompt", {
+    title: args?.title ? String(args.title) : null,
+    submit_label: args?.submit_label ? String(args.submit_label) : "Continue",
+    fields: fields.map((f: any) => ({
+      field: String(f?.field || "value"),
+      label: String(f?.label || "Value"),
+      input_type: String(f?.input_type || "text"),
+      placeholder: f?.placeholder ? String(f.placeholder) : null,
+      options: Array.isArray(f?.options) ? f.options.map(String) : null,
+      default: f?.default != null ? String(f.default) : null,
+      required: f?.required === true,
+    })),
   });
 }
