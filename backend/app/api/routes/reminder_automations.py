@@ -249,11 +249,22 @@ def _resolve_template(db: Session, automation_type: str, language: str):
     )
 
 
+def _editable_required_placeholders(template: EventReminderTemplate) -> list[str]:
+    """Only placeholders the organiser must provide in the editor.
+
+    Event, venue, pledge and recipient fields are resolved by the dispatch task
+    at send time; requiring them during creation blocks valid automations.
+    """
+    return []
+
+
 def _validate_against_template(template: EventReminderTemplate,
                                body_override: str | None) -> None:
     if body_override is None:
+        if template.automation_type == "fundraise_attend":
+            raise TemplateValidationError("Message body is required.")
         return
-    validate_body(body_override, list(template.required_placeholders or []))
+    validate_body(body_override, _editable_required_placeholders(template))
 
 
 @router.post("/events/{event_id}/automations")
@@ -447,7 +458,7 @@ def preview_message(
     body = payload.body_override if payload.body_override is not None else a.body_override
     try:
         if body is not None:
-            validate_body(body, list(template.required_placeholders or []))
+            validate_body(body, _editable_required_placeholders(template))
     except TemplateValidationError as e:
         return standard_response(False, str(e))
 
@@ -456,7 +467,12 @@ def preview_message(
         "event_name": ev.name or "Your event",
         "event_date": (ev.start_date or datetime.now(UTC)).strftime("%d %b %Y"),
         "event_link": "https://nuru.tz/e/preview",
-        "body": "",
+        "event_datetime": (ev.start_date or datetime.now(UTC)).strftime("%d %b %Y at %H:%M"),
+        "event_venue": getattr(ev, "location", None) or "Event venue",
+        "pledge_amount": "TZS 50,000",
+        "balance": "TZS 25,000",
+        "pay_link": "https://nuru.tz/c/preview",
+        "body": body or "",
     }
     rendered = render_full_message(template, body, sample)
     return standard_response(True, "Preview", {
@@ -481,7 +497,7 @@ def send_now(
     try:
         if a.body_override is not None:
             validate_body(a.body_override,
-                          list(a.template.required_placeholders or []))
+                          _editable_required_placeholders(a.template))
     except TemplateValidationError as e:
         return standard_response(False, str(e))
 
