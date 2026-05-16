@@ -14,7 +14,7 @@ Pure functions:
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta, timezone as dt_tz
+from datetime import date, datetime, time, timedelta, timezone as dt_tz
 from typing import Iterable
 
 import pytz
@@ -130,7 +130,7 @@ _SW_WEEKDAYS = [
 ]
 
 
-def format_event_datetime(dt: datetime | None, tz_name: str | None,
+def format_event_datetime(dt: date | datetime | None, tz_name: str | None,
                           lang: str | None) -> str:
     """Format an event datetime in the organiser timezone, including time.
 
@@ -179,9 +179,11 @@ def _safe_tz(name: str | None):
         return pytz.timezone("Africa/Nairobi")
 
 
-def _aware(dt: datetime | None) -> datetime | None:
+def _aware(dt: date | datetime | None) -> datetime | None:
     if dt is None:
         return None
+    if isinstance(dt, date) and not isinstance(dt, datetime):
+        dt = datetime.combine(dt, time.min, tzinfo=UTC)
     if dt.tzinfo is None:
         return dt.replace(tzinfo=UTC)
     return dt
@@ -209,7 +211,12 @@ def compute_next_run_at(
         sched = _aware(automation.schedule_at)
         if not sched:
             return None
-        return sched if sched > now else None
+        if sched > now:
+            return sched
+        # If the organiser creates/enables a one-off reminder after its
+        # scheduled time, dispatch it on the next scheduler tick instead of
+        # leaving it enabled with no run forever. Once it has run, do not repeat.
+        return now if last_run_at is None else None
 
     # The remaining kinds need an event start anchor.
     event_start = _aware(getattr(event, "start_date", None))
@@ -219,12 +226,16 @@ def compute_next_run_at(
     if kind == "days_before":
         days = max(0, int(automation.days_before or 0))
         target = event_start - timedelta(days=days)
-        return target if target > now else None
+        if target > now:
+            return target
+        return now if last_run_at is None else None
 
     if kind == "hours_before":
         hours = max(0, int(automation.hours_before or 0))
         target = event_start - timedelta(hours=hours)
-        return target if target > now else None
+        if target > now:
+            return target
+        return now if last_run_at is None else None
 
     if kind == "repeat":
         interval = max(1, int(automation.repeat_interval_hours or 24))
