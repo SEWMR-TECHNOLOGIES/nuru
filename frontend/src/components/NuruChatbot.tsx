@@ -5,11 +5,10 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import nuruLogo from '@/assets/nuru-logo.png';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { CardRenderer, MarkdownBlock, useParsedSegments } from '@/components/chatbot/NuruCardRenderer';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -221,6 +220,13 @@ const NuruChatbot = () => {
     try { await streamChat(userMessage); } finally { setIsLoading(false); }
   };
 
+  const sendCardReply = async (text: string) => {
+    if (!text.trim() || isLoading) return;
+    setIsLoading(true);
+    setMessages(prev => [...prev, { role: 'user', content: text }]);
+    try { await streamChat(text); } finally { setIsLoading(false); }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -303,6 +309,7 @@ const NuruChatbot = () => {
                       key={index}
                       message={message}
                       currentUser={currentUser}
+                      onCardSubmit={sendCardReply}
                     />
                   ))}
 
@@ -414,8 +421,9 @@ function BotAvatar() {
   );
 }
 
-function ChatMessage({ message, currentUser }: { message: Message; currentUser: any }) {
+function ChatMessage({ message, currentUser, onCardSubmit }: { message: Message; currentUser: any; onCardSubmit: (text: string) => void }) {
   const isUser = message.role === 'user';
+  const segments = useParsedSegments(message.content || '');
 
   return (
     <motion.div
@@ -437,8 +445,7 @@ function ChatMessage({ message, currentUser }: { message: Message; currentUser: 
         <BotAvatar />
       )}
 
-      <div className={`max-w-[85%] ${isUser ? 'flex flex-col items-end' : ''}`}>
-        {/* Searching indicator */}
+      <div className={`max-w-[85%] ${isUser ? 'flex flex-col items-end' : 'w-full'}`}>
         {message.isSearching && (
           <div className="rounded-2xl rounded-tl-sm px-3 py-2 bg-muted mb-1">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -450,46 +457,37 @@ function ChatMessage({ message, currentUser }: { message: Message; currentUser: 
           </div>
         )}
 
-        {/* Message content */}
         {message.content && (
-          <div
-            className={`rounded-2xl px-3 py-2 ${
-              isUser
-                ? 'rounded-tr-sm bg-foreground text-background'
-                : 'rounded-tl-sm bg-muted text-foreground'
-            }`}
-          >
-            <div className={`text-[13px] leading-relaxed nuru-chat-prose ${isUser ? 'text-background' : 'text-foreground'}`}>
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  table: ({ children }) => (
-                    <div className="my-2 -mx-1 overflow-x-auto rounded-lg border border-border">
-                      <table className="min-w-full text-[11px]">{children}</table>
+          <div className="space-y-1.5 w-full">
+            {segments.map((seg, i) => {
+              if (seg.type === 'text' && seg.text) {
+                return (
+                  <div
+                    key={i}
+                    className={`rounded-2xl px-3 py-2 inline-block max-w-full ${
+                      isUser
+                        ? 'rounded-tr-sm bg-foreground text-background'
+                        : 'rounded-tl-sm bg-muted text-foreground'
+                    }`}
+                  >
+                    <div className={`text-[13px] leading-relaxed nuru-chat-prose ${isUser ? 'text-background' : 'text-foreground'}`}>
+                      <MarkdownBlock content={seg.text} />
                     </div>
-                  ),
-                  thead: ({ children }) => (
-                    <thead className="bg-muted/60">{children}</thead>
-                  ),
-                  th: ({ children }) => (
-                    <th className="px-2 py-1.5 text-left font-semibold text-foreground/80 whitespace-nowrap border-b border-border">{children}</th>
-                  ),
-                  td: ({ children }) => (
-                    <td className="px-2 py-1.5 text-foreground/70 whitespace-nowrap border-b border-border/50">{children}</td>
-                  ),
-                  p: ({ children }) => <p className="my-1">{children}</p>,
-                  ul: ({ children }) => <ul className="my-1 ml-3 list-disc space-y-0.5">{children}</ul>,
-                  ol: ({ children }) => <ol className="my-1 ml-3 list-decimal space-y-0.5">{children}</ol>,
-                  li: ({ children }) => <li className="text-[13px]">{children}</li>,
-                  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                  a: ({ href, children }) => (
-                    <a href={href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:opacity-70">{children}</a>
-                  ),
-                }}
-              >
-                {message.content}
-              </ReactMarkdown>
-            </div>
+                  </div>
+                );
+              }
+              if (seg.type === 'card' && seg.kind) {
+                return (
+                  <CardRenderer
+                    key={i}
+                    kind={seg.kind}
+                    payload={seg.payload}
+                    onSubmit={onCardSubmit}
+                  />
+                );
+              }
+              return null;
+            })}
           </div>
         )}
       </div>

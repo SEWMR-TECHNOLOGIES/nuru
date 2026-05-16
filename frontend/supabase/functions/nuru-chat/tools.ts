@@ -207,6 +207,46 @@ export const chatTools = [
   {
     type: "function" as const,
     function: {
+      name: "request_user_inputs",
+      description:
+        "Ask the user for MULTIPLE pieces of information at once in a single inline form (like a Lovable-style choice popup). Use this whenever you need 2+ values before you can answer — for example budget setup (event_type + guest_count + tier), reminder scheduling, or event creation. Each option entry can be either a free-text input or a multiple-choice picker. The UI renders a single card with all fields; on submit the values are sent back as a labelled message.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Short header above the form." },
+          fields: {
+            type: "array",
+            description: "Array of input fields to render in the form.",
+            items: {
+              type: "object",
+              properties: {
+                field: { type: "string", description: "Logical id, e.g. 'event_type', 'guest_count', 'tier'." },
+                label: { type: "string", description: "Human label shown next to/above the input." },
+                input_type: {
+                  type: "string",
+                  description: "One of: text, number, phone, email, date, choice.",
+                },
+                placeholder: { type: "string" },
+                options: {
+                  type: "array",
+                  description: "Required when input_type is 'choice'. Each option is a short label.",
+                  items: { type: "string" },
+                },
+                default: { type: "string", description: "Optional default value." },
+                required: { type: "boolean" },
+              },
+              required: ["field", "label"],
+            },
+          },
+          submit_label: { type: "string", description: "Optional CTA label. Default: 'Continue'." },
+        },
+        required: ["fields"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "request_confirmation",
       description:
         "Ask the user to confirm Yes/No before performing an irreversible or sensitive action (e.g. 'Send reminder to 12 contributors?', 'Cancel ticket?'). The UI renders inline Yes/No buttons.",
@@ -238,6 +278,33 @@ export const chatTools = [
           },
         },
         required: ["headers", "rows"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "get_my_profile",
+      description:
+        "Get the signed-in user's own Nuru profile: name, username, email, phone, location, verification status, member-since date. Use when the user asks about themselves ('my profile', 'my account', 'my email', 'my phone', 'who am I').",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "get_platform_info",
+      description:
+        "Return general public information about the Nuru platform itself — how it works, where it operates, support/contact channels, payments, vendor coverage, privacy. Use for questions like 'how do I contact Nuru', 'where is Nuru available', 'what does Nuru do', 'how do payments work'.",
+      parameters: {
+        type: "object",
+        properties: {
+          topic: {
+            type: "string",
+            description:
+              "One of: general, contact, support, payments, vendors, privacy, location. Default: general.",
+          },
+        },
       },
     },
   },

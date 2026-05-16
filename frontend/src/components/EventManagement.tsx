@@ -386,6 +386,7 @@ const EventManagement = () => {
             { value: 'meetings', label: 'Meetings' },
             ...((apiEvent as any)?.sells_tickets ? [{ value: 'tickets', label: t('tickets') }] : []),
             { value: 'sponsors', label: 'Sponsors' },
+            ...(isCreator ? [{ value: 'reminders', label: 'Reminders' }] : []),
             ...(isCreator && !isEventEnded ? [{ value: 'check-in', label: t('check_in') }] : []),
           ]}
         />
@@ -703,6 +704,27 @@ const EventManagement = () => {
           <EventSponsors eventId={id!} isCreator={isCreator} />
         </TabsContent>
 
+        {isCreator && (
+          <TabsContent value="reminders" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <SvgIcon src={CalendarIcon} className="w-4 h-4" />
+                  Reminders & automations
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Create, schedule and monitor WhatsApp and SMS reminders for contributors and guests, in English or Swahili. All sending runs in the background.
+                </p>
+                <Button onClick={() => navigate(`/event/${id}/automations`)} className="gap-2">
+                  Open automations workspace
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
         {isCreator && !isEventEnded && (
           <TabsContent value="check-in" className="space-y-4">

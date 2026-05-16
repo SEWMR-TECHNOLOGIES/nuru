@@ -6,6 +6,7 @@ import OpenInAppBanner from "@/components/OpenInAppBanner";
 import { usePageTracking } from "@/hooks/usePageTracking";
 import PrivateRoute from "@/components/PrivateRoute";
 import FullPageLoader from "@/components/FullPageLoader";
+import { useTimezoneSync } from "@/hooks/useTimezoneSync";
 
 import Layout from "@/components/Layout";
 import Feed from "@/components/Feed";
@@ -47,6 +48,7 @@ import BrowseTickets from "@/components/BrowseTickets";
 import MyTickets from "@/components/MyTickets";
 import BookingDetail from "@/components/bookings/BookingDetail";
 import EventView from "@/components/EventView";
+import EventAutomationsPage from "@/pages/event/EventAutomationsPage";
 import PublicProfile from "@/components/PublicProfile";
 import ServiceEventsPage from "@/components/ServiceEventsPage";
 import ServicePhotoLibraries from "@/components/ServicePhotoLibraries";
@@ -146,9 +148,10 @@ import MeetingRoom from "@/pages/MeetingRoom";
 // Inner component that uses router hooks (must be inside BrowserRouter)
 
 function InnerRoutes() {
-  const { userIsLoggedIn, isLoading } = useCurrentUser();
+  const { userIsLoggedIn, isLoading, data: currentUser } = useCurrentUser();
   useAuthSync();
   usePageTracking();
+  useTimezoneSync(currentUser?.id);
 
   if (isLoading) return <FullPageLoader />;
 
@@ -221,6 +224,7 @@ function InnerRoutes() {
           <Route path="/bookings" element={<BookingList />} />
           <Route path="/bookings/:id" element={<BookingDetail />} />
           <Route path="/event/:id" element={<EventView />} />
+          <Route path="/event/:id/automations" element={<EventAutomationsPage />} />
           <Route path="/my-contributors" element={<MyContributors />} />
           <Route path="/change-password" element={<ChangePassword />} />
           <Route path="/removed-content" element={<RemovedContent />} />
