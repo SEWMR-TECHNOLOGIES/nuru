@@ -491,7 +491,10 @@ function AutomationDetailDialog({ eventId, automation, onClose }: {
       if (res.success === false) throw new Error(res.message || "Failed to load runs");
       const items = extractItems<ReminderRun>(res.data);
       setRuns(items);
-      if (!activeRun && items[0]) setActiveRun(items[0]);
+      setActiveRun((current) => {
+        if (!current) return items[0] || null;
+        return items.find((item) => item.id === current.id) || items[0] || null;
+      });
     } catch (e: any) {
       toast({ title: "Failed", description: e?.message, variant: "destructive" });
     }

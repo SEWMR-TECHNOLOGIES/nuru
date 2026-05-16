@@ -19,7 +19,7 @@ Task: Reminder automation dispatcher
 from __future__ import annotations
 
 from datetime import datetime, timezone as dt_tz
-from sqlalchemy import and_
+from sqlalchemy import and_, func as sa_func
 
 from core.celery_app import celery_app
 from core.database import SessionLocal
@@ -256,6 +256,36 @@ def _maybe_finish(run, db):
         run.finished_at = datetime.now(UTC)
 
 
+def _refresh_run_totals(db, run):
+    """Recompute run counters/status from recipient rows.
+
+    This repairs stale runs left pending/running when a worker is restarted,
+    a child task is retried, or an older deployment queued a task that was not
+    registered by the currently-running worker.
+    """
+    from models import EventReminderRecipient
+
+    counts = dict(
+        db.query(EventReminderRecipient.status, sa_func.count(EventReminderRecipient.id))
+        .filter(EventReminderRecipient.run_id == run.id)
+        .group_by(EventReminderRecipient.status)
+        .all()
+    )
+    run.total_recipients = sum(int(v or 0) for v in counts.values())
+    run.sent_count = int(counts.get("sent", 0) or 0)
+    run.failed_count = int(counts.get("failed", 0) or 0)
+    run.skipped_count = int(counts.get("skipped", 0) or 0)
+    pending = int(counts.get("pending", 0) or 0)
+    if run.total_recipients == 0 and run.status in ("pending", "running"):
+        run.status = "completed"
+        run.finished_at = run.finished_at or datetime.now(UTC)
+    elif pending == 0 and run.total_recipients > 0:
+        run.status = "completed"
+        run.finished_at = run.finished_at or datetime.now(UTC)
+    elif pending > 0 and run.status == "pending":
+        run.status = "running"
+
+
 # ──────────────────────────────────────────────────────────────────────
 # Whole-automation run
 # ──────────────────────────────────────────────────────────────────────
@@ -267,7 +297,7 @@ def _maybe_finish(run, db):
     default_retry_delay=120,
 )
 def run_automation(self, automation_id: str, trigger: str = "scheduled",
-                   run_id: str | None = None):
+                   run_id: str | None = None, send_inline: bool = False):
     """Create a run + recipients and fan out send_one tasks.
 
     If ``run_id`` is provided we reuse that run (used by ``send-now`` so the
@@ -288,6 +318,7 @@ def run_automation(self, automation_id: str, trigger: str = "scheduled",
 
     db = SessionLocal()
     try:
+        started_at = datetime.now(UTC)
         automation = (
             db.query(EventReminderAutomation)
             .filter(EventReminderAutomation.id == automation_id)
@@ -365,65 +396,72 @@ def run_automation(self, automation_id: str, trigger: str = "scheduled",
 
         run.body_snapshot = body_snapshot
         run.status = "running"
+        run.error = None
+        run.started_at = run.started_at or started_at
 
         # Resolve recipients and insert idempotently.
         recipients = resolve_recipients(db, automation, event)
         inserted = 0
+        existing = 0
         for r in recipients:
-            try:
-                # Per-recipient parameters.
-                params = dict(snapshot_params)
-                params["recipient_name"] = r["name"] or ""
-
-                # Pledge / balance / dynamic pay link for pledge_remind.
-                if automation.automation_type == "pledge_remind":
-                    ec = (
-                        db.query(EventContributor)
-                        .filter(EventContributor.id == r["recipient_id"])
-                        .first()
-                    )
-                    if ec is not None:
-                        pledge = float(ec.pledge_amount or 0)
-                        paid = float(
-                            db.query(sa_func.coalesce(
-                                sa_func.sum(EventContribution.amount), 0))
-                            .filter(EventContribution.event_contributor_id == ec.id)
-                            .scalar() or 0
-                        )
-                        balance = max(0.0, pledge - paid)
-                        # Issue a fresh share token + dynamic URL.
-                        plain = issue_share_token(db, ec)
-                        pay_url = build_share_url(currency_code, plain)
-                        params["pledge_amount"] = format_money(pledge, currency_code)
-                        params["balance"] = format_money(balance, currency_code)
-                        params["pay_link"] = pay_url
-                        params["event_link"] = pay_url
-
-                rendered = render_full_message(
-                    automation.template,
-                    automation.body_override,
-                    params,
-                )
-
-                rec_row = EventReminderRecipient(
-                    run_id=run.id,
-                    recipient_type=r["recipient_type"],
-                    recipient_id=r["recipient_id"],
-                    name=r["name"],
-                    phone=r["phone"],
-                    status="pending",
-                    message=rendered,
-                )
-                db.add(rec_row)
-                db.flush()
-                inserted += 1
-            except Exception:
-                # UNIQUE collision (resend / dup in same run) — skip.
-                db.rollback()
+            already_exists = db.query(EventReminderRecipient.id).filter(
+                EventReminderRecipient.run_id == run.id,
+                EventReminderRecipient.recipient_type == r["recipient_type"],
+                EventReminderRecipient.recipient_id == r["recipient_id"],
+            ).first()
+            if already_exists:
+                existing += 1
                 continue
 
-        run.total_recipients = inserted
-        if inserted == 0:
+            # Per-recipient parameters.
+            params = dict(snapshot_params)
+            params["recipient_name"] = r["name"] or ""
+
+            # Pledge / balance / dynamic pay link for pledge_remind.
+            if automation.automation_type == "pledge_remind":
+                ec = (
+                    db.query(EventContributor)
+                    .filter(EventContributor.id == r["recipient_id"])
+                    .first()
+                )
+                if ec is not None:
+                    pledge = float(ec.pledge_amount or 0)
+                    paid = float(
+                        db.query(sa_func.coalesce(
+                            sa_func.sum(EventContribution.amount), 0))
+                        .filter(EventContribution.event_contributor_id == ec.id)
+                        .scalar() or 0
+                    )
+                    balance = max(0.0, pledge - paid)
+                    # Issue a fresh share token + dynamic URL.
+                    plain = issue_share_token(db, ec)
+                    pay_url = build_share_url(currency_code, plain)
+                    params["pledge_amount"] = format_money(pledge, currency_code)
+                    params["balance"] = format_money(balance, currency_code)
+                    params["pay_link"] = pay_url
+                    params["event_link"] = pay_url
+
+            rendered = render_full_message(
+                automation.template,
+                automation.body_override,
+                params,
+            )
+
+            rec_row = EventReminderRecipient(
+                run_id=run.id,
+                recipient_type=r["recipient_type"],
+                recipient_id=r["recipient_id"],
+                name=r["name"],
+                phone=r["phone"],
+                status="pending",
+                message=rendered,
+            )
+            db.add(rec_row)
+            db.flush()
+            inserted += 1
+
+        run.total_recipients = inserted + existing
+        if run.total_recipients == 0:
             run.status = "completed"
             run.finished_at = datetime.now(UTC)
 
@@ -444,14 +482,25 @@ def run_automation(self, automation_id: str, trigger: str = "scheduled",
             ]
             for rid in rec_ids:
                 try:
-                    send_one.delay(rid)
+                    if send_inline:
+                        send_one.run(rid)
+                    else:
+                        send_one.delay(rid)
                 except Exception as e:
                     print(f"[reminder] failed to enqueue {rid}: {e}")
 
-        return {"ok": True, "run_id": str(run.id), "recipients": inserted}
+        return {"ok": True, "run_id": str(run.id), "recipients": run.total_recipients}
     except Exception as exc:
         try:
             db.rollback()
+            if run_id:
+                failed_run = db.query(EventReminderRun).filter(
+                    EventReminderRun.id == run_id).first()
+                if failed_run:
+                    failed_run.status = "failed"
+                    failed_run.error = str(exc)[:1000]
+                    failed_run.finished_at = datetime.now(UTC)
+                    db.commit()
         except Exception:
             pass
         raise self.retry(exc=exc)
@@ -500,10 +549,10 @@ def scan_due_automations():
             a.next_run_at = None
             db.commit()
             try:
-                run_automation.delay(str(a.id), "scheduled")
+                run_automation.run(str(a.id), "scheduled", None, True)
                 dispatched += 1
             except Exception as e:
-                print(f"[reminder] failed to enqueue {a.id}: {e}")
+                print(f"[reminder] failed to dispatch {a.id}: {e}")
 
         return {"dispatched": dispatched}
     finally:

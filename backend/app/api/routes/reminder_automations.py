@@ -22,12 +22,12 @@ must be present, body cannot start or end with a {{var}}.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone as dt_tz
+from datetime import datetime, timedelta, timezone as dt_tz
 from typing import Optional, Literal
 
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, desc
+from sqlalchemy import and_, desc, func as sa_func
 from sqlalchemy.orm import Session
 
 from core.database import get_db
@@ -137,6 +137,8 @@ def _automation_dict(a: EventReminderAutomation, db: Session) -> dict:
         .order_by(desc(EventReminderRun.started_at))
         .first()
     )
+    if last_run:
+        _repair_run_status(db, last_run)
     return {
         "id": str(a.id),
         "event_id": str(a.event_id),
@@ -175,6 +177,35 @@ def _run_dict(r: EventReminderRun) -> dict:
         "body_snapshot": r.body_snapshot,
         "error": r.error,
     }
+
+
+def _repair_run_status(db: Session, run: EventReminderRun) -> None:
+    if run.status not in ("pending", "running"):
+        return
+    counts = dict(
+        db.query(EventReminderRecipient.status, sa_func.count(EventReminderRecipient.id))
+        .filter(EventReminderRecipient.run_id == run.id)
+        .group_by(EventReminderRecipient.status)
+        .all()
+    )
+    total = sum(int(v or 0) for v in counts.values())
+    run.total_recipients = total
+    run.sent_count = int(counts.get("sent", 0) or 0)
+    run.failed_count = int(counts.get("failed", 0) or 0)
+    run.skipped_count = int(counts.get("skipped", 0) or 0)
+    pending = int(counts.get("pending", 0) or 0)
+    if total > 0 and pending == 0:
+        run.status = "completed"
+        run.finished_at = run.finished_at or datetime.now(UTC)
+    elif total > 0:
+        run.status = "running"
+    elif run.body_snapshot:
+        run.status = "completed"
+        run.finished_at = run.finished_at or datetime.now(UTC)
+    elif (run.started_at or datetime.now(UTC)) < datetime.now(UTC) - timedelta(minutes=2):
+        run.status = "failed"
+        run.error = run.error or "Dispatch did not start. Please send again."
+        run.finished_at = run.finished_at or datetime.now(UTC)
 
 
 def _recipient_dict(r: EventReminderRecipient) -> dict:
@@ -485,6 +516,7 @@ def preview_message(
 def send_now(
     event_id: str,
     automation_id: str,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -506,21 +538,17 @@ def send_now(
         automation_id=a.id,
         event_id=ev.id,
         trigger="manual",
-        status="pending",
+        status="running",
     )
     db.add(run)
     db.commit()
     db.refresh(run)
 
-    # Dispatch in background (no inline blocking).
-    try:
-        from tasks.reminder_dispatch import run_automation as run_task
-        run_task.delay(str(a.id), "manual", str(run.id))
-    except Exception as e:
-        # Celery missing — process inline as last resort so feature still works.
-        print(f"[reminder] inline fallback (celery unavailable): {e}")
-        from tasks.reminder_dispatch import run_automation as run_task
-        run_task.run(str(a.id), "manual", str(run.id))
+    # Run from the API background task instead of queuing a second Celery task.
+    # This avoids the stale-worker "unregistered task" failure and still sends
+    # per-recipient work after the HTTP response has been accepted.
+    from tasks.reminder_dispatch import run_automation as run_task
+    background_tasks.add_task(run_task.run, str(a.id), "manual", str(run.id), True)
 
     return standard_response(
         True,
@@ -547,6 +575,9 @@ def list_runs(
         .limit(limit)
         .all()
     )
+    for row in rows:
+        _repair_run_status(db, row)
+    db.commit()
     return standard_response(True, "Runs retrieved",
                              {"items": [_run_dict(r) for r in rows]})
 
@@ -576,6 +607,8 @@ def list_recipients(
     )
     if not run:
         return standard_response(False, "Run not found")
+    _repair_run_status(db, run)
+    db.commit()
 
     q = (
         db.query(EventReminderRecipient)
