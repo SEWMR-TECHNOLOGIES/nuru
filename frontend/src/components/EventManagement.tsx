@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import EventAutomationsPage from '@/pages/event/EventAutomationsPage';
 import { ChevronLeft, Users, UserCheck, CheckCircle2, Plus, Search, Trash2, X, Loader2, Images, ChevronDown, FileText, ChevronRight, Eye } from 'lucide-react';
 import SvgIcon from '@/components/ui/svg-icon';
 import ShareIcon from '@/assets/icons/share-icon.svg';
@@ -55,6 +56,7 @@ const EventManagement = () => {
   const { t } = useLanguage();
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { data: currentUser } = useCurrentUser();
 
   const { event: apiEvent, loading: eventLoading, refetch: refetchEvent } = useEvent(id || null);
@@ -73,8 +75,16 @@ const EventManagement = () => {
     description: `Manage services, committee, contributions, and invitations for ${event?.title || 'your event'}.`
   });
 
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = new URLSearchParams(location.search).get('tab');
+    return tab || 'overview';
+  });
   const [openingWorkspace, setOpeningWorkspace] = useState(false);
+
+  useEffect(() => {
+    const tab = new URLSearchParams(location.search).get('tab');
+    if (tab && tab !== activeTab) setActiveTab(tab);
+  }, [location.search, activeTab]);
 
   const openWorkspace = useCallback(async () => {
     if (!id || openingWorkspace) return;
@@ -706,23 +716,7 @@ const EventManagement = () => {
 
         {isCreator && (
           <TabsContent value="reminders" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <SvgIcon src={CalendarIcon} className="w-4 h-4" />
-                  Reminders & automations
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Create, schedule and monitor WhatsApp and SMS reminders for contributors and guests, in English or Swahili. All sending runs in the background.
-                </p>
-                <Button onClick={() => navigate(`/event/${id}/automations`)} className="gap-2">
-                  Open automations workspace
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </CardContent>
-            </Card>
+            <EventAutomationsPage eventId={id!} embedded />
           </TabsContent>
         )}
 

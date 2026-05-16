@@ -4,7 +4,7 @@
  * Single-file UI for the organiser to create/edit/preview/send reminders.
  * Uses the existing Nuru shadcn primitives. No new dependencies.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,8 +55,9 @@ function detectTimezone(): string {
   }
 }
 
-export default function EventAutomationsPage() {
-  const { eventId } = useParams<{ eventId: string }>();
+export default function EventAutomationsPage({ eventId: eventIdProp, embedded = false }: { eventId?: string; embedded?: boolean } = {}) {
+  const params = useParams<{ id?: string; eventId?: string }>();
+  const eventId = eventIdProp || params.eventId || params.id;
   const { toast } = useToast();
   const [items, setItems] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,11 +66,15 @@ export default function EventAutomationsPage() {
   const [detail, setDetail] = useState<Automation | null>(null);
 
   async function refresh() {
-    if (!eventId) return;
+    if (!eventId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = await reminderAutomationsApi.list(eventId);
-      setItems(res.data?.items || []);
+      if (res.success === false) throw new Error(res.message || "Failed to load automations");
+      setItems(extractItems<Automation>(res.data));
     } catch (e: any) {
       toast({ title: "Failed to load automations", description: e?.message, variant: "destructive" });
     } finally {
@@ -80,12 +85,12 @@ export default function EventAutomationsPage() {
   useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [eventId]);
 
   return (
-    <div className="space-y-6 p-6 max-w-6xl mx-auto">
+    <div className={embedded ? "space-y-6" : "space-y-6 p-6 max-w-6xl mx-auto"}>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Reminder automations</h1>
+          <h1 className={embedded ? "text-xl font-semibold tracking-tight" : "text-3xl font-semibold tracking-tight"}>Reminder automations</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Automatically notify contributors and guests over WhatsApp with SMS as a fallback.
+            Automatically notify contributors and guests on WhatsApp.
           </p>
         </div>
         <Button onClick={() => { setEditing(null); setEditorOpen(true); }}>
@@ -133,6 +138,20 @@ export default function EventAutomationsPage() {
       )}
     </div>
   );
+}
+
+function extractItems<T>(data: unknown): T[] {
+  const value = data as any;
+  const items = Array.isArray(value?.items)
+    ? value.items
+    : Array.isArray(value?.data?.items)
+      ? value.data.items
+      : Array.isArray(value?.automations)
+        ? value.automations
+        : Array.isArray(value)
+          ? value
+          : [];
+  return items as T[];
 }
 
 function AutomationRow({ a, onEdit, onDetail, onChanged }: {
@@ -211,6 +230,10 @@ function formatTime(iso: string | null): string {
   try { return new Date(iso).toLocaleString(); } catch { return iso; }
 }
 
+function editableRequiredPlaceholders(type: AutomationType): string[] {
+  return [];
+}
+
 function AutomationEditor({ eventId, automation, onClose, onSaved }: {
   eventId: string; automation: Automation | null; onClose: () => void; onSaved: () => void;
 }) {
@@ -229,6 +252,20 @@ function AutomationEditor({ eventId, automation, onClose, onSaved }: {
   const [preview, setPreview] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [templateInfo, setTemplateInfo] = useState<{ prefix: string; suffix: string; required: string[]; defaultBody: string } | null>(null);
+  const dateTimeRef = useRef<HTMLInputElement | null>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (scheduleKind !== "datetime") return;
+    const timer = window.setTimeout(() => dateTimeRef.current?.focus(), 80);
+    return () => window.clearTimeout(timer);
+  }, [scheduleKind]);
+
+  useEffect(() => {
+    if (!preview) return;
+    const timer = window.setTimeout(() => previewRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
+    return () => window.clearTimeout(timer);
+  }, [preview]);
 
   // Load template defaults when type or language changes.
   useEffect(() => {
@@ -240,10 +277,10 @@ function AutomationEditor({ eventId, automation, onClose, onSaved }: {
           setTemplateInfo({
             prefix: t.protected_prefix,
             suffix: t.protected_suffix,
-            required: t.required_placeholders,
+            required: editableRequiredPlaceholders(type),
             defaultBody: t.body_default,
           });
-          if (!automation && !body) setBody(t.body_default);
+          if (!automation && type !== "fundraise_attend") setBody("");
         }
       } catch { /* ignore */ }
     })();
@@ -259,12 +296,14 @@ function AutomationEditor({ eventId, automation, onClose, onSaved }: {
           "{{2}}": "Your event",
           "{{3}}": new Date().toLocaleDateString(),
         };
-        let out = `${templateInfo?.prefix || ""}\n${body}\n${templateInfo?.suffix || ""}`;
+        const previewBody = type === "fundraise_attend" ? body : templateInfo?.defaultBody || "";
+        let out = `${templateInfo?.prefix || ""}\n${previewBody}\n${templateInfo?.suffix || ""}`;
         for (const [k, v] of Object.entries(sample)) out = out.split(k).join(v);
         setPreview(out.trim());
         return;
       }
-      const res = await reminderAutomationsApi.preview(eventId, automation.id, body, language);
+      const res = await reminderAutomationsApi.preview(eventId, automation.id, type === "fundraise_attend" ? body : undefined, language);
+      if (res.success === false) throw new Error(res.message || "Preview failed");
       setPreview(res.data?.rendered || "");
     } catch (e: any) {
       toast({ title: "Preview failed", description: e?.message, variant: "destructive" });
@@ -278,7 +317,7 @@ function AutomationEditor({ eventId, automation, onClose, onSaved }: {
         automation_type: type,
         language,
         name: name || undefined,
-        body_override: body || undefined,
+        body_override: type === "fundraise_attend" ? body || undefined : undefined,
         schedule_kind: scheduleKind,
         schedule_at: scheduleKind === "datetime" && scheduleAt ? new Date(scheduleAt).toISOString() : undefined,
         days_before: scheduleKind === "days_before" ? Number(daysBefore) : undefined,
@@ -289,9 +328,11 @@ function AutomationEditor({ eventId, automation, onClose, onSaved }: {
         enabled,
       };
       if (automation) {
-        await reminderAutomationsApi.update(eventId, automation.id, payload);
+        const res = await reminderAutomationsApi.update(eventId, automation.id, payload);
+        if (res.success === false) throw new Error(res.message || "Save failed");
       } else {
-        await reminderAutomationsApi.create(eventId, payload);
+        const res = await reminderAutomationsApi.create(eventId, payload);
+        if (res.success === false) throw new Error(res.message || "Save failed");
       }
       onSaved();
     } catch (e: any) {
@@ -338,7 +379,7 @@ function AutomationEditor({ eventId, automation, onClose, onSaved }: {
             <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
           </div>
 
-          {templateInfo && (
+          {templateInfo && templateInfo.required.length > 0 && (
             <div className="rounded-md bg-muted/50 p-3 space-y-2 text-sm">
               <div className="font-medium">Protected wrapper (cannot be edited):</div>
               <div className="text-muted-foreground">Prefix: <span className="font-mono text-xs">{templateInfo.prefix}</span></div>
@@ -349,19 +390,31 @@ function AutomationEditor({ eventId, automation, onClose, onSaved }: {
             </div>
           )}
 
-          <div>
-            <Label>Message body</Label>
-            <Textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              rows={6}
-              placeholder="Write the message body here..."
-              autoComplete="off"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Cannot start or end with a placeholder. Required placeholders must remain.
-            </p>
-          </div>
+          {type === "fundraise_attend" ? (
+            <div>
+              <Label>Message body</Label>
+              <Textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                rows={6}
+                placeholder="Write the message body here..."
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Cannot start or end with a placeholder. Required placeholders must remain.
+              </p>
+            </div>
+          ) : templateInfo ? (
+            <div>
+              <Label>Message template</Label>
+              <div className="rounded-md border bg-muted/30 p-3 mt-1">
+                <pre className="text-sm whitespace-pre-wrap font-sans text-foreground/90">{`${templateInfo.prefix ? templateInfo.prefix + "\n" : ""}${templateInfo.defaultBody || ""}${templateInfo.suffix ? "\n" + templateInfo.suffix : ""}`}</pre>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                This template is pre-approved and cannot be edited. Use Preview to see it with sample details filled in.
+              </p>
+            </div>
+          ) : null}
 
           <div>
             <Label>Schedule</Label>
@@ -380,7 +433,7 @@ function AutomationEditor({ eventId, automation, onClose, onSaved }: {
           {scheduleKind === "datetime" && (
             <div>
               <Label>When</Label>
-              <Input type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} />
+              <Input ref={dateTimeRef} type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} />
             </div>
           )}
           {scheduleKind === "days_before" && (
@@ -406,7 +459,7 @@ function AutomationEditor({ eventId, automation, onClose, onSaved }: {
           </div>
 
           {preview && (
-            <div className="rounded-md border p-3 bg-background">
+            <div ref={previewRef} className="rounded-md border p-3 bg-background">
               <div className="text-xs text-muted-foreground mb-2">Preview</div>
               <pre className="text-sm whitespace-pre-wrap font-sans">{preview}</pre>
             </div>
@@ -435,8 +488,10 @@ function AutomationDetailDialog({ eventId, automation, onClose }: {
   async function loadRuns() {
     try {
       const res = await reminderAutomationsApi.listRuns(eventId, automation.id);
-      setRuns(res.data?.items || []);
-      if (!activeRun && res.data?.items?.[0]) setActiveRun(res.data.items[0]);
+      if (res.success === false) throw new Error(res.message || "Failed to load runs");
+      const items = extractItems<ReminderRun>(res.data);
+      setRuns(items);
+      if (!activeRun && items[0]) setActiveRun(items[0]);
     } catch (e: any) {
       toast({ title: "Failed", description: e?.message, variant: "destructive" });
     }
@@ -445,7 +500,8 @@ function AutomationDetailDialog({ eventId, automation, onClose }: {
   async function loadRecipients(runId: string) {
     try {
       const res = await reminderAutomationsApi.listRecipients(eventId, automation.id, runId, filter || undefined);
-      setRecipients(res.data?.items || []);
+      if (res.success === false) throw new Error(res.message || "Failed to load recipients");
+      setRecipients(extractItems<ReminderRecipient>(res.data));
     } catch (e: any) {
       toast({ title: "Failed", description: e?.message, variant: "destructive" });
     }
