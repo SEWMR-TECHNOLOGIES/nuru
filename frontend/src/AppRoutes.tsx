@@ -1,5 +1,5 @@
 // AppRoutes.tsx
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useAuthSync } from "@/hooks/useAuthSync";
 import OpenInAppBanner from "@/components/OpenInAppBanner";
@@ -48,7 +48,6 @@ import BrowseTickets from "@/components/BrowseTickets";
 import MyTickets from "@/components/MyTickets";
 import BookingDetail from "@/components/bookings/BookingDetail";
 import EventView from "@/components/EventView";
-import EventAutomationsPage from "@/pages/event/EventAutomationsPage";
 import PublicProfile from "@/components/PublicProfile";
 import ServiceEventsPage from "@/components/ServiceEventsPage";
 import ServicePhotoLibraries from "@/components/ServicePhotoLibraries";
@@ -147,6 +146,11 @@ import MeetingRoom from "@/pages/MeetingRoom";
 
 // Inner component that uses router hooks (must be inside BrowserRouter)
 
+function EventAutomationsRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/event-management/${id || ""}?tab=reminders`} replace />;
+}
+
 function InnerRoutes() {
   const { userIsLoggedIn, isLoading, data: currentUser } = useCurrentUser();
   useAuthSync();
@@ -224,7 +228,7 @@ function InnerRoutes() {
           <Route path="/bookings" element={<BookingList />} />
           <Route path="/bookings/:id" element={<BookingDetail />} />
           <Route path="/event/:id" element={<EventView />} />
-          <Route path="/event/:id/automations" element={<EventAutomationsPage />} />
+          <Route path="/event/:id/automations" element={<EventAutomationsRedirect />} />
           <Route path="/my-contributors" element={<MyContributors />} />
           <Route path="/change-password" element={<ChangePassword />} />
           <Route path="/removed-content" element={<RemovedContent />} />
