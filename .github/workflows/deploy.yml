@@ -40,6 +40,9 @@ jobs:
             echo "🔁 Restart backend LAST"
             systemctl restart nuru-backend
 
+            echo "🔁 Restart Celery worker and beat"
+            systemctl restart nuru-celery.service
+
             echo "⏳ Wait for backend to be ready"
             for i in {1..20}; do
               if curl -s http://127.0.0.1:8000 > /dev/null; then
@@ -49,6 +52,14 @@ jobs:
               echo "Waiting..."
               sleep 1
             done
+
+            echo "🔎 Check backend service"
+            systemctl is-active --quiet nuru-backend
+            echo "✅ Backend service is running"
+
+            echo "🔎 Check Celery service"
+            systemctl is-active --quiet nuru-celery.service
+            echo "✅ Celery service is running"
 
             echo "♻️ Reload nginx"
             systemctl reload nginx
