@@ -119,7 +119,7 @@ const Post = ({ post }: PostProps) => {
           <img
             src={image}
             alt={title || 'Post image'}
-            className="w-full h-48 md:h-64 object-cover rounded-lg cursor-pointer hover:opacity-95 transition-opacity"
+            className="w-full h-auto block rounded-lg bg-muted/30 cursor-pointer hover:opacity-95 transition-opacity"
             onClick={(e) => { e.stopPropagation(); lightbox.openLightbox([image], 0); }}
           />
         </div>

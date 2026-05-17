@@ -641,61 +641,86 @@ def get_invited_events(
     page: int = 1, limit: int = 20,
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
-    """Returns events the current user has been invited to, with RSVP status."""
-    # 1. Direct invitations by invited_user_id
-    invitations = (
-        db.query(EventInvitation)
+    """Returns events the current user has been invited to, with RSVP status.
+
+    Optimized: previously hydrated ALL invitations + ALL attendee rows (even
+    when ?limit=5). Now we paginate event_ids at the DB level using a UNION of
+    invitation/attendee sources, then load only the page.
+    """
+    from sqlalchemy import literal, union_all, select
+
+    # Source A: events from EventInvitation (invitation as source-of-truth)
+    inv_src = (
+        db.query(
+            EventInvitation.event_id.label("event_id"),
+            EventInvitation.created_at.label("ordered_at"),
+        )
         .filter(EventInvitation.invited_user_id == current_user.id)
-        .order_by(EventInvitation.created_at.desc())
-        .all()
     )
-    inv_map = {inv.event_id: inv for inv in invitations}
-
-    # 2. Also find events via EventAttendee (covers cases where invited_user_id is NULL)
-    attendee_records = (
-        db.query(EventAttendee)
+    # Source B: events from EventAttendee that aren't already covered above
+    att_src = (
+        db.query(
+            EventAttendee.event_id.label("event_id"),
+            EventAttendee.created_at.label("ordered_at"),
+        )
         .filter(EventAttendee.attendee_id == current_user.id)
-        .all()
     )
-    for att in attendee_records:
-        if att.event_id not in inv_map and att.invitation_id:
-            inv = db.query(EventInvitation).filter(EventInvitation.id == att.invitation_id).first()
-            if inv:
-                inv_map[att.event_id] = inv
-        elif att.event_id not in inv_map:
-            # Attendee exists but no invitation record — synthesise minimal data
-            inv_map[att.event_id] = att  # we'll handle both types below
 
-    event_ids = list(inv_map.keys())
-    if not event_ids:
-        return standard_response(True, "No event invitations found", {"events": [], "pagination": {"page": 1, "limit": limit, "total_items": 0, "total_pages": 1, "has_next": False, "has_previous": False}})
+    # Aggregate distinct event_ids ordered by newest activity.
+    combined_sq = inv_src.union_all(att_src).subquery()
+    grouped_q = db.query(
+        combined_sq.c.event_id,
+        sa_func.max(combined_sq.c.ordered_at).label("ordered_at"),
+    ).group_by(combined_sq.c.event_id).order_by(sa_func.max(combined_sq.c.ordered_at).desc())
 
-    total = len(event_ids)
-    total_pages = max(1, math.ceil(total / limit))
-    paged_ids = event_ids[(page - 1) * limit : page * limit]
+    total = db.query(sa_func.count(sa_func.distinct(combined_sq.c.event_id))).scalar() or 0
+    total_pages = max(1, math.ceil(total / limit)) if total else 1
+    if total == 0:
+        return standard_response(True, "No event invitations found", {
+            "events": [],
+            "pagination": {"page": 1, "limit": limit, "total_items": 0, "total_pages": 1, "has_next": False, "has_previous": False},
+        })
 
+    paged_rows = grouped_q.offset((page - 1) * limit).limit(limit).all()
+    paged_ids = [r.event_id for r in paged_rows]
+
+    # Now load only the page-sized slice of related data.
     events = db.query(Event).filter(Event.id.in_(paged_ids)).all()
     event_order = {eid: i for i, eid in enumerate(paged_ids)}
     events.sort(key=lambda e: event_order.get(e.id, 0))
 
-    # Batch load context
-    from utils.batch_loaders import batch_load_event_context, batch_load_users
-    ctx = batch_load_event_context(db, [e.id for e in events])
-    organizer_map = batch_load_users(db, {e.organizer_id for e in events if e.organizer_id})
+    invitations = db.query(EventInvitation).filter(
+        EventInvitation.event_id.in_(paged_ids),
+        EventInvitation.invited_user_id == current_user.id,
+    ).all()
+    inv_map = {inv.event_id: inv for inv in invitations}
 
-    # Batch load current user's attendee record per event
     att_rows = db.query(EventAttendee).filter(
         EventAttendee.event_id.in_(paged_ids),
         EventAttendee.attendee_id == current_user.id,
     ).all()
     att_by_event = {str(a.event_id): a for a in att_rows}
 
+    # For events missing a direct invitation, fall back to the attendee's
+    # invitation_id (matches prior behaviour).
+    missing_inv_attendee_invitation_ids = [
+        a.invitation_id for a in att_rows
+        if a.event_id not in inv_map and a.invitation_id
+    ]
+    if missing_inv_attendee_invitation_ids:
+        for inv in db.query(EventInvitation).filter(
+            EventInvitation.id.in_(missing_inv_attendee_invitation_ids)
+        ).all():
+            inv_map.setdefault(inv.event_id, inv)
+
+    from utils.batch_loaders import batch_load_event_context, batch_load_users
+    ctx = batch_load_event_context(db, [e.id for e in events])
+    organizer_map = batch_load_users(db, {e.organizer_id for e in events if e.organizer_id})
+
     results = []
     for ev in events:
         eid_str = str(ev.id)
         c = ctx[eid_str]
-        inv_or_att = inv_map.get(ev.id)
-        is_invitation = isinstance(inv_or_att, EventInvitation)
         et = c["event_type"]; vc = c["vc"]; images = c["images"]
         cover = ev.cover_image_url
         if not cover:
@@ -705,9 +730,9 @@ def get_invited_events(
             if not cover and images:
                 cover = images[0]["image_url"]
         attendee = att_by_event.get(eid_str)
+        inv = inv_map.get(ev.id)
 
-        if is_invitation:
-            inv = inv_or_att
+        if inv is not None:
             invitation_data = {
                 "id": str(inv.id),
                 "rsvp_status": inv.rsvp_status.value if hasattr(inv.rsvp_status, "value") else inv.rsvp_status,
@@ -715,15 +740,16 @@ def get_invited_events(
                 "invited_at": inv.invited_at.isoformat() if inv.invited_at else None,
                 "rsvp_at": inv.rsvp_at.isoformat() if inv.rsvp_at else None,
             }
-        else:
-            att_record = inv_or_att
+        elif attendee is not None:
             invitation_data = {
                 "id": None,
-                "rsvp_status": att_record.rsvp_status.value if hasattr(att_record.rsvp_status, "value") else (att_record.rsvp_status or "pending"),
+                "rsvp_status": attendee.rsvp_status.value if hasattr(attendee.rsvp_status, "value") else (attendee.rsvp_status or "pending"),
                 "invitation_code": None,
-                "invited_at": att_record.created_at.isoformat() if att_record.created_at else None,
+                "invited_at": attendee.created_at.isoformat() if attendee.created_at else None,
                 "rsvp_at": None,
             }
+        else:
+            invitation_data = {"id": None, "rsvp_status": "pending", "invitation_code": None, "invited_at": None, "rsvp_at": None}
 
         org = organizer_map.get(str(ev.organizer_id), {})
         results.append({
@@ -758,20 +784,27 @@ def get_committee_events(
     page: int = 1, limit: int = 20,
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
-    """Returns events where the current user is a committee member, with role and permissions."""
-    memberships = (
-        db.query(EventCommitteeMember)
-        .filter(EventCommitteeMember.user_id == current_user.id)
-        .order_by(EventCommitteeMember.created_at.desc())
+    """Returns events where the current user is a committee member, with role and permissions.
+
+    Optimized: paginates memberships at the DB level instead of loading every
+    membership the user has ever held.
+    """
+    base_q = db.query(EventCommitteeMember).filter(
+        EventCommitteeMember.user_id == current_user.id
+    )
+    total = base_q.with_entities(sa_func.count(EventCommitteeMember.id)).scalar() or 0
+    total_pages = max(1, math.ceil(total / limit)) if total else 1
+
+    paged = (
+        base_q.order_by(EventCommitteeMember.created_at.desc())
+        .offset((page - 1) * limit)
+        .limit(limit)
         .all()
     )
 
-    if not memberships:
-        return standard_response(True, "You are not a committee member of any events", {"events": [], "pagination": {"page": 1, "limit": limit, "total_items": 0, "total_pages": 1, "has_next": False, "has_previous": False}})
 
-    total = len(memberships)
-    total_pages = max(1, math.ceil(total / limit))
-    paged = memberships[(page - 1) * limit : page * limit]
+    if total == 0 or not paged:
+        return standard_response(True, "You are not a committee member of any events", {"events": [], "pagination": {"page": page, "limit": limit, "total_items": total, "total_pages": total_pages, "has_next": page < total_pages, "has_previous": page > 1}})
 
     # Batch fetch events + context
     paged_event_ids = [cm.event_id for cm in paged]
@@ -1050,7 +1083,24 @@ def get_event(
     if data is None:
         summaries = build_event_summaries(db, [event])
         data = summaries[0] if summaries else _event_summary(db, event)
-        data.update(_public_event_detail_extras(db, event))
+        # Heavy avatars/going-list block — cache aggressively so subsequent
+        # polls reuse the work instead of re-hydrating 40 attendees + users +
+        # profiles + social accounts on every request.
+        extras_key = f"event_extras:v2:{event_id}"
+        extras = None
+        if cache_get is not None:
+            try:
+                extras = cache_get(extras_key)
+            except Exception:
+                extras = None
+        if extras is None:
+            extras = _public_event_detail_extras(db, event)
+            if cache_set is not None:
+                try:
+                    cache_set(extras_key, extras, ttl=60)
+                except Exception:
+                    pass
+        data.update(extras)
         if cache_set is not None:
             try:
                 cache_set(cache_key, data, ttl=60)

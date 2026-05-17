@@ -189,12 +189,12 @@ const EventView = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative w-full h-56 sm:h-72 rounded-xl overflow-hidden"
+          className="relative w-full rounded-xl overflow-hidden bg-muted/30"
         >
           <img
             src={coverImage}
             alt={event.title}
-            className="w-full h-full object-cover"
+            className="w-full h-auto block"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
           <div className="absolute bottom-4 left-4 right-4">
