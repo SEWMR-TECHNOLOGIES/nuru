@@ -36,6 +36,7 @@ export const getEventImage = (ev: AnyEvent): string => {
   if (!ev) return NURU_EVENT_DEFAULT_IMAGE;
   return (
     (typeof ev.cover_image === "string" && ev.cover_image) ||
+    (typeof ev.cover_image_url === "string" && ev.cover_image_url) ||
     (typeof ev.event_cover_image_url === "string" && ev.event_cover_image_url) ||
     (typeof ev.image === "string" && ev.image) ||
     (typeof ev.primary_image === "string" && ev.primary_image) ||

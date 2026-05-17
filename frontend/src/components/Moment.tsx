@@ -351,17 +351,16 @@ const Moment = ({ post }: MomentProps) => {
                   <SmartMedia
                     src={allImages[0]}
                     alt={title || 'Post image'}
-                    className="w-full max-h-[500px] object-contain rounded-xl md:rounded-2xl bg-muted/30"
+                    className="w-full h-auto block rounded-xl md:rounded-2xl bg-muted/30"
                     isVideo={true}
                   />
                 ) : (
                   <img
                     src={allImages[0]}
                     alt={title || 'Post image'}
-                    className="w-full max-h-[500px] object-contain rounded-xl md:rounded-2xl bg-muted/30 cursor-pointer hover:opacity-95 transition-opacity"
+                    className="w-full h-auto block rounded-xl md:rounded-2xl bg-muted/30 cursor-pointer hover:opacity-95 transition-opacity"
                     onClick={(e) => { e.stopPropagation(); lightbox.openLightbox(allImages.filter((_, i) => !isVideoUrl(_, i)), 0); }}
-                  />
-                )
+                  />)
               ) : (
                 <div className="rounded-xl md:rounded-2xl overflow-hidden bg-muted/30">
                   {allImages.length === 2 ? (
@@ -370,12 +369,12 @@ const Moment = ({ post }: MomentProps) => {
                       {allImages.slice(0, 2).map((src, i) => (
                         <div key={i} className="relative w-full h-full bg-muted/30">
                           {isVideoUrl(src, i) ? (
-                            <SmartMedia src={src} alt="" className="w-full h-full object-cover" isVideo compact />
+                            <SmartMedia src={src} alt="" className="w-full h-full object-contain bg-muted/30" isVideo compact />
                           ) : (
                             <img
                               src={src}
                               alt=""
-                              className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                              className="w-full h-full object-contain bg-muted/30 cursor-pointer hover:opacity-90 transition-opacity"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const imageOnly = allImages.filter((_, idx) => !isVideoUrl(_, idx));
@@ -393,12 +392,12 @@ const Moment = ({ post }: MomentProps) => {
                       {/* Big left tile */}
                       <div className="col-span-3 row-span-2 relative">
                         {isVideoUrl(allImages[0], 0) ? (
-                          <SmartMedia src={allImages[0]} alt="" className="w-full h-full object-cover" isVideo compact />
+                          <SmartMedia src={allImages[0]} alt="" className="w-full h-full object-contain bg-muted/30" isVideo compact />
                         ) : (
                           <img
                             src={allImages[0]}
                             alt=""
-                            className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                            className="w-full h-full object-contain bg-muted/30 cursor-pointer hover:opacity-90 transition-opacity"
                             onClick={(e) => {
                               e.stopPropagation();
                               const imageOnly = allImages.filter((_, i) => !isVideoUrl(_, i));
@@ -410,12 +409,12 @@ const Moment = ({ post }: MomentProps) => {
                       {/* Top right tile */}
                       <div className="col-span-2 row-span-1 relative">
                         {isVideoUrl(allImages[1], 1) ? (
-                          <SmartMedia src={allImages[1]} alt="" className="w-full h-full object-cover" isVideo compact />
+                          <SmartMedia src={allImages[1]} alt="" className="w-full h-full object-contain bg-muted/30" isVideo compact />
                         ) : (
                           <img
                             src={allImages[1]}
                             alt=""
-                            className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                            className="w-full h-full object-contain bg-muted/30 cursor-pointer hover:opacity-90 transition-opacity"
                             onClick={(e) => {
                               e.stopPropagation();
                               const imageOnly = allImages.filter((_, i) => !isVideoUrl(_, i));
@@ -428,12 +427,12 @@ const Moment = ({ post }: MomentProps) => {
                       {/* Bottom right tile with +N overlay */}
                       <div className="col-span-2 row-span-1 relative">
                         {isVideoUrl(allImages[2], 2) ? (
-                          <SmartMedia src={allImages[2]} alt="" className="w-full h-full object-cover" isVideo compact />
+                          <SmartMedia src={allImages[2]} alt="" className="w-full h-full object-contain bg-muted/30" isVideo compact />
                         ) : (
                           <img
                             src={allImages[2]}
                             alt=""
-                            className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                            className="w-full h-full object-contain bg-muted/30 cursor-pointer hover:opacity-90 transition-opacity"
                             onClick={(e) => {
                               e.stopPropagation();
                               const imageOnly = allImages.filter((_, i) => !isVideoUrl(_, i));

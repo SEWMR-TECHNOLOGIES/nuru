@@ -334,8 +334,8 @@ const EventManagement = () => {
       {hasImages && (
         <div className="mb-6">
           {eventImages.length === 1 ? (
-            <div className="relative w-full h-72 rounded-lg overflow-hidden border border-border">
-              <img src={eventImages[0]} alt={`${eventTitle} image`} className="w-full h-full object-cover cursor-pointer" onClick={() => openLightbox(0)} />
+            <div className="relative w-full rounded-lg overflow-hidden border border-border bg-muted/30">
+              <img src={eventImages[0]} alt={`${eventTitle} image`} className="w-full h-auto block cursor-pointer" onClick={() => openLightbox(0)} />
             </div>
           ) : (
             <div className="flex gap-3 overflow-x-auto py-2">

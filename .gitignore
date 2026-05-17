@@ -99,3 +99,7 @@ id_ed25520.pub
 # ===========================
 notes/*
 !notes/.gitkeep
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
