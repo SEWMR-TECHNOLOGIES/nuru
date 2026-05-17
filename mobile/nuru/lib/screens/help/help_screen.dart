@@ -77,10 +77,10 @@ class _HelpScreenState extends State<HelpScreen> {
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.dark,
-        systemNavigationBarColor: AppColors.surface,
+        systemNavigationBarColor: Colors.transparent,
         systemNavigationBarIconBrightness: Brightness.dark,
         systemNavigationBarContrastEnforced: false,
-        systemNavigationBarDividerColor: AppColors.surface,
+        systemNavigationBarDividerColor: Colors.transparent,
       ),
       child: Scaffold(
       backgroundColor: AppColors.surface,
@@ -108,27 +108,9 @@ class _HelpScreenState extends State<HelpScreen> {
               const SizedBox(height: 24),
             ],
           ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: bottomInset + 74,
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  border: Border(top: BorderSide(color: AppColors.borderLight)),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x12000000),
-                      blurRadius: 18,
-                      offset: Offset(0, -4),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          // (removed white surface + shadow strip behind the FAB so the
+          // transparent system nav bar shows the page content underneath)
+
           Positioned(
             right: 14,
             bottom: bottomInset + 18,

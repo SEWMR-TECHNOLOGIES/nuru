@@ -1,6 +1,7 @@
 import '../../../core/widgets/nuru_refresh_indicator.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../core/widgets/app_icon.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/widgets/app_snackbar.dart';
@@ -50,148 +51,275 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
     super.build(context);
     final canManage = widget.permissions?['can_manage_guests'] == true || widget.permissions?['is_creator'] == true;
 
-    return Column(
-      children: [
-        // Summary chips
-        if (_summary.isNotEmpty)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+    if (_loading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+
+    return NuruRefreshIndicator(
+      onRefresh: _load,
+      color: AppColors.primary,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+        children: [
+          // 4 KPI cards
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
+            ),
             child: Row(children: [
-              _chip('Total', _summary['total'], AppColors.textPrimary),
-              _chip('Confirmed', _summary['confirmed'], AppColors.accent),
-              _chip('Pending', _summary['pending'], AppColors.warning),
-              _chip('Declined', _summary['declined'], AppColors.error),
-              _chip('Checked In', _summary['checked_in'], AppColors.blue),
+              Expanded(child: _kpiTile(
+                iconName: 'users',
+                iconBg: const Color(0xFFEDE9FE), iconColor: const Color(0xFF7C3AED),
+                value: '${_summary['total'] ?? _guests.length}',
+                label: 'Total',
+              )),
+              Expanded(child: _kpiTile(
+                iconName: 'double-check',
+                iconBg: const Color(0xFFDCFCE7), iconColor: const Color(0xFF16A34A),
+                value: '${_summary['confirmed'] ?? 0}',
+                label: 'Confirmed',
+              )),
+              Expanded(child: _kpiTile(
+                iconName: 'clock',
+                iconBg: const Color(0xFFFEF3C7), iconColor: const Color(0xFFCA8A04),
+                value: '${_summary['pending'] ?? 0}',
+                label: 'Pending',
+              )),
+              Expanded(child: _kpiTile(
+                iconName: 'close',
+                iconBg: const Color(0xFFFEE2E2), iconColor: const Color(0xFFDC2626),
+                value: '${_summary['declined'] ?? 0}',
+                label: 'Declined',
+              )),
             ]),
           ),
-        // Search
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: Row(children: [
-            Expanded(
+
+          const SizedBox(height: 16),
+
+          // Search + Invite
+          Row(children: [
+            Expanded(child: Container(
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
               child: TextField(
                 controller: _searchCtrl,
                 onChanged: (_) => _load(),
+                autocorrect: false,
                 style: appText(size: 14),
                 decoration: InputDecoration(
                   hintText: 'Search guests...',
                   hintStyle: appText(size: 13, color: AppColors.textHint),
-                  prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.textHint),
+                  prefixIcon: const Padding(padding: EdgeInsets.all(14), child: AppIcon('search', size: 18, color: AppColors.textHint)),
                   filled: true, fillColor: Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: const Color(0xFFE5E7EB), width: 1)),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
-            ),
+            )),
             if (canManage) ...[
               const SizedBox(width: 10),
               GestureDetector(
                 onTap: _showAddGuestSheet,
                 child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(14)),
-                  child: const Icon(Icons.person_add_rounded, size: 20, color: Colors.white),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(16)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const AppIcon('user-add', size: 16, color: Colors.white),
+                    const SizedBox(width: 6),
+                    Text('Invite Guest', style: appText(size: 13, weight: FontWeight.w700, color: Colors.white)),
+                  ]),
                 ),
               ),
             ],
           ]),
-        ),
-        // Filter
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: ['all', 'confirmed', 'pending', 'declined', 'maybe'].map((f) => Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                onTap: () { setState(() => _filter = f); _load(); },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: _filter == f ? AppColors.primary : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: _filter == f ? AppColors.primary : AppColors.border),
-                  ),
-                  child: Text(f[0].toUpperCase() + f.substring(1), style: appText(size: 12, weight: FontWeight.w600, color: _filter == f ? Colors.white : AppColors.textSecondary)),
-                ),
-              ),
-            )).toList(),
+
+          const SizedBox(height: 12),
+
+          // Filter pills
+          SizedBox(
+            height: 36,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                _filterPill('All', 'all', null),
+                _filterPill('Confirmed', 'confirmed', const Color(0xFF16A34A)),
+                _filterPill('Pending', 'pending', const Color(0xFFCA8A04)),
+                _filterPill('Declined', 'declined', const Color(0xFFDC2626)),
+              ],
+            ),
           ),
-        ),
-        // List
-        Expanded(
-          child: _loading
-              ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-              : _guests.isEmpty
-                  ? Center(child: Text('No guests yet', style: appText(size: 14, color: AppColors.textTertiary)))
-                  : NuruRefreshIndicator(
-                      onRefresh: _load,
-                      color: AppColors.primary,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: _guests.length,
-                        itemBuilder: (_, i) => _guestTile(_guests[i], canManage),
-                      ),
-                    ),
-        ),
-      ],
+
+          const SizedBox(height: 14),
+
+          // Guest cards
+          if (_guests.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 24),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+              child: Column(children: [
+                Container(
+                  width: 56, height: 56,
+                  decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(18)),
+                  child: const AppIcon('users', size: 26, color: AppColors.primary),
+                ),
+                const SizedBox(height: 14),
+                Text('No guests yet', style: appText(size: 15, weight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text('Invite people to be part of your special day', style: appText(size: 12, color: AppColors.textTertiary), textAlign: TextAlign.center),
+              ]),
+            )
+          else
+            ..._guests.map((g) => _guestCard(g as Map<String, dynamic>, canManage)),
+
+          if (_guests.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            // Celebratory bottom card
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF8E6),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(children: [
+                Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(14)),
+                  child: const AppIcon('love', size: 22, color: AppColors.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  Text('Your guest list is looking great', style: appText(size: 13, weight: FontWeight.w700, color: AppColors.textPrimary)),
+                  const SizedBox(height: 2),
+                  Text('All confirmed guests are set to celebrate your special day.', style: appText(size: 11, color: AppColors.textSecondary), maxLines: 2),
+                ])),
+              ]),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
-  Widget _guestTile(Map<String, dynamic> g, bool canManage) {
+  Widget _kpiTile({required String iconName, required Color iconBg, required Color iconColor, required String value, required String label}) {
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        width: 38, height: 38,
+        decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+        child: Center(child: AppIcon(iconName, size: 18, color: iconColor)),
+      ),
+      const SizedBox(height: 8),
+      Text(value, style: appText(size: 19, weight: FontWeight.w800, color: AppColors.textPrimary)),
+      const SizedBox(height: 2),
+      Text(label, style: appText(size: 11, weight: FontWeight.w500, color: AppColors.textTertiary)),
+    ]);
+  }
+
+  Widget _filterPill(String label, String value, Color? dotColor) {
+    final active = _filter == value;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GestureDetector(
+        onTap: () { setState(() => _filter = value); _load(); },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: active ? AppColors.primarySoft : Colors.white,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: active ? AppColors.primary.withOpacity(0.4) : AppColors.border),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (dotColor != null) ...[
+              Container(width: 7, height: 7, decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle)),
+              const SizedBox(width: 6),
+            ],
+            Text(label, style: appText(size: 12, weight: FontWeight.w700, color: active ? AppColors.primaryDark : AppColors.textSecondary)),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _guestCard(Map<String, dynamic> g, bool canManage) {
     final name = g['name']?.toString() ?? g['full_name']?.toString() ?? 'Guest';
     final rsvp = (g['rsvp_status'] ?? 'pending').toString();
-    final checkedIn = g['checked_in'] == true;
     final phone = g['phone']?.toString() ?? '';
-    final table = g['table_number']?.toString() ?? '';
 
-    final rsvpColor = {'confirmed': AppColors.accent, 'pending': AppColors.warning, 'declined': AppColors.error, 'maybe': AppColors.blue}[rsvp] ?? AppColors.textTertiary;
+    final Color statusColor;
+    final Color statusBg;
+    final String statusIcon;
+    switch (rsvp) {
+      case 'confirmed':
+        statusColor = const Color(0xFF16A34A); statusBg = const Color(0xFFDCFCE7); statusIcon = 'verified'; break;
+      case 'declined':
+        statusColor = const Color(0xFFDC2626); statusBg = const Color(0xFFFEE2E2); statusIcon = 'close-circle'; break;
+      case 'maybe':
+        statusColor = const Color(0xFF2563EB); statusBg = const Color(0xFFDBEAFE); statusIcon = 'info'; break;
+      default:
+        statusColor = const Color(0xFFCA8A04); statusBg = const Color(0xFFFEF3C7); statusIcon = 'clock';
+    }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border.withOpacity(0.4))),
-      child: Row(
-        children: [
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Row(children: [
+        Container(
+          width: 48, height: 48,
+          decoration: BoxDecoration(color: statusBg, shape: BoxShape.circle),
+          child: Center(child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+            style: appText(size: 18, weight: FontWeight.w800, color: statusColor))),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(name, style: appText(size: 15, weight: FontWeight.w700, color: AppColors.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 5),
           Container(
-            width: 40, height: 40,
-            decoration: BoxDecoration(color: rsvpColor.withOpacity(0.1), shape: BoxShape.circle),
-            child: Center(child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: appText(size: 16, weight: FontWeight.w700, color: rsvpColor))),
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(999)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              AppIcon(statusIcon, size: 11, color: statusColor),
+              const SizedBox(width: 4),
+              Text(rsvp[0].toUpperCase() + rsvp.substring(1), style: appText(size: 10, weight: FontWeight.w700, color: statusColor)),
+            ]),
           ),
-          const SizedBox(width: 12),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                Flexible(child: Text(name, style: appText(size: 14, weight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                if (checkedIn) ...[const SizedBox(width: 6), Icon(Icons.check_circle, size: 14, color: AppColors.accent)],
-              ]),
-              Wrap(spacing: 8, children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(color: rsvpColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                  child: Text(rsvp, style: appText(size: 10, weight: FontWeight.w700, color: rsvpColor)),
-                ),
-                if (phone.isNotEmpty) Text(phone, style: appText(size: 11, color: AppColors.textTertiary)),
-                if (table.isNotEmpty) Text('Table $table', style: appText(size: 11, color: AppColors.textTertiary)),
-              ]),
-            ],
-          )),
-          if (canManage)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert_rounded, size: 18, color: AppColors.textHint),
+          if (phone.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(children: [
+              AppIcon('phone', size: 12, color: AppColors.textTertiary),
+              const SizedBox(width: 5),
+              Text(phone, style: appText(size: 11, color: AppColors.textTertiary)),
+            ]),
+          ],
+        ])),
+        if (canManage)
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: Colors.white, shape: BoxShape.circle,
+              border: Border.all(color: AppColors.border),
+            ),
+            child: PopupMenuButton<String>(
+              padding: EdgeInsets.zero,
+              icon: const AppIcon('menu', size: 16, color: AppColors.textSecondary),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               onSelected: (v) => _handleGuestAction(v, g),
-              itemBuilder: (_) => [
-                if (!checkedIn) const PopupMenuItem(value: 'checkin', child: Text('Check In')),
-                if (checkedIn) const PopupMenuItem(value: 'undo_checkin', child: Text('Undo Check-in')),
-                const PopupMenuItem(value: 'invite', child: Text('Send Invitation')),
-                const PopupMenuItem(value: 'delete', child: Text('Remove')),
-              ],
+              itemBuilder: (_) {
+                final checkedIn = g['checked_in'] == true;
+                return [
+                  if (!checkedIn) const PopupMenuItem(value: 'checkin', child: Text('Check In')),
+                  if (checkedIn) const PopupMenuItem(value: 'undo_checkin', child: Text('Undo Check-in')),
+                  const PopupMenuItem(value: 'invite', child: Text('Send Invitation')),
+                  const PopupMenuItem(value: 'delete', child: Text('Remove')),
+                ];
+              },
             ),
-        ],
-      ),
+          ),
+      ]),
     );
   }
 
@@ -202,17 +330,13 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
     Map<String, dynamic> res;
     switch (action) {
       case 'checkin':
-        res = await EventsService.checkinGuest(widget.eventId, guestId);
-        break;
+        res = await EventsService.checkinGuest(widget.eventId, guestId); break;
       case 'undo_checkin':
-        res = await EventsService.undoCheckin(widget.eventId, guestId);
-        break;
+        res = await EventsService.undoCheckin(widget.eventId, guestId); break;
       case 'invite':
-        res = await EventsService.sendInvitation(widget.eventId, guestId);
-        break;
+        res = await EventsService.sendInvitation(widget.eventId, guestId); break;
       case 'delete':
-        res = await EventsService.deleteGuest(widget.eventId, guestId);
-        break;
+        res = await EventsService.deleteGuest(widget.eventId, guestId); break;
       default:
         return;
     }
@@ -226,7 +350,6 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
     }
   }
 
-  /// Add guest using USER SEARCH — mirrors web UserSearchInput
   void _showAddGuestSheet() {
     final searchCtrl = TextEditingController();
     List<dynamic> searchResults = [];
@@ -249,20 +372,19 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
               children: [
                 Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
                 const SizedBox(height: 20),
-                Text('Add Guest', style: appText(size: 18, weight: FontWeight.w700)),
+                Text('Invite Guest', style: appText(size: 18, weight: FontWeight.w700)),
                 const SizedBox(height: 4),
                 Text('Search for a Nuru user to add as guest', style: appText(size: 13, color: AppColors.textTertiary)),
                 const SizedBox(height: 16),
-
-                // Search input
                 TextField(
                   controller: searchCtrl,
                   autofocus: true,
+                  autocorrect: false,
                   style: appText(size: 14),
                   decoration: InputDecoration(
                     hintText: 'Search by name, email, or phone...',
                     hintStyle: appText(size: 13, color: AppColors.textHint),
-                    prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.textHint),
+                    prefixIcon: const Padding(padding: EdgeInsets.all(14), child: AppIcon('search', size: 18, color: AppColors.textHint)),
                     filled: true, fillColor: Colors.white,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: const Color(0xFFE5E7EB), width: 1)),
                     contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -274,39 +396,35 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
                       setModalState(() => searching = true);
                       final res = await EventsService.searchUsers(q.trim());
                       if (ctx.mounted) {
-                         setModalState(() {
-                           searching = false;
-                           if (res['success'] == true) {
-                             final data = res['data'];
-                             final rawList = data is List ? data : (data is Map ? (data['items'] ?? data['users'] ?? []) : []);
-                             searchResults = (rawList is List ? rawList : []).map((u) {
-                               if (u is! Map) return u;
-                               final m = Map<String, dynamic>.from(u);
-                               if ((m['first_name'] == null || m['first_name'] == '') && m['full_name'] != null) {
-                                 final parts = (m['full_name'] as String).split(' ');
-                                 m['first_name'] = parts.first;
-                                 m['last_name'] = parts.length > 1 ? parts.sublist(1).join(' ') : '';
-                               }
-                               return m;
-                             }).toList();
-                           }
-                         });
+                        setModalState(() {
+                          searching = false;
+                          if (res['success'] == true) {
+                            final data = res['data'];
+                            final rawList = data is List ? data : (data is Map ? (data['items'] ?? data['users'] ?? []) : []);
+                            searchResults = (rawList is List ? rawList : []).map((u) {
+                              if (u is! Map) return u;
+                              final m = Map<String, dynamic>.from(u);
+                              if ((m['first_name'] == null || m['first_name'] == '') && m['full_name'] != null) {
+                                final parts = (m['full_name'] as String).split(' ');
+                                m['first_name'] = parts.first;
+                                m['last_name'] = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+                              }
+                              return m;
+                            }).toList();
+                          }
+                        });
                       }
                     });
                   },
                 ),
                 const SizedBox(height: 12),
-
-                // Search results
                 if (searching)
                   const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))),
-
                 if (!searching && searchResults.isEmpty && searchCtrl.text.length >= 2)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 20),
                     child: Center(child: Text('No users found', style: appText(size: 13, color: AppColors.textTertiary))),
                   ),
-
                 if (selectedUser != null) ...[
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -328,7 +446,7 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
                       ])),
                       GestureDetector(
                         onTap: () => setModalState(() => selectedUser = null),
-                        child: const Icon(Icons.close_rounded, size: 18, color: AppColors.textHint),
+                        child: const AppIcon('close', size: 16, color: AppColors.textHint),
                       ),
                     ]),
                   ),
@@ -357,7 +475,6 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
                     ),
                   ),
                 ],
-
                 if (selectedUser == null && searchResults.isNotEmpty)
                   ConstrainedBox(
                     constraints: const BoxConstraints(maxHeight: 300),
@@ -394,15 +511,6 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
           );
         },
       ),
-    );
-  }
-
-  Widget _chip(String label, dynamic count, Color color) {
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(20)),
-      child: Text('$label: ${count ?? 0}', style: appText(size: 11, weight: FontWeight.w700, color: color)),
     );
   }
 }

@@ -2,6 +2,7 @@ import '../../../core/widgets/nuru_refresh_indicator.dart';
 import '../../../core/utils/money_format.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../../../core/widgets/app_icon.dart';
 import 'package:open_filex/open_filex.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/services/report_generator.dart';
@@ -59,97 +60,165 @@ class _EventExpensesTabState extends State<EventExpensesTab> with AutomaticKeepA
 
     if (_loading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
 
+    final total = _summary['total_expenses'] ?? _expenses.fold<double>(0, (s, e) {
+      final a = e['amount'];
+      return s + (a is num ? a.toDouble() : double.tryParse('$a') ?? 0);
+    });
+
     return Stack(
       children: [
         NuruRefreshIndicator(
           onRefresh: _load,
           color: AppColors.primary,
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
             children: [
-              // Summary cards
-              if (_summary.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Expense Summary', style: appText(size: 15, weight: FontWeight.w700)),
-                    const SizedBox(height: 12),
-                    Row(children: [
-                      Expanded(child: _summaryCard('Total Expenses', _formatAmount(_summary['total_expenses']), AppColors.secondary)),
-                      const SizedBox(width: 10),
-                      Expanded(child: _summaryCard('Count', '${_expenses.length}', AppColors.primary)),
+              // Combined summary card: Total + Count
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
+                ),
+                child: Row(children: [
+                  Expanded(child: Row(children: [
+                    Container(
+                      width: 44, height: 44,
+                      decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(14)),
+                      child: const AppIcon('wallet', size: 22, color: AppColors.primary),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                      Text('Total Expenses', style: appText(size: 11, color: AppColors.textTertiary, weight: FontWeight.w500)),
+                      const SizedBox(height: 2),
+                      Text(_formatAmount(total), style: appText(size: 16, weight: FontWeight.w800, color: AppColors.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ])),
+                  ])),
+                  Container(width: 1, height: 44, color: AppColors.divider),
+                  const SizedBox(width: 12),
+                  Row(children: [
+                    Container(
+                      width: 44, height: 44,
+                      decoration: BoxDecoration(color: AppColors.blueSoft, borderRadius: BorderRadius.circular(14)),
+                      child: const AppIcon('card', size: 22, color: AppColors.blue),
+                    ),
+                    const SizedBox(width: 10),
+                    Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                      Text('Count', style: appText(size: 11, color: AppColors.textTertiary, weight: FontWeight.w500)),
+                      const SizedBox(height: 2),
+                      Text('${_expenses.length}', style: appText(size: 16, weight: FontWeight.w800, color: AppColors.textPrimary)),
                     ]),
+                  ]),
+                ]),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Export buttons
+              Row(children: [
+                Expanded(child: _exportButton('Export PDF', 'file-pdf', AppColors.error, () => _downloadReport('pdf'))),
+                const SizedBox(width: 10),
+                Expanded(child: _exportButton('Export Excel', 'file-excel', AppColors.accent, () => _downloadReport('xlsx'))),
+              ]),
+
+              const SizedBox(height: 22),
+
+              // Section header
+              Row(children: [
+                Expanded(child: Text('Expenses', style: appText(size: 17, weight: FontWeight.w800, color: AppColors.textPrimary))),
+                if (canManage)
+                  GestureDetector(
+                    onTap: _showAddExpenseSheet,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                      decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(999)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const AppIcon('plus', size: 16, color: Colors.white),
+                        const SizedBox(width: 4),
+                        Text('Add Expense', style: appText(size: 12, weight: FontWeight.w700, color: Colors.white)),
+                      ]),
+                    ),
+                  ),
+              ]),
+
+              const SizedBox(height: 14),
+
+              if (_expenses.isEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 24),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                  child: Column(children: [
+                    Container(
+                      width: 56, height: 56,
+                      decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(18)),
+                      child: const AppIcon('card', size: 24, color: AppColors.primary),
+                    ),
+                    const SizedBox(height: 14),
+                    Text('No expenses yet', style: appText(size: 15, weight: FontWeight.w700)),
+                    const SizedBox(height: 4),
+                    Text('Track every shilling spent on your event', style: appText(size: 12, color: AppColors.textTertiary), textAlign: TextAlign.center),
+                  ]),
+                )
+              else
+                // Timeline header clock node (matches mockup)
+                Padding(
+                  padding: const EdgeInsets.only(left: 0, bottom: 2),
+                  child: Row(children: [
+                    SizedBox(
+                      width: 28,
+                      child: Center(
+                        child: Container(
+                          width: 30, height: 30,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFBE7C7),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const AppIcon('report', size: 14, color: Color(0xFFD4AF37)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
                   ]),
                 ),
 
-              // Download Reports
-              Container(
-                padding: const EdgeInsets.all(14),
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Download Report', style: appText(size: 13, weight: FontWeight.w700)),
-                    const SizedBox(height: 10),
-                    Row(children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _downloadReport('pdf'),
-                          icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
-                          label: Text('PDF', style: appText(size: 12, weight: FontWeight.w600)),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.error,
-                            side: const BorderSide(color: AppColors.error),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _downloadReport('xlsx'),
-                          icon: const Icon(Icons.table_chart_rounded, size: 16),
-                          label: Text('Excel', style: appText(size: 12, weight: FontWeight.w600)),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.accent,
-                            side: BorderSide(color: AppColors.accent),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                          ),
-                        ),
-                      ),
-                    ]),
-                  ],
-                ),
-              ),
+              for (int i = 0; i < _expenses.length; i++)
+                _timelineExpenseCard(_expenses[i] as Map<String, dynamic>, i, _expenses.length, canManage),
 
-              Row(
-                children: [
-                  Expanded(child: Text('Expenses', style: appText(size: 15, weight: FontWeight.w700))),
-                  if (canManage)
-                    GestureDetector(
-                      onTap: _showAddExpenseSheet,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(color: AppColors.secondary, borderRadius: BorderRadius.circular(20)),
-                        child: Text('+ Add', style: appText(size: 12, weight: FontWeight.w700, color: Colors.white)),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              if (_expenses.isEmpty)
+              if (_expenses.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                // Spending Insights card
                 Container(
-                  padding: const EdgeInsets.all(30),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                  child: Center(child: Text('No expenses recorded', style: appText(size: 14, color: AppColors.textTertiary))),
-                )
-              else
-                ..._expenses.map((exp) => _expenseTile(exp, canManage)),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
+                  ),
+                  child: Row(children: [
+                    Container(
+                      width: 42, height: 42,
+                      decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(14)),
+                      child: const AppIcon('bar-chart', size: 18, color: AppColors.primary),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                      Text('Spending Insights', style: appText(size: 14, weight: FontWeight.w700, color: AppColors.textPrimary)),
+                      const SizedBox(height: 2),
+                      Text(_insightLine(), style: appText(size: 11, color: AppColors.textTertiary)),
+                    ])),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(color: AppColors.accent.withOpacity(0.12), borderRadius: BorderRadius.circular(999)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        AppIcon('trending-up', size: 12, color: AppColors.success),
+                        const SizedBox(width: 4),
+                        Text('View', style: appText(size: 11, weight: FontWeight.w700, color: AppColors.success)),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ],
             ],
           ),
         ),
@@ -158,52 +227,157 @@ class _EventExpensesTabState extends State<EventExpensesTab> with AutomaticKeepA
     );
   }
 
-  Widget _summaryCard(String label, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(12)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: appText(size: 11, color: AppColors.textTertiary)),
-        const SizedBox(height: 4),
-        Text(value, style: appText(size: 15, weight: FontWeight.w700, color: color)),
-      ]),
-    );
+  String _insightLine() {
+    final vendor = _expenses.where((e) => (e['category']?.toString().toLowerCase() ?? '').contains('vendor')).length;
+    if (_expenses.isEmpty) return 'No expenses yet';
+    final pct = ((vendor / _expenses.length) * 100).round();
+    if (vendor > 0) return '$pct% of expenses are from vendor payments.';
+    return '${_expenses.length} expense${_expenses.length == 1 ? '' : 's'} recorded.';
   }
 
-  Widget _expenseTile(Map<String, dynamic> exp, bool canManage) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (exp['category'] != null) Text(exp['category'].toString(), style: appText(size: 11, weight: FontWeight.w700, color: AppColors.secondary)),
-                Text(exp['description']?.toString() ?? 'Expense', style: appText(size: 14, weight: FontWeight.w600)),
-                Row(children: [
-                  Text(_formatAmount(exp['amount']), style: appText(size: 13, weight: FontWeight.w700, color: AppColors.secondary)),
-                  if (exp['vendor_name'] != null) ...[const SizedBox(width: 8), Text(exp['vendor_name'].toString(), style: appText(size: 12, color: AppColors.textTertiary))],
-                ]),
-              ],
-            ),
-          ),
-          if (canManage)
-            GestureDetector(
-              onTap: () => _deleteExpense(exp['id']?.toString() ?? ''),
-              child: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.textHint),
-            ),
-        ],
+  Widget _exportButton(String label, String iconName, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.35), width: 1),
+        ),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          AppIcon(iconName, size: 18, color: color),
+          const SizedBox(width: 8),
+          Text(label, style: appText(size: 13, weight: FontWeight.w700, color: color)),
+        ]),
       ),
     );
   }
 
+  Widget _timelineExpenseCard(Map<String, dynamic> exp, int index, int total, bool canManage) {
+    final dateRaw = exp['date'] ?? exp['created_at'] ?? exp['expense_date'];
+    final dateStr = _formatDate(dateRaw);
+    final timeStr = _formatTime(dateRaw);
+    final ref = exp['reference'] ?? exp['code'] ?? '#EXP-${(1000 + index + 1)}';
+    final category = exp['category']?.toString() ?? 'Vendor Payment';
+    final desc = exp['description']?.toString() ?? exp['title']?.toString() ?? 'Expense';
+    final vendor = exp['vendor_name']?.toString() ?? '';
+    final amount = exp['amount'];
+    final isLast = index == total - 1;
+
+    return IntrinsicHeight(
+      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        // Timeline rail
+        SizedBox(
+          width: 28,
+          child: Column(children: [
+            const SizedBox(height: 22),
+            Container(
+              width: 14, height: 14,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.primary, width: 2.5),
+              ),
+            ),
+            if (!isLast)
+              Expanded(child: Container(width: 2, color: AppColors.primary.withOpacity(0.35))),
+          ]),
+        ),
+        // Ticket-shaped card with scalloped right edge
+        Expanded(child: Padding(
+          padding: const EdgeInsets.only(bottom: 12, left: 4),
+          child: PhysicalShape(
+            color: Colors.white,
+            elevation: 1.5,
+            shadowColor: Colors.black.withOpacity(0.08),
+            clipper: const _TicketRightScallopClipper(scallopRadius: 6, scallopSpacing: 4),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 22, 14),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                SizedBox(
+                  width: 86,
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                    Text(dateStr, style: appText(size: 12, weight: FontWeight.w700, color: AppColors.textSecondary)),
+                    if (timeStr.isNotEmpty)
+                      Text(timeStr, style: appText(size: 12, weight: FontWeight.w700, color: AppColors.textSecondary)),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(color: const Color(0xFFFBE7C7), borderRadius: BorderRadius.circular(6)),
+                      child: Text(ref.toString(), style: appText(size: 10, weight: FontWeight.w700, color: const Color(0xFFB8860B))),
+                    ),
+                  ]),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: SizedBox(
+                    width: 1, height: 78,
+                    child: CustomPaint(painter: _DashedLinePainter(color: AppColors.divider)),
+                  ),
+                ),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  Text(category, style: appText(size: 12, weight: FontWeight.w700, color: const Color(0xFFD4AF37))),
+                  const SizedBox(height: 3),
+                  Text(desc, style: appText(size: 13, weight: FontWeight.w700, color: AppColors.textPrimary), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  if (vendor.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(vendor, style: appText(size: 11, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ],
+                  const SizedBox(height: 8),
+                  Container(height: 1, color: AppColors.divider),
+                  const SizedBox(height: 8),
+                  Text(_formatAmount(amount), style: appText(size: 15, weight: FontWeight.w800, color: AppColors.textPrimary)),
+                ])),
+                const SizedBox(width: 6),
+                Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(color: const Color(0xFFFBE7C7), borderRadius: BorderRadius.circular(10)),
+                  child: const AppIcon('wallet', size: 18, color: Color(0xFFD4AF37)),
+                ),
+                if (canManage) ...[
+                  const SizedBox(width: 4),
+                  GestureDetector(
+                    onTap: () => _deleteExpense(exp['id']?.toString() ?? ''),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: AppIcon('delete', size: 14, color: AppColors.textHint),
+                    ),
+                  ),
+                ],
+              ]),
+            ),
+          ),
+        )),
+      ]),
+    );
+  }
+
+  String _formatDate(dynamic v) {
+    if (v == null) return '';
+    try {
+      final d = DateTime.parse(v.toString()).toLocal();
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return '${months[d.month - 1]} ${d.day}, ${d.year}';
+    } catch (_) { return ''; }
+  }
+
+  String _formatTime(dynamic v) {
+    if (v == null) return '';
+    try {
+      final d = DateTime.parse(v.toString()).toLocal();
+      final h = d.hour;
+      final m = d.minute.toString().padLeft(2, '0');
+      final hh = (h == 0 ? 12 : (h > 12 ? h - 12 : h)).toString().padLeft(2, '0');
+      final ap = h >= 12 ? 'PM' : 'AM';
+      return '$hh:$m $ap';
+    } catch (_) { return ''; }
+  }
+
   String _formatAmount(dynamic amount) {
     if (amount == null) return '${getActiveCurrency()} 0';
-    final num = (amount is String ? double.tryParse(amount) : amount.toDouble()) ?? 0.0;
-    return '${getActiveCurrency()} ${num.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
+    final num val = (amount is String ? double.tryParse(amount) ?? 0 : (amount is num ? amount : 0));
+    return '${getActiveCurrency()} ${val.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
   }
 
   Future<void> _downloadReport(String format) async {
@@ -270,6 +444,8 @@ class _EventExpensesTabState extends State<EventExpensesTab> with AutomaticKeepA
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
             Text('Add Expense', style: appText(size: 18, weight: FontWeight.w700)),
             const SizedBox(height: 14),
             _input(catCtrl, 'Category'),
@@ -301,7 +477,7 @@ class _EventExpensesTabState extends State<EventExpensesTab> with AutomaticKeepA
                     AppSnackbar.error(context, res['message'] ?? 'Failed');
                   }
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
                 child: Text('Save', style: appText(size: 14, weight: FontWeight.w700, color: Colors.white)),
               ),
             ),
@@ -315,6 +491,7 @@ class _EventExpensesTabState extends State<EventExpensesTab> with AutomaticKeepA
     return TextField(
       controller: ctrl,
       keyboardType: keyboard,
+      autocorrect: false,
       style: appText(size: 14),
       decoration: InputDecoration(
         hintText: hint,
@@ -326,3 +503,77 @@ class _EventExpensesTabState extends State<EventExpensesTab> with AutomaticKeepA
     );
   }
 }
+
+/// Clipper that gives a card a ticket look with semi-circular notches
+/// along the right edge (scalloped). Left side uses regular rounded corners.
+class _TicketRightScallopClipper extends CustomClipper<Path> {
+  final double scallopRadius;
+  final double scallopSpacing;
+  final double cornerRadius;
+  const _TicketRightScallopClipper({
+    this.scallopRadius = 6,
+    this.scallopSpacing = 4,
+    this.cornerRadius = 14,
+  });
+
+  @override
+  Path getClip(Size size) {
+    final p = Path();
+    final r = cornerRadius;
+    // start top-left
+    p.moveTo(r, 0);
+    p.lineTo(size.width - r, 0);
+    p.quadraticBezierTo(size.width, 0, size.width, r);
+
+    // Scallops down the right edge
+    final diameter = scallopRadius * 2;
+    final step = diameter + scallopSpacing;
+    final available = size.height - 2 * r;
+    final count = (available / step).floor();
+    final totalUsed = count * step - scallopSpacing;
+    double y = r + (available - totalUsed) / 2;
+    for (int i = 0; i < count; i++) {
+      p.lineTo(size.width, y);
+      // semi-circle cut INWARD (concave on the right edge)
+      p.arcToPoint(
+        Offset(size.width, y + diameter),
+        radius: Radius.circular(scallopRadius),
+        clockwise: false,
+      );
+      y += step;
+    }
+    p.lineTo(size.width, size.height - r);
+    p.quadraticBezierTo(size.width, size.height, size.width - r, size.height);
+    p.lineTo(r, size.height);
+    p.quadraticBezierTo(0, size.height, 0, size.height - r);
+    p.lineTo(0, r);
+    p.quadraticBezierTo(0, 0, r, 0);
+    p.close();
+    return p;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+}
+
+class _DashedLinePainter extends CustomPainter {
+  final Color color;
+  _DashedLinePainter({required this.color});
+  @override
+  void paint(Canvas canvas, Size size) {
+    const dashHeight = 3.0;
+    const dashSpace = 3.0;
+    double startY = 0;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1
+      ..strokeCap = StrokeCap.round;
+    while (startY < size.height) {
+      canvas.drawLine(Offset(0, startY), Offset(0, startY + dashHeight), paint);
+      startY += dashHeight + dashSpace;
+    }
+  }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+

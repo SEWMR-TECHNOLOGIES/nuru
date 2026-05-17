@@ -30,6 +30,7 @@ import 'widgets/event_services_tab.dart';
 import 'widgets/event_sponsors_tab.dart';
 import 'widgets/event_meetings_tab.dart';
 import 'widgets/event_schedule_tab.dart';
+import 'widgets/event_automations_tab.dart';
 import 'create_event_screen.dart';
 import 'widgets/share_event_to_feed_sheet.dart';
 import 'widgets/venue_map_preview.dart';
@@ -57,6 +58,11 @@ class EventDetailScreen extends StatefulWidget {
 
 class _EventDetailScreenState extends State<EventDetailScreen>
     with TickerProviderStateMixin {
+  // Module-level in-memory cache so navigating away and back shows the
+  // last-known event instantly while a background refresh runs.
+  static final Map<String, Map<String, dynamic>> _eventCache = {};
+  static final Map<String, DateTime> _eventCacheAt = {};
+
   static const List<String> _permissionFields = [
     'can_view_guests',
     'can_manage_guests',
@@ -215,6 +221,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       'rsvp',
       'schedule',
       if (sellsTickets) 'tickets',
+      if (_isCreator) 'reminders',
       if (_isCreator && !isEnded) 'check_in',
     ];
   }
@@ -257,7 +264,12 @@ class _EventDetailScreenState extends State<EventDetailScreen>
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: 1, vsync: this);
-    _event = widget.initialData;
+    // Seed from in-memory cache first (instant UI), then fall back to
+    // navigation initialData. A background refresh runs unconditionally.
+    final cached = _eventCache[widget.eventId];
+    _event = cached ?? widget.initialData;
+    if (_event != null) _loading = false;
+    _lastLoadAt = _eventCacheAt[widget.eventId];
     _seedRoleHintsFromNavigation();
     _loadEvent();
   }
@@ -371,6 +383,10 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       if (eventData != null) _event = eventData;
     });
     _lastLoadAt = DateTime.now();
+    if (eventData != null) {
+      _eventCache[widget.eventId] = eventData;
+      _eventCacheAt[widget.eventId] = _lastLoadAt!;
+    }
     _loadInFlight = false;
 
     // ── Phase 2: Fire-and-forget overview summaries ──
@@ -732,6 +748,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           eventTypeId:
               _event?['event_type_id']?.toString() ??
               _event?['event_type']?['id']?.toString(),
+          eventCoverImage: _event?['cover_image']?.toString(),
         );
       case 'committee':
         return EventCommitteeTab(
@@ -765,6 +782,11 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         return EventTicketsTab(
           eventId: widget.eventId,
           permissions: _permissions,
+        );
+      case 'reminders':
+        return EventAutomationsTab(
+          eventId: widget.eventId,
+          isCreator: _isCreator,
         );
       // workspace tab removed — Group Chat lives on the overview as a CTA card
       // invitation tab moved to the "..." actions sheet (opens full screen)

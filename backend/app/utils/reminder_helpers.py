@@ -254,7 +254,7 @@ def resolve_recipients(db: Session, automation, event) -> list[dict]:
     """Return [{recipient_type, recipient_id, name, phone}] for an automation."""
     from models import (
         EventContributor, UserContributor, EventContribution,
-        EventAttendee,
+        EventAttendee, User,
     )
 
     rtype = automation.automation_type
@@ -302,20 +302,67 @@ def resolve_recipients(db: Session, automation, event) -> list[dict]:
             })
 
     elif rtype == "guest_remind":
-        # EventAttendee carries guest_phone for non-Nuru invitees.
+        # Resolve phones across all three guest_type variants on the
+        # event_attendees table:
+        #   - guest_type=user        → join User.phone via attendee_id
+        #   - guest_type=contributor → join UserContributor.phone via contributor_id
+        #   - guest_type=guest       → use guest_phone/guest_name directly
         attendees = (
             db.query(EventAttendee)
             .filter(EventAttendee.event_id == event.id)
             .all()
         )
+
+        # Batch fetch users + contributors to avoid N+1.
+        user_ids = [a.attendee_id for a in attendees if a.attendee_id]
+        contrib_ids = [a.contributor_id for a in attendees if a.contributor_id]
+        users_by_id = {}
+        if user_ids:
+            for u in db.query(User).filter(User.id.in_(user_ids)).all():
+                users_by_id[u.id] = u
+        contribs_by_id = {}
+        if contrib_ids:
+            for c in (
+                db.query(UserContributor)
+                .filter(UserContributor.id.in_(contrib_ids))
+                .all()
+            ):
+                contribs_by_id[c.id] = c
+
         for a in attendees:
-            phone = (getattr(a, "guest_phone", None) or "").strip() or None
+            gtype = getattr(a, "guest_type", None)
+            gtype_val = gtype.value if hasattr(gtype, "value") else (gtype or "guest")
+
+            phone = None
+            name = a.guest_name or None
+
+            if gtype_val == "user" and a.attendee_id:
+                u = users_by_id.get(a.attendee_id)
+                if u:
+                    phone = (u.phone or "").strip() or None
+                    if not name:
+                        full = " ".join(filter(None, [
+                            getattr(u, "first_name", None),
+                            getattr(u, "last_name", None),
+                        ])).strip()
+                        name = full or None
+            elif gtype_val == "contributor" and a.contributor_id:
+                c = contribs_by_id.get(a.contributor_id)
+                if c:
+                    phone = (c.phone or "").strip() or None
+                    if not name:
+                        name = c.name
+
+            # Always allow guest_phone override / fallback for plain guests.
+            if not phone:
+                phone = (getattr(a, "guest_phone", None) or "").strip() or None
+
             if not phone:
                 continue
             rows.append({
                 "recipient_type": "guest",
                 "recipient_id": a.id,
-                "name": getattr(a, "guest_name", None) or "Guest",
+                "name": name or "Guest",
                 "phone": phone,
             })
 

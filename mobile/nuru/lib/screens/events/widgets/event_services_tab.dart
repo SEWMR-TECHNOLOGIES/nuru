@@ -2,6 +2,7 @@ import '../../../core/widgets/nuru_refresh_indicator.dart';
 import '../../../core/utils/money_format.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../core/widgets/app_icon.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/widgets/app_snackbar.dart';
@@ -13,8 +14,9 @@ class EventServicesTab extends StatefulWidget {
   final String eventId;
   final Map<String, dynamic>? permissions;
   final String? eventTypeId;
+  final String? eventCoverImage;
 
-  const EventServicesTab({super.key, required this.eventId, this.permissions, this.eventTypeId});
+  const EventServicesTab({super.key, required this.eventId, this.permissions, this.eventTypeId, this.eventCoverImage});
 
   @override
   State<EventServicesTab> createState() => _EventServicesTabState();
@@ -158,33 +160,155 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
     super.build(context);
     if (_loading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
 
+    final total = _assignedServices.length;
+    int countStatus(List<String> ss) => _assignedServices.where((s) {
+      final st = ((s as Map)['service_status'] ?? s['status'] ?? '').toString();
+      return ss.contains(st);
+    }).length;
+    final confirmed = countStatus(['confirmed', 'assigned', 'in_progress', 'completed']);
+    final pending = countStatus(['pending', '']);
+    final completed = countStatus(['completed']);
+    final progress = total > 0 ? confirmed / total : 0.0;
+
     return NuruRefreshIndicator(
       onRefresh: _loadAssigned,
       color: AppColors.primary,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 100),
         children: [
-          // Header
-          Row(children: [
-            Expanded(child: Text('Event Services', style: appText(size: 16, weight: FontWeight.w700))),
-            if (_canManage)
-              GestureDetector(
-                onTap: _toggleSearch,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: _showSearch ? AppColors.primary : AppColors.primarySoft,
-                    borderRadius: BorderRadius.circular(12),
+          // Assigned services hero — cream card with circular ring + event image fade
+          ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFFBF6EC),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 3))],
+              ),
+              child: Stack(children: [
+                // Event image on right with cream fade
+                if (widget.eventCoverImage != null && widget.eventCoverImage!.isNotEmpty)
+                  Positioned.fill(
+                    child: Row(children: [
+                      const Spacer(flex: 5),
+                      Expanded(
+                        flex: 5,
+                        child: ShaderMask(
+                          blendMode: BlendMode.dstIn,
+                          shaderCallback: (rect) => const LinearGradient(
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                            colors: [Colors.transparent, Colors.white, Colors.white],
+                            stops: [0.0, 0.35, 1.0],
+                          ).createShader(rect),
+                          child: Image.network(
+                            widget.eventCoverImage!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                          ),
+                        ),
+                      ),
+                    ]),
                   ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(_showSearch ? Icons.close : Icons.add_rounded, size: 16, color: _showSearch ? Colors.white : AppColors.primary),
-                    const SizedBox(width: 4),
-                    Text(_showSearch ? 'Close' : 'Add Service', style: appText(size: 12, weight: FontWeight.w600, color: _showSearch ? Colors.white : AppColors.primary)),
+                // Foreground content
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                    Container(
+                      width: 38, height: 38,
+                      decoration: const BoxDecoration(color: Color(0xFFD4AF37), shape: BoxShape.circle),
+                      child: const AppIcon('bag', size: 18, color: Colors.white),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                      Text('Assigned Services',
+                        style: appText(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
+                      const SizedBox(height: 2),
+                      Text('$confirmed',
+                        style: appText(size: 34, weight: FontWeight.w800, color: AppColors.textPrimary, height: 1.0)),
+                      const SizedBox(height: 4),
+                      Text('of $total services assigned',
+                        style: appText(size: 11, color: AppColors.textTertiary)),
+                    ]),
+                    const SizedBox(width: 6),
+                    Expanded(child: Align(
+                      alignment: Alignment.center,
+                      child: SizedBox(
+                        width: 92, height: 92,
+                        child: Stack(alignment: Alignment.center, children: [
+                          SizedBox(
+                            width: 92, height: 92,
+                            child: CircularProgressIndicator(
+                              value: progress,
+                              strokeWidth: 6,
+                              backgroundColor: const Color(0xFFF1E6CE),
+                              valueColor: const AlwaysStoppedAnimation(Color(0xFFD4AF37)),
+                            ),
+                          ),
+                          Column(mainAxisSize: MainAxisSize.min, children: [
+                            Text('${(progress * 100).toStringAsFixed(0)}%',
+                              style: appText(size: 19, weight: FontWeight.w800, color: AppColors.textPrimary, height: 1.0)),
+                            const SizedBox(height: 2),
+                            Text('Assigned',
+                              style: appText(size: 9, color: AppColors.textTertiary, weight: FontWeight.w600)),
+                          ]),
+                        ]),
+                      ),
+                    )),
                   ]),
                 ),
+                // Bottom tagline
+                Positioned(
+                  left: 18, right: 18, bottom: 12,
+                  child: Row(children: [
+                    const AppIcon('leaf', size: 13, color: Color(0xFFD4AF37)),
+                    const SizedBox(width: 6),
+                    Flexible(child: Text("You're building something beautiful.",
+                      style: appText(size: 11, color: AppColors.textSecondary, weight: FontWeight.w500),
+                      maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  ]),
+                ),
+                // Reserve bottom space for tagline
+                const SizedBox(height: 140, width: double.infinity),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Action row
+          if (_canManage)
+            GestureDetector(
+              onTap: _toggleSearch,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: _showSearch ? AppColors.primary : Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _showSearch ? AppColors.primary : AppColors.borderLight),
+                  boxShadow: _showSearch ? null : [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))],
+                ),
+                child: Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: _showSearch ? Colors.white.withOpacity(0.18) : AppColors.primarySoft,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: AppIcon(_showSearch ? 'close' : 'search', size: 16,
+                      color: _showSearch ? Colors.white : AppColors.primary),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(_showSearch ? 'Close search' : 'Find service providers',
+                      style: appText(size: 13, weight: FontWeight.w700, color: _showSearch ? Colors.white : AppColors.textPrimary)),
+                    Text(_showSearch ? 'Hide the search panel' : 'Browse and add vendors to this event',
+                      style: appText(size: 11, color: _showSearch ? Colors.white.withOpacity(0.7) : AppColors.textTertiary)),
+                  ])),
+                  AppIcon(_showSearch ? 'chevron-down' : 'chevron-right',
+                    size: 18, color: _showSearch ? Colors.white : AppColors.textTertiary),
+                ]),
               ),
-          ]),
-          const SizedBox(height: 12),
+            ),
+          if (_canManage) const SizedBox(height: 14),
 
           // Search panel
           if (_showSearch) ...[
@@ -196,22 +320,18 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
                 border: Border.all(color: AppColors.primary.withOpacity(0.2)),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Find Service Providers', style: appText(size: 14, weight: FontWeight.w600)),
-                const SizedBox(height: 4),
-                Text('Search and add services to your event', style: appText(size: 12, color: AppColors.textTertiary)),
-                const SizedBox(height: 12),
                 TextField(
                   controller: _searchCtrl,
                   onChanged: _searchServices,
                   style: appText(size: 14),
                   decoration: InputDecoration(
                     hintText: 'Search services...', hintStyle: appText(size: 13, color: AppColors.textHint),
-                    prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.textHint),
+                    prefixIcon: const Padding(padding: EdgeInsets.all(12), child: AppIcon('search', size: 16, color: AppColors.textHint)),
                     suffixIcon: _searching
                         ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)))
                         : null,
                     filled: true, fillColor: Colors.white,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: const Color(0xFFE5E7EB), width: 1)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 1)),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                 ),
@@ -229,18 +349,38 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
             const SizedBox(height: 16),
           ],
 
-          // Assigned services
+          // Assigned services list
           if (_assignedServices.isNotEmpty) ...[
-            Text('Assigned Services (${_assignedServices.length})', style: appText(size: 14, weight: FontWeight.w600, color: AppColors.textSecondary)),
+            Row(children: [
+              Text('Assigned vendors', style: appText(size: 13, weight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.3)),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(20)),
+                child: Text('${_assignedServices.length}', style: appText(size: 10, weight: FontWeight.w700, color: AppColors.primary)),
+              ),
+            ]),
             const SizedBox(height: 10),
             ..._assignedServices.map((s) => _assignedServiceCard(s as Map<String, dynamic>)),
           ] else
             _emptyState(),
-
-          const SizedBox(height: 80),
         ],
       ),
     );
+  }
+
+  Widget _heroPill(String value, String label) {
+    return Expanded(child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(children: [
+        Text(value, style: appText(size: 15, weight: FontWeight.w800, color: Colors.white)),
+        Text(label, style: appText(size: 9, color: Colors.white.withOpacity(0.75), weight: FontWeight.w600, letterSpacing: 0.5)),
+      ]),
+    ));
   }
 
   Widget _emptyState() {
@@ -254,13 +394,13 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
             gradient: LinearGradient(colors: [AppColors.primary.withOpacity(0.1), AppColors.primary.withOpacity(0.05)]),
             borderRadius: BorderRadius.circular(20),
           ),
-          child: const Icon(Icons.storefront_rounded, size: 28, color: AppColors.primary),
+          child: const AppIcon('package', size: 26, color: AppColors.primary),
         ),
         const SizedBox(height: 16),
         Text('No services assigned', style: appText(size: 16, weight: FontWeight.w700)),
         const SizedBox(height: 6),
         Text(
-          _canManage ? 'Tap "Add Service" to search and assign service providers' : 'No service providers assigned yet',
+          _canManage ? 'Find vendors above to assign service providers' : 'No service providers assigned yet',
           style: appText(size: 13, color: AppColors.textTertiary), textAlign: TextAlign.center,
         ),
       ]),
@@ -306,13 +446,13 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
             const SizedBox(height: 4),
             Row(children: [
               if (rating != null) ...[
-                const Icon(Icons.star, size: 12, color: Color(0xFFFBBF24)),
+                const AppIcon('star', size: 12, color: Color(0xFFFBBF24)),
                 const SizedBox(width: 2),
                 Text(double.tryParse(rating.toString())?.toStringAsFixed(1) ?? '$rating', style: appText(size: 10, weight: FontWeight.w600)),
                 const SizedBox(width: 8),
               ],
               if (location.isNotEmpty) ...[
-                const Icon(Icons.location_on_outlined, size: 11, color: AppColors.textHint),
+                const AppIcon('location', size: 11, color: AppColors.textHint),
                 const SizedBox(width: 2),
                 Flexible(child: Text(location, style: appText(size: 10, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis)),
               ],
@@ -326,7 +466,7 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
               ? Container(
                   padding: const EdgeInsets.all(6),
                   decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-                  child: const Icon(Icons.check, size: 14, color: Colors.white),
+                  child: const AppIcon('double-check', size: 12, color: Colors.white),
                 )
               : GestureDetector(
                   onTap: isAdding ? null : () => _addServiceToEvent(service),
@@ -335,7 +475,7 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
                     decoration: BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle),
                     child: isAdding
                         ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
-                        : const Icon(Icons.add, size: 14, color: AppColors.primary),
+                        : const AppIcon('plus', size: 14, color: AppColors.primary),
                   ),
                 ),
         ),
@@ -344,7 +484,6 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
   }
 
   Widget _assignedServiceCard(Map<String, dynamic> service) {
-    // The API nests service details under service['service'] — mirror the web's extraction
     final nested = service['service'] as Map<String, dynamic>? ?? {};
     final name = (service['service_name'] ?? nested['title'] ?? service['title'] ?? service['provider_name'] ?? 'Service').toString();
     final providerName = (service['provider_name'] ?? service['provider']?['name'] ?? nested['provider_name'] ?? '').toString();
@@ -353,124 +492,121 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
     final price = service['agreed_price'] ?? service['quoted_price'];
     final serviceId = service['id']?.toString() ?? '';
     final isRemoving = _removingIds.contains(serviceId);
-    final rating = service['rating'] ?? nested['rating'] ?? service['provider']?['rating'];
-    // Image: check nested service object first (matches web), then top-level, then provider_service
     final imgUrl = _getAssignedServiceImage(service);
 
-    Color statusBg;
-    Color statusFg;
-    switch (status) {
-      case 'completed':
-        statusBg = const Color(0xFFDCFCE7);
-        statusFg = const Color(0xFF16A34A);
-        break;
-      case 'confirmed': case 'assigned':
-        statusBg = const Color(0xFFDBEAFE);
-        statusFg = const Color(0xFF2563EB);
-        break;
-      case 'in_progress':
-        statusBg = const Color(0xFFFEF3C7);
-        statusFg = const Color(0xFFCA8A04);
-        break;
-      case 'cancelled':
-        statusBg = const Color(0xFFFEE2E2);
-        statusFg = const Color(0xFFDC2626);
-        break;
-      default:
-        statusBg = const Color(0xFFF3F4F6);
-        statusFg = const Color(0xFF6B7280);
-    }
+    // (category icon badge removed per design)
+
+
+    final isAssignedLike = ['confirmed', 'assigned', 'in_progress'].contains(status);
+
+    // Always white card; no dark theme
+    final Color titleColor = AppColors.textPrimary;
+    final Color subColor = AppColors.textTertiary;
+    final Color priceColor = const Color(0xFFD4AF37);
+
+    // Status pill
+    Color statusBg; Color statusFg; String statusIcon;
+    if (status == 'completed') { statusBg = const Color(0xFFDCFCE7); statusFg = const Color(0xFF16A34A); statusIcon = 'verified'; }
+    else if (isAssignedLike) { statusBg = const Color(0xFFDCFCE7); statusFg = const Color(0xFF16A34A); statusIcon = 'verified'; }
+    else if (status == 'cancelled') { statusBg = const Color(0xFFFEE2E2); statusFg = const Color(0xFFDC2626); statusIcon = 'close-circle'; }
+    else { statusBg = const Color(0xFFFBE7C7); statusFg = const Color(0xFFB8860B); statusIcon = 'clock'; }
+    final statusLabel = status.isEmpty ? 'Pending' : status.replaceAll('_', ' ').split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '').join(' ');
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       clipBehavior: Clip.antiAlias,
-      child: Row(children: [
-        // Service image thumbnail
-        ClipRRect(
-          borderRadius: const BorderRadius.horizontal(left: Radius.circular(14)),
-          child: SizedBox(
-            width: 90, height: 90,
-            child: imgUrl != null
-                ? Image.network(imgUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _imagePlaceholder())
-                : _imagePlaceholder(),
-          ),
+      child: IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        // Image with cream fade overlay on the right edge
+        SizedBox(
+          width: 130,
+          child: Stack(children: [
+            Positioned.fill(
+              child: imgUrl != null
+                  ? Image.network(imgUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _imagePlaceholder())
+                  : _imagePlaceholder(),
+            ),
+            // Cream fade — image fades into card on the right
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [Colors.transparent, Colors.transparent, Color(0xFFFBF6EC)],
+                    stops: [0.0, 0.55, 1.0],
+                  ),
+                ),
+              ),
+            ),
+          ]),
         ),
 
         // Details
         Expanded(child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            // Name + status row
-            Row(children: [
-              Expanded(child: Text(name, style: appText(size: 13, weight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis)),
-              const SizedBox(width: 6),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text(name, style: appText(size: 15, weight: FontWeight.w800, color: titleColor), maxLines: 1, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 2),
+                if (providerName.isNotEmpty)
+                  Text(providerName, style: appText(size: 12, color: subColor, weight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (category.isNotEmpty)
+                  Text(category, style: appText(size: 11, color: subColor), maxLines: 1, overflow: TextOverflow.ellipsis),
+              ])),
+              const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(6)),
-                child: Text(
-                  status.replaceAll('_', ' ').split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '').join(' '),
-                  style: appText(size: 9, weight: FontWeight.w700, color: statusFg),
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(999)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  AppIcon(statusIcon, size: 11, color: statusFg),
+                  const SizedBox(width: 4),
+                  Text(statusLabel, style: appText(size: 10, weight: FontWeight.w700, color: statusFg)),
+                ]),
               ),
             ]),
-            const SizedBox(height: 3),
-
-            // Provider + category
-            if (providerName.isNotEmpty || category.isNotEmpty)
-              Text(
-                [if (providerName.isNotEmpty) providerName, if (category.isNotEmpty) category].join(' · '),
-                style: appText(size: 11, color: AppColors.textTertiary),
-                maxLines: 1, overflow: TextOverflow.ellipsis,
+            const SizedBox(height: 8),
+            Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Expanded(child: price != null
+                ? Text('${getActiveCurrency()} ${_formatNum(price)}',
+                    style: appText(size: 15, weight: FontWeight.w800, color: priceColor))
+                : const SizedBox.shrink()),
+              GestureDetector(
+                onTap: _canManage && !['assigned', 'in_progress', 'completed'].contains(status)
+                  ? (isRemoving ? null : () => _confirmRemoveService(service))
+                  : null,
+                child: const AppIcon('more-vertical', size: 18, color: AppColors.textHint),
               ),
-
-            const SizedBox(height: 4),
-
-            // Price + rating row
-            Row(children: [
-              if (price != null)
-                Text('${getActiveCurrency()} ${_formatNum(price)}', style: appText(size: 12, weight: FontWeight.w800, color: AppColors.primary)),
-              if (price != null && rating != null) const SizedBox(width: 8),
-              if (rating != null) ...[
-                const Icon(Icons.star_rounded, size: 12, color: Color(0xFFF59E0B)),
-                const SizedBox(width: 2),
-                Text(double.tryParse(rating.toString())?.toStringAsFixed(1) ?? '$rating', style: appText(size: 11, weight: FontWeight.w600)),
-              ],
-              const Spacer(),
-              if (_canManage && !['assigned', 'in_progress', 'completed'].contains(status))
-                GestureDetector(
-                  onTap: isRemoving ? null : () => _confirmRemoveService(service),
-                  child: isRemoving
-                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.error))
-                      : Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error.withOpacity(0.7)),
-                ),
             ]),
             if (_canManage && status == 'assigned' && serviceId.isNotEmpty) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: 10),
               GestureDetector(
                 onTap: () => _openLogPayment(service),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: AppColors.primarySoft,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                    color: const Color(0xFFDCFCE7),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.receipt_long_rounded, size: 13, color: AppColors.primary),
-                    const SizedBox(width: 5),
-                    Text('Log offline payment', style: appText(size: 11, weight: FontWeight.w700, color: AppColors.primary)),
+                  child: Row(children: [
+                    const AppIcon('card', size: 14, color: Color(0xFF16A34A)),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('Log offline payment',
+                      style: appText(size: 12, weight: FontWeight.w700, color: const Color(0xFF16A34A)))),
+                    const AppIcon('chevron-right', size: 14, color: Color(0xFF16A34A)),
                   ]),
                 ),
               ),
             ],
           ]),
         )),
-      ]),
+      ])),
     );
   }
 
@@ -495,7 +631,7 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
     );
   }
 
-  Widget _imagePlaceholder() => Container(color: Colors.white, child: const Center(child: Icon(Icons.image_outlined, size: 24, color: AppColors.textHint)));
+  Widget _imagePlaceholder() => Container(color: Colors.white, child: const Center(child: AppIcon('image', size: 22, color: AppColors.textHint)));
 
   /// Extract image URL from assigned service data — mirrors web's extraction logic.
   /// The API nests the original service under service['service'] with keys like image, primary_image, images[], gallery_images[].

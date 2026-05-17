@@ -88,9 +88,9 @@ export default function EventAutomationsPage({ eventId: eventIdProp, embedded = 
     <div className={embedded ? "space-y-6" : "space-y-6 p-6 max-w-6xl mx-auto"}>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className={embedded ? "text-xl font-semibold tracking-tight" : "text-3xl font-semibold tracking-tight"}>Reminder automations</h1>
+          <h1 className={embedded ? "text-xl font-semibold tracking-tight" : "text-3xl font-semibold tracking-tight"}>Keep your event on track</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Automatically notify contributors and guests on WhatsApp.
+            Send friendly WhatsApp reminders so your guests do not miss key updates and contributors complete their pledges on time.
           </p>
         </div>
         <Button onClick={() => { setEditing(null); setEditorOpen(true); }}>
@@ -178,7 +178,13 @@ function AutomationRow({ a, onEdit, onDetail, onChanged }: {
     setBusy(true);
     try {
       await reminderAutomationsApi.sendNow(a.event_id, a.id);
-      toast({ title: "Queued", description: "Recipients will be notified in the background." });
+      const isGuest = a.automation_type === "guest_remind";
+      toast({
+        title: "Reminders sent",
+        description: isGuest
+          ? "Guest reminders are being sent. We will notify your guests using the available contact details."
+          : "Payment reminders are being sent to contributors with outstanding pledges.",
+      });
       onChanged();
     } catch (e: any) {
       toast({ title: "Failed", description: e?.message, variant: "destructive" });

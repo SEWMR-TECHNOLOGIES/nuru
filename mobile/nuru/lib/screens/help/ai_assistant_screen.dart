@@ -37,10 +37,10 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.dark,
     statusBarBrightness: Brightness.light,
-    systemNavigationBarColor: AppColors.surface,
+    systemNavigationBarColor: Colors.transparent,
     systemNavigationBarIconBrightness: Brightness.dark,
     systemNavigationBarContrastEnforced: false,
-    systemNavigationBarDividerColor: AppColors.surface,
+    systemNavigationBarDividerColor: Colors.transparent,
   );
   final _ctrl = TextEditingController();
   final _scrollCtrl = ScrollController();
@@ -63,6 +63,15 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
 
   @override
   void dispose() {
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+      systemNavigationBarColor: AppColors.surface,
+      systemNavigationBarIconBrightness: Brightness.dark,
+      systemNavigationBarDividerColor: AppColors.surface,
+      systemNavigationBarContrastEnforced: false,
+    ));
     _ctrl.dispose();
     _scrollCtrl.dispose();
     _inputFocus.dispose();
@@ -314,8 +323,9 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     FontWeight weight = FontWeight.w500,
     Color color = AppColors.textPrimary,
     double height = 1.3,
+    double letterSpacing = 0,
   }) =>
-      GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color, height: height);
+      GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color, height: height, letterSpacing: letterSpacing);
 
   Widget _svg(String asset, {double size = 22, Color? color}) => SvgPicture.asset(
         asset,
@@ -582,6 +592,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         return _resultsListCard(p);
       case 'input_prompt':
         return _inputPromptCard(p);
+      case 'multi_input_prompt':
+        return _multiInputPromptCard(p);
       case 'confirm_action':
         return _confirmCard(p);
       case 'table':
@@ -932,6 +944,162 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     ]);
   }
 
+  Widget _multiInputPromptCard(Map<String, dynamic> p) {
+    final title = p['title']?.toString();
+    final submitLabel = p['submit_label']?.toString() ?? 'Continue';
+    final fields = (p['fields'] as List? ?? const [])
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+    final controllers = <String, TextEditingController>{};
+    final selections = <String, String?>{};
+    for (final f in fields) {
+      final key = f['field']?.toString() ?? 'value';
+      if ((f['input_type']?.toString() ?? 'text') == 'choice') {
+        selections[key] = f['default']?.toString();
+      } else {
+        controllers[key] = TextEditingController(text: f['default']?.toString() ?? '');
+      }
+    }
+    return StatefulBuilder(builder: (context, setLocalState) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (title != null && title.isNotEmpty) ...[
+          Text(title, style: _f(size: 13, weight: FontWeight.w800)),
+          const SizedBox(height: 10),
+        ],
+        for (final f in fields) ...[
+          _multiInputField(f, controllers, selections, setLocalState),
+          const SizedBox(height: 10),
+        ],
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () {
+              final parts = <String>[];
+              for (final f in fields) {
+                final key = f['field']?.toString() ?? 'value';
+                final label = f['label']?.toString() ?? key;
+                final required = f['required'] == true;
+                String? v;
+                if ((f['input_type']?.toString() ?? 'text') == 'choice') {
+                  v = selections[key];
+                } else {
+                  v = controllers[key]?.text.trim();
+                }
+                if (v == null || v.isEmpty) {
+                  if (required) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('$label is required')),
+                    );
+                    return;
+                  }
+                  continue;
+                }
+                parts.add('$label: $v');
+              }
+              if (parts.isEmpty) return;
+              _send(parts.join('\n'));
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text(submitLabel,
+                style: _f(size: 13, weight: FontWeight.w800, color: Colors.white)),
+          ),
+        ),
+      ]);
+    });
+  }
+
+  Widget _multiInputField(
+    Map<String, dynamic> f,
+    Map<String, TextEditingController> controllers,
+    Map<String, String?> selections,
+    void Function(void Function()) setLocalState,
+  ) {
+    final key = f['field']?.toString() ?? 'value';
+    final label = f['label']?.toString() ?? 'Value';
+    final type = f['input_type']?.toString() ?? 'text';
+    final placeholder = f['placeholder']?.toString() ?? '';
+    final required = f['required'] == true;
+    final labelWidget = RichText(
+      text: TextSpan(style: _f(size: 12, weight: FontWeight.w700), children: [
+        TextSpan(text: label),
+        if (required)
+          TextSpan(text: ' *', style: _f(size: 12, weight: FontWeight.w700, color: AppColors.primary)),
+      ]),
+    );
+
+    if (type == 'choice') {
+      final options = (f['options'] as List? ?? const []).map((e) => e.toString()).toList();
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        labelWidget,
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final opt in options)
+              GestureDetector(
+                onTap: () => setLocalState(() => selections[key] = opt),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: selections[key] == opt ? AppColors.primary : AppColors.background,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: selections[key] == opt
+                          ? AppColors.primary
+                          : AppColors.borderLight,
+                    ),
+                  ),
+                  child: Text(opt,
+                      style: _f(
+                        size: 12,
+                        weight: FontWeight.w700,
+                        color: selections[key] == opt ? Colors.white : AppColors.textPrimary,
+                      )),
+                ),
+              ),
+          ],
+        ),
+      ]);
+    }
+
+    final keyboard = type == 'number'
+        ? TextInputType.number
+        : (type == 'phone'
+            ? TextInputType.phone
+            : (type == 'email'
+                ? TextInputType.emailAddress
+                : (type == 'date' ? TextInputType.datetime : TextInputType.text)));
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      labelWidget,
+      const SizedBox(height: 6),
+      TextField(
+        controller: controllers[key],
+        keyboardType: keyboard,
+        autocorrect: false,
+        enableSuggestions: false,
+        decoration: InputDecoration(
+          hintText: placeholder.isEmpty ? 'Type here…' : placeholder,
+          hintStyle: _f(size: 12.5, color: AppColors.textHint),
+          filled: true,
+          fillColor: AppColors.background,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        ),
+        style: _f(size: 13),
+      ),
+    ]);
+  }
+
   Widget _confirmCard(Map<String, dynamic> p) {
     final question = p['question']?.toString() ?? 'Are you sure?';
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -970,38 +1138,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         .toList();
     if (headers.isEmpty) return const SizedBox.shrink();
 
-    // Compute a sensible column width so even short tables look balanced.
-    final screenW = MediaQuery.of(context).size.width;
-    final maxTableW = screenW - 88; // bubble + padding
-    final colW = (maxTableW / headers.length).clamp(96.0, 220.0);
-
-    Widget cell(String text, {bool header = false, bool last = false, bool right = false}) =>
-        Container(
-          width: colW,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            border: Border(
-              right: last
-                  ? BorderSide.none
-                  : BorderSide(color: AppColors.borderLight, width: 1),
-            ),
-          ),
-          alignment: right ? Alignment.centerRight : Alignment.centerLeft,
-          child: Text(
-            text,
-            style: _f(
-              size: 11.5,
-              weight: header ? FontWeight.w700 : FontWeight.w500,
-              color: header ? AppColors.textSecondary : AppColors.textPrimary,
-              height: 1.35,
-            ),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-          ),
-        );
-
     bool looksNumeric(String v) {
-      final t = v.trim().replaceAll(',', '').replaceAll(RegExp(r'[A-Za-z\s%₹€$]'), '');
+      final t = v.trim().replaceAll(',', '').replaceAll(RegExp(r'[A-Za-z\s%₹€TZSKshUSDtzs\$]'), '');
       return t.isNotEmpty && double.tryParse(t) != null;
     }
 
@@ -1016,37 +1154,86 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       return total > 0 && n / total >= 0.6;
     });
 
+    // Measure-friendly widths: first column gets more room, numeric
+    // columns hug their content, others stretch evenly.
+    final screenW = MediaQuery.of(context).size.width;
+    final maxTableW = screenW - 72;
+    final firstColW = (maxTableW * 0.42).clamp(140.0, 220.0);
+    final otherColCount = headers.length - 1;
+    final remaining = maxTableW - firstColW;
+    final otherColW = otherColCount > 0
+        ? (remaining / otherColCount).clamp(96.0, 180.0)
+        : 0.0;
+    double widthFor(int i) => i == 0 ? firstColW : otherColW;
+
+    Widget cell(String text,
+        {required int colIndex,
+        bool header = false,
+        bool right = false,
+        bool stripe = false}) {
+      return Container(
+        width: widthFor(colIndex),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        alignment: right ? Alignment.centerRight : Alignment.centerLeft,
+        child: Text(
+          text.isEmpty ? '—' : text,
+          style: _f(
+            size: header ? 11 : 12.5,
+            weight: header ? FontWeight.w700 : FontWeight.w500,
+            color: header
+                ? AppColors.textSecondary
+                : (text.isEmpty
+                    ? AppColors.textSecondary.withOpacity(0.5)
+                    : AppColors.textPrimary),
+            height: 1.4,
+            letterSpacing: header ? 0.4 : 0,
+          ),
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
+    }
+
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (title != null && title.isNotEmpty) ...[
-        Text(title, style: _f(size: 13, weight: FontWeight.w800)),
-        const SizedBox(height: 8),
+        Text(title, style: _f(size: 13.5, weight: FontWeight.w800)),
+        const SizedBox(height: 10),
       ],
-      ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            border: Border.all(color: AppColors.borderLight),
-            borderRadius: BorderRadius.circular(12),
-          ),
+      Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.borderLight),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Header row
                 Container(
                   decoration: BoxDecoration(
-                    color: AppColors.background,
+                    color: AppColors.primarySoft.withOpacity(0.45),
                     border: Border(
-                      bottom: BorderSide(color: AppColors.borderLight, width: 1),
+                      bottom: BorderSide(
+                          color: AppColors.borderLight, width: 1),
                     ),
                   ),
                   child: Row(
                     children: [
                       for (int i = 0; i < headers.length; i++)
-                        cell(headers[i],
+                        cell(headers[i].toUpperCase(),
+                            colIndex: i,
                             header: true,
-                            last: i == headers.length - 1,
                             right: numericCols[i]),
                     ],
                   ),
@@ -1054,19 +1241,25 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                 for (int r = 0; r < rows.length; r++)
                   Container(
                     decoration: BoxDecoration(
-                      color: r.isOdd ? AppColors.background : AppColors.surface,
+                      color: r.isOdd
+                          ? AppColors.background.withOpacity(0.6)
+                          : AppColors.surface,
                       border: Border(
                         bottom: r == rows.length - 1
                             ? BorderSide.none
-                            : BorderSide(color: AppColors.borderLight, width: 1),
+                            : BorderSide(
+                                color: AppColors.borderLight
+                                    .withOpacity(0.6),
+                                width: 1),
                       ),
                     ),
                     child: Row(
                       children: [
                         for (int i = 0; i < headers.length; i++)
                           cell(i < rows[r].length ? rows[r][i] : '',
-                              last: i == headers.length - 1,
-                              right: numericCols[i]),
+                              colIndex: i,
+                              right: numericCols[i],
+                              stripe: r.isOdd),
                       ],
                     ),
                   ),
@@ -1089,7 +1282,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       child: SafeArea(
         top: false,
         child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -1317,41 +1510,61 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       ),
       builder: (sheetCtx) => SafeArea(
         top: false,
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 36,
-            height: 4,
-            decoration: BoxDecoration(
-              color: AppColors.borderLight,
-              borderRadius: BorderRadius.circular(2),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.borderLight,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          ListTile(
-            leading: _svg('assets/icons/camera-icon.svg', size: 22),
-            title: Text('Take a photo',
-                style: _f(size: 14, weight: FontWeight.w600)),
-            subtitle: Text('Snap a receipt, screenshot or note',
-                style: _f(size: 11, color: AppColors.textSecondary)),
-            onTap: () {
-              Navigator.pop(sheetCtx);
-              _pickImage(ImageSource.camera);
-            },
-          ),
-          ListTile(
-            leading: _svg('assets/icons/gallery-icon.svg', size: 22),
-            title: Text('Choose from gallery',
-                style: _f(size: 14, weight: FontWeight.w600)),
-            subtitle: Text('Pick an image to give Nuru AI more context',
-                style: _f(size: 11, color: AppColors.textSecondary)),
-            onTap: () {
-              Navigator.pop(sheetCtx);
-              _pickImage(ImageSource.gallery);
-            },
-          ),
-          const SizedBox(height: 12),
-        ]),
+            const SizedBox(height: 18),
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: AppColors.primarySoft,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: _svg('assets/icons/attach-icon.svg',
+                    size: 26, color: AppColors.primary),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text('Attachments are on the way',
+                style: _f(size: 15, weight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            Text(
+              'Soon you will be able to share photos, receipts and screenshots with Nuru AI for richer context. For now, type your question and we will reply instantly.',
+              textAlign: TextAlign.center,
+              style: _f(size: 12, color: AppColors.textSecondary, height: 1.5),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(sheetCtx);
+                  _inputFocus.requestFocus();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+                child: Text('Type instead',
+                    style: _f(size: 13, weight: FontWeight.w700, color: Colors.white)),
+              ),
+            ),
+          ]),
+        ),
       ),
     );
   }

@@ -1163,6 +1163,7 @@ class AppTranslations {
     'sponsors': {'en': 'Sponsors', 'sw': 'Wadhamini'},
     'checklist': {'en': 'Checklist', 'sw': 'Orodha'},
     'check_in': {'en': 'Check-In', 'sw': 'Check-In'},
+    'reminders': {'en': 'Reminders', 'sw': 'Vikumbusho'},
     'invitation': {'en': 'Invitation', 'sw': 'Mwaliko'},
     'schedule': {'en': 'Schedule', 'sw': 'Ratiba'},
     'contribution_summary': {
