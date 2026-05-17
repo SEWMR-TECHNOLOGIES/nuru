@@ -552,7 +552,7 @@ def send_now(
 
     return standard_response(
         True,
-        "Message accepted. Contributors will be notified in the background.",
+        "Reminders are being sent to recipients with available contact details.",
         {"run_id": str(run.id), "automation_id": str(a.id)},
     )
 

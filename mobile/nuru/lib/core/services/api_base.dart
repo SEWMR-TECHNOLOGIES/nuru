@@ -67,6 +67,17 @@ Future<bool> _attemptRefresh() async {
 bool _isAuthExpired(http.Response res) =>
     res.statusCode == 401 || res.statusCode == 419;
 
+void _debugAutomationHttp(String method, String endpoint, http.Response res) {
+  if (!endpoint.contains('/automations')) return;
+  print('[Automations API] $method $endpoint -> HTTP ${res.statusCode}');
+  print('[Automations API] response body: ${res.body}');
+}
+
+void _debugAutomationError(String method, String endpoint, Object error) {
+  if (!endpoint.contains('/automations')) return;
+  print('[Automations API] $method $endpoint threw: $error');
+}
+
 class ApiBase {
   static String get baseUrl => ApiConfig.baseUrl;
 
@@ -119,9 +130,13 @@ class ApiBase {
       if (queryParams != null) {
         uri = uri.replace(queryParameters: queryParams);
       }
-      var res = await http.get(uri, headers: await headers(auth: auth));
+      var res = await http
+          .get(uri, headers: await headers(auth: auth))
+          .timeout(ApiConfig.timeout);
       if (auth && _isAuthExpired(res) && await _attemptRefresh()) {
-        res = await http.get(uri, headers: await headers(auth: auth));
+        res = await http
+            .get(uri, headers: await headers(auth: auth))
+            .timeout(ApiConfig.timeout);
       }
       _checkRateLimit(res, endpoint);
       return normalizeResponse(res, fallbackError: fallbackError);
@@ -139,13 +154,19 @@ class ApiBase {
     try {
       final uri = Uri.parse('$baseUrl$endpoint');
       final encoded = jsonEncode(body);
-      var res = await http.post(uri, headers: await headers(auth: auth), body: encoded);
+      var res = await http
+          .post(uri, headers: await headers(auth: auth), body: encoded)
+          .timeout(ApiConfig.timeout);
       if (auth && _isAuthExpired(res) && await _attemptRefresh()) {
-        res = await http.post(uri, headers: await headers(auth: auth), body: encoded);
+        res = await http
+            .post(uri, headers: await headers(auth: auth), body: encoded)
+            .timeout(ApiConfig.timeout);
       }
+      _debugAutomationHttp('POST', endpoint, res);
       _checkRateLimit(res, endpoint);
       return normalizeResponse(res, fallbackError: fallbackError);
-    } catch (_) {
+    } catch (e) {
+      _debugAutomationError('POST', endpoint, e);
       return {'success': false, 'message': fallbackError, 'data': null};
     }
   }
@@ -159,13 +180,43 @@ class ApiBase {
     try {
       final uri = Uri.parse('$baseUrl$endpoint');
       final encoded = jsonEncode(body);
-      var res = await http.put(uri, headers: await headers(auth: auth), body: encoded);
+      var res = await http
+          .put(uri, headers: await headers(auth: auth), body: encoded)
+          .timeout(ApiConfig.timeout);
       if (auth && _isAuthExpired(res) && await _attemptRefresh()) {
-        res = await http.put(uri, headers: await headers(auth: auth), body: encoded);
+        res = await http
+            .put(uri, headers: await headers(auth: auth), body: encoded)
+            .timeout(ApiConfig.timeout);
       }
       _checkRateLimit(res, endpoint);
       return normalizeResponse(res, fallbackError: fallbackError);
     } catch (_) {
+      return {'success': false, 'message': fallbackError, 'data': null};
+    }
+  }
+
+  static Future<Map<String, dynamic>> patch(
+    String endpoint,
+    Map<String, dynamic> body, {
+    bool auth = true,
+    String fallbackError = 'Request failed',
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl$endpoint');
+      final encoded = jsonEncode(body);
+      var res = await http
+          .patch(uri, headers: await headers(auth: auth), body: encoded)
+          .timeout(ApiConfig.timeout);
+      if (auth && _isAuthExpired(res) && await _attemptRefresh()) {
+        res = await http
+            .patch(uri, headers: await headers(auth: auth), body: encoded)
+            .timeout(ApiConfig.timeout);
+      }
+      _debugAutomationHttp('PATCH', endpoint, res);
+      _checkRateLimit(res, endpoint);
+      return normalizeResponse(res, fallbackError: fallbackError);
+    } catch (e) {
+      _debugAutomationError('PATCH', endpoint, e);
       return {'success': false, 'message': fallbackError, 'data': null};
     }
   }
@@ -177,9 +228,13 @@ class ApiBase {
   }) async {
     try {
       final uri = Uri.parse('$baseUrl$endpoint');
-      var res = await http.delete(uri, headers: await headers(auth: auth));
+      var res = await http
+          .delete(uri, headers: await headers(auth: auth))
+          .timeout(ApiConfig.timeout);
       if (auth && _isAuthExpired(res) && await _attemptRefresh()) {
-        res = await http.delete(uri, headers: await headers(auth: auth));
+        res = await http
+            .delete(uri, headers: await headers(auth: auth))
+            .timeout(ApiConfig.timeout);
       }
       _checkRateLimit(res, endpoint);
       return normalizeResponse(res, fallbackError: fallbackError);

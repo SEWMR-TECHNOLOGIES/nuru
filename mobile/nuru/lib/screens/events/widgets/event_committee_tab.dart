@@ -2,6 +2,7 @@ import '../../../core/widgets/nuru_refresh_indicator.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../../../core/widgets/app_icon.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/services/report_generator.dart';
@@ -25,6 +26,7 @@ class EventCommitteeTab extends StatefulWidget {
 class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKeepAliveClientMixin {
   List<dynamic> _members = [];
   bool _loading = true;
+  String _roleFilter = 'all';
 
   bool get _canManage => widget.permissions?['can_manage_committee'] == true || widget.permissions?['is_creator'] == true;
 
@@ -75,86 +77,153 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
     });
   }
 
+  List<dynamic> get _filteredMembers {
+    if (_roleFilter == 'all') return _members;
+    return _members.where((m) {
+      final role = (m['role'] ?? m['committee_role'] ?? '').toString();
+      return role == _roleFilter;
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
     if (_loading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
 
+    final filtered = _filteredMembers;
+
     return NuruRefreshIndicator(
       onRefresh: _load,
       color: AppColors.primary,
-      child: _members.isEmpty ? _emptyState() : _memberList(),
-    );
-  }
-
-  Widget _emptyState() {
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        const SizedBox(height: 60),
-        Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: 64, height: 64,
-            decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(20)),
-            child: const Icon(Icons.people_outline_rounded, size: 28, color: AppColors.primary),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+        children: [
+          // Committee Report callout
+          GestureDetector(
+            onTap: _generateReport,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF8E6),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(children: [
+                Container(
+                  width: 54, height: 54,
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6)]),
+                  child: const AppIcon('card', size: 26, color: AppColors.primary),
+                ),
+                const SizedBox(width: 14),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  Text('Committee Report', style: appText(size: 15, weight: FontWeight.w800, color: AppColors.textPrimary)),
+                  const SizedBox(height: 2),
+                  Text('View roles, permissions and activity across your team.', style: appText(size: 11, color: AppColors.textSecondary), maxLines: 2),
+                ])),
+                Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle,
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)]),
+                  child: const AppIcon('chevron-right', size: 18, color: AppColors.primary),
+                ),
+              ]),
+            ),
           ),
-          const SizedBox(height: 16),
-          Text('No committee members yet', style: appText(size: 15, weight: FontWeight.w600, color: AppColors.textSecondary)),
-          const SizedBox(height: 6),
-          Text('Add team members to help plan your event', style: appText(size: 13, color: AppColors.textTertiary), textAlign: TextAlign.center),
-          if (_canManage) ...[
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: () => _showAddMemberSheet(),
-              icon: const Icon(Icons.person_add_rounded, size: 18),
-              label: Text('Add First Member', style: appText(size: 14, weight: FontWeight.w600, color: Colors.white)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary, foregroundColor: Colors.white,
+
+          const SizedBox(height: 14),
+
+          // Role filter + member count
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6)],
+            ),
+            child: Row(children: [
+              Expanded(child: PopupMenuButton<String>(
+                onSelected: (v) => setState(() => _roleFilter = v),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'all', child: Text('All Roles')),
+                  ..._roles.where((r) => r['id'] != 'custom').map((r) =>
+                    PopupMenuItem(value: r['name'], child: Text(r['name']!))),
+                ],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  child: Row(children: [
+                    const AppIcon('settings', size: 16, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(_roleFilter == 'all' ? 'All Roles' : _roleFilter,
+                      style: appText(size: 13, weight: FontWeight.w700, color: AppColors.textPrimary),
+                      maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    const AppIcon('chevron-down', size: 16, color: AppColors.textTertiary),
+                  ]),
+                ),
+              )),
+              Container(width: 1, height: 28, color: AppColors.divider),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                child: Row(children: [
+                  Container(
+                    width: 28, height: 28,
+                    decoration: BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle),
+                    child: const AppIcon('users', size: 14, color: AppColors.primary),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('${_members.length} Member${_members.length == 1 ? '' : 's'}',
+                    style: appText(size: 13, weight: FontWeight.w700, color: AppColors.textPrimary)),
+                ]),
+              ),
+            ]),
+          ),
+
+          const SizedBox(height: 18),
+
+          if (filtered.isEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              child: Column(children: [
+                Container(
+                  width: 64, height: 64,
+                  decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(20)),
+                  child: const AppIcon('users', size: 26, color: AppColors.primary),
+                ),
+                const SizedBox(height: 14),
+                Text('No committee members yet', style: appText(size: 15, weight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text('Add team members to help plan your event',
+                  style: appText(size: 12, color: AppColors.textTertiary), textAlign: TextAlign.center),
+              ]),
+            ),
+          ] else ...[
+            Padding(
+              padding: const EdgeInsets.only(left: 2, bottom: 10),
+              child: Text('Team Members', style: appText(size: 15, weight: FontWeight.w800, color: AppColors.textPrimary)),
+            ),
+            ...filtered.map((m) => _memberCard(m as Map<String, dynamic>)),
+          ],
+
+          if (_canManage) ...[
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity, height: 54,
+              child: ElevatedButton(
+                onPressed: _showAddMemberSheet,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary, foregroundColor: Colors.white, elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                ),
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  const AppIcon('user-add', size: 18, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text('Add Member', style: appText(size: 15, weight: FontWeight.w800, color: Colors.white)),
+                ]),
               ),
             ),
           ],
-        ])),
-      ],
-    );
-  }
-
-  Widget _memberList() {
-    return Stack(children: [
-      ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-        children: [
-          // Report button
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: OutlinedButton.icon(
-              onPressed: _generateReport,
-              icon: const Icon(Icons.description_rounded, size: 16),
-              label: Text('Committee Report', style: appText(size: 12, weight: FontWeight.w600)),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.primary),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-              ),
-            ),
-          ),
-          ..._members.map((m) => _memberCard(m as Map<String, dynamic>)),
         ],
       ),
-      if (_canManage)
-        Positioned(
-          right: 16, bottom: 24,
-          child: FloatingActionButton.extended(
-            onPressed: _showAddMemberSheet,
-            backgroundColor: AppColors.primary, foregroundColor: Colors.white,
-            icon: const Icon(Icons.person_add_rounded, size: 20),
-            label: Text('Add Member', style: appText(size: 13, weight: FontWeight.w700, color: Colors.white)),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          ),
-        ),
-    ]);
+    );
   }
 
   Widget _memberCard(Map<String, dynamic> member) {
@@ -166,7 +235,6 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
     final status = (member['status'] ?? 'active').toString();
     final memberId = member['id']?.toString() ?? '';
 
-    // Normalize permissions
     final perms = member['permissions'];
     List<String> permList = [];
     if (perms is List) {
@@ -175,79 +243,121 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
       perms.forEach((k, v) { if (v == true) permList.add(k.toString()); });
     }
 
-    final statusColor = status == 'active' ? const Color(0xFF16A34A) : status == 'invited' ? const Color(0xFFCA8A04) : AppColors.error;
+    final isActive = status == 'active';
+    final statusColor = isActive ? const Color(0xFF16A34A) : status == 'invited' ? const Color(0xFFCA8A04) : AppColors.error;
+    final statusBg = isActive ? const Color(0xFFDCFCE7) : status == 'invited' ? const Color(0xFFFEF3C7) : const Color(0xFFFEE2E2);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 3))],
+      ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          CircleAvatar(
-            radius: 22, backgroundColor: AppColors.primarySoft,
-            backgroundImage: avatar != null ? NetworkImage(avatar) : null,
-            child: avatar == null ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: appText(size: 16, weight: FontWeight.w700, color: AppColors.primary)) : null,
-          ),
-          const SizedBox(width: 12),
+          // Avatar with gold ring + green presence dot
+          Stack(children: [
+            Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.primary, width: 2),
+              ),
+              child: CircleAvatar(
+                radius: 24, backgroundColor: AppColors.primarySoft,
+                backgroundImage: avatar != null && avatar.isNotEmpty ? NetworkImage(avatar) : null,
+                child: (avatar == null || avatar.isEmpty)
+                  ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                      style: appText(size: 18, weight: FontWeight.w800, color: AppColors.primary))
+                  : null,
+              ),
+            ),
+            if (isActive)
+              Positioned(
+                right: 0, bottom: 0,
+                child: Container(
+                  width: 14, height: 14,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF16A34A), shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                ),
+              ),
+          ]),
+          const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(name.isNotEmpty ? name : 'Unknown', style: appText(size: 14, weight: FontWeight.w600)),
-            if (role.isNotEmpty) Text(role, style: appText(size: 12, color: AppColors.primary, weight: FontWeight.w600)),
+            Text(name.isNotEmpty ? name : 'Unknown', style: appText(size: 15, weight: FontWeight.w800, color: AppColors.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 2),
+            if (role.isNotEmpty) Text(role, style: appText(size: 12, weight: FontWeight.w700, color: AppColors.primary)),
           ])),
           if (_canManage)
             PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, size: 20, color: AppColors.textHint),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              icon: const AppIcon('menu', size: 18, color: AppColors.textTertiary),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               onSelected: (val) {
                 if (val == 'edit') _showEditMemberSheet(member);
                 if (val == 'remove') _confirmRemove(memberId, name);
                 if (val == 'resend') _resendInvite(memberId);
               },
               itemBuilder: (_) => [
-                const PopupMenuItem(value: 'edit', child: ListTile(dense: true, leading: Icon(Icons.edit, size: 18), title: Text('Edit'))),
+                const PopupMenuItem(value: 'edit', child: ListTile(dense: true, leading: AppIcon('pen', size: 18), title: Text('Edit'))),
                 if (status == 'invited')
-                  const PopupMenuItem(value: 'resend', child: ListTile(dense: true, leading: Icon(Icons.send, size: 18), title: Text('Resend Invite'))),
-                PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: Icon(Icons.delete, size: 18, color: AppColors.error), title: Text('Remove', style: TextStyle(color: AppColors.error)))),
+                  const PopupMenuItem(value: 'resend', child: ListTile(dense: true, leading: AppIcon('send', size: 18), title: Text('Resend Invite'))),
+                PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: AppIcon('delete', size: 18, color: AppColors.error), title: Text('Remove', style: TextStyle(color: AppColors.error)))),
               ],
             ),
         ]),
-        const SizedBox(height: 10),
-        // Contact info
-        if (email != null && email.isNotEmpty)
-          _contactRow(Icons.email_outlined, email),
-        if (phone != null && phone.isNotEmpty)
-          _contactRow(Icons.phone_outlined, phone),
-        const SizedBox(height: 8),
-        // Status + permissions
+
+        if ((email != null && email.isNotEmpty) || (phone != null && phone.isNotEmpty)) ...[
+          const SizedBox(height: 12),
+          Container(height: 1, color: AppColors.divider),
+          const SizedBox(height: 10),
+          if (email != null && email.isNotEmpty) _contactRow('email', email),
+          if (phone != null && phone.isNotEmpty) _contactRow('phone', phone),
+        ],
+
+        const SizedBox(height: 12),
         Row(children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-            child: Text(status[0].toUpperCase() + status.substring(1), style: appText(size: 10, weight: FontWeight.w700, color: statusColor)),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(999)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              AppIcon(isActive ? 'verified' : 'clock', size: 12, color: statusColor),
+              const SizedBox(width: 5),
+              Text(status[0].toUpperCase() + status.substring(1), style: appText(size: 11, weight: FontWeight.w700, color: statusColor)),
+            ]),
           ),
           const SizedBox(width: 8),
           if (permList.isNotEmpty)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(8)),
-              child: Text('${permList.length} permission${permList.length != 1 ? 's' : ''}', style: appText(size: 10, weight: FontWeight.w600, color: AppColors.primary)),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(999)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const AppIcon('shield', size: 12, color: AppColors.primary),
+                const SizedBox(width: 5),
+                Text('${permList.length} Permission${permList.length != 1 ? 's' : ''}',
+                  style: appText(size: 11, weight: FontWeight.w700, color: AppColors.primaryDark)),
+              ]),
             ),
         ]),
       ]),
     );
   }
 
-  Widget _contactRow(IconData icon, String text) {
+  Widget _contactRow(String iconName, String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(children: [
-        Icon(icon, size: 14, color: AppColors.textHint),
-        const SizedBox(width: 8),
-        Expanded(child: Text(text, style: appText(size: 12, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis)),
+        AppIcon(iconName, size: 14, color: AppColors.textTertiary),
+        const SizedBox(width: 10),
+        Expanded(child: Text(text, style: appText(size: 12, color: AppColors.textSecondary, weight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
       ]),
     );
   }
 
-  // ADD MEMBER — matches web: user search, role picker, permissions
+  // ============ ADD/EDIT/REMOVE SHEETS (logic preserved) ============
 
   void _showAddMemberSheet() {
     Map<String, dynamic>? selectedUser;
@@ -270,18 +380,16 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
             debounce?.cancel();
             if (q.trim().length < 2) { setSheetState(() { searchResults = []; searching = false; }); return; }
             setSheetState(() => searching = true);
-              debounce = Timer(const Duration(milliseconds: 400), () async {
+            debounce = Timer(const Duration(milliseconds: 400), () async {
               final res = await EventsService.searchUsers(q.trim());
               if (ctx.mounted) setSheetState(() {
                 searching = false;
                 if (res['success'] == true) {
                   final data = res['data'];
                   final rawList = data is List ? data : (data is Map ? (data['items'] ?? data['users'] ?? data['results'] ?? []) : []);
-                  // Normalize user fields — API may return full_name instead of first_name/last_name
                   searchResults = (rawList is List ? rawList : []).map((u) {
                     if (u is! Map) return u;
                     final m = Map<String, dynamic>.from(u);
-                    // Ensure first_name / last_name exist (split full_name if needed)
                     if ((m['first_name'] == null || m['first_name'] == '') && m['full_name'] != null) {
                       final parts = (m['full_name'] as String).split(' ');
                       m['first_name'] = parts.first;
@@ -305,8 +413,6 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                 const SizedBox(height: 16),
                 Text('Add Committee Member', style: appText(size: 18, weight: FontWeight.w700)),
                 const SizedBox(height: 20),
-
-                // User search
                 Text('Search User *', style: appText(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
                 const SizedBox(height: 8),
                 if (selectedUser != null)
@@ -333,10 +439,11 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                 else ...[
                   TextField(
                     onChanged: (v) { searchQuery = v; searchUsers(v); },
+                    autocorrect: false,
                     style: appText(size: 14),
                     decoration: InputDecoration(
                       hintText: 'Search by name, email or phone...', hintStyle: appText(size: 13, color: AppColors.textHint),
-                      prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.textHint),
+                      prefixIcon: const Padding(padding: EdgeInsets.all(12), child: AppIcon('search', size: 16, color: AppColors.textHint)),
                       suffixIcon: searching ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))) : null,
                       filled: true, fillColor: Colors.white,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: const Color(0xFFE5E7EB), width: 1)),
@@ -376,7 +483,6 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
 
                 const SizedBox(height: 18),
 
-                // Role picker
                 Text('Role *', style: appText(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
                 const SizedBox(height: 8),
                 Container(
@@ -399,6 +505,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                   const SizedBox(height: 10),
                   TextField(
                     onChanged: (v) => customRole = v,
+                    autocorrect: false,
                     style: appText(size: 14),
                     decoration: InputDecoration(
                       hintText: 'Enter custom role name', hintStyle: appText(size: 13, color: AppColors.textHint),
@@ -411,7 +518,6 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
 
                 const SizedBox(height: 18),
 
-                // Permissions
                 Text('Permissions', style: appText(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
                 const SizedBox(height: 8),
                 Container(
@@ -434,7 +540,6 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
 
                 const SizedBox(height: 14),
 
-                // Send invitation toggle
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   activeColor: AppColors.primary,
@@ -481,8 +586,6 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
     );
   }
 
-  // EDIT MEMBER — role + permissions update
-
   void _showEditMemberSheet(Map<String, dynamic> member) {
     final name = '${member['first_name'] ?? member['name'] ?? ''} ${member['last_name'] ?? ''}'.trim();
     final currentRole = (member['role'] ?? '').toString();
@@ -509,7 +612,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
             child: ListView(controller: scrollCtrl, children: [
               Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
               const SizedBox(height: 16),
-              Text('Edit — $name', style: appText(size: 18, weight: FontWeight.w700)),
+              Text('Edit  $name', style: appText(size: 18, weight: FontWeight.w700)),
               const SizedBox(height: 20),
 
               Text('Role *', style: appText(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
@@ -530,6 +633,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                 TextField(
                   controller: TextEditingController(text: customRole),
                   onChanged: (v) => customRole = v,
+                  autocorrect: false,
                   style: appText(size: 14),
                   decoration: InputDecoration(
                     hintText: 'Custom role name', filled: true, fillColor: Colors.white,
