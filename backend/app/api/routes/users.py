@@ -445,18 +445,31 @@ async def search_users(
                 User.is_active == True
             ).order_by(User.created_at.desc()).limit(lim).all()
 
+        # Batch profiles for sorted users (was N+1)
+        sorted_ids = [u.id for u in sorted_users]
+        profile_map = {
+            p.user_id: p for p in db.query(UserProfile).filter(
+                UserProfile.user_id.in_(sorted_ids)
+            ).all()
+        } if sorted_ids else {}
+
+        # Batch mutual-follower counts in a single grouped query:
+        # for each candidate u, count how many of my_following_ids u also follows.
+        mutual_map: dict = {}
+        if my_following_ids and sorted_ids:
+            mutual_rows = db.query(
+                UserFollower.follower_id,
+                sa_func.count(UserFollower.following_id),
+            ).filter(
+                UserFollower.follower_id.in_(sorted_ids),
+                UserFollower.following_id.in_(list(my_following_ids)),
+            ).group_by(UserFollower.follower_id).all()
+            mutual_map = {fid: int(cnt) for fid, cnt in mutual_rows}
+
         results = []
         for u in sorted_users:
-            profile = db.query(UserProfile).filter(UserProfile.user_id == u.id).first()
+            profile = profile_map.get(u.id)
             score = scores.get(u.id, 0)
-            # Count mutual connections
-            mutual_count = sum([
-                1 for fid in my_following_ids
-                if db.query(UserFollower).filter(
-                    UserFollower.follower_id == u.id,
-                    UserFollower.following_id == fid
-                ).first() is not None
-            ]) if my_following_ids else 0
             results.append({
                 "id": str(u.id),
                 "first_name": u.first_name,
@@ -464,7 +477,7 @@ async def search_users(
                 "username": u.username,
                 "avatar": profile.profile_picture_url if profile else None,
                 "is_verified": u.is_identity_verified,
-                "mutual_count": mutual_count,
+                "mutual_count": mutual_map.get(u.id, 0),
                 "score": round(score, 2),
             })
 

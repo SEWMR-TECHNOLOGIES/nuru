@@ -14,6 +14,7 @@ from models.meetings import EventMeeting, EventMeetingParticipant
 from models.meeting_documents import MeetingAgendaItem, MeetingMinutes
 from models.events import Event
 from models.users import User
+from utils.batch_loaders import build_meeting_dicts
 
 router = APIRouter(prefix="/meetings", tags=["meeting-og"])
 
@@ -56,149 +57,42 @@ def get_meeting_by_room(room_id: str, db: Session = Depends(get_db)):
 
 @router.get("/my")
 def get_my_meetings(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    """Get all meetings the current user is a participant of, across all events.
+    """Get all meetings the current user is a participant of, across all events."""
+    user_id = str(current_user.id)
 
-    Optimized: was O(N meetings * 4 + N * P participants) queries — now ~8 batched
-    queries regardless of result size. Preserves response shape 1:1.
-    """
-    from collections import defaultdict
-    from sqlalchemy import func as sa_func
-    from models.enums import MeetingStatusEnum
-    from models.users import UserProfile  # local import to avoid cycles
-
-    user_id = current_user.id
-
-    # 1) Meeting ids this user participates in (id-only, no row hydration).
-    meeting_id_rows = db.query(EventMeetingParticipant.meeting_id).filter(
-        EventMeetingParticipant.user_id == user_id
-    ).all()
-    meeting_ids = [r[0] for r in meeting_id_rows]
+    # Single grouped query for participant→meeting ids
+    meeting_ids = [
+        r[0] for r in db.query(EventMeetingParticipant.meeting_id)
+        .filter(EventMeetingParticipant.user_id == user_id).all()
+    ]
     if not meeting_ids:
         return {"success": True, "data": []}
 
-    # 2) Load meetings with their participants pre-fetched in one round-trip.
-    from sqlalchemy.orm import selectinload
     meetings = (
         db.query(EventMeeting)
-        .options(selectinload(EventMeeting.participants))
         .filter(EventMeeting.id.in_(meeting_ids))
         .order_by(EventMeeting.scheduled_at.desc())
         .all()
     )
 
-    # 3) Auto-close stale in_progress meetings — single bulk UPDATE instead of
-    #    per-row queries + commits inside a read endpoint.
-    now = datetime.utcnow()
-    stale_ids = []
-    for m in meetings:
-        if m.status == MeetingStatusEnum.in_progress and m.scheduled_at:
-            try:
-                duration = int(m.duration_minutes or 60)
-            except (TypeError, ValueError):
-                duration = 60
-            if now > m.scheduled_at + timedelta(minutes=duration + 30):
-                stale_ids.append(m.id)
-                m.status = MeetingStatusEnum.ended
-                m.ended_at = m.scheduled_at + timedelta(minutes=duration + 30)
-    if stale_ids:
-        try:
-            db.query(EventMeeting).filter(EventMeeting.id.in_(stale_ids)).update(
-                {EventMeeting.status: MeetingStatusEnum.ended, EventMeeting.ended_at: now},
-                synchronize_session=False,
-            )
-            db.commit()
-        except Exception:
-            db.rollback()
+    # Bulk dict build (handles participants, creator, agenda, minutes, pending requests
+    # and stale-status auto-end in a single grouped query each)
+    dicts = build_meeting_dicts(db, meetings)
 
-    # 4) Batch-load every related entity needed by the response.
+    # Enrich with event_name + event_cover_image (one grouped query)
     event_ids = list({m.event_id for m in meetings if m.event_id})
-    creator_ids = {m.created_by for m in meetings if m.created_by}
-    participant_user_ids = {p.user_id for m in meetings for p in m.participants if p.user_id}
-    all_user_ids = list(creator_ids | participant_user_ids)
+    event_map = {
+        e.id: e
+        for e in db.query(Event).filter(Event.id.in_(event_ids)).all()
+    } if event_ids else {}
 
-    events_map = (
-        {e.id: e for e in db.query(Event).filter(Event.id.in_(event_ids)).all()}
-        if event_ids else {}
-    )
-    users_map = (
-        {u.id: u for u in db.query(User).filter(User.id.in_(all_user_ids)).all()}
-        if all_user_ids else {}
-    )
-    profile_map = (
-        {p.user_id: p for p in db.query(UserProfile).filter(
-            UserProfile.user_id.in_(list(participant_user_ids))
-        ).all()}
-        if participant_user_ids else {}
-    )
+    by_id = {d["id"]: d for d in dicts}
+    for m in meetings:
+        d = by_id.get(str(m.id))
+        if not d:
+            continue
+        ev = event_map.get(m.event_id)
+        d["event_name"] = ev.name if ev else None
+        d["event_cover_image"] = getattr(ev, "cover_image", None) if ev else None
 
-    # 5) Grouped existence checks for agenda / minutes — 2 queries total.
-    agenda_meeting_ids = {
-        r[0] for r in db.query(MeetingAgendaItem.meeting_id).filter(
-            MeetingAgendaItem.meeting_id.in_(meeting_ids)
-        ).distinct().all()
-    }
-    minutes_meeting_ids = {
-        r[0] for r in db.query(MeetingMinutes.meeting_id).filter(
-            MeetingMinutes.meeting_id.in_(meeting_ids)
-        ).distinct().all()
-    }
-
-    def _user_name(u):
-        if not u:
-            return "Unknown"
-        return f"{u.first_name or ''} {u.last_name or ''}".strip() or "Unknown"
-
-    def _user_avatar(u):
-        if not u:
-            return None
-        prof = profile_map.get(u.id)
-        return (
-            getattr(u, 'avatar_url', None)
-            or (getattr(prof, 'profile_picture_url', None) if prof else None)
-            or (getattr(prof, 'avatar_url', None) if prof else None)
-        )
-
-    result = []
-    for meeting in meetings:
-        event = events_map.get(meeting.event_id)
-        creator = users_map.get(meeting.created_by)
-
-        participants = []
-        for p in meeting.participants:
-            u = users_map.get(p.user_id)
-            participants.append({
-                "id": str(p.id),
-                "user_id": str(p.user_id),
-                "name": _user_name(u),
-                "avatar_url": _user_avatar(u),
-                "is_notified": p.is_notified,
-                "joined_at": p.joined_at.isoformat() if p.joined_at else None,
-            })
-
-        result.append({
-            "id": str(meeting.id),
-            "event_id": str(meeting.event_id),
-            "event_name": event.name if event else None,
-            # NOTE: Event model field is cover_image_url (not cover_image). The
-            # original code read a non-existent attribute and always returned None.
-            "event_cover_image": getattr(event, 'cover_image_url', None) if event else None,
-            "title": meeting.title,
-            "description": meeting.description,
-            "scheduled_at": meeting.scheduled_at.isoformat() if meeting.scheduled_at else None,
-            "duration_minutes": meeting.duration_minutes,
-            "room_id": meeting.room_id,
-            "meeting_url": f"https://nuru.tz/meet/{meeting.room_id}",
-            "status": meeting.status.value if meeting.status else "scheduled",
-            "created_by": {
-                "id": str(meeting.created_by),
-                "name": _user_name(creator),
-            },
-            "participants": participants,
-            "participant_count": len(participants),
-            "has_agenda": meeting.id in agenda_meeting_ids,
-            "has_minutes": meeting.id in minutes_meeting_ids,
-            "ended_at": meeting.ended_at.isoformat() if meeting.ended_at else None,
-            "created_at": meeting.created_at.isoformat() if meeting.created_at else None,
-        })
-
-    return {"success": True, "data": result}
+    return {"success": True, "data": dicts}

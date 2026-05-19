@@ -295,10 +295,18 @@ def _send_chunk(messages_by_phone: dict[str, str]) -> dict[str, bool]:
                 message=message + SMS_SIGNATURE,
                 recipients=[phone],
             )
-            ok = bool(resp) and (
-                resp.get("success") is not False  # truthy / missing == ok
-            )
+            # The SewmrSMS gateway returns ``{"success": true, ...}`` on a
+            # confirmed send and ``{"success": false, "error": "..."}`` on
+            # any failure (timeouts, auth, throttling, invalid recipient).
+            # Treat *anything* that isn't an explicit ``success == True``
+            # as a failure so the job stays queued and gets retried — the
+            # previous "truthy / missing == ok" check was masking real
+            # gateway errors as successful sends.
+            ok = bool(resp) and resp.get("success") is True
             results[phone] = ok
+            if not ok:
+                err = (resp or {}).get("error") or (resp or {}).get("message") or "unknown"
+                print(f"[sms_batch] gateway non-success for {phone[-4:]}: {err}")
         except Exception as e:  # noqa: BLE001
             print(f"[sms_batch] gateway error for {phone}: {e}")
             results[phone] = False

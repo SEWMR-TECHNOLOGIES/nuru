@@ -264,7 +264,20 @@ export const contributorsApi = {
     contact_phone?: string;
     contributor_ids: string[];
   }) =>
-    post<{ sent: number; failed: number; errors: string[] }>(`/user-contributors/events/${eventId}/bulk-message`, data),
+    post<{
+      // New async batch response
+      batch_id?: string;
+      queued?: number;
+      skipped_self?: number;
+      skipped_duplicate?: number;
+      skipped_invalid_phone?: number | string[];
+      mode?: 'queued' | 'inline';
+      idempotent_replay?: boolean;
+      // Legacy synchronous response (kept for backward compatibility)
+      sent?: number;
+      failed?: number;
+      errors?: string[];
+    }>(`/user-contributors/events/${eventId}/bulk-message`, data),
 
   /** Fetch saved per-event messaging customisations keyed by case_type. */
   getMessagingTemplates: (eventId: string) =>
