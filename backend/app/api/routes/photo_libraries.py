@@ -21,19 +21,21 @@ from models import (
 )
 from utils.auth import get_current_user, get_optional_user
 from utils.helpers import standard_response
+from services.share_links import host_for_currency
 
 EAT = pytz.timezone("Africa/Nairobi")
 router = APIRouter(prefix="/photo-libraries", tags=["Photo Libraries"])
 
+
 # Storage constants
 MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024       # 10MB per image
-MAX_VIDEO_SIZE_BYTES = 200 * 1024 * 1024      # 200MB per video (capped at library limit)
+MAX_VIDEO_SIZE_BYTES = 10 * 1024 * 1024       # 10MB per video (clear per-item cap)
 MAX_LIBRARY_STORAGE_BYTES = 200 * 1024 * 1024  # 200MB per library — hard ceiling per product spec
 # Kept for backwards-compat references inside this module:
 MAX_SERVICE_STORAGE_BYTES = MAX_LIBRARY_STORAGE_BYTES
 
-ALLOWED_IMAGE_MIMES = {"image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"}
-ALLOWED_VIDEO_MIMES = {"video/mp4", "video/quicktime", "video/x-m4v"}
+ALLOWED_IMAGE_MIMES = {"image/jpeg", "image/png", "image/webp", "image/avif", "image/gif", "image/heic", "image/heif"}
+ALLOWED_VIDEO_MIMES = {"video/mp4", "video/quicktime", "video/x-m4v", "video/3gpp", "video/x-msvideo", "video/x-matroska", "video/webm"}
 ALLOWED_ALL_MIMES = ALLOWED_IMAGE_MIMES | ALLOWED_VIDEO_MIMES
 
 # PHP storage query endpoint (same server as upload service)
@@ -58,7 +60,11 @@ def _library_dict(library: ServicePhotoLibrary, include_photos: bool = False, ma
         else:
             photo_count_actual += 1
     if include_photos:
-        sorted_photos = sorted(library.photos, key=lambda x: x.display_order)
+        sorted_photos = sorted(
+            library.photos,
+            key=lambda x: x.created_at or datetime.min,
+            reverse=True,
+        )
         if max_photos is not None:
             sorted_photos = sorted_photos[:max_photos]
         for p in sorted_photos:
@@ -72,6 +78,8 @@ def _library_dict(library: ServicePhotoLibrary, include_photos: bool = False, ma
                 "media_type": p.media_type or 'photo',
                 "duration_seconds": p.duration_seconds,
                 "uploaded_by_user_id": str(p.uploaded_by_user_id) if p.uploaded_by_user_id else None,
+                "is_highlight": bool(getattr(p, "is_highlight", False)),
+                "album_name": getattr(p, "album_name", None),
                 "created_at": p.created_at.isoformat() if p.created_at else None,
             })
 
@@ -86,6 +94,19 @@ def _library_dict(library: ServicePhotoLibrary, include_photos: bool = False, ma
                 break
 
     bytes_used = library.total_size_bytes or 0
+
+    # Build full shareable URL — must include domain (nuru.tz/nuru.ke) so SMS,
+    # WhatsApp, and clipboard shares open the public page rather than a relative path.
+    currency_code = None
+    try:
+        if event and event.currency and getattr(event.currency, 'code', None):
+            currency_code = event.currency.code
+    except Exception:
+        currency_code = None
+    share_host = host_for_currency(currency_code)
+    share_path = f"/shared/photo-library/{library.share_token}"
+    share_url = f"https://{share_host}{share_path}"
+
     return {
         "id": str(library.id),
         "user_service_id": str(library.user_service_id),
@@ -94,10 +115,14 @@ def _library_dict(library: ServicePhotoLibrary, include_photos: bool = False, ma
         "description": library.description,
         "privacy": library.privacy.value if library.privacy else "event_creator_only",
         "share_token": library.share_token,
-        "share_url": f"/shared/photo-library/{library.share_token}",
+        "share_url": share_url,
+        "share_path": share_path,
+
         "photo_count": photo_count_actual,
         "video_count": video_count,
         "media_count": photo_count_actual + video_count,
+        "album_count": len({p.album_name for p in library.photos if getattr(p, "album_name", None)}),
+        "highlight_count": len([p for p in library.photos if getattr(p, "is_highlight", False)]),
         "total_size_bytes": bytes_used,
         "total_size_mb": round(bytes_used / (1024 * 1024), 2),
         "storage_limit_bytes": MAX_LIBRARY_STORAGE_BYTES,
@@ -381,6 +406,8 @@ async def upload_photo(
     file: UploadFile = File(...),
     caption: Optional[str] = Form(None),
     duration_seconds: Optional[int] = Form(None),  # supplied by client for videos
+    album_name: Optional[str] = Form(None),
+    is_highlight: bool = Form(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -398,14 +425,25 @@ async def upload_photo(
     if not (is_owner or is_event_organizer):
         return standard_response(False, "Access denied - you cannot upload to this library")
 
-    # Validate mime type — photos AND videos are accepted
-    if file.content_type not in ALLOWED_ALL_MIMES:
+    # Validate mime type — photos AND videos are accepted. Some Android pickers
+    # send octet-stream for AVIF/HEIC/MOV, so fall back to extension detection.
+    _, original_ext = os.path.splitext(file.filename or "")
+    ext = original_ext.lower()
+    ext_mime_map = {
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+        ".webp": "image/webp", ".avif": "image/avif", ".gif": "image/gif",
+        ".heic": "image/heic", ".heif": "image/heif", ".mp4": "video/mp4",
+        ".mov": "video/quicktime", ".m4v": "video/x-m4v", ".3gp": "video/3gpp",
+        ".avi": "video/x-msvideo", ".mkv": "video/x-matroska", ".webm": "video/webm",
+    }
+    content_type = file.content_type if file.content_type in ALLOWED_ALL_MIMES else ext_mime_map.get(ext)
+    if content_type not in ALLOWED_ALL_MIMES:
         return standard_response(
             False,
-            "Unsupported file type. Allowed: JPG, PNG, WebP, AVIF, GIF, MP4, MOV.",
+            "Unsupported file type. Allowed: JPG, PNG, WebP, AVIF, HEIC, GIF, MP4, MOV, M4V, 3GP, AVI, MKV, WebM.",
         )
 
-    is_video = file.content_type in ALLOWED_VIDEO_MIMES
+    is_video = content_type in ALLOWED_VIDEO_MIMES
     media_type = 'video' if is_video else 'photo'
 
     content = await file.read()
@@ -441,7 +479,7 @@ async def upload_photo(
             resp = await client.post(
                 UPLOAD_SERVICE_URL,
                 data={"target_path": folder_path},
-                files={"file": (unique_name, content, file.content_type)},
+                files={"file": (unique_name, content, content_type)},
                 timeout=120 if is_video else 30,
             )
         except Exception as e:
@@ -469,6 +507,8 @@ async def upload_photo(
         media_type=media_type,
         duration_seconds=duration_seconds if is_video else None,
         uploaded_by_user_id=current_user.id,
+        album_name=album_name.strip() if album_name and album_name.strip() else None,
+        is_highlight=bool(is_highlight),
         created_at=now,
     )
     db.add(photo)
@@ -488,6 +528,8 @@ async def upload_photo(
         "display_order": photo.display_order,
         "media_type": media_type,
         "duration_seconds": photo.duration_seconds,
+        "album_name": photo.album_name,
+        "is_highlight": photo.is_highlight,
         "library_id": str(lid),
         "storage_used_bytes": library.total_size_bytes,
         "storage_used_mb": round(library.total_size_bytes / (1024 * 1024), 2),
