@@ -257,6 +257,8 @@ def get_my_services(
     # Aggregate booking counts across all of this vendor's services
     booking_total = 0
     booking_completed = 0
+    booking_pending = 0
+    pending_per_service: dict = {}
     if all_service_ids:
         booking_rows = (
             db.query(ServiceBookingRequest.status, sa_func.count(ServiceBookingRequest.id))
@@ -266,12 +268,36 @@ def get_my_services(
         )
         for status_value, count in booking_rows:
             booking_total += int(count)
-            if str(status_value).lower() in ("completed", "delivered"):
+            sv = str(status_value).lower()
+            if sv in ("completed", "delivered"):
                 booking_completed += int(count)
+            if sv == "pending":
+                booking_pending += int(count)
+
+        # Per-service pending counts so the mobile card can hide
+        # the "Manage Bookings" entry when nothing is pending.
+        per_rows = (
+            db.query(
+                ServiceBookingRequest.user_service_id,
+                sa_func.count(ServiceBookingRequest.id),
+            )
+            .filter(
+                ServiceBookingRequest.user_service_id.in_(all_service_ids),
+                ServiceBookingRequest.status == "pending",
+            )
+            .group_by(ServiceBookingRequest.user_service_id)
+            .all()
+        )
+        for sid_, cnt in per_rows:
+            pending_per_service[str(sid_)] = int(cnt)
 
     completion_rate = round(
         (booking_completed / booking_total) * 100, 0
     ) if booking_total > 0 else 0
+
+    # Decorate each service dict with its pending booking count
+    for s in service_list:
+        s["pending_bookings_count"] = pending_per_service.get(str(s.get("id")), 0)
 
     summary = {
         "total_services": len(service_list),
@@ -285,6 +311,7 @@ def get_my_services(
         ) if any(s["review_count"] > 0 for s in service_list) else 0,
         "total_bookings": booking_total,
         "completed_bookings": booking_completed,
+        "pending_bookings": booking_pending,
         "completion_rate": completion_rate,
     }
 
