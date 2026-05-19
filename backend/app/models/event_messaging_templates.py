@@ -31,7 +31,7 @@ class EventMessagingTemplate(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "case_type IN ('no_contribution', 'partial', 'completed')",
+            "case_type IN ('no_contribution', 'partial', 'completed', 'not_pledged')",
             name="ck_event_messaging_templates_case",
         ),
         UniqueConstraint("event_id", "case_type", name="uq_event_messaging_templates_event_case"),

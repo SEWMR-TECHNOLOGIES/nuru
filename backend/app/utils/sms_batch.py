@@ -215,6 +215,12 @@ def build_batch(
     if existing:
         # Re-use the existing batch — caller will trigger flush again, which
         # is safe because per-job status guards prevent re-sends.
+        print(
+            f"[sms_batch] build_batch IDEMPOTENT_REUSE event={event.id} "
+            f"existing_batch={existing._mapping['id']} status={existing._mapping['status']} "
+            f"recipient_count={existing._mapping['recipient_count']} "
+            f"(no new jobs created — worker will likely report 0/0 if all already done)"
+        )
         return existing, [], dedup, True
 
     # ── Create batch + jobs ──
@@ -268,6 +274,13 @@ def build_batch(
 
     db.commit()
 
+    print(
+        f"[sms_batch] build_batch event={event.id} batch={batch_id} "
+        f"recipients_in={len(recipients)} prepared={len(prepared)} jobs_inserted={len(job_rows)} "
+        f"self_skipped={len(dedup.self_skipped)} dup_skipped={len(dedup.duplicate_skipped)} "
+        f"invalid_phone={len(dedup.invalid_phone)} idem_hash={idem_hash[:12]}"
+    )
+
     batch_row = db.execute(
         text("SELECT id, status, recipient_count FROM sms_send_batches WHERE id = :id"),
         {"id": str(batch_id)},
@@ -275,49 +288,43 @@ def build_batch(
     return batch_row, job_rows, dedup, False
 
 
-def _send_chunk(messages_by_phone: dict[str, str]) -> dict[str, bool]:
-    """Send a single chunk to SewmrSmsClient. Returns ``{phone: ok}``.
+def _send_chunk(messages_by_phone: dict[str, str]) -> dict[str, tuple[bool, str | None]]:
+    """Send a single chunk to SewmrSmsClient. Returns ``{phone: (ok, err)}``.
 
     SewmrSmsClient's ``send_quick_sms`` only accepts ONE message body per
-    call, so we group by identical resolved message. In practice every
-    recipient gets a personalised message ({name} substitution), so the
-    chunk usually translates to one call per recipient. That's fine —
-    chunking still serialises us so we don't overwhelm the gateway, and
-    the Celery worker handles the wall-clock cost off-request.
+    call, so we send one HTTP request per recipient (every message is
+    personalised via {name}). Chunking still serialises us so we don't
+    overwhelm the gateway, and the Celery worker handles the wall-clock
+    cost off-request.
     """
     from services.SewmrSmsClient import SewmrSmsClient
 
     client = SewmrSmsClient()
-    results: dict[str, bool] = {}
+    results: dict[str, tuple[bool, str | None]] = {}
     for phone, message in messages_by_phone.items():
         try:
             resp = client.send_quick_sms(
                 message=message + SMS_SIGNATURE,
                 recipients=[phone],
             )
-            # The SewmrSMS gateway returns ``{"success": true, ...}`` on a
-            # confirmed send and ``{"success": false, "error": "..."}`` on
-            # any failure (timeouts, auth, throttling, invalid recipient).
-            # Treat *anything* that isn't an explicit ``success == True``
-            # as a failure so the job stays queued and gets retried — the
-            # previous "truthy / missing == ok" check was masking real
-            # gateway errors as successful sends.
+            # SewmrSMS returns {"success": true, ...} on confirmed send.
+            # Treat anything else (including missing key) as failure.
             ok = bool(resp) and resp.get("success") is True
-            results[phone] = ok
+            err = None
             if not ok:
-                err = (resp or {}).get("error") or (resp or {}).get("message") or "unknown"
-                print(f"[sms_batch] gateway non-success for {phone[-4:]}: {err}")
+                err = str((resp or {}).get("error") or (resp or {}).get("message") or resp or "unknown")
+                print(f"[sms_batch] gateway NON-SUCCESS phone=***{phone[-4:]} resp={resp!r}")
+            else:
+                print(f"[sms_batch] gateway OK phone=***{phone[-4:]}")
+            results[phone] = (ok, err)
         except Exception as e:  # noqa: BLE001
-            print(f"[sms_batch] gateway error for {phone}: {e}")
-            results[phone] = False
+            print(f"[sms_batch] gateway EXCEPTION phone=***{phone[-4:]}: {e!r}")
+            results[phone] = (False, f"exception: {e}")
     return results
 
 
 def _claim_jobs(db: Session, batch_id: str, limit: int) -> list[dict]:
-    """Claim up to ``limit`` queued/retry-due jobs using SKIP LOCKED.
-
-    Returns the raw row dicts. Caller is expected to update them.
-    """
+    """Claim up to ``limit`` queued/retry-due jobs using SKIP LOCKED."""
     rows = db.execute(
         text(
             """
@@ -334,6 +341,23 @@ def _claim_jobs(db: Session, batch_id: str, limit: int) -> list[dict]:
         {"bid": batch_id, "lim": limit},
     ).fetchall()
     return [dict(r._mapping) for r in rows]
+
+
+def _diagnose_batch(db: Session, batch_id: str) -> dict:
+    """Snapshot of a batch's job statuses — used for logging."""
+    rows = db.execute(
+        text(
+            """
+            SELECT status, COUNT(*) AS n,
+                   SUM(CASE WHEN next_retry_at > now() THEN 1 ELSE 0 END) AS waiting_retry
+              FROM sms_send_jobs
+             WHERE batch_id = :bid
+             GROUP BY status
+            """
+        ),
+        {"bid": batch_id},
+    ).fetchall()
+    return {r._mapping["status"]: {"n": int(r._mapping["n"]), "waiting_retry": int(r._mapping["waiting_retry"] or 0)} for r in rows}
 
 
 def _finalise_batch(db: Session, batch_id: str) -> None:
@@ -390,14 +414,24 @@ def flush_batch(db: Session, batch_id: str, time_budget_seconds: float | None = 
     started = time.monotonic()
     sent_total = 0
     failed_total = 0
+    chunks = 0
+    last_errors: list[str] = []
+
+    # Snapshot pre-flush state so we know whether worker even has work.
+    pre = _diagnose_batch(db, batch_id)
+    print(f"[sms_batch] flush_batch START batch={batch_id} pre_state={pre} budget={time_budget_seconds}")
 
     while True:
         if time_budget_seconds is not None and (time.monotonic() - started) >= time_budget_seconds:
+            print(f"[sms_batch] flush_batch budget hit batch={batch_id}")
             break
 
         jobs = _claim_jobs(db, batch_id, CHUNK_SIZE)
         if not jobs:
+            print(f"[sms_batch] flush_batch no_more_jobs batch={batch_id} chunks={chunks}")
             break
+        chunks += 1
+        print(f"[sms_batch] flush_batch chunk={chunks} claimed={len(jobs)} batch={batch_id}")
 
         # Build phone→message map for this chunk
         messages = {j["recipient_phone_e164"]: j["resolved_message"] for j in jobs}
@@ -407,7 +441,7 @@ def flush_batch(db: Session, batch_id: str, time_budget_seconds: float | None = 
         now = datetime.utcnow()
         for j in jobs:
             phone = j["recipient_phone_e164"]
-            ok = results.get(phone, False)
+            ok, err_text = results.get(phone, (False, "missing_result"))
             new_attempts = (j.get("attempts") or 0) + 1
             if ok:
                 db.execute(
@@ -426,6 +460,8 @@ def flush_batch(db: Session, batch_id: str, time_budget_seconds: float | None = 
                 )
                 sent_total += 1
             else:
+                if len(last_errors) < 5 and err_text:
+                    last_errors.append(f"***{phone[-4:]}: {err_text[:120]}")
                 if new_attempts >= MAX_ATTEMPTS:
                     db.execute(
                         text(
@@ -434,11 +470,11 @@ def flush_batch(db: Session, batch_id: str, time_budget_seconds: float | None = 
                                SET status = 'failed',
                                    attempts = :a,
                                    next_retry_at = NULL,
-                                   error_text = COALESCE(error_text, '') || E'\n' || 'gateway_error'
+                                   error_text = COALESCE(error_text, '') || E'\n' || :err
                              WHERE id = :id
                             """
                         ),
-                        {"a": new_attempts, "id": j["id"]},
+                        {"a": new_attempts, "id": j["id"], "err": (err_text or "gateway_error")[:500]},
                     )
                 else:
                     # Stays 'queued' but with next_retry_at pushed out 1h.
@@ -448,7 +484,7 @@ def flush_batch(db: Session, batch_id: str, time_budget_seconds: float | None = 
                             UPDATE sms_send_jobs
                                SET attempts = :a,
                                    next_retry_at = :next,
-                                   error_text = COALESCE(error_text, '') || E'\n' || 'gateway_error'
+                                   error_text = COALESCE(error_text, '') || E'\n' || :err
                              WHERE id = :id
                             """
                         ),
@@ -456,13 +492,16 @@ def flush_batch(db: Session, batch_id: str, time_budget_seconds: float | None = 
                             "a": new_attempts,
                             "next": now + RETRY_DELAY,
                             "id": j["id"],
+                            "err": (err_text or "gateway_error")[:500],
                         },
                     )
                 failed_total += 1
         db.commit()
 
     _finalise_batch(db, batch_id)
-    return {"sent": sent_total, "failed": failed_total}
+    post = _diagnose_batch(db, batch_id)
+    print(f"[sms_batch] flush_batch DONE batch={batch_id} sent={sent_total} failed={failed_total} chunks={chunks} post_state={post} errors={last_errors}")
+    return {"sent": sent_total, "failed": failed_total, "chunks": chunks, "pre": pre, "post": post, "errors": last_errors}
 
 
 def flush_batch_inline(db: Session, batch_id: str, time_budget_seconds: float = 8.0) -> dict:

@@ -33,7 +33,7 @@ interface ContributorMessagingProps {
   defaultContactPhone?: string;
 }
 
-type ContributorCase = 'no_contribution' | 'partial' | 'completed';
+type ContributorCase = 'no_contribution' | 'partial' | 'completed' | 'not_pledged';
 
 interface MessageTemplate {
   id: string;
@@ -69,9 +69,24 @@ Namba ya malipo: {payment}`,
 Habari {name},
 Asante kwa kukamilisha mchango wako kwa ajili ya {event_name}. Tunathamini sana ushiriki wako.`,
   },
+  {
+    id: 'not_pledged_default',
+    case: 'not_pledged',
+    label: 'Invite - Not Pledged',
+    template: `{event_title}
+Habari {name},
+Tunakukaribisha kushiriki katika {event_name}. Tafadhali toa ahadi yako ya mchango.
+Namba ya malipo: {payment}`,
+  },
 ];
 
 const CASE_CONFIG: Record<ContributorCase, { label: string; description: string; icon: React.ReactNode; color: string }> = {
+  not_pledged: {
+    label: 'Not Pledged',
+    description: 'Contributors added without a pledge yet',
+    icon: <Users className="w-4 h-4" />,
+    color: 'text-muted-foreground',
+  },
   no_contribution: {
     label: 'No Contribution',
     description: 'Contributors with pledges but no payment yet',
@@ -126,6 +141,8 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
       if (!hasPhone) return false;
 
       switch (selectedCase) {
+        case 'not_pledged':
+          return pledge === 0 && paid === 0;
         case 'no_contribution':
           return pledge > 0 && paid === 0;
         case 'partial':
@@ -341,13 +358,14 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
 
       <CardContent className="p-4 md:p-5 space-y-5">
         {/* Case Selector */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {(Object.entries(CASE_CONFIG) as [ContributorCase, typeof CASE_CONFIG['no_contribution']][]).map(([key, config]) => {
             const count = eventContributors.filter(ec => {
               const pledge = ec.pledge_amount || 0;
               const paid = ec.total_paid || 0;
               const hasPhone = !!ec.contributor?.phone;
               if (!hasPhone) return false;
+              if (key === 'not_pledged') return pledge === 0 && paid === 0;
               if (key === 'no_contribution') return pledge > 0 && paid === 0;
               if (key === 'partial') return pledge > 0 && paid > 0 && paid < pledge;
               if (key === 'completed') return pledge > 0 && paid >= pledge;
