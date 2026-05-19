@@ -258,7 +258,7 @@ export const contributorsApi = {
 
   /** Send bulk reminder SMS. Server auto-saves the customisation per (event, case_type). */
   sendBulkReminder: (eventId: string, data: {
-    case_type: 'no_contribution' | 'partial' | 'completed';
+    case_type: 'no_contribution' | 'partial' | 'completed' | 'not_pledged';
     message_template: string;
     payment_info?: string;
     contact_phone?: string;
@@ -282,7 +282,7 @@ export const contributorsApi = {
   /** Fetch saved per-event messaging customisations keyed by case_type. */
   getMessagingTemplates: (eventId: string) =>
     get<{
-      templates: Partial<Record<'no_contribution' | 'partial' | 'completed', {
+      templates: Partial<Record<'no_contribution' | 'partial' | 'completed' | 'not_pledged', {
         message_template: string | null;
         payment_info: string | null;
         contact_phone: string | null;
@@ -293,7 +293,7 @@ export const contributorsApi = {
   /** Save (without sending) a per-event messaging customisation. */
   saveMessagingTemplate: (
     eventId: string,
-    caseType: 'no_contribution' | 'partial' | 'completed',
+    caseType: 'no_contribution' | 'partial' | 'completed' | 'not_pledged',
     data: { message_template?: string; payment_info?: string; contact_phone?: string },
   ) =>
     put<{

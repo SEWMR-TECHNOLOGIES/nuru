@@ -2159,7 +2159,7 @@ def send_bulk_contributor_message(event_id: str, body: dict = Body(...), db: Ses
     # Persist the customisation per (event, case_type) so the organiser
     # doesn't have to retype the message template, payment info or contact
     # phone next time. Best-effort — never block the actual send.
-    if case_type in ("no_contribution", "partial", "completed"):
+    if case_type in ("no_contribution", "partial", "completed", "not_pledged"):
         try:
             tpl = db.query(EventMessagingTemplate).filter(
                 EventMessagingTemplate.event_id == eid,
@@ -2181,7 +2181,8 @@ def send_bulk_contributor_message(event_id: str, body: dict = Body(...), db: Ses
                     updated_by=current_user.id,
                 ))
             db.commit()
-        except Exception:
+        except Exception as e:
+            print(f"[bulk-message] template save failed (non-fatal): {e}")
             db.rollback()
 
     # Fetch event contributors with their contributor details
@@ -2232,34 +2233,43 @@ def send_bulk_contributor_message(event_id: str, body: dict = Body(...), db: Ses
         override_contact_phone=override_phone,
     )
     batch_id = str(batch_row._mapping["id"])
+    recipient_count = int(batch_row._mapping["recipient_count"] or 0)
 
     # Decide dispatch mode: prefer Celery+Redis, fall back to inline.
-    mode = "inline"
-    try:
-        from core.celery_app import CELERY_ENABLED
-        from core.redis import redis_available
-        if CELERY_ENABLED and redis_available():
-            from tasks.sms_dispatch import send_batch as send_batch_task
-            send_batch_task.delay(batch_id)
-            mode = "queued"
-    except Exception as e:  # noqa: BLE001
-        print(f"[bulk-message] celery dispatch unavailable, falling back inline: {e}")
-
-    if mode == "inline":
-        # Vercel / no-broker path: do as much work as we can within the
-        # serverless time budget; the beat task picks up the rest.
+    # Skip dispatch entirely when there's nothing to send — otherwise the
+    # worker logs the misleading "{'sent': 0, 'failed': 0}" we've been
+    # chasing.
+    mode = "skipped_empty" if recipient_count == 0 and not was_existing else "inline"
+    if recipient_count > 0 or was_existing:
         try:
-            from utils.sms_batch import flush_batch_inline
-            flush_batch_inline(db, batch_id, time_budget_seconds=8.0)
+            from core.celery_app import CELERY_ENABLED
+            from core.redis import redis_available
+            if CELERY_ENABLED and redis_available():
+                from tasks.sms_dispatch import send_batch as send_batch_task
+                send_batch_task.delay(batch_id)
+                mode = "queued"
+                print(f"[bulk-message] queued batch={batch_id} recipients={recipient_count} reused={was_existing} case={case_type}")
         except Exception as e:  # noqa: BLE001
-            print(f"[bulk-message] inline flush error: {e}")
+            print(f"[bulk-message] celery dispatch unavailable, falling back inline: {e}")
+
+        if mode == "inline":
+            # Vercel / no-broker path: do as much work as we can within the
+            # serverless time budget; the beat task picks up the rest.
+            try:
+                from utils.sms_batch import flush_batch_inline
+                result = flush_batch_inline(db, batch_id, time_budget_seconds=8.0)
+                print(f"[bulk-message] inline flush batch={batch_id} result={result}")
+            except Exception as e:  # noqa: BLE001
+                print(f"[bulk-message] inline flush error: {e}")
+    else:
+        print(f"[bulk-message] SKIPPED dispatch batch={batch_id} — 0 valid recipients after dedup/normalisation (case={case_type})")
 
     return standard_response(
         True,
-        "Reminder batch accepted" if not was_existing else "Existing batch reused (idempotent)",
+        "Reminder batch accepted" if not was_existing else "Existing batch reused (idempotent — already sent within last hour)",
         {
             "batch_id": batch_id,
-            "queued": int(batch_row._mapping["recipient_count"] or 0),
+            "queued": recipient_count,
             "skipped_self": dedup.self_skipped,
             "skipped_duplicate": dedup.duplicate_skipped,
             "skipped_invalid_phone": dedup.invalid_phone + invalid,
