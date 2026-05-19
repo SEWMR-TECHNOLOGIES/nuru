@@ -16,6 +16,7 @@ from core.config import UPLOAD_SERVICE_URL
 from core.database import get_db
 from models import (
     UserService, Event, EventImage, EventService, ServicePhotoLibrary, ServicePhotoLibraryImage,
+    ServicePhotoLibraryFavorite,
     User, PhotoLibraryPrivacyEnum, EventServiceStatusEnum,
 )
 from utils.auth import get_current_user, get_optional_user
@@ -26,9 +27,14 @@ router = APIRouter(prefix="/photo-libraries", tags=["Photo Libraries"])
 
 # Storage constants
 MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024       # 10MB per image
-MAX_SERVICE_STORAGE_BYTES = 200 * 1024 * 1024  # 200MB per service total
+MAX_VIDEO_SIZE_BYTES = 200 * 1024 * 1024      # 200MB per video (capped at library limit)
+MAX_LIBRARY_STORAGE_BYTES = 200 * 1024 * 1024  # 200MB per library — hard ceiling per product spec
+# Kept for backwards-compat references inside this module:
+MAX_SERVICE_STORAGE_BYTES = MAX_LIBRARY_STORAGE_BYTES
 
 ALLOWED_IMAGE_MIMES = {"image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"}
+ALLOWED_VIDEO_MIMES = {"video/mp4", "video/quicktime", "video/x-m4v"}
+ALLOWED_ALL_MIMES = ALLOWED_IMAGE_MIMES | ALLOWED_VIDEO_MIMES
 
 # PHP storage query endpoint (same server as upload service)
 STORAGE_SERVICE_BASE = "https://data.sewmrtechnologies.com"
@@ -41,8 +47,16 @@ def _build_folder_path(service_id: str, event_name: str) -> str:
     return f"nuru/photo-libraries/{service_id}/libraries/{safe_event}/"
 
 
-def _library_dict(library: ServicePhotoLibrary, include_photos: bool = False, max_photos: int = None) -> dict:
+def _library_dict(library: ServicePhotoLibrary, include_photos: bool = False, max_photos: int = None,
+                  current_user_id=None) -> dict:
     photos_data = []
+    video_count = 0
+    photo_count_actual = 0
+    for p in library.photos:
+        if (p.media_type or 'photo') == 'video':
+            video_count += 1
+        else:
+            photo_count_actual += 1
     if include_photos:
         sorted_photos = sorted(library.photos, key=lambda x: x.display_order)
         if max_photos is not None:
@@ -55,12 +69,23 @@ def _library_dict(library: ServicePhotoLibrary, include_photos: bool = False, ma
                 "file_size_bytes": p.file_size_bytes,
                 "caption": p.caption,
                 "display_order": p.display_order,
+                "media_type": p.media_type or 'photo',
+                "duration_seconds": p.duration_seconds,
+                "uploaded_by_user_id": str(p.uploaded_by_user_id) if p.uploaded_by_user_id else None,
                 "created_at": p.created_at.isoformat() if p.created_at else None,
             })
 
     event = library.event
     service = library.user_service
 
+    is_favorite = False
+    if current_user_id is not None:
+        for fav in (library.favorites or []):
+            if str(fav.user_id) == str(current_user_id):
+                is_favorite = True
+                break
+
+    bytes_used = library.total_size_bytes or 0
     return {
         "id": str(library.id),
         "user_service_id": str(library.user_service_id),
@@ -70,12 +95,17 @@ def _library_dict(library: ServicePhotoLibrary, include_photos: bool = False, ma
         "privacy": library.privacy.value if library.privacy else "event_creator_only",
         "share_token": library.share_token,
         "share_url": f"/shared/photo-library/{library.share_token}",
-        "photo_count": library.photo_count or 0,
-        "total_size_bytes": library.total_size_bytes or 0,
-        "total_size_mb": round((library.total_size_bytes or 0) / (1024 * 1024), 2),
+        "photo_count": photo_count_actual,
+        "video_count": video_count,
+        "media_count": photo_count_actual + video_count,
+        "total_size_bytes": bytes_used,
+        "total_size_mb": round(bytes_used / (1024 * 1024), 2),
+        "storage_limit_bytes": MAX_LIBRARY_STORAGE_BYTES,
         "storage_limit_mb": 200,
-        "storage_used_percent": round(((library.total_size_bytes or 0) / MAX_SERVICE_STORAGE_BYTES) * 100, 1),
+        "storage_used_percent": round((bytes_used / MAX_LIBRARY_STORAGE_BYTES) * 100, 1),
+        "storage_remaining_bytes": max(0, MAX_LIBRARY_STORAGE_BYTES - bytes_used),
         "is_active": library.is_active,
+        "is_favorite": is_favorite,
         "event": {
             "id": str(event.id),
             "name": event.name,
@@ -94,14 +124,8 @@ def _library_dict(library: ServicePhotoLibrary, include_photos: bool = False, ma
     }
 
 
-def _get_service_total_storage(db: Session, service_id) -> int:
-    """Sum up all storage used across all libraries for this service (single SUM query)."""
-    from sqlalchemy import func as sa_func
-    total = db.query(sa_func.coalesce(sa_func.sum(ServicePhotoLibrary.total_size_bytes), 0)).filter(
-        ServicePhotoLibrary.user_service_id == service_id,
-        ServicePhotoLibrary.is_active == True,
-    ).scalar()
-    return int(total or 0)
+def _library_storage_used(library: ServicePhotoLibrary) -> int:
+    return int(library.total_size_bytes or 0)
 
 
 # ──────────────────────────────────────────────
@@ -137,15 +161,25 @@ def get_service_libraries(
         ))
     libraries = q.order_by(ServicePhotoLibrary.created_at.desc()).all()
 
-    total_storage_used = _get_service_total_storage(db, sid)
+    from sqlalchemy import func as sa_func_total
+    total_storage_used = int(
+        db.query(sa_func_total.coalesce(sa_func_total.sum(ServicePhotoLibrary.total_size_bytes), 0))
+        .filter(
+            ServicePhotoLibrary.user_service_id == sid,
+            ServicePhotoLibrary.is_active == True,
+        ).scalar() or 0
+    )
 
     return standard_response(True, "Libraries retrieved", {
-        "libraries": [_library_dict(lib, include_photos=True, max_photos=3) for lib in libraries],
+        "libraries": [_library_dict(lib, include_photos=True, max_photos=3, current_user_id=current_user.id)
+                      for lib in libraries],
         "total_libraries": len(libraries),
         "storage_used_bytes": total_storage_used,
         "storage_used_mb": round(total_storage_used / (1024 * 1024), 2),
+        # Per-library limit, kept on the response so the mobile aggregate UI can show
+        # combined "X of N×200MB" if it wants.
         "storage_limit_mb": 200,
-        "storage_remaining_mb": round((MAX_SERVICE_STORAGE_BYTES - total_storage_used) / (1024 * 1024), 2),
+        "storage_limit_per_library_mb": 200,
     })
 
 
@@ -175,8 +209,9 @@ def get_library(
     if not is_owner and not is_event_organizer and not is_public:
         return standard_response(False, "Access denied")
 
-    data = _library_dict(library, include_photos=True)
+    data = _library_dict(library, include_photos=True, current_user_id=current_user.id)
     data["is_owner"] = is_owner
+    data["can_upload"] = is_owner or is_event_organizer
     return standard_response(True, "Library retrieved", data)
 
 
@@ -198,8 +233,10 @@ def get_library_by_token(
 
     # Public libraries: accessible by anyone (even without auth token)
     if library.privacy == PhotoLibraryPrivacyEnum.public:
-        data = _library_dict(library, include_photos=True)
+        data = _library_dict(library, include_photos=True,
+                             current_user_id=current_user.id if current_user else None)
         data["is_owner"] = False
+        data["can_upload"] = False
         return standard_response(True, "Library retrieved", data)
 
     # Private libraries: only accessible to owner or event organizer
@@ -212,8 +249,9 @@ def get_library_by_token(
     if not is_owner and not is_event_organizer:
         return standard_response(False, "This library is private")
 
-    data = _library_dict(library, include_photos=True)
+    data = _library_dict(library, include_photos=True, current_user_id=current_user.id)
     data["is_owner"] = is_owner
+    data["can_upload"] = is_owner or is_event_organizer
     return standard_response(True, "Library retrieved", data)
 
 
@@ -330,17 +368,19 @@ def update_library(
 
     library.updated_at = datetime.now(EAT)
     db.commit()
-    return standard_response(True, "Library updated", _library_dict(library))
+    return standard_response(True, "Library updated", _library_dict(library, current_user_id=current_user.id))
 
 
 # ──────────────────────────────────────────────
-# Upload a single image to a library
+# Upload a single image or video to a library
+# (allowed for service owner OR event organizer)
 # ──────────────────────────────────────────────
 @router.post("/{library_id}/upload")
 async def upload_photo(
     library_id: str,
     file: UploadFile = File(...),
     caption: Optional[str] = Form(None),
+    duration_seconds: Optional[int] = Form(None),  # supplied by client for videos
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -353,30 +393,47 @@ async def upload_photo(
     if not library or not library.is_active:
         return standard_response(False, "Library not found")
 
-    if library.user_service.user_id != current_user.id:
-        return standard_response(False, "Access denied - you don't own this library")
+    is_owner = library.user_service.user_id == current_user.id
+    is_event_organizer = library.event.organizer_id == current_user.id if library.event else False
+    if not (is_owner or is_event_organizer):
+        return standard_response(False, "Access denied - you cannot upload to this library")
 
-    # Validate mime type
-    if file.content_type not in ALLOWED_IMAGE_MIMES:
-        return standard_response(False, "Only image files are allowed (JPEG, PNG, WebP, AVIF, GIF)")
+    # Validate mime type — photos AND videos are accepted
+    if file.content_type not in ALLOWED_ALL_MIMES:
+        return standard_response(
+            False,
+            "Unsupported file type. Allowed: JPG, PNG, WebP, AVIF, GIF, MP4, MOV.",
+        )
+
+    is_video = file.content_type in ALLOWED_VIDEO_MIMES
+    media_type = 'video' if is_video else 'photo'
 
     content = await file.read()
     file_size = len(content)
 
-    # 10MB per image limit
-    if file_size > MAX_IMAGE_SIZE_BYTES:
-        return standard_response(False, f"Image too large. Maximum size is 10MB, your file is {round(file_size / (1024*1024), 1)}MB")
+    per_item_cap = MAX_VIDEO_SIZE_BYTES if is_video else MAX_IMAGE_SIZE_BYTES
+    if file_size > per_item_cap:
+        cap_mb = round(per_item_cap / (1024 * 1024))
+        return standard_response(
+            False,
+            f"File too large. Maximum size is {cap_mb}MB, your file is {round(file_size / (1024*1024), 1)}MB",
+        )
 
-    # Check service total storage (200MB)
-    service_used = _get_service_total_storage(db, library.user_service_id)
-    if service_used + file_size > MAX_SERVICE_STORAGE_BYTES:
-        remaining_mb = round((MAX_SERVICE_STORAGE_BYTES - service_used) / (1024 * 1024), 2)
-        return standard_response(False, f"Storage limit exceeded. You have {remaining_mb}MB remaining out of 200MB")
+    # Per-library 200MB hard limit
+    library_used = _library_storage_used(library)
+    if library_used + file_size > MAX_LIBRARY_STORAGE_BYTES:
+        remaining_mb = round((MAX_LIBRARY_STORAGE_BYTES - library_used) / (1024 * 1024), 2)
+        return standard_response(
+            False,
+            f"Storage limit exceeded. This library has {remaining_mb}MB remaining of its 200MB allocation.",
+        )
 
-    # Build folder path: service_id/libraries/event_name
-    folder_path = _build_folder_path(str(library.user_service_id), library.event.name if library.event else str(library.event_id))
+    folder_path = _build_folder_path(
+        str(library.user_service_id),
+        library.event.name if library.event else str(library.event_id),
+    )
 
-    _, ext = os.path.splitext(file.filename or "image.jpg")
+    _, ext = os.path.splitext(file.filename or ("video.mp4" if is_video else "image.jpg"))
     unique_name = f"{uuid.uuid4().hex}{ext}"
 
     async with httpx.AsyncClient() as client:
@@ -385,7 +442,7 @@ async def upload_photo(
                 UPLOAD_SERVICE_URL,
                 data={"target_path": folder_path},
                 files={"file": (unique_name, content, file.content_type)},
-                timeout=30,
+                timeout=120 if is_video else 30,
             )
         except Exception as e:
             return standard_response(False, f"Upload failed: {str(e)}")
@@ -397,7 +454,6 @@ async def upload_photo(
     url = result["data"]["url"]
     now = datetime.now(EAT)
 
-    # Count existing photos for display_order
     existing_count = db.query(ServicePhotoLibraryImage).filter(
         ServicePhotoLibraryImage.library_id == lid
     ).count()
@@ -410,27 +466,32 @@ async def upload_photo(
         file_size_bytes=file_size,
         caption=caption,
         display_order=existing_count,
+        media_type=media_type,
+        duration_seconds=duration_seconds if is_video else None,
+        uploaded_by_user_id=current_user.id,
         created_at=now,
     )
     db.add(photo)
 
-    # Update library totals
     library.photo_count = (library.photo_count or 0) + 1
     library.total_size_bytes = (library.total_size_bytes or 0) + file_size
     library.updated_at = now
 
     db.commit()
 
-    return standard_response(True, "Photo uploaded successfully", {
+    return standard_response(True, ("Video" if is_video else "Photo") + " uploaded successfully", {
         "id": str(photo.id),
         "url": url,
         "original_name": file.filename,
         "file_size_bytes": file_size,
         "caption": caption,
         "display_order": photo.display_order,
+        "media_type": media_type,
+        "duration_seconds": photo.duration_seconds,
         "library_id": str(lid),
         "storage_used_bytes": library.total_size_bytes,
         "storage_used_mb": round(library.total_size_bytes / (1024 * 1024), 2),
+        "storage_remaining_bytes": max(0, MAX_LIBRARY_STORAGE_BYTES - library.total_size_bytes),
     })
 
 
@@ -464,7 +525,7 @@ def delete_photo(
     if not photo:
         return standard_response(False, "Photo not found")
 
-    photo_url = photo.url  # capture before delete
+    photo_url = photo.image_url  # capture before delete
 
     # Update library totals
     library.photo_count = max(0, (library.photo_count or 1) - 1)
@@ -585,7 +646,8 @@ def get_service_confirmed_events(
         # Build photo_library dict with up to 6 thumbnails for mosaic display
         photo_library_data = None
         if library:
-            photo_library_data = _library_dict(library, include_photos=True, max_photos=6)
+            photo_library_data = _library_dict(library, include_photos=True, max_photos=6,
+                                               current_user_id=current_user.id)
 
         # Resolve the best cover image for this event:
         # 1. event.cover_image_url, 2. featured EventImage, 3. first EventImage
@@ -613,6 +675,7 @@ def get_service_confirmed_events(
             "organizer_avatar": event.organizer.profile.profile_picture_url if event.organizer and event.organizer.profile else None,
             "photo_library": photo_library_data,
             "has_library": library is not None,
+            "is_eligible_for_library": library is None,  # vendor can create here
         })
 
     # Sort: today first, then upcoming, then completed
@@ -655,6 +718,94 @@ def get_event_photo_libraries(
     ).all()
 
     return standard_response(True, "Photo libraries retrieved", {
-        "libraries": [_library_dict(lib, include_photos=True) for lib in libraries],
+        "libraries": [_library_dict(lib, include_photos=True, current_user_id=current_user.id) for lib in libraries],
         "total": len(libraries),
+    })
+
+
+# ──────────────────────────────────────────────
+# Favorites — per-user starred libraries (powers the Favorites tab)
+# ──────────────────────────────────────────────
+@router.post("/{library_id}/favorite")
+def toggle_favorite(
+    library_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        lid = uuid.UUID(library_id)
+    except ValueError:
+        return standard_response(False, "Invalid library ID")
+
+    library = db.query(ServicePhotoLibrary).filter(
+        ServicePhotoLibrary.id == lid,
+        ServicePhotoLibrary.is_active == True,
+    ).first()
+    if not library:
+        return standard_response(False, "Library not found")
+
+    # Same access rules as get_library
+    is_owner = library.user_service.user_id == current_user.id
+    is_event_organizer = library.event.organizer_id == current_user.id if library.event else False
+    is_public = library.privacy == PhotoLibraryPrivacyEnum.public
+    if not (is_owner or is_event_organizer or is_public):
+        return standard_response(False, "Access denied")
+
+    existing = db.query(ServicePhotoLibraryFavorite).filter(
+        ServicePhotoLibraryFavorite.library_id == lid,
+        ServicePhotoLibraryFavorite.user_id == current_user.id,
+    ).first()
+    if existing:
+        db.delete(existing)
+        db.commit()
+        return standard_response(True, "Removed from favorites", {"is_favorite": False})
+
+    fav = ServicePhotoLibraryFavorite(
+        id=uuid.uuid4(),
+        library_id=lid,
+        user_id=current_user.id,
+        created_at=datetime.now(EAT),
+    )
+    db.add(fav)
+    db.commit()
+    return standard_response(True, "Added to favorites", {"is_favorite": True})
+
+
+@router.get("/me/favorites")
+def get_my_favorites(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    favs = db.query(ServicePhotoLibraryFavorite).filter(
+        ServicePhotoLibraryFavorite.user_id == current_user.id
+    ).all()
+    libs = []
+    for f in favs:
+        if f.library and f.library.is_active:
+            libs.append(_library_dict(f.library, include_photos=True, max_photos=3,
+                                      current_user_id=current_user.id))
+    return standard_response(True, "Favorites retrieved", {
+        "libraries": libs,
+        "total": len(libs),
+    })
+
+
+# ──────────────────────────────────────────────
+# All libraries shared with me (libraries on events I organize +
+# public libraries I have favorited). Used by mobile "Shared With Me" tab.
+# ──────────────────────────────────────────────
+@router.get("/me/shared")
+def get_shared_with_me(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    libs = db.query(ServicePhotoLibrary).join(Event, ServicePhotoLibrary.event_id == Event.id).filter(
+        Event.organizer_id == current_user.id,
+        ServicePhotoLibrary.is_active == True,
+    ).all()
+    out = [_library_dict(lib, include_photos=True, max_photos=3, current_user_id=current_user.id)
+           for lib in libs]
+    return standard_response(True, "Shared libraries retrieved", {
+        "libraries": out,
+        "total": len(out),
     })

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Integer, BigInteger, Text, Enum, UniqueConstraint
+from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Integer, BigInteger, Text, Enum, UniqueConstraint, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -30,6 +30,7 @@ class ServicePhotoLibrary(Base):
     user_service = relationship("UserService", back_populates="photo_libraries")
     event = relationship("Event", back_populates="photo_libraries")
     photos = relationship("ServicePhotoLibraryImage", back_populates="library", cascade="all, delete-orphan")
+    favorites = relationship("ServicePhotoLibraryFavorite", back_populates="library", cascade="all, delete-orphan")
 
     __table_args__ = (
         UniqueConstraint('user_service_id', 'event_id', name='uq_service_event_library'),
@@ -48,7 +49,28 @@ class ServicePhotoLibraryImage(Base):
     height = Column(Integer)
     caption = Column(Text)
     display_order = Column(Integer, default=0)
+    # New: distinguish photos from videos, store duration for video tiles.
+    media_type = Column(String(16), nullable=False, server_default='photo')  # 'photo' | 'video'
+    duration_seconds = Column(Integer)  # only set for videos
+    uploaded_by_user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'))
     created_at = Column(DateTime, server_default=func.now())
 
     # Relationships
     library = relationship("ServicePhotoLibrary", back_populates="photos")
+
+
+class ServicePhotoLibraryFavorite(Base):
+    """Per-user favorite flag on a library (used by the Favorites tab)."""
+    __tablename__ = 'service_photo_library_favorites'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    library_id = Column(UUID(as_uuid=True), ForeignKey('service_photo_libraries.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    library = relationship("ServicePhotoLibrary", back_populates="favorites")
+
+    __table_args__ = (
+        UniqueConstraint('library_id', 'user_id', name='uq_library_user_favorite'),
+    )
+

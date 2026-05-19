@@ -82,7 +82,7 @@ from models.service_delivery_otps import ServiceDeliveryOtp
 from models.promotions import Promotion, PromotedEvent
 from models.uploads import FileUpload
 from models.appeals import ContentAppeal
-from models.photo_libraries import ServicePhotoLibrary, ServicePhotoLibraryImage
+from models.photo_libraries import ServicePhotoLibrary, ServicePhotoLibraryImage, ServicePhotoLibraryFavorite
 from models.ticketing import EventTicketClass, EventTicket
 from models.ticket_offline_claims import TicketOfflineClaim
 from models.feed_ranking import (
