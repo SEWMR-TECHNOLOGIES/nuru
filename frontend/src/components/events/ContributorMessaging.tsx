@@ -100,7 +100,7 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
   const [isEditing, setIsEditing] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [sending, setSending] = useState(false);
-  const [sendResult, setSendResult] = useState<{ sent: number; failed: number; errors: string[] } | null>(null);
+  const [sendResult, setSendResult] = useState<{ sent: number; failed: number; queued: number; errors: string[]; batch_id?: string; mode?: string } | null>(null);
   const [resultOpen, setResultOpen] = useState(false);
   const [customPaymentInfo, setCustomPaymentInfo] = useState(paymentInfo);
   const [contactPhoneOverride, setContactPhoneOverride] = useState(defaultContactPhone);
@@ -290,13 +290,26 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
       });
 
       if (response.success) {
-        const result = response.data;
-        setSendResult(result);
+        const raw: any = response.data || {};
+        const skippedInvalid = Array.isArray(raw.skipped_invalid_phone)
+          ? raw.skipped_invalid_phone
+          : (typeof raw.skipped_invalid_phone === 'number' ? [] : []);
+        const normalized = {
+          sent: typeof raw.sent === 'number' ? raw.sent : 0,
+          failed: typeof raw.failed === 'number' ? raw.failed : 0,
+          queued: typeof raw.queued === 'number' ? raw.queued : 0,
+          errors: Array.isArray(raw.errors) ? raw.errors : skippedInvalid.map((n: string) => `Invalid phone: ${n}`),
+          batch_id: raw.batch_id,
+          mode: raw.mode,
+        };
+        setSendResult(normalized);
         setResultOpen(true);
-        if (result.failed === 0) {
-          toast.success(`Messages sent to ${result.sent} contributor${result.sent !== 1 ? 's' : ''}`);
+        if (normalized.queued > 0 && normalized.sent === 0 && normalized.failed === 0) {
+          toast.success(`Queued ${normalized.queued} message${normalized.queued !== 1 ? 's' : ''} for delivery`);
+        } else if (normalized.failed === 0) {
+          toast.success(`Messages sent to ${normalized.sent} contributor${normalized.sent !== 1 ? 's' : ''}`);
         } else {
-          toast.warning(`Sent: ${result.sent}, Failed: ${result.failed}`);
+          toast.warning(`Sent: ${normalized.sent}, Failed: ${normalized.failed}`);
         }
       } else {
         toast.error(response.message || 'Failed to send messages');
@@ -639,6 +652,15 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
           </DialogHeader>
           {sendResult && (
             <div className="space-y-3">
+              {sendResult.queued > 0 && sendResult.sent === 0 && sendResult.failed === 0 ? (
+                <Card>
+                  <CardContent className="p-3 text-center">
+                    <p className="text-2xl font-bold text-primary">{sendResult.queued}</p>
+                    <p className="text-xs text-muted-foreground">Queued for delivery</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Messages are sent in the background — recipients will receive them shortly.</p>
+                  </CardContent>
+                </Card>
+              ) : (
               <div className="grid grid-cols-2 gap-3">
                 <Card>
                   <CardContent className="p-3 text-center">
@@ -653,7 +675,8 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
                   </CardContent>
                 </Card>
               </div>
-              {sendResult.errors.length > 0 && (
+              )}
+              {(sendResult.errors?.length ?? 0) > 0 && (
                 <div className="bg-destructive/5 rounded-lg p-3 border border-destructive/20">
                   <p className="text-xs font-medium text-destructive mb-1">Errors:</p>
                   {sendResult.errors.slice(0, 5).map((err, i) => (
