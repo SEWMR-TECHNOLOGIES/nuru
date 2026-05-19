@@ -53,6 +53,8 @@ class ServicePhotoLibraryImage(Base):
     media_type = Column(String(16), nullable=False, server_default='photo')  # 'photo' | 'video'
     duration_seconds = Column(Integer)  # only set for videos
     uploaded_by_user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'))
+    is_highlight = Column(Boolean, nullable=False, default=False, server_default='false')
+    album_name = Column(Text)
     created_at = Column(DateTime, server_default=func.now())
 
     # Relationships
