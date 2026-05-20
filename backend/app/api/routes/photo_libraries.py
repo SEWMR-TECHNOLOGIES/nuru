@@ -29,7 +29,7 @@ router = APIRouter(prefix="/photo-libraries", tags=["Photo Libraries"])
 
 # Storage constants
 MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024       # 10MB per image
-MAX_VIDEO_SIZE_BYTES = 10 * 1024 * 1024       # 10MB per video (clear per-item cap)
+MAX_VIDEO_SIZE_BYTES = 200 * 1024 * 1024      # videos can use the library allowance
 MAX_LIBRARY_STORAGE_BYTES = 200 * 1024 * 1024  # 200MB per library — hard ceiling per product spec
 # Kept for backwards-compat references inside this module:
 MAX_SERVICE_STORAGE_BYTES = MAX_LIBRARY_STORAGE_BYTES
@@ -480,7 +480,7 @@ async def upload_photo(
                 UPLOAD_SERVICE_URL,
                 data={"target_path": folder_path},
                 files={"file": (unique_name, content, content_type)},
-                timeout=120 if is_video else 30,
+                timeout=180 if is_video else 60,
             )
         except Exception as e:
             return standard_response(False, f"Upload failed: {str(e)}")
