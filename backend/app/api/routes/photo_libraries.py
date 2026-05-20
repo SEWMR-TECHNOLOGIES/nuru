@@ -29,7 +29,7 @@ router = APIRouter(prefix="/photo-libraries", tags=["Photo Libraries"])
 
 # Storage constants
 MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024       # 10MB per image
-MAX_VIDEO_SIZE_BYTES = 200 * 1024 * 1024      # videos can use the library allowance
+MAX_VIDEO_SIZE_BYTES = 10 * 1024 * 1024       # 10MB per video
 MAX_LIBRARY_STORAGE_BYTES = 200 * 1024 * 1024  # 200MB per library — hard ceiling per product spec
 # Kept for backwards-compat references inside this module:
 MAX_SERVICE_STORAGE_BYTES = MAX_LIBRARY_STORAGE_BYTES
