@@ -95,7 +95,13 @@ def _send_sms_sync(phone: str, otp_code: str, message_template: str = "") -> boo
         return False
 
 
-def send_otp_with_routing(phone: str, code: str, first_name: str = "", context: str = "verification") -> OtpDeliveryResult:
+def send_otp_with_routing(
+    phone: str,
+    code: str,
+    first_name: str = "",
+    context: str = "verification",
+    dispatch_async: bool = True,
+) -> OtpDeliveryResult:
     """
     Send OTP using WhatsApp-first routing with SMS fallback.
     This is the single entry point all OTP sends should use.
@@ -110,13 +116,15 @@ def send_otp_with_routing(phone: str, code: str, first_name: str = "", context: 
         code: The OTP code
         first_name: User's first name for personalised SMS
         context: "verification" | "business_phone" | "password_reset"
+        dispatch_async: Queue delivery through Celery when available. Celery workers
+            pass False so the task sends immediately instead of enqueueing itself.
     """
     try:
         from core.celery_app import CELERY_ENABLED
     except Exception:
         CELERY_ENABLED = False
 
-    if CELERY_ENABLED:
+    if CELERY_ENABLED and dispatch_async:
         try:
             from tasks.notifications import send_otp_async
             send_otp_async.delay(phone, code, first_name, context)
