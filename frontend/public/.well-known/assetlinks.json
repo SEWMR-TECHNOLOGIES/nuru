@@ -1,13 +1,11 @@
 [
   {
-    "relation": [
-      "delegate_permission/common.handle_all_urls"
-    ],
+    "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
       "package_name": "tz.nuru.app",
       "sha256_cert_fingerprints": [
-        "REPLACE_WITH_RELEASE_SHA256_FINGERPRINT"
+        "53:CC:42:CC:7C:5F:3A:7C:31:1D:7B:88:61:4B:CC:0E:5F:0D:18:15:43:F7:5C:1A:35:12:B1:99:E2:F9:1B:D5"
       ]
     }
   }
