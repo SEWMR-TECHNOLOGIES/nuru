@@ -264,7 +264,59 @@ def _enrich_ticket_rows(db: Session, rows: List[Dict[str, Any]]) -> None:
         r["ticket_quantity"] = tk.quantity or 1
     # Decorate retry hint for every row (also covers offline → False).
     for r in rows:
+    for r in rows:
         r["can_retry"] = _retryable(r)
+
+
+def _enrich_contribution_rows(db: Session, rows: List[Dict[str, Any]]) -> None:
+    """Attach event context (name, cover image, date, location) to
+    contribution payment rows so the mobile receipt screen can render a
+    rich hero — same shape as ticket enrichment."""
+    from models.events import EventImage
+    # For contribution txs, target_id is the event_id directly.
+    event_ids: List[UUID] = []
+    for r in rows:
+        if r.get("is_offline"):
+            # Offline rows already carry event context if we set it below,
+            # but they currently don't — collect their event_id too.
+            pass
+        tid = r.get("target_id")
+        if tid:
+            try:
+                event_ids.append(UUID(str(tid)))
+            except Exception:
+                pass
+    if not event_ids:
+        return
+    events = (
+        db.query(Event).filter(Event.id.in_(list({*event_ids}))).all()
+    )
+    by_id = {str(ev.id): ev for ev in events}
+    # Fallback covers (featured then earliest) for events with no cover_image_url
+    missing = [ev.id for ev in events if not getattr(ev, "cover_image_url", None)]
+    fallback_covers: Dict[str, str] = {}
+    if missing:
+        imgs = (
+            db.query(EventImage)
+            .filter(EventImage.event_id.in_(missing))
+            .order_by(EventImage.is_featured.desc(), EventImage.created_at.asc())
+            .all()
+        )
+        for img in imgs:
+            key = str(img.event_id)
+            if key not in fallback_covers and img.image_url:
+                fallback_covers[key] = img.image_url
+    for r in rows:
+        ev = by_id.get(str(r.get("target_id") or ""))
+        if not ev:
+            continue
+        r["event_id"] = str(ev.id)
+        r["event_name"] = ev.name
+        r["event_cover_image"] = (
+            getattr(ev, "cover_image_url", None) or fallback_covers.get(str(ev.id))
+        )
+        r["event_start_date"] = ev.start_date.isoformat() if ev.start_date else None
+        r["event_location"] = ev.location
 
 
 def _apply_search(q, search: Optional[str]):
@@ -664,7 +716,11 @@ def my_contribution_payments(
             offline_rows.append(row)
 
     merged = sorted(tx_rows + offline_rows, key=_sort_key, reverse=True)
+    # Enrich with event context (cover image, name, date, location) so the
+    # receipt screen can render the same hero used for ticket receipts.
+    _enrich_contribution_rows(db, merged)
     for r in merged:
         r.setdefault("can_retry", _retryable(r))
     return api_response(True, "Your contribution payments retrieved.",
                         _paginate_merged(merged, page, limit))
+
