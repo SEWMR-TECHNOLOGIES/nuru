@@ -35,6 +35,7 @@ from utils.auth import get_current_user
 from utils.helpers import format_price, standard_response, format_phone_display
 from api.routes.rsvp import generate_rsvp_code
 from utils.validation_functions import validate_phone_number
+from utils.event_owner import get_event_owner_display_name, user_can_manage_event
 from utils.sms import (
     sms_guest_added, sms_committee_invite, sms_contribution_recorded,
     sms_contribution_target_set, sms_thank_you, sms_booking_notification,
@@ -73,6 +74,22 @@ def _wa_event_cover_image(db: Session, event: Event) -> str:
     except Exception as e:
         print(f"[wa_cards] cover fallback lookup failed event_id={getattr(event, 'id', '')}: {e}")
         return ""
+
+
+def _user_avatar_url(db: Session, user_id) -> str | None:
+    """Resolve the visible user avatar from profile first, then social login."""
+    if not user_id:
+        return None
+    profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+    avatar = (profile.profile_picture_url if profile else None) or ""
+    if avatar.strip():
+        return avatar.strip()
+    social = db.query(UserSocialAccount).filter(
+        UserSocialAccount.user_id == user_id,
+        UserSocialAccount.is_active == True,
+    ).first()
+    social_avatar = (social.provider_avatar_url if social else None) or ""
+    return social_avatar.strip() or None
 
 
 def _initial_status(raw: Optional[str]):
@@ -600,11 +617,15 @@ def get_all_user_events(
     search: Optional[str] = None,
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
-    """Returns all events created by the authenticated user."""
+    """Returns events where the user is the creator OR the recorded event owner."""
     if status not in VALID_STATUS_FILTERS:
         return standard_response(False, f"Invalid status filter. Must be one of: {', '.join(VALID_STATUS_FILTERS)}")
 
-    query = db.query(Event).filter(Event.organizer_id == current_user.id)
+    # Include both creator-owned events AND events the user owns via event_owner_user_id
+    query = db.query(Event).filter(or_(
+        Event.organizer_id == current_user.id,
+        Event.event_owner_user_id == current_user.id,
+    ))
 
     if status != "all":
         mapped = status
@@ -958,7 +979,7 @@ def get_invitation_card(
             "meal_preference": attendee.meal_preference if attendee else None,
         },
         "organizer": {
-            "name": f"{organizer.first_name} {organizer.last_name}" if organizer else None,
+            "name": get_event_owner_display_name(event, db=db) or (f"{organizer.first_name} {organizer.last_name}" if organizer else None),
         },
         "invitation_code": invitation.invitation_code,
         "qr_code_data": qr_data,
@@ -1008,7 +1029,8 @@ def get_event(
     if not event:
         return standard_response(False, "Event not found")
 
-    is_owner = str(event.organizer_id) == str(current_user.id)
+    from utils.event_owner import user_can_manage_event, get_event_owner_display_name
+    is_owner = user_can_manage_event(event, current_user)
     cm = None
     if not is_owner:
         cm = db.query(EventCommitteeMember).filter(
@@ -1060,6 +1082,27 @@ def get_event(
     data["viewer_role"] = viewer_role
     data["is_creator"] = is_owner
     data["is_committee"] = is_committee
+    # Event-owner feature - surface fields so the edit screen can render.
+    data["event_owner_user_id"] = str(event.event_owner_user_id) if event.event_owner_user_id else None
+    data["submitted_by_user_id"] = str(event.organizer_id) if event.organizer_id else None
+    data["recognizable_event_owner_name"] = event.recognizable_event_owner_name
+    data["created_for_someone_else"] = bool(
+        event.event_owner_user_id
+        and event.organizer_id
+        and str(event.event_owner_user_id) != str(event.organizer_id)
+    )
+    data["owner_display_name"] = get_event_owner_display_name(event, db=db)
+    # Owner profile info for edit-screen hydration
+    if event.event_owner_user_id and str(event.event_owner_user_id) != str(event.organizer_id):
+        _owner_u = db.query(User).filter(User.id == event.event_owner_user_id).first()
+        if _owner_u:
+            data["event_owner_first_name"] = _owner_u.first_name
+            data["event_owner_last_name"] = _owner_u.last_name
+            data["event_owner_username"] = _owner_u.username
+            data["event_owner_email"] = _owner_u.email
+            data["event_owner_phone"] = _owner_u.phone
+            data["event_owner_full_name"] = f"{(_owner_u.first_name or '').strip()} {(_owner_u.last_name or '').strip()}".strip()
+            data["event_owner_avatar"] = _user_avatar_url(db, _owner_u.id)
 
     # ── Inline permissions so clients don't need a second round-trip ──
     if is_owner:
@@ -1287,6 +1330,13 @@ async def create_event(
     contribution_description: Optional[str] = Form(None), services: Optional[str] = Form(None),
     images: Optional[List[UploadFile]] = File(None),
     status: Optional[str] = Form(None),
+    # Event-owner feature: when ``created_for_someone_else`` is true,
+    # ``event_owner_user_id`` is the real owner. Otherwise the creator
+    # is also the owner. ``recognizable_event_owner_name`` overrides
+    # the display name used in owner-mentioning communications.
+    created_for_someone_else: Optional[bool] = Form(False),
+    event_owner_user_id: Optional[str] = Form(None),
+    recognizable_event_owner_name: Optional[str] = Form(None),
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     """Creates a new event with comprehensive validation."""
@@ -1344,8 +1394,26 @@ async def create_event(
             pass
 
     now = datetime.now(EAT)
+
+    # Resolve event owner.
+    resolved_owner_id = current_user.id
+    if created_for_someone_else:
+        if not event_owner_user_id:
+            return standard_response(False, "Please select the event owner.")
+        try:
+            owner_uuid = uuid.UUID(event_owner_user_id)
+        except (ValueError, TypeError):
+            return standard_response(False, "Invalid event owner id.")
+        owner_user = db.query(User).filter(User.id == owner_uuid).first()
+        if not owner_user:
+            return standard_response(False, "Selected event owner not found. Please register them first.")
+        resolved_owner_id = owner_user.id
+
     new_event = Event(
         id=uuid.uuid4(), organizer_id=current_user.id, name=title.strip(),
+        event_owner_user_id=resolved_owner_id,
+        recognizable_event_owner_name=(recognizable_event_owner_name.strip() or None)
+            if recognizable_event_owner_name else None,
         event_type_id=uuid.UUID(event_type_id),
         description=description.strip() if description else None,
         start_date=parsed_start.date() if parsed_start else None,
@@ -1477,8 +1545,21 @@ async def create_event(
                         service_name = psvc.title or "service"
                 notify_booking(db, provider_user.id, current_user.id, new_event.id, new_event.name, service_name)
                 db.commit()
-                organizer_name = f"{current_user.first_name} {current_user.last_name}"
-                sms_booking_notification(provider_user.phone, f"{provider_user.first_name}", new_event.name, organizer_name)
+                from utils.event_owner import get_event_owner_display_name
+                organizer_name = get_event_owner_display_name(
+                    new_event, db=db,
+                    fallback=f"{current_user.first_name} {current_user.last_name}".strip(),
+                )
+                from utils.message_templates import resolve_user_language
+                lang = resolve_user_language(db, provider_user.id)
+                # WhatsApp first
+                if provider_user.phone:
+                    try:
+                        from utils.whatsapp import wa_booking_notification
+                        wa_booking_notification(provider_user.phone, provider_user.first_name, new_event.name, organizer_name, service_name, lang=lang)
+                    except Exception:
+                        pass
+                sms_booking_notification(provider_user.phone, f"{provider_user.first_name}", new_event.name, organizer_name, service_name, lang=lang)
         except Exception:
             pass
 
@@ -1509,6 +1590,10 @@ async def update_event(
     rsvp_deadline: Optional[str] = Form(None), contribution_enabled: Optional[bool] = Form(None),
     contribution_target: Optional[float] = Form(None), contribution_description: Optional[str] = Form(None),
     time: Optional[str] = Form(None), images: Optional[List[UploadFile]] = File(None),
+    # Event-owner feature (optional on update).
+    created_for_someone_else: Optional[bool] = Form(None),
+    event_owner_user_id: Optional[str] = Form(None),
+    recognizable_event_owner_name: Optional[str] = Form(None),
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     """Updates an existing event."""
@@ -1521,8 +1606,10 @@ async def update_event(
     if not event:
         return standard_response(False, "Event not found")
 
-    # Permission check
-    if str(event.organizer_id) != str(current_user.id):
+    # Permission check: creator OR recorded owner, otherwise a committee
+    # member with explicit ``can_edit_event``.
+    from utils.event_owner import user_can_manage_event
+    if not user_can_manage_event(event, current_user):
         cm = db.query(EventCommitteeMember).filter(EventCommitteeMember.event_id == eid, EventCommitteeMember.user_id == current_user.id).first()
         if cm:
             perms = db.query(CommitteePermission).filter(CommitteePermission.committee_member_id == cm.id).first()
@@ -1530,6 +1617,33 @@ async def update_event(
                 return standard_response(False, "You do not have permission to edit this event")
         else:
             return standard_response(False, "You do not have permission to edit this event")
+
+    # Apply event-owner changes (only creator/current owner may change them).
+    if created_for_someone_else is not None and user_can_manage_event(event, current_user):
+        if created_for_someone_else:
+            if event_owner_user_id:
+                try:
+                    owner_uuid = uuid.UUID(event_owner_user_id)
+                except (ValueError, TypeError):
+                    return standard_response(False, "Invalid event owner id.")
+                owner_user = db.query(User).filter(User.id == owner_uuid).first()
+                if not owner_user:
+                    return standard_response(False, "Selected event owner not found.")
+                event.event_owner_user_id = owner_user.id
+        else:
+            event.event_owner_user_id = event.organizer_id
+    elif event_owner_user_id is not None and user_can_manage_event(event, current_user):
+        try:
+            owner_uuid = uuid.UUID(event_owner_user_id)
+            owner_user = db.query(User).filter(User.id == owner_uuid).first()
+            if owner_user:
+                event.event_owner_user_id = owner_user.id
+        except (ValueError, TypeError):
+            pass
+
+    if recognizable_event_owner_name is not None:
+        nice = recognizable_event_owner_name.strip()
+        event.recognizable_event_owner_name = nice or None
 
     now = datetime.now(EAT)
     errors = []
@@ -2143,7 +2257,11 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
         # SMS + WhatsApp to contributor if they have a phone
         if contributor.phone:
             event_date = _wa_event_date(event)
-            organizer_name = f"{current_user.first_name} {current_user.last_name}"
+            from utils.event_owner import get_event_owner_display_name
+            organizer_name = get_event_owner_display_name(
+                event, db=db,
+                fallback=f"{current_user.first_name} {current_user.last_name}".strip(),
+            )
             sms_guest_added(contributor.phone, contributor.name.split(" ")[0], event.name, event_date, organizer_name, invitation.invitation_code)
             wa_send_invitation_card(contributor.phone, str(event.id), str(invitation.id), contributor.name, event.name, event_date, organizer_name, invitation.invitation_code, getattr(event, "cover_image_url", None) or "", event_time=getattr(event, "start_time", None).isoformat() if getattr(event, "start_time", None) else "", venue=getattr(event, "location", None) or "")
 
@@ -2228,7 +2346,11 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
             except Exception:
                 pass
             event_date = _wa_event_date(event)
-            organizer_name = f"{current_user.first_name} {current_user.last_name}"
+            from utils.event_owner import get_event_owner_display_name
+            organizer_name = get_event_owner_display_name(
+                event, db=db,
+                fallback=f"{current_user.first_name} {current_user.last_name}".strip(),
+            )
             sms_guest_added(attendee_user.phone, f"{attendee_user.first_name}", event.name, event_date, organizer_name, invitation.invitation_code)
             guest_full_name = f"{attendee_user.first_name or ''} {attendee_user.last_name or ''}".strip() or f"{attendee_user.first_name}"
             wa_send_invitation_card(attendee_user.phone, str(event.id), str(invitation.id), guest_full_name, event.name, event_date, organizer_name, invitation.invitation_code, getattr(event, "cover_image_url", None) or "", event_time=getattr(event, "start_time", None).isoformat() if getattr(event, "start_time", None) else "", venue=getattr(event, "location", None) or "")
@@ -2370,7 +2492,11 @@ def add_contributors_as_guests(event_id: str, body: dict = Body(...), db: Sessio
         # Send SMS if opted in
         if send_sms and contributor.phone:
             event_date = _wa_event_date(event)
-            organizer_name = f"{current_user.first_name} {current_user.last_name}"
+            from utils.event_owner import get_event_owner_display_name
+            organizer_name = get_event_owner_display_name(
+                event, db=db,
+                fallback=f"{current_user.first_name} {current_user.last_name}".strip(),
+            )
             try:
                 sms_guest_added(contributor.phone, contributor.name.split(" ")[0], event.name, event_date, organizer_name, invitation.invitation_code)
                 wa_send_invitation_card(contributor.phone, str(event.id), str(invitation.id), contributor.name, event.name, event_date, organizer_name, invitation.invitation_code, getattr(event, "cover_image_url", None) or "", event_time=getattr(event, "start_time", None).isoformat() if getattr(event, "start_time", None) else "", venue=getattr(event, "location", None) or "")
@@ -2535,11 +2661,9 @@ def send_invitation(event_id: str, guest_id: str, body: dict = Body(default={}),
     if not guest_name:
         guest_name = "Guest"
 
-    organizer_name = ""
     try:
-        organizer = db.query(User).filter(User.id == event.organizer_id).first() if getattr(event, "organizer_id", None) else None
-        if organizer:
-            organizer_name = f"{(organizer.first_name or '').strip()} {(organizer.last_name or '').strip()}".strip()
+        from utils.event_owner import get_event_owner_display_name
+        organizer_name = get_event_owner_display_name(event, db=db)
     except Exception:
         organizer_name = ""
 
@@ -3147,7 +3271,11 @@ def add_committee_member(event_id: str, body: dict = Body(...), db: Session = De
         except Exception:
             pass
         # SMS to committee member (include custom message if provided)
-        organizer_name = f"{current_user.first_name} {current_user.last_name}"
+        from utils.event_owner import get_event_owner_display_name
+        organizer_name = get_event_owner_display_name(
+            event, db=db,
+            fallback=f"{current_user.first_name} {current_user.last_name}".strip(),
+        )
         custom_msg = (body.get("invitation_message") or "").strip()
         sms_committee_invite(member_user.phone, f"{member_user.first_name}", event.name, role_name, organizer_name, custom_message=custom_msg)
 
@@ -4023,8 +4151,20 @@ def add_event_service(event_id: str, body: dict = Body(...), db: Session = Depen
                 service_name = provider_svc.title if provider_svc else "service"
                 notify_booking(db, provider_user.id, current_user.id, eid, event.name, service_name)
                 db.commit()
-                organizer_name = f"{current_user.first_name} {current_user.last_name}"
-                sms_booking_notification(provider_user.phone, f"{provider_user.first_name}", event.name, organizer_name)
+                from utils.event_owner import get_event_owner_display_name
+                organizer_name = get_event_owner_display_name(
+                    event, db=db,
+                    fallback=f"{current_user.first_name} {current_user.last_name}".strip(),
+                )
+                from utils.message_templates import resolve_user_language
+                lang = resolve_user_language(db, provider_user.id)
+                if provider_user.phone:
+                    try:
+                        from utils.whatsapp import wa_booking_notification
+                        wa_booking_notification(provider_user.phone, provider_user.first_name, event.name, organizer_name, service_name, lang=lang)
+                    except Exception:
+                        pass
+                sms_booking_notification(provider_user.phone, f"{provider_user.first_name}", event.name, organizer_name, service_name, lang=lang)
         except Exception:
             pass
 

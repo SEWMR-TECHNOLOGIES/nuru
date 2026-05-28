@@ -2506,10 +2506,16 @@ class _EventContributionsTabState extends State<EventContributionsTab>
     if (mounted) {
       setState(() => _sendingMessages = false);
       if (res['success'] == true) {
-        final sent = res['data']?['sent'] ?? 0;
-        final failed = res['data']?['failed'] ?? 0;
-        final errors = (res['data']?['errors'] as List?)?.map((e) => e.toString()).toList() ?? [];
-        _showSendResults(sent, failed, errors);
+        final data = (res['data'] as Map?) ?? {};
+        final sent = (data['sent'] ?? 0) as int;
+        final failed = (data['failed'] ?? 0) as int;
+        final queued = (data['queued'] ?? 0) as int;
+        final errors = (data['errors'] as List?)?.map((e) => e.toString()).toList() ?? [];
+        if (queued > 0 && sent == 0 && failed == 0) {
+          AppSnackbar.success(context, 'Queued $queued message${queued == 1 ? '' : 's'} for delivery');
+        } else {
+          _showSendResults(sent, failed, errors);
+        }
       } else {
         AppSnackbar.error(context, res['message'] ?? 'Failed to send');
       }
@@ -2707,21 +2713,72 @@ class _EventContributionsTabState extends State<EventContributionsTab>
               'send_sms': bulkSendSms,
               'mode': bulkMode,
             });
-            if (ctx.mounted) {
-              setSheetState(() => bulkUploading = false);
-              if (res['success'] == true) {
+            if (res['success'] != true) {
+              if (ctx.mounted) {
+                setSheetState(() => bulkUploading = false);
+                AppSnackbar.error(context, res['message'] ?? 'We couldn\'t process the upload. Please try again.');
+              }
+              return;
+            }
+            final data = res['data'] is Map ? (res['data'] as Map).cast<String, dynamic>() : <String, dynamic>{};
+            final jobId = data['job_id']?.toString();
+            if (jobId == null || jobId.isEmpty) {
+              // Legacy sync response (no background worker available).
+              if (ctx.mounted) {
                 setSheetState(() {
-                  bulkResult = res['data'] is Map ? (res['data'] as Map).cast<String, dynamic>() : {'processed': 0, 'errors_count': 0};
+                  bulkUploading = false;
+                  bulkResult = data.isNotEmpty ? data : {'processed': 0, 'errors_count': 0};
                   bulkRows = [];
                   bulkFileName = '';
                   bulkErrors = [];
                 });
                 AppSnackbar.success(context, '${bulkResult?['processed'] ?? 0} contributors processed');
                 _load();
-              } else {
-                AppSnackbar.error(context, res['message'] ?? 'We couldn\'t process the upload. Please try again.');
+              }
+              return;
+            }
+
+            // Poll the background job until it reaches a terminal status.
+            const terminal = {'completed', 'failed', 'partially_completed'};
+            Map<String, dynamic> last = {};
+            for (int i = 0; i < 300; i++) {
+              await Future.delayed(const Duration(seconds: 2));
+              if (!ctx.mounted) return;
+              final s = await EventContributorsService.getImportJobStatus(widget.eventId, jobId);
+              if (s['success'] == true && s['data'] is Map) {
+                last = (s['data'] as Map).cast<String, dynamic>();
+                final status = (last['status'] ?? '').toString();
+                setSheetState(() {});
+                if (terminal.contains(status)) break;
               }
             }
+
+            List<dynamic> errors = [];
+            try {
+              final er = await EventContributorsService.getImportJobErrors(widget.eventId, jobId);
+              if (er['success'] == true && er['data'] is Map) {
+                errors = ((er['data'] as Map)['errors'] as List?) ?? [];
+              }
+            } catch (_) {}
+
+            if (!ctx.mounted) return;
+            setSheetState(() {
+              bulkUploading = false;
+              bulkResult = {
+                'processed': last['successful_rows'] ?? 0,
+                'errors_count': last['failed_rows'] ?? (errors.length),
+                'status': last['status'] ?? 'completed',
+                'errors': errors,
+              };
+              bulkRows = [];
+              bulkFileName = '';
+              bulkErrors = errors
+                  .take(20)
+                  .map((e) => e is Map ? 'Row ${e['row']}: ${e['message']}' : e.toString())
+                  .toList();
+            });
+            AppSnackbar.success(context, '${bulkResult?['processed'] ?? 0} contributors processed');
+            _load();
           }
 
           return Container(

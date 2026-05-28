@@ -31,7 +31,17 @@ class Event(Base):
     __tablename__ = 'events'
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    # Submitter / creator of the event row. Kept for backward compatibility
+    # with the rest of the codebase that still reads ``organizer_id``.
     organizer_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
+    # Actual event OWNER (the person the event is for). May differ from
+    # the creator when an event is created on behalf of someone else.
+    # Backfilled to ``organizer_id`` for pre-feature rows.
+    event_owner_user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
+    # Optional display-name override used in any owner-mentioning
+    # public communication (WhatsApp/SMS/invitations/etc.). When NULL we
+    # fall back to the owner user's full name.
+    recognizable_event_owner_name = Column(Text, nullable=True)
     name = Column(Text, nullable=False)
     event_type_id = Column(UUID(as_uuid=True), ForeignKey('event_types.id'))
     description = Column(Text)
@@ -85,7 +95,8 @@ class Event(Base):
     )
 
     # Relationships
-    organizer = relationship("User", back_populates="organized_events")
+    organizer = relationship("User", back_populates="organized_events", foreign_keys=[organizer_id])
+    event_owner = relationship("User", foreign_keys=[event_owner_user_id])
     event_type = relationship("EventType", back_populates="events")
     currency = relationship("Currency", back_populates="events")
     images = relationship("EventImage", back_populates="event")

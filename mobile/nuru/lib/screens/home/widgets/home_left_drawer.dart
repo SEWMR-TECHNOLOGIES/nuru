@@ -20,6 +20,11 @@ import '../../settings/settings_screen.dart';
 import '../../wallet/wallet_screen.dart';
 import '../../event_groups/my_groups_screen.dart';
 import '../../messages/messages_screen.dart';
+import '../../contributors/contributors_screen.dart';
+import '../../contributors/my_contributions_screen.dart';
+import '../../cards/nuru_cards_screen.dart';
+import '../../issues/my_issues_screen.dart';
+import '../../removed/removed_content_screen.dart';
 import '../../../core/l10n/l10n_helper.dart';
 
 /// Modern, organized left drawer that mirrors the web sidebar redesign:
@@ -284,15 +289,20 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
           _NavItem(icon: 'assets/icons/communities-icon.svg', label: context.tr('communities'), screen: const CommunitiesScreen()),
         ]),
         _NavSection(id: 'money', label: 'Money', items: [
-          _NavItem(icon: 'assets/icons/card-icon.svg', label: 'Wallet', screen: const WalletScreen()),
+          _NavItem(icon: 'assets/icons/wallet-icon.svg', label: 'Wallet', screen: const WalletScreen()),
           _NavItem(icon: 'assets/icons/calendar-icon.svg', label: context.tr('bookings'), screen: const BookingsScreen()),
+          _NavItem(icon: 'assets/icons/raise-hand-icon.svg', label: 'My Contributions', screen: const MyContributionsScreen()),
+          _NavItem(icon: 'assets/icons/contributors-icon.svg', label: 'My Contributors', screen: const ContributorsScreen()),
         ]),
         _NavSection(id: 'network', label: 'Network', items: [
           _NavItem(icon: 'assets/icons/circle-icon.svg', label: context.tr('my_circle'), screen: const CircleScreen()),
           _NavItem(icon: 'assets/icons/communities-icon.svg', label: 'My Groups', screen: const MyGroupsScreen()),
           _NavItem(icon: 'assets/icons/settings-icon.svg', label: context.tr('my_services'), screen: const MyServicesScreen()),
+          _NavItem(icon: 'assets/icons/card-icon.svg', label: 'Nuru Pass', screen: const NuruCardsScreen()),
         ]),
         _NavSection(id: 'account', label: 'Account', items: [
+          _NavItem(icon: 'assets/icons/issue-icon.svg', label: 'My Issues', screen: const MyIssuesScreen()),
+          _NavItem(icon: 'assets/icons/warning-icon.svg', label: 'Removed Content', screen: const RemovedContentScreen()),
           _NavItem(icon: 'assets/icons/help-icon.svg', label: context.tr('help'), screen: const HelpScreen()),
           _NavItem(icon: 'assets/icons/settings-icon.svg', label: context.tr('settings'), onTap: (ctx) {
             Navigator.pop(ctx);

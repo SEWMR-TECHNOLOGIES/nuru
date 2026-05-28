@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { clearMyGroupsCache } from "@/components/eventGroups/MyGroups";
 
 export const useLogout = () => {
   const queryClient = useQueryClient();
@@ -20,6 +21,7 @@ export const useLogout = () => {
 
       // Clear currentUser cache so hook/UI updates immediately
       queryClient.setQueryData(["currentUser"], null);
+      clearMyGroupsCache();
 
       // Broadcast logout to other tabs
       window.localStorage.setItem("logout", Date.now().toString());

@@ -556,6 +556,11 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
         ),
       );
     }
+    // Darker emerald palette to match the web event-group contribution card
+    // (tailwind emerald-600/700/100 — text-emerald-700, bg-emerald-100 etc.)
+    const emerald = Color(0xFF047857); // emerald-700
+    const emeraldStrong = Color(0xFF059669); // emerald-600
+    const emeraldSoft = Color(0xFFD1FAE5); // emerald-100
     final name = (meta['contributor_name'] ?? 'Someone').toString();
     final amount = (meta['amount'] as num).toDouble();
     final pledge = (meta['pledge'] is num) ? (meta['pledge'] as num).toDouble() : 0.0;
@@ -598,7 +603,7 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
                     Container(width: 3, height: 3, decoration: BoxDecoration(color: AppColors.textTertiary, shape: BoxShape.circle)),
                     const SizedBox(width: 6),
                     Text(timeLabel,
-                        style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.success)),
+                        style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: emerald)),
                   ],
                 ),
               ),
@@ -607,7 +612,7 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(color: emerald.withOpacity(0.20)),
                   boxShadow: AppColors.cardShadow,
                 ),
                 padding: const EdgeInsets.all(14),
@@ -619,11 +624,11 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: complete ? AppColors.successSoft : AppColors.primarySoft,
+                        color: complete ? emeraldSoft : AppColors.primarySoft,
                       ),
                       child: SvgPicture.asset('assets/icons/donation-icon.svg',
                           width: 22, height: 22,
-                          colorFilter: ColorFilter.mode(complete ? AppColors.success : AppColors.primary, BlendMode.srcIn)),
+                          colorFilter: ColorFilter.mode(complete ? emerald : AppColors.primary, BlendMode.srcIn)),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -635,11 +640,11 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
                               Expanded(
                                 child: Text(
                                   complete ? 'Pledge Complete' : 'New Contribution',
-                                  style: GoogleFonts.inter(fontSize: 9.5, fontWeight: FontWeight.w800, color: AppColors.success, letterSpacing: 1.2),
+                                  style: GoogleFonts.inter(fontSize: 9.5, fontWeight: FontWeight.w800, color: emerald, letterSpacing: 1.2),
                                 ),
                               ),
                               Text('+${fmt(amount)}',
-                                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.success, letterSpacing: -0.2)),
+                                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: emerald, letterSpacing: -0.2)),
                             ],
                           ),
                           const SizedBox(height: 2),
@@ -659,7 +664,7 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
                                     widthFactor: (pct / 100).clamp(0.0, 1.0),
                                     child: Container(
                                       decoration: BoxDecoration(
-                                        color: overpaid ? AppColors.warning : AppColors.success,
+                                        color: overpaid ? AppColors.warning : emeraldStrong,
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                     ),
@@ -687,7 +692,7 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
                                       : 'Fully paid',
                               style: GoogleFonts.inter(
                                 fontSize: 10.5, fontWeight: FontWeight.w700,
-                                color: overpaid ? AppColors.warning : balance > 0 ? AppColors.error : AppColors.success,
+                                color: overpaid ? AppColors.warning : balance > 0 ? AppColors.error : emerald,
                               ),
                             ),
                           ],

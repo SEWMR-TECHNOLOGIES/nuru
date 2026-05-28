@@ -29,6 +29,10 @@ import EventTicketing from "@/components/EventTicketing";
 import BudgetAssistant from "@/components/BudgetAssistant";
 import AgreementModal from "@/components/AgreementModal";
 import type { TicketClass } from "@/components/EventTicketing";
+import UserSearchInput from "@/components/events/UserSearchInput";
+import type { SearchedUser } from "@/hooks/useUserSearch";
+import { Switch } from "@/components/ui/switch";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const CreateEvent: React.FC = () => {
@@ -64,6 +68,11 @@ const CreateEvent: React.FC = () => {
   const [isPublicEvent, setIsPublicEvent] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [budgetAssistantOpen, setBudgetAssistantOpen] = useState(false);
+
+  // Event Owner state
+  const [createdForSomeoneElse, setCreatedForSomeoneElse] = useState(false);
+  const [eventOwner, setEventOwner] = useState<SearchedUser | null>(null);
+  const [recognizableOwnerName, setRecognizableOwnerName] = useState("");
 
   // Agreement gate (only for new events, not edits)
   const [agreementAccepted, setAgreementAccepted] = useState<boolean | null>(null);
@@ -129,6 +138,25 @@ const CreateEvent: React.FC = () => {
             // Restore ticketing state
             setTicketingEnabled(!!(event as any).sells_tickets);
             setIsPublicEvent(!!(event as any).is_public);
+
+            // Restore event-owner state
+            const evAny = event as any;
+            if (evAny.created_for_someone_else) {
+              setCreatedForSomeoneElse(true);
+              if (evAny.event_owner_user_id) {
+                setEventOwner({
+                  id: evAny.event_owner_user_id,
+                  first_name: evAny.event_owner_first_name || "",
+                  last_name: evAny.event_owner_last_name || "",
+                  username: evAny.event_owner_username || "",
+                  email: evAny.event_owner_email || "",
+                  phone: evAny.event_owner_phone || "",
+                  full_name: evAny.event_owner_full_name || evAny.recognizable_event_owner_name || "",
+                  avatar: evAny.event_owner_avatar || undefined,
+                } as SearchedUser);
+              }
+              setRecognizableOwnerName(evAny.recognizable_event_owner_name || "");
+            }
 
             if (event.gallery_images && event.gallery_images.length > 0) {
               setPreviews(event.gallery_images);
@@ -219,6 +247,11 @@ const CreateEvent: React.FC = () => {
       return;
     }
 
+    if (createdForSomeoneElse && !eventOwner?.id) {
+      toast.error("Please select the event owner (or register them) before continuing.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -246,6 +279,21 @@ const CreateEvent: React.FC = () => {
       // Ticketing flags
       form.append("sells_tickets", ticketingEnabled ? "true" : "false");
       form.append("is_public", isPublicEvent ? "true" : "false");
+
+      // Event owner fields
+      form.append("created_for_someone_else", createdForSomeoneElse ? "true" : "false");
+      if (createdForSomeoneElse) {
+        if (eventOwner?.id) form.append("event_owner_user_id", eventOwner.id);
+        if (recognizableOwnerName.trim()) {
+          form.append("recognizable_event_owner_name", recognizableOwnerName.trim());
+        }
+      } else {
+        // Explicitly clear on update when toggled back off
+        if (editId) {
+          form.append("event_owner_user_id", "");
+          form.append("recognizable_event_owner_name", "");
+        }
+      }
 
       if (images.length > 0) {
         images.forEach((file) => form.append("images", file));
@@ -504,6 +552,88 @@ const CreateEvent: React.FC = () => {
               />
               {descTooLong && (
                 <p className="text-xs text-destructive mt-1">Description must be under 2,000 characters ({formData.description.length}/2,000)</p>
+              )}
+            </div>
+
+            {/* Event Owner — creating for someone else */}
+            <div className="rounded-xl border-2 border-primary/40 bg-amber-50/60 dark:bg-primary/10 p-4 space-y-3 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">I am creating this event for someone else</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Turn this on if the actual event owner is a different person. You will remain the
+                    creator.
+                  </p>
+                </div>
+                <Switch
+                  checked={createdForSomeoneElse}
+                  onCheckedChange={(v) => {
+                    setCreatedForSomeoneElse(v);
+                    if (!v) {
+                      setEventOwner(null);
+                      setRecognizableOwnerName("");
+                    }
+                  }}
+                />
+              </div>
+
+              {createdForSomeoneElse && (
+                <div className="space-y-3 pt-1">
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5 text-muted-foreground">
+                      Search owner by name, phone or email <span className="text-destructive">*</span>
+                    </label>
+                    {eventOwner ? (
+                      <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background">
+                        <Avatar className="w-9 h-9">
+                          <AvatarImage src={eventOwner.avatar || undefined} />
+                          <AvatarFallback className="text-xs font-semibold bg-primary text-primary-foreground">
+                            {eventOwner.first_name?.charAt(0)}{eventOwner.last_name?.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {eventOwner.full_name || `${eventOwner.first_name} ${eventOwner.last_name}`.trim()}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {eventOwner.username ? `@${eventOwner.username}` : ""}
+                            {eventOwner.phone ? ` · ${eventOwner.phone}` : ""}
+                            {eventOwner.email ? ` · ${eventOwner.email}` : ""}
+                          </p>
+                        </div>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setEventOwner(null)}>
+                          Change
+                        </Button>
+                      </div>
+                    ) : (
+                      <UserSearchInput
+                        onSelect={(u) => setEventOwner(u)}
+                        placeholder="Search by name, phone or email…"
+                        allowRegister
+                      />
+                    )}
+                    <p className="text-[11px] text-muted-foreground mt-1.5">
+                      Can't find them? Register them with name and phone — we'll send them a secure
+                      link to claim the account.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5 text-muted-foreground">
+                      How should the owner be referred to in messages?{" "}
+                      <span className="text-muted-foreground/70 font-normal">(optional)</span>
+                    </label>
+                    <Input
+                      placeholder='e.g. "Mr. & Mrs. Mwangi" or "The Juma Family"'
+                      value={recognizableOwnerName}
+                      onChange={(e) => setRecognizableOwnerName(e.target.value)}
+                      autoComplete="off"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Leave blank to use the owner's account name in all notifications.
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
 

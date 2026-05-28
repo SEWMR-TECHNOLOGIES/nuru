@@ -14,11 +14,14 @@
 ///   /moment/:id         → MomentDetailScreen
 ///   /c/:token           → PublicContributeScreen
 ///   /rsvp/:code         → RsvpScreen
+///   /m/:token           → MeetingRoomScreen (after resolving via backend)
 ///
 /// Unknown paths fall back to the home screen so the app never gets stuck.
 import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
+import 'package:nuru/core/services/api_service.dart';
+import 'package:nuru/screens/meetings/meeting_room_screen.dart';
 
 class DeepLinkService {
   DeepLinkService._();
@@ -54,13 +57,20 @@ class DeepLinkService {
   }
 
   void _handle(Uri uri) {
+    debugPrint('[DeepLink] received uri=$uri host=${uri.host} path=${uri.path} segments=${uri.pathSegments}');
     // Accept either https://nuru.tz/* (App Links / Universal Links) or the
     // custom scheme nuru://* used by the web "Open in app" banner. For the
     // custom scheme there is no host, so we skip the host check.
     final isCustomScheme = uri.scheme == 'nuru';
-    if (!isCustomScheme && !_supportedHosts.contains(uri.host)) return;
+    if (!isCustomScheme && !_supportedHosts.contains(uri.host)) {
+      debugPrint('[DeepLink] ignored — unsupported host');
+      return;
+    }
     final nav = _navigatorKey?.currentState;
-    if (nav == null) return;
+    if (nav == null) {
+      debugPrint('[DeepLink] navigator not ready');
+      return;
+    }
 
     // For custom-scheme URIs like nuru://i/CODE the "i" lives in uri.host,
     // not in pathSegments. Normalize by prepending the host as the first
@@ -77,41 +87,80 @@ class DeepLinkService {
     // a builder via the navigator. Add new mappings here as new routes ship.
     final first = segments.first;
     final rest = segments.length > 1 ? segments[1] : null;
+    String? routed;
     switch (first) {
       case 'event':
-        if (rest != null) nav.pushNamed('/event', arguments: {'id': rest});
+        if (rest != null) { nav.pushNamed('/event', arguments: {'id': rest}); routed = '/event'; }
         break;
       case 'ticket':
-        if (rest != null) nav.pushNamed('/ticket', arguments: {'code': rest});
+        if (rest != null) { nav.pushNamed('/ticket', arguments: {'code': rest}); routed = '/ticket'; }
         break;
       case 'u':
-        if (rest != null) nav.pushNamed('/profile', arguments: {'username': rest});
+        if (rest != null) { nav.pushNamed('/profile', arguments: {'username': rest}); routed = '/profile'; }
         break;
       case 'services':
         if (segments.length >= 3 && segments[1] == 'view') {
           nav.pushNamed('/service', arguments: {'id': segments[2]});
+          routed = '/service';
         }
         break;
       case 'post':
-        if (rest != null) nav.pushNamed('/post', arguments: {'id': rest});
+        if (rest != null) { nav.pushNamed('/post', arguments: {'id': rest}); routed = '/post'; }
         break;
       case 'moment':
-        if (rest != null) nav.pushNamed('/moment', arguments: {'id': rest});
+        if (rest != null) { nav.pushNamed('/moment', arguments: {'id': rest}); routed = '/moment'; }
         break;
       case 'c':
-        if (rest != null) nav.pushNamed('/contribute', arguments: {'token': rest});
+        if (rest != null) { nav.pushNamed('/contribute', arguments: {'token': rest}); routed = '/contribute'; }
         break;
       case 'rsvp':
-        if (rest != null) nav.pushNamed('/rsvp', arguments: {'code': rest});
+        if (rest != null) { nav.pushNamed('/rsvp', arguments: {'code': rest}); routed = '/rsvp'; }
         break;
       case 'i':
-        // Invitation landing — same code as RSVP, route to RSVP screen so
-        // the user can immediately respond.
-        if (rest != null) nav.pushNamed('/rsvp', arguments: {'code': rest});
+        // Invitation landing — distinct from RSVP so the screen can show the
+        // right label / actions. Falls back to placeholder until the native
+        // invitation screen ships.
+        if (rest != null) { nav.pushNamed('/invitation', arguments: {'code': rest}); routed = '/invitation'; }
+        break;
+      case 'set-password':
+        if (rest != null) { nav.pushNamed('/set-password', arguments: {'token': rest}); routed = '/set-password'; }
+        break;
+      case 'm':
+        if (rest != null) { _resolveMeetingToken(nav, rest); routed = '/m'; }
         break;
       default:
-        // Unknown — stay where we are.
         break;
     }
+    debugPrint('[DeepLink] routed=${routed ?? "<no-match, stayed in place>"}');
+  }
+
+  /// Resolves an opaque meeting redirect token via the backend and pushes the
+  /// in-app `MeetingRoomScreen` when possible. If the resolver returns only a
+  /// raw URL (e.g. external Zoom/Meet link), the user is sent to a friendly
+  /// placeholder screen with a "Open in browser" affordance instead.
+  Future<void> _resolveMeetingToken(NavigatorState nav, String token) async {
+    try {
+      final res = await ApiService.get('/m/$token/resolve', auth: false);
+      final data = (res['data'] ?? res) as Map<String, dynamic>?;
+      final eventId = data?['event_id']?.toString();
+      final meetingId = data?['meeting_id']?.toString();
+      final roomId = data?['room_id']?.toString();
+      if (eventId != null && eventId.isNotEmpty &&
+          meetingId != null && meetingId.isNotEmpty &&
+          roomId != null && roomId.isNotEmpty) {
+        nav.push(MaterialPageRoute(
+          builder: (_) => MeetingRoomScreen(
+            eventId: eventId,
+            meetingId: meetingId,
+            roomId: roomId,
+          ),
+        ));
+        return;
+      }
+    } catch (e) {
+      debugPrint('[DeepLink] /m resolve failed: $e');
+    }
+    // Fallback: open the friendly placeholder so the user is not dumped on home.
+    nav.pushNamed('/deep-link-fallback', arguments: {'path': '/m/$token'});
   }
 }

@@ -12,6 +12,7 @@ import { eventsApi } from '@/lib/api/events';
 import { getEventCountdown } from '@/utils/getEventCountdown';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { getEventImage } from '@/lib/eventImage';
+import { getEventOwnerName } from '@/lib/eventOwner';
 
 const PERMISSION_LABELS: Record<string, string> = {
   can_view_guests: 'View Guests',
@@ -185,11 +186,14 @@ const CommitteeEvents = () => {
                     </span>
                   </div>
 
-                  {event.organizer?.name && (
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Organized by <span className="font-medium text-foreground">{event.organizer.name}</span>
-                    </p>
-                  )}
+                  {(() => {
+                    const ownerName = getEventOwnerName(event as any);
+                    return ownerName ? (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Organized by <span className="font-medium text-foreground">{ownerName}</span>
+                      </p>
+                    ) : null;
+                  })()}
 
                   {activePerms.length > 0 && (
                     <TooltipProvider>

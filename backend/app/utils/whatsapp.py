@@ -1,21 +1,26 @@
 # WhatsApp notification helpers
-# Sends outbound WhatsApp messages via the Supabase edge function (whatsapp-send)
-# WhatsApp is the PRIMARY channel for all event communications.
-# ALL messages now use Meta-approved templates via the edge function.
+# =============================
+# Source of truth for template names + placeholder contracts:
+#   backend/app/docs/whatsapp_templates_catalogue.md
+#
+# Every helper here passes the catalogue-aligned ``action`` name to the
+# ``whatsapp-send`` edge function, plus an explicit ``lang`` ("sw"/"en")
+# so the edge function can route to the correct ``_sw`` / ``_en`` Meta
+# template. Money values are pre-formatted into a single combined string
+# (e.g. ``"TZS 10,000"``) — Meta forbids placeholder reuse so each money
+# slot is exactly one parameter.
 
 import os
 import requests
 
 WHATSAPP_SIGNATURE = "\n-- Nuru: Keep your event together"
 
-# The edge function URL for sending WhatsApp messages
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 WHATSAPP_SEND_URL = f"{SUPABASE_URL}/functions/v1/whatsapp-send" if SUPABASE_URL else ""
 
 
 def _normalize_phone(phone: str) -> str:
-    """Convert local Tanzanian phone to international format for WhatsApp."""
     if not phone:
         return ""
     phone = phone.strip().replace(" ", "")
@@ -28,19 +33,26 @@ def _normalize_phone(phone: str) -> str:
     return phone
 
 
-def _send_whatsapp_sync(action: str, phone: str, params: dict):
-    """Synchronous transport — only call this from Celery workers.
+def _money(amount, currency: str = "TZS") -> str:
+    """Pre-format a money value into one combined string for Meta."""
+    cur = (currency or "TZS").upper()
+    try:
+        return f"{cur} {float(amount or 0):,.0f}"
+    except Exception:
+        return f"{cur} 0"
 
-    Performs the actual HTTPS POST to the ``whatsapp-send`` edge function.
-    Returns True on success, False on failure. Never raises.
-    """
+
+def _lang(value) -> str:
+    return "en" if str(value or "sw").lower() == "en" else "sw"
+
+
+def _send_whatsapp_sync(action: str, phone: str, params: dict):
+    """Synchronous transport — only call from Celery workers."""
     if not phone or not WHATSAPP_SEND_URL or not SUPABASE_ANON_KEY:
         return False
-
     international_phone = _normalize_phone(phone)
     if not international_phone:
         return False
-
     try:
         resp = requests.post(
             WHATSAPP_SEND_URL,
@@ -53,30 +65,23 @@ def _send_whatsapp_sync(action: str, phone: str, params: dict):
             timeout=15,
         )
         if not resp.ok:
-            print(f"[WhatsApp] Failed ({resp.status_code}): {resp.text[:200]}")
+            print(f"[WhatsApp] Failed ({resp.status_code}) action={action}: {resp.text[:200]}")
             return False
         try:
             data = resp.json()
             if data.get("success") is False:
-                print(f"[WhatsApp] Edge function returned failure: {resp.text[:200]}")
+                print(f"[WhatsApp] action={action} edge returned failure: {resp.text[:200]}")
                 return False
         except Exception:
             pass
         return True
     except Exception as e:
-        print(f"[WhatsApp] Error sending to {international_phone}: {e}")
+        print(f"[WhatsApp] Error action={action} to {international_phone}: {e}")
         return False
 
 
 def _send_whatsapp(action: str, phone: str, params: dict):
-    """Public entry-point used by every ``wa_*`` helper.
-
-    On the VPS (where Celery + Redis are available) this enqueues a
-    background task and returns immediately so the API request is never
-    blocked on a 15s HTTPS call. On Vercel / local without a worker we fall
-    back to the synchronous transport so behavior doesn't silently disappear
-    in dev.
-    """
+    """Enqueue via Celery in prod, fall back to synchronous in dev."""
     if not phone:
         return False
     try:
@@ -88,125 +93,436 @@ def _send_whatsapp(action: str, phone: str, params: dict):
             from tasks.whatsapp_dispatch import send_action
             send_action.delay(action, phone, params or {})
             return True
-        except Exception as e:  # broker hiccup → inline fallback
+        except Exception as e:
             print(f"[WhatsApp] enqueue failed, sending inline: {e}")
     return _send_whatsapp_sync(action, phone, params or {})
 
 
 def _send_whatsapp_text(phone: str, message: str):
-    """Send a plain text WhatsApp message. Only used as fallback within 24h window."""
     _send_whatsapp("text", phone, {"message": message})
 
 
-def wa_guest_invited(phone: str, guest_name: str, event_name: str, event_date: str = "", organizer_name: str = "", rsvp_code: str = ""):
-    """Send WhatsApp invitation when a guest is added to an event."""
-    _send_whatsapp("invite", phone, {
+# ──────────────────────────────────────────────
+# #1/2 — guest_invitation
+# ──────────────────────────────────────────────
+def wa_guest_invited(
+    phone: str,
+    guest_name: str,
+    event_name: str,
+    event_date: str = "",
+    organizer_name: str = "",
+    rsvp_code: str = "",
+    event_venue: str = "",
+    lang: str = "sw",
+):
+    _send_whatsapp("guest_invitation", phone, {
         "guest_name": guest_name,
-        "event_name": event_name,
-        "event_date": event_date,
         "organizer_name": organizer_name,
-        "rsvp_code": rsvp_code,
-    })
-
-
-def wa_event_updated(phone: str, guest_name: str, event_name: str, changes: str):
-    """Notify guest about event detail changes via WhatsApp."""
-    _send_whatsapp("event_update", phone, {
-        "guest_name": guest_name,
-        "event_name": event_name,
-        "changes": changes,
-    })
-
-
-def wa_event_reminder(phone: str, guest_name: str, event_name: str, event_date: str = "", event_time: str = "", location: str = ""):
-    """Send event reminder via WhatsApp."""
-    _send_whatsapp("reminder", phone, {
-        "guest_name": guest_name,
         "event_name": event_name,
         "event_date": event_date,
-        "event_time": event_time,
-        "location": location,
+        "event_venue": event_venue or "TBA",
+        "rsvp_code": rsvp_code,
+        "lang": _lang(lang),
     })
 
 
-def wa_expense_recorded(phone: str, recipient_name: str, recorder_name: str, amount: str, category: str, event_name: str):
-    """Notify committee member about a recorded expense via WhatsApp."""
-    _send_whatsapp("expense_recorded", phone, {
-        "recipient_name": recipient_name,
-        "recorder_name": recorder_name,
-        "amount": amount,
-        "category": category,
+# ──────────────────────────────────────────────
+# #3/4 — committee_invite
+# ──────────────────────────────────────────────
+def wa_committee_invite(
+    phone: str,
+    member_name: str,
+    organizer_name: str,
+    role: str,
+    event_name: str,
+    custom_message: str = "",
+    lang: str = "sw",
+):
+    _send_whatsapp("committee_invite", phone, {
+        "member_name": member_name,
+        "organizer_name": organizer_name,
+        "role": role,
         "event_name": event_name,
+        "custom_message": custom_message or "",
+        "lang": _lang(lang),
     })
 
 
 # ──────────────────────────────────────────────
-# CONTRIBUTION / PLEDGE WhatsApp Messages
-# Now using Meta-approved templates instead of plain text
+# #5/6 — welcome_registered_by (URL button)
 # ──────────────────────────────────────────────
-
-def wa_contribution_recorded(phone: str, contributor_name: str, event_title: str, amount: float, target: float, total_paid: float, currency: str = "TZS", organizer_phone: str = None, recorder_name: str = None):
-    """Notify contributor via WhatsApp that their payment has been recorded (template)."""
-    balance = max(0, target - total_paid)
-    _send_whatsapp("contribution_recorded", phone, {
-        "contributor_name": contributor_name,
-        "recorder_name": recorder_name or "The organizer",
-        "amount": f"{currency} {amount:,.0f}",
-        "event_name": event_title,
-        "target": f"{currency} {target:,.0f}" if target > 0 else "N/A",
-        "total_paid": f"{currency} {total_paid:,.0f}",
-        "balance": f"{currency} {balance:,.0f}" if target > 0 else "N/A",
+def wa_welcome_registered_by(
+    phone: str,
+    *,
+    new_user_name: str,
+    registered_by_name: str,
+    setup_token: str,
+    lang: str = "sw",
+):
+    return _send_whatsapp("welcome_registered_by", phone, {
+        "new_user_name": new_user_name,
+        "registered_by_name": registered_by_name,
+        "setup_token": setup_token,
+        "lang": _lang(lang),
     })
 
 
-def wa_contribution_target_set(phone: str, contributor_name: str, event_title: str, target: float, total_paid: float = 0, currency: str = "TZS", organizer_phone: str = None):
-    """Notify contributor via WhatsApp when a pledge target is set or updated (template)."""
-    balance = max(0, target - total_paid)
-    _send_whatsapp("contribution_target", phone, {
-        "contributor_name": contributor_name,
-        "event_name": event_title,
-        "target": f"{currency} {target:,.0f}",
-        "total_paid": f"{currency} {total_paid:,.0f}",
-        "balance": f"{currency} {balance:,.0f}",
-    })
-
-
-def wa_thank_you(phone: str, contributor_name: str, event_title: str, custom_message: str = "", organizer_phone: str = None):
-    """Send thank you message via WhatsApp to a contributor (template)."""
-    _send_whatsapp("thank_you_contribution", phone, {
-        "contributor_name": contributor_name,
-        "event_name": event_title,
-        "custom_message": custom_message or "We appreciate your support!",
-    })
-
-
-def wa_booking_notification(phone: str, provider_name: str, event_title: str, client_name: str):
-    """Notify service provider via WhatsApp they've been booked for an event (template)."""
-    _send_whatsapp("booking_notification", phone, {
-        "provider_name": provider_name,
-        "client_name": client_name,
-        "event_name": event_title,
-    })
-
-
-def wa_booking_accepted(phone: str, client_name: str, vendor_name: str, service_name: str, event_title: str):
-    """Notify event organizer via WhatsApp that their vendor booking was accepted (template)."""
-    _send_whatsapp("booking_accepted", phone, {
-        "client_name": client_name,
-        "vendor_name": vendor_name,
-        "service_name": service_name,
-        "event_name": event_title,
-    })
-
-
-def wa_meeting_invitation(phone: str, event_name: str, meeting_title: str, scheduled_time: str, meeting_link: str):
-    """
-    Invite participant to an event meeting via WhatsApp.
-    Returns True on success, False on failure.
-    """
+# ──────────────────────────────────────────────
+# #7/8 — meeting_invitation (URL button)
+# ──────────────────────────────────────────────
+def wa_meeting_invitation(
+    phone: str,
+    event_name: str,
+    meeting_title: str,
+    scheduled_time: str,
+    meeting_link: str = "",
+    meeting_redirect_token: str = "",
+    lang: str = "sw",
+):
     return _send_whatsapp("meeting_invitation", phone, {
         "event_name": event_name,
         "meeting_title": meeting_title,
         "scheduled_time": scheduled_time,
+        "meeting_redirect_token": meeting_redirect_token or "",
         "meeting_link": meeting_link,
+        "lang": _lang(lang),
+    })
+
+
+# ──────────────────────────────────────────────
+# #9/10 + #11/12 — contribution_recorded (with balance OR pledge complete)
+# ──────────────────────────────────────────────
+def wa_contribution_recorded(
+    phone: str,
+    contributor_name: str,
+    event_title: str,
+    amount: float,
+    target: float,
+    total_paid: float,
+    currency: str = "TZS",
+    organizer_phone: str = "",
+    recorder_name: str = "",
+    lang: str = "sw",
+):
+    balance = max(0, (target or 0) - (total_paid or 0))
+    pledge_complete = bool(target and target > 0 and balance <= 0)
+
+    base = {
+        "contributor_name": contributor_name,
+        "amount_text": _money(amount, currency),
+        "recorder_name": recorder_name or ("Mratibu" if _lang(lang) == "sw" else "The organizer"),
+        "event_name": event_title,
+        "organizer_phone": organizer_phone or "Nuru",
+        "lang": _lang(lang),
+    }
+
+    if pledge_complete:
+        base["target_text"] = _money(target, currency)
+        _send_whatsapp("contribution_recorded_pledge_complete", phone, base)
+    else:
+        base["total_paid_text"] = _money(total_paid, currency)
+        base["balance_text"] = _money(balance, currency) if target and target > 0 else "N/A"
+        _send_whatsapp("contribution_recorded_with_balance", phone, base)
+
+
+# ──────────────────────────────────────────────
+# #13/14 — contribution_target_set
+# ──────────────────────────────────────────────
+def wa_contribution_target_set(
+    phone: str,
+    contributor_name: str,
+    event_title: str,
+    target: float,
+    total_paid: float = 0,
+    currency: str = "TZS",
+    organizer_phone: str = "",
+    lang: str = "sw",
+):
+    _send_whatsapp("contribution_target_set", phone, {
+        "contributor_name": contributor_name,
+        "event_name": event_title,
+        "target_text": _money(target, currency),
+        "organizer_phone": organizer_phone or "Nuru",
+        "lang": _lang(lang),
+    })
+
+
+# ──────────────────────────────────────────────
+# #14a/14b — contribution_target_updated
+# ──────────────────────────────────────────────
+def wa_contribution_target_updated(
+    phone: str,
+    contributor_name: str,
+    event_title: str,
+    increase: float,
+    total_target: float,
+    currency: str = "TZS",
+    organizer_phone: str = "",
+    lang: str = "sw",
+):
+    _send_whatsapp("contribution_target_updated", phone, {
+        "contributor_name": contributor_name,
+        "event_name": event_title,
+        "increase_text": _money(increase, currency),
+        "total_target_text": _money(total_target, currency),
+        "organizer_phone": organizer_phone or "Nuru",
+        "lang": _lang(lang),
+    })
+
+
+# ──────────────────────────────────────────────
+# #15/16 — contribution_thank_you
+# ──────────────────────────────────────────────
+def wa_thank_you(
+    phone: str,
+    contributor_name: str,
+    event_title: str,
+    amount: float = 0,
+    custom_message: str = "",
+    organizer_phone: str = "",
+    currency: str = "TZS",
+    # legacy kwarg kept for backward-compat (was passed as the amount)
+    total_paid: float = None,
+    lang: str = "sw",
+):
+    eff_amount = amount if amount else (total_paid or 0)
+    L = _lang(lang)
+    _send_whatsapp("contribution_thank_you", phone, {
+        "contributor_name": contributor_name,
+        "amount_text": _money(eff_amount, currency),
+        "event_name": event_title,
+        "custom_message": custom_message or ("Tunakushukuru kwa ukarimu wako." if L == "sw" else "We deeply appreciate your generosity."),
+        "organizer_phone": organizer_phone or "Nuru",
+        "lang": L,
+    })
+
+
+# ──────────────────────────────────────────────
+# #17/18 — guest_contribution_invite (URL button = share_token)
+# ──────────────────────────────────────────────
+def wa_guest_contribution_invite(
+    phone: str,
+    contributor_name: str,
+    organiser_name: str,
+    event_name: str,
+    pledge_amount: float,
+    share_token: str,
+    currency: str = "TZS",
+    lang: str = "sw",
+):
+    _send_whatsapp("guest_contribution_invite", phone, {
+        "contributor_name": contributor_name,
+        "organiser_name": organiser_name,
+        "event_name": event_name,
+        "pledge_amount_text": _money(pledge_amount, currency),
+        "share_token": share_token,
+        "lang": _lang(lang),
+    })
+
+
+# ──────────────────────────────────────────────
+# #19/20 — guest_contribution_receipt (URL button = receipt_path)
+# ──────────────────────────────────────────────
+def wa_guest_contribution_receipt(
+    phone: str,
+    contributor_name: str,
+    event_name: str,
+    amount: float,
+    total_paid: float,
+    balance: float,
+    transaction_code: str,
+    receipt_path: str,
+    currency: str = "TZS",
+    lang: str = "sw",
+):
+    _send_whatsapp("guest_contribution_receipt", phone, {
+        "contributor_name": contributor_name,
+        "amount_text": _money(amount, currency),
+        "event_name": event_name,
+        "total_paid_text": _money(total_paid, currency),
+        "balance_text": _money(balance, currency),
+        "transaction_code": transaction_code,
+        "receipt_path": receipt_path,
+        "lang": _lang(lang),
+    })
+
+
+# ──────────────────────────────────────────────
+# #21/22 — payment_received_generic
+# ──────────────────────────────────────────────
+def wa_payment_received_generic(phone, amount, payer_name, purpose, transaction_code, currency="TZS", lang="sw"):
+    _send_whatsapp("payment_received_generic", phone, {
+        "amount_text": _money(amount, currency),
+        "payer_name": payer_name,
+        "purpose": purpose,
+        "transaction_code": transaction_code,
+        "lang": _lang(lang),
+    })
+
+
+# ──────────────────────────────────────────────
+# #23/24 — payment_confirmation_payer
+# ──────────────────────────────────────────────
+def wa_payment_confirmation_payer(phone, payer_name, amount, purpose, transaction_code, currency="TZS", lang="sw"):
+    _send_whatsapp("payment_confirmation_payer", phone, {
+        "payer_name": payer_name,
+        "amount_text": _money(amount, currency),
+        "purpose": purpose,
+        "transaction_code": transaction_code,
+        "lang": _lang(lang),
+    })
+
+
+# ──────────────────────────────────────────────
+# #25/26 — organiser_contribution_received
+# ──────────────────────────────────────────────
+def wa_organiser_contribution_received(phone, organizer_name, amount, contributor_name, event_name, transaction_code, currency="TZS", lang="sw"):
+    _send_whatsapp("organiser_contribution_received", phone, {
+        "organizer_name": organizer_name,
+        "amount_text": _money(amount, currency),
+        "contributor_name": contributor_name,
+        "event_name": event_name,
+        "transaction_code": transaction_code,
+        "lang": _lang(lang),
+    })
+
+
+# ──────────────────────────────────────────────
+# #27/28 — vendor_booking_paid
+# ──────────────────────────────────────────────
+def wa_vendor_booking_paid(phone, vendor_name, amount, client_name, service_title, service_amount, total_paid, balance, transaction_code, currency="TZS", lang="sw"):
+    _send_whatsapp("vendor_booking_paid", phone, {
+        "vendor_name": vendor_name,
+        "amount_text": _money(amount, currency),
+        "client_name": client_name,
+        "service_title": service_title,
+        "service_amount_text": _money(service_amount, currency),
+        "total_paid_text": _money(total_paid, currency),
+        "balance_text": _money(balance, currency),
+        "transaction_code": transaction_code,
+        "lang": _lang(lang),
+    })
+
+
+# ──────────────────────────────────────────────
+# #29/30 — admin_payment_alert
+# ──────────────────────────────────────────────
+def wa_admin_payment_alert(phone, amount, method, purpose, target_label, payer_name, payer_phone, transaction_code, currency="TZS", lang="sw"):
+    _send_whatsapp("admin_payment_alert", phone, {
+        "amount_text": _money(amount, currency),
+        "method": method,
+        "purpose": purpose,
+        "target_label": target_label or "",
+        "payer_name": payer_name,
+        "payer_phone": payer_phone,
+        "transaction_code": transaction_code,
+        "lang": _lang(lang),
+    })
+
+
+# ──────────────────────────────────────────────
+# #35/36 — vendor_confirmation_receipt
+# ──────────────────────────────────────────────
+def wa_vendor_confirmation_receipt(phone, vendor_first_name, amount, organiser_name, event_name, balance, currency="TZS", lang="sw"):
+    _send_whatsapp("vendor_confirmation_receipt", phone, {
+        "vendor_first_name": vendor_first_name,
+        "amount_text": _money(amount, currency),
+        "organiser_name": organiser_name,
+        "event_name": event_name,
+        "balance_text": _money(balance, currency),
+        "lang": _lang(lang),
+    })
+
+
+# ──────────────────────────────────────────────
+# #37/38 — vendor_confirmation_receipt_full
+# ──────────────────────────────────────────────
+def wa_vendor_confirmation_receipt_full(phone, vendor_first_name, amount, organiser_name, event_name, currency="TZS", lang="sw"):
+    _send_whatsapp("vendor_confirmation_receipt_full", phone, {
+        "vendor_first_name": vendor_first_name,
+        "amount_text": _money(amount, currency),
+        "organiser_name": organiser_name,
+        "event_name": event_name,
+        "lang": _lang(lang),
+    })
+
+
+# ──────────────────────────────────────────────
+# #39/40 — organiser_committee_vendor_confirmed
+# ──────────────────────────────────────────────
+def wa_organiser_committee_vendor_confirmed(phone, recipient_first_name, vendor_name, amount, organiser_name, event_name, balance, currency="TZS", lang="sw"):
+    _send_whatsapp("organiser_committee_vendor_confirmed", phone, {
+        "recipient_first_name": recipient_first_name,
+        "vendor_name": vendor_name,
+        "amount_text": _money(amount, currency),
+        "organiser_name": organiser_name,
+        "event_name": event_name,
+        "balance_text": _money(balance, currency),
+        "lang": _lang(lang),
+    })
+
+
+# ──────────────────────────────────────────────
+# #41/42 — expense_recorded
+# ──────────────────────────────────────────────
+def wa_expense_recorded(phone, recipient_first_name, recorder_name, amount, category, event_name, currency="TZS", lang="sw"):
+    _send_whatsapp("expense_recorded", phone, {
+        "recipient_first_name": recipient_first_name,
+        "recorder_name": recorder_name,
+        "amount_text": _money(amount, currency) if not isinstance(amount, str) else amount,
+        "category": category,
+        "event_name": event_name,
+        "lang": _lang(lang),
+    })
+
+
+# ──────────────────────────────────────────────
+# #43/44 — service_booking_notification
+# ──────────────────────────────────────────────
+def wa_booking_notification(phone, provider_name, event_title, client_name, service_name="service", lang="sw"):
+    _send_whatsapp("service_booking_notification", phone, {
+        "provider_name": provider_name,
+        "client_name": client_name,
+        "service_name": service_name or "service",
+        "event_name": event_title,
+        "lang": _lang(lang),
+    })
+
+
+# ──────────────────────────────────────────────
+# #45/46 — booking_accepted
+# ──────────────────────────────────────────────
+def wa_booking_accepted(phone, requester_first_name, vendor_name, service_name, event_title, lang="sw"):
+    _send_whatsapp("booking_accepted", phone, {
+        "requester_first_name": requester_first_name,
+        "vendor_name": vendor_name,
+        "service_name": service_name,
+        "event_name": event_title,
+        "lang": _lang(lang),
+    })
+
+
+# ──────────────────────────────────────────────
+# DEPRECATED — kept as no-op shims for safety during deploy overlap.
+# These map to the new templates above. Remove after one full deploy cycle.
+# ──────────────────────────────────────────────
+def wa_event_updated(phone, *args, **kwargs):
+    """DEPRECATED — event_update was removed from the catalogue."""
+    return False
+
+
+def wa_event_reminder(*args, **kwargs):
+    """Routes to the reminder-automation template (kept as-is per catalogue)."""
+    if len(args) >= 1:
+        phone = args[0]
+    else:
+        phone = kwargs.get("phone", "")
+    if not phone:
+        return False
+    _send_whatsapp("reminder", phone, {
+        "guest_name": kwargs.get("guest_name", args[1] if len(args) > 1 else ""),
+        "event_name": kwargs.get("event_name", args[2] if len(args) > 2 else ""),
+        "event_date": kwargs.get("event_date", args[3] if len(args) > 3 else ""),
+        "event_time": kwargs.get("event_time", args[4] if len(args) > 4 else ""),
+        "location": kwargs.get("location", args[5] if len(args) > 5 else ""),
     })

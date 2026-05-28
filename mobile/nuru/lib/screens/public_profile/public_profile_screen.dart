@@ -35,8 +35,13 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    // Essential first: profile header so the page paints immediately.
-    final res = await UserServicesService.getUserProfile(widget.userId);
+    // Resolve the profile. If userId is empty (e.g. opened from a /u/:username
+    // deep link), fall back to the by-username endpoint so the page still
+    // renders instead of bouncing the user back home.
+    final hasUserId = widget.userId.isNotEmpty;
+    final res = hasUserId
+        ? await UserServicesService.getUserProfile(widget.userId)
+        : await UserServicesService.getPublicProfile(widget.username ?? '');
     if (!mounted) return;
     setState(() {
       _loading = false;
@@ -46,15 +51,18 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       }
     });
     // Posts load in the background — does not block first paint.
-    SocialService.getUserPosts(widget.userId).then((postsRes) {
-      if (!mounted || postsRes['success'] != true) return;
-      final data = postsRes['data'];
-      setState(() {
-        _posts = data is List
-            ? data
-            : (data is Map ? (data['posts'] ?? data['items'] ?? []) : []);
-      });
-    }).catchError((_) {});
+    final resolvedId = (_profile?['id'] ?? widget.userId)?.toString() ?? '';
+    if (resolvedId.isNotEmpty) {
+      SocialService.getUserPosts(resolvedId).then((postsRes) {
+        if (!mounted || postsRes['success'] != true) return;
+        final data = postsRes['data'];
+        setState(() {
+          _posts = data is List
+              ? data
+              : (data is Map ? (data['posts'] ?? data['items'] ?? []) : []);
+        });
+      }).catchError((_) {});
+    }
   }
 
   @override

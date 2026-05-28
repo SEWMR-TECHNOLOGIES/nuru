@@ -81,6 +81,7 @@
                 <data android:pathPrefix="/c/" />
                 <data android:pathPrefix="/rsvp/" />
                 <data android:pathPrefix="/i/" />
+                <data android:pathPrefix="/set-password/" />
             </intent-filter>
 
             <!-- Custom scheme: nuru://event/123, nuru://i/CODE, etc.

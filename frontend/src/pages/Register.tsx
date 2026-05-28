@@ -299,6 +299,11 @@ const Register = () => {
         }
         if (d.refresh_token) localStorage.setItem("refresh_token", d.refresh_token);
         localStorage.setItem("login", Date.now().toString());
+        // Warm My Groups cache with any event groups attached by contributor-claim.
+        try {
+          const { prefetchMyGroupsAfterLogin } = await import("@/components/eventGroups/MyGroups");
+          void prefetchMyGroupsAfterLogin();
+        } catch { /* noop */ }
       }
 
       return true;

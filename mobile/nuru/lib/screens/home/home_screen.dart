@@ -50,6 +50,7 @@ import '../../providers/migration_provider.dart';
 import '../events/create_event_screen.dart';
 import 'home_tab_controller.dart';
 import '../../core/utils/notification_center.dart';
+import '../../core/widgets/global_transfers_badge.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -76,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<dynamic> _myEvents = [];
   List<dynamic> _invitedEvents = [];
   List<dynamic> _committeeEvents = [];
+  bool _eventsLoading = true; // first-load skeleton for the Events tab
   List<dynamic> _notifications = [];
   int _unreadNotifications = 0;
   bool _notificationsLoading = true;
@@ -116,7 +118,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _reelsLoading = false;
     }
     if (HomeCache.profile != null) _profile = HomeCache.profile;
-    if (HomeCache.myEvents != null) _myEvents = List<dynamic>.from(HomeCache.myEvents!);
+    if (HomeCache.myEvents != null) { _myEvents = List<dynamic>.from(HomeCache.myEvents!); _eventsLoading = false; }
     if (HomeCache.invitedEvents != null) _invitedEvents = List<dynamic>.from(HomeCache.invitedEvents!);
     if (HomeCache.committeeEvents != null) _committeeEvents = List<dynamic>.from(HomeCache.committeeEvents!);
     if (HomeCache.notifications != null) {
@@ -440,10 +442,13 @@ class _HomeScreenState extends State<HomeScreen> {
         _myEvents = newMyEvents;
         _invitedEvents = newInvitedEvents;
         _committeeEvents = newCommitteeEvents;
+        _eventsLoading = false;
       });
       HomeCache.myEvents = _myEvents;
       HomeCache.invitedEvents = _invitedEvents;
       HomeCache.committeeEvents = _committeeEvents;
+    } else if (_eventsLoading) {
+      setState(() => _eventsLoading = false);
     }
   }
 
@@ -587,6 +592,17 @@ class _HomeScreenState extends State<HomeScreen> {
   int get _totalEvents => _myEvents.length;
   int get _upcomingEvents => _kpiUpcoming;
 
+  bool _isUserVerified() {
+    final p = _profile ?? const {};
+    if (p['is_identity_verified'] == true ||
+        p['identity_verified'] == true ||
+        p['kyc_verified'] == true ||
+        p['is_verified'] == true) return true;
+    final status = (p['verification_status'] ?? p['identity_status'] ?? p['kyc_status'])
+        ?.toString()
+        .toLowerCase();
+    return status == 'verified' || status == 'approved';
+  }
 
 
   @override
@@ -626,7 +642,11 @@ class _HomeScreenState extends State<HomeScreen> {
           myServices: _myServices,
           followSuggestions: _followSuggestions,
           onFollowChanged: () => setState(() => _loadFollowSuggestions()),
+          userName: name,
+          userAvatar: avatar,
+          isVerified: _isUserVerified(),
         ),
+
         body: Column(
           children: [
             // Global header is only shown on tabs that need it (Home, Events).
@@ -694,6 +714,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+        floatingActionButton: const GlobalTransfersBadge(),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
         bottomNavigationBar: HomeBottomNav(
           currentTab: _tab,
           unreadMessages: _unreadMessages,
@@ -924,11 +946,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   ? MyContributionsTab(key: _myContribKey)
                   : NuruRefresh(
                       onRefresh: () async => await _loadEvents(silent: true),
-                      child: _loading
+                      child: (_loading || _eventsLoading)
                           ? ListView(
                               physics: const AlwaysScrollableScrollPhysics(),
                               padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
-                              children: List.generate(3, (_) => const Padding(padding: EdgeInsets.only(bottom: 16), child: ShimmerCard())),
+                              children: List.generate(4, (_) => const Padding(padding: EdgeInsets.only(bottom: 16), child: ShimmerCard(height: 180))),
                             )
                           : events.isEmpty
                               ? ListView(

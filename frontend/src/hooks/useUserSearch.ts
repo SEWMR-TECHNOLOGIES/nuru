@@ -48,7 +48,7 @@ export const useUserSearch = () => {
             username: u.username || '',
             email: u.email || '',
             phone: u.phone || undefined,
-            avatar: u.avatar || null,
+            avatar: u.avatar || u.profile_picture_url || u.avatar_url || u.provider_avatar_url || null,
             is_verified: u.is_verified,
           })));
         } else {

@@ -170,6 +170,9 @@ class EventsService {
     String? venueAddress,
     String? reminderContactPhone,
     String status = 'published',
+    bool createdForSomeoneElse = false,
+    String? eventOwnerUserId,
+    String? recognizableEventOwnerName,
   }) async {
     try {
       final uri = Uri.parse('$_baseUrl/user-events/');
@@ -203,6 +206,13 @@ class EventsService {
         request.fields['venue_address'] = venueAddress;
       if (reminderContactPhone != null)
         request.fields['reminder_contact_phone'] = reminderContactPhone;
+      request.fields['created_for_someone_else'] = createdForSomeoneElse ? 'true' : 'false';
+      if (createdForSomeoneElse && eventOwnerUserId != null && eventOwnerUserId.isNotEmpty) {
+        request.fields['event_owner_user_id'] = eventOwnerUserId;
+      }
+      if (createdForSomeoneElse && recognizableEventOwnerName != null && recognizableEventOwnerName.trim().isNotEmpty) {
+        request.fields['recognizable_event_owner_name'] = recognizableEventOwnerName.trim();
+      }
       if (imagePath != null)
         request.files.add(
           await http.MultipartFile.fromPath('cover_image', imagePath),
@@ -244,6 +254,9 @@ class EventsService {
     String? invitationTemplateId,
     String? invitationAccentColor,
     Map<String, dynamic>? invitationContent,
+    bool? createdForSomeoneElse,
+    String? eventOwnerUserId,
+    String? recognizableEventOwnerName,
   }) async {
     try {
       final uri = Uri.parse('$_baseUrl/user-events/$eventId');
@@ -281,6 +294,15 @@ class EventsService {
         request.fields['invitation_accent_color'] = invitationAccentColor;
       if (invitationContent != null)
         request.fields['invitation_content'] = jsonEncode(invitationContent);
+      if (createdForSomeoneElse != null) {
+        request.fields['created_for_someone_else'] = createdForSomeoneElse ? 'true' : 'false';
+      }
+      if (eventOwnerUserId != null) {
+        request.fields['event_owner_user_id'] = eventOwnerUserId;
+      }
+      if (recognizableEventOwnerName != null) {
+        request.fields['recognizable_event_owner_name'] = recognizableEventOwnerName.trim();
+      }
       if (imagePath != null && imagePath.isNotEmpty) {
         request.files.add(
           await http.MultipartFile.fromPath('cover_image', imagePath),

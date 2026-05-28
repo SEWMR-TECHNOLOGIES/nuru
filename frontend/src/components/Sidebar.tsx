@@ -194,7 +194,7 @@ const Sidebar = ({ onNavigate, onReplayTour, inDrawer = false }: SidebarProps) =
         { lucideIcon: Wallet, label: 'Wallet', path: '/wallet', hint: 'Wallet balance, top-ups, and transaction history.' },
         { lucideIcon: BookOpen, label: 'Bookings', path: '/bookings', hint: 'Booking requests in and out — accept, decline, pay deposits.' },
         { lucideIcon: HandCoins, label: 'My Contributions', path: '/my-contributions', hint: 'Receipts for every contribution you have paid.' },
-        { customIcon: ContributorsIcon, label: t('contributors'), path: '/my-contributors', hint: 'People who have contributed to your events.' },
+        { customIcon: ContributorsIcon, label: 'My Contributors', path: '/my-contributors', hint: 'People who have contributed to your events.' },
       ],
     },
     {

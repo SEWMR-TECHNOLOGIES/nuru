@@ -179,7 +179,14 @@ export const contributorsApi = {
   sendThankYou: (eventId: string, eventContributorId: string, data: { custom_message?: string }) =>
     post<{ sent: boolean }>(`/user-contributors/events/${eventId}/contributors/${eventContributorId}/thank-you`, data),
 
-  /** Bulk add/update contributors to event */
+  /**
+   * Bulk add/update contributors to an event.
+   *
+   * The backend now processes large uploads asynchronously: it enqueues a
+   * background job and returns immediately with a ``job_id``. Call
+   * ``getImportJobStatus`` to poll progress and ``getImportJobErrors``
+   * to fetch per-row errors once the job has finished.
+   */
   bulkAddToEvent: (eventId: string, data: {
     contributors: { name: string; phone: string; amount: number }[];
     send_sms?: boolean;
@@ -187,11 +194,33 @@ export const contributorsApi = {
     payment_method?: string;
   }) =>
     post<{
-      processed: number;
-      errors_count: number;
-      results: { row: number; name: string; action: string }[];
-      errors: { row: number; message: string }[];
+      job_id: string;
+      status: "queued" | "processing" | "completed" | "failed";
+      total_rows: number;
     }>(`/user-contributors/events/${eventId}/contributors/bulk`, data),
+
+  /** Poll a contributor-import job for status & progress. */
+  getImportJobStatus: (eventId: string, jobId: string) =>
+    get<{
+      job_id: string;
+      status: "queued" | "processing" | "completed" | "failed";
+      mode: "targets" | "contributions";
+      total_rows: number;
+      processed_rows: number;
+      successful_rows: number;
+      failed_rows: number;
+      error_message?: string | null;
+      started_at?: string | null;
+      finished_at?: string | null;
+      created_at?: string | null;
+    }>(`/user-contributors/events/${eventId}/contributor-imports/${jobId}`),
+
+  /** Get per-row errors for a finished contributor-import job. */
+  getImportJobErrors: (eventId: string, jobId: string) =>
+    get<{
+      job_id: string;
+      errors: { row: number; message: string }[];
+    }>(`/user-contributors/events/${eventId}/contributor-imports/${jobId}/errors`),
 
   /** Get pending contributions awaiting creator confirmation */
   getPendingContributions: (eventId: string) =>

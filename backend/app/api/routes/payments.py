@@ -634,12 +634,37 @@ def _notify_payment_received(db: Session, tx: Transaction) -> None:
             )
             target_label = service.title if service else "service booking"
             if vendor and getattr(vendor, "phone", None):
+                # Agreed/expected service amount = quoted_price (fallback proposed_price).
+                service_amount = float(
+                    (booking.quoted_price if booking and booking.quoted_price is not None else
+                     (booking.proposed_price if booking else 0)) or 0
+                )
+                # Total paid to this booking so far = sum of successful credit
+                # transactions for this booking target.
+                try:
+                    from sqlalchemy import func as _sa_func
+                    total_paid = float(
+                        db.query(_sa_func.coalesce(_sa_func.sum(Transaction.gross_amount), 0))
+                        .filter(
+                            Transaction.target_type == PaymentTargetTypeEnum.booking,
+                            Transaction.target_id == tx.target_id,
+                            Transaction.status == TransactionStatusEnum.success,
+                        )
+                        .scalar()
+                        or 0
+                    )
+                except Exception:
+                    total_paid = float(tx.gross_amount or 0)
+                balance = max(0.0, service_amount - total_paid) if service_amount > 0 else 0.0
                 sms_vendor_booking_paid(
                     phone=vendor.phone,
                     vendor_name=_payer_label(vendor),
                     client_name=payer_name,
                     service_title=service.title if service else "your service",
                     amount=amount, currency=currency, transaction_code=code,
+                    service_amount=service_amount,
+                    total_paid=total_paid,
+                    balance=balance,
                 )
 
         elif tx.beneficiary_user_id:

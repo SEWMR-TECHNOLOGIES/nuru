@@ -55,50 +55,111 @@ class AppUpdateService {
   }
 
   static void _showUpdateDialog(BuildContext context, Map<String, dynamic> data, bool mustUpdate, String currentVersion, int currentBuild) {
-    final latestVersion = data['latest_version']?.toString() ?? '';
-    final latestBuild = _asInt(data['latest_build']);
     showDialog(
       context: context,
       barrierDismissible: !mustUpdate,
+      barrierColor: Colors.black.withOpacity(0.55),
       builder: (_) => PopScope(
         canPop: !mustUpdate,
         child: Dialog(
-          backgroundColor: AppColors.surface,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 22),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Row(children: [
-                SvgPicture.asset('assets/icons/thunder-icon.svg', width: 24, height: 24, colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn)),
-                const SizedBox(width: 10),
-                Expanded(child: Text(mustUpdate ? 'Update required' : 'Update available', style: appText(size: 18, weight: FontWeight.w700))),
-              ]),
-              const SizedBox(height: 14),
-              Text(data['message']?.toString() ?? 'A newer Nuru version is ready.', style: appText(size: 14, color: AppColors.textSecondary, height: 1.45)),
-              const SizedBox(height: 12),
-              Text('Installed v$currentVersion ($currentBuild) • Latest v$latestVersion ($latestBuild)', style: appText(size: 12, color: AppColors.textTertiary, height: 1.35)),
-              const SizedBox(height: 20),
-              InkWell(
-                onTap: () async {
-                  final uri = Uri.tryParse(data['update_url']?.toString() ?? '');
-                  if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: Ink(
-                  width: double.infinity,
-                  height: 46,
-                  decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(12)),
-                  child: Center(
-                    child: Text('Update app', style: appText(size: 14, weight: FontWeight.w700, color: AppColors.textOnPrimary)),
-                  ),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.18),
+                  blurRadius: 40,
+                  offset: const Offset(0, 16),
                 ),
-              ),
-              if (!mustUpdate) ...[
-                const SizedBox(height: 10),
-                Center(child: TextButton(onPressed: () => Navigator.pop(context), child: Text('Not now', style: appText(size: 13, weight: FontWeight.w500, color: AppColors.textTertiary)))),
               ],
-            ]),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(26, 30, 26, 22),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Hero icon badge — soft primary halo
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          AppColors.primary.withOpacity(0.14),
+                          AppColors.primary.withOpacity(0.04),
+                        ],
+                      ),
+                    ),
+                    child: Center(
+                      child: SvgPicture.asset(
+                        'assets/icons/thunder-icon.svg',
+                        width: 30,
+                        height: 30,
+                        colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    mustUpdate ? 'Time to update' : 'A fresh Nuru is ready',
+                    textAlign: TextAlign.center,
+                    style: appText(size: 20, weight: FontWeight.w700, height: 1.25),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    data['message']?.toString() ??
+                        (mustUpdate
+                            ? 'Update to keep using Nuru without interruption.'
+                            : 'New improvements and refinements are waiting for you.'),
+                    textAlign: TextAlign.center,
+                    style: appText(size: 14, color: AppColors.textSecondary, height: 1.5),
+                  ),
+                  const SizedBox(height: 26),
+                  // Primary CTA
+                  Material(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(14),
+                    child: InkWell(
+                      onTap: () async {
+                        final uri = Uri.tryParse(data['update_url']?.toString() ?? '');
+                        if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      },
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        width: double.infinity,
+                        height: 52,
+                        alignment: Alignment.center,
+                        child: Text(
+                          'Update now',
+                          style: appText(size: 15, weight: FontWeight.w700, color: AppColors.textOnPrimary),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (!mustUpdate) ...[
+                    const SizedBox(height: 6),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 44),
+                      ),
+                      child: Text(
+                        'Maybe later',
+                        style: appText(size: 13, weight: FontWeight.w600, color: AppColors.textTertiary),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
       ),

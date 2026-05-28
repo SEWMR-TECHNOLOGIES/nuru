@@ -17,6 +17,7 @@ import PhotosIcon from '@/assets/icons/photos-icon.svg';
 import CalendarIconSVG from '@/assets/icons/calendar-icon.svg';
 import LocationIcon from '@/assets/icons/location-icon.svg';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import MediaThumb from '@/components/MediaThumb';
 
 const SharedPhotoLibrary = () => {
   const { t } = useLanguage();
@@ -171,7 +172,7 @@ const SharedPhotoLibrary = () => {
             className="relative rounded-2xl overflow-hidden mb-8 h-56 sm:h-64"
           >
             {photos.length > 0 ? (
-              <img src={photos[0].url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+              <MediaThumb url={photos[0].url} mediaType={photos[0].media_type} className="absolute inset-0 w-full h-full object-cover" showPlayBadge={false} />
             ) : (
               <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-primary/10 to-background" />
             )}
@@ -251,7 +252,7 @@ const SharedPhotoLibrary = () => {
                   className="break-inside-avoid relative group rounded-xl overflow-hidden cursor-zoom-in bg-muted"
                   onClick={() => setLightboxIdx(idx)}
                 >
-                  <img src={photo.url} alt={photo.caption || `Photo ${idx + 1}`} className="w-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <MediaThumb url={photo.url} mediaType={photo.media_type} durationSeconds={photo.duration_seconds} alt={photo.caption || `Photo ${idx + 1}`} className="w-full object-cover group-hover:scale-105 transition-transform duration-500 block" />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                     <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
@@ -343,12 +344,23 @@ const SharedPhotoLibrary = () => {
             className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
             onClick={(e) => { e.stopPropagation(); setLightboxIdx(i => i !== null ? Math.min(photos.length - 1, i + 1) : 0); }}
           ><ChevronRight className="w-5 h-5" /></button>
-          <img
-            src={photos[lightboxIdx].url}
-            alt=""
-            className="max-h-[85vh] max-w-[90vw] object-contain rounded-xl"
-            onClick={(e) => e.stopPropagation()}
-          />
+          {photos[lightboxIdx].media_type === 'video' ? (
+            <video
+              src={photos[lightboxIdx].url}
+              controls
+              autoPlay
+              playsInline
+              className="max-h-[85vh] max-w-[90vw] rounded-xl bg-black"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <img
+              src={photos[lightboxIdx].url}
+              alt=""
+              className="max-h-[85vh] max-w-[90vw] object-contain rounded-xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/60 text-sm bg-black/40 px-3 py-1 rounded-full">
             {lightboxIdx + 1} / {photos.length}
           </div>

@@ -90,6 +90,15 @@ async def signin(request: Request, response: Response, db: Session = Depends(get
             }
         }
 
+    # Contributor → user claim. Idempotent + non-blocking: any contributor
+    # rows added since last login are linked, and the user is inserted into
+    # every event group workspace they belong to. Never blocks auth.
+    try:
+        from services.contributor_claim import claim_existing_contributor_records_for_user
+        claim_existing_contributor_records_for_user(db, user)
+    except Exception as e:
+        print(f"[signin] contributor_claim failed: {e}")
+
     # Generate tokens
     access_token = create_access_token({"uid": str(user.id)})
     refresh_token = create_refresh_token({"uid": str(user.id)})

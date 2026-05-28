@@ -1,3 +1,4 @@
+// DARK_THEME_DRAWER
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import '../../../core/utils/event_image.dart';
 import '../../events/event_detail_screen.dart';
 import '../../events/event_public_view_screen.dart';
 import '../../services/public_service_screen.dart';
+import '../../services/find_services_screen.dart';
 import '../../tickets/browse_tickets_screen.dart';
 import '../../tickets/my_tickets_screen.dart';
 import '../../event_groups/my_groups_screen.dart';
@@ -29,6 +31,9 @@ class HomeRightDrawer extends StatelessWidget {
   final List<dynamic> myServices;
   final List<dynamic> followSuggestions;
   final VoidCallback? onFollowChanged;
+  final String? userName;
+  final String? userAvatar;
+  final bool isVerified;
 
   const HomeRightDrawer({
     super.key,
@@ -40,7 +45,11 @@ class HomeRightDrawer extends StatelessWidget {
     required this.myServices,
     required this.followSuggestions,
     this.onFollowChanged,
+    this.userName,
+    this.userAvatar,
+    this.isVerified = false,
   });
+
 
   List<Map<String, dynamic>> _mergeUpcomingEvents() {
     final now = DateTime.now();
@@ -72,63 +81,134 @@ class HomeRightDrawer extends StatelessWidget {
     }
   }
 
+  String _greeting() {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Good Morning';
+    if (h < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  }
+
   @override
   Widget build(BuildContext context) {
     final upcomingEvents = _mergeUpcomingEvents();
+    final drawerWidth = MediaQuery.of(context).size.width < 430
+        ? MediaQuery.of(context).size.width * 0.82
+        : 360.0;
     return Drawer(
-      width: 320,
-      backgroundColor: AppColors.surface,
+      width: drawerWidth,
+      backgroundColor: const Color(0xFF080C16),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       child: Column(
         children: [
-          // ── Header ──
+          // ── Profile Header ──
           Container(
             padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + 22,
+              top: MediaQuery.of(context).padding.top + 18,
               left: 22,
               right: 18,
               bottom: 22,
             ),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              border: Border(
-                bottom: BorderSide(
-                  color: AppColors.borderLight.withOpacity(0.6),
-                  width: 1,
-                ),
-              ),
+            decoration: const BoxDecoration(
+              color: Color(0xFF080C16),
             ),
             child: Row(
               children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Center(
-                    child: SvgPicture.asset(
-                      'assets/icons/panel-right-icon.svg',
-                      width: 20,
-                      height: 20,
-                      colorFilter: const ColorFilter.mode(
-                        AppColors.primary,
-                        BlendMode.srcIn,
+                // Avatar with golden ring + verified badge (only for verified users)
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 60,
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.primary, width: 1.6),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(0.35),
+                            blurRadius: 18,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: (userAvatar != null && userAvatar!.isNotEmpty)
+                            ? CachedNetworkImage(
+                                imageUrl: userAvatar!,
+                                fit: BoxFit.cover,
+                                errorWidget: (_, __, ___) => Container(
+                                  color: AppColors.primary.withOpacity(0.15),
+                                  child: const Icon(Icons.person,
+                                      color: AppColors.primary, size: 28),
+                                ),
+                              )
+                            : Container(
+                                color: AppColors.primary.withOpacity(0.15),
+                                child: const Icon(Icons.person,
+                                    color: AppColors.primary, size: 28),
+                              ),
                       ),
                     ),
-                  ),
+                    if (isVerified)
+                      Positioned(
+                        bottom: -2,
+                        right: -2,
+                        child: Container(
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0A1C40),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                                color: const Color(0xFF0A1C40), width: 2),
+                          ),
+                          child: Center(
+                            child: SvgPicture.asset(
+                              'assets/icons/verified-icon.svg',
+                              width: 18,
+                              height: 18,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
+
                 const SizedBox(width: 14),
                 Expanded(
-                  child: Text(
-                    context.trw('quick_view'),
-                    style: GoogleFonts.sora(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                      height: 1.2,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${_greeting()},',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: const Color(0xFFB8C2D0),
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              (userName?.isNotEmpty ?? false)
+                                  ? userName!
+                                  : 'Welcome',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.sora(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                height: 1.2,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
                 GestureDetector(
@@ -137,25 +217,69 @@ class HomeRightDrawer extends StatelessWidget {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppColors.borderLight,
-                        width: 1,
-                      ),
+                      color: Colors.black.withOpacity(0.34),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.09)),
                     ),
-                    child: Center(
-                      child: SvgPicture.asset(
-                        'assets/icons/close-icon.svg',
-                        width: 14,
-                        height: 14,
-                        colorFilter: const ColorFilter.mode(
-                          AppColors.textSecondary,
-                          BlendMode.srcIn,
-                        ),
-                      ),
+                    child: const Center(
+                      child: Icon(Icons.close_rounded,
+                          size: 18, color: Colors.white),
                     ),
                   ),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Quick Actions Grid ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
+            child: Row(
+              children: [
+                _QuickTile(
+                  iconAsset: 'assets/icons/calendar-icon.svg',
+                  label: context.trw('events'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    HomeTabController.openEvents();
+                  },
+                ),
+                const SizedBox(width: 10),
+                _QuickTile(
+                  iconAsset: 'assets/icons/users-icon.svg',
+                  label: 'Groups',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const MyGroupsScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 10),
+                _QuickTile(
+                  iconAsset: 'assets/icons/ticket-icon.svg',
+                  label: context.trw('tickets'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    HomeTabController.openTickets();
+                  },
+                ),
+                const SizedBox(width: 10),
+                _QuickTile(
+                  iconAsset: 'assets/icons/bag-icon.svg',
+                  label: 'Providers',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const FindServicesScreen(),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -164,21 +288,23 @@ class HomeRightDrawer extends StatelessWidget {
           // ── Content ──
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              padding: const EdgeInsets.fromLTRB(22, 20, 22, 30),
               children: [
-                // Upcoming Events
-                if (upcomingEvents.isNotEmpty) ...[
-                  _SectionHeader(
-                    icon: 'assets/icons/calendar-icon.svg',
-                    title: context.trw('upcoming_events'),
-                    count: upcomingEvents.length,
-                  ),
-                  const SizedBox(height: 12),
-                  ...upcomingEvents
-                      .take(6)
-                      .map((item) => _UpcomingEventCard(item: item)),
-                  const SizedBox(height: 28),
-                ],
+                _SectionHeaderAction(
+                  title: context.trw('upcoming_events'),
+                  action: 'View all',
+                  onAction: () {
+                    Navigator.pop(context);
+                    HomeTabController.openEvents();
+                  },
+                ),
+                const SizedBox(height: 12),
+                ...upcomingEvents
+                    .take(2)
+                    .map((item) => _UpcomingEventCard(item: item)),
+                const SizedBox(height: 16),
+                const _MomentsPromoCard(),
+                const SizedBox(height: 28),
 
                 // My Meetings
                 const _MyMeetingsSection(),
@@ -202,55 +328,46 @@ class HomeRightDrawer extends StatelessWidget {
                   const SizedBox(height: 28),
                 ],
 
-                // Events with Tickets
-                if (ticketedEvents.isNotEmpty) ...[
-                  _SectionHeaderAction(
-                    icon: 'assets/icons/ticket-icon.svg',
-                    title: context.trw('events_with_tickets'),
-                    action: context.trw('view_all'),
-                    onAction: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const BrowseTicketsScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  ...ticketedEvents
-                      .take(5)
-                      .map((e) => _TicketedEventCard(event: e)),
-                  const SizedBox(height: 28),
-                ],
+                _SectionHeaderAction(
+                  icon: 'assets/icons/ticket-icon.svg',
+                  title: context.trw('events_with_tickets'),
+                  action: context.trw('view_all'),
+                  onAction: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const BrowseTicketsScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                ...ticketedEvents
+                    .take(5)
+                    .map((e) => _TicketedEventCard(event: e)),
+                const SizedBox(height: 28),
 
-                // Service Providers
-                if (myServices.isNotEmpty) ...[
-                  _SectionHeader(
-                    icon: 'assets/icons/package-icon.svg',
-                    title: context.trw('service_providers'),
-                    count: myServices.length,
-                  ),
-                  const SizedBox(height: 12),
-                  _ServicesGrid(services: myServices),
-                  const SizedBox(height: 28),
-                ],
+                _SectionHeaderAction(
+                  title: context.trw('service_providers'),
+                  action: 'See all',
+                  onAction: () {
+                    Navigator.pop(context);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const FindServicesScreen()));
+                  },
+                ),
+                const SizedBox(height: 12),
+                if (myServices.isNotEmpty) _ServicesGrid(services: myServices),
+                const SizedBox(height: 28),
 
-                // Suggested for You
-                if (followSuggestions.isNotEmpty) ...[
-                  _SectionHeader(
-                    icon: 'assets/icons/user-icon.svg',
-                    title: context.trw('suggested_for_you'),
-                  ),
-                  const SizedBox(height: 12),
-                  ...followSuggestions.map(
-                    (u) => _SuggestionCard(
-                      user: u,
-                      onFollowChanged: onFollowChanged,
-                    ),
-                  ),
-                ],
+                _SectionHeaderAction(
+                  title: context.trw('suggested_for_you'),
+                  action: 'See all',
+                  onAction: () {},
+                ),
+                const SizedBox(height: 12),
+                if (followSuggestions.isNotEmpty)
+                  _SuggestedUsersRow(users: followSuggestions, onFollowChanged: onFollowChanged),
 
                 // Empty state
                 if (upcomingEvents.isEmpty &&
@@ -316,7 +433,7 @@ class _SectionHeader extends StatelessWidget {
             style: GoogleFonts.sora(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: AppColors.textPrimary,
+              color: const Color(0xFFF5F5F7),
               letterSpacing: 0,
               height: 1.2,
             ),
@@ -362,39 +479,41 @@ class _SectionHeaderAction extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Center(
-            child: icon != null
-                ? SvgPicture.asset(
-                    icon!,
-                    width: 16,
-                    height: 16,
-                    colorFilter: const ColorFilter.mode(
-                      AppColors.primary,
-                      BlendMode.srcIn,
+        if (icon != null || iconData != null) ...[
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Center(
+              child: icon != null
+                  ? SvgPicture.asset(
+                      icon!,
+                      width: 15,
+                      height: 15,
+                      colorFilter: const ColorFilter.mode(
+                        AppColors.primary,
+                        BlendMode.srcIn,
+                      ),
+                    )
+                  : Icon(
+                      iconData,
+                      size: 15,
+                      color: AppColors.primary,
                     ),
-                  )
-                : Icon(
-                    iconData ?? Icons.circle_outlined,
-                    size: 16,
-                    color: AppColors.primary,
-                  ),
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
+          const SizedBox(width: 10),
+        ],
         Expanded(
           child: Text(
             title,
             style: GoogleFonts.sora(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFFF4D68B),
               height: 1.2,
             ),
           ),
@@ -402,19 +521,19 @@ class _SectionHeaderAction extends StatelessWidget {
         GestureDetector(
           onTap: onAction,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.primary,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              action,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: AppColors.textPrimary,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(
+                action,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFFF4D68B),
+                ),
               ),
-            ),
+              const SizedBox(width: 6),
+              const Icon(Icons.chevron_right_rounded, size: 16, color: Color(0xFFF4D68B)),
+            ]),
           ),
         ),
       ],
@@ -463,13 +582,14 @@ class _UpcomingEventCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: Colors.white.withOpacity(0.045),
             borderRadius: BorderRadius.circular(18),
-            boxShadow: const [
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            boxShadow: [
               BoxShadow(
-                color: Color(0x08000000),
-                blurRadius: 12,
-                offset: Offset(0, 3),
+                color: AppColors.primary.withOpacity(0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
@@ -478,8 +598,8 @@ class _UpcomingEventCard extends StatelessWidget {
               _Thumbnail(
                 imageUrl: resolveEventImageUrl(e),
                 fallbackSvg: 'assets/icons/calendar-icon.svg',
-                size: 56,
-                radius: 14,
+                size: 72,
+                radius: 15,
                 useEventFallback: true,
               ),
               const SizedBox(width: 14),
@@ -492,7 +612,7 @@ class _UpcomingEventCard extends StatelessWidget {
                       style: GoogleFonts.sora(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
+                        color: const Color(0xFFF5F5F7),
                         height: 1.3,
                       ),
                       maxLines: 1,
@@ -506,7 +626,7 @@ class _UpcomingEventCard extends StatelessWidget {
                           width: 11,
                           height: 11,
                           colorFilter: const ColorFilter.mode(
-                            AppColors.textTertiary,
+                            const Color(0xFF8E9BB0),
                             BlendMode.srcIn,
                           ),
                         ),
@@ -515,7 +635,7 @@ class _UpcomingEventCard extends StatelessWidget {
                           _formatDateShort(date.toString()),
                           style: GoogleFonts.inter(
                             fontSize: 10,
-                            color: AppColors.textTertiary,
+                            color: const Color(0xFF8E9BB0),
                             height: 1.2,
                           ),
                         ),
@@ -530,7 +650,7 @@ class _UpcomingEventCard extends StatelessWidget {
                             width: 11,
                             height: 11,
                             colorFilter: const ColorFilter.mode(
-                              AppColors.textTertiary,
+                              const Color(0xFF8E9BB0),
                               BlendMode.srcIn,
                             ),
                           ),
@@ -540,7 +660,7 @@ class _UpcomingEventCard extends StatelessWidget {
                               location,
                               style: GoogleFonts.inter(
                                 fontSize: 10,
-                                color: AppColors.textTertiary,
+                                color: const Color(0xFF8E9BB0),
                                 height: 1.2,
                               ),
                               maxLines: 1,
@@ -554,25 +674,41 @@ class _UpcomingEventCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: role == 'creator'
-                      ? AppColors.primary.withOpacity(0.08)
-                      : AppColors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  role,
-                  style: GoogleFonts.inter(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    color: role == 'creator'
-                        ? AppColors.primary
-                        : AppColors.textTertiary,
-                    height: 1.0,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: role == 'creator'
+                          ? AppColors.primary.withOpacity(0.16)
+                          : const Color(0xFF2D1D59),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Text(
+                      role,
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: role == 'creator'
+                            ? AppColors.primary
+                            : const Color(0xFFD7C2FF),
+                        height: 1.0,
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 20),
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.primary.withOpacity(0.14),
+                      border: Border.all(color: Colors.white.withOpacity(0.06)),
+                    ),
+                    child: const Icon(Icons.arrow_forward_rounded, size: 17, color: AppColors.primary),
+                  ),
+                ],
               ),
             ],
           ),
@@ -631,7 +767,7 @@ class _TicketCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: const Color(0xFF12284F),
             borderRadius: BorderRadius.circular(14),
           ),
           child: Row(
@@ -656,7 +792,7 @@ class _TicketCard extends StatelessWidget {
                           color: AppColors.success,
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: AppColors.surface,
+                            color: const Color(0xFF12284F),
                             width: 2,
                           ),
                         ),
@@ -676,7 +812,7 @@ class _TicketCard extends StatelessWidget {
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                        color: const Color(0xFFF5F5F7),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -688,7 +824,7 @@ class _TicketCard extends StatelessWidget {
                                 : 'Date TBD'),
                       style: GoogleFonts.inter(
                         fontSize: 10,
-                        color: AppColors.textTertiary,
+                        color: const Color(0xFF8E9BB0),
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -703,7 +839,7 @@ class _TicketCard extends StatelessWidget {
                             '×$quantity',
                             style: GoogleFonts.inter(
                               fontSize: 9,
-                              color: AppColors.textTertiary,
+                              color: const Color(0xFF8E9BB0),
                             ),
                           ),
                       ],
@@ -751,7 +887,7 @@ class _TicketedEventCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: const Color(0xFF12284F),
             borderRadius: BorderRadius.circular(14),
           ),
           child: Row(
@@ -773,7 +909,7 @@ class _TicketedEventCard extends StatelessWidget {
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                        color: const Color(0xFFF5F5F7),
                         height: 1.3,
                       ),
                       maxLines: 1,
@@ -785,7 +921,7 @@ class _TicketedEventCard extends StatelessWidget {
                         _formatDateShort(startDate),
                         style: GoogleFonts.inter(
                           fontSize: 10,
-                          color: AppColors.textTertiary,
+                          color: const Color(0xFF8E9BB0),
                           height: 1.2,
                         ),
                       ),
@@ -800,7 +936,7 @@ class _TicketedEventCard extends StatelessWidget {
                               vertical: 3,
                             ),
                             decoration: BoxDecoration(
-                              color: AppColors.surfaceVariant,
+                              color: const Color(0xFF1A3460),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
@@ -808,7 +944,7 @@ class _TicketedEventCard extends StatelessWidget {
                               style: GoogleFonts.inter(
                                 fontSize: 9,
                                 fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
+                                color: const Color(0xFFF5F5F7),
                               ),
                             ),
                           ),
@@ -856,10 +992,14 @@ class _ServicesGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 16,
-      children: services.take(4).map((service) {
+    return SizedBox(
+      height: 148,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: services.take(10).length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final service = services[index];
         final s = service is Map<String, dynamic>
             ? service
             : <String, dynamic>{};
@@ -884,55 +1024,43 @@ class _ServicesGrid extends StatelessWidget {
               );
             }
           },
-          child: SizedBox(
-            width: 120,
+          child: Container(
+            width: 116,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF111827).withOpacity(0.55),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.16), width: 1),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 10, offset: const Offset(0, 4)),
+              ],
+            ),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceVariant,
-                    borderRadius: BorderRadius.circular(14),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: double.infinity,
+                    height: 82,
+                    color: const Color(0xFF1A3460),
+                    child: imgUrl != null
+                        ? CachedNetworkImage(
+                            imageUrl: imgUrl,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) => Center(
+                              child: Text(initials, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF8E9BB0))),
+                            ),
+                          )
+                        : Center(
+                            child: Text(initials, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF8E9BB0))),
+                          ),
                   ),
-                  clipBehavior: Clip.antiAlias,
-                  child: imgUrl != null
-                      ? CachedNetworkImage(
-                          imageUrl: imgUrl,
-                          width: 56,
-                          height: 56,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => Center(
-                            child: Text(
-                              initials,
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textTertiary,
-                              ),
-                            ),
-                          ),
-                        )
-                      : Center(
-                          child: Text(
-                            initials,
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textTertiary,
-                            ),
-                          ),
-                        ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   title,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textPrimary,
-                  ),
-                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFFF5F5F7)),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -940,14 +1068,226 @@ class _ServicesGrid extends StatelessWidget {
             ),
           ),
         );
-      }).toList(),
+        },
+      ),
     );
   }
+}
+
+class _MomentsPromoCard extends StatelessWidget {
+  const _MomentsPromoCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 104),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            Colors.white.withOpacity(0.045),
+            const Color(0xFF2D1D59).withOpacity(0.36),
+          ],
+        ),
+      ),
+      child: Row(children: [
+        Expanded(
+          child: Text.rich(
+            TextSpan(children: [
+              const TextSpan(text: 'Everything you need\n'),
+              const TextSpan(text: 'to create '),
+              TextSpan(text: 'unforgettable\n', style: GoogleFonts.inter(color: const Color(0xFFCBB4FF), fontWeight: FontWeight.w600)),
+              const TextSpan(text: 'moments.'),
+            ]),
+            style: GoogleFonts.inter(fontSize: 13, height: 1.45, color: const Color(0xFFEDEBFF), fontWeight: FontWeight.w500),
+          ),
+        ),
+        SizedBox(
+          width: 96,
+          child: Stack(alignment: Alignment.center, children: [
+            Container(width: 72, height: 52, decoration: BoxDecoration(color: const Color(0xFF7C55C7).withOpacity(0.35), borderRadius: BorderRadius.circular(32))),
+            Positioned(left: 12, top: 16, child: _Orb(size: 34, color: const Color(0xFFB998FF))),
+            Positioned(left: 42, top: 8, child: _Orb(size: 44, color: const Color(0xFF8D63DC))),
+            Positioned(right: 4, bottom: 14, child: _Orb(size: 18, color: const Color(0xFFD7B8FF))),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+class _Orb extends StatelessWidget {
+  final double size;
+  final Color color;
+  const _Orb({required this.size, required this.color});
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      gradient: RadialGradient(colors: [color.withOpacity(0.95), color.withOpacity(0.45)]),
+      boxShadow: [BoxShadow(color: color.withOpacity(0.35), blurRadius: 16)],
+    ),
+  );
 }
 
 // ═══════════════════════════════════════════════
 // Suggestion Card
 // ═══════════════════════════════════════════════
+
+class _SuggestedUsersRow extends StatelessWidget {
+  final List<dynamic> users;
+  final VoidCallback? onFollowChanged;
+  const _SuggestedUsersRow({required this.users, this.onFollowChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 196,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: users.take(12).length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (_, index) => _SuggestionMiniCard(
+          user: users[index],
+          onFollowChanged: onFollowChanged,
+        ),
+      ),
+    );
+  }
+}
+
+class _SuggestionMiniCard extends StatefulWidget {
+  final dynamic user;
+  final VoidCallback? onFollowChanged;
+  const _SuggestionMiniCard({required this.user, this.onFollowChanged});
+
+  @override
+  State<_SuggestionMiniCard> createState() => _SuggestionMiniCardState();
+}
+
+class _SuggestionMiniCardState extends State<_SuggestionMiniCard> {
+  bool _followed = false;
+  bool _loading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final user = widget.user is Map ? widget.user as Map : <String, dynamic>{};
+    final firstName = user['first_name']?.toString() ?? '';
+    final lastName = user['last_name']?.toString() ?? '';
+    final fullName = '$firstName $lastName'.trim();
+    final username = user['username']?.toString() ?? '';
+    final avatar = (user['avatar'] ?? user['profile_picture_url'] ?? user['avatar_url'])?.toString();
+    final initial = (fullName.isNotEmpty ? fullName : username).isNotEmpty
+        ? (fullName.isNotEmpty ? fullName : username)[0].toUpperCase()
+        : '?';
+
+    return GestureDetector(
+      onTap: () {
+        final uid = user['id']?.toString() ?? '';
+        if (uid.isEmpty) return;
+        Navigator.pop(context);
+        Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: uid)));
+      },
+      child: Container(
+        width: 136,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white.withOpacity(0.08),
+              Colors.white.withOpacity(0.025),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withOpacity(0.14), width: 1),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.28), blurRadius: 12, offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFFF6F0DD),
+                border: Border.all(color: Colors.white.withOpacity(0.25), width: 2),
+                boxShadow: [
+                  BoxShadow(color: AppColors.primary.withOpacity(0.25), blurRadius: 14, offset: const Offset(0, 3)),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: avatar != null && avatar.isNotEmpty
+                  ? CachedNetworkImage(imageUrl: avatar, fit: BoxFit.cover, errorWidget: (_, __, ___) => Center(child: Text(initial, style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.primary))))
+                  : Center(child: Text(initial, style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.primary))),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              fullName.isNotEmpty ? fullName : (username.isNotEmpty ? '@$username' : '—'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w700, color: const Color(0xFFF5F5F7)),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              username.isNotEmpty ? '@$username' : ' ',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(fontSize: 10.5, color: const Color(0xFF8E9BB0)),
+            ),
+            const SizedBox(height: 10),
+            GestureDetector(
+              onTap: _loading || _followed
+                  ? null
+                  : () async {
+                      final id = user['id']?.toString() ?? '';
+                      if (id.isEmpty) return;
+                      setState(() => _loading = true);
+                      await SocialService.followUser(id);
+                      if (mounted) setState(() { _loading = false; _followed = true; });
+                      widget.onFollowChanged?.call();
+                    },
+              child: Container(
+                width: double.infinity,
+                height: 30,
+                decoration: BoxDecoration(
+                  gradient: _followed
+                      ? null
+                      : LinearGradient(colors: [AppColors.primary, AppColors.primary.withOpacity(0.85)]),
+                  color: _followed ? Colors.white.withOpacity(0.06) : null,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _followed ? Colors.white.withOpacity(0.18) : Colors.transparent),
+                ),
+                child: Center(
+                  child: _loading
+                      ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : Text(
+                          _followed ? context.trw('following') : '+ ${context.trw('follow')}',
+                          style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white),
+                        ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _SuggestionCard extends StatefulWidget {
   final dynamic user;
@@ -989,7 +1329,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: const Color(0xFF12284F),
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -1050,7 +1390,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                       style: GoogleFonts.inter(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
+                        color: const Color(0xFFF5F5F7),
                         height: 1.2,
                       ),
                       maxLines: 1,
@@ -1063,7 +1403,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                           '@$username',
                           style: GoogleFonts.inter(
                             fontSize: 11,
-                            color: AppColors.textTertiary,
+                            color: const Color(0xFF8E9BB0),
                             height: 1.2,
                           ),
                           maxLines: 1,
@@ -1077,7 +1417,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                           bio,
                           style: GoogleFonts.inter(
                             fontSize: 11,
-                            color: AppColors.textSecondary,
+                            color: const Color(0xFFB8C2D0),
                             height: 1.3,
                           ),
                           maxLines: 1,
@@ -1112,7 +1452,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                   ),
                   decoration: BoxDecoration(
                     color: _followed
-                        ? AppColors.surfaceVariant
+                        ? const Color(0xFF1A3460)
                         : AppColors.primary,
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -1133,7 +1473,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                             color: _followed
-                                ? AppColors.textSecondary
+                                ? const Color(0xFFB8C2D0)
                                 : Colors.white,
                           ),
                         ),
@@ -1162,7 +1502,7 @@ class _EmptyState extends StatelessWidget {
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: AppColors.surfaceVariant,
+              color: const Color(0xFF1A3460),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Center(
@@ -1171,7 +1511,7 @@ class _EmptyState extends StatelessWidget {
                 width: 28,
                 height: 28,
                 colorFilter: const ColorFilter.mode(
-                  AppColors.textHint,
+                  const Color(0xFF6B7896),
                   BlendMode.srcIn,
                 ),
               ),
@@ -1183,7 +1523,7 @@ class _EmptyState extends StatelessWidget {
             style: GoogleFonts.inter(
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
+              color: const Color(0xFFF5F5F7),
               height: 1.2,
             ),
           ),
@@ -1192,7 +1532,7 @@ class _EmptyState extends StatelessWidget {
             context.trw('nothing_here_yet'),
             style: GoogleFonts.inter(
               fontSize: 12,
-              color: AppColors.textTertiary,
+              color: const Color(0xFF8E9BB0),
               height: 1.3,
             ),
           ),
@@ -1289,7 +1629,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                 style: GoogleFonts.inter(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textTertiary,
+                  color: const Color(0xFF8E9BB0),
                   letterSpacing: 1.2,
                   height: 1.0,
                 ),
@@ -1351,12 +1691,12 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: isLive ? const Color(0x0A22C55E) : AppColors.surface,
+                  color: isLive ? const Color(0x0A22C55E) : const Color(0xFF12284F),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: isLive
                         ? const Color(0x4D22C55E)
-                        : AppColors.borderLight,
+                        : const Color(0xFF1A3460),
                     width: isLive ? 1.5 : 1,
                   ),
                   boxShadow: isLive
@@ -1407,7 +1747,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                                   style: GoogleFonts.inter(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
+                                    color: const Color(0xFFF5F5F7),
                                     height: 1.3,
                                   ),
                                   maxLines: 1,
@@ -1443,7 +1783,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                               eventName,
                               style: GoogleFonts.inter(
                                 fontSize: 10,
-                                color: AppColors.textTertiary,
+                                color: const Color(0xFF8E9BB0),
                                 height: 1.3,
                               ),
                               maxLines: 1,
@@ -1458,7 +1798,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                                 width: 10,
                                 height: 10,
                                 colorFilter: const ColorFilter.mode(
-                                  AppColors.textTertiary,
+                                  const Color(0xFF8E9BB0),
                                   BlendMode.srcIn,
                                 ),
                               ),
@@ -1467,7 +1807,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                                 '$dateStr · $timeStr',
                                 style: GoogleFonts.inter(
                                   fontSize: 9,
-                                  color: AppColors.textTertiary,
+                                  color: const Color(0xFF8E9BB0),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -1476,7 +1816,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                                 width: 10,
                                 height: 10,
                                 colorFilter: const ColorFilter.mode(
-                                  AppColors.textTertiary,
+                                  const Color(0xFF8E9BB0),
                                   BlendMode.srcIn,
                                 ),
                               ),
@@ -1485,7 +1825,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                                 '$participantCount',
                                 style: GoogleFonts.inter(
                                   fontSize: 9,
-                                  color: AppColors.textTertiary,
+                                  color: const Color(0xFF8E9BB0),
                                 ),
                               ),
                             ],
@@ -1541,7 +1881,7 @@ class _Thumbnail extends StatelessWidget {
         width: 18,
         height: 18,
         colorFilter: const ColorFilter.mode(
-          AppColors.textHint,
+          const Color(0xFF6B7896),
           BlendMode.srcIn,
         ),
       ),
@@ -1554,9 +1894,9 @@ class _Thumbnail extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
+        color: const Color(0xFF1A3460),
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: AppColors.borderLight, width: 0.5),
+        border: Border.all(color: const Color(0xFF1A3460), width: 0.5),
       ),
       clipBehavior: Clip.antiAlias,
       child: imageUrl != null && imageUrl!.isNotEmpty
@@ -1581,14 +1921,14 @@ class _SmallAvatar extends StatelessWidget {
     return Container(
       width: 40,
       height: 40,
-      color: AppColors.surfaceVariant,
+      color: const Color(0xFF1A3460),
       child: Center(
         child: Text(
           name.isNotEmpty ? name[0].toUpperCase() : '?',
           style: GoogleFonts.inter(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: AppColors.textSecondary,
+            color: const Color(0xFFB8C2D0),
             height: 1.0,
           ),
         ),
@@ -1606,7 +1946,7 @@ class _CodeBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.borderLight),
+        border: Border.all(color: const Color(0xFF1A3460)),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
@@ -1614,7 +1954,7 @@ class _CodeBadge extends StatelessWidget {
         style: GoogleFonts.jetBrainsMono(
           fontSize: 9,
           fontWeight: FontWeight.w500,
-          color: AppColors.textPrimary,
+          color: const Color(0xFFF5F5F7),
           letterSpacing: 0.5,
         ),
       ),
@@ -1631,13 +1971,13 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
-        border: Border.all(color: AppColors.borderLight),
+        color: const Color(0xFF1A3460),
+        border: Border.all(color: const Color(0xFF1A3460)),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         status,
-        style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary),
+        style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF8E9BB0)),
       ),
     );
   }
@@ -1749,7 +2089,7 @@ class _MyGroupsSectionState extends State<_MyGroupsSection> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_loaded || _groups.isEmpty) return const SizedBox.shrink();
+    if (!_loaded) return const SizedBox.shrink();
     final visible = _groups.take(4).toList();
 
     return Column(
@@ -1791,7 +2131,7 @@ class _MyGroupsSectionState extends State<_MyGroupsSection> {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
+                  color: const Color(0xFF12284F),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Row(
@@ -1834,7 +2174,7 @@ class _MyGroupsSectionState extends State<_MyGroupsSection> {
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
+                              color: const Color(0xFFF5F5F7),
                               height: 1.3,
                             ),
                           ),
@@ -1843,7 +2183,7 @@ class _MyGroupsSectionState extends State<_MyGroupsSection> {
                             '$memberCount members',
                             style: GoogleFonts.inter(
                               fontSize: 10,
-                              color: AppColors.textTertiary,
+                              color: const Color(0xFF8E9BB0),
                             ),
                           ),
                         ],
@@ -1878,6 +2218,57 @@ class _MyGroupsSectionState extends State<_MyGroupsSection> {
         }),
         const SizedBox(height: 28),
       ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════
+// Quick Action Tile
+// ═══════════════════════════════════════════════
+class _QuickTile extends StatelessWidget {
+  final String iconAsset;
+  final String label;
+  final VoidCallback onTap;
+  const _QuickTile({required this.iconAsset, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF12284F),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFF1A3460), width: 1),
+          ),
+          child: Column(
+            children: [
+              SvgPicture.asset(
+                iconAsset,
+                width: 22,
+                height: 22,
+                colorFilter: const ColorFilter.mode(
+                  AppColors.primary,
+                  BlendMode.srcIn,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -4,11 +4,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/text_styles.dart';
 import '../../core/services/events_service.dart';
+import '../../core/services/api_service.dart';
 import '../../core/services/ticketing_service.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/amount_input.dart';
@@ -59,6 +61,20 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   List<Map<String, dynamic>> _apiEventTypes = [];
   bool _typesLoading = true;
   List<TicketClassData> _ticketClasses = [];
+
+  // Event owner separation feature
+  bool _createdForSomeoneElse = false;
+  Map<String, dynamic>? _eventOwner; // {id, first_name, last_name, full_name, email, phone, avatar}
+  final TextEditingController _recognizableOwnerNameCtrl = TextEditingController();
+  final TextEditingController _ownerSearchCtrl = TextEditingController();
+  Timer? _ownerSearchDebounce;
+  List<Map<String, dynamic>> _ownerSearchResults = [];
+  bool _ownerSearching = false;
+  bool _showOwnerRegister = false;
+  final TextEditingController _newOwnerFirstNameCtrl = TextEditingController();
+  final TextEditingController _newOwnerLastNameCtrl = TextEditingController();
+  final TextEditingController _newOwnerPhoneCtrl = TextEditingController();
+  bool _registeringOwner = false;
 
   // Vendor selection (optional, can be added later)
   final List<Map<String, dynamic>> _selectedVendors = [];
@@ -166,6 +182,21 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     final img = e['image_url'] ?? e['image'] ?? e['cover_image'];
     if (img != null && img.toString().isNotEmpty) {
       _existingImageUrl = img.toString();
+    }
+    // Event owner hydration
+    _createdForSomeoneElse = e['created_for_someone_else'] == true;
+    _recognizableOwnerNameCtrl.text = extractStr(e['recognizable_event_owner_name']);
+    if (_createdForSomeoneElse && e['event_owner_user_id'] != null) {
+      _eventOwner = {
+        'id': e['event_owner_user_id'].toString(),
+        'first_name': extractStr(e['event_owner_first_name']),
+        'last_name': extractStr(e['event_owner_last_name']),
+        'full_name': extractStr(e['event_owner_full_name']),
+        'username': extractStr(e['event_owner_username']),
+        'email': extractStr(e['event_owner_email']),
+        'phone': extractStr(e['event_owner_phone']),
+        'avatar': e['event_owner_avatar'],
+      };
     }
   }
 
@@ -299,7 +330,99 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       }
     }
 
+    if (_createdForSomeoneElse && (_eventOwner?['id'] == null || _eventOwner!['id'].toString().isEmpty)) {
+      AppSnackbar.error(context, 'Please select the actual event owner');
+      return false;
+    }
+
     return true;
+  }
+
+  // ── Event-owner search & registration ──────────────────────────────
+  void _onOwnerSearchChanged(String q) {
+    _ownerSearchDebounce?.cancel();
+    if (q.trim().length < 2) {
+      setState(() { _ownerSearchResults = []; _ownerSearching = false; });
+      return;
+    }
+    setState(() => _ownerSearching = true);
+    _ownerSearchDebounce = Timer(const Duration(milliseconds: 350), () async {
+      final res = await EventsService.searchUsers(q.trim());
+      if (!mounted) return;
+      setState(() {
+        _ownerSearching = false;
+        if (res['success'] == true) {
+          final data = res['data'];
+          final rawList = data is List ? data : (data is Map ? (data['items'] ?? data['users'] ?? data['results'] ?? []) : []);
+          _ownerSearchResults = (rawList is List ? rawList : []).map((u) {
+            if (u is! Map) return <String, dynamic>{};
+            final m = Map<String, dynamic>.from(u);
+            if ((m['first_name'] == null || m['first_name'] == '') && m['full_name'] != null) {
+              final parts = (m['full_name'] as String).split(' ');
+              m['first_name'] = parts.first;
+              m['last_name'] = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+            }
+            final avatar = (m['avatar'] ?? m['profile_picture_url'] ?? m['avatar_url'] ?? m['provider_avatar_url'])?.toString() ?? '';
+            if (avatar.isNotEmpty) m['avatar'] = avatar;
+            return m;
+          }).toList().cast<Map<String, dynamic>>();
+        } else {
+          _ownerSearchResults = [];
+        }
+      });
+    });
+  }
+
+  Future<void> _registerMissingOwner() async {
+    final first = _newOwnerFirstNameCtrl.text.trim();
+    final last = _newOwnerLastNameCtrl.text.trim();
+    final phone = _newOwnerPhoneCtrl.text.trim();
+    if (first.isEmpty || last.isEmpty || phone.isEmpty) {
+      AppSnackbar.error(context, 'Please fill all required fields');
+      return;
+    }
+    setState(() => _registeringOwner = true);
+    try {
+      // Build a username + signup. Mirrors UserSearchInput on web.
+      final uname = ('${first}_${last}_${DateTime.now().millisecondsSinceEpoch}')
+          .toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '');
+      final res = await AuthApi.signup(
+        firstName: first,
+        lastName: last,
+        username: uname,
+        phone: phone,
+        password: 'Nuru@2026',
+      );
+      if (!mounted) return;
+      if (res['success'] == true) {
+        final data = res['data'] as Map?;
+        final id = data?['id']?.toString() ?? data?['user_id']?.toString() ?? '';
+        setState(() {
+          _eventOwner = {
+            'id': id,
+            'first_name': first,
+            'last_name': last,
+            'full_name': '$first $last',
+            'username': data?['username']?.toString() ?? uname,
+            'email': '',
+            'phone': phone,
+          };
+          _showOwnerRegister = false;
+          _ownerSearchCtrl.clear();
+          _ownerSearchResults = [];
+          _newOwnerFirstNameCtrl.clear();
+          _newOwnerLastNameCtrl.clear();
+          _newOwnerPhoneCtrl.clear();
+        });
+        AppSnackbar.success(context, 'Owner registered. Account-setup link sent.');
+      } else {
+        AppSnackbar.error(context, res['message']?.toString() ?? 'Registration failed');
+      }
+    } catch (_) {
+      if (mounted) AppSnackbar.error(context, 'Registration failed');
+    } finally {
+      if (mounted) setState(() => _registeringOwner = false);
+    }
   }
 
   @override
@@ -314,6 +437,12 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _specialInstructionsCtrl.dispose();
     _reminderContactPhoneCtrl.dispose();
     _vendorSearchCtrl.dispose();
+    _recognizableOwnerNameCtrl.dispose();
+    _ownerSearchCtrl.dispose();
+    _newOwnerFirstNameCtrl.dispose();
+    _newOwnerLastNameCtrl.dispose();
+    _newOwnerPhoneCtrl.dispose();
+    _ownerSearchDebounce?.cancel();
     super.dispose();
   }
 
@@ -366,8 +495,21 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         venueLatitude: _venueLatitude,
         venueLongitude: _venueLongitude,
         venueAddress: _venueAddress,
+        createdForSomeoneElse: _createdForSomeoneElse,
+        eventOwnerUserId: _createdForSomeoneElse ? (_eventOwner?['id']?.toString() ?? '') : '',
+        recognizableEventOwnerName: _createdForSomeoneElse ? _recognizableOwnerNameCtrl.text.trim() : '',
       );
     } else {
+      String? ownerUserIdArg;
+      String? ownerNameArg;
+      if (_createdForSomeoneElse) {
+        final ownerId = _eventOwner?['id'];
+        ownerUserIdArg = ownerId?.toString();
+        final trimmedName = _recognizableOwnerNameCtrl.text.trim();
+        if (trimmedName.isNotEmpty) {
+          ownerNameArg = trimmedName;
+        }
+      }
       res = await EventsService.createEvent(
         title: _titleCtrl.text.trim(),
         eventType: _eventTypeId ?? 'other',
@@ -390,6 +532,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         venueLongitude: _venueLongitude,
         venueAddress: _venueAddress,
         status: asDraft ? 'draft' : 'published',
+        createdForSomeoneElse: _createdForSomeoneElse,
+        eventOwnerUserId: ownerUserIdArg,
+        recognizableEventOwnerName: ownerNameArg,
       );
     }
 
@@ -795,6 +940,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       case 0:
         return Column(children: [
           _buildEventDetailsCard(),
+          const SizedBox(height: 16),
+          _buildEventOwnerCard(),
           const SizedBox(height: 16),
           _buildCoverImageCard(),
           const SizedBox(height: 16),
@@ -1295,6 +1442,193 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       const SizedBox(height: 16),
       _label(context.tr('description')),
       _input(_descCtrl, context.tr('describe_event'), maxLines: 4),
+    ]));
+  }
+
+  Widget _buildEventOwnerCard() {
+    final highlight = _createdForSomeoneElse;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: highlight ? AppColors.primarySoft : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: highlight ? AppColors.primary.withOpacity(0.55) : AppColors.border.withOpacity(0.5),
+          width: highlight ? 1.2 : 0.7,
+        ),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('I am creating this event for someone else',
+              style: appText(size: 14, weight: FontWeight.w700)),
+          const SizedBox(height: 2),
+          Text('Notifications and invitations will show the real event owner.',
+              style: appText(size: 11.5, color: AppColors.textTertiary, height: 1.4)),
+        ])),
+        Switch.adaptive(
+          value: _createdForSomeoneElse,
+          activeColor: AppColors.primary,
+          onChanged: (v) => setState(() {
+            _createdForSomeoneElse = v;
+            if (!v) {
+              _eventOwner = null;
+              _recognizableOwnerNameCtrl.clear();
+              _ownerSearchCtrl.clear();
+              _ownerSearchResults = [];
+              _showOwnerRegister = false;
+            }
+          }),
+        ),
+      ]),
+      if (_createdForSomeoneElse) ...[
+        const SizedBox(height: 14),
+        _label('Event owner'),
+        if (_eventOwner != null)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(14)),
+            child: Row(children: [
+              CircleAvatar(
+                radius: 18, backgroundColor: AppColors.primary,
+                backgroundImage: (_eventOwner!['avatar'] != null && _eventOwner!['avatar'].toString().isNotEmpty)
+                    ? CachedNetworkImageProvider(_eventOwner!['avatar'].toString()) : null,
+                child: (_eventOwner!['avatar'] == null || _eventOwner!['avatar'].toString().isEmpty)
+                    ? Text(((_eventOwner!['first_name'] ?? 'U').toString().isEmpty ? 'U' : (_eventOwner!['first_name'] as String)[0]).toUpperCase(),
+                        style: appText(size: 14, weight: FontWeight.w700, color: Colors.white))
+                    : null,
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(
+                  (_eventOwner!['full_name']?.toString().isNotEmpty == true
+                      ? _eventOwner!['full_name']
+                      : '${_eventOwner!['first_name'] ?? ''} ${_eventOwner!['last_name'] ?? ''}').toString().trim(),
+                  style: appText(size: 14, weight: FontWeight.w600),
+                ),
+                if ((_eventOwner!['phone'] ?? '').toString().isNotEmpty)
+                  Text(_eventOwner!['phone'].toString(), style: appText(size: 11, color: AppColors.textTertiary)),
+              ])),
+              GestureDetector(
+                onTap: () => setState(() { _eventOwner = null; }),
+                child: Text('Change', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.primary)),
+              ),
+            ]),
+          )
+        else ...[
+          TextField(
+            controller: _ownerSearchCtrl,
+            onChanged: _onOwnerSearchChanged,
+            autocorrect: false,
+            style: appText(size: 14),
+            decoration: InputDecoration(
+              hintText: 'Search by name, email or phone…',
+              hintStyle: appText(size: 13, color: AppColors.textHint),
+              prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.textHint),
+              suffixIcon: _ownerSearching
+                  ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)))
+                  : null,
+              filled: true, fillColor: Colors.white,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+          ),
+          if (_ownerSearchResults.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.only(top: 6),
+              constraints: const BoxConstraints(maxHeight: 200),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: _ownerSearchResults.length,
+                itemBuilder: (_, i) {
+                  final u = _ownerSearchResults[i];
+                  final name = (u['full_name'] ?? '${u['first_name'] ?? ''} ${u['last_name'] ?? ''}').toString().trim();
+                  final sub = [
+                    if ((u['username'] ?? '') != '') '@${u['username']}',
+                    if ((u['phone'] ?? '') != '') u['phone'],
+                  ].join(' · ');
+                  final avatarUrl = (u['avatar'] ?? '').toString();
+                  return ListTile(
+                    dense: true,
+                    leading: CircleAvatar(
+                      radius: 16,
+                      backgroundColor: AppColors.primary,
+                      backgroundImage: avatarUrl.isNotEmpty ? CachedNetworkImageProvider(avatarUrl) : null,
+                      child: avatarUrl.isEmpty
+                          ? Text((name.isNotEmpty ? name[0] : 'U').toUpperCase(),
+                              style: appText(size: 12, weight: FontWeight.w700, color: Colors.white))
+                          : null,
+                    ),
+                    title: Text(name.isNotEmpty ? name : 'Unknown', style: appText(size: 13, weight: FontWeight.w600)),
+                    subtitle: sub.isNotEmpty ? Text(sub, style: appText(size: 11, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis) : null,
+                    onTap: () => setState(() {
+                      _eventOwner = u;
+                      _ownerSearchResults = [];
+                      _ownerSearchCtrl.clear();
+                    }),
+                  );
+                },
+              ),
+            )
+          else if (_ownerSearchCtrl.text.trim().length >= 2 && !_ownerSearching && !_showOwnerRegister) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => setState(() => _showOwnerRegister = true),
+              icon: const Icon(Icons.person_add_alt_1, size: 16),
+              label: Text('Register new owner', style: appText(size: 13, weight: FontWeight.w600)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+          if (_showOwnerRegister) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Register new owner', style: appText(size: 13, weight: FontWeight.w700)),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(child: _input(_newOwnerFirstNameCtrl, 'First name *')),
+                  const SizedBox(width: 8),
+                  Expanded(child: _input(_newOwnerLastNameCtrl, 'Last name *')),
+                ]),
+                const SizedBox(height: 8),
+                _input(_newOwnerPhoneCtrl, 'Phone *', keyboardType: TextInputType.phone),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(child: ElevatedButton(
+                    onPressed: _registeringOwner ? null : _registerMissingOwner,
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: AppColors.textPrimary, elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                    child: _registeringOwner
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
+                        : Text('Register & select', style: appText(size: 13, weight: FontWeight.w700)),
+                  )),
+                  const SizedBox(width: 8),
+                  OutlinedButton(
+                    onPressed: _registeringOwner ? null : () => setState(() => _showOwnerRegister = false),
+                    child: Text('Cancel', style: appText(size: 13, weight: FontWeight.w600)),
+                  ),
+                ]),
+                const SizedBox(height: 6),
+                Text('We will send an account-setup link by WhatsApp.', style: appText(size: 11, color: AppColors.textTertiary)),
+              ]),
+            ),
+          ],
+        ],
+        const SizedBox(height: 14),
+        _label('Recognizable owner name (optional)'),
+        _input(_recognizableOwnerNameCtrl, 'e.g. Mwanaidi & Juma, Familia ya Kibwana'),
+        const SizedBox(height: 4),
+        Text('Shown in invitations and messages instead of the account name.',
+            style: appText(size: 11, color: AppColors.textTertiary)),
+      ],
     ]));
   }
 

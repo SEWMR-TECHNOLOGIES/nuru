@@ -215,25 +215,26 @@ def log_offline_payment(
     db.commit()
     db.refresh(p)
 
-    # SMS the vendor — payment claim with confirmation code
+    # SMS the vendor — payment claim with confirmation code (catalogue body)
+    from utils.message_templates import render_message, resolve_user_language
     organiser_name = f"{(current_user.first_name or '').strip()} {(current_user.last_name or '').strip()}".strip() or "An organiser"
     amt_str = _format_amount(currency, body.amount)
     service_title = _service_title(db, es) if es else "your service"
-    msg = (
-        f"NURU PAYMENT\n"
-        f"Hello {vendor_user.first_name or ''}, {organiser_name} has made a payment claim of "
-        f"{amt_str} for your service \"{service_title}\" at {event.name}. "
-        f"Use this code to confirm the payment: {code}. "
-        f"Code expires in {OTP_TTL_MINUTES} minutes."
+    vendor_lang = resolve_user_language(db, vendor_user.id)
+    rendered = render_message(
+        "vendor_otp_claim", vendor_lang,
+        vendor_first_name=vendor_user.first_name or "",
+        organiser_name=organiser_name,
+        currency=currency, amount=f"{float(body.amount):,.0f}",
+        service_title=service_title, event_name=event.name,
+        code=code, minutes=str(OTP_TTL_MINUTES),
     )
-    _wa_or_sms("vendor_payment_otp", vendor_user.phone, {
-        "vendor_name": vendor_user.first_name or "there",
-        "organiser_name": organiser_name,
-        "amount": amt_str,
-        "service_title": service_title,
-        "event_name": event.name,
+    # WhatsApp uses Meta AUTHENTICATION-category template — code only.
+    # SMS fallback keeps the full detailed body unchanged.
+    _wa_or_sms("vendor_otp_claim", vendor_user.phone, {
         "otp": code,
-    }, msg)
+        "lang": vendor_lang,
+    }, rendered["body"])
 
     # In-app notification to vendor
     try:
@@ -374,6 +375,49 @@ def confirm_offline_payment(
     p.expense_id = expense.id
     db.commit()
 
+    # Owner / creator budget summary — same template used by manual expense logging
+    try:
+        from utils.sms import sms_owner_expense_summary
+        from utils.message_templates import resolve_user_language
+        from utils.event_owner import event_owner_id, get_event_owner_display_name
+        from models import EventContribution, ContributionStatusEnum
+        from sqlalchemy import func as _sa_func
+
+        owner_uid = event_owner_id(event) if event else None
+        if owner_uid:
+            total_contributed = float(
+                db.query(_sa_func.coalesce(_sa_func.sum(EventContribution.amount), 0))
+                .filter(
+                    EventContribution.event_id == p.event_id,
+                    EventContribution.confirmation_status == ContributionStatusEnum.confirmed,
+                )
+                .scalar() or 0
+            )
+            total_expenses_amt = float(
+                db.query(_sa_func.coalesce(_sa_func.sum(EventExpense.amount), 0))
+                .filter(EventExpense.event_id == p.event_id)
+                .scalar() or 0
+            )
+            remaining_bal = total_contributed - total_expenses_amt
+            owner_user = db.query(User).filter(User.id == owner_uid).first()
+            if owner_user and owner_user.phone:
+                display_name = get_event_owner_display_name(event, db=db) or (owner_user.first_name or "")
+                o_lang = resolve_user_language(db, owner_user.id)
+                sms_owner_expense_summary(
+                    owner_user.phone,
+                    organizer_name=display_name,
+                    event_name=event.name if event else "",
+                    expense_name=expense.description or expense.category,
+                    currency=p.currency,
+                    expense_amount=float(p.amount or 0),
+                    total_budget=total_contributed,
+                    total_expenses=total_expenses_amt,
+                    remaining_balance=remaining_bal,
+                    lang=o_lang,
+                )
+    except Exception as _oe:  # noqa: BLE001
+        print(f"[offline_payments] owner summary failed: {_oe}")
+
     # Compute remaining balance vs agreed
     remaining_msg = ""
     remaining_amount_str = ""
@@ -414,22 +458,30 @@ def confirm_offline_payment(
     event_name = event.name if event else "the event"
     amt_str = _format_amount(p.currency, p.amount)
 
-    # WhatsApp the vendor confirming receipt (SMS fallback)
+    # WhatsApp the vendor confirming receipt (SMS fallback, catalogue body)
     if current_user.phone:
+        from utils.message_templates import render_message as _rm, resolve_user_language as _rul
         vendor_first = current_user.first_name or vendor_name
-        confirm_sms = (
-            f"NURU PAYMENT\n"
-            f"Hello {vendor_first}, you have received a payment of "
-            f"{amt_str} from {organiser_name} for {event_name}."
-            f"{remaining_msg}"
+        v_lang = _rul(db, current_user.id)
+        full = (remaining or 0) <= 0
+        v_key = "vendor_confirmation_receipt_full" if full else "vendor_confirmation_receipt"
+        confirm_rendered = _rm(
+            v_key, v_lang,
+            vendor_first_name=vendor_first,
+            organiser_name=organiser_name,
+            event_name=event_name,
+            currency=p.currency, amount=f"{float(p.amount):,.0f}",
+            balance=f"{float(max(0, remaining or 0)):,.0f}",
         )
-        _wa_or_sms("vendor_payment_confirmed", current_user.phone, {
-            "vendor_name": vendor_first,
-            "amount": amt_str,
+        wa_action = "vendor_confirmation_receipt_full" if full else "vendor_confirmation_receipt"
+        _wa_or_sms(wa_action, current_user.phone, {
+            "vendor_first_name": vendor_first,
+            "amount_text": amt_str,
             "organiser_name": organiser_name,
             "event_name": event_name,
-            "remaining_msg": remaining_msg.strip() or "Payment is fully settled.",
-        }, confirm_sms)
+            "balance_text": f"{p.currency} {float(max(0, remaining or 0)):,.0f}",
+            "lang": v_lang,
+        }, confirm_rendered["body"])
 
     # Notify event committee + organiser (in-app + SMS + WhatsApp), mirroring expense flow
     try:
@@ -441,18 +493,25 @@ def confirm_offline_payment(
 
     def _send_payment_sms_wa(user_id):
         try:
+            from utils.message_templates import render_message as _rm2, resolve_user_language as _rul2
             user = db.query(User).filter(User.id == user_id).first()
             if not user or not user.phone:
                 print(f"[offline_payments] no phone for user {user_id}, skipping SMS")
                 return
-            sms_msg = (
-                f"NURU PAYMENT\n"
-                f"Hello {user.first_name or ''}, {vendor_name} has confirmed receipt of "
-                f"{amt_str} from {organiser_name} for {event_name}."
-                f"{remaining_msg} Open Nuru for full details."
+            r_lang = _rul2(db, user_id)
+            recipient_first = user.first_name or ""
+            rendered2 = _rm2(
+                "organiser_committee_vendor_confirmed", r_lang,
+                recipient_first_name=recipient_first,
+                vendor_name=vendor_name,
+                organiser_name=organiser_name,
+                currency=p.currency,
+                amount=f"{float(p.amount):,.0f}",
+                event_name=event_name,
+                balance=f"{float(max(0, remaining or 0)):,.0f}",
             )
             try:
-                sms_send(user.phone, sms_msg)
+                sms_send(user.phone, rendered2["body"])
             except Exception as se:
                 print(f"[offline_payments] notify SMS failed for {user_id}: {se}")
             if _send_whatsapp is not None:
@@ -576,21 +635,22 @@ def resend_offline_payment_otp(
     organiser_name = f"{(current_user.first_name or '').strip()} {(current_user.last_name or '').strip()}".strip() or "An organiser"
     amt_str = _format_amount(p.currency, p.amount)
     if vendor and vendor.phone:
-        resend_sms = (
-            f"NURU PAYMENT\n"
-            f"Hello {vendor.first_name or ''}, {organiser_name} has made a payment claim of "
-            f"{amt_str} for your service \"{service_title}\" at {event.name}. "
-            f"Use this code to confirm the payment: {code}. "
-            f"Code expires in {OTP_TTL_MINUTES} minutes."
+        from utils.message_templates import render_message as _rm3, resolve_user_language as _rul3
+        v_lang = _rul3(db, vendor.id)
+        rendered3 = _rm3(
+            "vendor_otp_resend", v_lang,
+            vendor_first_name=vendor.first_name or "",
+            organiser_name=organiser_name,
+            currency=p.currency, amount=f"{float(p.amount):,.0f}",
+            service_title=service_title, event_name=event.name,
+            code=code, minutes=str(OTP_TTL_MINUTES),
         )
-        _wa_or_sms("vendor_payment_otp", vendor.phone, {
-            "vendor_name": vendor.first_name or "there",
-            "organiser_name": organiser_name,
-            "amount": amt_str,
-            "service_title": service_title,
-            "event_name": event.name,
+        # WhatsApp uses Meta AUTHENTICATION-category template — code only.
+        # SMS fallback keeps the full detailed resend body unchanged.
+        _wa_or_sms("vendor_otp_resend", vendor.phone, {
             "otp": code,
-        }, resend_sms)
+            "lang": v_lang,
+        }, rendered3["body"])
 
     return standard_response(True, "OTP resent.", _serialize(db, p))
 

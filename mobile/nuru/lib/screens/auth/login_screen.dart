@@ -210,20 +210,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // ── Big centered Nuru logo ──
-                          const SizedBox(height: 16),
-                          Center(
-                            child: Image.asset(
-                              'assets/images/nuru-logo.png',
-                              height: 96,
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, __, ___) => Image.asset(
-                                'assets/images/nuru-logo-square.png',
-                                height: 96,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 18),
+                          const SizedBox(height: 32),
 
                           // ── Title (single-line, scales down on narrow screens) ──
                           FittedBox(
@@ -547,8 +534,6 @@ class _PhoneVerificationScreenState extends State<_PhoneVerificationScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const SizedBox(height: 8),
-                const Center(child: NuruLogo(size: 28)),
-                const SizedBox(height: 24),
                 FadeInDown(
                   duration: const Duration(milliseconds: 400),
                   child: const OtpShieldIllustration(),

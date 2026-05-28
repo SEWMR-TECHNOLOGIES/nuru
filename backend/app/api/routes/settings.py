@@ -135,6 +135,7 @@ def get_all_settings(db: Session = Depends(get_db), current_user: User = Depends
         },
         "preferences": {
             "language": s.language or "en",
+            "notification_language": (getattr(s, "notification_language", None) or "sw"),
             "currency": s.currency or "TZS",
             "timezone": s.timezone or "Africa/Nairobi",
             "theme": s.theme or "system",
@@ -166,6 +167,7 @@ PRIVACY_TEXT_FIELDS = {"profile_visibility"}
 
 PREFERENCE_TEXT_FIELDS = {"language", "currency", "timezone", "theme", "date_format", "time_format"}
 PREFERENCE_BOOL_FIELDS = {"dark_mode"}
+SUPPORTED_NOTIFICATION_LANGUAGES = {"sw", "en"}
 
 
 @router.put("/notifications")
@@ -199,7 +201,13 @@ def update_privacy_settings(body: dict = Body(...), db: Session = Depends(get_db
 def update_preferences(body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     s = _ensure_settings(db, current_user.id)
     for k, v in (body or {}).items():
-        if k in PREFERENCE_TEXT_FIELDS and hasattr(s, k):
+        if k == "notification_language":
+            lang = str(v or "").strip().lower()
+            if lang not in SUPPORTED_NOTIFICATION_LANGUAGES:
+                return standard_response(False, "Unsupported notification language. Use 'sw' or 'en'.")
+            if hasattr(s, "notification_language"):
+                s.notification_language = lang
+        elif k in PREFERENCE_TEXT_FIELDS and hasattr(s, k):
             setattr(s, k, str(v))
         elif k in PREFERENCE_BOOL_FIELDS and hasattr(s, k):
             setattr(s, k, _bool(v))

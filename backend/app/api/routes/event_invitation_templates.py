@@ -321,8 +321,9 @@ def guest_card_data(invite_id: str, db: Session = Depends(get_db), user: User = 
         .first()
     )
 
+    from utils.event_owner import get_event_owner_display_name
     organizer = db.query(User).filter(User.id == event.organizer_id).first()
-    organizer_name = (
+    organizer_name = get_event_owner_display_name(event, db=db) or (
         f"{organizer.first_name or ''} {organizer.last_name or ''}".strip() if organizer else ""
     )
 

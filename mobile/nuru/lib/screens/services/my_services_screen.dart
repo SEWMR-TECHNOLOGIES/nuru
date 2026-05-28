@@ -70,7 +70,10 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
     if (!silent) setState(() => _loading = true);
     final authUser = context.read<AuthProvider>().user;
     final results = await Future.wait<Map<String, dynamic>>([
-      UserServicesService.getMyServices(search: _search.isEmpty ? null : _search),
+      UserServicesService.getMyServices(
+        search: _search.isEmpty ? null : _search,
+        forceRefresh: true,
+      ),
       EventsService.getProfile().catchError((_) => <String, dynamic>{'success': false}),
     ]);
     final res = results[0];
@@ -158,6 +161,65 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
     if (result == true) _load();
   }
 
+  /// True when the vendor has ≥1 *approved* (verified) service in the
+  /// Photography / Videography / Photography & Videography categories.
+  /// Drives visibility of the Photo Libraries quick action.
+  bool _hasApprovedPhotoVideoService() {
+    for (final raw in _services) {
+      if (raw is! Map) continue;
+      final s = raw as Map<String, dynamic>;
+      final verified = s['is_verified'] == true ||
+          (s['verification_status']?.toString() ?? '') == 'verified';
+      if (!verified) continue;
+      final blob = [
+        s['service_type_slug'],
+        s['service_category']?['slug'],
+        s['service_category']?['name'],
+        s['service_type']?['slug'],
+        s['service_type']?['name'],
+        s['category'],
+        s['category_name'],
+      ].whereType<Object>().map((e) => e.toString().toLowerCase()).join(' ');
+      if (blob.contains('photo') || blob.contains('video')) return true;
+    }
+    return false;
+  }
+
+  String? _firstPhotoVideoServiceId() {
+    for (final raw in _services) {
+      if (raw is! Map) continue;
+      final s = raw as Map<String, dynamic>;
+      final verified = s['is_verified'] == true ||
+          (s['verification_status']?.toString() ?? '') == 'verified';
+      if (!verified) continue;
+      final blob = [
+        s['service_type_slug'],
+        s['service_category']?['slug'],
+        s['service_category']?['name'],
+        s['service_type']?['slug'],
+        s['service_type']?['name'],
+      ].whereType<Object>().map((e) => e.toString().toLowerCase()).join(' ');
+      if (blob.contains('photo') || blob.contains('video')) {
+        return s['id']?.toString();
+      }
+    }
+    return null;
+  }
+
+  void _openAllPhotoLibraries() {
+    final sid = _firstPhotoVideoServiceId();
+    if (sid == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MyPhotoLibrariesScreen(
+          serviceId: sid,
+          title: 'Photo Libraries',
+        ),
+      ),
+    );
+  }
+
   // ─── Build ───────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
@@ -180,18 +242,41 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
           style: _f(size: 17, weight: FontWeight.w700),
         ),
         actions: [
-          TextButton(
-            onPressed: _onAddNew,
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.primaryDark,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+          if (_hasApprovedPhotoVideoService())
+            IconButton(
+              tooltip: 'Photo Libraries',
+              onPressed: _openAllPhotoLibraries,
+              icon: SvgPicture.asset(
+                'assets/icons/photos-icon.svg',
+                width: 22,
+                height: 22,
+                colorFilter: const ColorFilter.mode(
+                    AppColors.textPrimary, BlendMode.srcIn),
+              ),
             ),
-            child: Text('Add New',
-                style: _f(
-                  size: 14,
-                  weight: FontWeight.w600,
-                  color: AppColors.primaryDark,
-                )),
+          Padding(
+            padding: const EdgeInsets.only(right: 10, left: 2),
+            child: Material(
+              color: AppColors.primary,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: _onAddNew,
+                child: SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: Center(
+                    child: SvgPicture.asset(
+                      'assets/icons/plus-icon.svg',
+                      width: 16,
+                      height: 16,
+                      colorFilter: const ColorFilter.mode(
+                          Color(0xFF1C1C24), BlendMode.srcIn),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -300,6 +385,11 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
     ]);
     final svcCount = _services.length;
     final bookings = (_summary['total_bookings'] as num?)?.toInt() ?? 0;
+    final pendingBookings = _intValue([
+      _summary['pending_bookings'],
+      _summary['pending_bookings_count'],
+      _summary['bookings_pending'],
+    ]);
     final completionRate =
         (_summary['completion_rate'] as num?)?.toInt() ?? 0;
 
@@ -437,33 +527,33 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
               Expanded(child: _heroStat('$completionRate%', 'Completion Rate')),
             ],
           ),
-          const SizedBox(height: 14),
-          // Manage Bookings CTA
-          GestureDetector(
-            onTap: _openBookings,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1C1C24),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.inbox_rounded,
-                      color: Colors.white, size: 18),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Manage Bookings',
-                      style: _f(
-                        size: 13.5,
-                        weight: FontWeight.w700,
-                        color: Colors.white,
+          // Manage Bookings CTA — only shown when there are pending bookings.
+          if (pendingBookings > 0) ...[
+            const SizedBox(height: 14),
+            GestureDetector(
+              onTap: _openBookings,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C1C24),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.inbox_rounded,
+                        color: Colors.white, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Manage Bookings',
+                        style: _f(
+                          size: 13.5,
+                          weight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                  ),
-                  if (bookings > 0)
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 3),
@@ -471,20 +561,21 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                         color: AppColors.primary,
                         borderRadius: BorderRadius.circular(999),
                       ),
-                      child: Text('$bookings',
+                      child: Text('$pendingBookings',
                           style: _f(
                             size: 11,
                             weight: FontWeight.w800,
                             color: const Color(0xFF1C1C24),
                           )),
                     ),
-                  const SizedBox(width: 6),
-                  const Icon(Icons.arrow_forward_ios_rounded,
-                      color: Colors.white70, size: 13),
-                ],
+                    const SizedBox(width: 6),
+                    const Icon(Icons.arrow_forward_ios_rounded,
+                        color: Colors.white70, size: 13),
+                  ],
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -586,6 +677,23 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
         s['short_description']?.toString() ??
         '';
     final priceUnit = s['price_unit']?.toString() ?? '';
+    final categoryName = _firstNonEmpty([
+      s['service_category']?['name'],
+      s['category_name'],
+      s['category'],
+      s['service_type']?['name'],
+    ]);
+    final serviceTypeNames = <String>[];
+    final rawTypes = s['service_types'] ?? s['types'] ?? s['offered_services'];
+    if (rawTypes is List) {
+      for (final t in rawTypes) {
+        if (t is String && t.trim().isNotEmpty) serviceTypeNames.add(t.trim());
+        if (t is Map) {
+          final n = (t['name'] ?? t['label'] ?? t['title'] ?? '').toString().trim();
+          if (n.isNotEmpty) serviceTypeNames.add(n);
+        }
+      }
+    }
 
     // Borderless row with a thin hairline divider that starts at the
     // right edge of the thumbnail and ends at the right edge of the card.
@@ -647,7 +755,43 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                               ),
                           ],
                         ),
-                        if (description.isNotEmpty) ...[
+                        if (categoryName.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            categoryName,
+                            style: _f(
+                              size: 11.5,
+                              color: AppColors.primaryDark,
+                              weight: FontWeight.w700,
+                              letterSpacing: 0.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                        if (serviceTypeNames.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: serviceTypeNames.take(4).map((t) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF4F4F6),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(t,
+                                    style: _f(
+                                      size: 10.5,
+                                      weight: FontWeight.w600,
+                                      color: AppColors.textSecondary,
+                                    )),
+                              );
+                            }).toList(),
+                          ),
+                        ] else if (description.isNotEmpty) ...[
                           const SizedBox(height: 4),
                           Text(
                             description,
@@ -1237,7 +1381,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                     style: _f(size: 14, weight: FontWeight.w800)),
               ),
               _sheetItem(
-                icon: Icons.visibility_outlined,
+                svg: 'assets/icons/info-icon.svg',
                 label: 'View Service',
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1251,8 +1395,8 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                 },
               ),
               _sheetItem(
-                icon: Icons.tune_rounded,
-                label: 'Manage / Edit details',
+                svg: 'assets/icons/pen-icon.svg',
+                label: 'Manage Service',
                 onTap: () async {
                   Navigator.pop(ctx);
                   final result = await Navigator.push(
@@ -1265,8 +1409,22 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                   if (result == true) _load();
                 },
               ),
+              if (_intValue([
+                    service['pending_bookings_count'],
+                    service['pending_bookings'],
+                  ]) >
+                  0)
+                _sheetItem(
+                  svg: 'assets/icons/bag-icon.svg',
+                  label:
+                      'Manage Bookings (${_intValue([service['pending_bookings_count'], service['pending_bookings']])})',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _openBookings();
+                  },
+                ),
               _sheetItem(
-                icon: Icons.photo_library_outlined,
+                svg: 'assets/icons/image-icon.svg',
                 label: 'Manage Photos',
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1282,7 +1440,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                 },
               ),
               _sheetItem(
-                icon: Icons.videocam_outlined,
+                svg: 'assets/icons/camera-icon.svg',
                 label: 'Manage Intro Clip',
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1299,7 +1457,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
               ),
               if (isVerified)
                 _sheetItem(
-                  icon: Icons.inventory_2_outlined,
+                  svg: 'assets/icons/package-icon.svg',
                   label: 'Add Package',
                   onTap: () {
                     Navigator.pop(ctx);
@@ -1308,7 +1466,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                 ),
               if (isPhotographyService && isVerified)
                 _sheetItem(
-                  icon: Icons.collections_outlined,
+                  svg: 'assets/icons/photos-icon.svg',
                   label: 'Photo Libraries',
                   onTap: () {
                     Navigator.pop(ctx);
@@ -1324,7 +1482,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                   },
                 ),
               _sheetItem(
-                icon: Icons.event_outlined,
+                svg: 'assets/icons/calendar-icon.svg',
                 label: 'My Events',
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1339,7 +1497,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
               ),
               if (!isVerified)
                 _sheetItem(
-                  icon: Icons.bolt_rounded,
+                  svg: 'assets/icons/rocket-icon.svg',
                   iconColor: const Color(0xFFB45309),
                   label: 'Continue Activation',
                   onTap: () {
@@ -1361,26 +1519,38 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
   }
 
   Widget _sheetItem({
-    required IconData icon,
+    IconData? icon,
+    String? svg,
     required String label,
     required VoidCallback onTap,
     Color? iconColor,
   }) {
+    final tint = iconColor ?? AppColors.textSecondary;
+    final leading = svg != null
+        ? SvgPicture.asset(svg,
+            width: 20,
+            height: 20,
+            colorFilter: ColorFilter.mode(tint, BlendMode.srcIn))
+        : Icon(icon ?? Icons.circle_outlined, size: 20, color: tint);
     return InkWell(
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         child: Row(
           children: [
-            Icon(icon,
-                size: 20, color: iconColor ?? AppColors.textSecondary),
+            leading,
             const SizedBox(width: 14),
             Expanded(
               child: Text(label,
                   style: _f(size: 13.5, weight: FontWeight.w700)),
             ),
-            const Icon(Icons.chevron_right_rounded,
-                size: 18, color: AppColors.textTertiary),
+            SvgPicture.asset(
+              'assets/icons/chevron-right-icon.svg',
+              width: 16,
+              height: 16,
+              colorFilter: const ColorFilter.mode(
+                  AppColors.textTertiary, BlendMode.srcIn),
+            ),
           ],
         ),
       ),

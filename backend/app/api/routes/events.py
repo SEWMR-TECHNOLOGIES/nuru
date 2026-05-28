@@ -18,6 +18,7 @@ from models import (
     EventCommitteeMember, RSVPStatusEnum, UserContributor, GuestTypeEnum,
 )
 from utils.helpers import standard_response
+from utils.event_owner import get_event_owner_display_name
 
 EAT = pytz.timezone("Africa/Nairobi")
 
@@ -79,7 +80,7 @@ def _public_event_dict(db: Session, event: Event) -> dict:
         "special_instructions": event.special_instructions,
         "guest_count": guest_count,
         "organizer": {
-            "name": f"{organizer.first_name} {organizer.last_name}" if organizer else None,
+            "name": get_event_owner_display_name(event, db=db) or None,
         },
         "sells_tickets": event.sells_tickets or False,
         "status": "published" if (event.status.value if hasattr(event.status, "value") else event.status) == "confirmed" else (event.status.value if hasattr(event.status, "value") else event.status),
@@ -436,7 +437,7 @@ def get_rsvp_page(event_id: str, guest_id: str, token: str = "", db: Session = D
             "theme_color": event.theme_color,
             "dress_code": event.dress_code,
             "special_instructions": event.special_instructions,
-            "organizer_name": f"{organizer.first_name} {organizer.last_name}" if organizer else None,
+            "organizer_name": get_event_owner_display_name(event, db=db) or None,
         },
         "guest": {
             "id": str(att.id),
@@ -559,7 +560,7 @@ def public_contribution_page(event_id: str, db: Session = Depends(get_db)):
         "event": {
             "id": str(event.id), "title": event.name, "cover_image": event.cover_image_url,
             "start_date": event.start_date.isoformat() if event.start_date else None,
-            "host_names": f"{organizer.first_name} {organizer.last_name}" if organizer else None,
+            "host_names": get_event_owner_display_name(event, db=db) or None,
         },
         "contribution_info": {
             "enabled": settings.contributions_enabled if settings else False,

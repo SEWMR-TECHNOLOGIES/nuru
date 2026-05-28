@@ -14,8 +14,10 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from models import (
     Event, EventExpense, EventCommitteeMember, CommitteePermission,
-    User, UserProfile, Currency, UserService,
+    User, UserProfile, Currency, UserService, EventContribution,
 )
+from models.enums import ContributionStatusEnum
+from utils.event_owner import event_owner_id, get_event_owner_display_name
 from utils.auth import get_current_user
 from utils.helpers import standard_response, format_price
 from utils.notify import create_notification
@@ -224,17 +226,23 @@ def add_expense(
         ).all()
 
         def _send_expense_sms_wa(user_id):
-            """Send SMS + WhatsApp for an expense notification."""
+            """Send SMS + WhatsApp for an expense notification (catalogue)."""
+            from utils.sms import sms_expense_recorded
+            from utils.message_templates import resolve_user_language
             user = db.query(User).filter(User.id == user_id).first()
             if not user or not user.phone:
                 return
-            msg = (
-                f"NURU EXPENSE\n"
-                f"Hello {user.first_name}, {recorder_name} has recorded a new expense of "
-                f"{amount_str} under {body.category} for {event.name}. "
-                f"Open Nuru for the full breakdown."
+            lang = resolve_user_language(db, user_id)
+            sms_expense_recorded(
+                user.phone,
+                user.first_name or "",
+                recorder_name,
+                currency,
+                body.amount,
+                body.category,
+                event.name,
+                lang=lang,
             )
-            sms_send(user.phone, msg)
             _send_whatsapp("expense_recorded", user.phone, {
                 "recipient_name": user.first_name,
                 "recorder_name": recorder_name,
@@ -285,6 +293,67 @@ def add_expense(
                 },
             )
             _send_expense_sms_wa(event.organizer_id)
+
+    # Owner / creator budget summary — always sent (regardless of notify_committee)
+    try:
+        from utils.sms import sms_owner_expense_summary
+        from utils.message_templates import resolve_user_language
+
+        currency = _currency_code(db, event.currency_id)
+        owner_uid = event_owner_id(event)  # owner if set, else creator
+        # Total contributed (confirmed only)
+        total_contributed = float(
+            db.query(sa_func.coalesce(sa_func.sum(EventContribution.amount), 0))
+            .filter(
+                EventContribution.event_id == eid,
+                EventContribution.confirmation_status == ContributionStatusEnum.confirmed,
+            )
+            .scalar() or 0
+        )
+        # Total expenses including the one just added
+        total_expenses_amt = float(
+            db.query(sa_func.coalesce(sa_func.sum(EventExpense.amount), 0))
+            .filter(EventExpense.event_id == eid)
+            .scalar() or 0
+        )
+        if not any(str(e.id) == str(expense.id) for e in []):  # noqa
+            # expense not yet flushed/committed — include manually
+            pass
+        # Ensure the newly-added expense is reflected even before commit
+        try:
+            db.flush()
+            total_expenses_amt = float(
+                db.query(sa_func.coalesce(sa_func.sum(EventExpense.amount), 0))
+                .filter(EventExpense.event_id == eid)
+                .scalar() or 0
+            )
+        except Exception:
+            pass
+
+        remaining = total_contributed - total_expenses_amt
+
+        owner_user = None
+        if owner_uid:
+            owner_user = db.query(User).filter(User.id == owner_uid).first()
+        if owner_user and owner_user.phone:
+            display_name = get_event_owner_display_name(event, db=db) or (
+                owner_user.first_name or ""
+            )
+            lang = resolve_user_language(db, owner_user.id)
+            sms_owner_expense_summary(
+                owner_user.phone,
+                organizer_name=display_name,
+                event_name=event.name,
+                expense_name=body.description or body.category,
+                currency=currency,
+                expense_amount=float(body.amount or 0),
+                total_budget=total_contributed,
+                total_expenses=total_expenses_amt,
+                remaining_balance=remaining,
+                lang=lang,
+            )
+    except Exception as _e:  # noqa: BLE001
+        print(f"[expenses.add] owner summary failed: {_e}")
 
     db.commit()
     db.refresh(expense)

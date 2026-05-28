@@ -45,24 +45,42 @@ class _VideoThumbnailImageState extends State<VideoThumbnailImage> {
     }
   }
 
+  @override
+  void didUpdateWidget(covariant VideoThumbnailImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.videoUrl != widget.videoUrl) {
+      _localPath = null;
+      if ((widget.posterUrl == null || widget.posterUrl!.isEmpty)) {
+        _generate();
+      } else {
+        if (mounted) setState(() {});
+      }
+    }
+  }
+
   Future<void> _generate() async {
-    final cached = _cache[widget.videoUrl];
+    final urlAtStart = widget.videoUrl;
+    final cached = _cache[urlAtStart];
     if (cached != null && File(cached).existsSync()) {
-      if (mounted) setState(() => _localPath = cached);
+      if (mounted && widget.videoUrl == urlAtStart) {
+        setState(() => _localPath = cached);
+      }
       return;
     }
     try {
       final dir = await getTemporaryDirectory();
       final path = await vt.VideoThumbnail.thumbnailFile(
-        video: widget.videoUrl,
+        video: urlAtStart,
         thumbnailPath: dir.path,
         imageFormat: vt.ImageFormat.JPEG,
         maxWidth: 480,
         quality: 70,
       );
       if (path != null) {
-        _cache[widget.videoUrl] = path;
-        if (mounted) setState(() => _localPath = path);
+        _cache[urlAtStart] = path;
+        if (mounted && widget.videoUrl == urlAtStart) {
+          setState(() => _localPath = path);
+        }
       }
     } catch (_) {/* ignore */}
   }
