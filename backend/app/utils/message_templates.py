@@ -236,8 +236,8 @@ TEMPLATES: dict[str, dict[str, dict[str, str]]] = {
             "body": (
                 "Habari {contributor_name}, tumepokea ahadi yako ya mchango "
                 "kwa ajili ya {event_name} kiasi cha {target_text}. Asante "
-                "kwa ukarimu wako. Kwa msaada, mpigie mratibu wa tukio "
-                "kupitia {organizer_phone}.\n" + SIGN_OFF
+                "kwa ukarimu wako. {payment_instructions} Kwa msaada, mpigie "
+                "mratibu wa tukio kupitia {organizer_phone}.\n" + SIGN_OFF
             ),
         },
         "en": {
@@ -245,9 +245,9 @@ TEMPLATES: dict[str, dict[str, dict[str, str]]] = {
             "body": (
                 "Hello {contributor_name}, we have received your "
                 "contribution pledge for {event_name} of "
-                "{target_text}. Thank you for your generosity. For help, "
-                "call the event organiser on {organizer_phone}.\n"
-                + SIGN_OFF
+                "{target_text}. Thank you for your generosity. "
+                "{payment_instructions} For help, call the event organiser "
+                "on {organizer_phone}.\n" + SIGN_OFF
             ),
         },
     },
@@ -259,8 +259,9 @@ TEMPLATES: dict[str, dict[str, dict[str, str]]] = {
                 "Habari {contributor_name}, tumepokea ongezeko la ahadi "
                 "yako ya mchango kwa ajili ya {event_name} kiasi cha "
                 "{increase_text}. Jumla ya ahadi yako ni {total_target_text}. "
-                "Asante kwa ukarimu wako. Kwa msaada, mpigie mratibu wa "
-                "tukio kupitia {organizer_phone}.\n" + SIGN_OFF
+                "Asante kwa ukarimu wako. {payment_instructions} Kwa msaada, "
+                "mpigie mratibu wa tukio kupitia {organizer_phone}.\n"
+                + SIGN_OFF
             ),
         },
         "en": {
@@ -269,9 +270,9 @@ TEMPLATES: dict[str, dict[str, dict[str, str]]] = {
                 "Hello {contributor_name}, we have received an increase to "
                 "your contribution pledge for {event_name} of "
                 "{increase_text}. Your total pledge is now "
-                "{total_target_text}. Thank you for your generosity. For "
-                "help, call the event organiser on {organizer_phone}.\n"
-                + SIGN_OFF
+                "{total_target_text}. Thank you for your generosity. "
+                "{payment_instructions} For help, call the event organiser "
+                "on {organizer_phone}.\n" + SIGN_OFF
             ),
         },
     },

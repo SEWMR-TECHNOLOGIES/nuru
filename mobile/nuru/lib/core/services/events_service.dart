@@ -169,6 +169,7 @@ class EventsService {
     double? venueLongitude,
     String? venueAddress,
     String? reminderContactPhone,
+    String? contributionPaymentInstructions,
     String status = 'published',
     bool createdForSomeoneElse = false,
     String? eventOwnerUserId,
@@ -206,6 +207,8 @@ class EventsService {
         request.fields['venue_address'] = venueAddress;
       if (reminderContactPhone != null)
         request.fields['reminder_contact_phone'] = reminderContactPhone;
+      if (contributionPaymentInstructions != null)
+        request.fields['contribution_payment_instructions'] = contributionPaymentInstructions;
       request.fields['created_for_someone_else'] = createdForSomeoneElse ? 'true' : 'false';
       if (createdForSomeoneElse && eventOwnerUserId != null && eventOwnerUserId.isNotEmpty) {
         request.fields['event_owner_user_id'] = eventOwnerUserId;
@@ -251,6 +254,7 @@ class EventsService {
     double? venueLongitude,
     String? venueAddress,
     String? reminderContactPhone,
+    String? contributionPaymentInstructions,
     String? invitationTemplateId,
     String? invitationAccentColor,
     Map<String, dynamic>? invitationContent,
@@ -288,6 +292,8 @@ class EventsService {
         request.fields['venue_address'] = venueAddress;
       if (reminderContactPhone != null)
         request.fields['reminder_contact_phone'] = reminderContactPhone;
+      if (contributionPaymentInstructions != null)
+        request.fields['contribution_payment_instructions'] = contributionPaymentInstructions;
       if (invitationTemplateId != null)
         request.fields['invitation_template_id'] = invitationTemplateId;
       if (invitationAccentColor != null)

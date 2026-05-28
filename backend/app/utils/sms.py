@@ -200,8 +200,11 @@ def sms_contribution_target_set(
     organizer_phone: str = None,
     *,
     lang: str | None = None,
+    payment_instructions: str | None = None,
 ):
     """First-time pledge assignment. Does NOT include total_paid or balance."""
+    from utils.payment_instructions import resolve_payment_instructions
+    instr = (payment_instructions or "").strip() or resolve_payment_instructions(None, lang)
     _render_and_send(
         phone,
         "contribution_target_set",
@@ -210,6 +213,7 @@ def sms_contribution_target_set(
         event_name=event_title,
         target_text=format_money(currency, target),
         organizer_phone=organizer_phone or "",
+        payment_instructions=instr,
     )
 
 
@@ -223,6 +227,7 @@ def sms_contribution_target_updated(
     organizer_phone: str = None,
     *,
     lang: str | None = None,
+    payment_instructions: str | None = None,
 ):
     """Pledge increased on an existing pledge.
 
@@ -230,6 +235,8 @@ def sms_contribution_target_updated(
     ``sms_contribution_target_set`` at the call site. There is no
     dedicated reduction template yet.
     """
+    from utils.payment_instructions import resolve_payment_instructions
+    instr = (payment_instructions or "").strip() or resolve_payment_instructions(None, lang)
     _render_and_send(
         phone,
         "contribution_target_updated",
@@ -239,6 +246,7 @@ def sms_contribution_target_updated(
         increase_text=format_money(currency, increase),
         total_target_text=format_money(currency, total_target),
         organizer_phone=organizer_phone or "",
+        payment_instructions=instr,
     )
 
 

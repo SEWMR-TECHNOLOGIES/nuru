@@ -55,6 +55,7 @@ const CreateEvent: React.FC = () => {
     venueName: "",
     venueAddress: "",
     reminderContactPhone: "",
+    contributionPaymentInstructions: "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -133,6 +134,7 @@ const CreateEvent: React.FC = () => {
               venueName: (event as any).venue || "",
               venueAddress: (event as any).venue_address || "",
               reminderContactPhone: (event as any).reminder_contact_phone || "",
+              contributionPaymentInstructions: (event as any).contribution_payment_instructions || "",
             });
 
             // Restore ticketing state
@@ -275,6 +277,8 @@ const CreateEvent: React.FC = () => {
 
       // Always send reminder_contact_phone (empty string clears it on update)
       form.append("reminder_contact_phone", formData.reminderContactPhone.trim());
+      // Always send contribution_payment_instructions (empty string clears it on update)
+      form.append("contribution_payment_instructions", formData.contributionPaymentInstructions.trim());
 
       // Ticketing flags
       form.append("sells_tickets", ticketingEnabled ? "true" : "false");
@@ -651,6 +655,23 @@ const CreateEvent: React.FC = () => {
               <p className="text-[11px] text-muted-foreground mt-1">
                 Shown in reminder & thank-you messages so contributors know who to call.
                 Defaults to your account phone if left blank.
+              </p>
+            </div>
+
+            {/* Contributor payment instructions */}
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Contributor payment instructions <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <Textarea
+                placeholder="e.g. Send via M-Pesa to 0712 345 678 (Lipa Namba 12345), or deposit to CRDB account 0150123456789."
+                value={formData.contributionPaymentInstructions}
+                onChange={(e) => setFormData({ ...formData, contributionPaymentInstructions: e.target.value })}
+                rows={3}
+                maxLength={500}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Explain how contributors should complete their payment. This will be included in contribution target messages.
               </p>
             </div>
 

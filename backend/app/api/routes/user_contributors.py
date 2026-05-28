@@ -1129,13 +1129,15 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
             currency = _currency_code(db, event)
             organizer = db.query(User).filter(User.id == event.organizer_id).first()
             organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
+            pay_instr = (event.contribution_payment_instructions or "").strip() or None
             for ph in recipients:
                 try:
                     from utils.whatsapp import wa_contribution_target_set
                     wa_contribution_target_set(
                         ph, contributor.name,
                         event.name, pledge_val, 0, currency,
-                        organizer_phone=organizer_phone
+                        organizer_phone=organizer_phone,
+                        payment_instructions=pay_instr,
                     )
                 except Exception:
                     pass
@@ -1144,7 +1146,8 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
                     sms_contribution_target_set(
                         ph, contributor.name,
                         event.name, pledge_val, 0, currency,
-                        organizer_phone=organizer_phone
+                        organizer_phone=organizer_phone,
+                        payment_instructions=pay_instr,
                     )
                 except Exception:
                     pass
@@ -1201,6 +1204,7 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
             currency = _currency_code(db, event)
             organizer = db.query(User).filter(User.id == event.organizer_id).first()
             organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
+            pay_instr = (event.contribution_payment_instructions or "").strip() or None
             # Decide template variant: first-time set, increase, or reduction.
             # Reductions currently fall back to ``set`` (no dedicated template).
             is_first_time = old_pledge <= 0
@@ -1211,7 +1215,8 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
                     wa_contribution_target_set(
                         ph, ec.contributor.name,
                         event.name, new_pledge, 0, currency,
-                        organizer_phone=organizer_phone
+                        organizer_phone=organizer_phone,
+                        payment_instructions=pay_instr,
                     )
                 except Exception:
                     pass
@@ -1224,6 +1229,7 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
                             total_target=new_pledge,
                             currency=currency,
                             organizer_phone=organizer_phone,
+                            payment_instructions=pay_instr,
                         )
                     else:
                         # First-time set, or reduction (fallback to set template).
@@ -1232,12 +1238,10 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
                             ph, ec.contributor.name, event.name,
                             new_pledge, currency=currency,
                             organizer_phone=organizer_phone,
+                            payment_instructions=pay_instr,
                         )
                 except Exception:
                     pass
-
-    return standard_response(True, "Event contributor updated", _event_contributor_dict(ec))
-
 
 @router.delete("/events/{event_id}/contributors/{ec_id}")
 def remove_from_event(event_id: str, ec_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -1764,6 +1768,7 @@ def _legacy_bulk_add_contributors_inline(event_id: str, body: dict, db: Session,
                     from utils.offline_claims import contributor_notify_phones
                     # Pledge reductions fall back to ``set`` (no reduction template yet).
                     is_increase = amount > old_pledge and old_pledge > 0
+                    pay_instr = (event.contribution_payment_instructions or "").strip() or None
                     for ph in contributor_notify_phones(ec):
                         try:
                             if is_increase:
@@ -1774,6 +1779,7 @@ def _legacy_bulk_add_contributors_inline(event_id: str, body: dict, db: Session,
                                     total_target=amount,
                                     currency=currency,
                                     organizer_phone=organizer_phone,
+                                    payment_instructions=pay_instr,
                                 )
                             else:
                                 from utils.sms import sms_contribution_target_set
@@ -1781,6 +1787,7 @@ def _legacy_bulk_add_contributors_inline(event_id: str, body: dict, db: Session,
                                     ph, contributor.name, event.name,
                                     amount, currency=currency,
                                     organizer_phone=organizer_phone,
+                                    payment_instructions=pay_instr,
                                 )
                         except Exception:
                             pass
@@ -1799,17 +1806,18 @@ def _legacy_bulk_add_contributors_inline(event_id: str, body: dict, db: Session,
 
                 if send_sms and amount > 0:
                     from utils.offline_claims import contributor_notify_phones
+                    pay_instr = (event.contribution_payment_instructions or "").strip() or None
                     for ph in contributor_notify_phones(ec):
                         try:
                             from utils.sms import sms_contribution_target_set
                             sms_contribution_target_set(
                                 ph, contributor.name,
                                 event.name, amount, 0, currency,
-                                organizer_phone=organizer_phone
+                                organizer_phone=organizer_phone,
+                                payment_instructions=pay_instr,
                             )
                         except Exception:
                             pass
-
         else:  # mode == "contributions"
             if not ec:
                 ec = EventContributor(

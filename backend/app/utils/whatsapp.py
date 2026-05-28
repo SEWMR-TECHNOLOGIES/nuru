@@ -237,11 +237,15 @@ def wa_contribution_target_set(
     currency: str = "TZS",
     organizer_phone: str = "",
     lang: str = "sw",
+    payment_instructions: str | None = None,
 ):
+    from utils.payment_instructions import resolve_payment_instructions
+    instr = (payment_instructions or "").strip() or resolve_payment_instructions(None, lang)
     _send_whatsapp("contribution_target_set", phone, {
         "contributor_name": contributor_name,
         "event_name": event_title,
         "target_text": _money(target, currency),
+        "payment_instructions": instr,
         "organizer_phone": organizer_phone or "Nuru",
         "lang": _lang(lang),
     })
@@ -259,12 +263,16 @@ def wa_contribution_target_updated(
     currency: str = "TZS",
     organizer_phone: str = "",
     lang: str = "sw",
+    payment_instructions: str | None = None,
 ):
+    from utils.payment_instructions import resolve_payment_instructions
+    instr = (payment_instructions or "").strip() or resolve_payment_instructions(None, lang)
     _send_whatsapp("contribution_target_updated", phone, {
         "contributor_name": contributor_name,
         "event_name": event_title,
         "increase_text": _money(increase, currency),
         "total_target_text": _money(total_target, currency),
+        "payment_instructions": instr,
         "organizer_phone": organizer_phone or "Nuru",
         "lang": _lang(lang),
     })

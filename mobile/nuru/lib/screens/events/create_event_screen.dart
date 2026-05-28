@@ -45,6 +45,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   final _dressCodeCtrl = TextEditingController();
   final _specialInstructionsCtrl = TextEditingController();
   final _reminderContactPhoneCtrl = TextEditingController();
+  final _contributionPaymentInstructionsCtrl = TextEditingController();
   String? _eventTypeId;
   String _visibility = 'private';
   DateTime? _startDate;
@@ -146,6 +147,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _dressCodeCtrl.text = extractStr(e['dress_code']);
     _specialInstructionsCtrl.text = extractStr(e['special_instructions']);
     _reminderContactPhoneCtrl.text = extractStr(e['reminder_contact_phone']);
+    _contributionPaymentInstructionsCtrl.text = extractStr(e['contribution_payment_instructions']);
     String _toIntStr(dynamic v) {
       if (v == null) return '';
       final n = v is num ? v : num.tryParse(v.toString());
@@ -436,6 +438,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _dressCodeCtrl.dispose();
     _specialInstructionsCtrl.dispose();
     _reminderContactPhoneCtrl.dispose();
+    _contributionPaymentInstructionsCtrl.dispose();
     _vendorSearchCtrl.dispose();
     _recognizableOwnerNameCtrl.dispose();
     _ownerSearchCtrl.dispose();
@@ -490,6 +493,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         dressCode: _dressCodeCtrl.text.trim().isEmpty ? null : _dressCodeCtrl.text.trim(),
         specialInstructions: _specialInstructionsCtrl.text.trim().isEmpty ? null : _specialInstructionsCtrl.text.trim(),
         reminderContactPhone: _reminderContactPhoneCtrl.text.trim().isEmpty ? null : _reminderContactPhoneCtrl.text.trim(),
+        contributionPaymentInstructions: _contributionPaymentInstructionsCtrl.text.trim(),
         time: timeStr,
         imagePath: _imagePath,
         venueLatitude: _venueLatitude,
@@ -526,6 +530,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         dressCode: _dressCodeCtrl.text.trim().isEmpty ? null : _dressCodeCtrl.text.trim(),
         specialInstructions: _specialInstructionsCtrl.text.trim().isEmpty ? null : _specialInstructionsCtrl.text.trim(),
         reminderContactPhone: _reminderContactPhoneCtrl.text.trim().isEmpty ? null : _reminderContactPhoneCtrl.text.trim(),
+        contributionPaymentInstructions: _contributionPaymentInstructionsCtrl.text.trim().isEmpty ? null : _contributionPaymentInstructionsCtrl.text.trim(),
         time: timeStr,
         imagePath: _imagePath,
         venueLatitude: _venueLatitude,
@@ -1414,6 +1419,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
             dressCode: _dressCodeCtrl.text.trim().isEmpty ? null : _dressCodeCtrl.text.trim(),
             specialInstructions: _specialInstructionsCtrl.text.trim().isEmpty ? null : _specialInstructionsCtrl.text.trim(),
             reminderContactPhone: _reminderContactPhoneCtrl.text.trim().isEmpty ? null : _reminderContactPhoneCtrl.text.trim(),
+            contributionPaymentInstructions: _contributionPaymentInstructionsCtrl.text.trim(),
           );
         }
       }
@@ -1780,6 +1786,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       const SizedBox(height: 16),
       _label('Reminder contact phone (optional)'),
       _input(_reminderContactPhoneCtrl, 'e.g. +255712345678. Used in reminder messages instead of your number.', keyboardType: TextInputType.phone),
+      const SizedBox(height: 16),
+      _label('Contributor payment instructions (optional)'),
+      _input(_contributionPaymentInstructionsCtrl, 'Explain how contributors should complete their payment. This will be included in contribution target messages.', maxLines: 3),
     ]));
   }
 

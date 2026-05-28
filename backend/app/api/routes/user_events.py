@@ -313,6 +313,7 @@ def _event_summary(db: Session, event: Event) -> dict:
         "invitation_sample_names": event.invitation_sample_names,
         "invitation_content": event.invitation_content,
         "reminder_contact_phone": event.reminder_contact_phone,
+        "contribution_payment_instructions": event.contribution_payment_instructions,
         "rsvp_deadline": settings.rsvp_deadline.isoformat() if settings and settings.rsvp_deadline else None,
         "contribution_enabled": settings.contributions_enabled if settings else False,
         "contribution_target": contribution_target,
@@ -1326,6 +1327,7 @@ async def create_event(
     expected_guests: Optional[int] = Form(None), dress_code: Optional[str] = Form(None),
     special_instructions: Optional[str] = Form(None), rsvp_deadline: Optional[str] = Form(None),
     reminder_contact_phone: Optional[str] = Form(None),
+    contribution_payment_instructions: Optional[str] = Form(None),
     contribution_enabled: Optional[bool] = Form(False), contribution_target: Optional[float] = Form(None),
     contribution_description: Optional[str] = Form(None), services: Optional[str] = Form(None),
     images: Optional[List[UploadFile]] = File(None),
@@ -1429,6 +1431,7 @@ async def create_event(
         dress_code=dress_code.strip() if dress_code else None,
         special_instructions=special_instructions.strip() if special_instructions else None,
         reminder_contact_phone=reminder_contact_phone.strip() if reminder_contact_phone else None,
+        contribution_payment_instructions=(contribution_payment_instructions.strip() or None) if contribution_payment_instructions else None,
         created_at=now, updated_at=now,
     )
     db.add(new_event)
@@ -1584,6 +1587,7 @@ async def update_event(
     currency: Optional[str] = Form(None), expected_guests: Optional[int] = Form(None),
     dress_code: Optional[str] = Form(None), special_instructions: Optional[str] = Form(None),
     reminder_contact_phone: Optional[str] = Form(None),
+    contribution_payment_instructions: Optional[str] = Form(None),
     invitation_template_id: Optional[str] = Form(None),
     invitation_accent_color: Optional[str] = Form(None),
     invitation_content: Optional[str] = Form(None),
@@ -1722,6 +1726,9 @@ async def update_event(
     if reminder_contact_phone is not None:
         rcp = reminder_contact_phone.strip()
         event.reminder_contact_phone = rcp if rcp else None
+    if contribution_payment_instructions is not None:
+        cpi = contribution_payment_instructions.strip()
+        event.contribution_payment_instructions = cpi if cpi else None
     if invitation_template_id is not None:
         v = invitation_template_id.strip()
         event.invitation_template_id = v if v else None
